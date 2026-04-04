@@ -127,6 +127,7 @@ public class AttackHandler extends BaseHandler {
                     String respBody = resp.bodyToString();
 
                     sr.put("status", status);
+                    sr.put("length", length);
                     sr.put("response_length", length);
 
                     if (i == 0) {
@@ -252,7 +253,9 @@ public class AttackHandler extends BaseHandler {
                     if (response != null && response.response() != null) {
                         HttpResponse resp = response.response();
                         result.put("status", resp.statusCode());
-                        result.put("response_length", resp.body().length());
+                        int len = resp.body().length();
+                        result.put("length", len);
+                        result.put("response_length", len);
 
                         String bodyStr = resp.bodyToString();
                         if (bodyStr.length() > 500) {
@@ -261,6 +264,7 @@ public class AttackHandler extends BaseHandler {
                         result.put("body_preview", bodyStr);
                     } else {
                         result.put("status", 0);
+                        result.put("length", 0);
                         result.put("error", "No response");
                     }
                 } catch (Exception e) {
@@ -398,6 +402,7 @@ public class AttackHandler extends BaseHandler {
             for (String location : locations) {
                 Map<String, Object> variant = new LinkedHashMap<>();
                 variant.put("polluted_value", pollutedValue);
+                variant.put("payload", pollutedValue);
                 variant.put("location", location);
 
                 try {
@@ -412,7 +417,9 @@ public class AttackHandler extends BaseHandler {
                         int length = resp.body().length();
 
                         variant.put("status", status);
+                        variant.put("length", length);
                         variant.put("response_length", length);
+                        variant.put("length_diff", Math.abs(length - baselineLength));
 
                         // Detect anomaly: status differs or length differs >20%
                         boolean statusDiffers = status != baselineStatus;
