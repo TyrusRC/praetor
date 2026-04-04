@@ -4,7 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools import (
     read, analyze, send, correlate, collaborate, notes,
-    scanner, utility, testing, export, resources, dom, scope, session, payloads,
+    scanner, utility, testing, export, resources, dom, scope, session, payloads, scan,
 )
 
 mcp = FastMCP(
@@ -41,3 +41,4 @@ dom.register(mcp)         # DOM structure + JS sink/source analysis
 scope.register(mcp)       # smart scope configuration with auto-filtering
 session.register(mcp)    # persistent attack sessions, cookie jar, multi-step flows
 payloads.register(mcp)  # context-aware payload lookup from curated knowledge base
+scan.register(mcp)      # adaptive scan: discover attack surface + auto-probe with knowledge base
