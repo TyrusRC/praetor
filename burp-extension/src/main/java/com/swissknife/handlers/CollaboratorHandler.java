@@ -239,6 +239,36 @@ public class CollaboratorHandler extends BaseHandler {
                 entry.put("timestamp", interaction.timeStamp().toString());
                 entry.put("client_ip", interaction.clientIp().toString());
                 entry.put("payload_id", interaction.id().toString());
+
+                // Extract HTTP details if available (blind SSRF/XXE evidence)
+                try {
+                    if (interaction.httpDetails().isPresent()) {
+                        var http = interaction.httpDetails().get();
+                        Map<String, Object> httpData = new LinkedHashMap<>();
+                        if (http.requestResponse() != null) {
+                            var req = http.requestResponse().request();
+                            if (req != null) {
+                                httpData.put("method", req.method());
+                                httpData.put("path", req.path());
+                                String reqBody = req.bodyToString();
+                                if (reqBody.length() > 1000) reqBody = reqBody.substring(0, 1000) + "...";
+                                httpData.put("request_body", reqBody);
+                            }
+                        }
+                        entry.put("http_details", httpData);
+                    }
+                } catch (Exception ignored) {}
+
+                // Extract DNS details if available (DNS exfiltration evidence)
+                try {
+                    if (interaction.dnsDetails().isPresent()) {
+                        var dns = interaction.dnsDetails().get();
+                        Map<String, Object> dnsData = new LinkedHashMap<>();
+                        dnsData.put("query_type", dns.queryType().toString());
+                        entry.put("dns_details", dnsData);
+                    }
+                } catch (Exception ignored) {}
+
                 items.add(entry);
             }
 

@@ -100,9 +100,24 @@ def register(mcp: FastMCP):
 
         lines = [f"Collaborator Interactions ({total} total):\n"]
         for interaction in interactions:
-            lines.append(f"  [{interaction.get('type')}] from {interaction.get('client_ip')}")
+            itype = interaction.get('type', '?')
+            lines.append(f"  [{itype}] from {interaction.get('client_ip')}")
             lines.append(f"    Timestamp: {interaction.get('timestamp')}")
             lines.append(f"    Payload ID: {interaction.get('payload_id')}")
+
+            # HTTP callback details (blind SSRF/XXE evidence)
+            http = interaction.get("http_details", {})
+            if http:
+                lines.append(f"    HTTP: {http.get('method', '?')} {http.get('path', '/')}")
+                body = http.get("request_body", "")
+                if body:
+                    lines.append(f"    Body: {body[:200]}")
+
+            # DNS exfiltration details
+            dns = interaction.get("dns_details", {})
+            if dns:
+                lines.append(f"    DNS: {dns.get('query_type', '?')} — {dns.get('description', '')}")
+
             lines.append("")
 
         return "\n".join(lines)
