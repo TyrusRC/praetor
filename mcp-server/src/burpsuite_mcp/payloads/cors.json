@@ -1,0 +1,37 @@
+{
+  "category": "cors",
+  "contexts": {
+    "origin_reflect": {
+      "description": "Test for CORS misconfiguration that reflects any Origin header",
+      "payloads": [
+        {"payload": "Origin: https://attacker.com", "description": "Arbitrary origin to test reflection in Access-Control-Allow-Origin", "waf_bypass": false},
+        {"payload": "Origin: https://evil.com", "description": "Evil origin reflection test", "waf_bypass": false},
+        {"payload": "Origin: https://target.com.attacker.com", "description": "Subdomain of target appended to attacker domain to bypass suffix checks", "waf_bypass": true},
+        {"payload": "Origin: https://attacker.comtarget.com", "description": "Attacker domain prefixed with target to bypass prefix checks", "waf_bypass": true}
+      ]
+    },
+    "null_origin": {
+      "description": "Test for null origin CORS bypass (file:// or sandboxed iframe)",
+      "payloads": [
+        {"payload": "Origin: null", "description": "Null origin to test if Access-Control-Allow-Origin: null is returned", "waf_bypass": false},
+        {"payload": "<iframe sandbox=\"allow-scripts allow-top-navigation allow-forms\" src=\"data:text/html,<script>var req=new XMLHttpRequest();req.open('GET','https://target.com/api',true);req.withCredentials=true;req.send();</script>\">", "description": "Sandboxed iframe to generate null origin request", "waf_bypass": false}
+      ]
+    },
+    "subdomain_wildcard": {
+      "description": "CORS misconfiguration exploiting subdomain-based trust",
+      "payloads": [
+        {"payload": "Origin: https://evil.trusted-domain.com", "description": "Subdomain of trusted domain (requires XSS on subdomain)", "waf_bypass": false},
+        {"payload": "Origin: https://trusted-domain.com.evil.com", "description": "Domain ending in trusted name to exploit suffix matching", "waf_bypass": true},
+        {"payload": "Origin: https://notreallytrusted-domain.com", "description": "Substring match bypass attempt", "waf_bypass": true},
+        {"payload": "Origin: https://www.evil-trusted-domain.com", "description": "Prepend to bypass starts-with validation", "waf_bypass": true}
+      ]
+    },
+    "preflight_bypass": {
+      "description": "Test CORS preflight handling and simple request bypass",
+      "payloads": [
+        {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Method: GET", "description": "Simple GET request with origin (no preflight for simple requests)", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Method: POST\r\nContent-Type: text/plain", "description": "POST with text/plain bypasses preflight (simple request)", "waf_bypass": false}
+      ]
+    }
+  }
+}

