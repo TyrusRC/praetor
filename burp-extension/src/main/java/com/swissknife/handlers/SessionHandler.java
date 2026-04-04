@@ -22,12 +22,14 @@ import java.util.regex.Pattern;
  * Manages persistent attack sessions with cookie jar, auth token storage,
  * variable extraction, and multi-step flow execution.
  *
- * POST   /api/session/create   — create session
- * POST   /api/session/request  — send request with session state
- * POST   /api/session/extract  — extract values from last response
- * POST   /api/session/flow     — execute multi-step flow
- * GET    /api/session/list     — list all sessions
- * DELETE /api/session/{name}   — delete a session
+ * POST   /api/session/create     — create session
+ * POST   /api/session/request    — send request with session state
+ * POST   /api/session/extract    — extract values from last response
+ * POST   /api/session/flow       — execute multi-step flow
+ * POST   /api/session/discover   — BFS crawl from session base URL
+ * POST   /api/session/auto-probe — knowledge-driven parameter probing
+ * GET    /api/session/list       — list all sessions
+ * DELETE /api/session/{name}     — delete a session
  */
 public class SessionHandler extends BaseHandler {
 
@@ -99,6 +101,8 @@ public class SessionHandler extends BaseHandler {
                     case "/api/session/flow" -> handleFlow(exchange, body);
                     case "/api/session/probe" -> handleProbe(exchange, body);
                     case "/api/session/batch" -> handleBatch(exchange, body);
+                    case "/api/session/discover" -> handleDiscover(exchange, body);
+                    case "/api/session/auto-probe" -> handleAutoProbe(exchange, body);
                     default -> sendError(exchange, 404, "Not found");
                 }
             }
@@ -777,6 +781,298 @@ public class SessionHandler extends BaseHandler {
             out.put("total_time_ms", totalMs);
             out.put("status_distribution", statusCounts);
             out.put("results", results);
+            sendJson(exchange, JsonUtil.toJson(out));
+        }
+    }
+
+    // ── POST /api/session/discover — BFS crawl from session base URL ──
+
+    private void handleDiscover(HttpExchange exchange, Map<String, Object> body) throws Exception {
+        String sessionName = (String) body.get("session");
+        Session session = sessions.get(sessionName);
+        if (session == null) { sendError(exchange, 404, "Session not found"); return; }
+
+        int maxPages = body.containsKey("max_pages") ? ((Number) body.get("max_pages")).intValue() : 20;
+
+        synchronized (session) {
+            Set<String> visited = new LinkedHashSet<>();
+            Queue<String> queue = new LinkedList<>();
+            List<Map<String, Object>> endpoints = new ArrayList<>();
+            List<Map<String, Object>> forms = new ArrayList<>();
+            List<String> detectedTech = new ArrayList<>();
+            int totalParams = 0;
+            int highRiskParams = 0;
+
+            queue.add("/");
+
+            while (!queue.isEmpty() && visited.size() < maxPages) {
+                String pagePath = queue.poll();
+                if (visited.contains(pagePath)) continue;
+                visited.add(pagePath);
+
+                // Build and send request using session
+                Map<String, Object> reqParams = new LinkedHashMap<>();
+                reqParams.put("method", "GET");
+                reqParams.put("path", pagePath);
+
+                HttpRequestResponse result = sendSessionRequest(session, reqParams);
+                if (result == null || result.response() == null) continue;
+                updateCookiesFromResponse(session, result);
+
+                HttpResponse resp = result.response();
+                String respBody = resp.bodyToString();
+                int status = resp.statusCode();
+
+                // Detect tech from first response
+                if (detectedTech.isEmpty()) {
+                    detectedTech.addAll(detectTechFromResponse(result));
+                }
+
+                // Extract title
+                String title = extractTitle(respBody);
+
+                // Extract parameters from URL
+                List<Map<String, Object>> pageParams = new ArrayList<>();
+                if (pagePath.contains("?")) {
+                    String query = pagePath.substring(pagePath.indexOf("?") + 1);
+                    for (String pair : query.split("&")) {
+                        int eq = pair.indexOf("=");
+                        if (eq > 0) {
+                            String pName = pair.substring(0, eq);
+                            String pValue = pair.substring(eq + 1);
+                            String risk = scoreParamRisk(pName);
+                            Map<String, Object> paramInfo = new LinkedHashMap<>();
+                            paramInfo.put("name", pName);
+                            paramInfo.put("location", "query");
+                            paramInfo.put("sample_value", pValue);
+                            paramInfo.put("risk", risk);
+                            pageParams.add(paramInfo);
+                            totalParams++;
+                            if ("high".equals(risk)) highRiskParams++;
+                        }
+                    }
+                }
+
+                // Record endpoint
+                Map<String, Object> ep = new LinkedHashMap<>();
+                ep.put("method", "GET");
+                ep.put("path", pagePath);
+                ep.put("parameters", pageParams);
+                ep.put("title", title != null ? title : "");
+                ep.put("status", status);
+                ep.put("length", resp.body().length());
+                endpoints.add(ep);
+
+                // Extract links from HTML
+                java.util.regex.Pattern linkPattern = java.util.regex.Pattern.compile(
+                    "(?:href|action)=[\"']([^\"'#]+)[\"']", java.util.regex.Pattern.CASE_INSENSITIVE);
+                java.util.regex.Matcher linkMatcher = linkPattern.matcher(respBody);
+                while (linkMatcher.find()) {
+                    String link = linkMatcher.group(1);
+                    // Skip external links, javascript:, mailto:
+                    if (link.startsWith("http") || link.startsWith("javascript") ||
+                        link.startsWith("mailto") || link.startsWith("#")) continue;
+                    // Normalize: make absolute
+                    if (!link.startsWith("/")) {
+                        String basePath = pagePath.contains("/")
+                            ? pagePath.substring(0, pagePath.lastIndexOf("/") + 1) : "/";
+                        link = basePath + link;
+                    }
+                    // Clean up ./
+                    link = link.replace("./", "");
+                    if (!visited.contains(link) && !queue.contains(link)) {
+                        queue.add(link);
+                    }
+                }
+
+                // Extract forms
+                java.util.regex.Pattern formPattern = java.util.regex.Pattern.compile(
+                    "<form[^>]*action=[\"']([^\"']*)[\"'][^>]*method=[\"']([^\"']*)[\"'][^>]*>(.*?)</form>",
+                    java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
+                java.util.regex.Matcher formMatcher = formPattern.matcher(respBody);
+                while (formMatcher.find()) {
+                    String action = formMatcher.group(1);
+                    String formMethod = formMatcher.group(2).toUpperCase();
+                    String formBody = formMatcher.group(3);
+
+                    List<String> inputs = new ArrayList<>();
+                    java.util.regex.Pattern inputPattern = java.util.regex.Pattern.compile(
+                        "name=[\"']([^\"']+)[\"']", java.util.regex.Pattern.CASE_INSENSITIVE);
+                    java.util.regex.Matcher inputMatcher = inputPattern.matcher(formBody);
+                    while (inputMatcher.find()) {
+                        String inputName = inputMatcher.group(1);
+                        inputs.add(inputName);
+                        totalParams++;
+                        if ("high".equals(scoreParamRisk(inputName))) highRiskParams++;
+                    }
+
+                    if (!action.isEmpty()) {
+                        Map<String, Object> formInfo = new LinkedHashMap<>();
+                        formInfo.put("action", action);
+                        formInfo.put("method", formMethod);
+                        formInfo.put("inputs", inputs);
+                        formInfo.put("source_page", pagePath);
+                        forms.add(formInfo);
+                    }
+                }
+            }
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("pages_crawled", visited.size());
+            out.put("endpoints", endpoints);
+            out.put("forms", forms);
+            out.put("detected_tech", detectedTech);
+            out.put("total_parameters", totalParams);
+            out.put("high_risk_parameters", highRiskParams);
+
+            ConfigTab.log("discover: " + visited.size() + " pages, " + totalParams + " params (" + highRiskParams + " high-risk)");
+            sendJson(exchange, JsonUtil.toJson(out));
+        }
+    }
+
+    private String scoreParamRisk(String name) {
+        String lower = name.toLowerCase();
+        if (lower.matches("(?:id|uid|pid|num|page|idx|index|user_id|account_id|order_id|file|path|item|template|include|url|src|doc|dir|load|read|cmd|exec|command)")) {
+            return "high";
+        }
+        if (lower.matches("(?:search|q|query|name|title|comment|msg|text|input|value|keyword|email)")) {
+            return "medium";
+        }
+        return "low";
+    }
+
+    // ── POST /api/session/auto-probe — knowledge-driven parameter probing ──
+
+    @SuppressWarnings("unchecked")
+    private void handleAutoProbe(HttpExchange exchange, Map<String, Object> body) throws Exception {
+        String sessionName = (String) body.get("session");
+        Session session = sessions.get(sessionName);
+        if (session == null) { sendError(exchange, 404, "Session not found"); return; }
+
+        List<Map<String, Object>> targets = (List<Map<String, Object>>) body.get("targets");
+        List<Map<String, Object>> knowledgeBase = (List<Map<String, Object>>) body.get("knowledge");
+        int maxProbes = body.containsKey("max_probes_per_param")
+            ? ((Number) body.get("max_probes_per_param")).intValue() : 5;
+
+        if (targets == null || targets.isEmpty()) { sendError(exchange, 400, "Missing 'targets'"); return; }
+        if (knowledgeBase == null || knowledgeBase.isEmpty()) { sendError(exchange, 400, "Missing 'knowledge'"); return; }
+
+        synchronized (session) {
+            List<Map<String, Object>> findings = new ArrayList<>();
+            int totalProbes = 0;
+
+            for (Map<String, Object> target : targets) {
+                String method = (String) target.getOrDefault("method", "GET");
+                String path = (String) target.get("path");
+                String parameter = (String) target.get("parameter");
+                String baselineValue = (String) target.getOrDefault("baseline_value", "1");
+                String location = (String) target.getOrDefault("location", "query");
+
+                // Send baseline
+                Map<String, Object> baseParams = new LinkedHashMap<>();
+                baseParams.put("method", method);
+                baseParams.put("path", injectParam(path, parameter, baselineValue, location));
+                if ("body".equals(location)) baseParams.put("data", parameter + "=" + baselineValue);
+
+                HttpRequestResponse baselineResult = sendSessionRequest(session, baseParams);
+                if (baselineResult == null || baselineResult.response() == null) continue;
+                updateCookiesFromResponse(session, baselineResult);
+
+                // Detect tech
+                List<String> detectedTech = detectTechFromResponse(baselineResult);
+
+                // Find matching probes from knowledge base
+                int probesRun = 0;
+                for (Map<String, Object> kb : knowledgeBase) {
+                    if (probesRun >= maxProbes) break;
+                    String category = (String) kb.get("category");
+                    Map<String, Object> contexts = (Map<String, Object>) kb.get("contexts");
+                    if (contexts == null) continue;
+
+                    for (Map.Entry<String, Object> ctxEntry : contexts.entrySet()) {
+                        if (probesRun >= maxProbes) break;
+                        String contextName = ctxEntry.getKey();
+                        Map<String, Object> context = (Map<String, Object>) ctxEntry.getValue();
+
+                        // Check tech_match
+                        List<String> techMatch = (List<String>) context.getOrDefault("tech_match", List.of());
+                        if (!techMatch.isEmpty() && detectedTech.stream().noneMatch(techMatch::contains)) continue;
+
+                        // Check param_match
+                        List<String> paramMatch = (List<String>) context.getOrDefault("param_match", List.of());
+                        if (!paramMatch.isEmpty() && !paramMatch.contains(parameter.toLowerCase())) continue;
+
+                        // Run probes
+                        List<Map<String, Object>> probes = (List<Map<String, Object>>) context.getOrDefault("probes", List.of());
+                        for (Map<String, Object> probe : probes) {
+                            if (probesRun >= maxProbes) break;
+
+                            String payloadTemplate = (String) probe.get("payload");
+                            Map<String, Object> variables = (Map<String, Object>) probe.getOrDefault("variables", Map.of());
+
+                            // Interpolate variables
+                            String payload = payloadTemplate
+                                .replace("{{baseline}}", baselineValue)
+                                .replace("{{marker}}", "probe_" + System.currentTimeMillis() % 100000)
+                                .replace("{{sleep}}", String.valueOf(
+                                    variables.getOrDefault("sleep", variables.getOrDefault("sleep_seconds", "5"))));
+                            for (Map.Entry<String, Object> v : variables.entrySet()) {
+                                payload = payload.replace("{{" + v.getKey() + "}}", String.valueOf(v.getValue()));
+                            }
+
+                            // Send probe request
+                            Map<String, Object> probeParams = new LinkedHashMap<>();
+                            probeParams.put("method", method);
+                            probeParams.put("path", injectParam(path, parameter, payload, location));
+                            if ("body".equals(location)) probeParams.put("data", parameter + "=" + payload);
+
+                            long startMs = System.nanoTime();
+                            HttpRequestResponse probeResult = sendSessionRequest(session, probeParams);
+                            long elapsedMs = (System.nanoTime() - startMs) / 1_000_000;
+                            totalProbes++;
+                            probesRun++;
+
+                            if (probeResult == null || probeResult.response() == null) continue;
+                            updateCookiesFromResponse(session, probeResult);
+
+                            // Evaluate matchers
+                            List<Map<String, Object>> matchers = (List<Map<String, Object>>) probe.get("matchers");
+                            Map<String, Object> matchResult = com.swissknife.analysis.MatcherEngine.evaluate(
+                                matchers, probeResult.response(), elapsedMs, baselineResult.response(), payload
+                            );
+
+                            if (Boolean.TRUE.equals(matchResult.get("matched"))) {
+                                String severity = (String) probe.getOrDefault("severity", "medium");
+                                String description = (String) probe.getOrDefault("description", "");
+                                int boost = probe.containsKey("confidence_boost")
+                                    ? ((Number) probe.get("confidence_boost")).intValue() : 0;
+                                int score = boost + ((Number) matchResult.getOrDefault("confidence_boost", 0)).intValue();
+
+                                Map<String, Object> finding = new LinkedHashMap<>();
+                                finding.put("parameter", parameter);
+                                finding.put("endpoint", method + " " + path);
+                                finding.put("category", category);
+                                finding.put("context", contextName);
+                                finding.put("probe", payload);
+                                finding.put("status", probeResult.response().statusCode());
+                                finding.put("score", score);
+                                finding.put("severity", severity);
+                                finding.put("matched_matchers", matchResult.get("matched_matchers"));
+                                finding.put("description", description);
+                                findings.add(finding);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("parameters_tested", targets.size());
+            out.put("total_probes_sent", totalProbes);
+            out.put("findings", findings);
+            out.put("auto_saved_findings", findings.size());
+
+            ConfigTab.log("auto-probe: " + targets.size() + " params, " + totalProbes + " probes, " + findings.size() + " findings");
             sendJson(exchange, JsonUtil.toJson(out));
         }
     }
