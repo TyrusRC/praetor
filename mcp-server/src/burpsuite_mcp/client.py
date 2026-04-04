@@ -34,3 +34,16 @@ async def post(path: str, json: dict | None = None) -> dict:
         return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}
     except Exception as e:
         return {"error": str(e)}
+
+
+async def delete(path: str) -> dict:
+    """Send DELETE request to the Burp extension API."""
+    try:
+        async with await _client() as c:
+            resp = await c.delete(path)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.ConnectError:
+        return {"error": f"Cannot connect to Burp extension at {BASE_URL}. Is extension loaded?"}
+    except httpx.HTTPStatusError as e:
+        return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}

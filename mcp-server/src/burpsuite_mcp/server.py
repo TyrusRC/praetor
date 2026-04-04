@@ -4,7 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools import (
     read, analyze, send, correlate, collaborate, notes,
-    scanner, utility, testing, export, resources, dom, scope,
+    scanner, utility, testing, export, resources, dom, scope, session,
 )
 
 mcp = FastMCP(
@@ -39,3 +39,4 @@ export.register(mcp)      # sitemap export (JSON + OpenAPI)
 resources.register(mcp)   # static resources (JS/CSS/source maps)
 dom.register(mcp)         # DOM structure + JS sink/source analysis
 scope.register(mcp)       # smart scope configuration with auto-filtering
+session.register(mcp)    # persistent attack sessions, cookie jar, multi-step flows
