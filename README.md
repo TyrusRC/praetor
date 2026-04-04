@@ -89,7 +89,7 @@ cd burp-extension
 mvn package
 ```
 
-Load `target/burpsuite-swiss-knife-0.1.0.jar` in Burp Suite:
+Load `target/burpsuite-swiss-knife-0.2.0.jar` in Burp Suite:
 - **Extensions → Add → Java → Select JAR**
 - Verify: check Burp's output log for "Swiss Knife MCP started on port 8111"
 

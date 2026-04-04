@@ -13,14 +13,19 @@ import java.util.concurrent.Executors;
 public class ApiServer {
 
     private final MontoyaApi api;
+    private final String host;
     private final int port;
     private HttpServer server;
     private final FindingsStore findingsStore = new FindingsStore();
     private SessionHandler sessionHandler;
 
-    public ApiServer(MontoyaApi api, int port) {
+    private final String version;
+
+    public ApiServer(MontoyaApi api, String host, int port, String version) {
         this.api = api;
+        this.host = host;
         this.port = port;
+        this.version = version;
     }
 
     public SessionHandler getSessionHandler() {
@@ -28,11 +33,11 @@ public class ApiServer {
     }
 
     public void start() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        server = HttpServer.create(new InetSocketAddress(host, port), 0);
         server.setExecutor(Executors.newFixedThreadPool(4));
 
         // Health
-        server.createContext("/api/health", new HealthHandler());
+        server.createContext("/api/health", new HealthHandler(version));
 
         // Proxy history
         server.createContext("/api/proxy", new ProxyHandler(api));
