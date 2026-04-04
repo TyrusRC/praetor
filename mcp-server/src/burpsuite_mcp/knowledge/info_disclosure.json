@@ -1,0 +1,96 @@
+{
+  "category": "info_disclosure",
+  "contexts": {
+    "stack_trace": {
+      "description": "Detects verbose stack traces leaked in responses — indicates debug mode or unhandled exceptions",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Baseline request — checks for stack trace content in normal responses",
+          "matchers": [
+            {"type": "word", "words": ["stack trace", "at java.", "at system.", "traceback", "at line", "exception in"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote injection to trigger stack trace on error path",
+          "matchers": [
+            {"type": "word", "words": ["stack trace", "at java.", "traceback", "NullPointerException", "ValueError"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "debug_info": {
+      "description": "Detects debug information leakage such as phpinfo, server internals, and configuration data",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Baseline request — checks for debug info in normal responses",
+          "matchers": [
+            {"type": "word", "words": ["debug=true", "phpinfo", "server_addr", "document_root"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}?debug=true",
+          "description": "Appending debug=true to trigger verbose debug output",
+          "matchers": [
+            {"type": "word", "words": ["phpinfo", "server_addr", "document_root", "PATH_INFO"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "version_leak": {
+      "description": "Detects version strings in response headers or body revealing server/framework versions",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Baseline request — checks for server version strings in response body",
+          "matchers": [
+            {"type": "regex", "pattern": "(apache|nginx|iis|php|java|python|ruby|node)\\/[0-9]"}
+          ],
+          "severity": "low",
+          "confidence_boost": 20,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Baseline request — checks Server response header for version disclosure",
+          "matchers": [
+            {"type": "header", "name": "Server", "contains": "/"}
+          ],
+          "severity": "low",
+          "confidence_boost": 15,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Baseline request — checks X-Powered-By header for framework fingerprinting",
+          "matchers": [
+            {"type": "header", "name": "X-Powered-By", "contains": ""}
+          ],
+          "severity": "low",
+          "confidence_boost": 15,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

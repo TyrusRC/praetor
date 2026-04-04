@@ -1,0 +1,109 @@
+{
+  "category": "command_injection",
+  "contexts": {
+    "bash": {
+      "description": "OS command injection probes targeting Linux/Unix shell execution via common web stacks",
+      "tech_match": ["Apache", "Nginx", "PHP", "Flask", "Python"],
+      "param_match": ["cmd", "exec", "command", "ping", "ip", "host", "url", "dir", "path"],
+      "probes": [
+        {
+          "payload": "{{baseline}}; echo {{marker}}",
+          "description": "Semicolon command separator injection — marker in response confirms execution",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}| echo {{marker}}",
+          "description": "Pipe command injection — marker in response confirms execution",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}$(echo {{marker}})",
+          "description": "Command substitution injection — marker in response confirms execution",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; sleep {{sleep}}",
+          "description": "Time-based blind command injection via sleep",
+          "matchers": [
+            {"type": "timing", "min_ms": 4000}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}`echo {{marker}}`",
+          "description": "Backtick command substitution injection",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} && echo {{marker}}",
+          "description": "AND operator command injection — executes only if baseline succeeds",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    },
+    "windows_cmd": {
+      "description": "OS command injection probes targeting Windows CMD via IIS/ASP.NET",
+      "tech_match": ["IIS", "ASP.NET"],
+      "param_match": ["cmd", "exec", "command", "ping", "ip", "host", "url", "dir", "path"],
+      "probes": [
+        {
+          "payload": "{{baseline}}& echo {{marker}}",
+          "description": "Windows CMD ampersand command separator injection",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}| echo {{marker}}",
+          "description": "Windows CMD pipe injection",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}& ping -n {{sleep}} 127.0.0.1",
+          "description": "Windows CMD time-based blind injection via ping delay",
+          "matchers": [
+            {"type": "timing", "min_ms": 4000}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

