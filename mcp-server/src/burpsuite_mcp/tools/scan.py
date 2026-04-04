@@ -179,13 +179,133 @@ def register(mcp: FastMCP):
             max_probes_per_param: Max probes per parameter (default 5)
         """
         if mode == "discover":
-            return await discover_attack_surface(session=session, max_pages=max_pages)
+            return await _do_discover(session, max_pages)
         elif mode == "probe":
             if not targets:
                 return "Error: 'targets' required for mode='probe'. Run with mode='discover' first."
-            return await auto_probe(
-                session=session, targets=targets,
-                categories=categories, max_probes_per_param=max_probes_per_param,
-            )
+            return await _do_auto_probe(session, targets, categories, max_probes_per_param)
         else:
             return f"Error: Unknown mode '{mode}'. Use 'discover' or 'probe'."
+
+    # ── Probe tools (moved from session.py) ──
+
+    @mcp.tool()
+    async def quick_scan(
+        session: str, method: str, path: str,
+        headers: dict | None = None, body: str = "", data: str = "",
+        json_body: dict | None = None,
+    ) -> str:
+        """Send request + auto-analyze in ONE call. Returns: status, tech stack,
+        injection points, parameters, forms, secrets — without the response body.
+
+        Args:
+            session: Session name
+            method: HTTP method
+            path: Request path relative to session base_url
+            headers: Additional headers
+            body: Raw request body
+            data: Form-encoded data
+            json_body: JSON body dict
+        """
+        payload: dict = {"session": session, "method": method, "path": path, "analyze": True}
+        if headers: payload["headers"] = headers
+        if body: payload["body"] = body
+        if data: payload["data"] = data
+        if json_body is not None: payload["json_body"] = json_body
+
+        resp = await client.post("/api/session/request", json=payload)
+        if "error" in resp:
+            return f"Error: {resp['error']}"
+
+        lines = [f"Status: {resp.get('status')} | Length: {resp.get('response_length', 0)} bytes"]
+        analysis = resp.get("analysis", {})
+        if analysis:
+            techs = analysis.get("tech_stack", {}).get("technologies", [])
+            if techs: lines.append(f"\nTech Stack: {', '.join(techs)}")
+            missing = [k for k, v in analysis.get("tech_stack", {}).get("security_headers", {}).items() if not v]
+            if missing: lines.append(f"Missing Headers: {', '.join(missing)}")
+            high_risk = analysis.get("injection_points", {}).get("high_risk", [])
+            if high_risk:
+                lines.append(f"\nInjection Points ({len(high_risk)}):")
+                for ip in high_risk[:10]:
+                    lines.append(f"  {ip.get('name', '?')} [{', '.join(ip.get('types', []))}] risk={ip.get('risk_score', 0)}")
+            for loc in ["query", "body", "cookie"]:
+                pl = analysis.get("parameters", {}).get(loc, [])
+                if pl and isinstance(pl, list):
+                    lines.append(f"Params ({loc}): {', '.join(p.get('name', '?') for p in pl)}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def probe_endpoint(
+        session: str, method: str, path: str, parameter: str,
+        baseline_value: str = "1", payload_value: str = "",
+        injection_point: str = "query", test_payloads: list[str] | None = None,
+    ) -> str:
+        """ADAPTIVE vulnerability probe. Auto-detects tech stack, selects payloads,
+        tests for SQLi/XSS/path traversal/SSTI/RCE, checks multiple reflection variants.
+
+        Args:
+            session: Session name
+            method: HTTP method
+            path: Base endpoint path
+            parameter: Parameter name to test
+            baseline_value: Normal/safe value (default '1')
+            payload_value: Single attack payload (empty = auto-detect)
+            injection_point: Where to inject — 'query' or 'body'
+            test_payloads: Multiple payloads to test in one call
+        """
+        req: dict = {
+            "session": session, "method": method, "path": path,
+            "parameter": parameter, "baseline_value": baseline_value,
+            "injection_point": injection_point,
+        }
+        if payload_value: req["payload_value"] = payload_value
+        if test_payloads: req["test_payloads"] = test_payloads
+
+        resp = await client.post("/api/session/probe", json=req)
+        if "error" in resp:
+            return f"Error: {resp['error']}"
+
+        lines = [f"Probe: {parameter} on {path}"]
+        tech = resp.get("detected_tech", [])
+        if tech: lines.append(f"Tech: {', '.join(tech)}")
+        lines.append(f"Baseline: {resp.get('baseline_status')} | {resp.get('baseline_length')}B | {resp.get('baseline_time_ms')}ms")
+        lines.append(f"Payloads tested: {resp.get('payloads_tested', 0)}\n")
+
+        for r in resp.get("results", []):
+            score = r.get("score", 0)
+            vuln = " ***" if score >= 30 else ""
+            lines.append(f"  [{score:>3}] {r.get('payload', '?')}")
+            lines.append(f"        {r.get('status', '?')} | {r.get('length', 0)}B | {r.get('time_ms', 0)}ms{vuln}")
+            for f in r.get("findings", []): lines.append(f"        -> {f}")
+            refl = r.get("reflection", {})
+            if refl:
+                ctx = refl.get("context", "")
+                lines.append(f"        Reflected ({refl.get('type', '?')}{', ' + ctx if ctx else ''})")
+
+        max_score = resp.get("max_vulnerability_score", 0)
+        if resp.get("likely_vulnerable"):
+            lines.append(f"\n*** LIKELY VULNERABLE (score: {max_score}/100) ***")
+        else:
+            lines.append(f"\nNo obvious vulnerability (score: {max_score}/100)")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def batch_probe(session: str, endpoints: list[dict]) -> str:
+        """Test multiple endpoints in ONE call. Returns status, length, timing for each.
+
+        Args:
+            session: Session name
+            endpoints: List of endpoints - [{"method": "GET", "path": "/api/users"}]
+        """
+        data = await client.post("/api/session/batch", json={"session": session, "endpoints": endpoints})
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"Batch Probe: {data.get('total_endpoints')} endpoints in {data.get('total_time_ms')}ms\n"]
+        dist = data.get("status_distribution", {})
+        if dist: lines.append(f"Status: {', '.join(f'{s}x{c}' for s, c in dist.items())}\n")
+        for r in data.get("results", []):
+            title = f" [{r['title']}]" if r.get("title") else ""
+            lines.append(f"  {r.get('method', '?'):6s} {r.get('path', '?'):<40s} {r['status']} | {r['length']:>6}B | {r['time_ms']:>4}ms{title}")
+        return "\n".join(lines)
