@@ -235,6 +235,152 @@ def register(mcp: FastMCP):
 
         return "\n".join(lines)
 
+    @mcp.tool()
+    async def test_auth_matrix(
+        endpoints: list[dict],
+        auth_states: dict,
+        base_url: str = "",
+    ) -> str:
+        """Test endpoints across multiple auth states to detect IDOR and broken access control.
+        Fires all combinations and returns a comparison matrix flagging where lower-privilege
+        users get the same response as higher-privilege users.
+
+        Args:
+            endpoints: List of endpoints - [{"method": "GET", "path": "/api/users/42"}]
+            auth_states: Auth configurations - {"admin": {"session": "s1"}, "anon": {"remove_auth": True}}
+            base_url: Override base URL (uses first session's base_url if empty)
+        """
+        payload: dict = {"endpoints": endpoints, "auth_states": auth_states}
+        if base_url:
+            payload["base_url"] = base_url
+
+        data = await client.post("/api/attack/auth-matrix", json=payload)
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"Auth Matrix: {data['endpoints_tested']} endpoints x {data['auth_states_tested']} states = {data['total_requests']} requests\n"]
+
+        state_names = list(auth_states.keys())
+
+        header = f"{'Endpoint':<40}"
+        for name in state_names:
+            header += f" | {name:<15}"
+        lines.append(header)
+        lines.append("-" * len(header))
+
+        for row in data.get("matrix", []):
+            ep = f"{row['method']} {row['path']}"
+            if len(ep) > 38:
+                ep = ep[:38]
+            line = f"{ep:<40}"
+            results = row.get("results", {})
+            for name in state_names:
+                cell = results.get(name, {})
+                status = cell.get("status", "?")
+                length = cell.get("length", 0)
+                flag = f" {cell['flag']}" if cell.get("flag") else ""
+                line += f" | {status} ({_fmt_size(length)}){flag}"
+            lines.append(line)
+
+        issues = data.get("potential_issues", [])
+        if issues:
+            lines.append(f"\nPotential issues ({len(issues)}):")
+            for issue in issues:
+                lines.append(f"  {issue['type']}: {issue['endpoint']} — {issue['auth_state']} gets {issue['similarity']}% similar response to {issue['reference_state']}")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def test_race_condition(
+        session: str,
+        request: dict,
+        concurrent: int = 10,
+        expect_once: bool = True,
+    ) -> str:
+        """Fire N identical requests simultaneously to detect race conditions.
+        Uses server-side thread synchronization for minimal jitter.
+
+        Args:
+            session: Session name for auth state
+            request: Request spec - {"method": "POST", "path": "/transfer", "json_body": {"amount": 100}}
+            concurrent: Number of simultaneous requests (default 10, max 50)
+            expect_once: Flag if action succeeded more than once (default True)
+        """
+        payload = {
+            "session": session,
+            "request": request,
+            "concurrent": concurrent,
+            "expect_once": expect_once,
+        }
+        data = await client.post("/api/attack/race", json=payload)
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"{data['concurrent']} requests sent in {data['total_time_ms']}ms window"]
+
+        dist = data.get("status_distribution", {})
+        dist_str = ", ".join(f"{status}x{count}" for status, count in dist.items())
+        lines.append(f"Status distribution: {dist_str}")
+        lines.append(f"Success count: {data['success_count']}")
+
+        if data.get("vulnerable"):
+            lines.append(f"\n*** {data['finding']} ***")
+
+        lines.append("\nResponse breakdown:")
+        for r in data.get("results", []):
+            preview = r.get("body_preview", "")
+            if len(preview) > 100:
+                preview = preview[:100] + "..."
+            lines.append(f"  #{r['index']}: {r['status']} ({_fmt_size(r['length'])}) {r['time_ms']}ms — {preview}")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def test_parameter_pollution(
+        session: str,
+        base_path: str,
+        parameter: str,
+        original_value: str,
+        polluted_values: list[str],
+        locations: list[str] | None = None,
+    ) -> str:
+        """Test HTTP Parameter Pollution across query string, body, and mixed positions.
+        Detects when backend parses duplicated/polluted parameters differently.
+
+        Args:
+            session: Session name for auth state
+            base_path: Target endpoint path (e.g. '/api/transfer')
+            parameter: Parameter name to pollute (e.g. 'amount')
+            original_value: Original parameter value (e.g. '100')
+            polluted_values: Pollution variants - ['100&amount=99999', '100,99999']
+            locations: Where to inject - ['query', 'body', 'both'] (default all three)
+        """
+        payload: dict = {
+            "session": session,
+            "base_path": base_path,
+            "parameter": parameter,
+            "original_value": original_value,
+            "polluted_values": polluted_values,
+            "locations": locations or ["query", "body", "both"],
+        }
+        data = await client.post("/api/attack/hpp", json=payload)
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"HPP Test: {data['variants_tested']} variants"]
+        lines.append(f"Baseline: {data['baseline_status']} ({_fmt_size(data['baseline_length'])})\n")
+
+        for r in data.get("results", []):
+            anomaly = " *** ANOMALY ***" if r.get("anomaly") else ""
+            lines.append(f"  [{r['location']}] {r['payload']}")
+            lines.append(f"    Status: {r['status']} | Length: {_fmt_size(r['length'])} | Length diff: {r['length_diff']}{anomaly}")
+
+        anomalies = data.get("anomalies_found", 0)
+        if anomalies:
+            lines.append(f"\n{anomalies} anomalies found — backend may parse polluted parameters differently")
+
+        return "\n".join(lines)
+
 
 def _format_fuzz_results(data: dict) -> str:
     """Format fuzz results into a compact, analysis-friendly table."""
@@ -300,3 +446,10 @@ def _format_fuzz_results(data: dict) -> str:
             lines.append(f"  [!GREP]   {summary['grep_hits']} grep pattern matches")
 
     return "\n".join(lines)
+
+
+def _fmt_size(n):
+    """Format byte size compactly."""
+    if n < 1024:
+        return f"{n}B"
+    return f"{n/1024:.1f}K"
