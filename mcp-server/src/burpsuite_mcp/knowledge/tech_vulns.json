@@ -1,0 +1,108 @@
+{
+  "category": "tech_vulns",
+  "description": "Technology-specific vulnerability mapping. Used after tech stack detection to suggest targeted tests.",
+  "technologies": {
+    "IIS": {
+      "versions": {
+        "6.0": {"cves": ["CVE-2017-7269"], "tests": ["WebDAV buffer overflow - PROPFIND with crafted If header"], "severity": "critical"},
+        "7.0-7.5": {"cves": ["CVE-2010-3972"], "tests": ["FTP service buffer overflow"], "severity": "high"},
+        "8.5": {"cves": ["CVE-2015-1635"], "tests": ["HTTP.sys request smuggling via Range header", "MS15-034 integer overflow"], "severity": "critical"},
+        "10.0": {"cves": ["CVE-2021-31166"], "tests": ["HTTP Protocol Stack RCE via Accept-Encoding"], "severity": "critical"}
+      },
+      "common_issues": ["Short filename disclosure (~1 brute force)", "ASP.NET debugging enabled", "Directory listing via web.config misconfiguration", "Tilde enumeration for short filenames"],
+      "default_paths": ["/web.config", "/Global.asax", "/elmah.axd", "/trace.axd", "/aspnet_client/"]
+    },
+    "Apache": {
+      "versions": {
+        "2.4.49": {"cves": ["CVE-2021-41773"], "tests": ["Path traversal via /cgi-bin/.%2e/%2e%2e/etc/passwd"], "severity": "critical"},
+        "2.4.50": {"cves": ["CVE-2021-42013"], "tests": ["Double URL-encoded path traversal bypass"], "severity": "critical"},
+        "2.4.0-2.4.29": {"cves": ["CVE-2017-15715"], "tests": ["Filename bypass via trailing newline in uploads"], "severity": "high"}
+      },
+      "common_issues": ["mod_status information disclosure (/server-status)", "mod_info exposure (/server-info)", "Directory listing enabled", ".htaccess bypass via filename tricks"],
+      "default_paths": ["/server-status", "/server-info", "/.htaccess", "/.htpasswd", "/cgi-bin/"]
+    },
+    "Nginx": {
+      "versions": {
+        "0.6.18-1.13.2": {"cves": ["CVE-2017-7529"], "tests": ["Integer overflow in range filter - information leak"], "severity": "medium"}
+      },
+      "common_issues": ["Off-by-slash alias traversal (/files../)", "Merge slashes bypass", "CRLF injection in headers", "Proxy_pass SSRF via @ in URL"],
+      "default_paths": ["/nginx_status", "/stub_status"]
+    },
+    "PHP": {
+      "versions": {
+        "5.x": {"cves": ["CVE-2019-11043"], "tests": ["Arbitrary code execution via fastcgi"], "severity": "critical"},
+        "7.0-7.2": {"cves": ["CVE-2019-11043"], "tests": ["Path_info underflow to RCE (php-fpm + nginx)"], "severity": "critical"},
+        "8.1.0-8.1.28": {"cves": ["CVE-2024-4577"], "tests": ["CGI argument injection on Windows (Best-Fit mapping)"], "severity": "critical"}
+      },
+      "common_issues": ["phpinfo() exposed", "Type juggling in loose comparisons", "Deserialization via unserialize()", "Phar deserialization", "File upload bypass via double extension"],
+      "default_paths": ["/phpinfo.php", "/info.php", "/php_info.php", "/test.php", "/debug.php"]
+    },
+    "ASP.NET": {
+      "versions": {
+        "any": {"cves": ["CVE-2020-1472"], "tests": ["ViewState deserialization if MAC validation disabled"], "severity": "critical"}
+      },
+      "common_issues": ["Padding oracle on ViewState", "Verbose error messages with stack traces", "Debug mode enabled (customErrors=Off)", "Request validation bypass"],
+      "default_paths": ["/web.config", "/elmah.axd", "/trace.axd", "/aspnet_client/system_web/"]
+    },
+    "WordPress": {
+      "versions": {
+        "any": {"cves": [], "tests": ["xmlrpc.php brute force and SSRF", "REST API user enumeration /wp-json/wp/v2/users", "Plugin/theme file inclusion"], "severity": "high"}
+      },
+      "common_issues": ["User enumeration via /?author=1", "Exposed wp-config.php.bak", "Debug log at /wp-content/debug.log", "Plugin vulnerabilities (most common entry point)"],
+      "default_paths": ["/wp-login.php", "/wp-admin/", "/wp-json/wp/v2/users", "/xmlrpc.php", "/wp-content/debug.log", "/wp-config.php.bak", "/.wp-config.php.swp"]
+    },
+    "Tomcat": {
+      "versions": {
+        "8.5.0-8.5.80": {"cves": ["CVE-2020-1938"], "tests": ["GhostCat - AJP file read/inclusion on port 8009"], "severity": "critical"},
+        "9.0.0-9.0.30": {"cves": ["CVE-2020-1938"], "tests": ["GhostCat AJP exploitation"], "severity": "critical"},
+        "any": {"cves": [], "tests": ["Manager app default credentials (tomcat:tomcat, admin:admin)"], "severity": "high"}
+      },
+      "common_issues": ["Default manager credentials", "WAR deployment for RCE", "AJP connector exposed", "Status page information disclosure"],
+      "default_paths": ["/manager/html", "/manager/status", "/host-manager/html", "/examples/", "/docs/"]
+    },
+    "Spring": {
+      "versions": {
+        "any": {"cves": ["CVE-2022-22965"], "tests": ["Spring4Shell - class.module.classLoader manipulation via POST params"], "severity": "critical"}
+      },
+      "common_issues": ["Actuator endpoints exposed (/actuator/env, /actuator/heapdump)", "SpEL injection in error messages", "Mass assignment via data binding"],
+      "default_paths": ["/actuator", "/actuator/env", "/actuator/heapdump", "/actuator/mappings", "/actuator/beans", "/env", "/health", "/info", "/metrics"]
+    },
+    "Django": {
+      "versions": {
+        "any": {"cves": [], "tests": ["Debug mode detection (detailed error page with settings)"], "severity": "medium"}
+      },
+      "common_issues": ["Debug mode exposes SECRET_KEY and settings", "ALLOWED_HOSTS bypass", "ORM injection via __contains lookup", "Admin panel at /admin/"],
+      "default_paths": ["/admin/", "/admin/login/", "/static/", "/__debug__/"]
+    },
+    "Flask": {
+      "versions": {
+        "any": {"cves": [], "tests": ["Debug console RCE if WERKZEUG_DEBUG_PIN not set", "SSTI via Jinja2 template injection"], "severity": "critical"}
+      },
+      "common_issues": ["Werkzeug debugger exposed (/console)", "Secret key in source code", "SSTI in user-controlled template rendering"],
+      "default_paths": ["/console", "/static/"]
+    },
+    "Express": {
+      "versions": {
+        "any": {"cves": [], "tests": ["Prototype pollution via JSON body", "SSRF via request library"], "severity": "medium"}
+      },
+      "common_issues": ["Stack traces in error responses", "Directory traversal via path normalization", "NoSQL injection in MongoDB queries"],
+      "default_paths": ["/package.json", "/.env", "/node_modules/"]
+    },
+    "jQuery": {
+      "versions": {
+        "1.x": {"cves": ["CVE-2020-11022"], "tests": ["XSS via htmlPrefilter - pass HTML with event handlers to jQuery methods"], "severity": "medium"},
+        "2.x": {"cves": ["CVE-2020-11022"], "tests": ["Same XSS via htmlPrefilter"], "severity": "medium"},
+        "3.0-3.4": {"cves": ["CVE-2020-11023"], "tests": ["XSS via option element injection"], "severity": "medium"}
+      },
+      "common_issues": ["Prototype pollution via $.extend(true, {}, ...)", "DOM-based XSS via jQuery selector injection"],
+      "default_paths": []
+    },
+    "AngularJS": {
+      "versions": {
+        "1.x": {"cves": [], "tests": ["Template injection via {{constructor.constructor('alert(1)')()}}", "Sandbox escape payloads"], "severity": "high"}
+      },
+      "common_issues": ["Client-side template injection", "Sandbox bypass (versions < 1.6)", "Prototype pollution via merge/extend"],
+      "default_paths": []
+    }
+  }
+}

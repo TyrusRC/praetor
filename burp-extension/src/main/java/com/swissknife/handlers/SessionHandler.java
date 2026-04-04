@@ -853,7 +853,7 @@ public class SessionHandler extends BaseHandler {
                     }
                 }
 
-                // Record endpoint
+                // Record endpoint with risk score
                 Map<String, Object> ep = new LinkedHashMap<>();
                 ep.put("method", "GET");
                 ep.put("path", pagePath);
@@ -861,6 +861,11 @@ public class SessionHandler extends BaseHandler {
                 ep.put("title", title != null ? title : "");
                 ep.put("status", status);
                 ep.put("length", resp.body().length());
+
+                // Composite risk score: path sensitivity + param risk + auth level
+                int riskScore = scoreEndpointRisk(pagePath, pageParams, status);
+                ep.put("risk_score", riskScore);
+                ep.put("priority", riskScore >= 7 ? "critical" : riskScore >= 5 ? "high" : riskScore >= 3 ? "medium" : "low");
                 endpoints.add(ep);
 
                 // Extract links from HTML
@@ -939,6 +944,32 @@ public class SessionHandler extends BaseHandler {
             return "medium";
         }
         return "low";
+    }
+
+    private int scoreEndpointRisk(String path, List<Map<String, Object>> params, int status) {
+        int score = 0;
+        String lower = path.toLowerCase();
+
+        // Path sensitivity scoring
+        if (lower.contains("/admin") || lower.contains("/debug") || lower.contains("/backup")) score += 4;
+        else if (lower.contains("/api/") || lower.contains("/user") || lower.contains("/account")) score += 3;
+        else if (lower.contains("/upload") || lower.contains("/export") || lower.contains("/download")) score += 3;
+        else if (lower.contains("/login") || lower.contains("/register") || lower.contains("/search")) score += 2;
+        else score += 1;
+
+        // Parameter risk contribution
+        int highRiskParams = 0;
+        for (Map<String, Object> p : params) {
+            String risk = (String) p.getOrDefault("risk", "low");
+            if ("high".equals(risk)) highRiskParams++;
+        }
+        score += Math.min(highRiskParams * 2, 4); // Max +4 from params
+
+        // Status anomaly bonus
+        if (status == 500) score += 2;
+        else if (status == 403 || status == 401) score += 1;
+
+        return Math.min(score, 10); // Cap at 10
     }
 
     // ── POST /api/session/auto-probe — knowledge-driven parameter probing ──
@@ -1041,12 +1072,36 @@ public class SessionHandler extends BaseHandler {
                                 matchers, probeResult.response(), elapsedMs, baselineResult.response(), payload
                             );
 
+                            // Compute anomaly indicators regardless of matcher result
+                            int probeStatus = probeResult.response().statusCode();
+                            int probeLen = probeResult.response().body().length();
+                            int baseStatus = baselineResult.response().statusCode();
+                            int baseLen = baselineResult.response().body().length();
+
+                            // Anomaly score: how much does this response deviate from baseline?
+                            int anomalyScore = 0;
+                            List<String> anomalies = new ArrayList<>();
+                            if (probeStatus != baseStatus) {
+                                anomalyScore += 30;
+                                anomalies.add("status:" + baseStatus + "->" + probeStatus);
+                            }
+                            int lenDiff = Math.abs(probeLen - baseLen);
+                            if (baseLen > 0 && lenDiff > baseLen * 0.3) {
+                                anomalyScore += 20;
+                                anomalies.add("length:" + lenDiff + "B diff");
+                            }
+                            if (elapsedMs > 3000) {
+                                anomalyScore += 25;
+                                anomalies.add("timing:" + elapsedMs + "ms");
+                            }
+
                             if (Boolean.TRUE.equals(matchResult.get("matched"))) {
                                 String severity = (String) probe.getOrDefault("severity", "medium");
                                 String description = (String) probe.getOrDefault("description", "");
                                 int boost = probe.containsKey("confidence_boost")
                                     ? ((Number) probe.get("confidence_boost")).intValue() : 0;
-                                int score = boost + ((Number) matchResult.getOrDefault("confidence_boost", 0)).intValue();
+                                int matcherBoost = ((Number) matchResult.getOrDefault("confidence_boost", 0)).intValue();
+                                int score = boost + matcherBoost + anomalyScore;
 
                                 Map<String, Object> finding = new LinkedHashMap<>();
                                 finding.put("parameter", parameter);
@@ -1054,11 +1109,29 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("category", category);
                                 finding.put("context", contextName);
                                 finding.put("probe", payload);
-                                finding.put("status", probeResult.response().statusCode());
+                                finding.put("status", probeStatus);
                                 finding.put("score", score);
+                                finding.put("anomaly_score", anomalyScore);
+                                finding.put("anomalies", anomalies);
                                 finding.put("severity", severity);
                                 finding.put("matched_matchers", matchResult.get("matched_matchers"));
                                 finding.put("description", description);
+                                findings.add(finding);
+                            } else if (anomalyScore >= 30) {
+                                // No matcher fired but response is anomalous — flag for review
+                                Map<String, Object> finding = new LinkedHashMap<>();
+                                finding.put("parameter", parameter);
+                                finding.put("endpoint", method + " " + path);
+                                finding.put("category", category);
+                                finding.put("context", contextName);
+                                finding.put("probe", payload);
+                                finding.put("status", probeStatus);
+                                finding.put("score", anomalyScore);
+                                finding.put("anomaly_score", anomalyScore);
+                                finding.put("anomalies", anomalies);
+                                finding.put("severity", "info");
+                                finding.put("matched_matchers", List.of());
+                                finding.put("description", "Anomalous response (no matcher matched) — review manually");
                                 findings.add(finding);
                             }
                         }

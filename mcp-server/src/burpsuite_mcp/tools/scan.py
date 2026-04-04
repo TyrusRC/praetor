@@ -65,13 +65,18 @@ def register(mcp: FastMCP):
 
         lines.append(f"Parameters: {data.get('total_parameters', 0)} total, {data.get('high_risk_parameters', 0)} high-risk\n")
 
-        for ep in data.get("endpoints", []):
+        # Sort endpoints by risk score (highest first)
+        endpoints_sorted = sorted(data.get("endpoints", []), key=lambda e: e.get("risk_score", 0), reverse=True)
+        for ep in endpoints_sorted:
             params = ep.get("parameters", [])
             param_str = ""
             if params:
                 names = [f"{p['name']}({'!' if p.get('risk') == 'high' else ''})" for p in params]
                 param_str = f" [{', '.join(names)}]"
-            lines.append(f"  {ep.get('method', '?'):6s} {ep.get('path', '?'):<45s} {ep.get('status', '?')}{param_str}")
+            risk = ep.get("risk_score", 0)
+            priority = ep.get("priority", "low")
+            marker = "***" if priority == "critical" else "**" if priority == "high" else "*" if priority == "medium" else ""
+            lines.append(f"  [{risk:>2}] {ep.get('method', '?'):6s} {ep.get('path', '?'):<40s} {ep.get('status', '?')} {marker}{param_str}")
 
         forms = data.get("forms", [])
         if forms:
@@ -118,17 +123,23 @@ def register(mcp: FastMCP):
         lines = [f"Auto-Probe: {data.get('parameters_tested', 0)} params, {data.get('total_probes_sent', 0)} probes\n"]
 
         findings = data.get("findings", [])
-        if findings:
-            lines.append(f"Findings ({len(findings)}):\n")
-            for finding in findings:
+        # Sort by score descending
+        findings_sorted = sorted(findings, key=lambda f: f.get("score", 0), reverse=True)
+        if findings_sorted:
+            lines.append(f"Findings ({len(findings_sorted)}):\n")
+            for finding in findings_sorted:
                 sev = finding.get("severity", "?")
-                lines.append(f"  [{sev:>8s}] {finding.get('endpoint', '?')} -> {finding.get('parameter', '?')}")
+                score = finding.get("score", 0)
+                anomaly = finding.get("anomaly_score", 0)
+                lines.append(f"  [{sev:>8s}] {finding.get('endpoint', '?')} -> {finding.get('parameter', '?')} (score: {score})")
                 lines.append(f"           {finding.get('category', '?')}/{finding.get('context', '?')}: {finding.get('description', '?')}")
                 lines.append(f"           Payload: {finding.get('probe', '?')}")
                 matched = finding.get("matched_matchers", [])
                 if matched:
                     lines.append(f"           Matchers: {', '.join(str(m) for m in matched)}")
-                lines.append(f"           Score: {finding.get('score', 0)}")
+                anomalies = finding.get("anomalies", [])
+                if anomalies:
+                    lines.append(f"           Anomalies: {', '.join(anomalies)} (anomaly_score: {anomaly})")
                 lines.append("")
         else:
             lines.append("No vulnerabilities detected.")
