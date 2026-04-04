@@ -1,13 +1,11 @@
 # Java / Maven
 burp-extension/target/
 *.class
-*.jar
 *.war
 *.ear
 
 # Python
-mcp-server/__pycache__/
-mcp-server/src/**/__pycache__/
+__pycache__/
 *.pyc
 *.pyo
 *.egg-info/
@@ -33,5 +31,5 @@ Thumbs.db
 # Environment
 .env
 
-# Claude Code
-CLAUDE.md
+# Claude Code local
+.remember/
