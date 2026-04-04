@@ -1,0 +1,8 @@
+ {
+    "mcpServers": {
+      "burpsuite": {
+        "command": "/home/tyrus/Github/burpsuite-swiss-knife-mcp/mcp-server/.venv/bin/python",
+        "args": ["-m", "burpsuite_mcp"]
+      }
+    }
+  }
