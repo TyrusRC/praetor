@@ -182,6 +182,28 @@ public class SessionHandler extends BaseHandler {
             out.put("extracted", extracted);
             out.put("session_cookies", new LinkedHashMap<>(session.cookies));
             out.put("session_variables", new LinkedHashMap<>(session.variables));
+
+            // Auto-analyze if requested (for quick_scan tool)
+            Object analyzeFlag = body.get("analyze");
+            if (analyzeFlag instanceof Boolean b && b && result.response() != null) {
+                Map<String, Object> analysis = new LinkedHashMap<>();
+                HttpRequest req = result.request();
+                HttpResponse resp = result.response();
+                analysis.put("tech_stack", com.swissknife.analysis.TechStackDetector.detect(resp));
+                analysis.put("injection_points", com.swissknife.analysis.InjectionPointDetector.detect(req, resp));
+                analysis.put("parameters", com.swissknife.analysis.ParameterExtractor.extract(req));
+                String contentType = resp.headerValue("Content-Type") != null ? resp.headerValue("Content-Type") : "";
+                if (contentType.contains("html")) {
+                    String bodyStr = resp.bodyToString();
+                    analysis.put("forms", com.swissknife.analysis.FormExtractor.extract(bodyStr));
+                    analysis.put("endpoints", com.swissknife.analysis.EndpointExtractor.extract(bodyStr, req.url()));
+                }
+                if (contentType.contains("javascript") || contentType.contains("html")) {
+                    analysis.put("secrets", com.swissknife.analysis.JsSecretExtractor.extract(resp.bodyToString()));
+                }
+                out.put("analysis", analysis);
+            }
+
             sendJson(exchange, JsonUtil.toJson(out));
         }
     }

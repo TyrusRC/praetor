@@ -59,8 +59,12 @@ def register(mcp: FastMCP):
             lines.append(f"  {h['name']}: {h['value']}")
         resp_body = data.get("response_body", "")
         if resp_body:
+            max_body = 5000
             lines.append(f"\n--- Response Body ({len(resp_body)} chars) ---")
-            lines.append(resp_body)
+            if len(resp_body) > max_body:
+                lines.append(resp_body[:max_body] + f"\n...[truncated, {len(resp_body)} total chars]")
+            else:
+                lines.append(resp_body)
 
         return "\n".join(lines)
 

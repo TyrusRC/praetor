@@ -219,3 +219,83 @@ def register(mcp: FastMCP):
                 lines.append(f"     Params: {', '.join(params_list)}")
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def smart_analyze(index: int) -> str:
+        """Full attack surface analysis in ONE call. Combines: tech stack detection,
+        injection point identification, parameter extraction, form extraction,
+        API endpoint discovery, and JS secret scanning.
+
+        Use this instead of calling detect_tech_stack + find_injection_points +
+        extract_forms + extract_api_endpoints separately. Saves 3-4 tool calls.
+
+        Args:
+            index: Proxy history index of the request/response to analyze
+        """
+        data = await client.post("/api/analysis/smart", json={"index": index})
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"Smart Analysis: [{data.get('method')}] {data.get('url')}\n"]
+
+        # Tech stack
+        tech = data.get("tech_stack", {})
+        techs = tech.get("technologies", [])
+        if techs:
+            lines.append(f"Tech Stack: {', '.join(techs)}")
+        security_headers = tech.get("security_headers", {})
+        missing = [k for k, v in security_headers.items() if not v] if security_headers else []
+        if missing:
+            lines.append(f"Missing Security Headers: {', '.join(missing)}")
+
+        # Parameters
+        params = data.get("parameters", {})
+        for location in ["query", "body", "cookie"]:
+            param_list = params.get(location, [])
+            if param_list:
+                names = [p.get("name", "?") for p in param_list] if isinstance(param_list, list) else []
+                if names:
+                    lines.append(f"Params ({location}): {', '.join(names)}")
+
+        # Injection points
+        injection = data.get("injection_points", {})
+        high_risk = injection.get("high_risk", [])
+        if high_risk:
+            lines.append(f"\nInjection Points ({len(high_risk)} high-risk):")
+            for ip in high_risk[:10]:
+                name = ip.get("name", "?")
+                types = ", ".join(ip.get("types", []))
+                score = ip.get("risk_score", 0)
+                lines.append(f"  {name} [{types}] (risk: {score})")
+
+        # Forms
+        forms = data.get("forms", {})
+        form_list = forms.get("forms", [])
+        if form_list:
+            lines.append(f"\nForms ({len(form_list)}):")
+            for f in form_list[:5]:
+                action = f.get("action", "?")
+                method = f.get("method", "GET")
+                inputs = [i.get("name", "?") for i in f.get("inputs", [])]
+                lines.append(f"  [{method}] {action} — inputs: {', '.join(inputs)}")
+
+        # Endpoints
+        endpoints = data.get("endpoints", {})
+        api_paths = endpoints.get("api_endpoints", [])
+        if api_paths:
+            lines.append(f"\nAPI Endpoints ({len(api_paths)}):")
+            for ep in api_paths[:10]:
+                lines.append(f"  {ep}")
+
+        # Secrets
+        secrets = data.get("secrets", {})
+        secret_list = secrets.get("secrets", [])
+        if secret_list:
+            lines.append(f"\nSecrets Found ({len(secret_list)}):")
+            for s in secret_list[:5]:
+                lines.append(f"  [{s.get('severity', '?')}] {s.get('type', '?')}: {s.get('match', '?')[:80]}")
+
+        if len(lines) == 1:
+            lines.append("No significant findings.")
+
+        return "\n".join(lines)

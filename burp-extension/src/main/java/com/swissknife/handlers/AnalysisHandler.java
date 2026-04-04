@@ -88,6 +88,46 @@ public class AnalysisHandler extends BaseHandler {
                 if (resp == null) { sendError(exchange, 400, "No response available"); return; }
                 sendJson(exchange, JsonUtil.toJson(DomAnalyzer.analyze(resp.bodyToString())));
             }
+            case "/api/analysis/smart" -> {
+                // Combined analysis: tech stack + injection points + forms + endpoints + secrets in one call
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("url", req.url());
+                result.put("method", req.method());
+
+                // Tech stack
+                if (resp != null) {
+                    result.put("tech_stack", TechStackDetector.detect(resp));
+                }
+
+                // Injection points
+                result.put("injection_points", InjectionPointDetector.detect(req, resp));
+
+                // Parameters
+                result.put("parameters", ParameterExtractor.extract(req));
+
+                if (resp != null) {
+                    String bodyStr = resp.bodyToString();
+                    String contentType = resp.headerValue("Content-Type") != null ? resp.headerValue("Content-Type") : "";
+
+                    // Forms (only for HTML responses)
+                    if (contentType.contains("html")) {
+                        result.put("forms", FormExtractor.extract(bodyStr));
+                        result.put("endpoints", EndpointExtractor.extract(bodyStr, req.url()));
+                    }
+
+                    // JS secrets (for JS and HTML responses)
+                    if (contentType.contains("javascript") || contentType.contains("html")) {
+                        Map<String, Object> secrets = JsSecretExtractor.extract(bodyStr);
+                        @SuppressWarnings("unchecked")
+                        List<Object> secretsList = (List<Object>) secrets.getOrDefault("secrets", List.of());
+                        if (!secretsList.isEmpty()) {
+                            result.put("secrets", secrets);
+                        }
+                    }
+                }
+
+                sendJson(exchange, JsonUtil.toJson(result));
+            }
             default -> sendError(exchange, 404, "Not found");
         }
     }

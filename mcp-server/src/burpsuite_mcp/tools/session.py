@@ -124,8 +124,12 @@ def register(mcp: FastMCP):
 
         resp_body = resp.get("response_body", "")
         if resp_body:
+            max_body = 2000
             lines.append(f"\n--- Response Body ({len(resp_body)} chars) ---")
-            lines.append(resp_body)
+            if len(resp_body) > max_body:
+                lines.append(resp_body[:max_body] + f"\n...[truncated, {len(resp_body)} total chars]")
+            else:
+                lines.append(resp_body)
 
         return "\n".join(lines)
 
@@ -249,3 +253,93 @@ def register(mcp: FastMCP):
         if "error" in resp:
             return f"Error: {resp['error']}"
         return resp.get("message", f"Session '{name}' deleted.")
+
+    @mcp.tool()
+    async def quick_scan(
+        session: str,
+        method: str,
+        path: str,
+        headers: dict | None = None,
+        body: str = "",
+        data: str = "",
+        json_body: dict | None = None,
+    ) -> str:
+        """Send request + auto-analyze in ONE call. Returns: status, tech stack,
+        injection points, parameters, forms, secrets — without the response body.
+        Most token-efficient way to probe an endpoint.
+
+        Use this instead of: session_request() + detect_tech_stack() + find_injection_points()
+
+        Args:
+            session: Session name
+            method: HTTP method
+            path: Request path relative to session base_url
+            headers: Additional headers
+            body: Raw request body
+            data: Form-encoded data
+            json_body: JSON body dict
+        """
+        payload: dict = {"session": session, "method": method, "path": path, "analyze": True}
+        if headers:
+            payload["headers"] = headers
+        if body:
+            payload["body"] = body
+        if data:
+            payload["data"] = data
+        if json_body is not None:
+            payload["json_body"] = json_body
+
+        resp = await client.post("/api/session/request", json=payload)
+        if "error" in resp:
+            return f"Error: {resp['error']}"
+
+        lines = [f"Status: {resp.get('status')} | Length: {resp.get('response_length', 0)} bytes"]
+
+        # Show extracted variables if any
+        extracted = resp.get("extracted", {})
+        if extracted:
+            for k, v in extracted.items():
+                lines.append(f"  {k} = {v}")
+
+        # Show analysis results
+        analysis = resp.get("analysis", {})
+        if analysis:
+            # Tech stack
+            tech = analysis.get("tech_stack", {})
+            techs = tech.get("technologies", [])
+            if techs:
+                lines.append(f"\nTech Stack: {', '.join(techs)}")
+            missing = [k for k, v in tech.get("security_headers", {}).items() if not v]
+            if missing:
+                lines.append(f"Missing Headers: {', '.join(missing)}")
+
+            # Injection points
+            injection = analysis.get("injection_points", {})
+            high_risk = injection.get("high_risk", [])
+            if high_risk:
+                lines.append(f"\nInjection Points ({len(high_risk)}):")
+                for ip in high_risk[:10]:
+                    lines.append(f"  {ip.get('name', '?')} [{', '.join(ip.get('types', []))}] risk={ip.get('risk_score', 0)}")
+
+            # Parameters
+            params = analysis.get("parameters", {})
+            for loc in ["query", "body", "cookie"]:
+                pl = params.get(loc, [])
+                if pl:
+                    names = [p.get("name", "?") for p in pl] if isinstance(pl, list) else []
+                    if names:
+                        lines.append(f"Params ({loc}): {', '.join(names)}")
+
+            # Forms
+            forms = analysis.get("forms", {})
+            for f in forms.get("forms", [])[:3]:
+                inputs = [i.get("name", "?") for i in f.get("inputs", [])]
+                lines.append(f"Form: [{f.get('method', '?')}] {f.get('action', '?')} -> {', '.join(inputs)}")
+
+            # Secrets
+            for s in analysis.get("secrets", {}).get("secrets", [])[:3]:
+                lines.append(f"Secret: [{s.get('severity')}] {s.get('type')}: {s.get('match', '?')[:60]}")
+        else:
+            lines.append("\n(No analysis available — endpoint may not be in proxy history)")
+
+        return "\n".join(lines)

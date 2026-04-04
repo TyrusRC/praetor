@@ -215,7 +215,7 @@ def _format_curl_response(data: dict) -> str:
     body = data.get("response_body", "")
     if body:
         lines.append(f"\n--- Response Body ({len(body)} chars) ---")
-        lines.append(body)
+        lines.append(_truncate_body(body))
 
     return "\n".join(lines)
 
@@ -233,6 +233,13 @@ def _format_response(data: dict) -> str:
     body = data.get("response_body", "")
     if body:
         lines.append(f"\n--- Response Body ({len(body)} chars) ---")
-        lines.append(body)
+        lines.append(_truncate_body(body))
 
     return "\n".join(lines)
+
+
+def _truncate_body(body: str, max_chars: int = 2000) -> str:
+    """Truncate response body to save tokens. Full body is always in Burp history."""
+    if len(body) <= max_chars:
+        return body
+    return body[:max_chars] + f"\n...[truncated, {len(body)} total chars — use get_request_detail for full body]"
