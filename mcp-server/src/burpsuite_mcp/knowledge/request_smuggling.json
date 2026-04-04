@@ -1,0 +1,33 @@
+{
+  "category": "request_smuggling",
+  "contexts": {
+    "cl_te": {
+      "description": "CL.TE request smuggling (Content-Length vs Transfer-Encoding)",
+      "tech_match": ["Apache", "Nginx", "IIS"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "CL.TE smuggling detection — send conflicting CL and TE headers",
+          "matchers": [{"type": "timing", "min_ms": 5000}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "te_cl": {
+      "description": "TE.CL request smuggling",
+      "tech_match": ["Apache", "Nginx", "IIS"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "TE.CL smuggling detection — reversed CL/TE priority",
+          "matchers": [{"type": "timing", "min_ms": 5000}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

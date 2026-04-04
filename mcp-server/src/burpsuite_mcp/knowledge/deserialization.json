@@ -1,0 +1,61 @@
+{
+  "category": "deserialization",
+  "contexts": {
+    "java": {
+      "description": "Java deserialization attacks",
+      "tech_match": ["Java", "Tomcat", "Spring", "JBoss", "WebLogic"],
+      "param_match": ["data", "object", "payload", "token", "session", "viewstate"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Java serialized object detection — look for magic bytes rO0AB or ACED0005 in base64",
+          "matchers": [{"type": "regex", "pattern": "rO0AB|aced0005|java\\.io\\."}],
+          "severity": "critical",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "php": {
+      "description": "PHP deserialization attacks",
+      "tech_match": ["PHP", "Laravel", "WordPress"],
+      "param_match": ["data", "object", "payload", "token", "cookie"],
+      "probes": [
+        {
+          "payload": "O:8:\"stdClass\":0:{}",
+          "description": "PHP object deserialization probe",
+          "matchers": [{"type": "not_word", "words": ["unserialize", "error", "invalid"]}, {"type": "status", "status": [200]}],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "python": {
+      "description": "Python insecure deserialization detection",
+      "tech_match": ["Python", "Flask", "Django"],
+      "param_match": ["data", "object", "payload", "token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Insecure object deserialization — detect serialized object magic bytes in responses (gASV prefix = Python serialized object)",
+          "matchers": [{"type": "regex", "pattern": "gASV|cosystem|\\\\x80\\\\x04"}],
+          "severity": "critical",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "dotnet_viewstate": {
+      "description": ".NET ViewState deserialization",
+      "tech_match": ["ASP.NET", "IIS"],
+      "param_match": ["__VIEWSTATE", "viewstate"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if ViewState MAC validation is disabled (exploitable for RCE)",
+          "matchers": [{"type": "word", "words": ["__VIEWSTATE"], "condition": "or"}, {"type": "not_word", "words": ["__VIEWSTATEGENERATOR"]}],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}

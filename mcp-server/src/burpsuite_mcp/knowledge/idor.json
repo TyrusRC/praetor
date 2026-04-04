@@ -69,6 +69,102 @@
           "variables": {}
         }
       ]
+    },
+    "sequential_enum": {
+      "description": "Sequential ID enumeration IDOR — walks IDs above and below baseline to detect access to other records",
+      "tech_match": [],
+      "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id", "item_id", "doc_id"],
+      "probes": [
+        {
+          "payload": "100",
+          "description": "Jump to ID 100 from baseline 1 — significant length diff with no error indicates a different user record is returned",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["not found", "does not exist", "no record"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"baseline_value": "1"}
+        },
+        {
+          "payload": "0",
+          "description": "ID zero probe — may return admin, system, or seed record; length diff without access error suggests IDOR",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"baseline_value": "1"}
+        }
+      ]
+    },
+    "param_pollution": {
+      "description": "IDOR via HTTP Parameter Pollution — duplicate parameters may cause backend to use a different ID than the validator checked",
+      "tech_match": [],
+      "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}&id=2",
+          "description": "Appended duplicate id param — backend may use last value (2) while auth middleware used first value",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "id=2&id={{baseline}}",
+          "description": "Reversed param order duplicate — some frameworks use first occurrence; sends attacker ID first",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "method_override": {
+      "description": "IDOR via HTTP method change — endpoint may enforce auth on GET but not on PUT/PATCH/DELETE",
+      "tech_match": [],
+      "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Re-send same request with PUT method — status 200 without 'method not allowed' may indicate missing auth on write path",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["method not allowed", "405", "forbidden"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"method_override": "PUT"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Re-send same request with DELETE method — 200 without access error indicates missing authorization on delete path",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["method not allowed", "405", "forbidden", "unauthorized"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"method_override": "DELETE"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Re-send with PATCH method — partial update succeeding without auth check confirms IDOR on write operations",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["method not allowed", "405", "forbidden", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"method_override": "PATCH"}
+        }
+      ]
     }
   }
 }

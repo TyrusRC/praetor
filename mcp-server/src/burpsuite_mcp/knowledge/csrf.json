@@ -1,0 +1,47 @@
+{
+  "category": "csrf",
+  "contexts": {
+    "missing_token": {
+      "description": "CSRF token missing or not validated",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Submit form without CSRF token — check if action succeeds",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["csrf", "token", "invalid token", "forbidden"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "token_reuse": {
+      "description": "CSRF token reusable across sessions",
+      "tech_match": [],
+      "param_match": ["csrf", "token", "_token", "csrfmiddlewaretoken", "authenticity_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Reuse old CSRF token in new session — check if accepted",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid", "expired", "mismatch"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "method_override": {
+      "description": "CSRF bypass via HTTP method override",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Change POST to GET — many apps skip CSRF for GET",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["method not allowed"]}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    }
+  }
+}

