@@ -1,0 +1,68 @@
+{
+  "category": "graphql",
+  "contexts": {
+    "introspection": {
+      "description": "GraphQL introspection query — enumerate entire schema",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{__schema{types{name kind fields{name type{ofType{name}}}}}}\"}",
+          "description": "Full introspection query to enumerate schema types and fields",
+          "matchers": [{"type": "word", "words": ["__schema", "types", "fields"], "condition": "and"}],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{\"query\":\"{__type(name:\\\"Query\\\"){name fields{name args{name type{name}}}}}\" }",
+          "description": "Targeted introspection of Query root type",
+          "matchers": [{"type": "word", "words": ["Query", "fields"], "condition": "and"}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "depth_attack": {
+      "description": "GraphQL nested query depth attack (DoS)",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{a:__typename b:__typename c:__typename d:__typename e:__typename f:__typename g:__typename h:__typename i:__typename j:__typename}\"}",
+          "description": "Alias-based batch query (10 aliases in single request)",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["__typename"], "condition": "or"}],
+          "severity": "low",
+          "confidence_boost": 15
+        }
+      ]
+    },
+    "field_suggestion": {
+      "description": "GraphQL field suggestion exploitation — leak schema via typos",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{userss{id}}\"}",
+          "description": "Misspelled field to trigger 'Did you mean' suggestions",
+          "matchers": [{"type": "word", "words": ["Did you mean", "suggestion"], "condition": "or"}],
+          "severity": "low",
+          "confidence_boost": 20
+        }
+      ]
+    },
+    "injection": {
+      "description": "GraphQL injection via resolver arguments",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{user(id:\\\"1' OR '1'='1\\\"){id name email}}\"}",
+          "description": "SQL injection via GraphQL resolver argument",
+          "matchers": [{"type": "word", "words": ["sql", "syntax", "error", "unclosed"], "condition": "or"}],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

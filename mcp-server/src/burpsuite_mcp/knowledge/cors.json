@@ -1,0 +1,66 @@
+{
+  "category": "cors",
+  "contexts": {
+    "origin_reflect": {
+      "description": "CORS origin reflection — server reflects any Origin header",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send request with Origin: https://evil.com, check if reflected in Access-Control-Allow-Origin",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"test_origin": "https://evil.com"}
+        }
+      ]
+    },
+    "null_origin": {
+      "description": "CORS null origin bypass via sandboxed iframe",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send with Origin: null — accepted by some CORS configs",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"test_origin": "null"}
+        }
+      ]
+    },
+    "credentials_wildcard": {
+      "description": "CORS wildcard with credentials — forbidden but misconfigured",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if Access-Control-Allow-Credentials: true with wildcard origin",
+          "matchers": [
+            {"type": "header", "name": "Access-Control-Allow-Origin", "contains": "*"},
+            {"type": "header", "name": "Access-Control-Allow-Credentials", "contains": "true"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "subdomain_wildcard": {
+      "description": "CORS trusting all subdomains — exploitable via subdomain takeover",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Origin: https://evil.target.com — test if subdomains trusted",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin"}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

