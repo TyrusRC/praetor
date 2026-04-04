@@ -46,10 +46,13 @@ def register(mcp: FastMCP):
         if "error" in data:
             return f"Error: {data['error']}"
 
+        has_auth = data.get("has_bearer", False) or data.get("has_basic_auth", False) or data.get("has_auth", False)
         return (
             f"Session '{data['session']}' created\n"
             f"  Base URL: {data['base_url']}\n"
-            f"  Cookies: {data['cookies']}, Headers: {data['headers']}, Auth: {data['has_auth']}"
+            f"  Cookies: {data.get('cookies_count', data.get('cookies', 0))}"
+            f", Headers: {data.get('headers_count', data.get('headers', 0))}"
+            f", Auth: {has_auth}"
         )
 
     @mcp.tool()
@@ -133,7 +136,7 @@ def register(mcp: FastMCP):
             session: Session name
             extract: Extraction rules - {"var_name": {"from": "body|header|cookie", "regex|json_path|name": "..."}}
         """
-        payload = {"session": session, "extract": extract}
+        payload = {"session": session, "rules": extract}
         resp = await client.post("/api/session/extract", json=payload)
         if "error" in resp:
             return f"Error: {resp['error']}"
@@ -217,11 +220,14 @@ def register(mcp: FastMCP):
         if not sessions_list:
             return "No active sessions."
 
-        lines = [f"Active sessions ({resp.get('total', 0)}):\n"]
+        lines = [f"Active sessions ({resp.get('total_count', resp.get('total', 0))}):\n"]
         for s in sessions_list:
-            auth = "yes" if s.get("has_auth") else "no"
+            auth = "yes" if s.get("has_bearer") or s.get("has_basic_auth") or s.get("has_auth") else "no"
             lines.append(f"  {s['name']} -> {s['base_url']}")
-            lines.append(f"    Cookies: {s['cookies']}, Headers: {s['headers']}, Variables: {s['variables']}, Auth: {auth}")
+            cookies = s.get('cookies_count', s.get('cookies', 0))
+            headers = s.get('headers_count', s.get('headers', 0))
+            variables = s.get('variables_count', s.get('variables', 0))
+            lines.append(f"    Cookies: {cookies}, Headers: {headers}, Variables: {variables}, Auth: {auth}")
 
         return "\n".join(lines)
 

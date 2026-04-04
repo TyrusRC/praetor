@@ -260,33 +260,26 @@ def register(mcp: FastMCP):
 
         lines = [f"Auth Matrix: {data['endpoints_tested']} endpoints x {data['auth_states_tested']} states = {data['total_requests']} requests\n"]
 
-        state_names = list(auth_states.keys())
-
-        header = f"{'Endpoint':<40}"
-        for name in state_names:
-            header += f" | {name:<15}"
-        lines.append(header)
-        lines.append("-" * len(header))
-
+        # Build matrix table from results array
         for row in data.get("matrix", []):
             ep = f"{row['method']} {row['path']}"
-            if len(ep) > 38:
-                ep = ep[:38]
-            line = f"{ep:<40}"
-            results = row.get("results", {})
-            for name in state_names:
-                cell = results.get(name, {})
-                status = cell.get("status", "?")
-                length = cell.get("length", 0)
-                flag = f" {cell['flag']}" if cell.get("flag") else ""
-                line += f" | {status} ({_fmt_size(length)}){flag}"
-            lines.append(line)
+            lines.append(f"  {ep}")
+            results = row.get("results", [])
+            if isinstance(results, list):
+                for cell in results:
+                    state = cell.get("auth_state", "?")
+                    status = cell.get("status", "?")
+                    length = cell.get("response_length", cell.get("length", 0))
+                    idor = " *** IDOR ***" if cell.get("potential_idor") else ""
+                    baseline = " (baseline)" if cell.get("baseline") else ""
+                    sim = cell.get("similarity_to_baseline")
+                    sim_str = f" [{int(sim*100)}% similar]" if sim is not None and not cell.get("baseline") else ""
+                    lines.append(f"    {state}: {status} ({_fmt_size(length)}){sim_str}{baseline}{idor}")
+            lines.append("")
 
-        issues = data.get("potential_issues", [])
+        issues = data.get("potential_issues", 0)
         if issues:
-            lines.append(f"\nPotential issues ({len(issues)}):")
-            for issue in issues:
-                lines.append(f"  {issue['type']}: {issue['endpoint']} — {issue['auth_state']} gets {issue['similarity']}% similar response to {issue['reference_state']}")
+            lines.append(f"Potential IDOR issues: {issues}")
 
         return "\n".join(lines)
 
@@ -331,7 +324,8 @@ def register(mcp: FastMCP):
             preview = r.get("body_preview", "")
             if len(preview) > 100:
                 preview = preview[:100] + "..."
-            lines.append(f"  #{r['index']}: {r['status']} ({_fmt_size(r['length'])}) {r['time_ms']}ms — {preview}")
+            length = r.get('response_length', r.get('length', 0))
+            lines.append(f"  #{r['index']}: {r['status']} ({_fmt_size(length)}) {r['time_ms']}ms — {preview}")
 
         return "\n".join(lines)
 
@@ -370,10 +364,15 @@ def register(mcp: FastMCP):
         lines = [f"HPP Test: {data['variants_tested']} variants"]
         lines.append(f"Baseline: {data['baseline_status']} ({_fmt_size(data['baseline_length'])})\n")
 
+        baseline_len = data['baseline_length']
         for r in data.get("results", []):
-            anomaly = " *** ANOMALY ***" if r.get("anomaly") else ""
-            lines.append(f"  [{r['location']}] {r['payload']}")
-            lines.append(f"    Status: {r['status']} | Length: {_fmt_size(r['length'])} | Length diff: {r['length_diff']}{anomaly}")
+            length = r.get('response_length', r.get('length', 0))
+            length_diff = abs(length - baseline_len)
+            status_diff = r['status'] != data['baseline_status']
+            anomaly = " *** ANOMALY ***" if status_diff or length_diff > baseline_len * 0.2 else ""
+            payload = r.get('polluted_value', r.get('payload', '?'))
+            lines.append(f"  [{r['location']}] {payload}")
+            lines.append(f"    Status: {r['status']} | Length: {_fmt_size(length)} | Length diff: {length_diff}{anomaly}")
 
         anomalies = data.get("anomalies_found", 0)
         if anomalies:
