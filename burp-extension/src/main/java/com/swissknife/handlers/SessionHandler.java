@@ -41,6 +41,11 @@ public class SessionHandler extends BaseHandler {
         this.api = api;
     }
 
+    /** Returns the shared sessions map for use by AttackHandler. */
+    public Map<String, Session> getSessions() {
+        return sessions;
+    }
+
     // ── Session model ─────────────────────────────────────────────
 
     static class Session {

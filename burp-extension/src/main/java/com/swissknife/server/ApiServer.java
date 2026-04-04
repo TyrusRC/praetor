@@ -80,6 +80,9 @@ public class ApiServer {
         sessionHandler = new SessionHandler(api);
         server.createContext("/api/session", sessionHandler);
 
+        // Attack automation (auth matrix, race condition, HPP)
+        server.createContext("/api/attack", new AttackHandler(api, sessionHandler.getSessions()));
+
         server.start();
     }
 
