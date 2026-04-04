@@ -231,6 +231,7 @@ public class AttackHandler extends BaseHandler {
 
         // Fire concurrent requests using CountDownLatch
         ExecutorService executor = Executors.newFixedThreadPool(concurrent);
+        try {
         CountDownLatch readyLatch = new CountDownLatch(concurrent);
         CountDownLatch goLatch = new CountDownLatch(1);
 
@@ -298,7 +299,6 @@ public class AttackHandler extends BaseHandler {
         }
 
         long totalTime = System.currentTimeMillis() - startTime;
-        executor.shutdown();
 
         // Analyze results
         Map<Integer, Integer> statusDistribution = new LinkedHashMap<>();
@@ -326,6 +326,9 @@ public class AttackHandler extends BaseHandler {
                 + successCount + " successful responses out of " + concurrent + " concurrent requests");
         }
         sendJson(exchange, JsonUtil.toJson(out));
+        } finally {
+            executor.shutdown();
+        }
     }
 
     // ── POST /api/attack/hpp ─────────────────────────────────────
@@ -490,17 +493,26 @@ public class AttackHandler extends BaseHandler {
                 if (sessionName != null) {
                     SessionHandler.Session session = sessions.get(sessionName);
                     if (session != null) {
+                        // Snapshot session state under synchronization
+                        String sessBearerToken;
+                        Map<String, String> sessHeaders;
+                        Map<String, String> sessCookies;
+                        synchronized (session) {
+                            sessBearerToken = session.bearerToken;
+                            sessHeaders = new LinkedHashMap<>(session.headers);
+                            sessCookies = new LinkedHashMap<>(session.cookies);
+                        }
                         // Apply session headers
-                        for (var entry : session.headers.entrySet()) {
+                        for (var entry : sessHeaders.entrySet()) {
                             request = request.withHeader(entry.getKey(), entry.getValue());
                         }
                         // Apply session cookies
-                        if (!session.cookies.isEmpty()) {
-                            request = request.withHeader("Cookie", buildCookieString(session.cookies));
+                        if (!sessCookies.isEmpty()) {
+                            request = request.withHeader("Cookie", buildCookieString(sessCookies));
                         }
                         // Apply session bearer
-                        if (!session.bearerToken.isEmpty()) {
-                            request = request.withHeader("Authorization", "Bearer " + session.bearerToken);
+                        if (!sessBearerToken.isEmpty()) {
+                            request = request.withHeader("Authorization", "Bearer " + sessBearerToken);
                         }
                     }
                 }
@@ -559,19 +571,29 @@ public class AttackHandler extends BaseHandler {
             .withService(service)
             .withHeader("Host", host);
 
+        // Snapshot session state under synchronization
+        String sessBearerToken;
+        Map<String, String> sessHeaders;
+        Map<String, String> sessCookies;
+        synchronized (session) {
+            sessBearerToken = session.bearerToken;
+            sessHeaders = new LinkedHashMap<>(session.headers);
+            sessCookies = new LinkedHashMap<>(session.cookies);
+        }
+
         // Apply session headers
-        for (var entry : session.headers.entrySet()) {
+        for (var entry : sessHeaders.entrySet()) {
             request = request.withHeader(entry.getKey(), entry.getValue());
         }
 
         // Apply bearer token
-        if (!session.bearerToken.isEmpty()) {
-            request = request.withHeader("Authorization", "Bearer " + session.bearerToken);
+        if (!sessBearerToken.isEmpty()) {
+            request = request.withHeader("Authorization", "Bearer " + sessBearerToken);
         }
 
         // Apply cookies
-        if (!session.cookies.isEmpty()) {
-            request = request.withHeader("Cookie", buildCookieString(session.cookies));
+        if (!sessCookies.isEmpty()) {
+            request = request.withHeader("Cookie", buildCookieString(sessCookies));
         }
 
         return request;

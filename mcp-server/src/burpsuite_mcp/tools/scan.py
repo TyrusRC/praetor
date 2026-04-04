@@ -24,6 +24,8 @@ def _load_knowledge(category: str) -> dict | None:
 
 def _load_all_knowledge(categories: list[str] | None = None) -> list[dict]:
     """Load all knowledge base files, optionally filtered by category."""
+    if not KNOWLEDGE_DIR.exists():
+        return []
     available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json")]
     if categories:
         available = [c for c in available if c in categories]

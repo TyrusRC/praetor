@@ -199,7 +199,7 @@ public class SessionHandler extends BaseHandler {
             Map<String, Object> extractRules = (Map<String, Object>) body.get("extract");
             if (extractRules != null) {
                 extracted = extractFromResponse(result, extractRules);
-                session.variables.putAll(extracted);
+                mergeVariables(session, extracted);
             }
 
             Map<String, Object> out = buildResponseMap(result);
@@ -267,7 +267,7 @@ public class SessionHandler extends BaseHandler {
             }
 
             Map<String, String> extracted = extractFromResponse(session.lastResponse, rules);
-            session.variables.putAll(extracted);
+            mergeVariables(session, extracted);
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("status", "ok");
@@ -330,7 +330,7 @@ public class SessionHandler extends BaseHandler {
                 Map<String, Object> extractRules = (Map<String, Object>) step.get("extract");
                 if (extractRules != null) {
                     extracted = extractFromResponse(result, extractRules);
-                    session.variables.putAll(extracted);
+                    mergeVariables(session, extracted);
                 }
 
                 Map<String, Object> stepResult = new LinkedHashMap<>();
@@ -410,6 +410,7 @@ public class SessionHandler extends BaseHandler {
     @SuppressWarnings("unchecked")
     private void handleProbe(HttpExchange exchange, Map<String, Object> body) throws Exception {
         String sessionName = (String) body.get("session");
+        if (sessionName == null) { sendError(exchange, 400, "Missing 'session'"); return; }
         Session session = sessions.get(sessionName);
         if (session == null) { sendError(exchange, 404, "Session not found: " + sessionName); return; }
 
@@ -730,6 +731,7 @@ public class SessionHandler extends BaseHandler {
 
     private void handleBatch(HttpExchange exchange, Map<String, Object> body) throws Exception {
         String sessionName = (String) body.get("session");
+        if (sessionName == null) { sendError(exchange, 400, "Missing 'session'"); return; }
         Session session = sessions.get(sessionName);
         if (session == null) { sendError(exchange, 404, "Session not found: " + sessionName); return; }
 
@@ -789,6 +791,7 @@ public class SessionHandler extends BaseHandler {
 
     private void handleDiscover(HttpExchange exchange, Map<String, Object> body) throws Exception {
         String sessionName = (String) body.get("session");
+        if (sessionName == null) { sendError(exchange, 400, "Missing 'session'"); return; }
         Session session = sessions.get(sessionName);
         if (session == null) { sendError(exchange, 404, "Session not found"); return; }
 
@@ -977,6 +980,7 @@ public class SessionHandler extends BaseHandler {
     @SuppressWarnings("unchecked")
     private void handleAutoProbe(HttpExchange exchange, Map<String, Object> body) throws Exception {
         String sessionName = (String) body.get("session");
+        if (sessionName == null) { sendError(exchange, 400, "Missing 'session'"); return; }
         Session session = sessions.get(sessionName);
         if (session == null) { sendError(exchange, 404, "Session not found"); return; }
 
@@ -1352,6 +1356,23 @@ public class SessionHandler extends BaseHandler {
                     session.cookies.put(cookieName, cookieVal);
                 }
             }
+        }
+
+        // Cap cookies at 200 to prevent unbounded growth
+        if (session.cookies.size() > 200) {
+            String oldest = session.cookies.keySet().iterator().next();
+            session.cookies.remove(oldest);
+        }
+    }
+
+    /**
+     * Merge extracted variables into session, capping at 200 entries to prevent unbounded growth.
+     */
+    private void mergeVariables(Session session, Map<String, String> extracted) {
+        mergeVariables(session, extracted);
+        while (session.variables.size() > 200) {
+            String oldest = session.variables.keySet().iterator().next();
+            session.variables.remove(oldest);
         }
     }
 
