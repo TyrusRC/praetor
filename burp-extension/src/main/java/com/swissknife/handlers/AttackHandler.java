@@ -91,7 +91,7 @@ public class AttackHandler extends BaseHandler {
 
         List<Map<String, Object>> matrix = new ArrayList<>();
         int totalRequests = 0;
-        int potentialIssues = 0;
+        List<Map<String, Object>> potentialIssues = new ArrayList<>();
 
         for (Map<String, Object> endpoint : endpoints) {
             String method = (String) endpoint.getOrDefault("method", "GET");
@@ -141,7 +141,13 @@ public class AttackHandler extends BaseHandler {
                             && (status >= 200 && status < 300);
                         if (bothSuccess && similarity > 0.9) {
                             sr.put("flag", "IDOR");
-                            potentialIssues++;
+                            Map<String, Object> issue = new LinkedHashMap<>();
+                            issue.put("type", "IDOR");
+                            issue.put("endpoint", method + " " + endpointPath);
+                            issue.put("auth_state", stateName);
+                            issue.put("reference_state", stateNames.get(0));
+                            issue.put("similarity", Math.round(similarity * 100));
+                            potentialIssues.add(issue);
                         }
                     }
                 } else {
