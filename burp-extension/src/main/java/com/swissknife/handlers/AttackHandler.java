@@ -105,20 +105,20 @@ public class AttackHandler extends BaseHandler {
             endpointResult.put("method", method);
             endpointResult.put("path", endpointPath);
 
-            // Send request for each auth state
-            List<Map<String, Object>> stateResults = new ArrayList<>();
+            // Send request for each auth state — results keyed by state name
+            Map<String, Object> stateResults = new LinkedHashMap<>();
             String firstBody = null;
             int firstStatus = 0;
 
             for (int i = 0; i < stateNames.size(); i++) {
                 String stateName = stateNames.get(i);
+                @SuppressWarnings("unchecked")
                 Map<String, Object> stateConfig = (Map<String, Object>) authStates.get(stateName);
 
                 HttpRequestResponse result = sendWithAuthState(method, url, endpointBody, stateConfig);
                 totalRequests++;
 
                 Map<String, Object> sr = new LinkedHashMap<>();
-                sr.put("auth_state", stateName);
 
                 if (result != null && result.response() != null) {
                     HttpResponse resp = result.response();
@@ -128,21 +128,19 @@ public class AttackHandler extends BaseHandler {
 
                     sr.put("status", status);
                     sr.put("length", length);
-                    sr.put("response_length", length);
 
                     if (i == 0) {
                         firstStatus = status;
                         firstBody = respBody;
-                        sr.put("baseline", true);
                     } else {
                         double similarity = calculateSimilarity(firstBody, respBody);
-                        sr.put("similarity_to_baseline", Math.round(similarity * 1000.0) / 1000.0);
+                        sr.put("similarity", Math.round(similarity * 100));
 
                         // Flag IDOR: same 2xx status + >90% body similarity
                         boolean bothSuccess = (firstStatus >= 200 && firstStatus < 300)
                             && (status >= 200 && status < 300);
                         if (bothSuccess && similarity > 0.9) {
-                            sr.put("potential_idor", true);
+                            sr.put("flag", "IDOR");
                             potentialIssues++;
                         }
                     }
@@ -151,7 +149,7 @@ public class AttackHandler extends BaseHandler {
                     sr.put("error", "Request failed");
                 }
 
-                stateResults.add(sr);
+                stateResults.put(stateName, sr);
             }
 
             endpointResult.put("results", stateResults);
