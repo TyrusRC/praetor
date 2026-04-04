@@ -103,9 +103,10 @@ uv pip install -e .
 
 ### 3. Configure Claude Code
 
-Add to your project `.mcp.json`:
+Create a `.mcp.json` file in the project root:
 
-```json
+```bash
+cat > .mcp.json << 'EOF'
 {
   "mcpServers": {
     "burpsuite": {
@@ -114,7 +115,23 @@ Add to your project `.mcp.json`:
     }
   }
 }
+EOF
 ```
+
+Replace `/absolute/path/to` with the actual path to your cloned repo. For example:
+
+```json
+{
+  "mcpServers": {
+    "burpsuite": {
+      "command": "/home/user/burpsuite-swiss-knife-mcp/mcp-server/.venv/bin/python",
+      "args": ["-m", "burpsuite_mcp"]
+    }
+  }
+}
+```
+
+> **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
 ## Tools (56 total)
 

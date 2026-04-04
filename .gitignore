@@ -33,5 +33,6 @@ Thumbs.db
 
 # Claude Code local
 .remember/
+.mcp.json
 CLAUDE.md
 docs/superpowers/
