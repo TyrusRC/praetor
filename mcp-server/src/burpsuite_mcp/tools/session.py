@@ -67,6 +67,7 @@ def register(mcp: FastMCP):
         cookies: dict | None = None,
         extract: dict | None = None,
         follow_redirects: bool = False,
+        full_body: bool = False,
     ) -> str:
         """Send HTTP request using a persistent session. Auto-applies cookies, auth, base URL.
         Cookie jar auto-updates from Set-Cookie responses.
@@ -124,10 +125,10 @@ def register(mcp: FastMCP):
 
         resp_body = resp.get("response_body", "")
         if resp_body:
-            max_body = 2000
+            max_body = 0 if full_body else 2000
             lines.append(f"\n--- Response Body ({len(resp_body)} chars) ---")
-            if len(resp_body) > max_body:
-                lines.append(resp_body[:max_body] + f"\n...[truncated, {len(resp_body)} total chars]")
+            if max_body > 0 and len(resp_body) > max_body:
+                lines.append(resp_body[:max_body] + f"\n...[truncated — use full_body=True for complete response]")
             else:
                 lines.append(resp_body)
 

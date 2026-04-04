@@ -239,7 +239,7 @@ def _format_response(data: dict) -> str:
 
 
 def _truncate_body(body: str, max_chars: int = 2000) -> str:
-    """Truncate response body to save tokens. Full body is always in Burp history."""
-    if len(body) <= max_chars:
+    """Truncate response body to save tokens. Pass max_chars=0 for full body."""
+    if max_chars <= 0 or len(body) <= max_chars:
         return body
-    return body[:max_chars] + f"\n...[truncated, {len(body)} total chars — use get_request_detail for full body]"
+    return body[:max_chars] + f"\n...[truncated, {len(body)} total chars — use get_request_detail(index, full_body=True) for full body]"

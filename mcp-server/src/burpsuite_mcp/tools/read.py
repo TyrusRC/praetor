@@ -34,9 +34,14 @@ def register(mcp: FastMCP):
         return format_proxy_table(data)
 
     @mcp.tool()
-    async def get_request_detail(index: int) -> str:
+    async def get_request_detail(index: int, full_body: bool = False) -> str:
         """Get full request and response details for a specific proxy history item.
-        Returns headers, body, status code. Use after get_proxy_history to inspect interesting requests."""
+        Returns headers, body, status code. Use after get_proxy_history to inspect interesting requests.
+
+        Args:
+            index: Proxy history index
+            full_body: If True, return complete response body without truncation (default False, 5000 char limit)
+        """
         data = await client.get(f"/api/proxy/history/{index}")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -59,10 +64,10 @@ def register(mcp: FastMCP):
             lines.append(f"  {h['name']}: {h['value']}")
         resp_body = data.get("response_body", "")
         if resp_body:
-            max_body = 5000
+            max_body = 0 if full_body else 5000
             lines.append(f"\n--- Response Body ({len(resp_body)} chars) ---")
-            if len(resp_body) > max_body:
-                lines.append(resp_body[:max_body] + f"\n...[truncated, {len(resp_body)} total chars]")
+            if max_body > 0 and len(resp_body) > max_body:
+                lines.append(resp_body[:max_body] + f"\n...[truncated, {len(resp_body)} total chars — use full_body=True for complete response]")
             else:
                 lines.append(resp_body)
 
@@ -169,13 +174,14 @@ def register(mcp: FastMCP):
         return data.get("message", f"Removed from scope: {url}")
 
     @mcp.tool()
-    async def get_cookies(domain: str = "") -> str:
+    async def get_cookies(domain: str = "", full_values: bool = False) -> str:
         """Get cookies from Burp's cookie jar.
         Shows cookie name, value, domain, path, and expiration.
         Useful for session analysis and auth testing.
 
         Args:
             domain: Optional domain filter (e.g. 'target.com')
+            full_values: If True, show complete cookie values without truncation
         """
         params = {}
         if domain:
@@ -195,7 +201,7 @@ def register(mcp: FastMCP):
         for c in cookies:
             name = c.get("name", "")[:23]
             value = c.get("value", "")
-            if len(value) > 38:
+            if not full_values and len(value) > 38:
                 value = value[:36] + ".."
             domain_val = c.get("domain", "")[:23]
             path = c.get("path", "/")
