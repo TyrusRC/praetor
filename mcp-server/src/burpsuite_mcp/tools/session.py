@@ -205,11 +205,12 @@ def register(mcp: FastMCP):
                     display = v if len(str(v)) < 80 else str(v)[:80] + "..."
                     lines.append(f"  -> {k} = {display}")
 
-            if step.get("response_body"):
-                resp_body = step["response_body"]
-                if len(resp_body) > 500:
-                    resp_body = resp_body[:500] + "..."
-                lines.append(f"  Body: {resp_body}")
+            # Show body snippet (from Java side, max 500 chars)
+            snippet = step.get("body_snippet") or step.get("response_body", "")
+            if snippet:
+                if len(snippet) > 500:
+                    snippet = snippet[:500] + "..."
+                lines.append(f"  Body: {snippet}")
 
         variables = resp.get("session_variables", {})
         if variables:

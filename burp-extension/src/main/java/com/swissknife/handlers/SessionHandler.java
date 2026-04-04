@@ -312,6 +312,12 @@ public class SessionHandler extends BaseHandler {
                 stepResult.put("status", resp != null ? resp.statusCode() : 0);
                 stepResult.put("response_length", resp != null ? resp.body().length() : 0);
                 stepResult.put("extracted", extracted);
+                // Include body snippet for flow inspection (500 chars max)
+                if (resp != null) {
+                    String bodySnippet = resp.bodyToString();
+                    if (bodySnippet.length() > 500) bodySnippet = bodySnippet.substring(0, 500);
+                    stepResult.put("body_snippet", bodySnippet);
+                }
                 results.add(stepResult);
 
                 // Stop on 4xx/5xx errors unless continue_on_error
@@ -391,15 +397,34 @@ public class SessionHandler extends BaseHandler {
         }
 
         try {
-            URI uri = new URI(fullUrl);
+            // Parse URL safely — handle unencoded special chars (quotes, backslashes, etc.)
+            // that are common in pentesting payloads
+            URI uri;
+            try {
+                uri = new URI(fullUrl);
+            } catch (java.net.URISyntaxException e) {
+                // Fallback: manually parse scheme://host:port and treat the rest as raw path
+                uri = buildSafeUri(fullUrl);
+            }
             String host = uri.getHost();
             int port = uri.getPort();
             boolean isHttps = "https".equalsIgnoreCase(uri.getScheme());
             if (port == -1) port = isHttps ? 443 : 80;
 
+            // Use raw path to preserve payload chars (don't double-encode)
             String requestPath = uri.getRawPath();
             if (requestPath == null || requestPath.isEmpty()) requestPath = "/";
-            if (uri.getRawQuery() != null) requestPath += "?" + uri.getRawQuery();
+            String rawQuery = uri.getRawQuery();
+            if (rawQuery != null) {
+                requestPath += "?" + rawQuery;
+            } else {
+                // Check if original fullUrl has query string that URI couldn't parse
+                int qIdx = fullUrl.indexOf('?');
+                if (qIdx > 0) {
+                    String queryPart = fullUrl.substring(qIdx + 1);
+                    if (!queryPart.isEmpty()) requestPath += "?" + queryPart;
+                }
+            }
 
             HttpService service = HttpService.httpService(host, port, isHttps);
 
@@ -613,6 +638,50 @@ public class SessionHandler extends BaseHandler {
         }
 
         return extracted;
+    }
+
+    /**
+     * Build a URI from a URL string that may contain unencoded special chars.
+     * Manually parses scheme://host:port and encodes the path/query parts.
+     */
+    private URI buildSafeUri(String fullUrl) throws java.net.URISyntaxException {
+        // Extract scheme
+        int schemeEnd = fullUrl.indexOf("://");
+        if (schemeEnd < 0) throw new java.net.URISyntaxException(fullUrl, "No scheme");
+        String scheme = fullUrl.substring(0, schemeEnd);
+        String rest = fullUrl.substring(schemeEnd + 3);
+
+        // Extract host:port
+        int pathStart = rest.indexOf('/');
+        String hostPort = pathStart >= 0 ? rest.substring(0, pathStart) : rest;
+        String pathAndQuery = pathStart >= 0 ? rest.substring(pathStart) : "/";
+
+        String host;
+        int port = -1;
+        int colonIdx = hostPort.lastIndexOf(':');
+        if (colonIdx > 0) {
+            host = hostPort.substring(0, colonIdx);
+            try { port = Integer.parseInt(hostPort.substring(colonIdx + 1)); }
+            catch (NumberFormatException e) { host = hostPort; }
+        } else {
+            host = hostPort;
+        }
+
+        // Split path and query — don't encode, pass raw to Burp
+        String path = pathAndQuery;
+        String query = null;
+        int qIdx = pathAndQuery.indexOf('?');
+        if (qIdx >= 0) {
+            path = pathAndQuery.substring(0, qIdx);
+            query = pathAndQuery.substring(qIdx + 1);
+        }
+
+        // Build URI with encoded path but raw query (Burp handles the actual HTTP encoding)
+        String encodedPath = java.net.URLEncoder.encode(path, java.nio.charset.StandardCharsets.UTF_8)
+                .replace("%2F", "/")  // preserve path separators
+                .replace("+", "%20"); // spaces as %20 not +
+
+        return new URI(scheme, null, host, port, encodedPath, query, null);
     }
 
     private String extractByRegex(String text, String regex) {
