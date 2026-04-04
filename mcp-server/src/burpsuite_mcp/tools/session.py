@@ -66,6 +66,7 @@ def register(mcp: FastMCP):
         json_body: dict | None = None,
         cookies: dict | None = None,
         extract: dict | None = None,
+        follow_redirects: bool = False,
     ) -> str:
         """Send HTTP request using a persistent session. Auto-applies cookies, auth, base URL.
         Cookie jar auto-updates from Set-Cookie responses.
@@ -83,6 +84,7 @@ def register(mcp: FastMCP):
             json_body: JSON body dict (sets Content-Type automatically)
             cookies: Additional cookies (merged with session jar)
             extract: Inline extraction rules - {"var_name": {"from": "body|header|cookie", "regex|json_path|name": "..."}}
+            follow_redirects: Follow 3xx redirects automatically (default False)
         """
         payload_dict: dict = {"session": session, "method": method, "path": path}
         if headers:
@@ -97,6 +99,8 @@ def register(mcp: FastMCP):
             payload_dict["cookies"] = cookies
         if extract:
             payload_dict["extract"] = extract
+        if follow_redirects:
+            payload_dict["follow_redirects"] = True
 
         resp = await client.post("/api/session/request", json=payload_dict)
         if "error" in resp:

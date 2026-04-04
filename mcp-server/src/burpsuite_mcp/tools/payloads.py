@@ -2,12 +2,23 @@
 
 import json
 import urllib.parse
+from functools import lru_cache
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 
 PAYLOADS_DIR = Path(__file__).parent.parent / "payloads"
+
+
+@lru_cache(maxsize=16)
+def _load_payload_file(category: str) -> dict | None:
+    """Load and cache a payload JSON file. Cached per category."""
+    payload_file = PAYLOADS_DIR / f"{category}.json"
+    if not payload_file.exists():
+        return None
+    with open(payload_file) as f:
+        return json.load(f)
 
 
 def register(mcp: FastMCP):
@@ -19,6 +30,7 @@ def register(mcp: FastMCP):
         waf_bypass: bool = False,
         encoding: str = "none",
         limit: int = 20,
+        variables: dict | None = None,
     ) -> str:
         """Get advanced payloads for vulnerability testing. Curated from HackTricks,
         PayloadsAllTheThings, and PortSwigger research. Use detect_tech_stack first
@@ -33,14 +45,12 @@ def register(mcp: FastMCP):
             waf_bypass: If True, only return WAF evasion payloads. If False, return all.
             encoding: Apply encoding - 'none', 'url', 'double_url', 'html', 'unicode'
             limit: Max payloads to return (default 20)
+            variables: Template variables to interpolate in payloads (e.g. {"callback": "burpcollaborator.net", "target": "10.0.0.1"})
         """
-        payload_file = PAYLOADS_DIR / f"{category}.json"
-        if not payload_file.exists():
+        data = _load_payload_file(category)
+        if data is None:
             available = [f.stem for f in PAYLOADS_DIR.glob("*.json")]
             return f"Unknown category '{category}'. Available: {', '.join(sorted(available))}"
-
-        with open(payload_file) as f:
-            data = json.load(f)
 
         contexts = data.get("contexts", {})
         if context:
@@ -64,6 +74,13 @@ def register(mcp: FastMCP):
         if not results:
             return f"No payloads found for {category}" + (f" context={context}" if context else "") + (" (waf_bypass only)" if waf_bypass else "")
 
+        # Apply template variable interpolation
+        if variables:
+            for r in results:
+                for var_name, var_value in variables.items():
+                    r["payload"] = r["payload"].replace("{{" + var_name + "}}", var_value)
+
+        # Apply encoding
         if encoding != "none":
             for r in results:
                 r["payload"] = _encode(r["payload"], encoding)

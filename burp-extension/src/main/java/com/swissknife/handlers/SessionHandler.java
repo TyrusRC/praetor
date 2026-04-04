@@ -292,10 +292,11 @@ public class SessionHandler extends BaseHandler {
                 stepResult.put("extracted", extracted);
                 results.add(stepResult);
 
-                // Stop on non-2xx unless continue_on_error
+                // Stop on 4xx/5xx errors unless continue_on_error
+                // 3xx redirects are treated as success (login flows return 302)
                 if (resp != null) {
                     int status = resp.statusCode();
-                    if (status < 200 || status >= 300) {
+                    if (status >= 400) {
                         Object continueFlag = step.get("continue_on_error");
                         boolean shouldContinue = continueFlag instanceof Boolean b && b;
                         if (!shouldContinue) break;
@@ -428,7 +429,69 @@ public class SessionHandler extends BaseHandler {
             // Body handling
             request = resolveBody(request, params, session.variables);
 
-            return api.http().sendRequest(request);
+            HttpRequestResponse result = api.http().sendRequest(request);
+
+            // Follow redirects if requested (default: false to preserve raw behavior)
+            Object followFlag = params.get("follow_redirects");
+            boolean followRedirects = followFlag instanceof Boolean b && b;
+            int maxRedirects = 10;
+            int redirectCount = 0;
+
+            while (followRedirects && result != null && result.response() != null && redirectCount < maxRedirects) {
+                int statusCode = result.response().statusCode();
+                if (statusCode < 300 || statusCode >= 400) break;
+
+                String location = null;
+                for (HttpHeader h : result.response().headers()) {
+                    if ("Location".equalsIgnoreCase(h.name())) {
+                        location = h.value();
+                        break;
+                    }
+                }
+                if (location == null || location.isEmpty()) break;
+
+                // Resolve relative URLs
+                if (location.startsWith("/")) {
+                    location = uri.getScheme() + "://" + host + (port != 80 && port != 443 ? ":" + port : "") + location;
+                } else if (!location.startsWith("http")) {
+                    String basePath = requestPath.contains("/") ? requestPath.substring(0, requestPath.lastIndexOf('/') + 1) : "/";
+                    location = uri.getScheme() + "://" + host + (port != 80 && port != 443 ? ":" + port : "") + basePath + location;
+                }
+
+                // Update cookies from redirect response
+                updateCookiesFromResponse(session, result);
+
+                // Build redirect request (GET, preserve cookies)
+                URI redirectUri = new URI(location);
+                String redirPath = redirectUri.getRawPath();
+                if (redirPath == null || redirPath.isEmpty()) redirPath = "/";
+                if (redirectUri.getRawQuery() != null) redirPath += "?" + redirectUri.getRawQuery();
+
+                String redirHost = redirectUri.getHost() != null ? redirectUri.getHost() : host;
+                int redirPort = redirectUri.getPort() > 0 ? redirectUri.getPort() : port;
+                boolean redirHttps = "https".equalsIgnoreCase(redirectUri.getScheme());
+
+                HttpRequest redirReq = HttpRequest.httpRequest()
+                    .withMethod("GET")
+                    .withPath(redirPath)
+                    .withService(HttpService.httpService(redirHost, redirPort, redirHttps))
+                    .withHeader("Host", redirHost);
+
+                // Re-apply session cookies (updated from redirect)
+                if (!session.cookies.isEmpty()) {
+                    StringBuilder cb = new StringBuilder();
+                    for (var e2 : session.cookies.entrySet()) {
+                        if (cb.length() > 0) cb.append("; ");
+                        cb.append(e2.getKey()).append("=").append(e2.getValue());
+                    }
+                    redirReq = redirReq.withHeader("Cookie", cb.toString());
+                }
+
+                result = api.http().sendRequest(redirReq);
+                redirectCount++;
+            }
+
+            return result;
         } catch (Exception e) {
             return null;
         }
@@ -476,7 +539,8 @@ public class SessionHandler extends BaseHandler {
             if (!(ruleObj instanceof Map)) continue;
 
             Map<String, Object> rule = (Map<String, Object>) ruleObj;
-            String source = (String) rule.getOrDefault("source", "body");
+            // Accept both "from" (Python convention) and "source" (legacy)
+            String source = (String) rule.getOrDefault("from", (String) rule.getOrDefault("source", "body"));
             String value = null;
 
             switch (source) {

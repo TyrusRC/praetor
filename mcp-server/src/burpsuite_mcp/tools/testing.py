@@ -94,7 +94,9 @@ def register(mcp: FastMCP):
         # First request: original or with specified auth
         modify1: dict = {"index": index}
         if original_cookies:
-            cookie_str = "; ".join(f"{k}={v}" for k, v in original_cookies.items())
+            cookie_str = "; ".join(
+                f"{k}={v.replace(';', '%3B')}" for k, v in original_cookies.items()
+            )
             modify1["modify_headers"] = {"Cookie": cookie_str}
         if original_token:
             headers = modify1.get("modify_headers", {})
@@ -104,7 +106,9 @@ def register(mcp: FastMCP):
         # Second request: alternate auth or no auth
         modify2: dict = {"index": index}
         if alt_cookies:
-            cookie_str = "; ".join(f"{k}={v}" for k, v in alt_cookies.items())
+            cookie_str = "; ".join(
+                f"{k}={v.replace(';', '%3B')}" for k, v in alt_cookies.items()
+            )
             modify2["modify_headers"] = {"Cookie": cookie_str}
         if alt_token:
             headers = modify2.get("modify_headers", {})
