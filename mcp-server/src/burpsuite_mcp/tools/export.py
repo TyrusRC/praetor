@@ -27,9 +27,7 @@ def register(mcp: FastMCP):
             url_prefix: Filter by URL prefix (e.g. 'https://target.com')
             format: Output format - 'json' or 'openapi'
         """
-        params = {"format": format}
-        if url_prefix:
-            params["prefix"] = url_prefix
+        params = {"format": format, "prefix": url_prefix}
 
         data = await client.get("/api/export/sitemap", params=params)
         if "error" in data:
