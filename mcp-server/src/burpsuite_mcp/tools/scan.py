@@ -22,18 +22,33 @@ def _load_knowledge(category: str) -> dict | None:
         return json.load(fh)
 
 
+# Reference-only files (no probes, skip in auto_probe)
+_REFERENCE_ONLY = {"tech_vulns"}
+
+
 def _load_all_knowledge(categories: list[str] | None = None) -> list[dict]:
-    """Load all knowledge base files, optionally filtered by category."""
+    """Load all knowledge base files with probes, optionally filtered by category."""
     if not KNOWLEDGE_DIR.exists():
         return []
-    available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json")]
+    available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
     if categories:
         available = [c for c in available if c in categories]
     result = []
     for cat in available:
         kb = _load_knowledge(cat)
-        if kb:
+        if kb and kb.get("contexts"):
             result.append(kb)
+    return result
+
+
+def _compact_targets(targets: list[dict]) -> str:
+    """Format targets as a compact JSON-like string for Claude to copy-paste."""
+    items = []
+    for t in targets[:15]:  # Cap at 15 for readability
+        items.append(f'{{"method":"{t.get("method","GET")}","path":"{t.get("path","")}","parameter":"{t.get("parameter","")}","baseline_value":"{t.get("baseline_value","1")}","location":"{t.get("location","query")}"}}')
+    result = "[" + ",".join(items) + "]"
+    if len(targets) > 15:
+        result += f"  # ... and {len(targets) - 15} more"
     return result
 
 
@@ -86,6 +101,14 @@ def register(mcp: FastMCP):
             for form in forms:
                 inputs = ", ".join(form.get("inputs", []))
                 lines.append(f"  [{form.get('method', '?')}] {form.get('action', '?')} -> {inputs}")
+
+        # Pre-formatted targets ready for auto_probe
+        targets = data.get("targets", [])
+        if targets:
+            lines.append(f"\nReady-to-probe targets ({len(targets)}):")
+            for t in targets:
+                lines.append(f"  {t.get('method', '?'):6s} {t.get('path', '?')} -> {t.get('parameter', '?')} ({t.get('location', '?')})")
+            lines.append(f"\nTo probe all: auto_probe(session=\"{session}\", targets={_compact_targets(targets)})")
 
         return "\n".join(lines)
 

@@ -941,13 +941,53 @@ public class SessionHandler extends BaseHandler {
                 }
             }
 
+            // Build pre-formatted targets for auto_probe (saves Claude tokens)
+            List<Map<String, Object>> targets = new ArrayList<>();
+            // From endpoint query params
+            for (Map<String, Object> ep : endpoints) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> epParams = (List<Map<String, Object>>) ep.get("parameters");
+                if (epParams != null) {
+                    for (Map<String, Object> p : epParams) {
+                        String risk = (String) p.getOrDefault("risk", "low");
+                        if ("high".equals(risk) || "medium".equals(risk)) {
+                            Map<String, Object> t = new LinkedHashMap<>();
+                            t.put("method", ep.get("method"));
+                            t.put("path", ((String) ep.get("path")).split("\\?")[0]); // base path without query
+                            t.put("parameter", p.get("name"));
+                            t.put("baseline_value", p.getOrDefault("sample_value", "1"));
+                            t.put("location", p.getOrDefault("location", "query"));
+                            targets.add(t);
+                        }
+                    }
+                }
+            }
+            // From form inputs
+            for (Map<String, Object> form : forms) {
+                String action = (String) form.getOrDefault("action", "");
+                String formMethod = (String) form.getOrDefault("method", "POST");
+                @SuppressWarnings("unchecked")
+                List<String> inputs = (List<String>) form.getOrDefault("inputs", List.of());
+                for (String input : inputs) {
+                    Map<String, Object> t = new LinkedHashMap<>();
+                    t.put("method", formMethod);
+                    t.put("path", action);
+                    t.put("parameter", input);
+                    t.put("baseline_value", "test");
+                    t.put("location", "body");
+                    targets.add(t);
+                }
+            }
+
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("pages_crawled", visited.size());
             out.put("endpoints", endpoints);
             out.put("forms", forms);
+            out.put("targets", targets);
             out.put("detected_tech", detectedTech);
             out.put("total_parameters", totalParams);
             out.put("high_risk_parameters", highRiskParams);
+            out.put("probeable_targets", targets.size());
 
             ConfigTab.log("discover: " + visited.size() + " pages, " + totalParams + " params (" + highRiskParams + " high-risk)");
             sendJson(exchange, JsonUtil.toJson(out));
