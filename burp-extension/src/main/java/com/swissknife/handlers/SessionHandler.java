@@ -138,8 +138,9 @@ public class SessionHandler extends BaseHandler {
         out.put("status", "ok");
         out.put("session", name);
         out.put("base_url", session.baseUrl);
-        out.put("cookies_count", session.cookies.size());
-        out.put("headers_count", session.headers.size());
+        out.put("cookies", session.cookies.size());
+        out.put("headers", session.headers.size());
+        out.put("has_auth", !session.bearerToken.isEmpty() || !session.authUser.isEmpty());
         sendJson(exchange, JsonUtil.toJson(out));
     }
 
@@ -207,9 +208,13 @@ public class SessionHandler extends BaseHandler {
             }
 
             @SuppressWarnings("unchecked")
-            Map<String, Object> rules = (Map<String, Object>) body.get("rules");
+            Map<String, Object> rules = (Map<String, Object>) body.get("extract");
             if (rules == null) {
-                sendError(exchange, 400, "Missing 'rules'");
+                // Also accept "rules" for backwards compat
+                rules = (Map<String, Object>) body.get("rules");
+            }
+            if (rules == null) {
+                sendError(exchange, 400, "Missing 'extract'");
                 return;
             }
 
@@ -314,18 +319,17 @@ public class SessionHandler extends BaseHandler {
             Map<String, Object> info = new LinkedHashMap<>();
             info.put("name", s.name);
             info.put("base_url", s.baseUrl);
-            info.put("cookies_count", s.cookies.size());
-            info.put("headers_count", s.headers.size());
-            info.put("variables_count", s.variables.size());
-            info.put("has_bearer", !s.bearerToken.isEmpty());
-            info.put("has_basic_auth", !s.authUser.isEmpty());
+            info.put("cookies", s.cookies.size());
+            info.put("headers", s.headers.size());
+            info.put("variables", s.variables.size());
+            info.put("has_auth", !s.bearerToken.isEmpty() || !s.authUser.isEmpty());
             info.put("has_last_response", s.lastResponse != null);
             list.add(info);
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("sessions", list);
-        out.put("total_count", list.size());
+        out.put("total", list.size());
         sendJson(exchange, JsonUtil.toJson(out));
     }
 
