@@ -58,13 +58,15 @@ public class ConfigTab {
 
         // Help text
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
-        JLabel helpLabel = new JLabel("<html><i>Default: 127.0.0.1:8111 — Change and click Apply to restart the API server.</i></html>");
+        JLabel helpLabel = new JLabel("Default: 127.0.0.1:8111 — Change and click Apply to restart the API server.");
+        helpLabel.setFont(helpLabel.getFont().deriveFont(Font.ITALIC, 11f));
         helpLabel.setForeground(Color.GRAY);
         formPanel.add(helpLabel, gbc);
 
         // Python config hint
         gbc.gridy = 3;
-        JLabel pythonHint = new JLabel("<html><i>Python MCP server must match: set BURP_API_HOST and BURP_API_PORT env vars.</i></html>");
+        JLabel pythonHint = new JLabel("Python MCP server must match: set BURP_API_HOST and BURP_API_PORT env vars.");
+        pythonHint.setFont(pythonHint.getFont().deriveFont(Font.ITALIC, 11f));
         pythonHint.setForeground(new Color(150, 120, 50));
         formPanel.add(pythonHint, gbc);
 
