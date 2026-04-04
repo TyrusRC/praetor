@@ -284,6 +284,8 @@ public class SessionHandler extends BaseHandler {
 
                 Map<String, Object> stepResult = new LinkedHashMap<>();
                 stepResult.put("step", stepsExecuted);
+                stepResult.put("method", step.getOrDefault("method", "GET"));
+                stepResult.put("path", step.getOrDefault("path", "/"));
                 HttpResponse resp = result.response();
                 stepResult.put("status", resp != null ? resp.statusCode() : 0);
                 stepResult.put("response_length", resp != null ? resp.body().length() : 0);

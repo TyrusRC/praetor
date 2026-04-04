@@ -182,7 +182,10 @@ def register(mcp: FastMCP):
         lines = [f"Flow: {resp.get('steps_executed')}/{resp.get('total_steps')} steps executed\n"]
 
         for step in resp.get("results", []):
-            status_str = f"Step {step['step']}: {step['method']} {step['path']} -> {step['status']}"
+            method = step.get('method', '')
+            path = step.get('path', '')
+            label = f"{method} {path}" if method else f"#{step['step']}"
+            status_str = f"Step {step['step']}: {label} -> {step['status']}"
             if step.get("stopped"):
                 status_str += " STOPPED"
             lines.append(status_str)
