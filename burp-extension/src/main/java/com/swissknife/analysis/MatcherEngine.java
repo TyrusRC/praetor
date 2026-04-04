@@ -142,6 +142,58 @@ public final class MatcherEngine {
                         }
                     }
                 }
+                case "word_count_diff" -> {
+                    Number minDiff = (Number) matcher.get("min_diff");
+                    if (minDiff != null && baselineResponse != null) {
+                        int baseWords = countWords(baselineResponse.bodyToString());
+                        int probeWords = countWords(body);
+                        matched = Math.abs(probeWords - baseWords) >= minDiff.intValue();
+                    }
+                    if (matched) matchedDescriptions.add("word_count_diff:" + countWords(body));
+                }
+                case "differential_timing" -> {
+                    Number minDiff = (Number) matcher.get("min_diff_ms");
+                    // baseline_ms can be injected by the caller (e.g. handleAutoProbe) into the matcher map
+                    Number baselineMs = (Number) matcher.get("baseline_ms");
+                    if (minDiff != null && baselineMs != null) {
+                        long diff = responseTimeMs - baselineMs.longValue();
+                        matched = diff >= minDiff.longValue();
+                    }
+                    if (matched) matchedDescriptions.add("diff_timing:" + responseTimeMs + "ms");
+                }
+                case "header_change" -> {
+                    if (baselineResponse != null) {
+                        @SuppressWarnings("unchecked")
+                        List<String> headerNames = (List<String>) matcher.get("headers");
+                        if (headerNames == null) {
+                            // Check all headers for any new ones
+                            Set<String> baseHeaders = new java.util.HashSet<>();
+                            for (HttpHeader h : baselineResponse.headers()) baseHeaders.add(h.name().toLowerCase());
+                            for (HttpHeader h : response.headers()) {
+                                if (!baseHeaders.contains(h.name().toLowerCase())) {
+                                    matched = true;
+                                    matchedDescriptions.add("new_header:" + h.name());
+                                    break;
+                                }
+                            }
+                        } else {
+                            for (String hName : headerNames) {
+                                String baseVal = null, probeVal = null;
+                                for (HttpHeader h : baselineResponse.headers()) {
+                                    if (hName.equalsIgnoreCase(h.name())) { baseVal = h.value(); break; }
+                                }
+                                for (HttpHeader h : response.headers()) {
+                                    if (hName.equalsIgnoreCase(h.name())) { probeVal = h.value(); break; }
+                                }
+                                if ((baseVal == null && probeVal != null) || (baseVal != null && !baseVal.equals(probeVal))) {
+                                    matched = true;
+                                    matchedDescriptions.add("header_change:" + hName);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if (!matched) allMatched = false;
@@ -151,5 +203,10 @@ public final class MatcherEngine {
         result.put("matched_matchers", matchedDescriptions);
         result.put("confidence_boost", allMatched ? matchedDescriptions.size() * 15 : 0);
         return result;
+    }
+
+    private static int countWords(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        return text.split("\\s+").length;
     }
 }
