@@ -464,7 +464,6 @@ public class SessionHandler extends BaseHandler {
             // ── Step 4: Test each payload ──
             List<Map<String, Object>> payloadResults = new ArrayList<>();
             int maxVulnScore = 0;
-            List<String> allFindings = new ArrayList<>();
 
             for (String testPayload : testPayloads) {
                 Map<String, Object> payParams = new LinkedHashMap<>(body);
@@ -521,14 +520,12 @@ public class SessionHandler extends BaseHandler {
                 payloadResults.add(pr);
 
                 maxVulnScore = Math.max(maxVulnScore, vulnScore);
-                allFindings.addAll(findings);
             }
 
             out.put("payloads_tested", payloadResults.size());
             out.put("results", payloadResults);
             out.put("max_vulnerability_score", maxVulnScore);
             out.put("likely_vulnerable", maxVulnScore >= 30);
-            out.put("all_findings", allFindings);
 
             ConfigTab.log("probe: " + parameter + " on " + path + " -> score=" + maxVulnScore + " (" + payloadResults.size() + " payloads)");
             sendJson(exchange, JsonUtil.toJson(out));
@@ -691,10 +688,11 @@ public class SessionHandler extends BaseHandler {
             patterns.add(Map.of("type", "path_traversal", "description", "System file contents leaked", "confidence", "high"));
         }
 
-        // SSTI
-        if (lower.contains("49") && lower.contains("7*7") || lower.contains("jinja2") ||
-            lower.contains("freemarker") || lower.contains("velocity") || lower.contains("thymeleaf")) {
-            patterns.add(Map.of("type", "ssti", "description", "Template injection indicator", "confidence", "high"));
+        // SSTI — only flag explicit template engine errors, not generic "49" matches
+        if (lower.contains("jinja2") || lower.contains("freemarker") || lower.contains("velocity") ||
+            lower.contains("thymeleaf") || lower.contains("twig") || lower.contains("mako") ||
+            (lower.contains("template") && (lower.contains("error") || lower.contains("exception")))) {
+            patterns.add(Map.of("type", "ssti", "description", "Template engine error detected", "confidence", "high"));
         }
 
         // RCE
