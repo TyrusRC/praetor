@@ -32,6 +32,10 @@ public class ApiServer {
         return sessionHandler;
     }
 
+    public FindingsStore getFindingsStore() {
+        return findingsStore;
+    }
+
     public void start() throws IOException {
         server = HttpServer.create(new InetSocketAddress(host, port), 0);
         server.setExecutor(Executors.newFixedThreadPool(4));

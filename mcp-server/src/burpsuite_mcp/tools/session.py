@@ -344,3 +344,98 @@ def register(mcp: FastMCP):
             lines.append("\n(No analysis available — endpoint may not be in proxy history)")
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def probe_endpoint(
+        session: str,
+        method: str,
+        path: str,
+        parameter: str,
+        baseline_value: str = "1",
+        payload_value: str = "1'",
+        injection_point: str = "query",
+    ) -> str:
+        """Probe a parameter for vulnerabilities: sends baseline request + payload request,
+        auto-diffs responses, detects SQL/XSS/path traversal error patterns, measures timing.
+        Replaces 3+ tool calls with 1.
+
+        Args:
+            session: Session name
+            method: HTTP method
+            path: Base endpoint path (e.g. '/showforum.asp')
+            parameter: Parameter name to test (e.g. 'id')
+            baseline_value: Normal/safe value (default '1')
+            payload_value: Attack payload (e.g. "1'", "1 OR 1=1--")
+            injection_point: Where to inject — 'query' or 'body'
+        """
+        payload = {
+            "session": session, "method": method, "path": path,
+            "parameter": parameter, "baseline_value": baseline_value,
+            "payload_value": payload_value, "injection_point": injection_point,
+        }
+        data = await client.post("/api/session/probe", json=payload)
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"Probe: {parameter}={data.get('payload_value')} (baseline: {data.get('baseline_value')})\n"]
+        lines.append(f"  Baseline: {data.get('baseline_status')} | {data.get('baseline_length')}B | {data.get('baseline_time_ms')}ms")
+        lines.append(f"  Payload:  {data.get('payload_status')} | {data.get('payload_length')}B | {data.get('payload_time_ms')}ms")
+
+        if data.get("status_changed"):
+            lines.append(f"\n  [!] Status changed: {data.get('baseline_status')} -> {data.get('payload_status')}")
+        if data.get("length_diff", 0) > 100:
+            lines.append(f"  [!] Length diff: {data.get('length_diff')} bytes")
+        if data.get("time_diff_ms", 0) > 2000:
+            lines.append(f"  [!] Timing anomaly: {data.get('time_diff_ms')}ms difference")
+        if data.get("payload_reflected"):
+            lines.append(f"  [!] Payload reflected in response")
+
+        errors = data.get("error_patterns", [])
+        if errors:
+            lines.append(f"\n  Error Patterns Detected:")
+            for e in errors:
+                lines.append(f"    [{e.get('confidence')}] {e.get('type')}: {e.get('description')} ({e.get('database', 'generic')})")
+
+        findings = data.get("findings", [])
+        if findings:
+            lines.append(f"\n  Findings:")
+            for f in findings:
+                lines.append(f"    -> {f}")
+
+        if data.get("likely_vulnerable"):
+            lines.append(f"\n  *** LIKELY VULNERABLE ***")
+        else:
+            lines.append(f"\n  No obvious vulnerability detected.")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def batch_probe(
+        session: str,
+        endpoints: list[dict],
+    ) -> str:
+        """Test multiple endpoints in ONE call. Returns status, length, timing for each.
+        92% fewer tokens vs individual session_request calls.
+
+        Args:
+            session: Session name
+            endpoints: List of endpoints - [{"method": "GET", "path": "/api/users"}, {"method": "POST", "path": "/login", "data": "user=test"}]
+        """
+        payload = {"session": session, "endpoints": endpoints}
+        data = await client.post("/api/session/batch", json=payload)
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"Batch Probe: {data.get('total_endpoints')} endpoints in {data.get('total_time_ms')}ms\n"]
+
+        dist = data.get("status_distribution", {})
+        if dist:
+            dist_str = ", ".join(f"{s}x{c}" for s, c in dist.items())
+            lines.append(f"Status: {dist_str}\n")
+
+        for r in data.get("results", []):
+            title = r.get("title", "")
+            title_str = f" [{title}]" if title else ""
+            lines.append(f"  {r.get('method', '?'):6s} {r.get('path', '?'):<40s} {r['status']} | {r['length']:>6}B | {r['time_ms']:>4}ms{title_str}")
+
+        return "\n".join(lines)

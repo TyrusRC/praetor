@@ -8,6 +8,7 @@ import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.http.message.responses.HttpResponse;
 import com.sun.net.httpserver.HttpExchange;
 import com.swissknife.server.BaseHandler;
+import com.swissknife.ui.ConfigTab;
 import com.swissknife.util.JsonUtil;
 
 import java.net.URI;
@@ -46,6 +47,20 @@ public class SessionHandler extends BaseHandler {
         return sessions;
     }
 
+    /** Returns session info as list of string arrays for UI display. */
+    public List<String[]> getSessionInfoList() {
+        List<String[]> list = new ArrayList<>();
+        for (Session s : sessions.values()) {
+            list.add(new String[]{
+                s.name, s.baseUrl,
+                String.valueOf(s.cookies.size()),
+                String.valueOf(s.variables.size()),
+                !s.bearerToken.isEmpty() || !s.authUser.isEmpty() ? "Yes" : "No"
+            });
+        }
+        return list;
+    }
+
     // ── Session model ─────────────────────────────────────────────
 
     static class Session {
@@ -82,6 +97,8 @@ public class SessionHandler extends BaseHandler {
                     case "/api/session/request" -> handleSessionRequest(exchange, body);
                     case "/api/session/extract" -> handleExtract(exchange, body);
                     case "/api/session/flow" -> handleFlow(exchange, body);
+                    case "/api/session/probe" -> handleProbe(exchange, body);
+                    case "/api/session/batch" -> handleBatch(exchange, body);
                     default -> sendError(exchange, 404, "Not found");
                 }
             }
@@ -160,7 +177,10 @@ public class SessionHandler extends BaseHandler {
         }
 
         synchronized (session) {
+            long startNanos = System.nanoTime();
             HttpRequestResponse result = sendSessionRequest(session, body);
+            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
             if (result == null) {
                 sendError(exchange, 500, "Failed to send request");
                 return;
@@ -179,6 +199,8 @@ public class SessionHandler extends BaseHandler {
             }
 
             Map<String, Object> out = buildResponseMap(result);
+            out.put("response_time_ms", elapsedMs);
+            ConfigTab.log("session_request: " + body.getOrDefault("method", "GET") + " " + body.getOrDefault("path", "/") + " -> " + (result.response() != null ? result.response().statusCode() : 0) + " (" + elapsedMs + "ms)");
             out.put("extracted", extracted);
             out.put("session_cookies", new LinkedHashMap<>(session.cookies));
             out.put("session_variables", new LinkedHashMap<>(session.variables));
@@ -283,7 +305,10 @@ public class SessionHandler extends BaseHandler {
                 // Interpolate variables into step
                 Map<String, Object> step = interpolateStep(rawStep, session.variables);
 
+                long stepStart = System.nanoTime();
                 HttpRequestResponse result = sendSessionRequest(session, step);
+                long stepMs = (System.nanoTime() - stepStart) / 1_000_000;
+
                 if (result == null) {
                     Map<String, Object> stepResult = new LinkedHashMap<>();
                     stepResult.put("step", stepsExecuted);
@@ -311,6 +336,7 @@ public class SessionHandler extends BaseHandler {
                 HttpResponse resp = result.response();
                 stepResult.put("status", resp != null ? resp.statusCode() : 0);
                 stepResult.put("response_length", resp != null ? resp.body().length() : 0);
+                stepResult.put("response_time_ms", stepMs);
                 stepResult.put("extracted", extracted);
                 // Include body snippet for flow inspection (500 chars max)
                 if (resp != null) {
@@ -373,6 +399,245 @@ public class SessionHandler extends BaseHandler {
             return;
         }
         sendOk(exchange, "Session deleted: " + name);
+    }
+
+    // ── POST /api/session/probe — baseline vs payload comparison ──
+
+    private void handleProbe(HttpExchange exchange, Map<String, Object> body) throws Exception {
+        String sessionName = (String) body.get("session");
+        Session session = sessions.get(sessionName);
+        if (session == null) { sendError(exchange, 404, "Session not found: " + sessionName); return; }
+
+        String method = (String) body.getOrDefault("method", "GET");
+        String path = (String) body.getOrDefault("path", "/");
+        String parameter = (String) body.get("parameter");
+        String baselineValue = (String) body.getOrDefault("baseline_value", "1");
+        String payloadValue = (String) body.get("payload_value");
+        String injectionPoint = (String) body.getOrDefault("injection_point", "query");
+
+        if (parameter == null || payloadValue == null) {
+            sendError(exchange, 400, "Missing 'parameter' or 'payload_value'"); return;
+        }
+
+        synchronized (session) {
+            // Build baseline request
+            Map<String, Object> baselineParams = new LinkedHashMap<>(body);
+            baselineParams.put("path", injectParam(path, parameter, baselineValue, injectionPoint, method, body));
+            if ("body".equals(injectionPoint)) {
+                baselineParams.put("data", parameter + "=" + baselineValue);
+            }
+
+            long baseStart = System.nanoTime();
+            HttpRequestResponse baselineResult = sendSessionRequest(session, baselineParams);
+            long baseMs = (System.nanoTime() - baseStart) / 1_000_000;
+            updateCookiesFromResponse(session, baselineResult);
+
+            // Build payload request
+            Map<String, Object> payloadParams = new LinkedHashMap<>(body);
+            payloadParams.put("path", injectParam(path, parameter, payloadValue, injectionPoint, method, body));
+            if ("body".equals(injectionPoint)) {
+                payloadParams.put("data", parameter + "=" + payloadValue);
+            }
+
+            long payStart = System.nanoTime();
+            HttpRequestResponse payloadResult = sendSessionRequest(session, payloadParams);
+            long payMs = (System.nanoTime() - payStart) / 1_000_000;
+            updateCookiesFromResponse(session, payloadResult);
+            session.lastResponse = payloadResult;
+
+            // Compare
+            int baseStatus = baselineResult != null && baselineResult.response() != null ? baselineResult.response().statusCode() : 0;
+            int payStatus = payloadResult != null && payloadResult.response() != null ? payloadResult.response().statusCode() : 0;
+            int baseLen = baselineResult != null && baselineResult.response() != null ? baselineResult.response().body().length() : 0;
+            int payLen = payloadResult != null && payloadResult.response() != null ? payloadResult.response().body().length() : 0;
+            String baseBody = baselineResult != null && baselineResult.response() != null ? baselineResult.response().bodyToString() : "";
+            String payBody = payloadResult != null && payloadResult.response() != null ? payloadResult.response().bodyToString() : "";
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("parameter", parameter);
+            out.put("baseline_value", baselineValue);
+            out.put("payload_value", payloadValue);
+            out.put("injection_point", injectionPoint);
+
+            out.put("baseline_status", baseStatus);
+            out.put("baseline_length", baseLen);
+            out.put("baseline_time_ms", baseMs);
+            out.put("payload_status", payStatus);
+            out.put("payload_length", payLen);
+            out.put("payload_time_ms", payMs);
+
+            out.put("status_changed", baseStatus != payStatus);
+            out.put("length_diff", Math.abs(payLen - baseLen));
+            out.put("time_diff_ms", Math.abs(payMs - baseMs));
+
+            // Detect error patterns in payload response
+            List<Map<String, Object>> errors = detectErrorPatterns(payBody, payStatus);
+            if (!errors.isEmpty()) {
+                out.put("error_patterns", errors);
+            }
+
+            // Detect reflection
+            if (payBody.contains(payloadValue)) {
+                out.put("payload_reflected", true);
+            }
+
+            // Body snippets (200 chars each)
+            out.put("baseline_snippet", baseBody.length() > 200 ? baseBody.substring(0, 200) : baseBody);
+            out.put("payload_snippet", payBody.length() > 200 ? payBody.substring(0, 200) : payBody);
+
+            // Vulnerability assessment
+            List<String> findings = new ArrayList<>();
+            if (baseStatus != payStatus && payStatus == 500) findings.add("Server error triggered — likely injectable");
+            if (payMs - baseMs > 4000) findings.add("Timing anomaly (" + payMs + "ms vs " + baseMs + "ms) — possible blind injection");
+            if (!errors.isEmpty()) findings.add("Error patterns detected: " + errors.get(0).get("type"));
+            if (payBody.contains(payloadValue)) findings.add("Payload reflected in response — check for XSS");
+            out.put("findings", findings);
+            out.put("likely_vulnerable", !findings.isEmpty());
+
+            sendJson(exchange, JsonUtil.toJson(out));
+        }
+    }
+
+    private String injectParam(String path, String param, String value, String injectionPoint, String method, Map<String, Object> body) {
+        if ("query".equals(injectionPoint)) {
+            return path.contains("?") ? path + "&" + param + "=" + value : path + "?" + param + "=" + value;
+        }
+        return path;
+    }
+
+    private List<Map<String, Object>> detectErrorPatterns(String body, int status) {
+        List<Map<String, Object>> patterns = new ArrayList<>();
+        String lower = body.toLowerCase();
+
+        // SQL error patterns
+        String[][] sqlPatterns = {
+            {"mssql", "unclosed quotation mark", "SQL syntax error (MSSQL)"},
+            {"mssql", "incorrect syntax near", "SQL syntax error (MSSQL)"},
+            {"mssql", "microsoft ole db", "OLE DB error (MSSQL)"},
+            {"mssql", "microsoft sql server", "MSSQL error disclosure"},
+            {"mssql", "sql server driver", "MSSQL driver error"},
+            {"mysql", "you have an error in your sql syntax", "SQL syntax error (MySQL)"},
+            {"mysql", "warning: mysql", "MySQL warning"},
+            {"mysql", "mysqli_", "MySQLi error"},
+            {"postgresql", "pg_query", "PostgreSQL error"},
+            {"postgresql", "psql error", "PostgreSQL error"},
+            {"oracle", "ora-", "Oracle error"},
+            {"sqlite", "sqlite3.", "SQLite error"},
+            {"generic", "sql syntax", "Generic SQL error"},
+            {"generic", "database error", "Database error"},
+            {"generic", "query failed", "Query failure"},
+        };
+        for (String[] p : sqlPatterns) {
+            if (lower.contains(p[1])) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("type", "sqli");
+                m.put("database", p[0]);
+                m.put("description", p[2]);
+                m.put("confidence", "high");
+                patterns.add(m);
+                break; // One SQL match is enough
+            }
+        }
+
+        // Path traversal patterns
+        if (lower.contains("root:x:0") || lower.contains("[extensions]") || lower.contains("[boot loader]") || lower.contains("for 16-bit app support")) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("type", "path_traversal");
+            m.put("description", "System file contents leaked");
+            m.put("confidence", "high");
+            patterns.add(m);
+        }
+
+        // Stack trace / debug info
+        if (lower.contains("stack trace") || lower.contains("at java.") || lower.contains("at system.") || lower.contains("traceback")) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("type", "info_disclosure");
+            m.put("description", "Stack trace in response");
+            m.put("confidence", "high");
+            patterns.add(m);
+        }
+
+        // Generic 500 with no specific pattern
+        if (status == 500 && patterns.isEmpty()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("type", "server_error");
+            m.put("description", "500 Internal Server Error (unhandled exception)");
+            m.put("confidence", "medium");
+            patterns.add(m);
+        }
+
+        return patterns;
+    }
+
+    // ── POST /api/session/batch — test multiple endpoints at once ──
+
+    private void handleBatch(HttpExchange exchange, Map<String, Object> body) throws Exception {
+        String sessionName = (String) body.get("session");
+        Session session = sessions.get(sessionName);
+        if (session == null) { sendError(exchange, 404, "Session not found: " + sessionName); return; }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> endpoints = (List<Map<String, Object>>) body.get("endpoints");
+        if (endpoints == null || endpoints.isEmpty()) {
+            sendError(exchange, 400, "Missing or empty 'endpoints'"); return;
+        }
+
+        synchronized (session) {
+            List<Map<String, Object>> results = new ArrayList<>();
+            Map<Integer, Integer> statusCounts = new java.util.TreeMap<>();
+            long totalStart = System.nanoTime();
+
+            for (int i = 0; i < endpoints.size(); i++) {
+                Map<String, Object> ep = endpoints.get(i);
+                Map<String, Object> reqParams = new LinkedHashMap<>(ep);
+                reqParams.put("session", sessionName);
+
+                long reqStart = System.nanoTime();
+                HttpRequestResponse result = sendSessionRequest(session, reqParams);
+                long reqMs = (System.nanoTime() - reqStart) / 1_000_000;
+                if (result != null) updateCookiesFromResponse(session, result);
+
+                int status = result != null && result.response() != null ? result.response().statusCode() : 0;
+                int length = result != null && result.response() != null ? result.response().body().length() : 0;
+                statusCounts.merge(status, 1, Integer::sum);
+
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("index", i);
+                r.put("method", ep.getOrDefault("method", "GET"));
+                r.put("path", ep.getOrDefault("path", "/"));
+                r.put("status", status);
+                r.put("length", length);
+                r.put("time_ms", reqMs);
+
+                // Body snippet (100 chars for batch — keep compact)
+                if (result != null && result.response() != null) {
+                    String bodyStr = result.response().bodyToString();
+                    r.put("title", extractTitle(bodyStr));
+                }
+                results.add(r);
+            }
+
+            long totalMs = (System.nanoTime() - totalStart) / 1_000_000;
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("total_endpoints", endpoints.size());
+            out.put("total_time_ms", totalMs);
+            out.put("status_distribution", statusCounts);
+            out.put("results", results);
+            sendJson(exchange, JsonUtil.toJson(out));
+        }
+    }
+
+    private String extractTitle(String html) {
+        if (html == null) return null;
+        int start = html.indexOf("<title>");
+        if (start < 0) start = html.indexOf("<TITLE>");
+        if (start < 0) return null;
+        start += 7;
+        int end = html.indexOf("</title>", start);
+        if (end < 0) end = html.indexOf("</TITLE>", start);
+        if (end < 0 || end - start > 200) return null;
+        return html.substring(start, end).trim();
     }
 
     // ── Request building (shared by handleSessionRequest & flow) ──

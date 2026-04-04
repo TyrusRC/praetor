@@ -24,12 +24,14 @@ public class SwissKnifeExtension implements BurpExtension {
         int port = loadInt(api, "swissknife.port", DEFAULT_PORT);
         String host = loadString(api, "swissknife.host", DEFAULT_HOST);
 
-        // Register config UI tab
-        ConfigTab configTab = new ConfigTab(api, host, port, version, this::restartServer);
-        api.userInterface().registerSuiteTab(EXTENSION_NAME, configTab.getPanel());
-
-        // Start API server
+        // Start API server first (creates SessionHandler + FindingsStore)
         startServer(api, host, port);
+
+        // Register UI dashboard tab with references to live data
+        ConfigTab configTab = new ConfigTab(api, host, port, version, this::restartServer,
+                () -> apiServer.getSessionHandler() != null ? apiServer.getSessionHandler().getSessionInfoList() : java.util.List.of(),
+                apiServer.getFindingsStore());
+        api.userInterface().registerSuiteTab(EXTENSION_NAME, configTab.getPanel());
 
         api.extension().registerUnloadingHandler(() -> {
             if (apiServer != null) apiServer.stop();
