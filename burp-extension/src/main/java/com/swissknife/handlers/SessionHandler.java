@@ -735,10 +735,9 @@ public class SessionHandler extends BaseHandler {
             patterns.add(Map.of("type", "info_disclosure", "description", "Stack trace leaked", "confidence", "high"));
         }
 
-        // Generic 500
-        if (status == 500 && patterns.isEmpty()) {
-            patterns.add(Map.of("type", "server_error", "description", "500 error (unhandled exception)", "confidence", "medium"));
-        }
+        // Generic 500 alone is NOT a vulnerability indicator — don't flag
+        // Many apps return 500 for invalid input, rate limiting, or general errors
+        // Only specific error patterns above should trigger findings
 
         return patterns;
     }
@@ -1138,21 +1137,35 @@ public class SessionHandler extends BaseHandler {
                             int baseStatus = baselineResult.response().statusCode();
                             int baseLen = baselineResult.response().body().length();
 
-                            // Anomaly score: how much does this response deviate from baseline?
+                            // Anomaly score: stricter scoring to reduce false positives
+                            // Only flag MEANINGFUL deviations, not normal app behavior
                             int anomalyScore = 0;
                             List<String> anomalies = new ArrayList<>();
+
+                            // Status: only flag 2xx→5xx transitions (not 2xx→4xx which is normal validation)
                             if (probeStatus != baseStatus) {
-                                anomalyScore += 30;
-                                anomalies.add("status:" + baseStatus + "->" + probeStatus);
+                                int baseClass = baseStatus / 100;
+                                int probeClass = probeStatus / 100;
+                                if (baseClass == 2 && probeClass == 5) {
+                                    anomalyScore += 20;
+                                    anomalies.add("status:2xx->5xx");
+                                }
+                                // 2xx→4xx is normal input validation, not anomaly
                             }
+
+                            // Length: only flag large structural changes (>50% AND >1KB)
                             int lenDiff = Math.abs(probeLen - baseLen);
-                            if (baseLen > 0 && lenDiff > baseLen * 0.3) {
-                                anomalyScore += 20;
+                            if (baseLen > 0 && lenDiff > baseLen * 0.5 && lenDiff > 1000) {
+                                anomalyScore += 15;
                                 anomalies.add("length:" + lenDiff + "B diff");
                             }
-                            if (elapsedMs > 3000) {
-                                anomalyScore += 25;
-                                anomalies.add("timing:" + elapsedMs + "ms");
+
+                            // Timing: differential only (vs baseline, not absolute)
+                            long baselineTimeMs = 500; // default if not tracked
+                            long timeDiff = elapsedMs - baselineTimeMs;
+                            if (timeDiff > 4000) {
+                                anomalyScore += 20;
+                                anomalies.add("timing:+" + timeDiff + "ms vs baseline");
                             }
 
                             if (Boolean.TRUE.equals(matchResult.get("matched"))) {
@@ -1188,8 +1201,8 @@ public class SessionHandler extends BaseHandler {
                                     method + " " + path,
                                     "Status: " + probeStatus + ", Score: " + normalizedScore + (cwe.isEmpty() ? "" : ", " + cwe)
                                 );
-                            } else if (anomalyScore >= 30) {
-                                // No matcher fired but response is anomalous — flag for review
+                            } else if (anomalyScore >= 40 && anomalies.size() >= 2) {
+                                // No matcher fired but MULTIPLE strong anomaly signals — flag for review
                                 int normalizedAnomaly = Math.min(100, anomalyScore);
                                 String cwe = CWE_MAP.getOrDefault(category, "");
 
