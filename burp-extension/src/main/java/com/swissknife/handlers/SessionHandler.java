@@ -403,6 +403,7 @@ public class SessionHandler extends BaseHandler {
 
     // ── POST /api/session/probe — baseline vs payload comparison ──
 
+    @SuppressWarnings("unchecked")
     private void handleProbe(HttpExchange exchange, Map<String, Object> body) throws Exception {
         String sessionName = (String) body.get("session");
         Session session = sessions.get(sessionName);
@@ -412,158 +413,310 @@ public class SessionHandler extends BaseHandler {
         String path = (String) body.getOrDefault("path", "/");
         String parameter = (String) body.get("parameter");
         String baselineValue = (String) body.getOrDefault("baseline_value", "1");
-        String payloadValue = (String) body.get("payload_value");
+        String payloadValue = (String) body.getOrDefault("payload_value", "");
         String injectionPoint = (String) body.getOrDefault("injection_point", "query");
+        List<String> testPayloads = body.containsKey("test_payloads") ? (List<String>) body.get("test_payloads") : null;
 
-        if (parameter == null || payloadValue == null) {
-            sendError(exchange, 400, "Missing 'parameter' or 'payload_value'"); return;
-        }
+        if (parameter == null) { sendError(exchange, 400, "Missing 'parameter'"); return; }
 
         synchronized (session) {
-            // Build baseline request
+            // ── Step 1: Send baseline request ──
             Map<String, Object> baselineParams = new LinkedHashMap<>(body);
-            baselineParams.put("path", injectParam(path, parameter, baselineValue, injectionPoint, method, body));
-            if ("body".equals(injectionPoint)) {
-                baselineParams.put("data", parameter + "=" + baselineValue);
-            }
+            baselineParams.put("path", injectParam(path, parameter, baselineValue, injectionPoint));
+            if ("body".equals(injectionPoint)) baselineParams.put("data", parameter + "=" + baselineValue);
 
             long baseStart = System.nanoTime();
             HttpRequestResponse baselineResult = sendSessionRequest(session, baselineParams);
             long baseMs = (System.nanoTime() - baseStart) / 1_000_000;
-            updateCookiesFromResponse(session, baselineResult);
+            if (baselineResult != null) updateCookiesFromResponse(session, baselineResult);
 
-            // Build payload request
-            Map<String, Object> payloadParams = new LinkedHashMap<>(body);
-            payloadParams.put("path", injectParam(path, parameter, payloadValue, injectionPoint, method, body));
-            if ("body".equals(injectionPoint)) {
-                payloadParams.put("data", parameter + "=" + payloadValue);
+            int baseStatus = baselineResult != null && baselineResult.response() != null ? baselineResult.response().statusCode() : 0;
+            int baseLen = baselineResult != null && baselineResult.response() != null ? baselineResult.response().body().length() : 0;
+            String baseBody = baselineResult != null && baselineResult.response() != null ? baselineResult.response().bodyToString() : "";
+
+            // ── Step 2: Auto-detect tech stack from baseline ──
+            List<String> detectedTech = detectTechFromResponse(baselineResult);
+
+            // ── Step 3: Select payload adaptively if not provided ──
+            if ((payloadValue == null || payloadValue.isEmpty()) && (testPayloads == null || testPayloads.isEmpty())) {
+                testPayloads = selectAdaptivePayloads(detectedTech, parameter);
             }
 
-            long payStart = System.nanoTime();
-            HttpRequestResponse payloadResult = sendSessionRequest(session, payloadParams);
-            long payMs = (System.nanoTime() - payStart) / 1_000_000;
-            updateCookiesFromResponse(session, payloadResult);
-            session.lastResponse = payloadResult;
-
-            // Compare
-            int baseStatus = baselineResult != null && baselineResult.response() != null ? baselineResult.response().statusCode() : 0;
-            int payStatus = payloadResult != null && payloadResult.response() != null ? payloadResult.response().statusCode() : 0;
-            int baseLen = baselineResult != null && baselineResult.response() != null ? baselineResult.response().body().length() : 0;
-            int payLen = payloadResult != null && payloadResult.response() != null ? payloadResult.response().body().length() : 0;
-            String baseBody = baselineResult != null && baselineResult.response() != null ? baselineResult.response().bodyToString() : "";
-            String payBody = payloadResult != null && payloadResult.response() != null ? payloadResult.response().bodyToString() : "";
+            // If single payload provided, use it; otherwise use first from testPayloads
+            if (payloadValue != null && !payloadValue.isEmpty() && (testPayloads == null || testPayloads.isEmpty())) {
+                testPayloads = List.of(payloadValue);
+            }
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("parameter", parameter);
             out.put("baseline_value", baselineValue);
-            out.put("payload_value", payloadValue);
             out.put("injection_point", injectionPoint);
-
             out.put("baseline_status", baseStatus);
             out.put("baseline_length", baseLen);
             out.put("baseline_time_ms", baseMs);
-            out.put("payload_status", payStatus);
-            out.put("payload_length", payLen);
-            out.put("payload_time_ms", payMs);
+            if (!detectedTech.isEmpty()) out.put("detected_tech", detectedTech);
 
-            out.put("status_changed", baseStatus != payStatus);
-            out.put("length_diff", Math.abs(payLen - baseLen));
-            out.put("time_diff_ms", Math.abs(payMs - baseMs));
+            // ── Step 4: Test each payload ──
+            List<Map<String, Object>> payloadResults = new ArrayList<>();
+            int maxVulnScore = 0;
+            List<String> allFindings = new ArrayList<>();
 
-            // Detect error patterns in payload response
-            List<Map<String, Object>> errors = detectErrorPatterns(payBody, payStatus);
-            if (!errors.isEmpty()) {
-                out.put("error_patterns", errors);
+            for (String testPayload : testPayloads) {
+                Map<String, Object> payParams = new LinkedHashMap<>(body);
+                payParams.put("path", injectParam(path, parameter, testPayload, injectionPoint));
+                if ("body".equals(injectionPoint)) payParams.put("data", parameter + "=" + testPayload);
+
+                long payStart = System.nanoTime();
+                HttpRequestResponse payResult = sendSessionRequest(session, payParams);
+                long payMs = (System.nanoTime() - payStart) / 1_000_000;
+                if (payResult != null) updateCookiesFromResponse(session, payResult);
+                session.lastResponse = payResult;
+
+                int payStatus = payResult != null && payResult.response() != null ? payResult.response().statusCode() : 0;
+                int payLen = payResult != null && payResult.response() != null ? payResult.response().body().length() : 0;
+                String payBody = payResult != null && payResult.response() != null ? payResult.response().bodyToString() : "";
+
+                // Error patterns
+                List<Map<String, Object>> errors = detectErrorPatterns(payBody, payStatus);
+
+                // Reflection (multi-variant)
+                Map<String, Object> reflection = detectReflection(testPayload, payBody);
+
+                // Vulnerability scoring
+                int vulnScore = 0;
+                List<String> findings = new ArrayList<>();
+
+                if (baseStatus != payStatus) {
+                    if (payStatus == 500) { findings.add("500 error — likely injectable"); vulnScore += 40; }
+                    else if (payStatus == 403 || payStatus == 401) { findings.add("Auth change — possible bypass"); vulnScore += 25; }
+                    else { findings.add("Status changed: " + baseStatus + " -> " + payStatus); vulnScore += 15; }
+                }
+                long timeDiff = payMs - baseMs;
+                if (timeDiff > 4000) { findings.add("Timing: +" + timeDiff + "ms — blind injection?"); vulnScore += 35; }
+                else if (timeDiff > 1500) { findings.add("Timing: +" + timeDiff + "ms"); vulnScore += 10; }
+                if (!errors.isEmpty()) {
+                    findings.add(errors.get(0).get("type") + ": " + errors.get(0).get("description"));
+                    vulnScore += "high".equals(errors.get(0).get("confidence")) ? 40 : 20;
+                }
+                if (!reflection.isEmpty()) {
+                    findings.add("Reflected (" + reflection.get("type") + ")");
+                    vulnScore += "raw".equals(reflection.get("type")) ? 30 : 15;
+                }
+                if (Math.abs(payLen - baseLen) > 200) vulnScore += 5;
+
+                Map<String, Object> pr = new LinkedHashMap<>();
+                pr.put("payload", testPayload);
+                pr.put("status", payStatus);
+                pr.put("length", payLen);
+                pr.put("time_ms", payMs);
+                pr.put("score", vulnScore);
+                if (!errors.isEmpty()) pr.put("errors", errors);
+                if (!reflection.isEmpty()) pr.put("reflection", reflection);
+                if (!findings.isEmpty()) pr.put("findings", findings);
+                payloadResults.add(pr);
+
+                maxVulnScore = Math.max(maxVulnScore, vulnScore);
+                allFindings.addAll(findings);
             }
 
-            // Detect reflection
-            if (payBody.contains(payloadValue)) {
-                out.put("payload_reflected", true);
-            }
+            out.put("payloads_tested", payloadResults.size());
+            out.put("results", payloadResults);
+            out.put("max_vulnerability_score", maxVulnScore);
+            out.put("likely_vulnerable", maxVulnScore >= 30);
+            out.put("all_findings", allFindings);
 
-            // Body snippets (200 chars each)
-            out.put("baseline_snippet", baseBody.length() > 200 ? baseBody.substring(0, 200) : baseBody);
-            out.put("payload_snippet", payBody.length() > 200 ? payBody.substring(0, 200) : payBody);
-
-            // Vulnerability assessment
-            List<String> findings = new ArrayList<>();
-            if (baseStatus != payStatus && payStatus == 500) findings.add("Server error triggered — likely injectable");
-            if (payMs - baseMs > 4000) findings.add("Timing anomaly (" + payMs + "ms vs " + baseMs + "ms) — possible blind injection");
-            if (!errors.isEmpty()) findings.add("Error patterns detected: " + errors.get(0).get("type"));
-            if (payBody.contains(payloadValue)) findings.add("Payload reflected in response — check for XSS");
-            out.put("findings", findings);
-            out.put("likely_vulnerable", !findings.isEmpty());
-
+            ConfigTab.log("probe: " + parameter + " on " + path + " -> score=" + maxVulnScore + " (" + payloadResults.size() + " payloads)");
             sendJson(exchange, JsonUtil.toJson(out));
         }
     }
 
-    private String injectParam(String path, String param, String value, String injectionPoint, String method, Map<String, Object> body) {
+    private String injectParam(String path, String param, String value, String injectionPoint) {
         if ("query".equals(injectionPoint)) {
             return path.contains("?") ? path + "&" + param + "=" + value : path + "?" + param + "=" + value;
         }
         return path;
     }
 
+    // ── Adaptive tech detection from response headers/body ──
+
+    private List<String> detectTechFromResponse(HttpRequestResponse result) {
+        List<String> techs = new ArrayList<>();
+        if (result == null || result.response() == null) return techs;
+        HttpResponse resp = result.response();
+
+        for (HttpHeader h : resp.headers()) {
+            String n = h.name().toLowerCase(), v = h.value().toLowerCase();
+            if ("server".equals(n)) {
+                if (v.contains("iis")) techs.add("IIS");
+                else if (v.contains("apache")) techs.add("Apache");
+                else if (v.contains("nginx")) techs.add("Nginx");
+                if (v.contains("tomcat")) techs.add("Tomcat");
+            }
+            if ("x-powered-by".equals(n)) {
+                if (v.contains("asp")) techs.add("ASP.NET");
+                else if (v.contains("php")) techs.add("PHP");
+                else if (v.contains("express")) techs.add("Express");
+                else if (v.contains("jsp")) techs.add("Java");
+            }
+        }
+
+        String body = resp.bodyToString().toLowerCase();
+        if (body.contains("ng-app") || body.contains("ng-controller")) techs.add("AngularJS");
+        if (body.contains("__next")) techs.add("Next.js");
+        if (body.contains("wp-content")) techs.add("WordPress");
+        if (body.contains("laravel")) techs.add("Laravel");
+        if (body.contains("django")) techs.add("Django");
+        if (body.contains("flask")) techs.add("Flask");
+        if (body.contains("spring")) techs.add("Spring");
+        if (body.contains("rubyonrails") || body.contains("rails")) techs.add("Rails");
+
+        return techs;
+    }
+
+    // ── Adaptive payload selection based on detected tech ──
+
+    private List<String> selectAdaptivePayloads(List<String> techs, String parameter) {
+        List<String> payloads = new ArrayList<>();
+        boolean isNumeric = parameter.matches("(?i)id|num|page|limit|offset|count|idx|index");
+
+        // SQLi payloads adapted to tech
+        if (techs.contains("IIS") || techs.contains("ASP.NET")) {
+            payloads.add(isNumeric ? "1'" : "test'");
+            payloads.add(isNumeric ? "1; WAITFOR DELAY '0:0:2'--" : "'; WAITFOR DELAY '0:0:2'--");
+            payloads.add(isNumeric ? "1 AND 1=CONVERT(int,@@version)--" : "' AND 1=CONVERT(int,@@version)--");
+        } else if (techs.contains("PHP") || techs.contains("Apache")) {
+            payloads.add(isNumeric ? "1'" : "test'");
+            payloads.add(isNumeric ? "1 AND SLEEP(2)-- -" : "' AND SLEEP(2)-- -");
+            payloads.add(isNumeric ? "1 UNION SELECT NULL-- -" : "' UNION SELECT NULL-- -");
+        } else if (techs.contains("Django") || techs.contains("Flask")) {
+            payloads.add(isNumeric ? "1'" : "test'");
+            payloads.add("{{7*7}}"); // SSTI
+        } else {
+            // Generic fallback
+            payloads.add(isNumeric ? "1'" : "test'");
+            payloads.add(isNumeric ? "1 OR 1=1-- -" : "' OR '1'='1");
+        }
+
+        // XSS probe (always include)
+        payloads.add("<xss_probe_" + System.currentTimeMillis() % 10000 + ">");
+
+        // Path traversal (if parameter looks like a file/path)
+        if (parameter.matches("(?i)file|path|item|page|template|include|url|src|doc|dir")) {
+            payloads.add("../../../etc/passwd");
+        }
+
+        return payloads;
+    }
+
+    // ── Multi-variant reflection detection ──
+
+    private Map<String, Object> detectReflection(String payload, String responseBody) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (payload == null || responseBody == null || payload.isEmpty()) return result;
+
+        // Raw reflection
+        if (responseBody.contains(payload)) {
+            result.put("type", "raw");
+            result.put("context", guessReflectionContext(payload, responseBody));
+            return result;
+        }
+        // URL-encoded
+        String urlEnc = java.net.URLEncoder.encode(payload, java.nio.charset.StandardCharsets.UTF_8);
+        if (!urlEnc.equals(payload) && responseBody.contains(urlEnc)) {
+            result.put("type", "url_encoded");
+            return result;
+        }
+        // HTML entity encoded
+        String htmlEnc = payload.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
+        if (!htmlEnc.equals(payload) && responseBody.contains(htmlEnc)) {
+            result.put("type", "html_encoded");
+            return result;
+        }
+        // JS escaped
+        String jsEnc = payload.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"");
+        if (!jsEnc.equals(payload) && responseBody.contains(jsEnc)) {
+            result.put("type", "js_escaped");
+            return result;
+        }
+        return result;
+    }
+
+    private String guessReflectionContext(String payload, String body) {
+        int idx = body.indexOf(payload);
+        if (idx < 0) return "unknown";
+        // Look backwards for context clues
+        String before = body.substring(Math.max(0, idx - 50), idx).toLowerCase();
+        if (before.contains("<script") || before.contains("javascript:")) return "javascript";
+        if (before.contains("value=") || before.contains("href=") || before.contains("src=")) return "attribute";
+        if (before.contains("<!--")) return "html_comment";
+        return "html_body";
+    }
+
+    // ── Enhanced error pattern detection ──
+
     private List<Map<String, Object>> detectErrorPatterns(String body, int status) {
         List<Map<String, Object>> patterns = new ArrayList<>();
         String lower = body.toLowerCase();
 
-        // SQL error patterns
+        // SQL error patterns (expanded)
         String[][] sqlPatterns = {
-            {"mssql", "unclosed quotation mark", "SQL syntax error (MSSQL)"},
-            {"mssql", "incorrect syntax near", "SQL syntax error (MSSQL)"},
-            {"mssql", "microsoft ole db", "OLE DB error (MSSQL)"},
-            {"mssql", "microsoft sql server", "MSSQL error disclosure"},
-            {"mssql", "sql server driver", "MSSQL driver error"},
-            {"mysql", "you have an error in your sql syntax", "SQL syntax error (MySQL)"},
-            {"mysql", "warning: mysql", "MySQL warning"},
-            {"mysql", "mysqli_", "MySQLi error"},
-            {"postgresql", "pg_query", "PostgreSQL error"},
-            {"postgresql", "psql error", "PostgreSQL error"},
-            {"oracle", "ora-", "Oracle error"},
-            {"sqlite", "sqlite3.", "SQLite error"},
-            {"generic", "sql syntax", "Generic SQL error"},
-            {"generic", "database error", "Database error"},
-            {"generic", "query failed", "Query failure"},
+            {"mssql", "unclosed quotation mark", "high"}, {"mssql", "incorrect syntax near", "high"},
+            {"mssql", "microsoft ole db", "high"}, {"mssql", "microsoft sql server", "medium"},
+            {"mssql", "sql server driver", "medium"}, {"mssql", "odbc sql server", "medium"},
+            {"mysql", "you have an error in your sql syntax", "high"}, {"mysql", "warning: mysql", "medium"},
+            {"mysql", "mysqli_", "medium"}, {"mysql", "mysql_fetch", "medium"},
+            {"postgresql", "pg_query", "high"}, {"postgresql", "psql error", "high"},
+            {"postgresql", "unterminated quoted string", "high"},
+            {"oracle", "ora-", "high"}, {"oracle", "oracleexception", "high"},
+            {"sqlite", "sqlite3.", "high"}, {"sqlite", "unrecognized token", "high"},
+            {"generic", "sql syntax", "medium"}, {"generic", "database error", "medium"},
+            {"generic", "query failed", "medium"}, {"generic", "sql exception", "medium"},
         };
         for (String[] p : sqlPatterns) {
             if (lower.contains(p[1])) {
                 Map<String, Object> m = new LinkedHashMap<>();
-                m.put("type", "sqli");
-                m.put("database", p[0]);
-                m.put("description", p[2]);
-                m.put("confidence", "high");
-                patterns.add(m);
-                break; // One SQL match is enough
+                m.put("type", "sqli"); m.put("database", p[0]); m.put("description", p[1]); m.put("confidence", p[2]);
+                patterns.add(m); break;
             }
         }
 
-        // Path traversal patterns
-        if (lower.contains("root:x:0") || lower.contains("[extensions]") || lower.contains("[boot loader]") || lower.contains("for 16-bit app support")) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("type", "path_traversal");
-            m.put("description", "System file contents leaked");
-            m.put("confidence", "high");
-            patterns.add(m);
+        // Path traversal
+        if (lower.contains("root:x:0") || lower.contains("[extensions]") || lower.contains("[boot loader]") ||
+            lower.contains("for 16-bit app support") || lower.contains("/etc/shadow") || lower.contains("c:\\windows")) {
+            patterns.add(Map.of("type", "path_traversal", "description", "System file contents leaked", "confidence", "high"));
         }
 
-        // Stack trace / debug info
-        if (lower.contains("stack trace") || lower.contains("at java.") || lower.contains("at system.") || lower.contains("traceback")) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("type", "info_disclosure");
-            m.put("description", "Stack trace in response");
-            m.put("confidence", "high");
-            patterns.add(m);
+        // SSTI
+        if (lower.contains("49") && lower.contains("7*7") || lower.contains("jinja2") ||
+            lower.contains("freemarker") || lower.contains("velocity") || lower.contains("thymeleaf")) {
+            patterns.add(Map.of("type", "ssti", "description", "Template injection indicator", "confidence", "high"));
         }
 
-        // Generic 500 with no specific pattern
+        // RCE
+        if (lower.contains("uid=") && lower.contains("gid=") || lower.contains("command not found") ||
+            lower.contains("sh:") || lower.contains("bash:")) {
+            patterns.add(Map.of("type", "rce", "description", "Command execution evidence", "confidence", "high"));
+        }
+
+        // XXE
+        if ((lower.contains("<!entity") || lower.contains("<!doctype")) && lower.contains("system")) {
+            patterns.add(Map.of("type", "xxe", "description", "XXE processing detected", "confidence", "medium"));
+        }
+
+        // SSRF
+        if (lower.contains("connection refused") || lower.contains("connection timed out") || lower.contains("unreachable")) {
+            patterns.add(Map.of("type", "ssrf", "description", "SSRF connection attempt", "confidence", "medium"));
+        }
+
+        // Stack trace / debug
+        if (lower.contains("stack trace") || lower.contains("at java.") || lower.contains("at system.") ||
+            lower.contains("traceback") || lower.contains("exception in") || lower.contains("at line")) {
+            patterns.add(Map.of("type", "info_disclosure", "description", "Stack trace leaked", "confidence", "high"));
+        }
+
+        // Generic 500
         if (status == 500 && patterns.isEmpty()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("type", "server_error");
-            m.put("description", "500 Internal Server Error (unhandled exception)");
-            m.put("confidence", "medium");
-            patterns.add(m);
+            patterns.add(Map.of("type", "server_error", "description", "500 error (unhandled exception)", "confidence", "medium"));
         }
 
         return patterns;

@@ -352,12 +352,16 @@ def register(mcp: FastMCP):
         path: str,
         parameter: str,
         baseline_value: str = "1",
-        payload_value: str = "1'",
+        payload_value: str = "",
         injection_point: str = "query",
+        test_payloads: list[str] | None = None,
     ) -> str:
-        """Probe a parameter for vulnerabilities: sends baseline request + payload request,
-        auto-diffs responses, detects SQL/XSS/path traversal error patterns, measures timing.
-        Replaces 3+ tool calls with 1.
+        """ADAPTIVE vulnerability probe. Auto-detects tech stack, selects payloads,
+        tests for SQLi/XSS/path traversal/SSTI/RCE, checks multiple reflection variants.
+
+        If payload_value and test_payloads are both empty, the tool auto-selects
+        payloads based on the detected tech stack (IIS->MSSQL, Apache->MySQL, etc.)
+        and the parameter name (id->numeric SQLi, item->path traversal, etc.).
 
         Args:
             session: Session name
@@ -365,47 +369,58 @@ def register(mcp: FastMCP):
             path: Base endpoint path (e.g. '/showforum.asp')
             parameter: Parameter name to test (e.g. 'id')
             baseline_value: Normal/safe value (default '1')
-            payload_value: Attack payload (e.g. "1'", "1 OR 1=1--")
+            payload_value: Single attack payload (empty = auto-detect)
             injection_point: Where to inject — 'query' or 'body'
+            test_payloads: Multiple payloads to test in one call (overrides payload_value)
         """
-        payload = {
+        req: dict = {
             "session": session, "method": method, "path": path,
             "parameter": parameter, "baseline_value": baseline_value,
-            "payload_value": payload_value, "injection_point": injection_point,
+            "injection_point": injection_point,
         }
-        data = await client.post("/api/session/probe", json=payload)
-        if "error" in data:
-            return f"Error: {data['error']}"
+        if payload_value:
+            req["payload_value"] = payload_value
+        if test_payloads:
+            req["test_payloads"] = test_payloads
 
-        lines = [f"Probe: {parameter}={data.get('payload_value')} (baseline: {data.get('baseline_value')})\n"]
-        lines.append(f"  Baseline: {data.get('baseline_status')} | {data.get('baseline_length')}B | {data.get('baseline_time_ms')}ms")
-        lines.append(f"  Payload:  {data.get('payload_status')} | {data.get('payload_length')}B | {data.get('payload_time_ms')}ms")
+        resp = await client.post("/api/session/probe", json=req)
+        if "error" in resp:
+            return f"Error: {resp['error']}"
 
-        if data.get("status_changed"):
-            lines.append(f"\n  [!] Status changed: {data.get('baseline_status')} -> {data.get('payload_status')}")
-        if data.get("length_diff", 0) > 100:
-            lines.append(f"  [!] Length diff: {data.get('length_diff')} bytes")
-        if data.get("time_diff_ms", 0) > 2000:
-            lines.append(f"  [!] Timing anomaly: {data.get('time_diff_ms')}ms difference")
-        if data.get("payload_reflected"):
-            lines.append(f"  [!] Payload reflected in response")
+        lines = [f"Probe: {parameter} on {path}"]
 
-        errors = data.get("error_patterns", [])
-        if errors:
-            lines.append(f"\n  Error Patterns Detected:")
-            for e in errors:
-                lines.append(f"    [{e.get('confidence')}] {e.get('type')}: {e.get('description')} ({e.get('database', 'generic')})")
+        # Tech stack
+        tech = resp.get("detected_tech", [])
+        if tech:
+            lines.append(f"Tech: {', '.join(tech)}")
 
-        findings = data.get("findings", [])
-        if findings:
-            lines.append(f"\n  Findings:")
-            for f in findings:
-                lines.append(f"    -> {f}")
+        lines.append(f"Baseline: {resp.get('baseline_status')} | {resp.get('baseline_length')}B | {resp.get('baseline_time_ms')}ms")
+        lines.append(f"Payloads tested: {resp.get('payloads_tested', 0)}\n")
 
-        if data.get("likely_vulnerable"):
-            lines.append(f"\n  *** LIKELY VULNERABLE ***")
+        # Results per payload
+        for r in resp.get("results", []):
+            score = r.get("score", 0)
+            status = r.get("status", "?")
+            length = r.get("length", 0)
+            time_ms = r.get("time_ms", 0)
+            vuln_marker = " ***" if score >= 30 else ""
+
+            lines.append(f"  [{score:>3}] {r.get('payload', '?')}")
+            lines.append(f"        {status} | {length}B | {time_ms}ms{vuln_marker}")
+
+            for f in r.get("findings", []):
+                lines.append(f"        -> {f}")
+
+            refl = r.get("reflection", {})
+            if refl:
+                ctx = refl.get("context", "")
+                lines.append(f"        Reflected ({refl.get('type', '?')}{', ' + ctx if ctx else ''})")
+
+        score = resp.get("max_vulnerability_score", 0)
+        if resp.get("likely_vulnerable"):
+            lines.append(f"\n*** LIKELY VULNERABLE (score: {score}/100) ***")
         else:
-            lines.append(f"\n  No obvious vulnerability detected.")
+            lines.append(f"\nNo obvious vulnerability (score: {score}/100)")
 
         return "\n".join(lines)
 
