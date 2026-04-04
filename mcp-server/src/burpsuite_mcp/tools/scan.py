@@ -133,7 +133,7 @@ def register(mcp: FastMCP):
         """
         knowledge = _load_all_knowledge(categories)
         if not knowledge:
-            available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json")]
+            available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
             return f"No knowledge base found. Available: {', '.join(sorted(available))}"
 
         data = await client.post("/api/session/auto-probe", json={
@@ -202,11 +202,11 @@ def register(mcp: FastMCP):
             max_probes_per_param: Max probes per parameter (default 5)
         """
         if mode == "discover":
-            return await _do_discover(session, max_pages)
+            return await discover_attack_surface(session=session, max_pages=max_pages)
         elif mode == "probe":
             if not targets:
                 return "Error: 'targets' required for mode='probe'. Run with mode='discover' first."
-            return await _do_auto_probe(session, targets, categories, max_probes_per_param)
+            return await auto_probe(session=session, targets=targets, categories=categories, max_probes_per_param=max_probes_per_param)
         else:
             return f"Error: Unknown mode '{mode}'. Use 'discover' or 'probe'."
 

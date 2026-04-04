@@ -68,6 +68,7 @@ def register(mcp: FastMCP):
                         vulns.append(vuln)
                 elif origin in acao:
                     vuln = "MEDIUM: Origin reflected (no credentials)"
+                    vulns.append(vuln)
 
                 lines.append(f"  [{origin}] {status} -> ACAO: {acao}, ACAC: {acac} {vuln}")
             else:
