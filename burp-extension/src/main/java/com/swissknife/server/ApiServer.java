@@ -86,7 +86,7 @@ public class ApiServer {
         server.createContext("/api/resources", new ResourceHandler(api));
 
         // Persistent attack sessions
-        sessionHandler = new SessionHandler(api);
+        sessionHandler = new SessionHandler(api, findingsStore);
         server.createContext("/api/session", sessionHandler);
 
         // Attack automation (auth matrix, race condition, HPP)

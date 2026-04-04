@@ -11,6 +11,8 @@ import com.swissknife.server.BaseHandler;
 import com.swissknife.ui.ConfigTab;
 import com.swissknife.util.JsonUtil;
 
+import com.swissknife.store.FindingsStore;
+
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -35,13 +37,27 @@ public class SessionHandler extends BaseHandler {
 
     private static final int MAX_RESPONSE_SIZE = 50000;
 
+    private static final Map<String, String> CWE_MAP = Map.of(
+        "sqli", "CWE-89",
+        "xss", "CWE-79",
+        "path_traversal", "CWE-22",
+        "ssti", "CWE-1336",
+        "command_injection", "CWE-78",
+        "ssrf", "CWE-918",
+        "xxe", "CWE-611",
+        "idor", "CWE-639",
+        "info_disclosure", "CWE-200"
+    );
+
     private final MontoyaApi api;
+    private final FindingsStore findingsStore;
 
     /** Package-accessible so AttackHandler can share sessions. */
     final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
-    public SessionHandler(MontoyaApi api) {
+    public SessionHandler(MontoyaApi api, FindingsStore findingsStore) {
         this.api = api;
+        this.findingsStore = findingsStore;
     }
 
     /** Returns the shared sessions map for use by AttackHandler. */
@@ -509,6 +525,8 @@ public class SessionHandler extends BaseHandler {
                 if (Math.abs(payLen - baseLen) > 200) vulnScore += 5;
 
                 Map<String, Object> pr = new LinkedHashMap<>();
+                vulnScore = Math.min(100, vulnScore);
+
                 pr.put("payload", testPayload);
                 pr.put("status", payStatus);
                 pr.put("length", payLen);
@@ -1103,7 +1121,8 @@ public class SessionHandler extends BaseHandler {
                                 int boost = probe.containsKey("confidence_boost")
                                     ? ((Number) probe.get("confidence_boost")).intValue() : 0;
                                 int matcherBoost = ((Number) matchResult.getOrDefault("confidence_boost", 0)).intValue();
-                                int score = boost + matcherBoost + anomalyScore;
+                                int normalizedScore = Math.min(100, boost + matcherBoost + anomalyScore);
+                                String cwe = CWE_MAP.getOrDefault(category, "");
 
                                 Map<String, Object> finding = new LinkedHashMap<>();
                                 finding.put("parameter", parameter);
@@ -1112,15 +1131,28 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("context", contextName);
                                 finding.put("probe", payload);
                                 finding.put("status", probeStatus);
-                                finding.put("score", score);
+                                finding.put("score", normalizedScore);
                                 finding.put("anomaly_score", anomalyScore);
                                 finding.put("anomalies", anomalies);
                                 finding.put("severity", severity);
+                                finding.put("cwe", cwe);
                                 finding.put("matched_matchers", matchResult.get("matched_matchers"));
                                 finding.put("description", description);
                                 findings.add(finding);
+
+                                // Persist to FindingsStore
+                                findingsStore.add(
+                                    category + "/" + contextName + ": " + description,
+                                    "Parameter: " + parameter + ", Payload: " + payload + ", Matchers: " + matchResult.get("matched_matchers"),
+                                    severity,
+                                    method + " " + path,
+                                    "Status: " + probeStatus + ", Score: " + normalizedScore + (cwe.isEmpty() ? "" : ", " + cwe)
+                                );
                             } else if (anomalyScore >= 30) {
                                 // No matcher fired but response is anomalous — flag for review
+                                int normalizedAnomaly = Math.min(100, anomalyScore);
+                                String cwe = CWE_MAP.getOrDefault(category, "");
+
                                 Map<String, Object> finding = new LinkedHashMap<>();
                                 finding.put("parameter", parameter);
                                 finding.put("endpoint", method + " " + path);
@@ -1128,13 +1160,23 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("context", contextName);
                                 finding.put("probe", payload);
                                 finding.put("status", probeStatus);
-                                finding.put("score", anomalyScore);
-                                finding.put("anomaly_score", anomalyScore);
+                                finding.put("score", normalizedAnomaly);
+                                finding.put("anomaly_score", normalizedAnomaly);
                                 finding.put("anomalies", anomalies);
                                 finding.put("severity", "info");
+                                finding.put("cwe", cwe);
                                 finding.put("matched_matchers", List.of());
                                 finding.put("description", "Anomalous response (no matcher matched) — review manually");
                                 findings.add(finding);
+
+                                // Persist anomalous finding to FindingsStore
+                                findingsStore.add(
+                                    category + "/" + contextName + ": Anomalous response",
+                                    "Parameter: " + parameter + ", Payload: " + payload + ", Anomalies: " + anomalies,
+                                    "info",
+                                    method + " " + path,
+                                    "Status: " + probeStatus + ", Anomaly score: " + normalizedAnomaly
+                                );
                             }
                         }
                     }
