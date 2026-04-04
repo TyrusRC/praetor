@@ -1,0 +1,47 @@
+{
+  "category": "race_condition",
+  "contexts": {
+    "double_spend": {
+      "description": "Double-spend / duplicate transaction via race condition",
+      "tech_match": [],
+      "param_match": ["amount", "transfer", "payment", "order", "redeem", "coupon"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send identical transaction request N times simultaneously — check if processed multiple times",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["duplicate", "already processed", "insufficient"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "limit_bypass": {
+      "description": "Bypass rate limits or usage quotas via concurrent requests",
+      "tech_match": [],
+      "param_match": ["vote", "like", "follow", "download", "claim", "signup"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Concurrent requests to bypass one-time action limit",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "signup_race": {
+      "description": "Duplicate account creation via race condition",
+      "tech_match": [],
+      "param_match": ["register", "signup", "create_account", "email", "username"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Create multiple accounts with same email simultaneously",
+          "matchers": [{"type": "status", "status": [200, 201, 302]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

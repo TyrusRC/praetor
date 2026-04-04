@@ -1,0 +1,54 @@
+{
+  "category": "websocket",
+  "contexts": {
+    "cswsh": {
+      "description": "Cross-Site WebSocket Hijacking — no Origin validation",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "WebSocket handshake with Origin: https://evil.com — check if 101 returned",
+          "matchers": [{"type": "status", "status": [101]}, {"type": "header", "name": "Upgrade", "contains": "websocket"}],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "auth_bypass": {
+      "description": "WebSocket authentication bypass — missing auth on upgrade",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "WebSocket upgrade without cookies/auth — check if connection accepted",
+          "matchers": [{"type": "status", "status": [101]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "injection": {
+      "description": "WebSocket message injection — SQLi/XSS in WS messages",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"message\":\"test' OR '1'='1\"}",
+          "description": "SQLi via WebSocket JSON message",
+          "matchers": [{"type": "word", "words": ["sql", "syntax", "error", "unclosed"], "condition": "or"}],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"message\":\"<img src=x onerror=alert(1)>\"}",
+          "description": "XSS via WebSocket message reflection",
+          "matchers": [{"type": "reflection", "check_variants": true}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

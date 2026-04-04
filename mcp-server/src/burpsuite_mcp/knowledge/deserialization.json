@@ -12,6 +12,20 @@
           "matchers": [{"type": "regex", "pattern": "rO0AB|aced0005|java\\.io\\."}],
           "severity": "critical",
           "confidence_boost": 45
+        },
+        {
+          "payload": "rO0ABXNyABFqYXZhLnV0aWwuSGFzaFNldA==",
+          "description": "Java HashSet gadget chain (base64) — triggers deserialization; look for 500 error or timing anomaly indicating RCE attempt",
+          "matchers": [{"type": "status", "status": [500]}, {"type": "word", "words": ["ObjectInputStream", "ClassNotFoundException", "deserialization"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "ObjectInputStream error leak — check error messages for Java deserialization stack traces",
+          "matchers": [{"type": "word", "words": ["ObjectInputStream", "ClassNotFoundException", "InvalidClassException", "StreamCorruptedException"], "condition": "or"}],
+          "severity": "high",
+          "confidence_boost": 35
         }
       ]
     },
@@ -26,6 +40,20 @@
           "matchers": [{"type": "not_word", "words": ["unserialize", "error", "invalid"]}, {"type": "status", "status": [200]}],
           "severity": "high",
           "confidence_boost": 35
+        },
+        {
+          "payload": "a:1:{s:4:\"test\";s:4:\"test\";}",
+          "description": "PHP array unserialization probe — accepted without error indicates unserialize() is called",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["error", "invalid", "unserialize"]}],
+          "severity": "high",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "O:4:\"User\":1:{s:4:\"role\";s:5:\"admin\";}",
+          "description": "PHP object with role=admin — check if privilege escalation via deserialization",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unauthorized", "forbidden", "invalid"]}],
+          "severity": "critical",
+          "confidence_boost": 45
         }
       ]
     },
@@ -54,6 +82,34 @@
           "matchers": [{"type": "word", "words": ["__VIEWSTATE"], "condition": "or"}, {"type": "not_word", "words": ["__VIEWSTATEGENERATOR"]}],
           "severity": "high",
           "confidence_boost": 35
+        }
+      ]
+    },
+    "ruby": {
+      "description": "Ruby Marshal.load deserialization attacks",
+      "tech_match": ["Ruby", "Rails"],
+      "param_match": ["data", "object", "payload", "session", "cookie"],
+      "probes": [
+        {
+          "payload": "BAhvOghGb28GOg==",
+          "description": "Ruby Marshal payload (base64) — look for 'marshal' in error messages or unexpected 500 indicating Ruby object deserialization",
+          "matchers": [{"type": "regex", "pattern": "[Mm]arshal|TypeError.*no implicit conversion|ArgumentError.*marshal"}],
+          "severity": "critical",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "node_js": {
+      "description": "Node.js insecure deserialization via node-serialize",
+      "tech_match": ["Node.js", "Express"],
+      "param_match": ["data", "object", "payload", "session", "cookie"],
+      "probes": [
+        {
+          "payload": "{\"rce\":\"_$$ND_FUNC$$_function(){return 1}()\"}",
+          "description": "node-serialize IIFE gadget — if node-serialize library is used and input unserialized, IIFE executes",
+          "matchers": [{"type": "status", "status": [200, 500]}, {"type": "word", "words": ["SyntaxError", "ReferenceError", "TypeError"], "condition": "or"}],
+          "severity": "critical",
+          "confidence_boost": 40
         }
       ]
     }

@@ -78,6 +78,74 @@
           "confidence_boost": 40
         }
       ]
+    },
+    "embedded_jwk": {
+      "description": "JWT embedded JWK attack — attacker embeds own public key in JWT header",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization", "access_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "JWT with jwk header containing attacker-generated RSA public key — server may verify with the embedded key instead of server key",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized", "rejected"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"attack_type": "embedded_jwk", "note": "Generate RSA key pair, sign JWT with private key, embed public key in jwk header"}
+        }
+      ]
+    },
+    "x5c_injection": {
+      "description": "JWT x5c header injection — embed self-signed certificate chain",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "JWT with x5c header containing attacker's self-signed certificate — server may use embedded cert for verification",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized", "rejected"]}],
+          "severity": "critical",
+          "confidence_boost": 45,
+          "variables": {"attack_type": "x5c_injection", "note": "Create self-signed cert, sign JWT with corresponding private key, set x5c to cert chain"}
+        }
+      ]
+    },
+    "claim_manipulation": {
+      "description": "JWT claim manipulation — modify role, sub, or admin claims to escalate privileges",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization", "access_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Change role claim from 'user' to 'admin' — re-sign or use with alg:none",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"claim": "role", "original_value": "user", "modified_value": "admin"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Change sub claim from 'user1' to 'admin' — IDOR via JWT subject manipulation",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unauthorized", "forbidden"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"claim": "sub", "original_value": "user1", "modified_value": "admin"}
+        }
+      ]
+    },
+    "expired_token": {
+      "description": "Expired JWT acceptance — server does not validate exp claim",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth", "authorization", "access_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send JWT with exp set in the past (e.g., epoch 1) — server should reject but may not validate expiry",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["expired", "invalid", "token expired"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"claim": "exp", "modified_value": 1}
+        }
+      ]
     }
   }
 }

@@ -42,6 +42,75 @@
           "confidence_boost": 25
         }
       ]
+    },
+    "content_type_bypass": {
+      "description": "CSRF bypass via Content-Type change — some frameworks only validate CSRF for specific content types",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Change Content-Type to text/plain — simple form can cross-origin POST as text/plain without preflight",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unsupported media", "415", "invalid content"]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"content_type": "text/plain"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Change Content-Type to application/x-www-form-urlencoded — browser-native form type, no preflight needed",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unsupported media", "415"]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"content_type": "application/x-www-form-urlencoded"}
+        }
+      ]
+    },
+    "referer_bypass": {
+      "description": "CSRF bypass via Referer header manipulation — some apps rely on Referer instead of tokens",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Remove Referer header entirely — app may skip CSRF check if Referer absent",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid referer", "bad referer", "forbidden"]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"remove_header": "Referer"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Set Referer: https://evil.com — app accepts requests from any origin (Referer not validated)",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid referer", "bad referer"]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"referer": "https://evil.com"}
+        }
+      ]
+    },
+    "token_manipulation": {
+      "description": "CSRF token edge cases — empty, missing, or predictable token values",
+      "tech_match": [],
+      "param_match": ["csrf", "token", "_token", "csrfmiddlewaretoken", "authenticity_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send empty CSRF token value — server may accept blank as valid",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid token", "token required", "csrf"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"csrf_token_value": ""}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Delete CSRF token parameter entirely — server may only validate if present",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["missing token", "token required", "csrf"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"remove_param": "csrf_token"}
+        }
+      ]
     }
   }
 }

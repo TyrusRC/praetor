@@ -13,6 +13,14 @@
           "severity": "high",
           "confidence_boost": 45,
           "variables": {"test_origin": "https://evil.com"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Suffix match bypass: Origin: https://target.com.evil.com — regex checks if ends with target.com",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "target.com.evil.com"}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"test_origin": "https://target.com.evil.com"}
         }
       ]
     },
@@ -27,6 +35,22 @@
           "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}],
           "severity": "high",
           "confidence_boost": 40,
+          "variables": {"test_origin": "null"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Null origin from data: URI context — browsers send null Origin for data: URI navigations",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"test_origin": "null", "note": "Deliver via <iframe sandbox src='data:text/html,...'>"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Null origin from sandboxed iframe — sandbox attribute causes null Origin",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}, {"type": "header", "name": "Access-Control-Allow-Credentials", "contains": "true"}],
+          "severity": "critical",
+          "confidence_boost": 50,
           "variables": {"test_origin": "null"}
         }
       ]
@@ -59,6 +83,59 @@
           "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin"}],
           "severity": "medium",
           "confidence_boost": 30
+        }
+      ]
+    },
+    "pre_domain": {
+      "description": "Pre-domain bypass — Origin starts with target domain string, bypasses suffix regex",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Origin: https://targetcom.evil.com — server regex checks if origin ends with 'target.com' but misses dot",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"test_origin": "https://targetcom.evil.com"}
+        }
+      ]
+    },
+    "post_domain": {
+      "description": "Post-domain bypass — subdomain prefix, exploitable if subdomain takeover possible",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Origin: https://evil.target.com — server trusts *.target.com wildcard, attacker controls subdomain",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.target.com"}],
+          "severity": "high",
+          "confidence_boost": 38,
+          "variables": {"test_origin": "https://evil.target.com"}
+        }
+      ]
+    },
+    "special_chars": {
+      "description": "Special character origin bypass — underscore, backtick, browser-parser discrepancies",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Origin with underscore: https://target_com.evil.com — Safari treats underscore differently (CVE-style parser quirk)",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {"test_origin": "https://target_com.evil.com"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Backtick bypass: Origin https://target.com%60.evil.com — URL encoded backtick in origin parsing",
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin"}],
+          "severity": "medium",
+          "confidence_boost": 20,
+          "variables": {"test_origin": "https://target.com%60.evil.com"}
         }
       ]
     }

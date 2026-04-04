@@ -19,6 +19,14 @@
           "matchers": [{"type": "word", "words": ["Query", "fields"], "condition": "and"}],
           "severity": "medium",
           "confidence_boost": 30
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "GET-based introspection bypass: GET /graphql?query={__schema{types{name}}} — bypasses POST-only introspection blocks",
+          "matchers": [{"type": "word", "words": ["__schema"], "condition": "or"}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"method": "GET", "query_param": "{__schema{types{name}}}"}
         }
       ]
     },
@@ -61,6 +69,55 @@
           "matchers": [{"type": "word", "words": ["sql", "syntax", "error", "unclosed"], "condition": "or"}],
           "severity": "high",
           "confidence_boost": 45
+        }
+      ]
+    },
+    "mutation_injection": {
+      "description": "Injection via GraphQL mutations — SQLi/XSS in mutation arguments",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"mutation{createUser(name:\\\"admin' OR '1'='1\\\"){id}}\"}",
+          "description": "SQLi in mutation argument — look for SQL error in response",
+          "matchers": [{"type": "word", "words": ["sql", "error", "syntax", "ORA-", "pg_"], "condition": "or"}],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"query\":\"mutation{createUser(name:\\\"<script>alert(1)</script>\\\"){id}}\"}",
+          "description": "XSS via mutation argument — check if payload reflected in response",
+          "matchers": [{"type": "word", "words": ["<script>alert(1)</script>"], "condition": "or"}],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "directive_overloading": {
+      "description": "GraphQL directive overloading — DoS via many directives on single field",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{__typename @aa @bb @cc @dd @ee @ff @gg @hh @ii @jj}\"}",
+          "description": "Abuse @skip/@include directives with many unknown directives — may trigger 500 or severe slowdown",
+          "matchers": [{"type": "status", "status": [500]}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "persisted_query_bypass": {
+      "description": "Automatic Persisted Query (APQ) bypass — access cached operations via hash",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"extensions\":{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"deadbeef\"}}}",
+          "description": "APQ probe — server may reveal supported operations or error with PersistedQuery info",
+          "matchers": [{"type": "word", "words": ["PersistedQuery", "persistedQuery", "persisted"], "condition": "or"}],
+          "severity": "low",
+          "confidence_boost": 20
         }
       ]
     }

@@ -1,0 +1,54 @@
+{
+  "category": "hpp",
+  "contexts": {
+    "query_duplicate": {
+      "description": "Query string parameter duplication",
+      "tech_match": [],
+      "param_match": ["id", "user_id", "email", "amount", "action", "redirect", "page"],
+      "probes": [
+        {
+          "payload": "{{baseline}}&{{param}}=injected",
+          "description": "Append duplicate parameter — backend may use last value",
+          "matchers": [{"type": "length_diff", "min_diff": 50}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "injected&{{param}}={{baseline}}",
+          "description": "Prepend duplicate parameter — backend may use first value",
+          "matchers": [{"type": "length_diff", "min_diff": 50}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "array_notation": {
+      "description": "Array parameter injection",
+      "tech_match": ["PHP", "Ruby", "Node.js"],
+      "param_match": ["id", "ids", "user_id", "item"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Test array notation: param[]=1&param[]=2",
+          "matchers": [{"type": "status", "status": [200, 500]}, {"type": "length_diff", "min_diff": 100}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "json_body_pollution": {
+      "description": "JSON body duplicate key injection",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"role\":\"user\",\"role\":\"admin\"}",
+          "description": "Duplicate JSON key — some parsers use last value",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["error", "invalid"]}],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}
