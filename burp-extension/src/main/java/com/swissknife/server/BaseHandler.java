@@ -27,9 +27,18 @@ public abstract class BaseHandler implements HttpHandler {
             return;
         }
 
+        // Log API call to activity log (skip health checks to reduce noise)
+        String path = exchange.getRequestURI().getPath();
+        if (!"/api/health".equals(path)) {
+            com.swissknife.ui.ConfigTab.log(
+                exchange.getRequestMethod() + " " + path
+            );
+        }
+
         try {
             handleRequest(exchange);
         } catch (Exception e) {
+            com.swissknife.ui.ConfigTab.log("ERROR: " + path + " -> " + e.getMessage());
             sendError(exchange, 500, "Internal error: " + e.getMessage());
         }
     }

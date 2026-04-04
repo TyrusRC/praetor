@@ -1,22 +1,24 @@
 package com.swissknife.ui;
 
 import burp.api.montoya.MontoyaApi;
-// Uses Map<String, ?> for session data to avoid package-private access issues
 import com.swissknife.store.FindingsStore;
 
 import javax.swing.*;
+import javax.swing.border.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 /**
  * Multi-panel dashboard for Swiss Knife MCP extension.
- * Panels: Config | Sessions | Findings | Activity Log
- * Shows unique info NOT already in Burp's native tabs.
+ * Tabs: Dashboard | Sessions | Findings | Activity Log
+ * Shows unique info NOT in Burp's native tabs.
  */
 public class ConfigTab {
 
@@ -30,19 +32,25 @@ public class ConfigTab {
     private final DefaultListModel<String> logModel = new DefaultListModel<>();
     private static ConfigTab instance;
 
-    // Sessions table
+    // Tables
     private final DefaultTableModel sessionsModel;
-
-    // Findings table
     private final DefaultTableModel findingsModel;
 
-    // Suppliers for refresh — avoid direct access to package-private types
-    private final java.util.function.Supplier<List<String[]>> sessionSupplier;
+    // Data sources
+    private final Supplier<List<String[]>> sessionSupplier;
     private final FindingsStore findingsStore;
+
+    // Colors
+    private static final Color ACCENT = new Color(64, 128, 64);
+    private static final Color BG_SUCCESS = new Color(230, 250, 230);
+    private static final Color BG_ERROR = new Color(255, 230, 230);
+    private static final Color BG_INFO = new Color(230, 240, 255);
+    private static final Color BORDER_COLOR = new Color(200, 200, 200);
+    private static final Color SECTION_BG = new Color(248, 248, 248);
 
     public ConfigTab(MontoyaApi api, String currentHost, int currentPort, String version,
                      BiConsumer<String, Integer> restartCallback,
-                     java.util.function.Supplier<List<String[]>> sessionSupplier, FindingsStore findingsStore) {
+                     Supplier<List<String[]>> sessionSupplier, FindingsStore findingsStore) {
         this.api = api;
         this.sessionSupplier = sessionSupplier;
         this.findingsStore = findingsStore;
@@ -50,78 +58,97 @@ public class ConfigTab {
 
         panel = new JPanel(new BorderLayout());
 
-        // Create tabbed pane inside our main panel
         JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(tabs.getFont().deriveFont(Font.BOLD, 12f));
 
-        // ── Tab 1: Dashboard Overview ──
-        tabs.addTab("Dashboard", buildDashboardPanel(currentHost, currentPort, version, restartCallback));
-
-        // ── Tab 2: Active Sessions ──
         sessionsModel = new DefaultTableModel(new String[]{"Session", "Base URL", "Cookies", "Variables", "Auth"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
-        tabs.addTab("Sessions", buildSessionsPanel());
-
-        // ── Tab 3: Findings ──
         findingsModel = new DefaultTableModel(new String[]{"ID", "Severity", "Title", "Endpoint"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
-        tabs.addTab("Findings", buildFindingsPanel());
 
-        // ── Tab 4: Activity Log ──
-        tabs.addTab("Activity Log", buildLogPanel());
+        tabs.addTab(" Dashboard ", buildDashboardPanel(currentHost, currentPort, version, restartCallback));
+        tabs.addTab(" Sessions ", buildSessionsPanel());
+        tabs.addTab(" Findings ", buildFindingsPanel());
+        tabs.addTab(" Activity Log ", buildLogPanel());
 
         panel.add(tabs, BorderLayout.CENTER);
     }
 
     // ── Dashboard Panel ──
 
-    private JPanel buildDashboardPanel(String currentHost, int currentPort, String version,
+    private JPanel buildDashboardPanel(String host, int port, String version,
                                         BiConsumer<String, Integer> restartCallback) {
-        JPanel p = new JPanel(new BorderLayout(10, 10));
-        p.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel p = new JPanel(new BorderLayout(0, 10));
+        p.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
-        // Header
+        // Header bar
         JPanel header = new JPanel(new BorderLayout());
+        header.setBorder(new CompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 2, 0, ACCENT),
+            BorderFactory.createEmptyBorder(0, 0, 8, 0)
+        ));
         JLabel title = new JLabel("Swiss Knife MCP");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 20f));
+        title.setForeground(ACCENT);
         header.add(title, BorderLayout.WEST);
+
         JLabel ver = new JLabel("v" + version);
-        ver.setFont(ver.getFont().deriveFont(Font.ITALIC, 12f));
+        ver.setFont(ver.getFont().deriveFont(Font.PLAIN, 13f));
         ver.setForeground(Color.GRAY);
         header.add(ver, BorderLayout.EAST);
         p.add(header, BorderLayout.NORTH);
 
-        // Config form
+        // Config section
+        JPanel configSection = new JPanel(new BorderLayout(0, 8));
+
+        JPanel formWrapper = new JPanel(new BorderLayout());
+        formWrapper.setBorder(new CompoundBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR), "  API Server Configuration  ",
+                TitledBorder.LEFT, TitledBorder.TOP,
+                formWrapper.getFont().deriveFont(Font.BOLD, 12f)
+            ),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(4, 4, 4, 4);
+        gbc.insets = new Insets(6, 6, 6, 6);
         gbc.anchor = GridBagConstraints.WEST;
 
         gbc.gridx = 0; gbc.gridy = 0;
-        form.add(new JLabel("API Host:"), gbc);
+        form.add(label("Host:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1;
-        hostField = new JTextField(currentHost, 20);
+        hostField = new JTextField(host, 20);
+        hostField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_COLOR),
+            BorderFactory.createEmptyBorder(4, 6, 4, 6)));
         form.add(hostField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
-        form.add(new JLabel("API Port:"), gbc);
+        form.add(label("Port:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1;
-        portField = new JTextField(String.valueOf(currentPort), 10);
+        portField = new JTextField(String.valueOf(port), 10);
+        portField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_COLOR),
+            BorderFactory.createEmptyBorder(4, 6, 4, 6)));
         form.add(portField, gbc);
 
+        // Status + Apply button row
+        statusLabel = new JLabel(" Running on " + host + ":" + port + " ");
+        statusLabel.setOpaque(true);
+        statusLabel.setBackground(BG_SUCCESS);
+        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD, 12f));
+        statusLabel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(ACCENT),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
-        JLabel help = new JLabel("Default: 127.0.0.1:8111. Python MCP server must match (BURP_API_HOST/BURP_API_PORT env vars).");
-        help.setFont(help.getFont().deriveFont(Font.ITALIC, 11f));
-        help.setForeground(Color.GRAY);
-        form.add(help, gbc);
-
-        // Status (init before button captures it)
-        statusLabel = new JLabel("Server running on " + currentHost + ":" + currentPort);
-        statusLabel.setForeground(new Color(0, 128, 0));
-
-        gbc.gridy = 3; gbc.gridwidth = 1;
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         JButton applyBtn = new JButton("Apply & Restart");
+        applyBtn.setFont(applyBtn.getFont().deriveFont(Font.BOLD));
         applyBtn.addActionListener(e -> {
             String newHost = hostField.getText().trim();
             int newPort;
@@ -129,64 +156,79 @@ public class ConfigTab {
                 newPort = Integer.parseInt(portField.getText().trim());
                 if (newPort < 1 || newPort > 65535) throw new NumberFormatException();
             } catch (NumberFormatException ex) {
-                statusLabel.setText("Invalid port (1-65535)");
-                statusLabel.setForeground(Color.RED);
+                setStatus("Invalid port (1-65535)", BG_ERROR, Color.RED);
                 return;
             }
-            statusLabel.setText("Restarting...");
-            statusLabel.setForeground(Color.BLUE);
+            setStatus("Restarting...", BG_INFO, Color.BLUE);
             new SwingWorker<Void, Void>() {
                 @Override protected Void doInBackground() { restartCallback.accept(newHost, newPort); return null; }
                 @Override protected void done() {
-                    statusLabel.setText("Running on " + newHost + ":" + newPort);
-                    statusLabel.setForeground(new Color(0, 128, 0));
+                    setStatus(" Running on " + newHost + ":" + newPort + " ", BG_SUCCESS, ACCENT);
                     log("Server restarted on " + newHost + ":" + newPort);
                 }
             }.execute();
         });
-        form.add(applyBtn, gbc);
+        btnRow.add(applyBtn);
+        btnRow.add(statusLabel);
+        form.add(btnRow, gbc);
 
-        gbc.gridx = 1;
-        form.add(statusLabel, gbc);
+        formWrapper.add(form, BorderLayout.CENTER);
+        configSection.add(formWrapper, BorderLayout.CENTER);
 
-        p.add(form, BorderLayout.CENTER);
-
-        // Info
-        JTextArea info = new JTextArea(
-            "Architecture: Claude Code -> Python MCP Server (stdio) -> This Extension (REST API) -> Burp Suite\n\n" +
-            "This tab shows sessions, findings, and activity unique to the MCP integration.\n" +
-            "Burp's native tabs (Scanner, Sitemap, Proxy History) show their own data — no duplication here."
+        // Hint section
+        JPanel hintPanel = new JPanel(new BorderLayout());
+        hintPanel.setBorder(new CompoundBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDER_COLOR), "  Notes  ",
+                TitledBorder.LEFT, TitledBorder.TOP,
+                hintPanel.getFont().deriveFont(Font.BOLD, 12f)
+            ),
+            BorderFactory.createEmptyBorder(6, 8, 6, 8)
+        ));
+        JTextArea notes = new JTextArea(
+            "Architecture: Claude Code  ->  Python MCP Server (stdio)  ->  This Extension (REST API)  ->  Burp Suite\n\n" +
+            "Python MCP server config: set BURP_API_HOST and BURP_API_PORT environment variables to match.\n" +
+            "Sessions, Findings, and Activity Log tabs show data unique to MCP integration (not duplicating Burp native tabs)."
         );
-        info.setEditable(false);
-        info.setBackground(p.getBackground());
-        info.setFont(info.getFont().deriveFont(11f));
-        info.setForeground(Color.DARK_GRAY);
-        p.add(info, BorderLayout.SOUTH);
+        notes.setEditable(false);
+        notes.setBackground(SECTION_BG);
+        notes.setFont(notes.getFont().deriveFont(11.5f));
+        notes.setForeground(Color.DARK_GRAY);
+        notes.setLineWrap(true);
+        notes.setWrapStyleWord(true);
+        notes.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        hintPanel.add(notes);
+        configSection.add(hintPanel, BorderLayout.SOUTH);
 
+        p.add(configSection, BorderLayout.CENTER);
         return p;
     }
 
     // ── Sessions Panel ──
 
     private JPanel buildSessionsPanel() {
-        JPanel p = new JPanel(new BorderLayout(5, 5));
-        p.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JPanel p = new JPanel(new BorderLayout(0, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR));
+        JLabel title = sectionTitle("Active Attack Sessions");
+        JLabel hint = hint("Created by Claude via MCP. Shows persistent session state not visible in Burp's native tabs.");
+        top.add(title, BorderLayout.WEST);
+        top.add(hint, BorderLayout.SOUTH);
+        p.add(top, BorderLayout.NORTH);
 
         JTable table = new JTable(sessionsModel);
-        table.setFillsViewportHeight(true);
+        styleTable(table, new int[]{120, 250, 60, 70, 50});
         p.add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        btns.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_COLOR));
         JButton refresh = new JButton("Refresh");
         refresh.addActionListener(e -> refreshSessions());
-        buttons.add(refresh);
+        btns.add(refresh);
+        p.add(btns, BorderLayout.SOUTH);
 
-        JLabel hint = new JLabel("Sessions are created by Claude via MCP — shows active attack contexts.");
-        hint.setFont(hint.getFont().deriveFont(Font.ITALIC, 11f));
-        hint.setForeground(Color.GRAY);
-        buttons.add(hint);
-
-        p.add(buttons, BorderLayout.SOUTH);
         return p;
     }
 
@@ -201,24 +243,48 @@ public class ConfigTab {
     // ── Findings Panel ──
 
     private JPanel buildFindingsPanel() {
-        JPanel p = new JPanel(new BorderLayout(5, 5));
-        p.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JPanel p = new JPanel(new BorderLayout(0, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR));
+        JLabel title = sectionTitle("Manual Findings (saved by Claude)");
+        JLabel hint2 = hint("Not duplicating Burp Scanner issues. These are Claude's manual vulnerability notes.");
+        top.add(title, BorderLayout.WEST);
+        top.add(hint2, BorderLayout.SOUTH);
+        p.add(top, BorderLayout.NORTH);
 
         JTable table = new JTable(findingsModel);
-        table.setFillsViewportHeight(true);
+        styleTable(table, new int[]{40, 80, 300, 250});
+
+        // Color-code severity column
+        table.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object value, boolean sel, boolean focus, int row, int col) {
+                Component c = super.getTableCellRendererComponent(t, value, sel, focus, row, col);
+                if (!sel && value != null) {
+                    String sev = value.toString();
+                    switch (sev) {
+                        case "CRITICAL" -> { c.setBackground(new Color(255, 200, 200)); c.setForeground(new Color(180, 0, 0)); }
+                        case "HIGH" -> { c.setBackground(new Color(255, 220, 200)); c.setForeground(new Color(200, 80, 0)); }
+                        case "MEDIUM" -> { c.setBackground(new Color(255, 245, 200)); c.setForeground(new Color(180, 130, 0)); }
+                        case "LOW" -> { c.setBackground(new Color(230, 255, 230)); c.setForeground(new Color(0, 128, 0)); }
+                        default -> { c.setBackground(Color.WHITE); c.setForeground(Color.DARK_GRAY); }
+                    }
+                }
+                return c;
+            }
+        });
+
         p.add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        btns.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_COLOR));
         JButton refresh = new JButton("Refresh");
         refresh.addActionListener(e -> refreshFindings());
-        buttons.add(refresh);
+        btns.add(refresh);
+        p.add(btns, BorderLayout.SOUTH);
 
-        JLabel hint = new JLabel("Manual findings saved by Claude — not duplicating Burp Scanner issues.");
-        hint.setFont(hint.getFont().deriveFont(Font.ITALIC, 11f));
-        hint.setForeground(Color.GRAY);
-        buttons.add(hint);
-
-        p.add(buttons, BorderLayout.SOUTH);
         return p;
     }
 
@@ -227,10 +293,7 @@ public class ConfigTab {
         if (findingsStore == null) return;
         for (Map<String, Object> f : findingsStore.getAll("")) {
             findingsModel.addRow(new Object[]{
-                f.get("id"),
-                f.get("severity"),
-                f.get("title"),
-                f.get("endpoint"),
+                f.get("id"), f.get("severity"), f.get("title"), f.get("endpoint"),
             });
         }
     }
@@ -238,45 +301,87 @@ public class ConfigTab {
     // ── Activity Log Panel ──
 
     private JPanel buildLogPanel() {
-        JPanel p = new JPanel(new BorderLayout(5, 5));
-        p.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JPanel p = new JPanel(new BorderLayout(0, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR));
+        JLabel title = sectionTitle("MCP Activity Log");
+        JLabel hint3 = hint("Real-time stream of what Claude is doing via the extension API.");
+        top.add(title, BorderLayout.WEST);
+        top.add(hint3, BorderLayout.SOUTH);
+        p.add(top, BorderLayout.NORTH);
 
         JList<String> logList = new JList<>(logModel);
         logList.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        logList.setBackground(new Color(252, 252, 252));
+        logList.setSelectionBackground(BG_INFO);
         p.add(new JScrollPane(logList), BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton clearBtn = new JButton("Clear Log");
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        btns.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_COLOR));
+        JButton clearBtn = new JButton("Clear");
         clearBtn.addActionListener(e -> logModel.clear());
-        buttons.add(clearBtn);
+        btns.add(clearBtn);
+        p.add(btns, BorderLayout.SOUTH);
 
-        JLabel hint = new JLabel("MCP tool activity — shows what Claude is doing via the extension.");
-        hint.setFont(hint.getFont().deriveFont(Font.ITALIC, 11f));
-        hint.setForeground(Color.GRAY);
-        buttons.add(hint);
-
-        p.add(buttons, BorderLayout.SOUTH);
         return p;
     }
 
-    // ── Public API ──
+    // ── Helpers ──
 
-    public JPanel getPanel() {
-        return panel;
+    private void setStatus(String text, Color bg, Color border) {
+        statusLabel.setText(" " + text + " ");
+        statusLabel.setBackground(bg);
+        statusLabel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(border),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)));
     }
 
-    /**
-     * Add entry to activity log. Thread-safe.
-     */
+    private static void styleTable(JTable table, int[] widths) {
+        table.setFillsViewportHeight(true);
+        table.setRowHeight(24);
+        table.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        table.getTableHeader().setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        table.getTableHeader().setBackground(SECTION_BG);
+        table.setGridColor(BORDER_COLOR);
+        table.setShowGrid(true);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+        for (int i = 0; i < widths.length && i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
+        }
+    }
+
+    private static JLabel sectionTitle(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(l.getFont().deriveFont(Font.BOLD, 14f));
+        l.setBorder(BorderFactory.createEmptyBorder(4, 0, 6, 0));
+        return l;
+    }
+
+    private static JLabel hint(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(l.getFont().deriveFont(Font.ITALIC, 11f));
+        l.setForeground(Color.GRAY);
+        l.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+        return l;
+    }
+
+    private static JLabel label(String text) {
+        JLabel l = new JLabel(text);
+        l.setFont(l.getFont().deriveFont(Font.BOLD, 12f));
+        return l;
+    }
+
+    public JPanel getPanel() { return panel; }
+
+    /** Thread-safe activity log entry. */
     public static void log(String message) {
         if (instance == null) return;
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         SwingUtilities.invokeLater(() -> {
-            instance.logModel.addElement("[" + timestamp + "] " + message);
-            // Keep last 500 entries
-            while (instance.logModel.size() > 500) {
-                instance.logModel.remove(0);
-            }
+            instance.logModel.addElement("[" + ts + "] " + message);
+            while (instance.logModel.size() > 500) instance.logModel.remove(0);
         });
     }
 }
