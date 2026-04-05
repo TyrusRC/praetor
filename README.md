@@ -168,7 +168,7 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (68 total)
+## Tools (78 total)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -231,6 +231,9 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 | `quick_scan` | Send request + auto-analyze in one call — returns tech stack, injection points, params, secrets |
 | `probe_endpoint` | Adaptive vulnerability probe — auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection |
 | `batch_probe` | Test multiple endpoints in one call — returns status, length, timing for each |
+| `discover_hidden_parameters` | Arjun-style hidden parameter discovery — brute-force param names, detect anomalies |
+| `full_recon` | One-call recon pipeline (quick/standard/deep) — tech stack, endpoints, secrets, headers, priorities |
+| `bulk_test` | Test all endpoints for one vuln type — sqli, xss, lfi, ssrf, ssti, cmdi, open_redirect |
 
 ### Precision Attack Tools
 | Tool | Description |
@@ -238,7 +241,7 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 | `test_auth_matrix` | Test N endpoints x M auth states — detects IDOR and broken access control |
 | `test_race_condition` | Fire N concurrent requests simultaneously — detects double-spend, TOCTOU |
 | `test_parameter_pollution` | Test HPP across query/body/mixed positions |
-| `fuzz_parameter` | Smart fuzzing with sniper/battering_ram/pitchfork/cluster_bomb modes |
+| `fuzz_parameter` | Smart fuzzing with sniper/battering_ram/pitchfork/cluster_bomb modes + smart_payloads auto-selection |
 | `compare_auth_states` | Compare responses with/without auth for IDOR detection |
 | `compare_responses` | Enhanced response diff (headers, body, unique words) |
 | `send_to_comparer` | Send two items to Burp's Comparer |
@@ -251,13 +254,26 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 | `test_graphql` | Test GraphQL endpoint — introspection, field suggestions, batch queries, GET-based CSRF |
 | `test_cloud_metadata` | Test SSRF to cloud metadata — AWS IMDSv1/v2, GCP, Azure, DigitalOcean |
 | `discover_common_files` | Probe for sensitive files — .git, .env, actuator, debug endpoints, API docs |
+| `test_open_redirect` | Test open redirects with Collaborator-verified payloads — protocol-relative, encoding bypasses |
+| `test_lfi` | Test LFI/path traversal — Linux/Windows traversal, PHP wrappers, null bytes, encoding bypasses |
+| `test_file_upload` | Test file upload bypasses — double extension, content-type mismatch, polyglot, SVG XSS |
 
 ### Payload & Knowledge Base
 | Tool | Description |
 |------|-------------|
-| `get_payloads` | Context-aware payloads from HackTricks/PayloadsAllTheThings — XSS, SQLi, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP |
+| `get_payloads` | Context-aware payloads from HackTricks/PayloadsAllTheThings — XSS, SQLi, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, open redirect, LFI, file upload |
 
-> **Knowledge base:** 24 categories with server-side matchers for auto-probe: SQLi, XSS, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, IDOR, JWT, GraphQL, deserialization, CRLF injection, open redirect, mass assignment, request smuggling, LLM injection, info disclosure, WebSocket, tech-specific vulns
+> **Knowledge base:** 25 categories with server-side matchers for auto-probe: SQLi, XSS, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, IDOR, JWT, GraphQL, deserialization, CRLF injection, open redirect, mass assignment, request smuggling, LLM injection, info disclosure, WebSocket, file upload, tech-specific vulns
+
+### Target Intelligence (persistent memory)
+| Tool | Description |
+|------|-------------|
+| `save_target_intel` | Persist target context (profile, endpoints, coverage, findings, fingerprint) across sessions |
+| `load_target_intel` | Load stored intel — use `"all"` for compact summary or specific category |
+| `check_target_freshness` | Fingerprint key pages to detect changes since last session |
+| `save_target_notes` | Save freeform markdown notes (human-editable observations and corrections) |
+
+> **Memory system:** Data stored in `.burp-intel/<domain>/` (gitignored). Finding states: suspected, confirmed, stale, likely_false_positive. Knowledge version tracking triggers re-testing when probes are updated. Deduplication prevents duplicate findings.
 
 ### Correlate
 | Tool | Description |
@@ -300,6 +316,16 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 |------|-------------|
 | `decode_encode` | base64, URL, HTML, hex, JWT decode, MD5/SHA1/SHA256, double URL encode, unicode escape |
 
+## Bug Bounty Skills
+
+Claude Code skills in `.claude/skills/` that encode expert bug bounty methodology:
+
+| Skill | Purpose |
+|-------|---------|
+| `hunt.md` | Systematic vulnerability hunting — loads target memory, checks freshness, tests by tech-adaptive priority (PHP: SQLi/LFI/upload, Java: deser/XXE, API: IDOR/auth), saves progress at checkpoints |
+| `verify-finding.md` | Verify suspected vulns with real evidence before marking confirmed — evidence requirements per vuln type (Collaborator for SSRF/redirect, timing for blind SQLi, reflection for XSS). False positive gating: 2+ failures = likely_false_positive |
+| `resume.md` | Continue from previous session — re-verify findings on changed endpoints, show coverage dashboard, suggest prioritized next actions |
+
 ## Design Philosophy
 
 - **Precision over spray** — no mass brute force or enumeration. Use nuclei/sqlmap/ffuf for that. This tool focuses on intelligent, context-aware vulnerability testing.
@@ -308,6 +334,8 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 - **Building blocks + smart helpers** — low-level primitives for creative attack chaining, plus high-level tools where server-side coordination matters (race conditions, auth matrix).
 - **Two knowledge systems** — `payloads/` (12 files) for `get_payloads` tool with human-readable attack recipes. `knowledge/` (24 files) for `auto_probe` engine with server-side matchers and anomaly detection.
 - **Knowledge fills gaps** — Claude knows basic payloads but not Angular sandbox bypass or Spring SSTI. The curated knowledge base provides advanced/evasive techniques (WAF bypass, blind injection, framework-specific SSTI).
+- **Persistent memory** — target intel survives across sessions. Claude remembers tech stack, endpoints, test coverage, and findings without re-scanning. Staleness detection ensures memory stays fresh.
+- **Zero false positives** — findings require reproducible evidence (Collaborator callbacks, timing anomalies, error strings). Re-verification on resume catches patched or intermittent issues.
 
 ## Environment Variables
 

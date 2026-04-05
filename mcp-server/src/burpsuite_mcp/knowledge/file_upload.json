@@ -1,0 +1,173 @@
+{
+  "category": "file_upload",
+  "contexts": {
+    "php_upload": {
+      "description": "File upload bypass probes targeting PHP-based servers",
+      "tech_match": ["PHP", "Apache", "nginx", "Laravel", "WordPress", "Drupal"],
+      "param_match": ["file", "upload", "attachment", "document", "image", "photo", "avatar", "import"],
+      "probes": [
+        {
+          "payload": "Upload .php.jpg double extension with PHP content (<?php echo 'PROBE_OK'; ?>)",
+          "description": "Double extension bypass — Apache may execute .php.jpg as PHP with AddHandler",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file", "stored", "saved"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "Upload .phtml extension with PHP content",
+          "description": "Alternative PHP extension — often missing from blacklists",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "Upload with GIF89a magic bytes + PHP code as .gif",
+          "description": "Magic byte bypass — passes file signature validation, content is PHP",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "Upload .php with Content-Type: image/jpeg",
+          "description": "Content-Type mismatch — server-side check uses MIME, filesystem uses extension",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "jsp_upload": {
+      "description": "File upload bypass probes targeting Java-based servers",
+      "tech_match": ["Java", "Tomcat", "JBoss", "WildFly", "Spring", "Jetty"],
+      "param_match": ["file", "upload", "attachment", "document", "import"],
+      "probes": [
+        {
+          "payload": "Upload .jsp.png double extension with JSP content",
+          "description": "Double extension bypass for Java application servers",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file", "stored"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "Upload .jspx extension with JSP XML content",
+          "description": "JSPX alternative extension — JSP in XML format, often not blacklisted",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "Upload .war archive containing web shell",
+          "description": "WAR deployment — if upload dir is auto-deploy, shell becomes accessible",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "deploy"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "asp_upload": {
+      "description": "File upload bypass probes targeting ASP.NET/IIS servers",
+      "tech_match": ["ASP.NET", "IIS", "Windows Server"],
+      "param_match": ["file", "upload", "attachment", "document", "import"],
+      "probes": [
+        {
+          "payload": "Upload .aspx;.jpg with ASPX content",
+          "description": "Semicolon extension bypass — IIS processes as .aspx, ignores after semicolon",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "Upload .asp with Content-Type: image/jpeg",
+          "description": "Content-Type mismatch bypass for classic ASP",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "Upload .config with web.config content containing handlers",
+          "description": "web.config upload — can reconfigure IIS to execute arbitrary extensions as ASP.NET",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "config"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "general": {
+      "description": "General file upload probes that apply across all server technologies",
+      "tech_match": [],
+      "param_match": ["file", "upload", "attachment", "document", "image", "photo", "avatar", "media", "import"],
+      "probes": [
+        {
+          "payload": "Upload .svg with onload=alert(1) XSS payload",
+          "description": "SVG XSS — if served with image/svg+xml, browser executes JavaScript",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file", "svg"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "Upload .html with JavaScript content",
+          "description": "HTML upload — stored XSS if served from same origin",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "Upload .htaccess to enable PHP execution in upload directory",
+          "description": ".htaccess upload — can reconfigure Apache to execute uploads as PHP",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "Upload oversized file (10MB+) to test size limits",
+          "description": "Large file upload — tests for DoS via storage exhaustion or missing size limits",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 15
+        }
+      ]
+    }
+  }
+}

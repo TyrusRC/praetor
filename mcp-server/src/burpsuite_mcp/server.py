@@ -22,6 +22,7 @@ Collaborate: Burp Collaborator payloads, auto-test (inject+send+poll for blind v
 Export: sitemap as compact JSON or OpenAPI 3.0, fetch static resources (JS/CSS/source maps).
 Utility: encode/decode (base64, URL, HTML, hex, JWT, hashes).
 Notes: save findings, export pentest reports.
+Intel: persistent target memory across sessions, staleness detection, finding verification states.
 
 Workflow: Read → Analyze attack surface → Fuzz/Test → Correlate → Document.""",
 )

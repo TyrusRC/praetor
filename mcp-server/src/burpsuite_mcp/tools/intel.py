@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +20,7 @@ VALID_CATEGORIES = ("profile", "endpoints", "coverage", "findings", "fingerprint
 
 def _intel_path(domain: str) -> Path:
     """Return the intel directory path for a domain, with sanitized name."""
-    sanitized = domain.replace(":", "_").replace("/", "_").replace("\\", "_")
+    sanitized = re.sub(r'[^a-zA-Z0-9._-]', '_', domain)
     return INTEL_DIR / sanitized
 
 
@@ -262,43 +263,41 @@ def register(mcp: FastMCP):
         errors = []
 
         for page in pages:
-            url = page.get("url", "")
-            old_hash = page.get("hash", "")
-            old_length = page.get("length", 0)
+            path = page.get("path", "/")
+            old_hash = page.get("response_hash", "")
+            old_length = page.get("response_length", 0)
 
             resp = await client.post("/api/session/request", json={
                 "session": session,
                 "method": "GET",
-                "url": url,
+                "path": path,
             })
 
             if "error" in resp:
-                errors.append(f"  {url}: {resp['error']}")
+                errors.append(f"  {path}: {resp['error']}")
                 continue
 
-            body = resp.get("body", "")
-            new_hash = hashlib.sha256(body.encode()).hexdigest()[:16]
-            new_length = len(body)
+            body = resp.get("response_body", "")
+            new_hash = "sha256:" + hashlib.sha256(body.encode()).hexdigest()[:16]
+            new_length = resp.get("response_length", len(body))
 
             # Update stored fingerprint
-            page["hash"] = new_hash
-            page["length"] = new_length
-            page["last_checked"] = datetime.now(timezone.utc).isoformat()
+            page["response_hash"] = new_hash
+            page["response_length"] = new_length
+            page["status"] = resp.get("status", 0)
+            page["checked_at"] = datetime.now(timezone.utc).isoformat()
 
             if old_hash and new_hash != old_hash:
                 length_diff = abs(new_length - old_length) / max(old_length, 1)
                 if length_diff < 0.05:
-                    fresh.append(f"  {url}: hash changed but length similar (~{length_diff:.0%} diff)")
+                    fresh.append(f"  {path}: hash changed but length similar (~{length_diff:.0%} diff)")
                 else:
-                    changes.append(f"  {url}: CHANGED (hash {old_hash[:8]}→{new_hash[:8]}, length {old_length}→{new_length})")
+                    changes.append(f"  {path}: CHANGED (length {old_length}→{new_length})")
             else:
-                fresh.append(f"  {url}: fresh")
+                fresh.append(f"  {path}: fresh")
 
         # Save updated fingerprints
         _atomic_write_json(fp_path, fp_data)
-
-        # Check if coverage or findings reference changed pages
-        changed_urls = {page["url"] for page in pages if page.get("hash") != page.get("_prev_hash", page.get("hash"))}
 
         # Check knowledge version
         kv_report = ""
