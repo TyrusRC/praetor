@@ -49,7 +49,9 @@ graph TB
     style T fill:#ef4444,color:#fff
 ```
 
-## Workflow
+## Workflows
+
+### Manual Workflow (step-by-step control)
 
 ```mermaid
 flowchart LR
@@ -62,10 +64,18 @@ flowchart LR
     F -->|Race| H[test_race_condition]
     F -->|HPP| I[test_parameter_pollution]
     F -->|Blind| J[auto_collaborator_test]
+    F -->|CORS| G2[test_cors]
+    F -->|JWT| H2[test_jwt]
+    F -->|GraphQL| I2[test_graphql]
+    F -->|Cloud SSRF| J2[test_cloud_metadata]
     G --> K[6. Document<br/>save_finding<br/>export_report]
     H --> K
     I --> K
     J --> K
+    G2 --> K
+    H2 --> K
+    I2 --> K
+    J2 --> K
     E -->|iterate| C
 
     style A fill:#6366f1,color:#fff
@@ -77,6 +87,31 @@ flowchart LR
     style H fill:#ef4444,color:#fff
     style I fill:#ef4444,color:#fff
     style J fill:#ef4444,color:#fff
+    style G2 fill:#ef4444,color:#fff
+    style H2 fill:#ef4444,color:#fff
+    style I2 fill:#ef4444,color:#fff
+    style J2 fill:#ef4444,color:#fff
+    style K fill:#22c55e,color:#fff
+```
+
+### Adaptive Scan Workflow (knowledge-driven automation)
+
+```mermaid
+flowchart LR
+    S[1. Session<br/>create_session<br/>with base_url] --> D[2. Discover<br/>discover_attack_surface<br/>crawl + map + score]
+    D --> R{Review<br/>results}
+    R -->|auto| P[3. Probe<br/>auto_probe<br/>24 vuln categories<br/>server-side matchers]
+    R -->|targeted| Q[quick_scan<br/>probe_endpoint<br/>batch_probe]
+    P --> F[4. Findings<br/>auto-scored<br/>anomaly detection]
+    Q --> F
+    F --> K[5. Document<br/>save_finding<br/>export_report]
+
+    style S fill:#6366f1,color:#fff
+    style D fill:#3b82f6,color:#fff
+    style R fill:#0ea5e9,color:#fff
+    style P fill:#f59e0b,color:#000
+    style Q fill:#f59e0b,color:#000
+    style F fill:#ef4444,color:#fff
     style K fill:#22c55e,color:#fff
 ```
 
@@ -133,7 +168,7 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (56 total)
+## Tools (68 total)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -174,6 +209,7 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 | `detect_tech_stack` | Server tech, frameworks, security headers |
 | `extract_js_secrets` | AWS keys, tokens, passwords, internal URLs (TruffleHog-quality) |
 | `get_unique_endpoints` | Deduplicated endpoints with parameter names |
+| `smart_analyze` | One-call combined analysis — tech stack, injection points, parameters, forms, secrets |
 | `analyze_dom` | DOM structure + JS sink/source/prototype pollution analysis |
 
 ### Send (through Burp)
@@ -186,6 +222,16 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 | `send_to_repeater` | Send request to Repeater tab |
 | `send_to_intruder` | Send request to Intruder |
 
+### Adaptive Scan Engine
+| Tool | Description |
+|------|-------------|
+| `scan_target` | Two-mode scan: discover attack surface OR probe parameters with knowledge-driven detection |
+| `discover_attack_surface` | Crawl target and map endpoints, parameters (risk-scored), forms, tech stack in one call |
+| `auto_probe` | Knowledge-driven vulnerability probing — auto-detects tech, selects matching probes from 24 categories |
+| `quick_scan` | Send request + auto-analyze in one call — returns tech stack, injection points, params, secrets |
+| `probe_endpoint` | Adaptive vulnerability probe — auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection |
+| `batch_probe` | Test multiple endpoints in one call — returns status, length, timing for each |
+
 ### Precision Attack Tools
 | Tool | Description |
 |------|-------------|
@@ -197,10 +243,21 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 | `compare_responses` | Enhanced response diff (headers, body, unique words) |
 | `send_to_comparer` | Send two items to Burp's Comparer |
 
-### Payload Knowledge Base
+### Edge-Case Security Tests
+| Tool | Description |
+|------|-------------|
+| `test_cors` | Test CORS configuration — origin reflection, null bypass, wildcard+credentials |
+| `test_jwt` | Analyze JWT for vulnerabilities — alg:none, key confusion, jku/x5u injection, kid SQLi |
+| `test_graphql` | Test GraphQL endpoint — introspection, field suggestions, batch queries, GET-based CSRF |
+| `test_cloud_metadata` | Test SSRF to cloud metadata — AWS IMDSv1/v2, GCP, Azure, DigitalOcean |
+| `discover_common_files` | Probe for sensitive files — .git, .env, actuator, debug endpoints, API docs |
+
+### Payload & Knowledge Base
 | Tool | Description |
 |------|-------------|
 | `get_payloads` | Context-aware payloads from HackTricks/PayloadsAllTheThings — XSS, SQLi, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP |
+
+> **Knowledge base:** 24 categories with server-side matchers for auto-probe: SQLi, XSS, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, IDOR, JWT, GraphQL, deserialization, CRLF injection, open redirect, mass assignment, request smuggling, LLM injection, info disclosure, WebSocket, tech-specific vulns
 
 ### Correlate
 | Tool | Description |
@@ -246,10 +303,11 @@ Replace `/absolute/path/to` with the actual path to your cloned repo. For exampl
 ## Design Philosophy
 
 - **Precision over spray** — no mass brute force or enumeration. Use nuclei/sqlmap/ffuf for that. This tool focuses on intelligent, context-aware vulnerability testing.
-- **Token efficient** — one smart tool call > five chatty ones. `run_flow` executes multi-step attacks in a single call.
+- **Token efficient** — one smart tool call > five chatty ones. `run_flow` executes multi-step attacks in a single call. `discover_attack_surface` + `auto_probe` replaces dozens of manual calls.
 - **Claude crafts the attack** — tools are execution engines, not decision makers. Claude thinks, tools execute.
 - **Building blocks + smart helpers** — low-level primitives for creative attack chaining, plus high-level tools where server-side coordination matters (race conditions, auth matrix).
-- **Payload knowledge fills gaps** — Claude knows basic payloads but not Angular sandbox bypass or Spring SSTI. The curated knowledge base provides advanced/evasive techniques.
+- **Two knowledge systems** — `payloads/` (12 files) for `get_payloads` tool with human-readable attack recipes. `knowledge/` (24 files) for `auto_probe` engine with server-side matchers and anomaly detection.
+- **Knowledge fills gaps** — Claude knows basic payloads but not Angular sandbox bypass or Spring SSTI. The curated knowledge base provides advanced/evasive techniques (WAF bypass, blind injection, framework-specific SSTI).
 
 ## Environment Variables
 

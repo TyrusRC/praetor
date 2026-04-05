@@ -11,7 +11,8 @@ public class SwissKnifeExtension implements BurpExtension {
     private static final int DEFAULT_PORT = 8111;
     private static final String DEFAULT_HOST = "127.0.0.1";
 
-    private ApiServer apiServer;
+    private volatile ApiServer apiServer;
+    private ConfigTab configTab;
     private MontoyaApi api;
 
     @Override
@@ -28,12 +29,13 @@ public class SwissKnifeExtension implements BurpExtension {
         startServer(api, host, port);
 
         // Register UI dashboard tab with references to live data
-        ConfigTab configTab = new ConfigTab(api, host, port, version, this::restartServer,
+        configTab = new ConfigTab(api, host, port, version, this::restartServer,
                 () -> apiServer.getSessionHandler() != null ? apiServer.getSessionHandler().getSessionInfoList() : java.util.List.of(),
                 apiServer.getFindingsStore());
         api.userInterface().registerSuiteTab(EXTENSION_NAME, configTab.getPanel());
 
         api.extension().registerUnloadingHandler(() -> {
+            if (configTab != null) configTab.stop();
             if (apiServer != null) apiServer.stop();
             api.logging().logToOutput(EXTENSION_NAME + " stopped");
         });
