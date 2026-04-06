@@ -3,104 +3,174 @@ name: verify-finding
 description: Verify a suspected vulnerability is real with reproducible evidence before marking confirmed
 ---
 
-# Verify Finding — Evidence-Based Confirmation
+# Verify Finding
 
-You are verifying a suspected vulnerability. Do NOT mark anything as confirmed unless it meets the evidence requirements below.
+You are verifying a suspected vulnerability. Your job is to PROVE it's real or mark it as a false positive. No guessing, no assumptions.
 
-## Step 1: Load the Finding
+## Process
 
-Load the finding details from memory or from the current session context. You need:
-- The exact request (method, path, headers, body) that triggered the anomaly
-- The parameter under test
-- The payload used
-- The observed anomaly (timing, error, reflection, status code change)
+1. **Load the finding** from `load_target_intel(domain, "findings")`
+2. **Re-send the PoC request** exactly as stored — use `session_request` or `send_http_request` with the exact method, path, headers, body
+3. **Check the expected behavior** matches what was originally observed
+4. **Test 2-3 times** for timing-based findings to rule out network jitter
 
-If any of these are missing, reconstruct them before proceeding.
+## Evidence Requirements
 
-## Step 2: Establish Baseline
-
-Send a **clean request** (no payload) using `session_request(session, method, path, ...)` and record:
-- Response time (for timing-based checks)
-- Response length
-- Status code
-- Key response content
-
-This is your baseline for comparison.
-
-## Step 3: Re-send the PoC
-
-Send the **exact same request** that produced the anomaly using `session_request`. Compare against baseline.
-
-## Step 4: Check Evidence Requirements
-
-Each vulnerability type has specific evidence requirements. The finding is **confirmed** only if the requirement is met.
+Each vulnerability type needs SPECIFIC proof. Without meeting these requirements, the finding is NOT confirmed.
 
 ### SQL Injection
-- **Time-based blind:** Response time is **>3x the baseline** on a `SLEEP`/`WAITFOR`/`pg_sleep` payload, AND returns to normal on a non-sleeping payload. Test at least 2 different delay values.
-- **Error-based:** Response contains a **database error string** (e.g., `You have an error in your SQL syntax`, `ORA-`, `unterminated quoted string`, `pg_query`).
-- **Out-of-band:** Call `generate_collaborator_payload("dns")`, inject it via SQL (e.g., `LOAD_FILE`, `UTL_HTTP`, `xp_dirtree`), then call `get_collaborator_interactions()` and confirm a DNS lookup arrived.
-- **Union-based:** Injected `UNION SELECT` returns controlled data in the response.
+- **Time-based:** Response time > 3x baseline (e.g., SLEEP(3) causes 3+ second delay). Test 2-3 times to rule out network jitter. Compare against baseline timing.
+- **Error-based:** SQL error string in response (unclosed quotation, syntax error, ORA-, mysql_fetch, pg_query, ODBC, Microsoft OLE DB)
+- **Union-based:** Response contains data from injected UNION SELECT (version string, table names, different column count)
+- **Boolean-blind:** Consistent response difference between AND 1=1 and AND 1=2 (content length, specific content present/absent)
+- **Blind OOB:** Collaborator DNS/HTTP interaction via `auto_collaborator_test`
+- **NOT sufficient:** Status code change alone. Generic error page. Different response length without error strings or consistent boolean behavior.
 
-### XSS (Reflected/Stored)
-- The payload is **reflected in the response without encoding**. Verify the exact payload string (e.g., `<script>`, `onerror=`) appears in the HTML response body, not inside an attribute that is HTML-encoded.
-- For stored XSS: confirm the payload persists by requesting the page again without the payload in the URL/body.
+### XSS (Cross-Site Scripting)
+- **Reflected:** Payload appears UNENCODED in response body (exact string match of `<script>`, `onerror=`, `onload=`, etc.) in an executable context
+- **Stored:** Payload appears on a DIFFERENT page/request after submission
+- **DOM-based:** Payload reaches a dangerous sink (innerHTML, eval) — verify via `analyze_dom` showing source-to-sink flow
+- **NOT sufficient:** Payload appears URL-encoded (%3Cscript%3E) or HTML-encoded. Payload reflected inside a JavaScript string but properly escaped. Payload inside HTML comment.
 
-### SSRF
-- Call `generate_collaborator_payload("http")` or `generate_collaborator_payload("dns")`.
-- Inject the Collaborator URL as the SSRF payload.
-- Call `get_collaborator_interactions()` and confirm an **HTTP or DNS interaction** from the target server (not your own IP).
+### SSRF (Server-Side Request Forgery)
+- **Confirmed:** Collaborator HTTP or DNS interaction received via `auto_collaborator_test` or `get_collaborator_interactions`
+- **Confirmed:** Cloud metadata content in response (ami-id, instance-id, AccessKeyId, subscriptionId)
+- **Partial:** Internal service response content (internal IPs, error messages from internal services, Redis/SSH banners)
+- **NOT sufficient:** Different status code alone. Timeout without Collaborator interaction. Connection refused error (shows attempt but not success).
 
 ### Open Redirect
-- Inject a Collaborator URL or external domain as the redirect target.
-- Confirm the response is a **3xx redirect** with the `Location` header pointing to the injected URL, OR the page performs a client-side redirect to it.
+- **Confirmed:** Collaborator interaction (server followed redirect to Collaborator URL) via `test_open_redirect`
+- **Partial:** Location header contains attacker-controlled external URL (client-side redirect — still reportable but lower severity)
+- **NOT sufficient:** Parameter reflected in page body but no redirect headers. JavaScript redirect that doesn't actually fire.
 
 ### LFI / Path Traversal
-- The response contains **recognizable file contents**:
-  - Linux: `root:x:0:0:` (from `/etc/passwd`)
-  - Windows: `[fonts]` or `[extensions]` (from `win.ini`)
-  - Application files: known config patterns
+- **Linux:** Response contains `root:x:`, `daemon:`, `/bin/bash`, `/bin/sh`, `nobody:`
+- **Windows:** Response contains `[fonts]`, `[extensions]`, `for 16-bit app`, `[mail]`
+- **PHP wrappers:** Base64-encoded file contents (long alphanumeric string starting with PD9, PCFE, etc.)
+- **Source code:** Application source code visible (PHP tags, config files with DB credentials)
+- **NOT sufficient:** Different error message. Status code change. Generic "file not found". Length anomaly without file content indicators.
 
-### IDOR
-- Call `compare_auth_states(session, method, path, ...)` with two different user contexts.
-- Confirmed if **User A can access User B's resource** — the response contains User B's data, not an error or empty response.
+### IDOR / Broken Access Control
+- **Confirmed:** `compare_auth_states` shows same response (>90% similarity) with DIFFERENT user credentials
+- **Confirmed:** Accessing another user's PII/data with lower-privilege credentials
+- **Confirmed:** Modifying/deleting another user's resources with their ID
+- **NOT sufficient:** Same status code with completely different content. Admin-only endpoint returning 200 with "access denied" in body. Different response that contains only your own data.
 
 ### File Upload
-- Upload a test file (e.g., a file with a benign marker string).
-- Confirm the file is **accessible at the returned URL** and the content is served (not rejected or sanitized).
-- For RCE via upload: confirm the server **executes** the file (e.g., PHP code returns computed output, not raw source).
+- **Confirmed:** Uploaded file is ACCESSIBLE at a URL AND server processes it (PHP executes, SVG renders with XSS, JSP executes)
+- **Partial:** Upload accepted (200) but file location unknown — still reportable if dangerous extensions accepted (.php, .jsp, .aspx)
+- **NOT sufficient:** Upload rejected with 200 status and error in body. Upload accepted but file stored with safe extension or in non-executable path.
+
+### SSTI (Server-Side Template Injection)
+- **Confirmed:** Mathematical expression evaluated (7*7 returns 49 in response body) — verify it's NOT client-side (AngularJS) by checking if server response contains the result before JavaScript executes
+- **Confirmed:** RCE probe returns system output (uid=, hostname, whoami output)
+- **Confirmed:** Config/environment leak (SECRET_KEY, database credentials via config dump)
+- **Differentiate engines:** `7*'7'` = "7777777" means Jinja2, = "49" means Twig
+- **NOT sufficient:** Expression reflected as literal string. Client-side template rendering (Angular/React). Expression in JavaScript context that browser evaluates.
+
+### Command Injection
+- **Confirmed:** Unique marker echoed in response (`; echo UNIQUE_STRING` and UNIQUE_STRING appears in response)
+- **Confirmed:** System command output in response (uid=, whoami output, hostname)
+- **Time-based:** `; sleep 5` causes 5+ second delay (test 2-3 times, compare to baseline)
+- **Blind OOB:** Collaborator DNS/HTTP interaction via `; curl COLLABORATOR` or `; nslookup COLLABORATOR`
+- **NOT sufficient:** Status 500 alone. Different error message. Timeout without timing correlation.
+
+### CSRF (Cross-Site Request Forgery)
+- **Confirmed:** State-changing action succeeds WITHOUT CSRF token (remove token entirely, verify action executed)
+- **Confirmed:** State-changing action succeeds with CSRF token from DIFFERENT user session
+- **Confirmed:** Action succeeds when switching POST to GET (method override bypass)
+- **Assess impact:** The action must have real-world impact (change password, transfer funds, modify settings) — not just viewing data
+- **NOT sufficient:** Missing CSRF token on GET requests. Missing CSRF on actions with no side effects. SameSite cookie attribute present (reduces but doesn't eliminate risk).
 
 ### Race Condition
-- Use `test_race_condition(session, ...)` to send concurrent requests.
-- Confirmed if the operation succeeds **more times than it should** (e.g., double-spend, duplicate vote, extra coupon use).
+- **Confirmed:** `test_race_condition` shows action succeeded MORE times than expected (e.g., coupon applied 3x, balance debited 3x)
+- **Confirmed:** Duplicate records created from simultaneous identical requests
+- **Quantify impact:** How much money/credit/resource can be gained? Is it consistently reproducible?
+- **NOT sufficient:** Multiple 200 responses (server may return 200 but only process once). Inconsistent reproduction (< 30% success rate suggests network timing, not real TOCTOU).
 
-### SSTI
-- The response contains the **computed result** of a template expression (e.g., injecting `{{7*7}}` returns `49`, not `{{7*7}}`).
-
-### XXE
-- **Out-of-band:** Inject an external entity with a Collaborator URL. Confirm DNS/HTTP interaction via `get_collaborator_interactions()`.
-- **In-band:** Injected entity resolves and file contents appear in the response.
+### JWT Attacks
+- **alg:none:** Server accepts JWT with algorithm set to "none" and empty signature — action succeeds with forged claims
+- **Weak secret:** JWT re-signed with common secret (secret, password, 123456) is accepted by server
+- **Algorithm confusion:** JWT changed from RS256 to HS256, signed with public key, accepted by server
+- **kid injection:** Path traversal or SQLi in kid header field returns different data
+- **NOT sufficient:** Decoding the JWT and seeing claims (that's expected). Server returning 200 but ignoring the JWT.
 
 ### CORS Misconfiguration
-- Use `test_cors(session)` results. Confirmed if the server reflects an **arbitrary origin** in `Access-Control-Allow-Origin` with `Access-Control-Allow-Credentials: true`.
+- **Confirmed:** Server reflects arbitrary Origin in Access-Control-Allow-Origin WITH Access-Control-Allow-Credentials: true
+- **Confirmed:** Server accepts Origin: null with credentials (exploitable via sandboxed iframe)
+- **Partial:** Origin reflected without credentials (lower impact — no cookie theft, but can read public API data cross-origin)
+- **NOT sufficient:** Wildcard ACAO without credentials (browser blocks credentialed requests). CORS headers present but no sensitive data accessible.
 
-## Step 5: Record the Result
+### Mass Assignment
+- **Confirmed:** Adding `role=admin` or `is_admin=true` to request actually changes the user's privilege (verify by checking profile/permissions after)
+- **Confirmed:** Setting `price=0` or `discount=100` actually changes the transaction amount
+- **Confirmed:** Setting `verified=true` bypasses email verification
+- **NOT sufficient:** Server accepts the extra field without error but doesn't use it. Field appears in response but privilege hasn't changed.
 
-### If CONFIRMED:
-1. Call `save_finding(title, severity, evidence)` with:
-   - The exact request/response pair
-   - The evidence that meets the requirement above
-   - Impact assessment (what an attacker can do)
-2. Update target intel: `save_target_intel(domain, "findings", updated_findings)` with status `"confirmed"`.
+### CRLF Injection
+- **Confirmed:** Injected header appears in HTTP response headers (X-Injected: true visible in response)
+- **Confirmed:** Set-Cookie injection — malicious cookie set in victim's browser
+- **Confirmed:** Response splitting — injected body content after double CRLF
+- **NOT sufficient:** CRLF characters reflected in response body (not headers). URL-encoded CRLF in Location header value (not a new header).
 
-### If NOT confirmed:
-1. Load current finding data and increment `verification_failures` count.
-2. If `verification_failures >= 2`: mark the finding as `"likely_false_positive"` and move on.
-3. If `verification_failures == 1`: mark as `"stale"` — it may work under different conditions (different session, timing, etc.).
-4. Update target intel with the new status.
+### HPP (HTTP Parameter Pollution)
+- **Confirmed:** Duplicate parameter causes different behavior than single parameter (different status, significantly different response content, different data returned)
+- **Confirmed:** Backend uses different parameter instance than frontend validator (WAF bypass, auth bypass)
+- **NOT sufficient:** Server just uses first or last value consistently. Response length differs by < 10%.
 
-## Rules
+### Deserialization
+- **Confirmed:** Crafted serialized object causes server error with deserialization stack trace (ObjectInputStream, unserialize, Marshal.load)
+- **Confirmed:** RCE via gadget chain (command output in response, Collaborator callback)
+- **Confirmed:** Denial of service via deeply nested object (measurable performance degradation)
+- **NOT sufficient:** Base64 data in parameter (might not be deserialized). Server accepts input without error (might validate but not deserialize).
 
-- **NEVER mark a finding as confirmed without meeting the evidence requirements above.** "Interesting behavior" is not a finding.
-- If the evidence is ambiguous (e.g., timing is 2.5x baseline instead of 3x), record it as `"suspected"` with notes, not `"confirmed"`.
-- Always test with at least one **negative control** (a payload that should NOT trigger the vulnerability) to rule out coincidence.
-- If verification requires Collaborator and it is not available, note this limitation and mark the finding as `"needs_collaborator"`.
+### GraphQL
+- **Introspection:** Full schema returned from __schema query (enumerate types, fields, mutations)
+- **Injection:** SQL error strings from resolver arguments
+- **Batch abuse:** Server processes unbounded batch queries (DoS vector)
+- **NOT sufficient:** GraphQL endpoint exists. Field suggestions enabled (low severity info leak).
+
+## Decision
+
+### If VERIFIED:
+
+Save with full evidence:
+```
+save_target_intel(domain, "findings", {
+  "endpoint": "...",
+  "vulnerability_type": "...",
+  "parameter": "...",
+  "status": "confirmed",
+  "severity": "CRITICAL/HIGH/MEDIUM/LOW",
+  "evidence": {payload, baseline response, exploit response, collaborator proof},
+  "poc_request": {method, path, headers, body, expected_behavior},
+  "impact": "What can an attacker actually do with this?",
+  "last_verified": "<current timestamp>",
+  "verification_failures": 0
+})
+```
+
+### If NOT VERIFIED:
+
+Update the finding status:
+- **First failure:** Set status to `stale` (might be intermittent or patched)
+- **Second failure (verification_failures >= 2):** Set status to `likely_false_positive`
+- Add a note explaining what changed (different response, patched, WAF blocked, etc.)
+
+```
+save_target_intel(domain, "findings", {
+  ...existing_finding,
+  "status": "stale" or "likely_false_positive",
+  "verification_failures": N,
+  "last_verified": "<current timestamp>"
+})
+```
+
+## Never
+
+- Never mark as confirmed without meeting the evidence requirements above
+- Never skip re-sending the PoC request (even if you "remember" it worked before)
+- Never trust timing from a single request (network jitter exists — compare to baseline, test 2-3 times)
+- Never assume impact — test what the attacker can actually achieve
+- Never report IDOR without proving access to ANOTHER user's data (not your own)
+- Never report XSS without confirming the payload is in an executable context (not encoded, not commented)

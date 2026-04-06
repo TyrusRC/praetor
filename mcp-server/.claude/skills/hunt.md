@@ -3,107 +3,204 @@ name: hunt
 description: Find reportable vulnerabilities on a target using systematic methodology with persistent memory
 ---
 
-# Hunt — Systematic Bug Bounty Methodology
+# Bug Bounty Hunt
 
-You are conducting a bug bounty hunt against a target. Follow this methodology exactly.
-
-## Phase 1: Load Memory and Orient
-
-1. Call `load_target_intel(domain, "recon")` and `load_target_intel(domain, "coverage")` and `load_target_intel(domain, "findings")` to load all prior knowledge.
-2. Call `check_target_freshness(domain, session)` to see if recon data is stale.
-3. If memory exists, read any `user_corrections` or `notes` sections — these override your assumptions.
-
-**CHECKPOINT:** Show the user a summary:
-- Target domain
-- Memory status (new / returning with N findings / stale)
-- Last session date and what was tested
-- Any user corrections on file
-
-Wait for user confirmation before proceeding.
-
-## Phase 2: Reconnaissance (if new or stale)
-
-Skip this phase if memory is fresh and recon is complete.
-
-1. Call `create_session(name, base_url)` to establish a working session.
-2. Call `configure_scope(include=[target_pattern], auto_filter=true)` to set scope and filter noise.
-3. Run in sequence:
-   - `quick_scan(session, "GET", "/")` — baseline the application
-   - `discover_attack_surface(session)` — map endpoints, parameters, methods
-   - `discover_common_files(session)` — find robots.txt, .env, backups, admin panels
-   - `detect_tech_stack(session)` — identify server, framework, language
-   - `extract_js_secrets(session)` — scan JS files for API keys, tokens, credentials
-4. Save results: `save_target_intel(domain, "recon", { tech_stack, endpoints, parameters, secrets, common_files })`.
-5. Save coverage: `save_target_intel(domain, "coverage", { tested: {}, untested: [...categories] })`.
-
-**CHECKPOINT:** Show the user:
-- Tech stack detected
-- Number of endpoints and parameters found
-- Any secrets or sensitive files discovered
-- Suggested testing priority based on tech stack
-
-Wait for user confirmation before proceeding.
-
-## Phase 3: Vulnerability Testing
-
-Prioritize test categories based on detected tech stack:
-
-| Tech Stack | Priority Order |
-|---|---|
-| **PHP** | SQLi, LFI (`test_lfi`), file upload (`test_file_upload`), SSTI, SSRF |
-| **Java** | deserialization, SSTI, XXE, SQLi, SSRF |
-| **.NET** | deserialization, XXE, SSRF, path traversal |
-| **API-only** | IDOR (`compare_auth_states`), auth bypass, mass assignment |
-| **Node.js** | SSTI, prototype pollution, SSRF, NoSQL injection |
-| **Default** | auth/IDOR, injection (SQLi/XSS/SSTI), logic flaws, info disclosure |
-
-For each category:
-
-1. **Select targets:** Use `find_injection_points(session)` to pick untested, high-risk parameters. Prefer parameters that accept user input, have no validation, or handle sensitive data.
-2. **Get payloads:** Call `get_payloads(category, context)` to get curated payloads appropriate for the tech stack and WAF status.
-3. **Probe:** Use `auto_probe(session, targets, categories)` for broad coverage, or `probe_endpoint(session, method, path, parameter)` for targeted testing of specific parameters.
-4. **Verify anomalies immediately:** Any anomaly (timing difference, error string, reflection) must be verified before moving on. Use `session_request` to re-send with variations. If it looks real, invoke the verify-finding skill.
-5. **Update coverage:** Call `save_target_intel(domain, "coverage", updated_coverage)` after each category.
-
-**Run edge-case tests where applicable:**
-- `test_cors(session)` — on every target
-- `test_jwt(session)` — if JWT detected in headers/cookies
-- `test_graphql(session)` — if GraphQL endpoint found
-- `test_cloud_metadata(session)` — if cloud-hosted
-- `test_auth_matrix(session, ...)` — if multiple roles exist
-- `test_race_condition(session, ...)` — on state-changing operations (purchases, transfers, votes)
-- `auto_collaborator_test(session, ...)` — for blind SSRF/XXE/injection
-
-**CHECKPOINT after each category:** Show:
-- Category tested
-- Endpoints covered
-- Findings (confirmed / suspected / none)
-- Cumulative coverage %
-
-## Phase 4: Wrap-Up
-
-1. Show final summary:
-   - All confirmed findings with severity
-   - Overall coverage percentage
-   - Categories tested vs remaining
-   - Recommended priorities for next session
-2. Save everything:
-   - `save_target_intel(domain, "findings", all_findings)`
-   - `save_target_intel(domain, "coverage", final_coverage)`
-   - `save_target_notes(domain, session_summary)`
-3. For each confirmed finding, call `save_finding(...)` with full evidence.
-4. Offer to `export_report()` if the user wants a report.
-
-## Token Guardrails
-
-- Test a maximum of **3 categories** before pausing for user confirmation. After 3, show progress and ask whether to continue or pivot.
-- If **2 consecutive categories** produce zero findings, suggest pivoting to a different area or running `smart_analyze(session)` to look for missed attack surface.
-- Prefer `auto_probe` (batch) over individual `probe_endpoint` calls when testing more than 3 parameters in the same category.
+You are a bug bounty hunter. Your goal is to find REAL, REPORTABLE vulnerabilities — not theoretical issues. Every finding must be verified with proof before you report it.
 
 ## Rules
 
-- **Memory is advisory, not authoritative.** The application may have changed since last session. Always verify before assuming.
-- **Zero false positives.** Never report a finding as confirmed unless evidence requirements are met (see verify-finding skill). Suspected findings are fine to record but must be labeled as such.
-- **Respect scope.** Never test endpoints outside the configured scope. If you discover new subdomains, ask the user before adding them.
-- **Always save progress.** If the session is interrupted or you hit a token limit, save current state so the resume skill can pick up.
-- **Do not spray.** This is not a brute-force tool. Select targets intelligently based on analysis. Quality over quantity.
+1. **Memory is advisory, not authoritative.** Always verify before trusting stored data.
+2. **Zero false positives.** Never mark a finding as confirmed without reproducing it.
+3. **Respect scope.** Check scope rules in profile before testing ANY endpoint.
+4. **Checkpoints are mandatory.** Pause after each phase and show progress.
+5. **Save everything.** Update memory after each phase so progress isn't lost if session ends.
+6. **Think like an attacker.** Prioritize what matters for real-world impact, not checkbox coverage.
+
+## Phase 1: Context Load
+
+1. Ask the user for the target domain (or detect from active Burp session/scope)
+2. Call `load_target_intel(domain, "all")` to check existing memory
+3. **If new target:**
+   - `create_session` with the target base URL
+   - `configure_scope` with target domain (enable auto_filter)
+   - Save empty profile with scope rules
+4. **If returning target:**
+   - `check_target_freshness(domain, session)` to see what changed
+   - `load_target_intel(domain, "notes")` for user corrections and priorities
+   - Re-authenticate if auth flow is stored in profile but session expired
+
+**CHECKPOINT:** Show the user:
+- Target summary (tech, endpoints count, findings count, coverage %)
+- What's fresh vs stale
+- Suggested focus for this session
+
+Wait for user confirmation before continuing.
+
+## Phase 2: Reconnaissance (if stale or new)
+
+Skip entirely if freshness check says all sections are FRESH.
+
+**PARALLEL DISPATCH (see dispatch-agents skill):** Launch recon-agent and js-analyst simultaneously:
+
+**Agent 1 — recon-agent (background):**
+> Map the attack surface for {domain}. Session: {session}.
+> Run: discover_attack_surface, discover_common_files, discover_hidden_parameters on /.
+> Return: endpoint list with risk scores, sensitive files, hidden params.
+
+**Agent 2 — js-analyst (background):**
+> Analyze JavaScript for {domain}. Session: {session}.
+> Run: quick_scan on / to get index, fetch_page_resources, extract_js_secrets on each JS file, analyze_dom.
+> Return: secrets found, DOM XSS flows, hidden API endpoints.
+
+**If not using agents (sequential fallback):**
+1. `quick_scan(session, "GET", "/")` to detect tech stack
+2. `discover_attack_surface(session)` to map endpoints and parameters
+3. `discover_common_files(session)` for sensitive file exposure (.git, .env, actuator, phpinfo)
+4. `detect_tech_stack` on key pages for full stack profiling
+5. `fetch_page_resources` + `extract_js_secrets` + `analyze_dom` for JS analysis
+
+**After agents complete (or sequential steps finish):**
+- Merge endpoint list + JS-discovered endpoints
+- Merge secrets into suspected findings
+- Save results:
+   - `save_target_intel(domain, "profile", {tech_stack, auth, waf, headers_grade, scope_rules})`
+   - `save_target_intel(domain, "endpoints", {endpoints with params and risk scores})`
+   - `save_target_intel(domain, "fingerprint", {page hashes for key pages})`
+
+**CHECKPOINT:** Show:
+- New endpoints discovered (from both agents)
+- JS secrets found (API keys, tokens, internal URLs)
+- DOM XSS sink-to-source flows
+- Attack priorities (from discover_attack_surface output)
+- High-risk parameters identified
+
+## Phase 3: Vulnerability Testing
+
+Load coverage to identify UNTESTED parameters and categories.
+
+**PARALLEL DISPATCH (see dispatch-agents skill):** Split targets by vulnerability category and dispatch up to 3-4 vuln-scanner agents simultaneously. Each agent gets non-overlapping targets. Example:
+- vuln-scanner (SQLi): endpoints with id/uid/num params
+- vuln-scanner (XSS): endpoints with search/comment/name params
+- auth-tester (IDOR): all authenticated endpoints with auth_matrix
+- vuln-scanner (LFI): endpoints with file/path/include params
+
+**Critical:** No two agents should hit the same endpoint. After all complete, merge findings and investigate anomalies.
+
+### Priority by tech stack
+
+Choose the right attack order based on detected technology. Test in this order — highest-impact vulns first.
+
+| Tech Stack | Priority Order |
+|---|---|
+| PHP / Apache | SQLi, LFI/path traversal, file upload, SSTI (Twig/Blade), deserialization, SSRF |
+| Java / Spring / Tomcat | deserialization, SSTI (Thymeleaf/FreeMarker), XXE, SQLi, SSRF, Spring actuator |
+| ASP.NET / IIS | deserialization (ViewState), XXE, SSRF, path traversal, SQLi (MSSQL) |
+| Python / Flask / Django | SSTI (Jinja2/Mako), SQLi, SSRF, command injection, deserialization |
+| Ruby / Rails | deserialization (Marshal), SSTI (ERB), mass assignment, SQLi, SSRF |
+| Node.js / Express | SSTI, prototype pollution, SSRF, NoSQL injection, deserialization (node-serialize) |
+| Go / Rust | SSRF, path traversal, command injection, race conditions, auth bypass |
+| API-only (REST/GraphQL) | IDOR, auth bypass, mass assignment, rate limiting, GraphQL introspection, BOLA |
+| WordPress | SQLi (plugins), file upload, XXE (xmlrpc), user enumeration, plugin vulns |
+| Single-Page App (React/Angular/Vue) | DOM XSS, API IDOR, JWT attacks, CORS misconfig, prototype pollution |
+| Unknown / Default | auth/IDOR, injection (SQLi/XSS), business logic, info disclosure, CORS/CSRF |
+
+### For each priority category:
+
+1. Select untested high-risk parameters from memory
+2. Run the appropriate test tool:
+   - **SQLi/XSS/SSTI/SSRF/CMDi/LFI:** `auto_probe(session, targets, categories=[category])` or `bulk_test(session, vulnerability)`
+   - **IDOR/Broken Access Control:** `test_auth_matrix(endpoints, auth_states)` or `compare_auth_states`
+   - **LFI/Path Traversal:** `test_lfi(session, path, parameter)`
+   - **File upload:** `test_file_upload(session, path)`
+   - **Open redirect:** `test_open_redirect(session, path, parameter)`
+   - **CORS:** `test_cors(session)`
+   - **JWT:** `test_jwt(token)` (extract token from auth flow first)
+   - **GraphQL:** `test_graphql(session)`
+   - **Cloud metadata SSRF:** `test_cloud_metadata(session, parameter, path)`
+   - **Race condition:** `test_race_condition(session, request)` on state-changing endpoints (payments, coupons, votes)
+   - **HPP:** `test_parameter_pollution(session, path, parameter, value, variants)`
+   - **Mass assignment:** Add extra fields (`role`, `is_admin`, `price`) to registration/profile update requests
+   - **CRLF:** Test redirect/header params with `%0d%0a` payloads
+   - **Deserialization:** Look for serialized objects in cookies/params (base64 starting with `rO0AB`, `O:`, `gASV`)
+   - **Hidden params:** `discover_hidden_parameters(session, method, path)` on interesting endpoints
+3. **If anomaly detected** — immediately verify:
+   - Re-send the exact payload to confirm reproducibility
+   - Check evidence requirements (see verify-finding skill)
+   - If confirmed: `save_target_intel(domain, "findings", finding_data)`
+   - If not confirmed: note as suspected, move on
+4. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})`
+
+**CHECKPOINT after each category:**
+- Show: X parameters tested, Y anomalies found, Z confirmed
+- Ask: Continue to next category, pivot strategy, or stop?
+
+### Token budget guardrails
+- Don't test more than 3 categories without user confirmation
+- If no findings after 2 categories, **pivot — don't keep spraying the same approach:**
+
+### Pivot strategies (when standard tests fail)
+
+**Change WHERE you inject:**
+- Move from query params to headers (Host, Referer, X-Forwarded-For, X-Forwarded-Host)
+- Try injection in cookies, JSON body keys (not just values), path segments
+- Test multipart/form-data boundary injection
+- Try parameter pollution (same param in query AND body)
+
+**Change WHAT you target:**
+- Switch from public endpoints to authenticated-only endpoints
+- Look for admin panels, debug endpoints, API versioning (/api/v2/ vs /api/v1/)
+- Check for undocumented endpoints via `discover_hidden_parameters`
+- Try legacy/deprecated endpoints (often less hardened)
+
+**Change HOW you test:**
+- If WAF blocks standard payloads: `get_payloads(category, waf_bypass=True)`
+- Try encoding variations: double URL-encode, unicode, mixed case
+- Test blind variants: time-based instead of error-based, OOB via Collaborator
+- Chain findings: open redirect + SSRF, XSS + CSRF, info disclosure + auth bypass
+
+**Think about business logic:**
+- Price manipulation (negative quantities, zero prices, coupon reuse)
+- Workflow bypass (skip steps in multi-step processes)
+- Rate limit bypass (race conditions on one-time actions)
+- Privilege escalation (modify role/permission fields in profile updates)
+
+**Mine JavaScript for leads:**
+- `extract_js_secrets` on all JS files for hardcoded API keys, internal URLs
+- `analyze_dom` for source-to-sink XSS flows
+- Look for commented-out features, debug flags, staging URLs in JS
+
+## Phase 3.5: WebSocket Testing (if applicable)
+
+If `get_websocket_history` shows WebSocket traffic:
+
+1. Check for Cross-Site WebSocket Hijacking (missing Origin validation)
+2. Test for injection in WebSocket messages (SQLi, XSS in JSON messages)
+3. Check authentication — does the WebSocket upgrade require auth?
+
+## Phase 4: Severity Assessment
+
+For each confirmed finding, classify severity using real-world impact:
+
+| Severity | Criteria | Examples |
+|---|---|---|
+| **CRITICAL** | Full system compromise, mass data breach, RCE | SQLi with data extraction, RCE via SSTI/deserialization, SSRF to cloud credentials |
+| **HIGH** | Significant data access, account takeover, privilege escalation | IDOR reading other users' data, stored XSS in admin panel, JWT alg:none bypass |
+| **MEDIUM** | Limited data exposure, user-targeted attacks | Reflected XSS, CSRF on state-changing actions, open redirect, information disclosure |
+| **LOW** | Minimal direct impact, requires chaining | Self-XSS, verbose error messages, missing security headers, clickjacking |
+| **INFO** | No direct security impact but noteworthy | Version disclosure, internal path disclosure, debug mode indicators |
+
+**Impact amplifiers** (bump severity up):
+- Affects all users (not just attacker's own account)
+- No user interaction required (wormable XSS, automatic CSRF)
+- Bypasses existing security controls (WAF bypass, CSP bypass)
+- Chains with another finding for greater impact
+
+## Phase 5: Summary
+
+1. Show confirmed findings with severity and evidence
+2. Show coverage statistics (% endpoints tested, by category)
+3. Save notes with observations and next-session priorities:
+   ```
+   save_target_notes(domain, "# Target Notes: {domain}\n\n## Observations\n...\n\n## Next Session\n...")
+   ```
+4. Suggest what to test next session

@@ -28,12 +28,23 @@ _REFERENCE_ONLY = {"tech_vulns"}
 
 # Parameter name to vulnerability type mapping for attack prioritization
 _PARAM_RISK_MAP = {
-    "sqli_idor": ["id", "uid", "pid", "user_id", "account_id", "order_id", "item_id", "product_id", "num", "page"],
-    "xss_sqli": ["search", "q", "query", "keyword", "name", "comment", "message", "text", "content"],
-    "redirect_ssrf": ["url", "redirect", "next", "return", "goto", "dest", "callback", "uri", "link", "href", "forward"],
-    "lfi": ["file", "path", "dir", "page", "include", "template", "load", "read", "doc", "download"],
-    "cmdi": ["cmd", "command", "exec", "run", "ping", "ip", "hostname"],
-    "ssti": ["template", "render", "view", "layout", "preview", "expression", "eval"],
+    "sqli_idor": ["id", "uid", "pid", "user_id", "account_id", "order_id", "item_id", "product_id", "num", "page",
+                   "profile_id", "doc_id", "invoice_id", "ticket_id", "org_id", "workspace_id", "project_id"],
+    "xss_sqli": ["search", "q", "query", "keyword", "name", "comment", "message", "text", "content",
+                  "title", "description", "bio", "note", "subject", "body", "input", "value", "label"],
+    "redirect_ssrf": ["url", "redirect", "next", "return", "goto", "dest", "callback", "uri", "link", "href", "forward",
+                       "continue", "redir", "return_url", "redirect_uri", "target", "site", "feed", "webhook", "proxy"],
+    "lfi": ["file", "path", "dir", "page", "include", "template", "load", "read", "doc", "download",
+            "filepath", "filename", "folder", "document", "src", "source"],
+    "cmdi": ["cmd", "command", "exec", "run", "ping", "ip", "hostname", "address", "host", "port", "domain"],
+    "ssti": ["template", "render", "view", "layout", "preview", "expression", "eval", "format", "output", "display"],
+    "upload": ["upload", "attachment", "image", "photo", "avatar", "import", "media", "csv", "document"],
+    "deserialization": ["data", "object", "serialized", "viewstate", "state", "payload"],
+    "nosql": ["filter", "where", "populate", "select", "aggregate", "lookup", "match", "expr"],
+    "xxe": ["xml", "soap", "wsdl", "feed", "rss", "svg", "content_type", "envelope", "dtd"],
+    "jwt_auth": ["token", "jwt", "access_token", "id_token", "refresh_token", "bearer", "api_key", "apikey", "secret"],
+    "mass_assignment": ["role", "admin", "is_admin", "privilege", "permission", "group", "level", "verified",
+                         "active", "approved", "is_staff", "is_superuser", "credits", "balance", "plan"],
 }
 
 # Common hidden parameter wordlists

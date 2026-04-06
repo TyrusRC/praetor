@@ -3,102 +3,131 @@ name: resume
 description: Resume bug bounty testing from a previous session with re-verification and coverage gaps
 ---
 
-# Resume — Continue Bug Bounty Testing
+# Resume Testing
 
-You are resuming a bug bounty session on a target that was previously tested. Follow this procedure to re-orient, re-verify, and continue.
+You are continuing a bug bounty engagement from a previous session. Your priority: restore context efficiently, verify nothing changed, and identify the highest-value next actions.
 
-## Step 1: Load Full Target Memory
+## Step 1: Load Context
 
-Load all stored intel:
-- `load_target_intel(domain, "recon")` — tech stack, endpoints, parameters, secrets
-- `load_target_intel(domain, "coverage")` — what was tested, what remains
-- `load_target_intel(domain, "findings")` — all findings with statuses
+1. Ask the user for the target domain (or detect from Burp scope/active session)
+2. Call `load_target_intel(domain, "all")` to get the full summary
+3. If no intel exists: "No previous session data found for {domain}. Start fresh with the hunt skill."
 
-If any of these fail or return empty, inform the user that memory is incomplete and suggest starting a fresh hunt instead.
+## Step 2: Create/Restore Session
 
-## Step 2: Check Freshness
+1. Check `list_sessions` for an existing session targeting this domain
+2. If no session exists: `create_session` with the target base URL from profile
+3. If auth is stored in profile:
+   - Check if session cookies are still valid by sending a quick authenticated request
+   - If 401/403: re-authenticate using the stored login flow (`run_flow` with the auth steps from profile)
+   - If 200: session is still valid, proceed
+4. Verify scope is configured: `get_scope` — if empty, re-apply from profile's scope_rules
 
-Call `check_target_freshness(domain, session)` to determine if the target has changed since the last session.
+## Step 3: Check Freshness
 
-If stale:
-- Note which sections are stale (recon, specific endpoints, etc.)
-- These will need re-testing even if previously marked as covered
+1. Call `check_target_freshness(domain, session)`
+2. Parse the staleness report into three buckets:
+   - **FRESH sections** — trust memory, skip re-scanning
+   - **STALE sections** — need partial re-scan (only changed pages/endpoints)
+   - **UPDATED knowledge** — new probes available, re-test previously "clean" params
 
-## Step 3: Re-verify Confirmed Findings on Changed Endpoints
+## Step 4: Re-verify Findings (prioritized by severity)
 
-For each finding with status `"confirmed"` where the endpoint is stale or changed:
+Sort confirmed findings by severity (CRITICAL first, then HIGH, etc.) and re-verify:
 
-1. Re-create or reuse a session: `create_session(name, base_url)`
-2. Re-send the original PoC request using `session_request(session, method, path, ...)`
-3. Check if the vulnerability still exists using the evidence requirements from the verify-finding skill
-4. Update finding status:
-   - Still works: keep `"confirmed"`, update `last_verified` timestamp
-   - No longer works: mark `"patched"`, note the change
-   - Uncertain: mark `"needs_recheck"`
-5. Save updated findings: `save_target_intel(domain, "findings", updated_findings)`
+For each finding with status `confirmed`:
 
-## Step 4: Present Dashboard
+1. **Skip if FRESH and recently verified (< 24h):** Trust memory, don't waste requests
+2. **Re-verify if endpoint changed OR last_verified > 24h ago:**
+   - Re-send the `poc_request` from the finding via `session_request`
+   - Check if the expected behavior still occurs
+   - If YES: update `last_verified` timestamp in memory
+   - If NO: mark as `stale`, increment `verification_failures`
+   - If `verification_failures >= 2`: mark as `likely_false_positive`
+3. **Priority rule:** Always re-verify CRITICAL/HIGH findings before spending time on new testing
 
-Show the user a structured dashboard:
+Save updated findings: `save_target_intel(domain, "findings", updated_data)`
+
+## Step 5: Detect Attack Surface Changes
+
+If the freshness check showed STALE endpoints:
+
+1. Run `discover_attack_surface(session)` to get current endpoints
+2. Compare against stored `endpoints.json`:
+   - **New endpoints** — high priority for testing (new code = new bugs)
+   - **Removed endpoints** — mark related findings as stale
+   - **Changed parameters** — re-test even if previously clean
+3. Save updated endpoints: `save_target_intel(domain, "endpoints", new_data)`
+
+If knowledge version changed:
+1. Load `coverage.json` — identify parameters tested with OLD knowledge version
+2. These are candidates for re-probing with NEW probes (new detection techniques available)
+3. Prioritize high-risk parameters that were previously clean
+
+## Step 6: Present Dashboard
+
+Show the user a clear status report:
 
 ```
-Target: example.com
-Tech Stack: PHP 8.1 / Apache / MySQL
-Session: returning (last tested: YYYY-MM-DD)
+TARGET: example.com (PHP 8.1 / Apache / MySQL)
+SESSION: target1 (active, authenticated)
 
-Findings:
-  Confirmed:  2 (1 high, 1 medium)
-  Suspected:  1
-  Patched:    1
-  False pos:  0
+FINDINGS:
+  2 confirmed (last verified: just now)
+    [CRITICAL] SQL Injection in GET /api/users?id — time-based blind, 3.2s delay
+    [HIGH] Reflected XSS in GET /search?q — unencoded in HTML body
+  1 stale (endpoint changed — needs re-verification)
+    [HIGH] IDOR in GET /api/orders?order_id — compare_auth_states showed identical
+  1 likely false positive (2 verification failures)
+    [LOW] Open redirect in /login?next — no Collaborator interaction
 
-Coverage:
-  SQLi:           85% (12/14 params)
-  XSS:            60% (9/15 params)
-  Auth/IDOR:      not started
-  SSRF:           100%
-  ...
-  Overall:        45%
+ATTACK SURFACE CHANGES:
+  3 new endpoints found (NEW — test these first):
+    POST /api/v2/users — has 'role' param (mass assignment risk)
+    GET /api/export — has 'format' param (SSTI risk)
+    POST /api/upload/avatar — file upload endpoint
+  1 endpoint removed: GET /api/legacy/users
 
-Stale Sections: recon endpoints (>7 days old)
+COVERAGE: 15/42 endpoints tested (36%)
+  sqli:         8/15 high-risk params tested
+  xss:          5/15 tested
+  idor:         2/15 tested
+  lfi:          0/15 tested  <-- UNTESTED
+  file_upload:  0/3 forms tested  <-- UNTESTED
+  ssti:         0/5 template params  <-- UNTESTED
+  jwt:          not tested  <-- AUTH USES JWT
 
-Notes from last session:
-  - "Admin panel at /admin requires IP whitelist"
-  - "Rate limiting on /api/login after 5 attempts"
+FRESHNESS:
+  profile:   FRESH
+  endpoints: STALE (root page changed — re-crawl recommended)
+  knowledge: UPDATED (new probes available for sqli, xss — v{old} -> v{new})
+
+NOTES (from last session):
+  "Try IDOR on /api/v2/ — less hardened than v1"
+  "WAF only on /admin paths — other paths unprotected"
+  "JWT uses HS256 — try weak secret brute force"
 ```
 
-## Step 5: Re-authenticate if Needed
+## Step 7: Suggest Next Actions (ranked by expected value)
 
-If the previous session used authentication:
-1. Check if stored session tokens are still valid with a quick `session_request`
-2. If expired, ask the user for fresh credentials or use `run_flow` to re-authenticate
-3. Call `create_session(name, base_url)` with fresh auth if needed
+Based on the dashboard, suggest prioritized actions:
 
-## Step 6: Suggest Next Actions
+### Tier 1: Quick wins (1-5 requests each, high value)
+1. **Re-verify stale findings** — cheap to confirm, high value if still valid
+2. **Test new endpoints** — new code is most likely to have bugs
+3. **Check new upload endpoint** — file upload vulns are high-severity
 
-Present prioritized options based on the state:
+### Tier 2: Coverage gaps (10-30 requests each)
+4. **Test untested categories** — LFI and SSTI are 0% coverage, high priority given PHP stack
+5. **JWT analysis** — if auth uses JWT, `test_jwt` is a single call with high payoff
+6. **Run new knowledge base probes** — re-test previously clean params with updated probes
 
-1. **Re-verify stale findings** — if any confirmed findings are on changed endpoints
-2. **Test untested categories** — sorted by tech-stack priority (see hunt skill)
-3. **Increase coverage on started categories** — finish partially-tested parameter sets
-4. **Probe new endpoints** — if recon found new endpoints since last session
-5. **Run new knowledge probes** — `auto_probe` may have new detection rules since last session
-6. **Edge-case tests** — `test_cors`, `test_jwt`, `test_graphql`, `test_cloud_metadata` if not yet run
-
-Format as a numbered list with brief rationale for each.
-
-## Step 7: Hand Off
+### Tier 3: Deep investigation (30+ requests)
+7. **Hidden parameter discovery** on new endpoints — `discover_hidden_parameters`
+8. **Race condition testing** on state-changing endpoints
+9. **Follow notes from last session** — user and Claude observations about promising targets
+10. **JS secret re-scan** if new JS files appeared in attack surface delta
 
 Ask the user: **"What would you like to focus on?"**
 
-Based on their answer:
-- If they pick a specific category or action, proceed directly with that work following the hunt skill methodology (Phase 3).
-- If they say "continue" or "keep going", pick the highest-priority untested category and proceed.
-- If they want a full re-hunt, start the hunt skill from Phase 2.
-
-## Rules
-
-- **Do not assume findings are still valid.** Always re-verify on stale endpoints before counting them.
-- **Respect user corrections.** If the user previously noted something as a false positive or out of scope, honor that.
-- **Save progress immediately** after re-verification, before starting new testing.
-- **Show the dashboard before doing anything.** The user needs to orient before deciding next steps.
+Then hand off to the hunt skill for execution (start at the relevant phase).

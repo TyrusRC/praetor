@@ -1,0 +1,218 @@
+---
+name: burp-workflow
+description: Efficient Burp Suite tool orchestration — know which tool to use when and how to chain them
+---
+
+# Burp Suite Workflow Orchestration
+
+You are connected to Burp Suite via MCP. You have 78 tools. Knowing WHICH tool to pick and WHEN is the difference between wasting 50 tool calls and finding a bug in 5. This skill teaches efficient Burp orchestration.
+
+## Core Principle: Minimize Tool Calls, Maximize Signal
+
+Every tool call costs tokens and time. Use the RIGHT tool at the RIGHT abstraction level.
+
+## Tool Selection Decision Tree
+
+### "I need to understand the target"
+
+```
+First visit?
+  YES → full_recon(session, depth="standard")     # ONE call: tech + endpoints + headers + secrets + robots
+  NO  → check_target_freshness(domain, session)    # Check what changed since last time
+
+Need endpoint map?
+  Quick overview → get_unique_endpoints()           # Deduplicated list with params
+  Full detail    → discover_attack_surface(session) # Crawl + risk score + attack priorities
+  API spec       → export_sitemap(format="json")    # Structured API map with param types
+
+Need to analyze ONE page?
+  Full analysis  → smart_analyze(index)             # Tech + params + forms + endpoints + secrets in ONE call
+  NOT            → detect_tech_stack + find_injection_points + extract_forms separately (wastes 3 calls)
+```
+
+### "I need to send a request"
+
+```
+Simple one-off request?
+  → curl_request(url, method, headers, body)        # Like curl, with redirects + auth
+
+Need persistent auth across requests?
+  → create_session() THEN session_request()          # Cookie jar auto-updates
+
+Need to modify a captured request?
+  → resend_with_modification(index, modify_*)        # Change headers/body/path/method
+
+Need exact byte-level control?
+  → send_raw_request(raw, host, port)                # For smuggling, CRLF, malformed requests
+
+Multi-step flow (login → extract CSRF → exploit)?
+  → run_flow(session, steps=[...])                   # ONE call instead of 5+
+
+Want it visible in Burp UI?
+  → send_to_repeater(index)                          # For manual follow-up in Burp
+  → send_to_intruder(index)                          # For position-based attacks in Burp
+```
+
+### "I need to test for vulnerabilities"
+
+```
+Testing multiple params for multiple vuln types?
+  → auto_probe(session, targets, categories)         # Knowledge-driven, server-side matchers
+
+Testing one specific vuln across many endpoints?
+  → bulk_test(session, vulnerability="sqli")         # One vuln type, auto-discovers targets
+
+Testing one parameter deeply?
+  → probe_endpoint(session, method, path, param)     # Adaptive: auto-detects tech, selects payloads
+
+Custom payload list on one param?
+  → fuzz_parameter(index, parameter, payloads)       # Your payloads, anomaly detection
+
+Need simultaneous requests (race condition)?
+  → test_race_condition(session, request, concurrent) # Server-side CountDownLatch
+
+Need N endpoints x M auth states?
+  → test_auth_matrix(endpoints, auth_states)          # IDOR matrix in ONE call
+```
+
+### "I need to confirm a finding"
+
+```
+Blind vulnerability (no visible output)?
+  → auto_collaborator_test(index, parameter)          # Generate + inject + poll in ONE call
+
+Need to compare two responses?
+  Quick diff   → get_response_diff(index1, index2)    # Shows diff lines
+  Full compare → compare_responses(index1, index2)     # Headers + body + unique words + similarity %
+  In Burp UI   → send_to_comparer(index1, index2)     # Visual in Burp's Comparer tab
+
+Auth comparison (IDOR)?
+  → compare_auth_states(index, alt_cookies/alt_token)  # Same request, different auth
+```
+
+## Proxy History Patterns
+
+Proxy history is your primary data source. Use it efficiently:
+
+### Finding interesting requests
+```python
+# Don't browse history manually — search it
+search_history(query="admin", in_url=True)           # Find admin endpoints
+search_history(query="token", in_response_body=True)  # Find token leaks
+search_history(query="password", in_request_body=True) # Find auth flows
+search_history(query="upload", in_url=True)            # Find upload endpoints
+search_history(query="api/v", in_url=True)             # Find API versioning
+
+# Filter by status for interesting responses
+get_proxy_history(filter_status="500")                 # Server errors (injection candidates)
+get_proxy_history(filter_status="302")                 # Redirects (open redirect candidates)
+get_proxy_history(filter_status="403")                 # Forbidden (auth bypass candidates)
+get_proxy_history(filter_method="POST")                # State-changing requests
+```
+
+### Reading a request in detail
+```python
+# Always check BOTH request and response
+detail = get_request_detail(index)
+# Look for: auth headers, CSRF tokens, interesting cookies, JSON structure
+# In response: error messages, stack traces, version strings, reflected input
+```
+
+## Collaborator Workflow (Blind Vulnerability Detection)
+
+For blind SSRF, blind XXE, blind SQLi, blind command injection:
+
+```
+PREFERRED (one call):
+  auto_collaborator_test(index, parameter, injection_point, poll_seconds=10)
+  # Generates payload → injects → sends → waits → polls → reports
+
+MANUAL (when you need control):
+  1. generate_collaborator_payload()         # Get unique URL
+  2. Inject URL into parameter manually      # Via session_request or resend_with_modification
+  3. Wait 5-10 seconds
+  4. get_collaborator_interactions()          # Check for DNS/HTTP callbacks
+```
+
+**When to use Collaborator:**
+- Parameter accepts URLs but no visible SSRF output
+- XXE with no error messages (blind)
+- Command injection with no output (blind)
+- Any parameter where you suspect server-side processing but can't see results
+
+## Session Management Strategy
+
+### When to use sessions
+- Target requires authentication (most real targets)
+- Multi-step testing (need cookies to persist)
+- Comparing behavior across different user roles
+
+### Session patterns
+```python
+# Pattern 1: Single authenticated user
+create_session(name="user1", base_url="https://target.com", bearer_token="eyJ...")
+
+# Pattern 2: Multiple users for IDOR testing
+create_session(name="admin", base_url="https://target.com", cookies={"session": "admin_cookie"})
+create_session(name="user_b", base_url="https://target.com", cookies={"session": "user_cookie"})
+# Then: test_auth_matrix with both sessions
+
+# Pattern 3: Login flow with CSRF
+run_flow(session="s1", steps=[
+  {"method": "GET", "path": "/login", "extract": {"csrf": {"from": "body", "regex": "csrf.*value=\"([^\"]+)\""}}},
+  {"method": "POST", "path": "/login", "data": "user=admin&pass=test&_token={{csrf}}"},
+])
+```
+
+## Response Comparison Strategy
+
+Comparing responses is how you detect most vulnerabilities. Choose the right comparison:
+
+| Scenario | Tool | What to look for |
+|---|---|---|
+| Same request, different auth | `compare_auth_states` | Identical response = IDOR |
+| Same request, with/without param | `compare_responses` | New content = param has effect |
+| Baseline vs injected | `fuzz_parameter` anomaly detection | Status/length/timing change |
+| Two different endpoints | `get_response_diff` | Shared patterns or differences |
+
+## JavaScript Analysis Pipeline
+
+JS files are gold mines. Efficient pipeline:
+
+```
+1. fetch_page_resources(index)        # Grab all JS/CSS from page
+2. For each JS file:
+   extract_js_secrets(js_index)       # API keys, tokens, internal URLs
+   analyze_dom(js_index)              # Sinks, sources, flows
+3. If secrets found → immediately test (hit the API key, access the URL)
+4. If DOM sinks found → craft DOM XSS payloads targeting specific sinks
+```
+
+## Scanner Integration (Burp Professional)
+
+Use Burp's built-in scanner strategically — don't scan everything:
+
+```python
+# Targeted scan on specific suspicious request
+scan_url(index=42)                    # Scan one captured request
+
+# Crawl + scan a section
+crawl_target(url="https://target.com/api/")
+# Wait, then:
+get_scan_status()                     # Check progress
+get_scanner_findings(severity="HIGH") # Get results
+```
+
+**When to use scanner vs manual testing:**
+- Scanner: broad coverage on well-behaved endpoints, passive detection
+- Manual (your tools): creative testing, business logic, auth bypass, chained attacks
+
+## Anti-Patterns (What NOT to Do)
+
+1. **Don't call detect_tech_stack + find_injection_points + extract_forms separately** — use `smart_analyze` (one call)
+2. **Don't send 10 session_requests when run_flow does it in one** — batch multi-step attacks
+3. **Don't manually build cookie headers** — use `create_session` and let the cookie jar auto-update
+4. **Don't test every endpoint with every vuln type** — use `discover_attack_surface` to prioritize by risk score
+5. **Don't forget to search history** — the request you need might already be captured
+6. **Don't use send_http_request when you need auth** — use `session_request` instead
+7. **Don't scan the entire site** — scan specific suspicious endpoints for targeted results
