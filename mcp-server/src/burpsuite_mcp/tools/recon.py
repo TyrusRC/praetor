@@ -234,7 +234,7 @@ def register(mcp: FastMCP):
         if not _check_tool("nuclei"):
             return "Error: nuclei not installed. Install: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
-        cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl"]
+        cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl", "-duc"]
         if templates:
             cmd.extend(["-t", templates])
         if tags:
@@ -369,7 +369,7 @@ def register(mcp: FastMCP):
             if "[" in target_url:
                 target_url = target_url.split(" [")[0].strip()
 
-            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color"]
+            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color", "-duc"]
             if depth == "standard":
                 cmd.extend(["-severity", "critical,high"])
 
