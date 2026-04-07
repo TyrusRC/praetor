@@ -119,6 +119,16 @@ flowchart LR
 
 ## Setup
 
+### Quick Setup (recommended)
+
+```bash
+chmod +x setup.sh && ./setup.sh
+```
+
+This installs all required dependencies (Java 21, Maven, Python 3.11+, uv, Go), builds the project, installs optional recon tools (subfinder, httpx, nuclei, katana), and generates `.mcp.json`.
+
+### Manual Setup
+
 ### 1. Build & Load the Burp Extension
 
 ```bash
