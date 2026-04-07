@@ -7,18 +7,33 @@ is passed as discrete arguments, never interpolated into shell strings.
 
 import asyncio
 import json
+import os
 import shutil
 
 from mcp.server.fastmcp import FastMCP
 
+# ProjectDiscovery tools installed via `go install` land in ~/go/bin.
+# Prepend it to search path so PD httpx isn't shadowed by Python httpx CLI.
+_GO_BIN = os.path.join(os.path.expanduser("~"), "go", "bin")
+_SEARCH_PATH = os.pathsep.join([_GO_BIN, os.environ.get("PATH", "")])
+
+
+def _find_tool(name: str) -> str | None:
+    """Find tool binary, preferring ~/go/bin for ProjectDiscovery tools."""
+    return shutil.which(name, path=_SEARCH_PATH)
+
 
 def _check_tool(name: str) -> bool:
     """Check if an external tool is installed."""
-    return shutil.which(name) is not None
+    return _find_tool(name) is not None
 
 
 async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
     """Run a command safely using exec (no shell) and return (stdout, stderr, returncode)."""
+    # Resolve full path so ~/go/bin tools aren't shadowed by system packages
+    resolved = _find_tool(cmd[0])
+    if resolved:
+        cmd = [resolved] + cmd[1:]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -152,10 +167,11 @@ def register(mcp: FastMCP):
             status_code: Show status codes (default: true)
             timeout: Max seconds to wait (default: 120)
         """
-        if not _check_tool("httpx"):
+        httpx_bin = _find_tool("httpx")
+        if not httpx_bin:
             return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
 
-        cmd = ["httpx", "-silent", "-no-color"]
+        cmd = [httpx_bin, "-silent", "-no-color"]
         if tech_detect:
             cmd.append("-tech-detect")
         if status_code:
@@ -307,9 +323,10 @@ def register(mcp: FastMCP):
         targets = subdomains if subdomains else [domain]
         live_hosts = []
 
-        if _check_tool("httpx"):
+        httpx_bin = _find_tool("httpx")
+        if httpx_bin:
             lines.append("[2/3] Running httpx...")
-            cmd = ["httpx", "-silent", "-status-code", "-no-color"]
+            cmd = [httpx_bin, "-silent", "-status-code", "-no-color"]
             input_data = "\n".join(targets)
             try:
                 proc = await asyncio.create_subprocess_exec(
