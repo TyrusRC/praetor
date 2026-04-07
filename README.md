@@ -1,5 +1,7 @@
 # Burp Suite Swiss Knife MCP
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 Claude Code as your pentesting brain — connected to Burp Suite.
 
 ## Architecture
@@ -138,28 +140,38 @@ uv pip install -e .
 
 ### 3. Configure Claude Code
 
-Create a `.mcp.json` file in the project root:
+Create a `.mcp.json` file in the project root. Replace the path with the actual path to your cloned repo.
 
-```bash
-cat > .mcp.json << 'EOF'
-{
-  "mcpServers": {
-    "burpsuite": {
-      "command": "/absolute/path/to/mcp-server/.venv/bin/python",
-      "args": ["-m", "burpsuite_mcp"]
-    }
-  }
-}
-EOF
-```
-
-Replace `/absolute/path/to` with the actual path to your cloned repo. For example:
-
+**Linux:**
 ```json
 {
   "mcpServers": {
     "burpsuite": {
       "command": "/home/user/burpsuite-swiss-knife-mcp/mcp-server/.venv/bin/python",
+      "args": ["-m", "burpsuite_mcp"]
+    }
+  }
+}
+```
+
+**macOS:**
+```json
+{
+  "mcpServers": {
+    "burpsuite": {
+      "command": "/Users/user/burpsuite-swiss-knife-mcp/mcp-server/.venv/bin/python",
+      "args": ["-m", "burpsuite_mcp"]
+    }
+  }
+}
+```
+
+**Windows:**
+```json
+{
+  "mcpServers": {
+    "burpsuite": {
+      "command": "C:\\Users\\user\\burpsuite-swiss-knife-mcp\\mcp-server\\.venv\\Scripts\\python.exe",
       "args": ["-m", "burpsuite_mcp"]
     }
   }
@@ -352,3 +364,17 @@ Claude Code skills in `.claude/skills/` that encode expert bug bounty methodolog
 - Java 21+
 - Python 3.11+
 - Claude Code
+
+## Supported Platforms
+
+- **Linux** (tested)
+- **macOS** (tested)
+- **Windows** (supported — use `.venv\Scripts\python.exe` in config)
+
+Both the Java Burp extension and Python MCP server use platform-independent libraries. No OS-specific dependencies.
+
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+This tool integrates with Burp Suite (a product of PortSwigger Ltd) and is not affiliated with or endorsed by PortSwigger. Use responsibly and only on systems you have authorization to test.

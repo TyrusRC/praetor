@@ -465,7 +465,7 @@ public class ConfigTab {
             "Export OpenAPI", JOptionPane.QUESTION_MESSAGE);
         if (prefix == null || prefix.isBlank()) return;
 
-        JFileChooser fc = new JFileChooser();
+        JFileChooser fc = new JFileChooser(System.getProperty("user.home"));
         fc.setSelectedFile(new File("openapi-export.yaml"));
         if (fc.showSaveDialog(panel) != JFileChooser.APPROVE_OPTION) return;
         File outFile = fc.getSelectedFile();
@@ -512,7 +512,7 @@ public class ConfigTab {
             return;
         }
 
-        JFileChooser fc = new JFileChooser();
+        JFileChooser fc = new JFileChooser(System.getProperty("user.home"));
         fc.setSelectedFile(new File("pentest-report.md"));
         if (fc.showSaveDialog(panel) != JFileChooser.APPROVE_OPTION) return;
         File outFile = fc.getSelectedFile();

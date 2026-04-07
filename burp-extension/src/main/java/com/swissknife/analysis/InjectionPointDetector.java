@@ -100,7 +100,7 @@ public final class InjectionPointDetector {
             responseInfo.put("has_error_messages", responseLower.contains("error") || responseLower.contains("exception") || responseLower.contains("stack trace"));
             responseInfo.put("has_sql_keywords", responseLower.contains("sql") || responseLower.contains("mysql") || responseLower.contains("postgresql") || responseLower.contains("sqlite") || responseLower.contains("oracle"));
             responseInfo.put("has_debug_info", responseLower.contains("debug") || responseLower.contains("stacktrace") || responseLower.contains("traceback"));
-            responseInfo.put("has_file_paths", responseLower.contains("/etc/") || responseLower.contains("c:\\") || responseLower.contains("/var/") || responseLower.contains("/home/"));
+            responseInfo.put("has_file_paths", responseLower.contains("/etc/") || responseLower.contains("c:\\") || responseLower.contains("d:\\") || responseLower.contains("/var/") || responseLower.contains("/home/") || responseLower.contains("/users/") || responseLower.contains("/opt/") || responseLower.contains("/usr/local/"));
             responseInfo.put("has_version_info", responseLower.contains("version") || responseLower.contains("powered by"));
             responseInfo.put("content_type", response.headerValue("Content-Type"));
             responseInfo.put("server_header", response.headerValue("Server"));

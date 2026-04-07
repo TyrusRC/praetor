@@ -1,0 +1,11 @@
+Burp Suite Swiss Knife MCP
+Copyright 2025 Burp Suite Swiss Knife MCP Contributors
+
+This product includes software developed by the Burp Suite Swiss Knife MCP
+project (https://github.com/trumpiter-max/burpsuite-swiss-knife-mcp).
+
+This tool integrates with Burp Suite, a product of PortSwigger Ltd.
+Burp Suite is a registered trademark of PortSwigger Ltd.
+This project is not affiliated with or endorsed by PortSwigger.
+
+This tool uses the Model Context Protocol (MCP), developed by Anthropic.
