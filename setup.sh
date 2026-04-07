@@ -199,7 +199,7 @@ fi
 # ════════════════════════════════════════════════════════════════════
 echo ""
 echo "════════════════════════════════════════════════════"
-echo "  Phase 3: ProjectDiscovery Recon Tools (optional)"
+echo "  Phase 3: Recon Tools (optional)"
 echo "════════════════════════════════════════════════════"
 info "These tools enhance reconnaissance. They are NOT required."
 echo ""
@@ -230,6 +230,15 @@ install_pd_tool "nuclei" \
 
 install_pd_tool "katana" \
     "CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest"
+
+install_pd_tool "dalfox" \
+    "go install -v github.com/hahwul/dalfox/v2@latest"
+
+install_pd_tool "gau" \
+    "go install -v github.com/lc/gau/v2/cmd/gau@latest"
+
+install_pd_tool "waybackurls" \
+    "go install -v github.com/tomnomnom/waybackurls@latest"
 
 # ════════════════════════════════════════════════════════════════════
 # PHASE 4: Generate .mcp.json

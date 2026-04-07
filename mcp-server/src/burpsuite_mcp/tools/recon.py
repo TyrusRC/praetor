@@ -101,11 +101,16 @@ def register(mcp: FastMCP):
 
         lines.append(f"\nTotal: {len(available)}/{len(tools)} tools available")
         if missing:
-            lines.append("\nInstall commands (ProjectDiscovery tools):")
+            lines.append("\nInstall commands:")
+            lines.append("  # ProjectDiscovery tools")
             lines.append("  go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
             lines.append("  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest")
             lines.append("  go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
             lines.append("  CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest")
+            lines.append("  # Other Go tools")
+            lines.append("  go install -v github.com/hahwul/dalfox/v2@latest")
+            lines.append("  go install -v github.com/lc/gau/v2/cmd/gau@latest")
+            lines.append("  go install -v github.com/tomnomnom/waybackurls@latest")
 
         return "\n".join(lines)
 
