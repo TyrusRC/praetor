@@ -70,13 +70,21 @@ def _empty_structure(category: str) -> dict:
     return {}
 
 
+def _finding_vuln_type(finding: dict) -> str:
+    """Get vulnerability type from either 'vulnerability_type' or 'category' field."""
+    return finding.get("vulnerability_type") or finding.get("category") or ""
+
+
 def _deduplicate_finding(existing_list: list[dict], new_finding: dict) -> list[dict]:
-    """If same endpoint + vulnerability_type + parameter exists, update it; otherwise append."""
+    """If same endpoint + vulnerability type + parameter exists, update it; otherwise append."""
+    new_type = _finding_vuln_type(new_finding)
+    new_endpoint = new_finding.get("endpoint", "")
+    new_param = new_finding.get("parameter", "")
     for i, item in enumerate(existing_list):
         if (
-            item.get("endpoint") == new_finding.get("endpoint")
-            and item.get("vulnerability_type") == new_finding.get("vulnerability_type")
-            and item.get("parameter") == new_finding.get("parameter")
+            item.get("endpoint") == new_endpoint
+            and _finding_vuln_type(item) == new_type
+            and item.get("parameter") == new_param
         ):
             existing_list[i] = {**item, **new_finding}
             return existing_list
@@ -155,9 +163,13 @@ def register(mcp: FastMCP):
                     finding["timestamp"] = now
                 findings_list = _deduplicate_finding(findings_list, finding)
 
-            # Auto-assign IDs
-            for i, f in enumerate(findings_list):
-                f["id"] = f"f{i + 1:03d}"
+            # Auto-assign IDs only to findings that don't have one
+            existing_ids = {f.get("id") for f in findings_list if f.get("id")}
+            next_num = max((int(fid[1:]) for fid in existing_ids if fid.startswith("f") and fid[1:].isdigit()), default=0) + 1
+            for f in findings_list:
+                if not f.get("id"):
+                    f["id"] = f"f{next_num:03d}"
+                    next_num += 1
 
             existing["findings"] = findings_list
             existing["last_modified"] = now

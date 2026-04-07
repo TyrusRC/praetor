@@ -14,6 +14,7 @@ def register(mcp: FastMCP):
         severity: str = "INFO",
         endpoint: str = "",
         evidence: str = "",
+        status: str = "suspected",
     ) -> str:
         """Save a pentest finding/vulnerability note.
         Use this to document discovered vulnerabilities during testing.
@@ -24,6 +25,7 @@ def register(mcp: FastMCP):
             severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO
             endpoint: Affected URL/endpoint
             evidence: Proof (request/response snippets, payloads used)
+            status: Finding status — 'suspected', 'confirmed', 'stale', or 'likely_false_positive'
         """
         data = await client.post("/api/notes/findings", json={
             "title": title,
@@ -31,6 +33,7 @@ def register(mcp: FastMCP):
             "severity": severity,
             "endpoint": endpoint,
             "evidence": evidence,
+            "status": status,
         })
         if "error" in data:
             return f"Error: {data['error']}"

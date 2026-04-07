@@ -202,11 +202,17 @@ def register(mcp: FastMCP):
 
         findings = findings_data.get("findings", [])
 
-        if not findings:
-            # Fall back to Burp's built-in findings store
-            burp_data = await client.get("/api/notes/findings")
-            if "error" not in burp_data:
-                findings = burp_data.get("findings", [])
+        # Merge findings from Burp's in-memory store (volatile, lost on restart)
+        burp_data = await client.get("/api/notes/findings")
+        if "error" not in burp_data:
+            for jf in burp_data.get("findings", []):
+                # Avoid duplicates: check if same endpoint+title already in persistent findings
+                if not any(
+                    f.get("endpoint") == jf.get("endpoint") and
+                    (f.get("title") == jf.get("title") or f.get("vulnerability_type") == jf.get("title"))
+                    for f in findings
+                ):
+                    findings.append(jf)
 
         if not findings:
             return f"No findings saved for {domain}. Use save_finding or save_target_intel to record findings first."
