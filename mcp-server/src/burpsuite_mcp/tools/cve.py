@@ -21,29 +21,93 @@ def _load_tech_vulns() -> dict:
         return json.load(f)
 
 
+def _extract_version(tech_string: str) -> str:
+    """Extract version number from tech string like 'Apache/2.4.49' or 'PHP 8.1.2'."""
+    import re
+    m = re.search(r'[\d]+(?:\.[\d]+)*', tech_string)
+    return m.group(0) if m else ""
+
+
+def _version_in_range(version: str, range_key: str) -> bool:
+    """Check if version matches a range key like '2.4.49', '8.5.0-8.5.80', or 'any'."""
+    if range_key == "any":
+        return True
+    if not version:
+        return False
+    if "-" in range_key:
+        low, high = range_key.split("-", 1)
+        return low <= version <= high
+    return version.startswith(range_key) or range_key.startswith(version)
+
+
 def _match_tech_to_vulns(tech_items: list[str], tech_vulns: dict) -> list[dict]:
     """Match detected tech stack items against known vulnerability patterns."""
     matches = []
-    contexts = tech_vulns.get("contexts", {})
+    technologies = tech_vulns.get("technologies", {})
 
     for tech in tech_items:
         tech_lower = tech.lower().strip()
-        for ctx_name, ctx_data in contexts.items():
-            ctx_lower = ctx_name.lower()
-            # Match tech name against context (e.g., "Apache/2.4.49" matches "apache")
-            keywords = ctx_data.get("keywords", [ctx_lower])
-            if any(kw.lower() in tech_lower for kw in keywords):
-                for vuln in ctx_data.get("vulnerabilities", []):
-                    matches.append({
-                        "tech": tech,
-                        "category": ctx_name,
-                        "vulnerability": vuln.get("name", ""),
-                        "description": vuln.get("description", ""),
-                        "severity": vuln.get("severity", "MEDIUM"),
-                        "cve": vuln.get("cve", ""),
-                        "test_with": vuln.get("test_with", ""),
-                        "search_query": vuln.get("search_query", ""),
-                    })
+        version = _extract_version(tech)
+
+        for tech_name, tech_data in technologies.items():
+            if tech_name.lower() not in tech_lower:
+                continue
+
+            # Match version-specific CVEs
+            for ver_range, ver_data in tech_data.get("versions", {}).items():
+                if _version_in_range(version, ver_range):
+                    for cve in ver_data.get("cves", []):
+                        tests = ver_data.get("tests", [])
+                        matches.append({
+                            "tech": tech,
+                            "category": tech_name,
+                            "vulnerability": cve,
+                            "description": "; ".join(tests),
+                            "severity": ver_data.get("severity", "MEDIUM").upper(),
+                            "cve": cve,
+                            "test_with": "; ".join(tests),
+                            "search_query": f"{tech_name} {ver_range}",
+                        })
+                    # Also include tests without CVEs (like default cred checks)
+                    if not ver_data.get("cves"):
+                        tests = ver_data.get("tests", [])
+                        for test in tests:
+                            matches.append({
+                                "tech": tech,
+                                "category": tech_name,
+                                "vulnerability": test,
+                                "description": test,
+                                "severity": ver_data.get("severity", "MEDIUM").upper(),
+                                "cve": "",
+                                "test_with": test,
+                                "search_query": f"{tech_name} {ver_range}",
+                            })
+
+            # Include common issues (version-independent)
+            for issue in tech_data.get("common_issues", []):
+                matches.append({
+                    "tech": tech,
+                    "category": tech_name,
+                    "vulnerability": issue,
+                    "description": issue,
+                    "severity": "MEDIUM",
+                    "cve": "",
+                    "test_with": "",
+                    "search_query": f"{tech_name} {issue.split()[0]}",
+                })
+
+            # Include default paths as low-severity checks
+            for path in tech_data.get("default_paths", []):
+                matches.append({
+                    "tech": tech,
+                    "category": tech_name,
+                    "vulnerability": f"Check path: {path}",
+                    "description": f"Default/sensitive path for {tech_name}",
+                    "severity": "LOW",
+                    "cve": "",
+                    "test_with": f"curl_request(url='https://TARGET{path}')",
+                    "search_query": "",
+                })
 
     return matches
 

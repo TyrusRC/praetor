@@ -45,6 +45,11 @@ _PARAM_RISK_MAP = {
     "jwt_auth": ["token", "jwt", "access_token", "id_token", "refresh_token", "bearer", "api_key", "apikey", "secret"],
     "mass_assignment": ["role", "admin", "is_admin", "privilege", "permission", "group", "level", "verified",
                          "active", "approved", "is_staff", "is_superuser", "credits", "balance", "plan"],
+    "graphql": ["query", "mutation", "variables", "operationname", "operationName", "graphql"],
+    "prototype_pollution": ["__proto__", "constructor", "prototype", "merge", "extend", "clone", "deep"],
+    "idor_uuid": ["uuid", "guid", "ref", "slug", "handle", "hash", "resource_id", "object_id", "entity_id"],
+    "oauth": ["code", "state", "redirect_uri", "code_verifier", "code_challenge", "nonce", "client_id"],
+    "cache_key": ["cb", "cachebuster", "utm_source", "utm_content", "utm_campaign", "fbclid", "gclid"],
 }
 
 # Common hidden parameter wordlists

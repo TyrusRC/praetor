@@ -80,7 +80,7 @@
         {
           "payload": "{{baseline}}",
           "description": "Origin: https://evil.target.com — test if subdomains trusted",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin"}],
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil"}],
           "severity": "medium",
           "confidence_boost": 30
         }
@@ -132,7 +132,7 @@
         {
           "payload": "{{baseline}}",
           "description": "Backtick bypass: Origin https://target.com%60.evil.com — URL encoded backtick in origin parsing",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin"}],
+          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
           "severity": "medium",
           "confidence_boost": 20,
           "variables": {"test_origin": "https://target.com%60.evil.com"}

