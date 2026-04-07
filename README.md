@@ -403,6 +403,8 @@ Always-active rules in `.claude/rules/`:
 | `BURP_API_PORT` | `8111` | Burp extension port |
 | `BURP_API_TIMEOUT` | `30` | Request timeout (seconds) |
 | `BURP_MAX_RESPONSE_SIZE` | `50000` | Max response body chars |
+| `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
+| `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
 
 ## Requirements
 

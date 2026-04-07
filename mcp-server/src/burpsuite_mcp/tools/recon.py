@@ -12,6 +12,8 @@ import shutil
 
 from mcp.server.fastmcp import FastMCP
 
+from burpsuite_mcp.config import BURP_PROXY_URL
+
 # ProjectDiscovery tools installed via `go install` land in ~/go/bin.
 # Prepend it to search path so PD httpx isn't shadowed by Python httpx CLI.
 _GO_BIN = os.path.join(os.path.expanduser("~"), "go", "bin")
@@ -118,6 +120,7 @@ def register(mcp: FastMCP):
     async def run_subfinder(
         domain: str,
         silent: bool = True,
+        use_proxy: bool = False,
         timeout: int = 120,
     ) -> str:
         """Enumerate subdomains for a target domain using subfinder (passive).
@@ -127,6 +130,7 @@ def register(mcp: FastMCP):
         Args:
             domain: Target domain (e.g. 'example.com')
             silent: Suppress banner output (default: true)
+            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: false)
             timeout: Max seconds to wait (default: 120)
         """
         if not _check_tool("subfinder"):
@@ -136,6 +140,8 @@ def register(mcp: FastMCP):
         cmd = ["subfinder", "-d", domain]
         if silent:
             cmd.append("-silent")
+        if use_proxy:
+            cmd.extend(["-proxy", BURP_PROXY_URL])
         stdout, stderr, code = await _run_cmd(cmd, timeout)
 
         if code != 0:
@@ -160,6 +166,7 @@ def register(mcp: FastMCP):
         targets: list[str],
         tech_detect: bool = True,
         status_code: bool = True,
+        use_proxy: bool = True,
         timeout: int = 120,
     ) -> str:
         """Probe live hosts from a list of URLs/domains using httpx.
@@ -170,6 +177,7 @@ def register(mcp: FastMCP):
             targets: List of URLs or domains to probe
             tech_detect: Enable technology detection (default: true)
             status_code: Show status codes (default: true)
+            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: true)
             timeout: Max seconds to wait (default: 120)
         """
         if not _check_tool("httpx"):
@@ -180,6 +188,8 @@ def register(mcp: FastMCP):
             cmd.append("-tech-detect")
         if status_code:
             cmd.append("-status-code")
+        if use_proxy:
+            cmd.extend(["-http-proxy", BURP_PROXY_URL])
 
         input_data = "\n".join(targets)
         try:
@@ -218,6 +228,7 @@ def register(mcp: FastMCP):
         templates: str = "",
         tags: str = "",
         severity: str = "",
+        use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
         """Run nuclei vulnerability scanner against a target.
@@ -229,6 +240,7 @@ def register(mcp: FastMCP):
             templates: Specific template directory/file (e.g. 'cves/', 'misconfiguration/')
             tags: Filter by tags (e.g. 'apache,rce', 'cve2024')
             severity: Filter by severity (e.g. 'critical,high')
+            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: true)
             timeout: Max seconds to wait (default: 300)
         """
         if not _check_tool("nuclei"):
@@ -241,6 +253,8 @@ def register(mcp: FastMCP):
             cmd.extend(["-tags", tags])
         if severity:
             cmd.extend(["-severity", severity])
+        if use_proxy:
+            cmd.extend(["-proxy", BURP_PROXY_URL])
 
         stdout, stderr, code = await _run_cmd(cmd, timeout)
 
@@ -287,16 +301,19 @@ def register(mcp: FastMCP):
     async def run_recon_pipeline(
         domain: str,
         depth: str = "quick",
+        use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
         """Run a full recon pipeline using available external tools.
 
         Chains: subfinder → httpx → nuclei (based on available tools).
         Gracefully degrades if tools are missing — works with whatever is installed.
+        All HTTP requests are routed through Burp's proxy by default.
 
         Args:
             domain: Target domain (e.g. 'example.com')
             depth: 'quick' (subfinder+httpx only), 'standard' (+ nuclei critical/high), 'deep' (+ nuclei all severities)
+            use_proxy: Route requests through Burp proxy (default: true)
             timeout: Max seconds per tool (default: 300)
         """
         domain = _sanitize_domain(domain)
@@ -330,6 +347,8 @@ def register(mcp: FastMCP):
         if _check_tool("httpx"):
             lines.append("[2/3] Running httpx...")
             cmd = [_find_tool("httpx"), "-silent", "-status-code", "-no-color"]
+            if use_proxy:
+                cmd.extend(["-http-proxy", BURP_PROXY_URL])
             input_data = "\n".join(targets)
             try:
                 proc = await asyncio.create_subprocess_exec(
@@ -370,6 +389,8 @@ def register(mcp: FastMCP):
                 target_url = target_url.split(" [")[0].strip()
 
             cmd = ["nuclei", "-u", target_url, "-silent", "-no-color", "-duc"]
+            if use_proxy:
+                cmd.extend(["-proxy", BURP_PROXY_URL])
             if depth == "standard":
                 cmd.extend(["-severity", "critical,high"])
 
