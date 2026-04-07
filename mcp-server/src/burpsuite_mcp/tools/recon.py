@@ -86,7 +86,7 @@ def register(mcp: FastMCP):
 
         lines.append(f"\nTotal: {len(available)}/{len(tools)} tools available")
         if not available:
-            lines.append("\nNo external tools found. Install with: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
+            lines.append("\nNo external tools found. Install with: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
 
         return "\n".join(lines)
 
@@ -98,7 +98,7 @@ def register(mcp: FastMCP):
     ) -> str:
         """Enumerate subdomains for a target domain using subfinder (passive).
 
-        Requires subfinder to be installed: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+        Requires subfinder to be installed: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 
         Args:
             domain: Target domain (e.g. 'example.com')
@@ -106,7 +106,7 @@ def register(mcp: FastMCP):
             timeout: Max seconds to wait (default: 120)
         """
         if not _check_tool("subfinder"):
-            return "Error: subfinder not installed. Install: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+            return "Error: subfinder not installed. Install: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
 
         domain = _sanitize_domain(domain)
         cmd = ["subfinder", "-d", domain]
@@ -140,7 +140,7 @@ def register(mcp: FastMCP):
     ) -> str:
         """Probe live hosts from a list of URLs/domains using httpx.
 
-        Requires httpx to be installed: go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+        Requires httpx to be installed: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 
         Args:
             targets: List of URLs or domains to probe
@@ -149,7 +149,7 @@ def register(mcp: FastMCP):
             timeout: Max seconds to wait (default: 120)
         """
         if not _check_tool("httpx"):
-            return "Error: httpx not installed. Install: go install github.com/projectdiscovery/httpx/cmd/httpx@latest"
+            return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
 
         cmd = ["httpx", "-silent", "-no-color"]
         if tech_detect:
@@ -198,7 +198,7 @@ def register(mcp: FastMCP):
     ) -> str:
         """Run nuclei vulnerability scanner against a target.
 
-        Requires nuclei to be installed: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+        Requires nuclei to be installed: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 
         Args:
             target: Target URL (e.g. 'https://example.com')
@@ -208,7 +208,7 @@ def register(mcp: FastMCP):
             timeout: Max seconds to wait (default: 300)
         """
         if not _check_tool("nuclei"):
-            return "Error: nuclei not installed. Install: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+            return "Error: nuclei not installed. Install: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
         cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl"]
         if templates:
