@@ -34,7 +34,6 @@ Thumbs.db
 # Claude Code local
 .remember/
 .mcp.json
-CLAUDE.md
 docs/superpowers/
 
 # Target intelligence (sensitive — never commit)
