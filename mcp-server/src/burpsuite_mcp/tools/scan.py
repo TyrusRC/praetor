@@ -602,8 +602,8 @@ def register(mcp: FastMCP):
             })
             if "error" not in robots and robots.get("status") == 200:
                 body = robots.get("response_body", "")
-                disallowed = [l.split(":")[1].strip() for l in body.split("\n")
-                              if l.lower().startswith("disallow:") and l.split(":")[1].strip()]
+                disallowed = [l.split(":", 1)[1].strip() for l in body.split("\n")
+                              if l.lower().startswith("disallow:") and l.split(":", 1)[1].strip()]
                 if disallowed:
                     lines.append(f"\nROBOTS.TXT: {len(disallowed)} disallowed")
                     for d in disallowed[:10]:

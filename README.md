@@ -239,7 +239,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 |------|-------------|
 | `scan_target` | Two-mode scan: discover attack surface OR probe parameters with knowledge-driven detection |
 | `discover_attack_surface` | Crawl target and map endpoints, parameters (risk-scored), forms, tech stack in one call |
-| `auto_probe` | Knowledge-driven vulnerability probing — auto-detects tech, selects matching probes from 24 categories |
+| `auto_probe` | Knowledge-driven vulnerability probing — auto-detects tech, selects matching probes from 25 categories |
 | `quick_scan` | Send request + auto-analyze in one call — returns tech stack, injection points, params, secrets |
 | `probe_endpoint` | Adaptive vulnerability probe — auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection |
 | `batch_probe` | Test multiple endpoints in one call — returns status, length, timing for each |
@@ -380,7 +380,7 @@ Always-active rules in `.claude/rules/`:
 - **Token efficient** — one smart tool call > five chatty ones. `run_flow` executes multi-step attacks in a single call. `discover_attack_surface` + `auto_probe` replaces dozens of manual calls.
 - **Claude crafts the attack** — tools are execution engines, not decision makers. Claude thinks, tools execute.
 - **Building blocks + smart helpers** — low-level primitives for creative attack chaining, plus high-level tools where server-side coordination matters (race conditions, auth matrix).
-- **Two knowledge systems** — `payloads/` (12 files) for `get_payloads` tool with human-readable attack recipes. `knowledge/` (24 files) for `auto_probe` engine with server-side matchers and anomaly detection.
+- **Two knowledge systems** — `payloads/` (15 files) for `get_payloads` tool with human-readable attack recipes. `knowledge/` (25 files) for `auto_probe` engine with server-side matchers and anomaly detection.
 - **Knowledge fills gaps** — Claude knows basic payloads but not Angular sandbox bypass or Spring SSTI. The curated knowledge base provides advanced/evasive techniques (WAF bypass, blind injection, framework-specific SSTI).
 - **Persistent memory** — target intel survives across sessions. Claude remembers tech stack, endpoints, test coverage, and findings without re-scanning. Staleness detection ensures memory stays fresh.
 - **Zero false positives** — findings require reproducible evidence (Collaborator callbacks, timing anomalies, error strings). Re-verification on resume catches patched or intermittent issues.

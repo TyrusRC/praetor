@@ -113,7 +113,10 @@ def register(mcp: FastMCP):
             # Cross-target pattern learning: append new patterns, deduplicate by key
             existing = _empty_structure("patterns")
             if file_path.exists():
-                existing = json.loads(file_path.read_text())
+                try:
+                    existing = json.loads(file_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    existing = _empty_structure("patterns")
             patterns_list = existing.get("patterns", [])
 
             new_patterns = data.get("patterns", [data] if "vuln_class" in data else [])
@@ -140,7 +143,10 @@ def register(mcp: FastMCP):
             # Load existing, deduplicate, auto-assign IDs, auto-timestamp
             existing = _empty_structure("findings")
             if file_path.exists():
-                existing = json.loads(file_path.read_text())
+                try:
+                    existing = json.loads(file_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    existing = _empty_structure("findings")
             findings_list = existing.get("findings", [])
 
             new_findings = data.get("findings", [data] if "endpoint" in data else [])
@@ -162,7 +168,10 @@ def register(mcp: FastMCP):
             # Merge entries by (endpoint, parameter) key, stamp knowledge_version
             existing = _empty_structure("coverage")
             if file_path.exists():
-                existing = json.loads(file_path.read_text())
+                try:
+                    existing = json.loads(file_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    existing = _empty_structure("coverage")
             entries = existing.get("entries", [])
 
             new_entries = data.get("entries", [])

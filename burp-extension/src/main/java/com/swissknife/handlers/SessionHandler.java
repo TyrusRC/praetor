@@ -901,8 +901,9 @@ public class SessionHandler extends BaseHandler {
                             ? pagePath.substring(0, pagePath.lastIndexOf("/") + 1) : "/";
                         link = basePath + link;
                     }
-                    // Clean up ./
-                    link = link.replace("./", "");
+                    // Clean up ./ relative references (only at start or after /)
+                    while (link.contains("/./")) link = link.replace("/./", "/");
+                    if (link.startsWith("./")) link = link.substring(2);
                     if (!visited.contains(link) && !queue.contains(link)) {
                         queue.add(link);
                     }
@@ -910,13 +911,14 @@ public class SessionHandler extends BaseHandler {
 
                 // Extract forms
                 java.util.regex.Pattern formPattern = java.util.regex.Pattern.compile(
-                    "<form[^>]*action=[\"']([^\"']*)[\"'][^>]*method=[\"']([^\"']*)[\"'][^>]*>(.*?)</form>",
+                    "<form[^>]*(?:action=[\"']([^\"']*)[\"'][^>]*method=[\"']([^\"']*)[\"']|method=[\"']([^\"']*)[\"'][^>]*action=[\"']([^\"']*)[\"'])[^>]*>(.*?)</form>",
                     java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
                 java.util.regex.Matcher formMatcher = formPattern.matcher(respBody);
                 while (formMatcher.find()) {
-                    String action = formMatcher.group(1);
-                    String formMethod = formMatcher.group(2).toUpperCase();
-                    String formBody = formMatcher.group(3);
+                    // Handle both action-first and method-first attribute order
+                    String action = formMatcher.group(1) != null ? formMatcher.group(1) : formMatcher.group(4);
+                    String formMethod = formMatcher.group(2) != null ? formMatcher.group(2).toUpperCase() : (formMatcher.group(3) != null ? formMatcher.group(3).toUpperCase() : "GET");
+                    String formBody = formMatcher.group(5);
 
                     List<String> inputs = new ArrayList<>();
                     java.util.regex.Pattern inputPattern = java.util.regex.Pattern.compile(
@@ -1452,7 +1454,7 @@ public class SessionHandler extends BaseHandler {
         }
 
         // Cap cookies at 200 to prevent unbounded growth
-        if (session.cookies.size() > 200) {
+        while (session.cookies.size() > 200) {
             String oldest = session.cookies.keySet().iterator().next();
             session.cookies.remove(oldest);
         }
@@ -1462,7 +1464,7 @@ public class SessionHandler extends BaseHandler {
      * Merge extracted variables into session, capping at 200 entries to prevent unbounded growth.
      */
     private void mergeVariables(Session session, Map<String, String> extracted) {
-        mergeVariables(session, extracted);
+        session.variables.putAll(extracted);
         while (session.variables.size() > 200) {
             String oldest = session.variables.keySet().iterator().next();
             session.variables.remove(oldest);

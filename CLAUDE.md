@@ -23,7 +23,7 @@ Two codebases in one repo:
 
 2. Build Commands
    - Build extension JAR: `cd burp-extension && mvn package`
-   - Output: `burp-extension/target/burpsuite-swiss-knife-0.1.0.jar`
+   - Output: `burp-extension/target/burpsuite-swiss-knife-0.2.0.jar`
    - Install MCP server: `cd mcp-server && uv pip install -e .`
    - Run MCP server: `uv run python -m burpsuite_mcp`
 
@@ -106,12 +106,12 @@ burp-extension/src/main/java/com/swissknife/
 
 mcp-server/src/burpsuite_mcp/
 ├── __main__.py                 # Entry point → mcp.run(transport="stdio")
-├── server.py                   # FastMCP instance + tool registration (20 modules)
+├── server.py                   # FastMCP instance + tool registration (21 modules)
 ├── config.py                   # Env vars: BURP_API_HOST, BURP_API_PORT, BURP_API_TIMEOUT
 ├── client.py                   # Async HTTP client (httpx) to extension
 ├── processing/
 │   └── formatters.py           # Token-efficient output formatting (ASCII tables)
-├── payloads/                   # Curated payload files for get_payloads tool (12 JSON files)
+├── payloads/                   # Curated payload files for get_payloads tool (15 JSON files)
 │   ├── xss.json                # XSS payloads by context (angular, dom, svg, waf bypass, etc.)
 │   ├── sqli.json               # SQLi payloads by DB engine (mysql, postgres, mssql, blind, etc.)
 │   ├── ssti.json               # SSTI payloads by template engine (jinja2, twig, freemarker, etc.)
@@ -123,14 +123,17 @@ mcp-server/src/burpsuite_mcp/
 │   ├── cors.json
 │   ├── csrf.json
 │   ├── race_condition.json
-│   └── hpp.json
-├── knowledge/                  # Knowledge base with server-side matchers for auto_probe (24 JSON files)
+│   ├── hpp.json
+│   ├── open_redirect.json
+│   ├── lfi.json
+│   └── file_upload.json
+├── knowledge/                  # Knowledge base with server-side matchers for auto_probe (25 JSON files)
 │   ├── sqli.json, xss.json, ssti.json, ssrf.json, command_injection.json
 │   ├── path_traversal.json, xxe.json, auth_bypass.json, cors.json, csrf.json
 │   ├── race_condition.json, hpp.json, idor.json, jwt.json, graphql.json
 │   ├── deserialization.json, crlf_injection.json, open_redirect.json
 │   ├── mass_assignment.json, request_smuggling.json, llm_injection.json
-│   ├── info_disclosure.json, websocket.json
+│   ├── info_disclosure.json, websocket.json, file_upload.json
 │   └── tech_vulns.json         # Tech-specific vulnerabilities (reference only, no probes)
 └── tools/                      # 88 MCP tools across 20 modules
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
@@ -139,8 +142,8 @@ mcp-server/src/burpsuite_mcp/
     ├── session.py              # Session CRUD, session_request, extract_token, run_flow (6 tools)
     ├── scope.py                # configure_scope with include/exclude/auto-filter (1 tool)
     ├── testing.py              # Fuzz, auth compare, comparer, diff, auth matrix, race, HPP (7 tools)
-    ├── scan.py                 # Adaptive scan: discover_attack_surface, auto_probe, scan_target, quick_scan, probe_endpoint, batch_probe (6 tools)
-    ├── edge.py                 # Edge-case tests: CORS, JWT, GraphQL, cloud metadata, common files (5 tools)
+    ├── scan.py                 # Adaptive scan: discover_attack_surface, auto_probe, scan_target, quick_scan, probe_endpoint, batch_probe, discover_hidden_parameters, full_recon, bulk_test (9 tools)
+    ├── edge.py                 # Edge-case tests: CORS, JWT, GraphQL, cloud metadata, common files, open redirect, LFI, file upload (8 tools)
     ├── correlate.py            # Search, findings correlation, response diff (3 tools)
     ├── collaborate.py          # Collaborator payloads, interactions, auto-test (3 tools)
     ├── scanner.py              # Scan URL, crawl target, scan status (3 tools)

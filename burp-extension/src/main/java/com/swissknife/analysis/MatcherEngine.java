@@ -74,7 +74,7 @@ public final class MatcherEngine {
                             matched = words.stream().anyMatch(w -> bodyLower.contains(w.toLowerCase()));
                         }
                     }
-                    if (matched) matchedDescriptions.add("word:" + words.get(0));
+                    if (matched && words != null && !words.isEmpty()) matchedDescriptions.add("word:" + words.get(0));
                 }
                 case "not_word" -> {
                     @SuppressWarnings("unchecked")

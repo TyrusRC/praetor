@@ -5,7 +5,7 @@ description: Efficient Burp Suite tool orchestration — know which tool to use 
 
 # Burp Suite Workflow Orchestration
 
-You are connected to Burp Suite via MCP. You have 78 tools. Knowing WHICH tool to pick and WHEN is the difference between wasting 50 tool calls and finding a bug in 5. This skill teaches efficient Burp orchestration.
+You are connected to Burp Suite via MCP. You have 88 tools. Knowing WHICH tool to pick and WHEN is the difference between wasting 50 tool calls and finding a bug in 5. This skill teaches efficient Burp orchestration.
 
 ## Core Principle: Minimize Tool Calls, Maximize Signal
 

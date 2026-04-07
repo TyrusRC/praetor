@@ -2,22 +2,21 @@
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
-
-INTEL_DIR = Path.cwd() / ".burp-intel"
+from burpsuite_mcp.tools.intel import INTEL_DIR, _intel_path
 
 
 def _load_intel(domain: str, category: str) -> dict:
     """Load intel data for a domain."""
-    import re
-    sanitized = re.sub(r'[^a-zA-Z0-9._-]', '_', domain)
-    path = INTEL_DIR / sanitized / f"{category}.json"
+    path = _intel_path(domain) / f"{category}.json"
     if path.exists():
-        return json.loads(path.read_text())
+        try:
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 

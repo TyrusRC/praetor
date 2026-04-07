@@ -36,9 +36,9 @@ async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
 
 def _sanitize_domain(domain: str) -> str:
     """Sanitize domain input to prevent injection via arguments."""
-    # Only allow valid domain characters
     import re
-    if not re.match(r'^[a-zA-Z0-9._-]+$', domain):
+    # Must start with alphanumeric (reject leading hyphens to prevent flag injection)
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._-]*$', domain):
         raise ValueError(f"Invalid domain: {domain}")
     return domain
 
@@ -171,6 +171,8 @@ def register(mcp: FastMCP):
         except asyncio.TimeoutError:
             proc.kill()
             return f"httpx timed out after {timeout}s"
+        except Exception as e:
+            return f"Error running httpx: {e}"
 
         output = stdout.decode(errors="replace").strip()
         if not output:
@@ -328,6 +330,8 @@ def register(mcp: FastMCP):
             except asyncio.TimeoutError:
                 proc.kill()
                 lines.append("  httpx timed out")
+            except Exception as e:
+                lines.append(f"  httpx error: {e}")
         else:
             lines.append("[2/3] httpx not installed — skipping live host probing")
             live_hosts = [f"https://{domain}"]
