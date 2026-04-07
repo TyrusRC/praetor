@@ -15,7 +15,7 @@ from burpsuite_mcp import client
 INTEL_DIR = Path.cwd() / ".burp-intel"
 KNOWLEDGE_DIR = Path(__file__).parent.parent / "knowledge"
 
-VALID_CATEGORIES = ("profile", "endpoints", "coverage", "findings", "fingerprint")
+VALID_CATEGORIES = ("profile", "endpoints", "coverage", "findings", "fingerprint", "patterns")
 
 
 def _intel_path(domain: str) -> Path:
@@ -65,6 +65,8 @@ def _empty_structure(category: str) -> dict:
         return {"findings": []}
     if category == "fingerprint":
         return {"pages": []}
+    if category == "patterns":
+        return {"patterns": []}
     return {}
 
 
@@ -106,6 +108,33 @@ def register(mcp: FastMCP):
         dir_path = _ensure_dir(domain)
         file_path = dir_path / f"{category}.json"
         now = datetime.now(timezone.utc).isoformat()
+
+        if category == "patterns":
+            # Cross-target pattern learning: append new patterns, deduplicate by key
+            existing = _empty_structure("patterns")
+            if file_path.exists():
+                existing = json.loads(file_path.read_text())
+            patterns_list = existing.get("patterns", [])
+
+            new_patterns = data.get("patterns", [data] if "vuln_class" in data else [])
+            for pattern in new_patterns:
+                if "timestamp" not in pattern:
+                    pattern["timestamp"] = now
+                # Deduplicate by vuln_class + technique
+                key = (pattern.get("vuln_class"), pattern.get("technique"))
+                found = False
+                for i, existing_p in enumerate(patterns_list):
+                    if (existing_p.get("vuln_class"), existing_p.get("technique")) == key:
+                        patterns_list[i] = {**existing_p, **pattern}
+                        found = True
+                        break
+                if not found:
+                    patterns_list.append(pattern)
+
+            existing["patterns"] = patterns_list
+            existing["last_modified"] = now
+            _atomic_write_json(file_path, existing)
+            return f"Saved pattern(s) for {domain} ({len(patterns_list)} total patterns)"
 
         if category == "findings":
             # Load existing, deduplicate, auto-assign IDs, auto-timestamp
@@ -210,6 +239,9 @@ def register(mcp: FastMCP):
                 elif cat == "fingerprint":
                     pages = data.get("pages", [])
                     summary_lines.append(f"  fingerprint: {len(pages)} pages tracked")
+                elif cat == "patterns":
+                    patterns = data.get("patterns", [])
+                    summary_lines.append(f"  patterns: {len(patterns)} learned techniques")
 
             notes_path = dir_path / "notes.md"
             if notes_path.exists():
@@ -347,3 +379,93 @@ def register(mcp: FastMCP):
         notes_path = dir_path / "notes.md"
         notes_path.write_text(notes)
         return f"Notes saved for {domain} ({len(notes)} chars)"
+
+    @mcp.tool()
+    async def lookup_cross_target_patterns(
+        tech_stack: list[str],
+        vuln_class: str = "",
+    ) -> str:
+        """Find attack patterns from OTHER targets that share a similar tech stack.
+
+        Searches all stored target intel for patterns that worked on targets with
+        overlapping technology, so techniques from target A inform testing on target B.
+
+        Args:
+            tech_stack: Current target's tech stack (e.g. ['PHP', 'Apache', 'MySQL'])
+            vuln_class: Optional filter by vulnerability class (e.g. 'sqli', 'xss')
+        """
+        if not INTEL_DIR.exists():
+            return "No target intel stored yet."
+
+        tech_lower = {t.lower() for t in tech_stack}
+        matches = []
+
+        for domain_dir in INTEL_DIR.iterdir():
+            if not domain_dir.is_dir():
+                continue
+
+            # Check tech stack overlap
+            profile_path = domain_dir / "profile.json"
+            if not profile_path.exists():
+                continue
+
+            try:
+                profile = json.loads(profile_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            other_tech = profile.get("tech_stack", []) + profile.get("frameworks", [])
+            other_lower = {t.lower() for t in other_tech}
+            overlap = tech_lower & other_lower
+
+            if not overlap:
+                continue
+
+            # Load patterns from this target
+            patterns_path = domain_dir / "patterns.json"
+            if not patterns_path.exists():
+                continue
+
+            try:
+                patterns_data = json.loads(patterns_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            for pattern in patterns_data.get("patterns", []):
+                if vuln_class and pattern.get("vuln_class", "").lower() != vuln_class.lower():
+                    continue
+                matches.append({
+                    "source_domain": domain_dir.name,
+                    "tech_overlap": list(overlap),
+                    **pattern,
+                })
+
+        if not matches:
+            msg = f"No matching patterns found for tech: {', '.join(tech_stack)}"
+            if vuln_class:
+                msg += f" (filtered by: {vuln_class})"
+            return msg
+
+        # Sort by severity (highest first), then by timestamp (most recent first)
+        sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        matches.sort(key=lambda m: (
+            sev_order.get(m.get("severity", "low").lower(), 4),
+            m.get("timestamp", ""),
+        ))
+
+        lines = [f"Cross-target patterns ({len(matches)} matches):", ""]
+        for m in matches[:20]:
+            lines.append(f"  [{m.get('severity', '?').upper()}] {m.get('vuln_class', '?')}: {m.get('technique', '?')}")
+            lines.append(f"    Source: {m['source_domain']} (overlap: {', '.join(m['tech_overlap'])})")
+            if m.get("payload"):
+                lines.append(f"    Payload: {m['payload'][:100]}")
+            if m.get("endpoint_pattern"):
+                lines.append(f"    Endpoint: {m['endpoint_pattern']}")
+            if m.get("notes"):
+                lines.append(f"    Notes: {m['notes'][:150]}")
+            lines.append("")
+
+        if len(matches) > 20:
+            lines.append(f"  ... and {len(matches) - 20} more patterns")
+
+        return "\n".join(lines)

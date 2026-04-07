@@ -166,6 +166,58 @@ save_target_intel(domain, "findings", {
 })
 ```
 
+## 7-Question Validation Gate
+
+Before reporting, the finding must pass ALL 7 questions. One "NO" = do not report.
+
+| # | Question | How to Check |
+|---|----------|-------------|
+| 1 | **In scope?** | `check_scope(url)` + verify against program policy (some exclude specific paths/vuln types) |
+| 2 | **Reproducible right now?** | Re-send the PoC request. If it doesn't work, it's stale or flaky. |
+| 3 | **Real impact?** | What can the attacker actually DO? "Could lead to" is not enough — demonstrate it. |
+| 4 | **Not a duplicate?** | `load_target_intel(domain, "findings")` — check for same endpoint + vuln type + parameter |
+| 5 | **Meets evidence requirements?** | Check the evidence section above for your specific vuln type |
+| 6 | **Not in NEVER SUBMIT list?** | See the hunting rules for the full list of non-reportable findings |
+| 7 | **Would a triager accept this?** | If you were reviewing 200 reports/day, would this one get past you? |
+
+## NEVER SUBMIT (standalone)
+
+These are NOT reportable as standalone findings:
+
+- Missing security headers (X-Frame-Options, CSP, HSTS) without exploit
+- Cookie missing Secure/HttpOnly flag without XSS or MitM
+- Self-XSS (only fires in attacker's own session)
+- CSRF on logout or non-state-changing endpoints
+- Open redirect without OAuth/SSRF/phishing chain
+- Stack traces / verbose errors without data extraction
+- Username/email enumeration on public sign-up forms
+- Clickjacking on non-sensitive pages (no state-changing action)
+- CORS without credentials AND without sensitive data in response
+- Software version disclosure without matching CVE exploit
+- Rate limit absence on non-authentication endpoints
+- Text injection without code execution context
+- Host header injection without cache poisoning proof
+- Missing autocomplete=off on password fields
+- SPF/DMARC/DKIM configuration issues
+
+**Exception:** Any of these become reportable when CHAINED with another finding for real impact. Use the chain-findings skill.
+
+## Conditionally Valid
+
+These findings are only reportable WITH a chain or specific proof:
+
+| Finding | Required Evidence |
+|---|---|
+| Open redirect | Token theft (OAuth), SSRF bypass, or phishing with impact |
+| Self-XSS | + CSRF or clickjacking that triggers it for other users |
+| Verbose errors | + Working exploit that uses the disclosed info |
+| CORS misconfigured (no creds) | + Sensitive data readable cross-origin |
+| Missing rate limit | + Demonstrated brute force / account enumeration |
+| Host header injection | + Cache poisoning or password reset token theft |
+| Clickjacking | + Sensitive action (transfer, delete, permission change) |
+| Cookie without flags | + MitM or XSS exploit leveraging the cookie |
+| Info disclosure (versions) | + Matching CVE with working PoC |
+
 ## Never
 
 - Never mark as confirmed without meeting the evidence requirements above
@@ -174,3 +226,4 @@ save_target_intel(domain, "findings", {
 - Never assume impact — test what the attacker can actually achieve
 - Never report IDOR without proving access to ANOTHER user's data (not your own)
 - Never report XSS without confirming the payload is in an executable context (not encoded, not commented)
+- Never submit findings from the NEVER SUBMIT list without a valid chain

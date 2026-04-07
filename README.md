@@ -180,7 +180,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (78 total)
+## Tools (88 total)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -280,12 +280,34 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 ### Target Intelligence (persistent memory)
 | Tool | Description |
 |------|-------------|
-| `save_target_intel` | Persist target context (profile, endpoints, coverage, findings, fingerprint) across sessions |
+| `save_target_intel` | Persist target context (profile, endpoints, coverage, findings, fingerprint, patterns) across sessions |
 | `load_target_intel` | Load stored intel — use `"all"` for compact summary or specific category |
 | `check_target_freshness` | Fingerprint key pages to detect changes since last session |
 | `save_target_notes` | Save freeform markdown notes (human-editable observations and corrections) |
+| `lookup_cross_target_patterns` | Find attack patterns from OTHER targets with overlapping tech stack — techniques from target A inform target B |
 
-> **Memory system:** Data stored in `.burp-intel/<domain>/` (gitignored). Finding states: suspected, confirmed, stale, likely_false_positive. Knowledge version tracking triggers re-testing when probes are updated. Deduplication prevents duplicate findings.
+> **Memory system:** Data stored in `.burp-intel/<domain>/` (gitignored). Finding states: suspected, confirmed, stale, likely_false_positive. Knowledge version tracking triggers re-testing when probes are updated. Cross-target pattern learning shares successful techniques across targets by tech stack.
+
+### CVE Intelligence
+| Tool | Description |
+|------|-------------|
+| `check_tech_vulns` | Match detected tech stack against known CVEs and misconfigurations from knowledge base |
+| `search_cve` | Generate CVE search URLs for NVD, Exploit-DB, GitHub Advisory, with nuclei template suggestions |
+
+### Professional Reporting
+| Tool | Description |
+|------|-------------|
+| `generate_report` | Full pentest report with executive summary, methodology, sorted findings, coverage, recommendations |
+| `format_finding_for_platform` | Format a finding for HackerOne, Bugcrowd, Intigriti, or Immunefi submission |
+
+### External Recon (optional tools)
+| Tool | Description |
+|------|-------------|
+| `check_recon_tools` | Check which external recon tools are installed (subfinder, httpx, nuclei, etc.) |
+| `run_subfinder` | Enumerate subdomains passively via subfinder |
+| `run_httpx` | Probe live hosts with tech detection via httpx |
+| `run_nuclei` | Run nuclei vulnerability scanner with template/tag/severity filtering |
+| `run_recon_pipeline` | Full recon chain: subfinder → httpx → nuclei with graceful degradation |
 
 ### Correlate
 | Tool | Description |
@@ -335,8 +357,22 @@ Claude Code skills in `.claude/skills/` that encode expert bug bounty methodolog
 | Skill | Purpose |
 |-------|---------|
 | `hunt.md` | Systematic vulnerability hunting — loads target memory, checks freshness, tests by tech-adaptive priority (PHP: SQLi/LFI/upload, Java: deser/XXE, API: IDOR/auth), saves progress at checkpoints |
-| `verify-finding.md` | Verify suspected vulns with real evidence before marking confirmed — evidence requirements per vuln type (Collaborator for SSRF/redirect, timing for blind SQLi, reflection for XSS). False positive gating: 2+ failures = likely_false_positive |
+| `verify-finding.md` | 7-Question Validation Gate + evidence requirements for 17 vuln types + NEVER SUBMIT list (23+ non-reportable findings). False positive gating: 2+ failures = likely_false_positive |
 | `resume.md` | Continue from previous session — re-verify findings on changed endpoints, show coverage dashboard, suggest prioritized next actions |
+| `chain-findings.md` | Exploit chain building — escalate low-severity findings via A→B→C chains. Escalation table maps every low finding to chain paths with required evidence |
+| `report-templates.md` | Platform-specific reports for HackerOne, Bugcrowd, Intigriti, Immunefi. CVSS 3.1 reference, quality checklist, severity inflation red flags |
+| `autopilot.md` | Autonomous hunt loop — circuit breaker (5x 403 = stop), rate limiting, checkpoint modes (paranoid/normal/aggressive), scope guard, emergency stop |
+| `dispatch-agents.md` | Parallel agent orchestration — 5 dispatch patterns with prompt templates, 2.5x speedup |
+| `burp-workflow.md` | Tool selection decision trees for 87 MCP tools |
+| `investigate.md` | Deep anomaly investigation — filter mapping, finding escalation, attack chaining |
+| `craft-payload.md` | WAF/filter bypass engineering — filter recon, encoding chains, incremental testing |
+| `static-dynamic-analysis.md` | JS source analysis, DOM sink/source tracing, behavioral profiling, page change detection |
+
+Always-active rules in `.claude/rules/`:
+
+| Rule | Purpose |
+|------|---------|
+| `hunting.md` | 20 behavioral constraints enforced every turn — scope safety, evidence requirements, 7-Question Gate, NEVER SUBMIT list |
 
 ## Design Philosophy
 

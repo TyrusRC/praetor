@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp.tools import (
     read, analyze, send, correlate, collaborate, notes,
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
-    intel,
+    intel, cve, report, recon,
 )
 
 mcp = FastMCP(
@@ -22,7 +22,10 @@ Collaborate: Burp Collaborator payloads, auto-test (inject+send+poll for blind v
 Export: sitemap as compact JSON or OpenAPI 3.0, fetch static resources (JS/CSS/source maps).
 Utility: encode/decode (base64, URL, HTML, hex, JWT, hashes).
 Notes: save findings, export pentest reports.
-Intel: persistent target memory across sessions, staleness detection, finding verification states.
+Intel: persistent target memory across sessions, staleness detection, finding verification states, cross-target pattern learning.
+CVE: match tech stack against known vulnerabilities, generate search URLs.
+Report: professional pentest reports with executive summary, platform-specific formatting (HackerOne, Bugcrowd, Intigriti, Immunefi).
+Recon: external tool orchestration (subfinder, httpx, nuclei) — graceful degradation if tools missing.
 
 Workflow: Read → Analyze attack surface → Fuzz/Test → Correlate → Document.""",
 )
@@ -46,3 +49,6 @@ payloads.register(mcp)  # context-aware payload lookup from curated knowledge ba
 scan.register(mcp)      # adaptive scan: discover attack surface + auto-probe with knowledge base
 edge.register(mcp)      # edge-case testing: JWT, CORS, GraphQL, cloud metadata, common files
 intel.register(mcp)     # persistent target intelligence storage across sessions
+cve.register(mcp)      # CVE intelligence: match tech stack against known vulnerabilities
+report.register(mcp)   # professional pentest report generation with platform templates
+recon.register(mcp)    # external recon tool orchestration (subfinder, httpx, nuclei)
