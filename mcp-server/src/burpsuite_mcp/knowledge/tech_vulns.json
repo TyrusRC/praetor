@@ -103,6 +103,49 @@
       },
       "common_issues": ["Client-side template injection", "Sandbox bypass (versions < 1.6)", "Prototype pollution via merge/extend"],
       "default_paths": []
+    },
+    "Redis": {
+      "versions": {
+        "any": {"cves": [], "tests": ["Unauthenticated access on port 6379", "CONFIG SET dir + BGSAVE for file write RCE"], "severity": "critical"}
+      },
+      "common_issues": ["No authentication by default", "SLAVEOF replication attack", "Lua script execution", "CONFIG SET for file write"],
+      "default_paths": []
+    },
+    "Jenkins": {
+      "versions": {
+        "any": {"cves": ["CVE-2024-23897"], "tests": ["Arbitrary file read via CLI args-file parser", "Groovy script console at /script"], "severity": "critical"}
+      },
+      "common_issues": ["Unauthenticated /script console access", "User enumeration via /asynchPeople/", "Build log information disclosure", "CSRF on job triggers"],
+      "default_paths": ["/script", "/asynchPeople/", "/systemInfo", "/manage", "/configureSecurity/", "/credentials/"]
+    },
+    "Laravel": {
+      "versions": {
+        "any": {"cves": ["CVE-2021-3129"], "tests": ["Ignition RCE via debug mode file write", ".env file exposure with APP_KEY"], "severity": "critical"}
+      },
+      "common_issues": [".env file exposure", "Debug mode stack traces with APP_KEY", "Mass assignment via $fillable bypass", "Deserialization via APP_KEY"],
+      "default_paths": ["/.env", "/storage/logs/laravel.log", "/_ignition/health-check", "/_ignition/execute-solution"]
+    },
+    "Rails": {
+      "versions": {
+        "any": {"cves": ["CVE-2019-5420"], "tests": ["Development mode file disclosure via /rails/info/properties"], "severity": "high"}
+      },
+      "common_issues": ["Mass assignment via permit!", "Sequential ID IDOR", "CSRF token bypass via API mode", "Debug console in development"],
+      "default_paths": ["/rails/info/properties", "/rails/info/routes", "/rails/mailers"]
+    },
+    "Drupal": {
+      "versions": {
+        "7.x": {"cves": ["CVE-2018-7600"], "tests": ["Drupalgeddon2 RCE via Form API rendering"], "severity": "critical"},
+        "8.x": {"cves": ["CVE-2019-6340"], "tests": ["REST module deserialization RCE"], "severity": "critical"}
+      },
+      "common_issues": ["CHANGELOG.txt version disclosure", "User enumeration via /user/1", "Views module information disclosure"],
+      "default_paths": ["/CHANGELOG.txt", "/user/1", "/user/register", "/admin/", "/core/CHANGELOG.txt"]
+    },
+    "Kubernetes": {
+      "versions": {
+        "any": {"cves": [], "tests": ["Exposed API server without auth", "etcd on port 2379", "Service account token abuse"], "severity": "critical"}
+      },
+      "common_issues": ["RBAC misconfiguration", "Exposed dashboard without auth", "Service account token at /var/run/secrets/kubernetes.io/serviceaccount/token", "etcd accessible without TLS"],
+      "default_paths": []
     }
   }
 }

