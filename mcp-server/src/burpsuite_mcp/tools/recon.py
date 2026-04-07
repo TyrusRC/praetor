@@ -167,11 +167,10 @@ def register(mcp: FastMCP):
             status_code: Show status codes (default: true)
             timeout: Max seconds to wait (default: 120)
         """
-        httpx_bin = _find_tool("httpx")
-        if not httpx_bin:
+        if not _check_tool("httpx"):
             return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
 
-        cmd = [httpx_bin, "-silent", "-no-color"]
+        cmd = [_find_tool("httpx"), "-silent", "-no-color"]
         if tech_detect:
             cmd.append("-tech-detect")
         if status_code:
@@ -323,10 +322,9 @@ def register(mcp: FastMCP):
         targets = subdomains if subdomains else [domain]
         live_hosts = []
 
-        httpx_bin = _find_tool("httpx")
-        if httpx_bin:
+        if _check_tool("httpx"):
             lines.append("[2/3] Running httpx...")
-            cmd = [httpx_bin, "-silent", "-status-code", "-no-color"]
+            cmd = [_find_tool("httpx"), "-silent", "-status-code", "-no-color"]
             input_data = "\n".join(targets)
             try:
                 proc = await asyncio.create_subprocess_exec(
