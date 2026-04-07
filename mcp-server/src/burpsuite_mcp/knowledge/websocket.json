@@ -49,6 +49,34 @@
           "confidence_boost": 40
         }
       ]
+    },
+    "message_smuggling": {
+      "description": "WebSocket-to-HTTP request tunneling — send HTTP requests inside WS frames to reach internal backends",
+      "tech_match": ["WebSocket", "Node.js", "Express", "Nginx"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "GET /admin HTTP/1.1\r\nHost: internal-api\r\n\r\n",
+          "description": "HTTP request inside WebSocket frame — test if backend processes raw HTTP sent via WS",
+          "matchers": [{"type": "word", "words": ["admin", "dashboard", "settings"], "condition": "or"}],
+          "severity": "high",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "proto_pollution": {
+      "description": "Prototype pollution via WebSocket JSON messages in Node.js applications",
+      "tech_match": ["WebSocket", "Node.js", "Express", "Socket.io"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"polluted\":\"ws_canary\"}}",
+          "description": "Prototype pollution via WS JSON message — check if canary appears in subsequent responses",
+          "matchers": [{"type": "word", "words": ["ws_canary"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }

@@ -120,6 +120,48 @@
           "confidence_boost": 20
         }
       ]
+    },
+    "batch_array": {
+      "description": "GraphQL batch query via JSON array — bypasses per-operation rate limiting",
+      "tech_match": ["GraphQL", "Apollo", "Express", "Node.js"],
+      "param_match": ["query", "graphql"],
+      "probes": [
+        {
+          "payload": "[{\"query\":\"{__typename}\"},{\"query\":\"{__typename}\"},{\"query\":\"{__typename}\"},{\"query\":\"{__typename}\"},{\"query\":\"{__typename}\"}]",
+          "description": "Array batch with 5 queries — check if all execute (response is array of 5 results)",
+          "matchers": [{"type": "word", "words": ["__typename"], "condition": "or"}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "subscription_discovery": {
+      "description": "GraphQL subscription endpoint discovery — often has weaker auth than query endpoints",
+      "tech_match": ["GraphQL", "Apollo", "Express", "Node.js"],
+      "param_match": ["query", "graphql"],
+      "probes": [
+        {
+          "payload": "{\"type\":\"connection_init\",\"payload\":{}}",
+          "description": "WebSocket subscription handshake — check if subscription endpoint accepts connections",
+          "matchers": [{"type": "word", "words": ["connection_ack", "ka"], "condition": "or"}],
+          "severity": "low",
+          "confidence_boost": 20
+        }
+      ]
+    },
+    "alias_amplification": {
+      "description": "Query complexity attack via aliases — one request, many operations",
+      "tech_match": ["GraphQL", "Apollo", "Express"],
+      "param_match": ["query", "graphql"],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{a1:__typename a2:__typename a3:__typename a4:__typename a5:__typename a6:__typename a7:__typename a8:__typename a9:__typename a10:__typename a11:__typename a12:__typename a13:__typename a14:__typename a15:__typename a16:__typename a17:__typename a18:__typename a19:__typename a20:__typename}\"}",
+          "description": "20 aliased operations in single query — test query depth/complexity limits",
+          "matchers": [{"type": "word", "words": ["__typename"]}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
     }
   }
 }

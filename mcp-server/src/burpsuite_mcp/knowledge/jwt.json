@@ -1,5 +1,6 @@
 {
   "category": "jwt",
+  "auto_probe_note": "JWT attacks require manual token manipulation. Use test_jwt tool or decode_encode + send_http_request for JWT testing. auto_probe probes serve as checklists only.",
   "contexts": {
     "alg_none": {
       "description": "JWT algorithm none bypass — strip signature",
@@ -8,7 +9,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Test if server accepts JWT with alg:none (modify header to {\"alg\":\"none\"}, remove signature)",
+          "description": "[Manual] Test if server accepts JWT with alg:none (modify header to {\"alg\":\"none\"}, remove signature)",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "expired", "unauthorized", "denied"]}],
           "severity": "critical",
           "confidence_boost": 50
@@ -22,7 +24,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Change RS256 to HS256, sign with public key as HMAC secret",
+          "description": "[Manual] Change RS256 to HS256, sign with public key as HMAC secret",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "expired", "unauthorized"]}],
           "severity": "critical",
           "confidence_boost": 50
@@ -36,14 +39,16 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "kid: ../../etc/passwd — path traversal in key lookup",
+          "description": "[Manual] kid: ../../etc/passwd — path traversal in key lookup",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "{{baseline}}",
-          "description": "kid: ' UNION SELECT 'key'-- — SQLi in key ID lookup",
+          "description": "[Manual] kid: ' UNION SELECT 'key'-- — SQLi in key ID lookup",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
           "severity": "critical",
           "confidence_boost": 45
@@ -57,7 +62,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "jku: https://{{callback}}/jwks.json — SSRF via key URL",
+          "description": "[Manual] jku: https://{{callback}}/jwks.json — SSRF via key URL",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}],
           "severity": "critical",
           "confidence_boost": 50,
@@ -72,7 +78,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Try common JWT secrets: secret, password, 123456, changeme, key",
+          "description": "[Manual] Try common JWT secrets: secret, password, 123456, changeme, key",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
           "severity": "high",
           "confidence_boost": 40
@@ -86,7 +93,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "JWT with jwk header containing attacker-generated RSA public key — server may verify with the embedded key instead of server key",
+          "description": "[Manual] JWT with jwk header containing attacker-generated RSA public key — server may verify with the embedded key instead of server key",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized", "rejected"]}],
           "severity": "critical",
           "confidence_boost": 50,
@@ -101,7 +109,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "JWT with x5c header containing attacker's self-signed certificate — server may use embedded cert for verification",
+          "description": "[Manual] JWT with x5c header containing attacker's self-signed certificate — server may use embedded cert for verification",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized", "rejected"]}],
           "severity": "critical",
           "confidence_boost": 45,
@@ -116,7 +125,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Change role claim from 'user' to 'admin' — re-sign or use with alg:none",
+          "description": "[Manual] Change role claim from 'user' to 'admin' — re-sign or use with alg:none",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}],
           "severity": "critical",
           "confidence_boost": 50,
@@ -124,7 +134,8 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Change sub claim from 'user1' to 'admin' — IDOR via JWT subject manipulation",
+          "description": "[Manual] Change sub claim from 'user1' to 'admin' — IDOR via JWT subject manipulation",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["unauthorized", "forbidden"]}],
           "severity": "critical",
           "confidence_boost": 50,
@@ -139,7 +150,8 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Send JWT with exp set in the past (e.g., epoch 1) — server should reject but may not validate expiry",
+          "description": "[Manual] Send JWT with exp set in the past (e.g., epoch 1) — server should reject but may not validate expiry",
+          "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["expired", "invalid", "token expired"]}],
           "severity": "high",
           "confidence_boost": 40,

