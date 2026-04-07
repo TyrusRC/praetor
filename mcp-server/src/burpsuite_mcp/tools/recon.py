@@ -85,8 +85,12 @@ def register(mcp: FastMCP):
             lines.extend(missing)
 
         lines.append(f"\nTotal: {len(available)}/{len(tools)} tools available")
-        if not available:
-            lines.append("\nNo external tools found. Install with: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
+        if missing:
+            lines.append("\nInstall commands (ProjectDiscovery tools):")
+            lines.append("  go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
+            lines.append("  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest")
+            lines.append("  go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
+            lines.append("  CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest")
 
         return "\n".join(lines)
 
