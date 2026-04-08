@@ -1,5 +1,7 @@
 """Advanced testing tools - smart fuzzing engine and auth state comparison."""
 
+import asyncio
+
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
@@ -239,9 +241,11 @@ def register(mcp: FastMCP):
         if remove_auth:
             modify2["modify_headers"] = {"Cookie": "", "Authorization": ""}
 
-        # Send both requests
-        data1 = await client.post("/api/http/resend", json=modify1)
-        data2 = await client.post("/api/http/resend", json=modify2)
+        # Send both requests concurrently for accurate comparison
+        data1, data2 = await asyncio.gather(
+            client.post("/api/http/resend", json=modify1),
+            client.post("/api/http/resend", json=modify2),
+        )
 
         if "error" in data1:
             return f"Error (request 1): {data1['error']}"

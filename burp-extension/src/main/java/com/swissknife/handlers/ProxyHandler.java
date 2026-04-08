@@ -61,7 +61,11 @@ public class ProxyHandler extends BaseHandler {
             // Apply filters
             if (!filterUrl.isEmpty() && !url.toLowerCase().contains(filterUrl.toLowerCase())) continue;
             if (!filterMethod.isEmpty() && !method.equalsIgnoreCase(filterMethod)) continue;
-            if (!filterStatus.isEmpty() && statusCode != Integer.parseInt(filterStatus)) continue;
+            if (!filterStatus.isEmpty()) {
+                try {
+                    if (statusCode != Integer.parseInt(filterStatus)) continue;
+                } catch (NumberFormatException ignored) { continue; }
+            }
 
             if (skipped < offset) { skipped++; continue; }
 

@@ -62,7 +62,7 @@ public class FindingsStore {
             bySeverity.put(sev, new ArrayList<>());
         }
         for (var f : findings) {
-            String sev = ((String) f.get("severity")).toUpperCase();
+            String sev = String.valueOf(f.getOrDefault("severity", "INFO")).toUpperCase();
             bySeverity.computeIfAbsent(sev, k -> new ArrayList<>()).add(f);
         }
 

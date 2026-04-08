@@ -238,7 +238,11 @@ def register(mcp: FastMCP):
                 if not cat_path.exists():
                     summary_lines.append(f"  {cat}: (none)")
                     continue
-                data = json.loads(cat_path.read_text())
+                try:
+                    data = json.loads(cat_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    summary_lines.append(f"  {cat}: (corrupted)")
+                    continue
                 if cat == "profile":
                     tech = data.get("tech_stack", [])
                     summary_lines.append(f"  profile: tech={', '.join(tech) if tech else 'unknown'}")

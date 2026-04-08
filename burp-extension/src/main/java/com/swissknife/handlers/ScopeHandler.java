@@ -20,7 +20,7 @@ public class ScopeHandler extends BaseHandler {
     private final MontoyaApi api;
     private final List<String> includeRules = new CopyOnWriteArrayList<>();
     private final List<String> excludeRules = new CopyOnWriteArrayList<>();
-    private boolean autoFilterEnabled = false;
+    private volatile boolean autoFilterEnabled = false;
 
     private static final List<String> AUTO_FILTER_DOMAINS = List.of(
         // Trackers

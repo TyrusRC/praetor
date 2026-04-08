@@ -28,16 +28,30 @@ def _extract_version(tech_string: str) -> str:
     return m.group(0) if m else ""
 
 
+def _version_tuple(v: str) -> tuple:
+    """Convert version string to tuple of ints for correct numeric comparison."""
+    return tuple(int(x) for x in v.split(".") if x.isdigit())
+
+
 def _version_in_range(version: str, range_key: str) -> bool:
     """Check if version matches a range key like '2.4.49', '8.5.0-8.5.80', or 'any'."""
     if range_key == "any":
         return True
     if not version:
         return False
-    if "-" in range_key:
-        low, high = range_key.split("-", 1)
-        return low <= version <= high
-    return version.startswith(range_key) or range_key.startswith(version)
+    try:
+        ver = _version_tuple(version)
+        if "-" in range_key:
+            low, high = range_key.split("-", 1)
+            return _version_tuple(low) <= ver <= _version_tuple(high)
+        range_ver = _version_tuple(range_key)
+        return ver[:len(range_ver)] == range_ver or range_ver[:len(ver)] == ver
+    except (ValueError, TypeError):
+        # Fall back to string comparison if version format is unexpected
+        if "-" in range_key:
+            low, high = range_key.split("-", 1)
+            return low <= version <= high
+        return version.startswith(range_key) or range_key.startswith(version)
 
 
 def _match_tech_to_vulns(tech_items: list[str], tech_vulns: dict) -> list[dict]:

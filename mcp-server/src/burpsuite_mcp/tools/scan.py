@@ -586,7 +586,7 @@ def register(mcp: FastMCP):
             if root_index >= 0:
                 page_res = await client.post("/api/resources/fetch-page", json={"index": root_index})
                 if "error" not in page_res:
-                    fetched = page_res.get("newly_fetched", [])
+                    fetched = page_res.get("fetched", [])
                     js_secrets = []
                     for res in fetched[:5]:
                         idx = res.get("proxy_index", -1)

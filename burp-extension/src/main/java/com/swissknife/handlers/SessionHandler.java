@@ -393,15 +393,17 @@ public class SessionHandler extends BaseHandler {
     private void handleList(HttpExchange exchange) throws Exception {
         List<Map<String, Object>> list = new ArrayList<>();
         for (Session s : sessions.values()) {
-            Map<String, Object> info = new LinkedHashMap<>();
-            info.put("name", s.name);
-            info.put("base_url", s.baseUrl);
-            info.put("cookies", s.cookies.size());
-            info.put("headers", s.headers.size());
-            info.put("variables", s.variables.size());
-            info.put("has_auth", !s.bearerToken.isEmpty() || !s.authUser.isEmpty());
-            info.put("has_last_response", s.lastResponse != null);
-            list.add(info);
+            synchronized (s) {
+                Map<String, Object> info = new LinkedHashMap<>();
+                info.put("name", s.name);
+                info.put("base_url", s.baseUrl);
+                info.put("cookies", s.cookies.size());
+                info.put("headers", s.headers.size());
+                info.put("variables", s.variables.size());
+                info.put("has_auth", !s.bearerToken.isEmpty() || !s.authUser.isEmpty());
+                info.put("has_last_response", s.lastResponse != null);
+                list.add(info);
+            }
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -1066,7 +1068,9 @@ public class SessionHandler extends BaseHandler {
                 baseParams.put("path", injectParam(path, parameter, baselineValue, location));
                 if ("body".equals(location)) baseParams.put("data", parameter + "=" + baselineValue);
 
+                long baselineStartMs = System.nanoTime();
                 HttpRequestResponse baselineResult = sendSessionRequest(session, baseParams);
+                long baselineElapsedMs = (System.nanoTime() - baselineStartMs) / 1_000_000;
                 if (baselineResult == null || baselineResult.response() == null) continue;
                 updateCookiesFromResponse(session, baselineResult);
 
@@ -1162,9 +1166,8 @@ public class SessionHandler extends BaseHandler {
                                 anomalies.add("length:" + lenDiff + "B diff");
                             }
 
-                            // Timing: differential only (vs baseline, not absolute)
-                            long baselineTimeMs = 500; // default if not tracked
-                            long timeDiff = elapsedMs - baselineTimeMs;
+                            // Timing: differential only (vs measured baseline)
+                            long timeDiff = elapsedMs - baselineElapsedMs;
                             if (timeDiff > 4000) {
                                 anomalyScore += 20;
                                 anomalies.add("timing:+" + timeDiff + "ms vs baseline");

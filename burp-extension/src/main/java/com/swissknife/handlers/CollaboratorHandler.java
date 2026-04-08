@@ -23,7 +23,7 @@ import java.util.*;
 public class CollaboratorHandler extends BaseHandler {
 
     private final MontoyaApi api;
-    private CollaboratorClient client;
+    private volatile CollaboratorClient client;
 
     public CollaboratorHandler(MontoyaApi api) {
         this.api = api;

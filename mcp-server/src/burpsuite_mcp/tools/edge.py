@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+import time
 import uuid
 
 from mcp.server.fastmcp import FastMCP
@@ -157,7 +158,6 @@ def register(mcp: FastMCP):
             vulns.append(f"TEST: kid SQLi: ' UNION SELECT 'key'--")
 
         # Check payload claims
-        import time
         exp = payload.get("exp")
         if exp:
             if exp < time.time():
