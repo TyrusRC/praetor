@@ -2,13 +2,13 @@
   "category": "info_disclosure",
   "contexts": {
     "stack_trace": {
-      "description": "Detects verbose stack traces leaked in responses — indicates debug mode or unhandled exceptions",
+      "description": "Detects verbose stack traces leaked in responses \u2014 indicates debug mode or unhandled exceptions",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks for stack trace content in normal responses",
+          "description": "Baseline request \u2014 checks for stack trace content in normal responses",
           "matchers": [
             {"type": "word", "words": ["stack trace", "at java.", "at system.", "traceback", "at line", "exception in"], "condition": "or"}
           ],
@@ -35,7 +35,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks for debug info in normal responses",
+          "description": "Baseline request \u2014 checks for debug info in normal responses",
           "matchers": [
             {"type": "word", "words": ["debug=true", "phpinfo", "server_addr", "document_root"], "condition": "or"}
           ],
@@ -62,7 +62,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks for server version strings in response body",
+          "description": "Baseline request \u2014 checks for server version strings in response body",
           "matchers": [
             {"type": "regex", "pattern": "(apache|nginx|iis|php|java|python|ruby|node)\\/[0-9]"}
           ],
@@ -72,7 +72,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks Server response header for version disclosure",
+          "description": "Baseline request \u2014 checks Server response header for version disclosure",
           "matchers": [
             {"type": "header", "name": "Server", "contains": "/"}
           ],
@@ -82,12 +82,97 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks X-Powered-By header for framework fingerprinting",
+          "description": "Baseline request \u2014 checks X-Powered-By header for framework fingerprinting",
           "matchers": [
-            {"type": "header", "name": "X-Powered-By", "contains": ""}
+            {"type": "header", "name": "X-Powered-By", "contains": "/"}
           ],
           "severity": "low",
           "confidence_boost": 15,
+          "variables": {}
+        }
+      ]
+    },
+    "sensitive_files": {
+      "description": "Probes for commonly exposed sensitive files \u2014 source control metadata, environment files, config files, and debug endpoints",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.git/HEAD",
+          "description": "Git HEAD file \u2014 'ref:' prefix confirms exposed .git directory, enabling full source code recovery",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["ref:"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "/.git/config",
+          "description": "Git config file \u2014 [core] or [remote] sections confirm exposed .git directory with repository metadata",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["[core]", "[remote", "repositoryformatversion"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "/.env",
+          "description": "Environment file \u2014 DB_, SECRET, KEY, PASSWORD variables confirm exposed secrets in .env file",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["DB_", "SECRET", "KEY=", "PASSWORD=", "API_KEY"], "condition": "or"},
+            {"type": "not_word", "words": ["<!DOCTYPE", "<html"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "/WEB-INF/web.xml",
+          "description": "Java WEB-INF deployment descriptor \u2014 <web-app reveals servlet mappings, security constraints, and class paths",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["<web-app", "<servlet", "web-app>"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/.svn/entries",
+          "description": "SVN entries file \u2014 version number or 'dir' keyword confirms exposed Subversion metadata",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "pattern": "^(10|12|\\d+)\\s*$|^dir\\s*$"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "/server-status",
+          "description": "Apache mod_status \u2014 'Apache Server Status' or 'Total Accesses' confirms exposed server metrics and active connections",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["Apache Server Status", "Total Accesses", "Scoreboard"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "/debug/pprof/",
+          "description": "Go pprof debug endpoint \u2014 'allocs' or 'goroutine' keywords confirm exposed profiling data with heap dumps and goroutine traces",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["allocs", "goroutine", "heap", "threadcreate"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
           "variables": {}
         }
       ]

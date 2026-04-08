@@ -110,15 +110,30 @@ public final class MatcherEngine {
                 case "header" -> {
                     String headerName = (String) matcher.get("name");
                     String contains = (String) matcher.get("contains");
+                    @SuppressWarnings("unchecked")
+                    List<String> headerNames = (List<String>) matcher.get("headers");
                     if (headerName != null) {
+                        // Single header check with optional contains
                         for (HttpHeader h : response.headers()) {
                             if (headerName.equalsIgnoreCase(h.name())) {
                                 matched = contains == null || h.value().toLowerCase().contains(contains.toLowerCase());
                                 break;
                             }
                         }
+                        if (matched) matchedDescriptions.add("header:" + headerName);
+                    } else if (headerNames != null && !headerNames.isEmpty()) {
+                        // Multi-header check: match if ANY of the listed headers is present
+                        for (String hn : headerNames) {
+                            for (HttpHeader h : response.headers()) {
+                                if (hn.equalsIgnoreCase(h.name())) {
+                                    matched = true;
+                                    matchedDescriptions.add("header:" + hn);
+                                    break;
+                                }
+                            }
+                            if (matched) break;
+                        }
                     }
-                    if (matched) matchedDescriptions.add("header:" + headerName);
                 }
                 case "reflection" -> {
                     if (payload != null && !payload.isEmpty()) {

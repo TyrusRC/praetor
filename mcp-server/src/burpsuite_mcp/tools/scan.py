@@ -24,7 +24,7 @@ def _load_knowledge(category: str) -> dict | None:
 
 
 # Reference-only files (no probes, skip in auto_probe)
-_REFERENCE_ONLY = {"tech_vulns"}
+_REFERENCE_ONLY = {"tech_vulns", "file_upload", "race_condition", "request_smuggling"}
 
 # Parameter name to vulnerability type mapping for attack prioritization
 _PARAM_RISK_MAP = {

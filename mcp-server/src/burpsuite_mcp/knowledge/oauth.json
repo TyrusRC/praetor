@@ -1,0 +1,154 @@
+{
+  "category": "oauth",
+  "contexts": {
+    "redirect_uri_bypass": {
+      "description": "OAuth redirect_uri manipulation \u2014 tests whether the authorization server validates redirect_uri strictly or allows attacker-controlled destinations",
+      "tech_match": ["OAuth", "OpenID", "OIDC", "Keycloak", "Auth0", "Okta"],
+      "param_match": ["redirect_uri", "redirect_url", "callback", "return_url", "return_to", "continue"],
+      "probes": [
+        {
+          "payload": "https://evil.com",
+          "description": "Redirect URI to external domain \u2014 302 with Location containing evil.com confirms open redirect in OAuth flow, enabling authorization code theft",
+          "matchers": [
+            {"type": "status", "status": [302, 301, 303]},
+            {"type": "header", "name": "Location", "contains": "evil.com"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "https://legitimate.com@evil.com",
+          "description": "Redirect URI with at-sign trick \u2014 URL parsing ambiguity may cause server to validate legitimate.com but redirect to evil.com",
+          "matchers": [
+            {"type": "status", "status": [302, 301, 303]},
+            {"type": "header", "name": "Location", "contains": "evil.com"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "https://legitimate.com.evil.com",
+          "description": "Redirect URI subdomain bypass \u2014 tests if server only checks prefix/suffix of allowed domain",
+          "matchers": [
+            {"type": "status", "status": [302, 301, 303]},
+            {"type": "header", "name": "Location", "contains": "evil.com"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}/../redirect?url=https://evil.com",
+          "description": "Redirect URI path traversal \u2014 appends path traversal to registered redirect_uri to reach an open redirect on the legitimate domain",
+          "matchers": [
+            {"type": "status", "status": [302, 301, 303]},
+            {"type": "header", "name": "Location", "contains": "evil.com"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}%23@evil.com",
+          "description": "Redirect URI fragment injection \u2014 URL-encoded # may cause server to ignore everything after it during validation while browser follows full URL",
+          "matchers": [
+            {"type": "status", "status": [302, 301, 303]},
+            {"type": "not_word", "words": ["invalid_redirect_uri", "redirect_uri_mismatch"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "state_bypass": {
+      "description": "OAuth state parameter validation \u2014 tests whether the server enforces the state parameter to prevent CSRF on the OAuth callback",
+      "tech_match": ["OAuth", "OpenID", "OIDC"],
+      "param_match": ["state"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Empty state parameter \u2014 if server accepts authorization without state, the OAuth flow is vulnerable to CSRF (attacker can force victim to link attacker's account)",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid_request", "state_missing", "state required"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "arbitrary_value_12345",
+          "description": "Arbitrary state value \u2014 if server accepts any state value without server-side validation, CSRF protection is ineffective",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid_state", "state_mismatch", "invalid_request"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "scope_escalation": {
+      "description": "OAuth scope escalation \u2014 tests whether the authorization server allows requesting scopes beyond what the client is registered for",
+      "tech_match": ["OAuth", "OpenID", "OIDC"],
+      "param_match": ["scope"],
+      "probes": [
+        {
+          "payload": "openid profile email admin",
+          "description": "Scope escalation with admin \u2014 if server grants 'admin' scope not registered for the client, privilege escalation is possible",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid_scope", "scope_not_allowed", "unauthorized_scope"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "openid profile email write:all read:all",
+          "description": "Scope escalation with broad permissions \u2014 requesting write:all/read:all tests if server enforces registered scope limits",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid_scope", "scope_not_allowed", "unauthorized_scope"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "pkce_downgrade": {
+      "description": "OAuth PKCE downgrade \u2014 tests whether the server allows authorization code flow without PKCE when it should be required, enabling code interception attacks",
+      "tech_match": ["OAuth", "OpenID", "OIDC"],
+      "param_match": ["code_challenge", "code_challenge_method"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "PKCE removal \u2014 omitting code_challenge and code_challenge_method; if server still issues authorization code, PKCE enforcement is missing",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["code_challenge_required", "invalid_request", "pkce_required"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "plain",
+          "description": "PKCE method downgrade to plain \u2014 if server accepts 'plain' instead of 'S256', code_verifier can be trivially derived from intercepted challenge",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid_request", "unsupported_code_challenge_method"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

