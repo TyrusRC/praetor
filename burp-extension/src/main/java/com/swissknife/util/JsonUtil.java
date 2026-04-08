@@ -176,7 +176,7 @@ public final class JsonUtil {
         Number readNumber() {
             int start = pos;
             if (peek() == '-') pos++;
-            while (pos < src.length() && (Character.isDigit(src.charAt(pos)) || src.charAt(pos) == '.' || src.charAt(pos) == 'e' || src.charAt(pos) == 'E' || src.charAt(pos) == '+' || src.charAt(pos) == '-')) {
+            while (pos < src.length() && (Character.isDigit(src.charAt(pos)) || src.charAt(pos) == '.' || src.charAt(pos) == 'e' || src.charAt(pos) == 'E')) {
                 if (src.charAt(pos) == '.' || src.charAt(pos) == 'e' || src.charAt(pos) == 'E') {
                     pos++;
                     while (pos < src.length() && (Character.isDigit(src.charAt(pos)) || src.charAt(pos) == '+' || src.charAt(pos) == '-')) pos++;

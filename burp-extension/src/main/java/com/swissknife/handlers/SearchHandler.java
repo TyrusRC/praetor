@@ -121,14 +121,16 @@ public class SearchHandler extends BaseHandler {
         String[] lines2 = body2.split("\n");
 
         List<String> diffs = new ArrayList<>();
+        int differenceCount = 0;
         int maxLines = Math.max(lines1.length, lines2.length);
-        for (int i = 0; i < maxLines && diffs.size() < 200; i++) {
+        for (int i = 0; i < maxLines && diffs.size() + 3 <= 200; i++) {
             String l1 = i < lines1.length ? lines1[i] : "";
             String l2 = i < lines2.length ? lines2[i] : "";
             if (!l1.equals(l2)) {
                 diffs.add("Line " + (i + 1) + ":");
                 diffs.add("  - " + truncateLine(l1, 200));
                 diffs.add("  + " + truncateLine(l2, 200));
+                differenceCount++;
             }
         }
 
@@ -140,7 +142,7 @@ public class SearchHandler extends BaseHandler {
         result.put("length1", body1.length());
         result.put("length2", body2.length());
         result.put("diff_lines", diffs);
-        result.put("total_differences", diffs.size() / 3);
+        result.put("total_differences", differenceCount);
 
         sendJson(exchange, JsonUtil.toJson(result));
     }

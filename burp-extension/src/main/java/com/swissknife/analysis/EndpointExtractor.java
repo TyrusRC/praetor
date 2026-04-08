@@ -71,7 +71,8 @@ public final class EndpointExtractor {
             String url = m.group(0);
             try {
                 java.net.URI uri = new java.net.URI(url);
-                if (!uri.getHost().equals(baseHost)) {
+                String uriHost = uri.getHost();
+                if (uriHost != null && !uriHost.equals(baseHost)) {
                     externalUrls.add(url);
                 }
             } catch (Exception ignored) {}

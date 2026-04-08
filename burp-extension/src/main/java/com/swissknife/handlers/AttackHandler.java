@@ -132,6 +132,8 @@ public class AttackHandler extends BaseHandler {
                     if (i == 0) {
                         firstStatus = status;
                         firstBody = respBody;
+                    } else if (firstBody == null) {
+                        sr.put("note", "Baseline auth state failed; comparison skipped");
                     } else {
                         double similarity = calculateSimilarity(firstBody, respBody);
                         sr.put("similarity", Math.round(similarity * 100));

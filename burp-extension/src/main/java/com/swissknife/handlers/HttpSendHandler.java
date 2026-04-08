@@ -372,6 +372,7 @@ public class HttpSendHandler extends BaseHandler {
     // ── Helpers ────────────────────────────────────────────────
 
     private void sendResponseJson(HttpExchange exchange, HttpRequestResponse result) throws Exception {
+        if (result == null) { sendError(exchange, 502, "No response from target"); return; }
         HttpResponse resp = result.response();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status_code", resp != null ? resp.statusCode() : 0);

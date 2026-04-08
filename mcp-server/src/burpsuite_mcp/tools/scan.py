@@ -8,6 +8,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.analyze import _score_security_headers
 
 
 KNOWLEDGE_DIR = Path(__file__).parent.parent / "knowledge"
@@ -19,8 +20,11 @@ def _load_knowledge(category: str) -> dict | None:
     f = KNOWLEDGE_DIR / f"{category}.json"
     if not f.exists():
         return None
-    with open(f) as fh:
-        return json.load(fh)
+    try:
+        with open(f) as fh:
+            return json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 # Reference-only files (no probes, skip in auto_probe)
@@ -567,7 +571,6 @@ def register(mcp: FastMCP):
         for h, v in sec_headers.items():
             (present if v else missing).append(h)
 
-        from burpsuite_mcp.tools.analyze import _score_security_headers
         lines.append(_score_security_headers(present, missing))
 
         # Endpoints
@@ -749,11 +752,12 @@ def register(mcp: FastMCP):
         if not targets:
             return "No targets found. Browse the target first or provide targets manually."
 
-        lines = [f"BULK TEST: {vulnerability} across {len(targets)} targets\n"]
+        tested_targets = targets[:max_endpoints]
+        lines = [f"BULK TEST: {vulnerability} across {len(tested_targets)} targets\n"]
         findings = []
         total_requests = 0
 
-        for t in targets[:max_endpoints]:
+        for t in tested_targets:
             t_method = t.get("method", "GET")
             t_path = t.get("path", "/")
             t_param = t.get("parameter", "")
@@ -845,8 +849,8 @@ def register(mcp: FastMCP):
             elif findings:
                 lines.append(f"\nNo Collaborator interactions (Location header showed redirect but server may not follow).")
 
-        clean = len(targets) - len(set(f"{f['endpoint']}?{f['parameter']}" for f in findings))
+        clean = len(tested_targets) - len(set(f"{f['endpoint']}?{f['parameter']}" for f in findings))
         lines.append(f"CLEAN: {clean} endpoints showed no anomalies")
-        lines.append(f"TESTED: {len(targets)} targets, {total_requests} requests total")
+        lines.append(f"TESTED: {len(tested_targets)} targets, {total_requests} requests total")
 
         return "\n".join(lines)

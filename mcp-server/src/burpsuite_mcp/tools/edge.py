@@ -253,7 +253,7 @@ def register(mcp: FastMCP):
         })
         if "error" not in resp4:
             body4 = resp4.get("response_body", "")
-            if "__typename" in body4.lower() or "query" in body4.lower():
+            if "__typename" in body4.lower():
                 vulns.append("LOW: GET-based queries accepted — potential CSRF")
                 lines.append(f"  [VULN] GET queries: ACCEPTED (CSRF risk)")
             else:

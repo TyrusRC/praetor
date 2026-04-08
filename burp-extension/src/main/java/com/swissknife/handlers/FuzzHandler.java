@@ -299,6 +299,7 @@ public class FuzzHandler extends BaseHandler {
             allPayloads.add(payloads);
             minLen = Math.min(minLen, payloads.size());
         }
+        if (minLen == 0 || minLen == Integer.MAX_VALUE) return;
 
         for (int i = 0; i < minLen; i++) {
             if (variants.size() >= MAX_REQUESTS) return;
@@ -331,12 +332,15 @@ public class FuzzHandler extends BaseHandler {
             allPayloads.add(payloads);
         }
 
-        // Calculate total combinations
+        // Calculate total combinations (use long to avoid overflow, cap at MAX_REQUESTS)
         int[] indices = new int[parameters.size()];
-        int totalCombinations = 1;
+        long totalCombinationsLong = 1;
         for (List<String> payloads : allPayloads) {
-            totalCombinations *= payloads.size();
+            if (payloads.isEmpty()) return;
+            totalCombinationsLong *= payloads.size();
+            if (totalCombinationsLong > MAX_REQUESTS) { totalCombinationsLong = MAX_REQUESTS; break; }
         }
+        int totalCombinations = (int) totalCombinationsLong;
 
         for (int combo = 0; combo < totalCombinations; combo++) {
             if (variants.size() >= MAX_REQUESTS) return;

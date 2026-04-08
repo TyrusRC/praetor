@@ -17,8 +17,11 @@ def _load_payload_file(category: str) -> dict | None:
     payload_file = PAYLOADS_DIR / f"{category}.json"
     if not payload_file.exists():
         return None
-    with open(payload_file) as f:
-        return json.load(f)
+    try:
+        with open(payload_file) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def register(mcp: FastMCP):

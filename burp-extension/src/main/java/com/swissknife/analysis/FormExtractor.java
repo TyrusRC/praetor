@@ -30,7 +30,9 @@ public final class FormExtractor {
 
         Matcher formMatcher = FORM_PATTERN.matcher(html);
         while (formMatcher.find()) {
-            String formTag = html.substring(formMatcher.start(), html.indexOf('>', formMatcher.start()) + 1);
+            int tagEnd = html.indexOf('>', formMatcher.start());
+            if (tagEnd < 0) continue;
+            String formTag = html.substring(formMatcher.start(), tagEnd + 1);
             String formBody = formMatcher.group(1);
 
             Map<String, Object> form = new LinkedHashMap<>();

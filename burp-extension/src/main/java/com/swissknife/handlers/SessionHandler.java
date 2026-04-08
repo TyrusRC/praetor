@@ -903,9 +903,10 @@ public class SessionHandler extends BaseHandler {
                             ? pagePath.substring(0, pagePath.lastIndexOf("/") + 1) : "/";
                         link = basePath + link;
                     }
-                    // Clean up ./ relative references (only at start or after /)
+                    // Normalize relative references (./ and ../)
                     while (link.contains("/./")) link = link.replace("/./", "/");
                     if (link.startsWith("./")) link = link.substring(2);
+                    try { link = new java.net.URI(link).normalize().toString(); } catch (Exception ignored) {}
                     if (!visited.contains(link) && !queue.contains(link)) {
                         queue.add(link);
                     }

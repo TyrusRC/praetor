@@ -43,7 +43,7 @@ def format_findings(data: dict) -> str:
 
     lines = [f"Scanner Findings ({total} total, {len(items)} returned):\n"]
 
-    for severity in ["HIGH", "MEDIUM", "LOW", "INFORMATION"]:
+    for severity in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATION"]:
         findings = by_severity.get(severity, [])
         if not findings:
             continue

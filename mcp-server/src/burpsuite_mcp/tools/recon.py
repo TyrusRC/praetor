@@ -45,7 +45,11 @@ async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode or 0
     except asyncio.TimeoutError:
-        proc.kill()
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
         return "", f"Command timed out after {timeout}s", 1
     except FileNotFoundError:
         return "", f"Tool not found: {cmd[0]}", 127
@@ -203,7 +207,11 @@ def register(mcp: FastMCP):
                 proc.communicate(input=input_data.encode()), timeout=timeout
             )
         except asyncio.TimeoutError:
-            proc.kill()
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
             return f"httpx timed out after {timeout}s"
         except Exception as e:
             return f"Error running httpx: {e}"
@@ -371,7 +379,11 @@ def register(mcp: FastMCP):
                 else:
                     lines.append("  No live hosts found")
             except asyncio.TimeoutError:
-                proc.kill()
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
                 lines.append("  httpx timed out")
             except Exception as e:
                 lines.append(f"  httpx error: {e}")
