@@ -210,7 +210,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (141 total — 88 core + 53 new)
+## Tools (142 total)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -391,6 +391,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `pause_scan` | Get scan status (pause not supported by Montoya API) |
 | `resume_scan` | Get scan status (scans run continuously) |
 | `get_new_findings` | Poll for new scanner findings since a count — real-time finding detection |
+| `get_issues_dashboard` | Compact dashboard of ALL findings — severity counts, affected hosts, top critical/high, next steps |
 
 ### Payload & Knowledge Base
 | Tool | Description |
