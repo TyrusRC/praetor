@@ -1,14 +1,23 @@
 import os
 from pathlib import Path
 
-# Load .env from project root if it exists
-_env_file = Path(__file__).resolve().parents[3] / ".env"
-if _env_file.is_file():
-    for line in _env_file.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+
+def _load_env():
+    """Load .env file by searching upward from this file to the project root."""
+    current = Path(__file__).resolve().parent
+    for _ in range(6):  # search up to 6 levels
+        env_file = current / ".env"
+        if env_file.is_file():
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
+            return
+        current = current.parent
+
+
+_load_env()
 
 BURP_API_HOST = os.environ.get("BURP_API_HOST", "127.0.0.1")
 BURP_API_PORT = int(os.environ.get("BURP_API_PORT", "8111"))
