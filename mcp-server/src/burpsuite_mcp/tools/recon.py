@@ -1,8 +1,11 @@
 """External recon tool orchestration — optional integration with subfinder, nuclei, katana, etc.
 
+probe_hosts and check_recon_tools always work (use Burp HTTP client, no external tools).
+Go-based tools (subfinder, nuclei, katana) require the binaries to be installed and may
+have DNS issues in WSL environments. Use browser_crawl as a reliable alternative to katana.
+
 Security note: All subprocess calls use asyncio.create_subprocess_exec() which passes
-arguments as a list (no shell interpretation), preventing command injection. User input
-is passed as discrete arguments, never interpolated into shell strings.
+arguments as a list (no shell interpretation), preventing command injection.
 """
 
 import asyncio

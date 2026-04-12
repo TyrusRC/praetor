@@ -422,28 +422,33 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `generate_report` | Full pentest report with executive summary, methodology, sorted findings, coverage, recommendations |
 | `format_finding_for_platform` | Format a finding for HackerOne, Bugcrowd, Intigriti, or Immunefi submission |
 
-### External Recon (optional Go tools)
+### External Recon
 
-These tools are **optional** — they enhance recon when installed but are not required. All traffic routes through Burp's proxy by default so it appears in proxy history.
+| Tool | Requires | Description |
+|------|----------|-------------|
+| `check_recon_tools` | nothing | Check which external recon tools are installed + DNS health check |
+| `probe_hosts` | nothing | Probe live hosts — status code, server header, response size (uses Burp HTTP client) |
+| `run_subfinder` | subfinder | Enumerate subdomains passively |
+| `run_nuclei` | nuclei | Template-based vulnerability scanner with severity/tag filtering |
+| `run_katana` | katana | Web crawler with JS parsing, headless mode, form fill, known files |
+| `run_recon_pipeline` | varies | Full chain: subfinder -> probe -> katana -> nuclei (graceful degradation) |
 
-| Tool | Description |
-|------|-------------|
-| `check_recon_tools` | Check which external recon tools are installed + DNS health check |
-| `run_subfinder` | Enumerate subdomains passively via subfinder |
-| `probe_hosts` | Probe live hosts with status code, server, tech detection (uses Burp HTTP client — no external tool needed) |
-| `run_nuclei` | Run nuclei vulnerability scanner with template/tag/severity filtering |
-| `run_katana` | Crawl target with katana — JS parsing, headless mode, form fill, known files discovery |
-| `run_recon_pipeline` | Full recon chain: subfinder -> live probe -> katana -> nuclei with graceful degradation |
+`probe_hosts` and `check_recon_tools` always work — no external tools needed. The Go-based tools (`subfinder`, `nuclei`, `katana`) are optional and require installation:
 
-**Install (optional):**
 ```bash
-# ProjectDiscovery tools (Go required)
+# Install Go tools (optional)
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 ```
 
-> **How it works:** Call `check_recon_tools()` to see what's installed. Then call any `run_*` tool — if the binary isn't installed, it returns an install command. All tools route traffic through Burp's proxy by default (`use_proxy=True`) so requests appear in proxy history. Nuclei auto-downloads templates on first run.
+> **Alternatives when Go tools aren't available:**
+> - Instead of `run_katana` -> use `browser_crawl` (stealth Chromium, always works)
+> - Instead of `run_subfinder` -> manual subdomain input to `probe_hosts`
+> - Instead of `run_nuclei` -> use `auto_probe` (built-in knowledge-driven scanner)
+> - `run_recon_pipeline` gracefully skips missing tools and still runs what's available
+>
+> **WSL note:** Go tools may have DNS issues in WSL environments. If they time out, use the built-in alternatives above. `probe_hosts` and `browser_crawl` always work in WSL.
 
 ### Correlate
 | Tool | Description |
