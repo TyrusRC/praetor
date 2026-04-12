@@ -226,10 +226,12 @@ def register(mcp: FastMCP):
 
         output = stdout.strip()
         if not output:
-            err_hint = ""
+            diag = f" [proxy={BURP_PROXY_URL}, exit={code}]"
             if "no address found" in stderr:
-                err_hint = " (DNS resolution failed — check /etc/resolv.conf)"
-            return f"No live hosts found from {len(targets)} targets{err_hint}"
+                diag += " DNS FAILED"
+            if stderr.strip():
+                diag += f" err={stderr.strip()[:200]}"
+            return f"No live hosts found from {len(targets)} targets{diag}"
 
         results = [line.strip() for line in output.split("\n") if line.strip()]
         lines = [f"Live hosts ({len(results)}/{len(targets)}):", ""]
