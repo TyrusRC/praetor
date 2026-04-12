@@ -127,7 +127,7 @@ def register(mcp: FastMCP):
     async def run_subfinder(
         domain: str,
         silent: bool = True,
-        use_proxy: bool = False,
+        use_proxy: bool = True,
         timeout: int = 120,
     ) -> str:
         """Enumerate subdomains for a target domain using subfinder (passive).
@@ -137,7 +137,7 @@ def register(mcp: FastMCP):
         Args:
             domain: Target domain (e.g. 'example.com')
             silent: Suppress banner output (default: true)
-            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: false)
+            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: true)
             timeout: Max seconds to wait (default: 120)
         """
         if not _check_tool("subfinder"):
@@ -190,38 +190,23 @@ def register(mcp: FastMCP):
         if not _check_tool("httpx"):
             return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
 
-        cmd = [_find_tool("httpx"), "-silent", "-no-color", "-H", f"User-Agent: {_USER_AGENT}"]
+        cmd = ["httpx", "-u", ",".join(targets), "-silent", "-no-color",
+               "-H", f"User-Agent: {_USER_AGENT}"]
         if tech_detect:
-            cmd.append("-tech-detect")
+            cmd.append("-td")
         if status_code:
-            cmd.append("-status-code")
+            cmd.append("-sc")
         if use_proxy:
             cmd.extend(["-http-proxy", BURP_PROXY_URL])
 
-        input_data = "\n".join(targets)
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=input_data.encode()), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            try:
-                proc.kill()
-                await proc.wait()
-            except Exception:
-                pass
-            return f"httpx timed out after {timeout}s"
-        except Exception as e:
-            return f"Error running httpx: {e}"
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
 
-        output = stdout.decode(errors="replace").strip()
+        output = stdout.strip()
         if not output:
-            return f"No live hosts found from {len(targets)} targets"
+            err_hint = ""
+            if "no address found" in stderr:
+                err_hint = " (DNS resolution failed — check /etc/resolv.conf)"
+            return f"No live hosts found from {len(targets)} targets{err_hint}"
 
         results = [line.strip() for line in output.split("\n") if line.strip()]
         lines = [f"Live hosts ({len(results)}/{len(targets)}):", ""]
@@ -240,7 +225,7 @@ def register(mcp: FastMCP):
         tags: str = "",
         severity: str = "",
         use_proxy: bool = True,
-        timeout: int = 300,
+        timeout: int = 600,
     ) -> str:
         """Run nuclei vulnerability scanner against a target.
 
@@ -257,7 +242,12 @@ def register(mcp: FastMCP):
         if not _check_tool("nuclei"):
             return "Error: nuclei not installed. Install: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
-        cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl", "-duc",
+        # Auto-download templates if missing (first run)
+        templates_dir = os.path.expanduser("~/nuclei-templates")
+        if not os.path.isdir(templates_dir) or len(os.listdir(templates_dir)) < 5:
+            await _run_cmd(["nuclei", "-ut"], timeout=120)
+
+        cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl",
                "-H", f"User-Agent: {_USER_AGENT}",
                "-rl", "50", "-c", "10"]  # rate limit 50 req/s, 10 concurrent
         if templates:
@@ -461,40 +451,21 @@ def register(mcp: FastMCP):
 
         if _check_tool("httpx"):
             lines.append("[2/3] Running httpx...")
-            cmd = [_find_tool("httpx"), "-silent", "-status-code", "-no-color",
+            cmd = ["httpx", "-u", ",".join(targets), "-silent", "-sc", "-no-color",
                    "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
                 cmd.extend(["-http-proxy", BURP_PROXY_URL])
-            input_data = "\n".join(targets)
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(input=input_data.encode()), timeout=timeout
-                )
-                output = stdout.decode(errors="replace").strip()
-                if output:
-                    live_hosts = [l.strip() for l in output.split("\n") if l.strip()]
-                    lines.append(f"  {len(live_hosts)} live hosts:")
-                    for lh in live_hosts[:30]:
-                        lines.append(f"    {lh}")
-                    if len(live_hosts) > 30:
-                        lines.append(f"    ... +{len(live_hosts) - 30} more")
-                else:
-                    lines.append("  No live hosts found")
-            except asyncio.TimeoutError:
-                try:
-                    proc.kill()
-                    await proc.wait()
-                except Exception:
-                    pass
-                lines.append("  httpx timed out")
-            except Exception as e:
-                lines.append(f"  httpx error: {e}")
+            stdout, stderr, code = await _run_cmd(cmd, timeout)
+            output = stdout.strip()
+            if output:
+                live_hosts = [l.strip() for l in output.split("\n") if l.strip()]
+                lines.append(f"  {len(live_hosts)} live hosts:")
+                for lh in live_hosts[:30]:
+                    lines.append(f"    {lh}")
+                if len(live_hosts) > 30:
+                    lines.append(f"    ... +{len(live_hosts) - 30} more")
+            else:
+                lines.append("  No live hosts found")
         else:
             lines.append("[2/3] httpx not installed — skipping live host probing")
             live_hosts = [f"https://{domain}"]
@@ -528,12 +499,18 @@ def register(mcp: FastMCP):
 
         # Step 3: Nuclei scan (if depth allows)
         if depth in ("standard", "deep") and _check_tool("nuclei"):
+            # Auto-download templates if missing
+            templates_dir = os.path.expanduser("~/nuclei-templates")
+            if not os.path.isdir(templates_dir) or len(os.listdir(templates_dir)) < 5:
+                lines.append("[3/3] Downloading nuclei templates...")
+                await _run_cmd(["nuclei", "-ut"], timeout=120)
+
             lines.append("[3/3] Running nuclei...")
             target_url = live_hosts[0].split(" ")[0] if live_hosts else f"https://{domain}"
             if "[" in target_url:
                 target_url = target_url.split(" [")[0].strip()
 
-            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color", "-duc",
+            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color",
                    "-H", f"User-Agent: {_USER_AGENT}", "-rl", "50", "-c", "10"]
             if use_proxy:
                 cmd.extend(["-proxy", BURP_PROXY_URL])
