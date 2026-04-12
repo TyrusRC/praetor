@@ -19,6 +19,9 @@ from burpsuite_mcp.config import BURP_PROXY_URL
 _GO_BIN = os.path.join(os.path.expanduser("~"), "go", "bin")
 _SEARCH_PATH = os.pathsep.join([_GO_BIN, os.environ.get("PATH", "")])
 
+# Realistic User-Agent to avoid bot detection on targets
+_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
 
 def _find_tool(name: str) -> str | None:
     """Find tool binary, preferring ~/go/bin for ProjectDiscovery tools."""
@@ -141,7 +144,7 @@ def register(mcp: FastMCP):
             return "Error: subfinder not installed. Install: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
 
         domain = _sanitize_domain(domain)
-        cmd = ["subfinder", "-d", domain]
+        cmd = ["subfinder", "-d", domain, "-all"]
         if silent:
             cmd.append("-silent")
         if use_proxy:
@@ -187,7 +190,7 @@ def register(mcp: FastMCP):
         if not _check_tool("httpx"):
             return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
 
-        cmd = [_find_tool("httpx"), "-silent", "-no-color"]
+        cmd = [_find_tool("httpx"), "-silent", "-no-color", "-H", f"User-Agent: {_USER_AGENT}"]
         if tech_detect:
             cmd.append("-tech-detect")
         if status_code:
@@ -254,7 +257,9 @@ def register(mcp: FastMCP):
         if not _check_tool("nuclei"):
             return "Error: nuclei not installed. Install: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
-        cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl", "-duc"]
+        cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl", "-duc",
+               "-H", f"User-Agent: {_USER_AGENT}",
+               "-rl", "50", "-c", "10"]  # rate limit 50 req/s, 10 concurrent
         if templates:
             cmd.extend(["-t", templates])
         if tags:
@@ -302,6 +307,108 @@ def register(mcp: FastMCP):
 
         if len(findings) > 50:
             lines.append(f"  ... and {len(findings) - 50} more")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_katana(
+        target: str,
+        depth: int = 3,
+        js_crawl: bool = True,
+        headless: bool = False,
+        known_files: bool = False,
+        form_fill: bool = False,
+        scope_domain: str = "",
+        use_proxy: bool = True,
+        timeout: int = 180,
+    ) -> str:
+        """Crawl a target with katana to discover URLs, endpoints, and JavaScript-rendered paths.
+
+        katana is ProjectDiscovery's next-gen web crawler — faster than traditional crawlers
+        and capable of parsing JavaScript to find hidden API endpoints and routes.
+
+        Requires katana: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
+
+        Args:
+            target: Target URL (e.g. 'https://example.com')
+            depth: Crawl depth (default 3, max 10)
+            js_crawl: Enable JavaScript parsing/crawling to discover API endpoints in JS code (default true)
+            headless: Use headless browser for JavaScript-rendered pages (default false — slower but finds more)
+            known_files: Probe for known files like robots.txt, sitemap.xml (default false)
+            form_fill: Automatically fill and submit forms during crawl (default false)
+            scope_domain: Restrict crawl to this domain (default: auto from target URL)
+            use_proxy: Route requests through Burp proxy (default true)
+            timeout: Max seconds to wait (default 180)
+        """
+        if not _check_tool("katana"):
+            return "Error: katana not installed. Install: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest"
+
+        depth = min(depth, 10)
+        cmd = ["katana", "-u", target, "-silent", "-no-color", "-d", str(depth),
+               "-H", f"User-Agent: {_USER_AGENT}"]
+
+        if js_crawl:
+            cmd.append("-jc")
+        if headless:
+            cmd.extend(["-headless", "-no-sandbox"])
+        if known_files:
+            cmd.extend(["-kf", "all"])
+        if form_fill:
+            cmd.append("-aff")
+        if scope_domain:
+            cmd.extend(["-fs", _sanitize_domain(scope_domain)])
+        if use_proxy:
+            cmd.extend(["-proxy", BURP_PROXY_URL])
+
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+
+        if code != 0 and not stdout:
+            return f"katana failed (exit {code}): {stderr[:500]}"
+
+        urls = [line.strip() for line in stdout.strip().split("\n") if line.strip()]
+
+        if not urls:
+            return f"No URLs discovered by katana for {target}"
+
+        # Categorize URLs
+        js_urls = [u for u in urls if u.endswith(".js") or ".js?" in u]
+        api_urls = [u for u in urls if "/api/" in u or "/v1/" in u or "/v2/" in u or "/graphql" in u]
+        form_urls = [u for u in urls if "?" in u]
+        other_urls = [u for u in urls if u not in js_urls and u not in api_urls and u not in form_urls]
+
+        lines = [f"Katana crawl of {target} ({len(urls)} URLs, depth={depth}):", ""]
+
+        if api_urls:
+            lines.append(f"  API endpoints ({len(api_urls)}):")
+            for u in api_urls[:20]:
+                lines.append(f"    {u}")
+            if len(api_urls) > 20:
+                lines.append(f"    ... +{len(api_urls) - 20} more")
+
+        if form_urls:
+            lines.append(f"\n  Parameterized URLs ({len(form_urls)}):")
+            for u in form_urls[:20]:
+                lines.append(f"    {u}")
+            if len(form_urls) > 20:
+                lines.append(f"    ... +{len(form_urls) - 20} more")
+
+        if js_urls:
+            lines.append(f"\n  JavaScript files ({len(js_urls)}):")
+            for u in js_urls[:15]:
+                lines.append(f"    {u}")
+            if len(js_urls) > 15:
+                lines.append(f"    ... +{len(js_urls) - 15} more")
+
+        if other_urls:
+            lines.append(f"\n  Other pages ({len(other_urls)}):")
+            for u in other_urls[:20]:
+                lines.append(f"    {u}")
+            if len(other_urls) > 20:
+                lines.append(f"    ... +{len(other_urls) - 20} more")
+
+        lines.append(f"\nTotal: {len(urls)} URLs ({len(api_urls)} API, {len(form_urls)} parameterized, {len(js_urls)} JS)")
+        if use_proxy:
+            lines.append("All requests went through Burp proxy — check proxy history.")
 
         return "\n".join(lines)
 
@@ -354,7 +461,8 @@ def register(mcp: FastMCP):
 
         if _check_tool("httpx"):
             lines.append("[2/3] Running httpx...")
-            cmd = [_find_tool("httpx"), "-silent", "-status-code", "-no-color"]
+            cmd = [_find_tool("httpx"), "-silent", "-status-code", "-no-color",
+                   "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
                 cmd.extend(["-http-proxy", BURP_PROXY_URL])
             input_data = "\n".join(targets)
@@ -393,6 +501,31 @@ def register(mcp: FastMCP):
 
         lines.append("")
 
+        # Step 2.5: Katana crawl for URL discovery
+        if _check_tool("katana") and depth in ("standard", "deep"):
+            lines.append("[2.5/3] Running katana...")
+            target_url = live_hosts[0].split(" ")[0] if live_hosts else f"https://{domain}"
+            if "[" in target_url:
+                target_url = target_url.split(" [")[0].strip()
+
+            katana_depth = 2 if depth == "standard" else 4
+            cmd = ["katana", "-u", target_url, "-silent", "-no-color", "-d", str(katana_depth), "-jc",
+                   "-H", f"User-Agent: {_USER_AGENT}"]
+            if use_proxy:
+                cmd.extend(["-proxy", BURP_PROXY_URL])
+
+            stdout, stderr, code = await _run_cmd(cmd, timeout)
+            if stdout.strip():
+                crawled_urls = [l.strip() for l in stdout.strip().split("\n") if l.strip()]
+                lines.append(f"  {len(crawled_urls)} URLs discovered:")
+                for cu in crawled_urls[:20]:
+                    lines.append(f"    {cu}")
+                if len(crawled_urls) > 20:
+                    lines.append(f"    ... +{len(crawled_urls) - 20} more")
+            else:
+                lines.append("  No URLs discovered")
+            lines.append("")
+
         # Step 3: Nuclei scan (if depth allows)
         if depth in ("standard", "deep") and _check_tool("nuclei"):
             lines.append("[3/3] Running nuclei...")
@@ -400,7 +533,8 @@ def register(mcp: FastMCP):
             if "[" in target_url:
                 target_url = target_url.split(" [")[0].strip()
 
-            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color", "-duc"]
+            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color", "-duc",
+                   "-H", f"User-Agent: {_USER_AGENT}", "-rl", "50", "-c", "10"]
             if use_proxy:
                 cmd.extend(["-proxy", BURP_PROXY_URL])
             if depth == "standard":

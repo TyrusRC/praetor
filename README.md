@@ -210,7 +210,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (140 total)
+## Tools (141 total)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -429,7 +429,8 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `run_subfinder` | Enumerate subdomains passively via subfinder |
 | `run_httpx` | Probe live hosts with tech detection via httpx |
 | `run_nuclei` | Run nuclei vulnerability scanner with template/tag/severity filtering |
-| `run_recon_pipeline` | Full recon chain: subfinder -> httpx -> nuclei with graceful degradation |
+| `run_katana` | Crawl target with katana — JS parsing, headless mode, form fill, known files discovery |
+| `run_recon_pipeline` | Full recon chain: subfinder -> httpx -> katana -> nuclei with graceful degradation |
 
 ### Correlate
 | Tool | Description |
