@@ -374,13 +374,9 @@ def register(mcp: FastMCP):
         # -ho  = pass options to Chrome (--disable-gpu, --disable-dev-shm-usage)
         # -xhr = extract XHR request URLs (finds API calls)
         if crawl_mode == "hybrid":
-            cmd.extend(["-hh", "-nos", "-xhr",
-                        "-ho", "--disable-gpu",
-                        "-ho", "--disable-dev-shm-usage"])
+            cmd.extend(["-hh", "-nos", "-xhr"])
         elif crawl_mode == "headless":
-            cmd.extend(["-hl", "-nos", "-xhr",
-                        "-ho", "--disable-gpu",
-                        "-ho", "--disable-dev-shm-usage"])
+            cmd.extend(["-hl", "-nos", "-xhr"])
 
         if js_crawl:
             cmd.append("-jc")
@@ -526,7 +522,6 @@ def register(mcp: FastMCP):
             katana_depth = 2 if depth == "standard" else 4
             cmd = ["katana", "-u", target_url, "-silent", "-no-color",
                    "-d", str(katana_depth), "-jc", "-hh", "-nos", "-fsu", "-xhr",
-                   "-ho", "--disable-gpu", "-ho", "--disable-dev-shm-usage",
                    "-rl", "100", "-c", "10",
                    "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
