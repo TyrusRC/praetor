@@ -1,7 +1,6 @@
 package com.swissknife.handlers;
 
 import burp.api.montoya.MontoyaApi;
-import burp.api.montoya.core.ByteArray;
 import burp.api.montoya.http.HttpService;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.intruder.HttpRequestTemplate;
@@ -33,9 +32,7 @@ public class BurpToolsHandler extends BaseHandler {
         String path = exchange.getRequestURI().getPath();
         String method = exchange.getRequestMethod();
 
-        if (path.equals("/api/burp-tools/decoder") && "POST".equalsIgnoreCase(method)) {
-            handleDecoder(exchange);
-        } else if (path.equals("/api/burp-tools/project") && "GET".equalsIgnoreCase(method)) {
+        if (path.equals("/api/burp-tools/project") && "GET".equalsIgnoreCase(method)) {
             handleProject(exchange);
         } else if (path.equals("/api/burp-tools/logger") && "GET".equalsIgnoreCase(method)) {
             handleLogger(exchange);
@@ -43,26 +40,6 @@ public class BurpToolsHandler extends BaseHandler {
             handleIntruderConfig(exchange);
         } else {
             sendError(exchange, 404, "Not found");
-        }
-    }
-
-    /**
-     * Send data to Burp's Decoder tab for manual analysis.
-     */
-    private void handleDecoder(HttpExchange exchange) throws Exception {
-        Map<String, Object> body = readJsonBody(exchange);
-        String data = (String) body.get("data");
-
-        if (data == null || data.isEmpty()) {
-            sendError(exchange, 400, "Missing 'data' field");
-            return;
-        }
-
-        try {
-            api.decoder().sendToDecoder(ByteArray.byteArray(data));
-            sendOk(exchange, "Sent " + data.length() + " chars to Decoder tab");
-        } catch (Exception e) {
-            sendError(exchange, 500, "Failed to send to Decoder: " + e.getMessage());
         }
     }
 
@@ -148,13 +125,19 @@ public class BurpToolsHandler extends BaseHandler {
 
     /**
      * Send to Intruder with configured insertion point positions.
+     * Supports both simple send and template-based with custom insertion points.
+     *
+     * Body options:
+     *   Simple:   {"index": 42, "tab_name": "Attack"}
+     *   Raw:      {"raw_request": "GET / HTTP/1.1\r\n...", "host": "target.com"}
+     *   Template: {"index": 42, "positions": [[10,15],[30,35]], "mode": "replace"}
+     *             positions = list of [start, end] byte offsets marking insertion points
+     *             mode = "replace" (default) or "append"
      */
     private void handleIntruderConfig(HttpExchange exchange) throws Exception {
         Map<String, Object> body = readJsonBody(exchange);
 
-        // Option 1: From proxy history index
         Object indexObj = body.get("index");
-        // Option 2: From raw request
         String rawRequest = (String) body.get("raw_request");
         String host = (String) body.get("host");
         String tabName = (String) body.getOrDefault("tab_name", "MCP Attack");
@@ -178,14 +161,60 @@ public class BurpToolsHandler extends BaseHandler {
         }
 
         try {
-            api.intruder().sendToIntruder(request, tabName);
-            sendJson(exchange, JsonUtil.object(
-                "status", "ok",
-                "tab_name", tabName,
-                "method", request.method(),
-                "url", request.url(),
-                "message", "Sent to Intruder tab: " + tabName
-            ));
+            // Check if custom positions are specified
+            Object positionsObj = body.get("positions");
+            if (positionsObj instanceof List<?> positionsList && !positionsList.isEmpty()) {
+                // Template-based: user specifies exact byte offset positions
+                List<burp.api.montoya.core.Range> ranges = new ArrayList<>();
+                for (Object pos : positionsList) {
+                    if (pos instanceof List<?> pair && pair.size() == 2) {
+                        int start = ((Number) pair.get(0)).intValue();
+                        int end = ((Number) pair.get(1)).intValue();
+                        ranges.add(burp.api.montoya.core.Range.range(start, end));
+                    }
+                }
+
+                HttpRequestTemplate template = HttpRequestTemplate.httpRequestTemplate(request, ranges);
+                api.intruder().sendToIntruder(request.httpService(), template, tabName);
+
+                sendJson(exchange, JsonUtil.object(
+                    "status", "ok",
+                    "tab_name", tabName,
+                    "method", request.method(),
+                    "url", request.url(),
+                    "positions", ranges.size(),
+                    "message", "Sent to Intruder with " + ranges.size() + " insertion points"
+                ));
+            } else {
+                // Check for auto-position mode
+                String mode = (String) body.getOrDefault("mode", "");
+                if ("auto".equals(mode)) {
+                    // Let Burp auto-detect insertion points based on parameters
+                    HttpRequestTemplate template = HttpRequestTemplate.httpRequestTemplate(
+                        request,
+                        burp.api.montoya.intruder.HttpRequestTemplateGenerationOptions.REPLACE_BASE_PARAMETER_VALUE_WITH_OFFSETS
+                    );
+                    api.intruder().sendToIntruder(request.httpService(), template, tabName);
+                    sendJson(exchange, JsonUtil.object(
+                        "status", "ok",
+                        "tab_name", tabName,
+                        "method", request.method(),
+                        "url", request.url(),
+                        "mode", "auto-positions",
+                        "message", "Sent to Intruder with auto-detected insertion points"
+                    ));
+                } else {
+                    // Simple send without template
+                    api.intruder().sendToIntruder(request, tabName);
+                    sendJson(exchange, JsonUtil.object(
+                        "status", "ok",
+                        "tab_name", tabName,
+                        "method", request.method(),
+                        "url", request.url(),
+                        "message", "Sent to Intruder tab: " + tabName
+                    ));
+                }
+            }
         } catch (Exception e) {
             sendError(exchange, 500, "Failed to send to Intruder: " + e.getMessage());
         }

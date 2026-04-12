@@ -97,21 +97,6 @@ def register(mcp: FastMCP):
             return f"Error: {data['error']}"
         return f"Sent {data.get('sent', 0)} items to Organizer"
 
-    # ── Decoder ─────────────────────────────────────────────────
-
-    @mcp.tool()
-    async def send_to_decoder(data_text: str) -> str:
-        """Send data to Burp's Decoder tab for manual encoding/decoding analysis.
-        Opens the Decoder tab with the provided data pre-loaded.
-
-        Args:
-            data_text: Text data to send to Decoder
-        """
-        data = await client.post("/api/burp-tools/decoder", json={"data": data_text})
-        if "error" in data:
-            return f"Error: {data['error']}"
-        return data.get("message", "Sent to Decoder")
-
     # ── Project Info ────────────────────────────────────────────
 
     @mcp.tool()
@@ -176,17 +161,27 @@ def register(mcp: FastMCP):
         raw_request: str = "",
         host: str = "",
         tab_name: str = "MCP Attack",
+        positions: list[list[int]] | None = None,
+        mode: str = "",
     ) -> str:
-        """Send request to Burp's Intruder tab with a custom tab name.
-        More control than send_to_intruder — lets you name the attack tab.
-
-        Provide either index (proxy history) or raw_request + host.
+        """Send request to Burp's Intruder with custom insertion point positions.
+        Three modes:
+        1. Simple: just sends to Intruder (like send_to_intruder but with named tab)
+        2. Auto: Burp auto-detects parameter positions (mode='auto')
+        3. Manual: specify exact byte offset positions for injection points
 
         Args:
             index: Proxy history index (-1 to skip)
             raw_request: Raw HTTP request string (alternative to index)
             host: Target host for raw request (required with raw_request)
             tab_name: Name for the Intruder tab
+            positions: List of [start, end] byte offsets marking injection points (e.g. [[10,15],[30,35]])
+            mode: 'auto' to let Burp auto-detect positions, '' for simple send
+
+        Examples:
+        - Auto positions: send_to_intruder_configured(index=42, mode='auto')
+        - Manual positions: send_to_intruder_configured(index=42, positions=[[45,50],[78,83]])
+        - Simple: send_to_intruder_configured(index=42, tab_name='SQLi Test')
         """
         payload: dict = {"tab_name": tab_name}
         if index >= 0:
@@ -197,7 +192,20 @@ def register(mcp: FastMCP):
         else:
             return "Error: provide 'index' or 'raw_request' + 'host'"
 
+        if positions:
+            payload["positions"] = positions
+        if mode:
+            payload["mode"] = mode
+
         data = await client.post("/api/burp-tools/intruder-config", json=payload)
         if "error" in data:
             return f"Error: {data['error']}"
-        return f"Sent to Intruder tab '{data.get('tab_name', tab_name)}': {data.get('method', '?')} {data.get('url', '?')}"
+
+        msg = data.get("message", "")
+        pos_count = data.get("positions", "")
+        result = f"Sent to Intruder tab '{data.get('tab_name', tab_name)}': {data.get('method', '?')} {data.get('url', '?')}"
+        if pos_count:
+            result += f" ({pos_count} insertion points)"
+        if data.get("mode"):
+            result += f" [mode: {data['mode']}]"
+        return result
