@@ -431,7 +431,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `run_subfinder` | subfinder | Enumerate subdomains passively |
 | `run_nuclei` | nuclei | Template-based vulnerability scanner with severity/tag filtering |
 | `run_katana` | katana | Web crawler with JS parsing, headless mode, form fill, known files |
-| `run_recon_pipeline` | varies | Full chain: subfinder -> probe -> katana -> nuclei (graceful degradation) |
+| `run_recon_pipeline` | varies | Core recon chain: subfinder -> katana -> nuclei (graceful degradation) |
 
 `probe_hosts` and `check_recon_tools` always work — no external tools needed. The Go-based tools (`subfinder`, `nuclei`, `katana`) are optional and require installation:
 
