@@ -116,6 +116,15 @@ public class ApiServer {
         // Reusable request macros with variable extraction
         server.createContext("/api/macro", new MacroHandler(api));
 
+        // WebSocket send/receive (connect, send messages, close)
+        server.createContext("/api/websocket-send", new WebSocketSendHandler(api));
+
+        // Organizer (categorize items in Burp's Organizer tab)
+        server.createContext("/api/organizer", new OrganizerHandler(api));
+
+        // Burp tools: decoder, project info, logger, intruder config
+        server.createContext("/api/burp-tools", new BurpToolsHandler(api));
+
         server.start();
     }
 

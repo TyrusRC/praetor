@@ -5,8 +5,8 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp.tools import (
     read, analyze, send, correlate, collaborate, notes,
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
-    intel, cve, report, recon, transform, repeater, macro, scanner_control,
-    proxy_control, extract, browser, advisor,
+    intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
+    proxy_control, extract, browser, advisor, testing_extended, burp_tools,
 )
 
 mcp = FastMCP(
@@ -81,6 +81,7 @@ intel.register(mcp)     # persistent target intelligence storage across sessions
 cve.register(mcp)      # CVE intelligence: match tech stack against known vulnerabilities
 report.register(mcp)   # professional pentest report generation with platform templates
 recon.register(mcp)    # external recon tool orchestration (subfinder, nuclei, katana)
+recon_extended.register(mcp)  # Python-only recon: crt.sh, wayback, DNS, takeover, rate limit
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction
@@ -89,3 +90,5 @@ proxy_control.register(mcp)    # intercept, match-replace, annotations, stats, t
 extract.register(mcp)          # response extraction: regex, JSON path, CSS selector, headers, links, hash
 browser.register(mcp)          # stealth headless browser through Burp proxy — crawl, click, fill forms
 advisor.register(mcp)          # strategic hunt advisor — pre-computed plans, tool selection, finding validation
+testing_extended.register(mcp)  # advanced testing: API schema, GraphQL deep, business logic, smuggling, cache poisoning
+burp_tools.register(mcp)       # Burp native: WebSocket send, Organizer, Decoder, Logger, Project info, Intruder config
