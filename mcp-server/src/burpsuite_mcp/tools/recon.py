@@ -1,4 +1,4 @@
-"""External recon tool orchestration — optional integration with subfinder, httpx, nuclei, etc.
+"""External recon tool orchestration — optional integration with subfinder, nuclei, katana, etc.
 
 Security note: All subprocess calls use asyncio.create_subprocess_exec() which passes
 arguments as a list (no shell interpretation), preventing command injection. User input
@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp.config import BURP_PROXY_URL
 
 # ProjectDiscovery tools installed via `go install` land in ~/go/bin.
-# Prepend it to search path so PD httpx isn't shadowed by Python httpx CLI.
+# Prepend it to search path so Go tools are found.
 _GO_BIN = os.path.join(os.path.expanduser("~"), "go", "bin")
 _SEARCH_PATH = os.pathsep.join([_GO_BIN, os.environ.get("PATH", "")])
 
@@ -107,7 +107,7 @@ def register(mcp: FastMCP):
 
         lines = ["External Recon Tools:", ""]
         if not dns_ok:
-            lines.append("WARNING: DNS resolution is broken. Go-based tools (httpx, katana, nuclei)")
+            lines.append("WARNING: DNS resolution is broken. Go-based tools (katana, nuclei, subfinder)")
             lines.append("will fail. Fix: ensure /etc/resolv.conf has a reachable nameserver.")
             lines.append("For WSL: sudo bash -c 'echo nameserver $(ip route show default | awk \"{print \\$3}\") > /etc/resolv.conf'")
             lines.append("")
@@ -188,12 +188,12 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def run_httpx(
+    async def probe_hosts(
         targets: list[str],
         timeout: int = 30,
     ) -> str:
-        """Probe live hosts from a list of URLs/domains. Returns status code and response size.
-        Uses curl (always available) instead of ProjectDiscovery httpx for reliability.
+        """Probe live hosts from a list of URLs/domains via Burp's HTTP client.
+        Returns status code, server header, and response size. No external tools required.
 
         Args:
             targets: List of URLs or domains to probe
@@ -422,13 +422,13 @@ def register(mcp: FastMCP):
     ) -> str:
         """Run a full recon pipeline using available external tools.
 
-        Chains: subfinder → httpx → nuclei (based on available tools).
+        Chains: subfinder → probe → katana → nuclei (based on available tools).
         Gracefully degrades if tools are missing — works with whatever is installed.
-        All HTTP requests are routed through Burp's proxy by default.
+        Host probing always works (uses Burp HTTP client, no external tool needed).
 
         Args:
             domain: Target domain (e.g. 'example.com')
-            depth: 'quick' (subfinder+httpx only), 'standard' (+ nuclei critical/high), 'deep' (+ nuclei all severities)
+            depth: 'quick' (subfinder+probe only), 'standard' (+ katana + nuclei critical/high), 'deep' (+ nuclei all severities)
             use_proxy: Route requests through Burp proxy (default: true)
             timeout: Max seconds per tool (default: 300)
         """

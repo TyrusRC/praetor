@@ -164,7 +164,7 @@ mcp-server/src/burpsuite_mcp/
     ├── utility.py              # Encode/decode (base64, URL, HTML, hex, JWT, hashes) (1 tool)
     ├── cve.py                  # CVE intelligence: match tech stack, search CVEs (2 tools)
     ├── report.py               # Professional reports: pentest report + platform-specific formatting (2 tools)
-    ├── recon.py                # External recon: subfinder, httpx, nuclei, pipeline (5 tools)
+    ├── recon.py                # External recon: subfinder, nuclei, katana, probe_hosts, pipeline (6 tools)
     ├── proxy_control.py        # Intercept, match-replace, annotations, stats, live traffic, monitors (15 tools)
     ├── extract.py              # Response extraction: regex, JSON path, CSS selector, headers, links, hash (6 tools)
     ├── transform.py            # Encoding chains, smart decode, encoding detection (3 tools)

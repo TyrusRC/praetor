@@ -15,7 +15,7 @@ mcp = FastMCP(
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.
-Send: HTTP requests like curl/httpx with auth, redirects, cookies. Send to Repeater/Intruder.
+Send: HTTP requests like curl with auth, redirects, cookies. Send to Repeater/Intruder.
 Scan: trigger active scans, crawls, check status (requires Burp Professional).
 Fuzz: smart fuzzing with Claude-generated payloads, attack types (sniper/battering ram/pitchfork/cluster bomb), anomaly detection.
 Compare: enhanced response diff, send to Burp's Comparer, auth state comparison for IDOR.
@@ -26,7 +26,7 @@ Notes: save findings, export pentest reports.
 Intel: persistent target memory across sessions, staleness detection, finding verification states, cross-target pattern learning.
 CVE: match tech stack against known vulnerabilities, generate search URLs.
 Report: professional pentest reports with executive summary, platform-specific formatting (HackerOne, Bugcrowd, Intigriti, Immunefi).
-Recon: external tool orchestration (subfinder, httpx, nuclei) — graceful degradation if tools missing.
+Recon: external tool orchestration (subfinder, nuclei, katana) — graceful degradation if tools missing.
 Proxy Control: enable/disable intercept, match-and-replace rules, annotations (color+comment), traffic stats, live request polling, traffic pattern monitoring.
 Extract: pull specific data from responses — regex, JSON path, CSS selectors, headers, links, hashes. 10x more token-efficient than reading full responses.
 Transform: chain encoding operations (url→base64→url), smart auto-decode, encoding detection.
@@ -80,7 +80,7 @@ edge.register(mcp)      # edge-case testing: JWT, CORS, GraphQL, cloud metadata,
 intel.register(mcp)     # persistent target intelligence storage across sessions
 cve.register(mcp)      # CVE intelligence: match tech stack against known vulnerabilities
 report.register(mcp)   # professional pentest report generation with platform templates
-recon.register(mcp)    # external recon tool orchestration (subfinder, httpx, nuclei)
+recon.register(mcp)    # external recon tool orchestration (subfinder, nuclei, katana)
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction

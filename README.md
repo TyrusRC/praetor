@@ -129,7 +129,7 @@ flowchart LR
 chmod +x setup.sh && ./setup.sh
 ```
 
-This installs all required dependencies (Java 21, Maven, Python 3.11+, uv, Go), builds the project, installs optional recon tools (subfinder, httpx, nuclei, katana), and generates `.mcp.json`.
+This installs all required dependencies (Java 21, Maven, Python 3.11+, uv, Go), builds the project, installs optional recon tools (subfinder, nuclei, katana), and generates `.mcp.json`.
 
 ### Manual Setup
 
@@ -430,7 +430,7 @@ These tools are **optional** — they enhance recon when installed but are not r
 |------|-------------|
 | `check_recon_tools` | Check which external recon tools are installed + DNS health check |
 | `run_subfinder` | Enumerate subdomains passively via subfinder |
-| `run_httpx` | Probe live hosts with status code, server, tech detection (uses Burp HTTP client — no external tool needed) |
+| `probe_hosts` | Probe live hosts with status code, server, tech detection (uses Burp HTTP client — no external tool needed) |
 | `run_nuclei` | Run nuclei vulnerability scanner with template/tag/severity filtering |
 | `run_katana` | Crawl target with katana — JS parsing, headless mode, form fill, known files discovery |
 | `run_recon_pipeline` | Full recon chain: subfinder -> live probe -> katana -> nuclei with graceful degradation |
