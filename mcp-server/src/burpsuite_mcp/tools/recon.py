@@ -369,11 +369,16 @@ def register(mcp: FastMCP):
                "-H", f"User-Agent: {_USER_AGENT}",
                "-rl", "100", "-c", "10"]  # rate limit to avoid overwhelming target
 
-        # Crawl mode
+        # Crawl mode — always add Chrome perf flags for headless/hybrid
+        _chrome_opts = ["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"]
         if crawl_mode == "hybrid":
-            cmd.append("-hh")
+            cmd.extend(["-hh", "-nos"])
+            for opt in _chrome_opts:
+                cmd.extend(["-ho", opt])
         elif crawl_mode == "headless":
-            cmd.extend(["-hl", "-nos"])  # headless + no-sandbox
+            cmd.extend(["-hl", "-nos"])
+            for opt in _chrome_opts:
+                cmd.extend(["-ho", opt])
 
         if js_crawl:
             cmd.append("-jc")
@@ -518,7 +523,8 @@ def register(mcp: FastMCP):
 
             katana_depth = 2 if depth == "standard" else 4
             cmd = ["katana", "-u", target_url, "-silent", "-no-color",
-                   "-d", str(katana_depth), "-jc", "-hh", "-fsu",  # hybrid + JS + filter similar
+                   "-d", str(katana_depth), "-jc", "-hh", "-nos", "-fsu",
+                   "-ho", "--disable-gpu", "-ho", "--no-sandbox", "-ho", "--disable-dev-shm-usage",
                    "-rl", "100", "-c", "10",
                    "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
