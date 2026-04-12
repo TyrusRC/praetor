@@ -238,20 +238,25 @@ def register(mcp: FastMCP):
         templates: str = "",
         tags: str = "",
         severity: str = "",
+        auto_scan: bool = False,
+        dast: bool = False,
         use_proxy: bool = True,
         timeout: int = 600,
     ) -> str:
         """Run nuclei vulnerability scanner against a target.
+        All requests route through Burp proxy by default.
 
-        Requires nuclei to be installed: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+        Requires nuclei: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 
         Args:
             target: Target URL (e.g. 'https://example.com')
-            templates: Specific template directory/file (e.g. 'cves/', 'misconfiguration/')
-            tags: Filter by tags (e.g. 'apache,rce', 'cve2024')
-            severity: Filter by severity (e.g. 'critical,high')
-            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: true)
-            timeout: Max seconds to wait (default: 300)
+            templates: Template path (e.g. 'http/cves/', 'http/misconfiguration/', 'ssl/')
+            tags: Filter by tags (e.g. 'apache,rce', 'xss,sqli')
+            severity: Filter by severity (e.g. 'critical,high', 'medium,high,critical')
+            auto_scan: Auto-detect tech stack and run matching templates (-as flag)
+            dast: Enable DAST fuzzing mode for active testing
+            use_proxy: Route through Burp proxy (default true)
+            timeout: Max seconds (default 600)
         """
         if not _check_tool("nuclei"):
             return "Error: nuclei not installed. Install: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
@@ -263,11 +268,20 @@ def register(mcp: FastMCP):
 
         cmd = ["nuclei", "-u", target, "-silent", "-no-color", "-jsonl",
                "-H", f"User-Agent: {_USER_AGENT}",
-               "-rl", "50", "-c", "10"]  # rate limit 50 req/s, 10 concurrent
+               "-rl", "100", "-c", "25",       # rate limit + concurrency
+               "-bs", "10",                     # bulk size per template
+               "-timeout", "10",                # per-request timeout
+               "-retries", "1",
+               "-mhe", "10",                    # skip host after 10 errors
+               "-duc"]                          # disable update check (templates already downloaded)
         if templates:
             cmd.extend(["-t", templates])
         if tags:
             cmd.extend(["-tags", tags])
+        if auto_scan and not templates and not tags:
+            cmd.append("-as")                   # automatic scan based on tech detection
+        if dast:
+            cmd.append("-dast")
         if severity:
             cmd.extend(["-severity", severity])
         if use_proxy:
@@ -318,47 +332,59 @@ def register(mcp: FastMCP):
     async def run_katana(
         target: str,
         depth: int = 3,
+        crawl_mode: str = "hybrid",
         js_crawl: bool = True,
-        headless: bool = False,
         known_files: bool = False,
         form_fill: bool = False,
+        tech_detect: bool = False,
+        filter_similar: bool = True,
         scope_domain: str = "",
         use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
-        """Crawl a target with katana to discover URLs, endpoints, and JavaScript-rendered paths.
-
-        katana is ProjectDiscovery's next-gen web crawler — faster than traditional crawlers
-        and capable of parsing JavaScript to find hidden API endpoints and routes.
+        """Crawl a target with katana to discover URLs, endpoints, and JS-rendered paths.
+        All discovered URLs route through Burp proxy by default.
 
         Requires katana: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 
         Args:
             target: Target URL (e.g. 'https://example.com')
             depth: Crawl depth (default 3, max 10)
-            js_crawl: Enable JavaScript parsing/crawling to discover API endpoints in JS code (default true)
-            headless: Use headless browser for JavaScript-rendered pages (default false — slower but finds more)
-            known_files: Probe for known files like robots.txt, sitemap.xml (default false)
-            form_fill: Automatically fill and submit forms during crawl (default false)
-            scope_domain: Restrict crawl to this domain (default: auto from target URL)
-            use_proxy: Route requests through Burp proxy (default true)
-            timeout: Max seconds to wait (default 180)
+            crawl_mode: 'standard' (HTTP only, fast), 'headless' (full browser), 'hybrid' (best coverage — standard first, headless for JS pages)
+            js_crawl: Parse JavaScript files for endpoints (default true)
+            known_files: Probe robots.txt, sitemap.xml (requires depth >= 3)
+            form_fill: Auto-fill and submit forms (experimental)
+            tech_detect: Enable technology detection via wappalyzer
+            filter_similar: Filter similar-looking URLs like /users/123 vs /users/456 (default true)
+            scope_domain: Restrict to domain regex (default: auto from target)
+            use_proxy: Route through Burp proxy (default true)
+            timeout: Max seconds (default 300)
         """
         if not _check_tool("katana"):
             return "Error: katana not installed. Install: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest"
 
         depth = min(depth, 10)
-        cmd = ["katana", "-u", target, "-silent", "-no-color", "-d", str(depth),
-               "-H", f"User-Agent: {_USER_AGENT}"]
+        cmd = ["katana", "-u", target, "-silent", "-no-color",
+               "-d", str(depth),
+               "-H", f"User-Agent: {_USER_AGENT}",
+               "-rl", "100", "-c", "10"]  # rate limit to avoid overwhelming target
+
+        # Crawl mode
+        if crawl_mode == "hybrid":
+            cmd.append("-hh")
+        elif crawl_mode == "headless":
+            cmd.extend(["-hl", "-nos"])  # headless + no-sandbox
 
         if js_crawl:
             cmd.append("-jc")
-        if headless:
-            cmd.extend(["-headless", "-no-sandbox"])
-        if known_files:
+        if known_files and depth >= 3:
             cmd.extend(["-kf", "all"])
         if form_fill:
             cmd.append("-aff")
+        if tech_detect:
+            cmd.append("-td")
+        if filter_similar:
+            cmd.append("-fsu")
         if scope_domain:
             cmd.extend(["-fs", _sanitize_domain(scope_domain)])
         if use_proxy:
@@ -491,7 +517,9 @@ def register(mcp: FastMCP):
                 target_url = target_url.split(" [")[0].strip()
 
             katana_depth = 2 if depth == "standard" else 4
-            cmd = ["katana", "-u", target_url, "-silent", "-no-color", "-d", str(katana_depth), "-jc",
+            cmd = ["katana", "-u", target_url, "-silent", "-no-color",
+                   "-d", str(katana_depth), "-jc", "-hh", "-fsu",  # hybrid + JS + filter similar
+                   "-rl", "100", "-c", "10",
                    "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
                 cmd.extend(["-proxy", BURP_PROXY_URL])
@@ -521,8 +549,9 @@ def register(mcp: FastMCP):
             if "[" in target_url:
                 target_url = target_url.split(" [")[0].strip()
 
-            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color",
-                   "-H", f"User-Agent: {_USER_AGENT}", "-rl", "50", "-c", "10"]
+            cmd = ["nuclei", "-u", target_url, "-silent", "-no-color", "-as", "-duc",
+                   "-H", f"User-Agent: {_USER_AGENT}",
+                   "-rl", "100", "-c", "25", "-bs", "10", "-timeout", "10", "-mhe", "10"]
             if use_proxy:
                 cmd.extend(["-proxy", BURP_PROXY_URL])
             if depth == "standard":
