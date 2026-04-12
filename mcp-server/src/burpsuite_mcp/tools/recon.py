@@ -85,7 +85,6 @@ def register(mcp: FastMCP):
         """
         tools = {
             "subfinder": "Subdomain enumeration (passive)",
-            "httpx": "Live host probing with tech detection",
             "nuclei": "Template-based vulnerability scanner",
             "katana": "Web crawler / URL discovery",
             "ffuf": "Directory/parameter brute-forcing",
@@ -134,7 +133,6 @@ def register(mcp: FastMCP):
             lines.append("\nInstall commands:")
             lines.append("  # ProjectDiscovery tools")
             lines.append("  go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
-            lines.append("  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest")
             lines.append("  go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
             lines.append("  CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest")
             lines.append("  # Other Go tools")
@@ -192,55 +190,43 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def run_httpx(
         targets: list[str],
-        tech_detect: bool = True,
-        status_code: bool = True,
-        use_proxy: bool = True,
-        timeout: int = 120,
+        timeout: int = 30,
     ) -> str:
-        """Probe live hosts from a list of URLs/domains using httpx.
-
-        Requires httpx to be installed: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+        """Probe live hosts from a list of URLs/domains. Returns status code and response size.
+        Uses curl (always available) instead of ProjectDiscovery httpx for reliability.
 
         Args:
             targets: List of URLs or domains to probe
-            tech_detect: Enable technology detection (default: true)
-            status_code: Show status codes (default: true)
-            use_proxy: Route requests through Burp proxy so they appear in proxy history (default: true)
-            timeout: Max seconds to wait (default: 120)
+            timeout: Max seconds per target (default: 30)
         """
-        if not _check_tool("httpx"):
-            return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+        from burpsuite_mcp import client
 
-        cmd = ["httpx", "-silent", "-no-color",
-               "-H", f"User-Agent: {_USER_AGENT}"]
-        for t in targets:
-            cmd.extend(["-u", t])
-        if tech_detect:
-            cmd.append("-td")
-        if status_code:
-            cmd.append("-sc")
-        if use_proxy:
-            cmd.extend(["-http-proxy", BURP_PROXY_URL])
+        results = []
+        for target in targets:
+            url = target if "://" in target else f"https://{target}"
+            data = await client.post("/api/http/curl", json={
+                "url": url, "method": "GET",
+            })
+            if "error" not in data:
+                status = data.get("status_code", 0)
+                length = len(data.get("response_body", ""))
+                headers = data.get("response_headers", [])
+                server = next((h["value"] for h in headers if h["name"].lower() == "server"), "")
+                tech = next((h["value"] for h in headers if h["name"].lower() == "x-powered-by"), "")
+                info = f"[{status}]"
+                if server:
+                    info += f" [{server}]"
+                if tech:
+                    info += f" [{tech}]"
+                results.append(f"  {url} {info} ({length} bytes)")
+            else:
+                results.append(f"  {url} [FAILED] {data['error'][:100]}")
 
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        if not results:
+            return "No targets provided"
 
-        output = stdout.strip()
-        if not output:
-            diag = f" [proxy={BURP_PROXY_URL}, exit={code}]"
-            if "no address found" in stderr:
-                diag += " DNS FAILED"
-            if stderr.strip():
-                diag += f" err={stderr.strip()[:200]}"
-            return f"No live hosts found from {len(targets)} targets{diag}"
-
-        results = [line.strip() for line in output.split("\n") if line.strip()]
         lines = [f"Live hosts ({len(results)}/{len(targets)}):", ""]
-        for r in results[:100]:
-            lines.append(f"  {r}")
-
-        if len(results) > 100:
-            lines.append(f"  ... and {len(results) - 100} more")
-
+        lines.extend(results)
         return "\n".join(lines)
 
     @mcp.tool()
@@ -470,31 +456,26 @@ def register(mcp: FastMCP):
 
         lines.append("")
 
-        # Step 2: Live host probing
+        # Step 2: Live host probing (via Burp HTTP client — no external tool needed)
         targets = subdomains if subdomains else [domain]
         live_hosts = []
 
-        if _check_tool("httpx"):
-            lines.append("[2/3] Running httpx...")
-            cmd = ["httpx", "-silent", "-sc", "-no-color",
-                   "-H", f"User-Agent: {_USER_AGENT}"]
-            for t in targets:
-                cmd.extend(["-u", t])
-            if use_proxy:
-                cmd.extend(["-http-proxy", BURP_PROXY_URL])
-            stdout, stderr, code = await _run_cmd(cmd, timeout)
-            output = stdout.strip()
-            if output:
-                live_hosts = [l.strip() for l in output.split("\n") if l.strip()]
-                lines.append(f"  {len(live_hosts)} live hosts:")
-                for lh in live_hosts[:30]:
-                    lines.append(f"    {lh}")
-                if len(live_hosts) > 30:
-                    lines.append(f"    ... +{len(live_hosts) - 30} more")
-            else:
-                lines.append("  No live hosts found")
+        lines.append("[2/3] Probing live hosts...")
+        from burpsuite_mcp import client
+        for t in targets[:50]:  # limit to 50 targets
+            url = t if "://" in t else f"https://{t}"
+            data = await client.post("/api/http/curl", json={"url": url, "method": "GET"})
+            if "error" not in data and data.get("status_code", 0) > 0:
+                status = data.get("status_code", 0)
+                live_hosts.append(f"{url} [{status}]")
+        if live_hosts:
+            lines.append(f"  {len(live_hosts)} live hosts:")
+            for lh in live_hosts[:30]:
+                lines.append(f"    {lh}")
+            if len(live_hosts) > 30:
+                lines.append(f"    ... +{len(live_hosts) - 30} more")
         else:
-            lines.append("[2/3] httpx not installed — skipping live host probing")
+            lines.append("  No live hosts found")
             live_hosts = [f"https://{domain}"]
 
         lines.append("")

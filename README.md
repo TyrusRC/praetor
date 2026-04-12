@@ -430,16 +430,15 @@ These tools are **optional** — they enhance recon when installed but are not r
 |------|-------------|
 | `check_recon_tools` | Check which external recon tools are installed + DNS health check |
 | `run_subfinder` | Enumerate subdomains passively via subfinder |
-| `run_httpx` | Probe live hosts with tech detection via httpx |
+| `run_httpx` | Probe live hosts with status code, server, tech detection (uses Burp HTTP client — no external tool needed) |
 | `run_nuclei` | Run nuclei vulnerability scanner with template/tag/severity filtering |
 | `run_katana` | Crawl target with katana — JS parsing, headless mode, form fill, known files discovery |
-| `run_recon_pipeline` | Full recon chain: subfinder -> httpx -> katana -> nuclei with graceful degradation |
+| `run_recon_pipeline` | Full recon chain: subfinder -> live probe -> katana -> nuclei with graceful degradation |
 
 **Install (optional):**
 ```bash
 # ProjectDiscovery tools (Go required)
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 ```
