@@ -369,16 +369,18 @@ def register(mcp: FastMCP):
                "-H", f"User-Agent: {_USER_AGENT}",
                "-rl", "100", "-c", "10"]  # rate limit to avoid overwhelming target
 
-        # Crawl mode — always add Chrome perf flags for headless/hybrid
-        _chrome_opts = ["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"]
+        # Crawl mode
+        # -nos = katana's --no-sandbox flag
+        # -ho  = pass options to Chrome (--disable-gpu, --disable-dev-shm-usage)
+        # -xhr = extract XHR request URLs (finds API calls)
         if crawl_mode == "hybrid":
-            cmd.extend(["-hh", "-nos"])
-            for opt in _chrome_opts:
-                cmd.extend(["-ho", opt])
+            cmd.extend(["-hh", "-nos", "-xhr",
+                        "-ho", "--disable-gpu",
+                        "-ho", "--disable-dev-shm-usage"])
         elif crawl_mode == "headless":
-            cmd.extend(["-hl", "-nos"])
-            for opt in _chrome_opts:
-                cmd.extend(["-ho", opt])
+            cmd.extend(["-hl", "-nos", "-xhr",
+                        "-ho", "--disable-gpu",
+                        "-ho", "--disable-dev-shm-usage"])
 
         if js_crawl:
             cmd.append("-jc")
@@ -523,8 +525,8 @@ def register(mcp: FastMCP):
 
             katana_depth = 2 if depth == "standard" else 4
             cmd = ["katana", "-u", target_url, "-silent", "-no-color",
-                   "-d", str(katana_depth), "-jc", "-hh", "-nos", "-fsu",
-                   "-ho", "--disable-gpu", "-ho", "--no-sandbox", "-ho", "--disable-dev-shm-usage",
+                   "-d", str(katana_depth), "-jc", "-hh", "-nos", "-fsu", "-xhr",
+                   "-ho", "--disable-gpu", "-ho", "--disable-dev-shm-usage",
                    "-rl", "100", "-c", "10",
                    "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
