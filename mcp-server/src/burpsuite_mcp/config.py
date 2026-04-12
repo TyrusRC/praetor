@@ -3,7 +3,9 @@ from pathlib import Path
 
 
 def _load_env():
-    """Load .env file by searching upward from this file to the project root."""
+    """Load .env file by searching upward from this file to the project root.
+    Uses os.environ[] direct set (not setdefault) so .env always takes effect
+    unless overridden by explicit env vars from .mcp.json."""
     current = Path(__file__).resolve().parent
     for _ in range(6):  # search up to 6 levels
         env_file = current / ".env"
@@ -12,7 +14,10 @@ def _load_env():
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     key, _, value = line.partition("=")
-                    os.environ.setdefault(key.strip(), value.strip())
+                    key, value = key.strip(), value.strip()
+                    # Set if not already in environment (from .mcp.json or shell)
+                    if key not in os.environ or not os.environ[key]:
+                        os.environ[key] = value
             return
         current = current.parent
 

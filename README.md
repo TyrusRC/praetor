@@ -210,7 +210,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (141 total)
+## Tools (141 total — 88 core + 53 new)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -422,15 +422,29 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `generate_report` | Full pentest report with executive summary, methodology, sorted findings, coverage, recommendations |
 | `format_finding_for_platform` | Format a finding for HackerOne, Bugcrowd, Intigriti, or Immunefi submission |
 
-### External Recon (optional tools)
+### External Recon (optional Go tools)
+
+These tools are **optional** — they enhance recon when installed but are not required. All traffic routes through Burp's proxy by default so it appears in proxy history.
+
 | Tool | Description |
 |------|-------------|
-| `check_recon_tools` | Check which external recon tools are installed (subfinder, httpx, nuclei, etc.) |
+| `check_recon_tools` | Check which external recon tools are installed + DNS health check |
 | `run_subfinder` | Enumerate subdomains passively via subfinder |
 | `run_httpx` | Probe live hosts with tech detection via httpx |
 | `run_nuclei` | Run nuclei vulnerability scanner with template/tag/severity filtering |
 | `run_katana` | Crawl target with katana — JS parsing, headless mode, form fill, known files discovery |
 | `run_recon_pipeline` | Full recon chain: subfinder -> httpx -> katana -> nuclei with graceful degradation |
+
+**Install (optional):**
+```bash
+# ProjectDiscovery tools (Go required)
+go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
+```
+
+> **How it works:** Call `check_recon_tools()` to see what's installed. Then call any `run_*` tool — if the binary isn't installed, it returns an install command. All tools route traffic through Burp's proxy by default (`use_proxy=True`) so requests appear in proxy history. Nuclei auto-downloads templates on first run.
 
 ### Correlate
 | Tool | Description |

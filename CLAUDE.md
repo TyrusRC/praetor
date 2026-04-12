@@ -143,7 +143,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── mass_assignment.json, request_smuggling.json, llm_injection.json
 │   ├── info_disclosure.json, websocket.json, file_upload.json
 │   └── tech_vulns.json         # Tech-specific vulnerabilities (reference only, no probes)
-└── tools/                      # 140 MCP tools across 29 modules
+└── tools/                      # 141 MCP tools across 29 modules
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl (6 tools)
