@@ -34,16 +34,23 @@ def _check_tool(name: str) -> bool:
 
 
 async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
-    """Run a command safely using exec (no shell) and return (stdout, stderr, returncode)."""
+    """Run a command safely using create_subprocess_exec (no shell) and return (stdout, stderr, returncode)."""
     # Resolve full path so ~/go/bin tools aren't shadowed by system packages
     resolved = _find_tool(cmd[0])
     if resolved:
         cmd = [resolved] + cmd[1:]
+
+    # Force Go tools to use C resolver — fixes DNS in WSL2 where Go's pure-Go
+    # resolver can't reach DNS servers listed in /etc/resolv.conf
+    env = os.environ.copy()
+    env["GODEBUG"] = "netdns=cgo"
+
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return stdout.decode(errors="replace"), stderr.decode(errors="replace"), proc.returncode or 0
@@ -91,7 +98,21 @@ def register(mcp: FastMCP):
             "wpscan": "WordPress vulnerability scanner",
         }
 
+        # Check DNS resolution (common WSL issue)
+        dns_ok = True
+        try:
+            import socket
+            socket.getaddrinfo("example.com", 443, proto=socket.IPPROTO_TCP)
+        except socket.gaierror:
+            dns_ok = False
+
         lines = ["External Recon Tools:", ""]
+        if not dns_ok:
+            lines.append("WARNING: DNS resolution is broken. Go-based tools (httpx, katana, nuclei)")
+            lines.append("will fail. Fix: ensure /etc/resolv.conf has a reachable nameserver.")
+            lines.append("For WSL: sudo bash -c 'echo nameserver $(ip route show default | awk \"{print \\$3}\") > /etc/resolv.conf'")
+            lines.append("")
+
         available = []
         missing = []
 
@@ -190,8 +211,10 @@ def register(mcp: FastMCP):
         if not _check_tool("httpx"):
             return "Error: httpx not installed. Install: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
 
-        cmd = ["httpx", "-u", ",".join(targets), "-silent", "-no-color",
+        cmd = ["httpx", "-silent", "-no-color",
                "-H", f"User-Agent: {_USER_AGENT}"]
+        for t in targets:
+            cmd.extend(["-u", t])
         if tech_detect:
             cmd.append("-td")
         if status_code:
@@ -451,8 +474,10 @@ def register(mcp: FastMCP):
 
         if _check_tool("httpx"):
             lines.append("[2/3] Running httpx...")
-            cmd = ["httpx", "-u", ",".join(targets), "-silent", "-sc", "-no-color",
+            cmd = ["httpx", "-silent", "-sc", "-no-color",
                    "-H", f"User-Agent: {_USER_AGENT}"]
+            for t in targets:
+                cmd.extend(["-u", t])
             if use_proxy:
                 cmd.extend(["-http-proxy", BURP_PROXY_URL])
             stdout, stderr, code = await _run_cmd(cmd, timeout)
