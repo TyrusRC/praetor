@@ -324,7 +324,7 @@ def register(mcp: FastMCP):
         form_fill: bool = False,
         scope_domain: str = "",
         use_proxy: bool = True,
-        timeout: int = 180,
+        timeout: int = 300,
     ) -> str:
         """Crawl a target with katana to discover URLs, endpoints, and JavaScript-rendered paths.
 
