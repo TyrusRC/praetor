@@ -38,7 +38,7 @@ public class ApiServer {
 
     public void start() throws IOException {
         server = HttpServer.create(new InetSocketAddress(host, port), 0);
-        server.setExecutor(Executors.newFixedThreadPool(4));
+        server.setExecutor(Executors.newFixedThreadPool(6));
 
         // Health
         server.createContext("/api/health", new HealthHandler(version));
@@ -89,8 +89,32 @@ public class ApiServer {
         sessionHandler = new SessionHandler(api, findingsStore);
         server.createContext("/api/session", sessionHandler);
 
+        // Tracked Repeater tabs (two-way iteration)
+        server.createContext("/api/repeater", new RepeaterHandler(api));
+
         // Attack automation (auth matrix, race condition, HPP)
         server.createContext("/api/attack", new AttackHandler(api, sessionHandler.getSessions()));
+
+        // Intercept control
+        server.createContext("/api/intercept", new InterceptHandler(api));
+
+        // Match-and-replace rules
+        server.createContext("/api/match-replace", new MatchReplaceHandler(api));
+
+        // Proxy history annotations
+        server.createContext("/api/annotations", new AnnotationHandler(api));
+
+        // Traffic stats, live polling, and monitors
+        server.createContext("/api/traffic", new TrafficMonitorHandler(api));
+
+        // Text-pattern extraction: regex, CSS selector, links
+        server.createContext("/api/extract-text", new ExtractTextHandler(api));
+
+        // Structured-data extraction: JSON path, headers, hash
+        server.createContext("/api/extract-data", new ExtractDataHandler(api));
+
+        // Reusable request macros with variable extraction
+        server.createContext("/api/macro", new MacroHandler(api));
 
         server.start();
     }

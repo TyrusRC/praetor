@@ -59,6 +59,14 @@ Skip entirely if freshness check says all sections are FRESH.
 4. `detect_tech_stack` on key pages for full stack profiling
 5. `fetch_page_resources` + `extract_js_secrets` + `analyze_dom` for JS analysis
 
+**Option C — Browser-assisted recon (for JS-heavy targets):**
+1. `browser_crawl(url, max_pages=20)` — auto-crawl through Burp proxy, populates proxy history
+2. `browser_interact_all(url)` — click every button/link/toggle on the page
+3. `get_proxy_history(limit=50)` — review all captured traffic
+4. `smart_analyze(index)` on key pages from proxy history
+
+**One-call alternative:** `run_recon_phase(target_url)` executes session creation + tech detection + analysis + sensitive file checks in a single call.
+
 **After agents complete (or sequential steps finish):**
 - Merge endpoint list + JS-discovered endpoints
 - Merge secrets into suspected findings
@@ -75,6 +83,8 @@ Skip entirely if freshness check says all sections are FRESH.
 - High-risk parameters identified
 
 ## Phase 3: Vulnerability Testing
+
+**ADVISOR SHORTCUT:** Call `get_hunt_plan(target_url)` or `get_next_action(target_url, completed_phases=['recon'])` to get pre-computed testing priorities instead of reasoning about what to test next.
 
 Load coverage to identify UNTESTED parameters and categories.
 

@@ -9,6 +9,8 @@ dependencies = [
     "httpx==0.28.1",
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
+    "playwright>=1.49.0",
+    "playwright-stealth>=2.0.0",
 ]
 
 [project.scripts]

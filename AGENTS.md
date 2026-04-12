@@ -19,7 +19,7 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 ### vuln-scanner
 **Purpose:** Test a specific vulnerability category on assigned endpoints.
 **When to dispatch:** After recon, one agent per vuln category on non-overlapping targets.
-**Tools it should use:** `auto_probe`, `bulk_test`, `probe_endpoint`, `fuzz_parameter`, `test_lfi`, `test_file_upload`, `test_cors`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect`, `get_payloads`
+**Tools it should use:** `auto_probe`, `bulk_test`, `probe_endpoint`, `fuzz_parameter`, `test_lfi`, `test_file_upload`, `test_cors`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect`, `test_jwt`, `get_payloads`
 **Returns:** Findings with scores, tested parameters, anomalies for investigation.
 **Important:** Each vuln-scanner agent gets a DIFFERENT set of targets or categories to avoid duplicate requests.
 
@@ -41,6 +41,13 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 **Tools it should use:** `test_auth_matrix`, `compare_auth_states`, `test_race_condition`, `test_parameter_pollution`, `test_jwt`, `session_request`
 **Returns:** IDOR findings, auth bypass results, race condition results.
 
+### browser-agent
+**Purpose:** Browser-based crawling and JavaScript interaction for SPA/JS-heavy targets.
+**When to dispatch:** When target has extensive client-side rendering, Angular/React/Vue apps, or auto-loading content that server-side crawling misses.
+**Tools it should use:** `browser_navigate`, `browser_crawl`, `browser_interact_all`, `browser_click`, `browser_fill`, `browser_execute_js`, `browser_get_page_info`, `browser_get_links`
+**Returns:** Discovered endpoints from JS rendering, dynamic routes, XHR/API calls captured in proxy history.
+**Constraint:** Only ONE browser agent at a time — single browser instance.
+
 ## Dispatch Rules
 
 1. **Never dispatch agents that make requests to the SAME endpoint simultaneously** — this can trigger WAF rate limiting and corrupt results.
@@ -48,6 +55,8 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 3. **The orchestrator does NOT duplicate work** — if you dispatch an agent to scan for SQLi, don't also scan for SQLi yourself.
 4. **Merge results before next strategic decision** — wait for all parallel agents to complete before deciding what to investigate next.
 5. **Save intel after merging** — the orchestrator calls `save_target_intel` with merged results, not individual agents.
+6. **Browser agents cannot run in parallel** — only one headless browser instance exists.
+7. **Use browser_crawl before extraction tools** — proxy history must be populated first.
 
 ## Parallelization Patterns
 

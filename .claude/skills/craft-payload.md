@@ -95,6 +95,19 @@ Based on the filter map, choose the right approach:
 
 ### Strategy A: Encoding Bypass (filter checks raw input, backend decodes)
 
+**Preferred: Use `transform_chain` for multi-layer encoding in ONE call:**
+```python
+# Multi-layer bypass in one call (instead of 3 separate decode_encode calls)
+transform_chain("<script>alert(1)</script>", ["url_encode", "base64_encode", "url_encode"])
+
+# Detect what encoding is applied to a response value
+detect_encoding("mystery_encoded_string")
+
+# Auto-peel all encoding layers
+smart_decode("nested_encoded_value")
+```
+
+**Single encoding operations:**
 ```python
 # URL encoding
 decode_encode("<script>alert(1)</script>", "url_encode")

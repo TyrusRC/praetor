@@ -9,10 +9,19 @@ You are verifying a suspected vulnerability. Your job is to PROVE it's real or m
 
 ## Process
 
-1. **Load the finding** from `load_target_intel(domain, "findings")`
-2. **Re-send the PoC request** exactly as stored — use `session_request` or `send_http_request` with the exact method, path, headers, body
-3. **Check the expected behavior** matches what was originally observed
-4. **Test 2-3 times** for timing-based findings to rule out network jitter
+1. **Auto-validate first:** `assess_finding(vuln_type, evidence, endpoint)` — runs the 7-Question Gate automatically. If it says DO NOT REPORT, stop.
+2. **Load the finding** from `load_target_intel(domain, "findings")`
+3. **Re-send the PoC request** exactly as stored — use `session_request` or `send_http_request` with the exact method, path, headers, body
+4. **Check the expected behavior** matches what was originally observed
+5. **Test 2-3 times** for timing-based findings to rule out network jitter
+
+### Efficient Evidence Extraction
+
+Use specialized tools instead of reading full responses:
+- `extract_regex(index, 'proof_pattern', group=1)` — just extract the proof
+- `extract_json_path(index, '$.error')` — specific JSON field from API response
+- `get_response_hash(index)` — compare hashes not full bodies for consistency checks
+- `extract_headers(index, ['Set-Cookie', 'Location'])` — just the headers that matter
 
 ## Evidence Requirements
 

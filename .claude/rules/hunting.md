@@ -35,12 +35,15 @@ These rules are ALWAYS active when using Burp Suite MCP tools. They override any
 15. **Check coverage before testing.** Don't re-test parameters already covered in this session. Use `load_target_intel(domain, "coverage")`.
 16. **Save progress at every checkpoint.** If the session ends unexpectedly, you should be able to resume without re-doing work.
 17. **Don't spray the same payload type endlessly.** If 10 SQLi tests return nothing, pivot to a different vuln category or technique.
+18. **Use extraction tools, not full responses.** `extract_regex`, `extract_json_path`, `extract_css_selector` are 10x more token-efficient than `get_request_detail(full_body=True)`.
+19. **Use advisor tools for decisions.** `get_hunt_plan` and `get_next_action` replace strategic reasoning. `assess_finding` replaces manual 7-Question Gate evaluation.
+20. **Use browser for proxy history.** `browser_crawl` and `browser_navigate` populate proxy history through Burp's proxy. `curl_request` does NOT populate proxy history.
 
 ## Reporting
 
-18. **NEVER inflate severity.** A reflected XSS is not CRITICAL. An info disclosure is not HIGH. Be honest.
-19. **NEVER submit a finding that requires the victim to do something absurd** ("user must paste this 500-char payload into the console").
-20. **NEVER submit duplicate findings.** Check existing findings with `load_target_intel(domain, "findings")` before saving.
+21. **NEVER inflate severity.** A reflected XSS is not CRITICAL. An info disclosure is not HIGH. Be honest.
+22. **NEVER submit a finding that requires the victim to do something absurd** ("user must paste this 500-char payload into the console").
+23. **NEVER submit duplicate findings.** Check existing findings with `load_target_intel(domain, "findings")` before saving.
 
 ## 7-Question Validation Gate
 

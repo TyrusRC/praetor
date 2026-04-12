@@ -70,14 +70,14 @@ Two codebases in one repo:
 burp-extension/src/main/java/com/swissknife/
 ├── SwissKnifeExtension.java    # Entry point (BurpExtension interface)
 ├── server/
-│   ├── ApiServer.java          # HTTP server, routes, thread pool (4 threads)
+│   ├── ApiServer.java          # HTTP server, routes, thread pool (6 threads)
 │   └── BaseHandler.java        # Abstract handler with CORS, parsing, response helpers
-├── handlers/                   # 17 endpoint handlers (one per API domain)
+├── handlers/                   # 25 endpoint handlers (one per API domain)
 │   ├── HealthHandler.java      # GET /api/health
 │   ├── ProxyHandler.java       # GET /api/proxy/history, /api/proxy/history/{index}
 │   ├── SitemapHandler.java     # GET /api/sitemap
 │   ├── ScopeHandler.java       # GET/POST /api/scope/* — include/exclude/auto-filter
-│   ├── ScannerHandler.java     # POST /api/scanner/scan, /crawl; GET /status, /findings
+│   ├── ScannerHandler.java     # POST /api/scanner/scan, /crawl; GET /status, /findings, /findings/new; DELETE/POST scan control
 │   ├── HttpSendHandler.java    # POST /api/http/send, /raw, /resend, /repeater, /intruder, /curl
 │   ├── SessionHandler.java     # POST /api/session/* — persistent sessions, flows, extraction
 │   ├── AnalysisHandler.java    # POST /api/analysis/* (routes to analysis modules)
@@ -89,7 +89,15 @@ burp-extension/src/main/java/com/swissknife/
 │   ├── CookieHandler.java      # GET /api/cookies
 │   ├── WebSocketHandler.java   # GET /api/websocket/history
 │   ├── SitemapExportHandler.java # GET /api/export/sitemap
-│   └── ResourceHandler.java    # GET /api/resources; POST /fetch, /fetch-page
+│   ├── ResourceHandler.java    # GET /api/resources; POST /fetch, /fetch-page
+│   ├── InterceptHandler.java   # POST /api/intercept/enable, /disable; GET /status
+│   ├── MatchReplaceHandler.java # POST /api/match-replace/add, /clear; GET list; DELETE /{id}
+│   ├── AnnotationHandler.java  # POST /api/annotations/set, /bulk; GET /{index}
+│   ├── TrafficMonitorHandler.java # GET /api/traffic/stats, /live; POST/GET/DELETE monitor/*
+│   ├── ExtractTextHandler.java # POST /api/extract-text/regex, /css-selector, /links
+│   ├── ExtractDataHandler.java # POST /api/extract-data/json-path, /headers, /hash
+│   ├── RepeaterHandler.java    # POST /api/repeater/send, /resend; GET /tabs; DELETE /{name}
+│   └── MacroHandler.java       # POST /api/macro/create, /run; GET /list, /{name}; DELETE /{name}
 ├── analysis/                   # 8 analysis modules
 │   ├── ParameterExtractor.java
 │   ├── FormExtractor.java
@@ -106,7 +114,7 @@ burp-extension/src/main/java/com/swissknife/
 
 mcp-server/src/burpsuite_mcp/
 ├── __main__.py                 # Entry point → mcp.run(transport="stdio")
-├── server.py                   # FastMCP instance + tool registration (21 modules)
+├── server.py                   # FastMCP instance + tool registration (27 modules)
 ├── config.py                   # Env vars: BURP_API_HOST, BURP_API_PORT, BURP_API_TIMEOUT
 ├── client.py                   # Async HTTP client (httpx) to extension
 ├── processing/
@@ -135,7 +143,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── mass_assignment.json, request_smuggling.json, llm_injection.json
 │   ├── info_disclosure.json, websocket.json, file_upload.json
 │   └── tech_vulns.json         # Tech-specific vulnerabilities (reference only, no probes)
-└── tools/                      # 88 MCP tools across 20 modules
+└── tools/                      # 140 MCP tools across 29 modules
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl (6 tools)
@@ -147,6 +155,7 @@ mcp-server/src/burpsuite_mcp/
     ├── correlate.py            # Search, findings correlation, response diff (3 tools)
     ├── collaborate.py          # Collaborator payloads, interactions, auto-test (3 tools)
     ├── scanner.py              # Scan URL, crawl target, scan status (3 tools)
+    ├── scanner_control.py      # Cancel scan, pause/resume (status), poll new findings (4 tools)
     ├── notes.py                # Save, get, export findings (3 tools)
     ├── payloads.py             # get_payloads — context-aware payload lookup (1 tool)
     ├── dom.py                  # DOM structure + JS sink/source analysis (1 tool)
@@ -155,7 +164,15 @@ mcp-server/src/burpsuite_mcp/
     ├── utility.py              # Encode/decode (base64, URL, HTML, hex, JWT, hashes) (1 tool)
     ├── cve.py                  # CVE intelligence: match tech stack, search CVEs (2 tools)
     ├── report.py               # Professional reports: pentest report + platform-specific formatting (2 tools)
-    └── recon.py                # External recon: subfinder, httpx, nuclei, pipeline (5 tools)
+    ├── recon.py                # External recon: subfinder, httpx, nuclei, pipeline (5 tools)
+    ├── proxy_control.py        # Intercept, match-replace, annotations, stats, live traffic, monitors (15 tools)
+    ├── extract.py              # Response extraction: regex, JSON path, CSS selector, headers, links, hash (6 tools)
+    ├── transform.py            # Encoding chains, smart decode, encoding detection (3 tools)
+    ├── repeater.py             # Tracked Repeater tabs: send, list, resend with mods, remove (4 tools)
+    ├── macro.py                # Reusable request macros: create, run, list, get, delete (5 tools)
+    ├── intel.py                # Target intelligence: save/load intel, freshness, notes, cross-target (5+ tools)
+    ├── browser.py              # Stealth headless Chromium through Burp proxy — crawl, click, fill, interact (10 tools)
+    └── advisor.py              # Hunt advisor: pre-computed plans, tool selection, finding validation (5 tools)
 ```
 
 ## Key Design Decisions

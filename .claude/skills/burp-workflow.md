@@ -5,7 +5,9 @@ description: Efficient Burp Suite tool orchestration — know which tool to use 
 
 # Burp Suite Workflow Orchestration
 
-You are connected to Burp Suite via MCP. You have 88 tools. Knowing WHICH tool to pick and WHEN is the difference between wasting 50 tool calls and finding a bug in 5. This skill teaches efficient Burp orchestration.
+You are connected to Burp Suite via MCP. You have 140 tools. Knowing WHICH tool to pick and WHEN is the difference between wasting 50 tool calls and finding a bug in 5. This skill teaches efficient Burp orchestration.
+
+**ADVISOR SHORTCUT:** Call `pick_tool('your task')` to instantly get the right tool + example. Call `get_hunt_plan(target)` for a full phased testing plan.
 
 ## Core Principle: Minimize Tool Calls, Maximize Signal
 
@@ -73,6 +75,56 @@ Need simultaneous requests (race condition)?
 
 Need N endpoints x M auth states?
   → test_auth_matrix(endpoints, auth_states)          # IDOR matrix in ONE call
+```
+
+### "I need to browse the target and populate proxy history"
+
+```
+Auto-crawl (fastest)     → browser_crawl(url, max_pages=20)           # Stealth Chromium through Burp proxy
+Click everything         → browser_interact_all(url, max_clicks=30)   # Buttons, links, toggles
+Navigate + observe DOM   → browser_navigate(url) then browser_execute_js(script)
+Fill and submit forms    → browser_submit_form(fields, submit_selector)
+Get page overview        → browser_get_page_info()                     # Forms, cookies, inputs
+```
+
+### "I need to extract specific data from a response"
+
+```
+Don't read full responses — use extraction tools (10x more token-efficient):
+  CSRF token from HTML  → extract_css_selector(index, 'input[name=csrf]', attribute='value')
+  JSON field            → extract_json_path(index, '$.data.user.role')
+  Custom pattern        → extract_regex(index, 'pattern', group=1)
+  Security headers only → extract_headers(index, ['CSP', 'X-Frame-Options'])
+  All page links        → extract_links(index, link_filter='internal')
+  Quick change detect   → get_response_hash(index)
+```
+
+### "I need to control the proxy"
+
+```
+  Intercept on/off      → enable_intercept() / disable_intercept()
+  Auto-modify traffic   → set_match_replace([{type, match, replace}])
+  Annotate items        → annotate_request(index, color='RED', comment='SQLi')
+  Traffic stats         → get_proxy_stats()
+  Watch for patterns    → register_traffic_monitor(tag, patterns)
+  Poll new traffic      → get_live_requests(since_index)
+```
+
+### "I need to iterate on a request"
+
+```
+  Track in Repeater     → send_to_repeater_tracked(index, 'tab-name')
+  Modify and resend     → repeater_resend('tab-name', modify_path='/new/path')
+  Reusable multi-step   → create_macro(name, steps) then run_macro(name)
+```
+
+### "I need strategic help"
+
+```
+  Full hunt plan        → get_hunt_plan(target_url)
+  Next best action      → get_next_action(target_url, completed_phases)
+  Validate finding      → assess_finding(vuln_type, evidence, endpoint)
+  Pick right tool       → pick_tool('task description')
 ```
 
 ### "I need to confirm a finding"

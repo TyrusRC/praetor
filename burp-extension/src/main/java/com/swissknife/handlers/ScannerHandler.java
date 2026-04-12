@@ -47,6 +47,14 @@ public class ScannerHandler extends BaseHandler {
             handleStatus(exchange);
         } else if (path.equals("/api/scanner/findings")) {
             handleFindings(exchange);
+        } else if (path.equals("/api/scanner/findings/new") && "GET".equalsIgnoreCase(method)) {
+            handleNewFindings(exchange);
+        } else if (path.matches("/api/scanner/scan/\\d+") && "DELETE".equalsIgnoreCase(method)) {
+            handleCancelScan(exchange, path);
+        } else if (path.matches("/api/scanner/scan/\\d+/pause") && "POST".equalsIgnoreCase(method)) {
+            handlePauseScan(exchange, path);
+        } else if (path.matches("/api/scanner/scan/\\d+/resume") && "POST".equalsIgnoreCase(method)) {
+            handleResumeScan(exchange, path);
         } else {
             sendError(exchange, 404, "Not found");
         }
@@ -60,11 +68,8 @@ public class ScannerHandler extends BaseHandler {
         Map<String, Object> body = readJsonBody(exchange);
 
         try {
-            // Create audit with active + passive checks
-            AuditConfiguration config = AuditConfiguration.auditConfiguration(
-                BuiltInAuditConfiguration.LEGACY_ACTIVE_AUDIT_CHECKS
-            );
-            Audit audit = api.scanner().startAudit(config);
+            // Collect request-responses BEFORE creating audit (avoid leaked audits on validation failure)
+            List<HttpRequestResponse> targets = new ArrayList<>();
             String description;
 
             // Option 1: Scan by proxy history index
@@ -77,9 +82,8 @@ public class ScannerHandler extends BaseHandler {
                     return;
                 }
                 ProxyHttpRequestResponse item = history.get(index);
-                HttpRequestResponse rr = HttpRequestResponse.httpRequestResponse(
-                    item.finalRequest(), item.originalResponse());
-                audit.addRequestResponse(rr);
+                targets.add(HttpRequestResponse.httpRequestResponse(
+                    item.finalRequest(), item.originalResponse()));
                 description = "Audit of proxy item #" + index + " (" + item.finalRequest().url() + ")";
             }
             // Option 2: Scan by single URL
@@ -91,8 +95,7 @@ public class ScannerHandler extends BaseHandler {
                 }
                 HttpService service = HttpService.httpService(url);
                 HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                HttpRequestResponse rr = api.http().sendRequest(request);
-                audit.addRequestResponse(rr);
+                targets.add(api.http().sendRequest(request));
                 description = "Audit of " + url;
             }
             // Option 3: Scan multiple URLs
@@ -102,13 +105,21 @@ public class ScannerHandler extends BaseHandler {
                 for (String url : urls) {
                     HttpService service = HttpService.httpService(url);
                     HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                    HttpRequestResponse rr = api.http().sendRequest(request);
-                    audit.addRequestResponse(rr);
+                    targets.add(api.http().sendRequest(request));
                 }
                 description = "Audit of " + urls.size() + " URLs";
             } else {
                 sendError(exchange, 400, "Provide 'url', 'urls', or 'index'");
                 return;
+            }
+
+            // Create audit AFTER validation — prevents leaked audits on error paths
+            AuditConfiguration config = AuditConfiguration.auditConfiguration(
+                BuiltInAuditConfiguration.LEGACY_ACTIVE_AUDIT_CHECKS
+            );
+            Audit audit = api.scanner().startAudit(config);
+            for (HttpRequestResponse rr : targets) {
+                audit.addRequestResponse(rr);
             }
 
             int scanId = scanIdCounter.incrementAndGet();
@@ -282,6 +293,137 @@ public class ScannerHandler extends BaseHandler {
             path = "/";
         }
         return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\n\r\n";
+    }
+
+    /**
+     * Cancel/remove an active scan from tracking.
+     * DELETE /api/scanner/scan/{id}
+     * Note: Montoya API Audit does not expose cancel/delete — we remove from our tracking list.
+     */
+    private void handleCancelScan(HttpExchange exchange, String path) throws Exception {
+        int scanId = extractScanId(path);
+        ScanRecord record = findScan(scanId);
+        if (record == null) {
+            sendError(exchange, 404, "Scan #" + scanId + " not found");
+            return;
+        }
+        activeScans.remove(record);
+        sendOk(exchange, "Scan #" + scanId + " removed from tracking");
+    }
+
+    /**
+     * Get scan details (pause not supported by Montoya API).
+     * POST /api/scanner/scan/{id}/pause
+     */
+    private void handlePauseScan(HttpExchange exchange, String path) throws Exception {
+        int scanId = extractScanId(path.replace("/pause", ""));
+        ScanRecord record = findScan(scanId);
+        if (record == null) {
+            sendError(exchange, 404, "Scan #" + scanId + " not found");
+            return;
+        }
+        // Montoya API Audit does not expose pause/resume — return status info instead
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("scan_id", scanId);
+        info.put("description", record.description);
+        info.put("message", "Pause not supported by Burp Montoya API. Scan continues in background.");
+        if (record.audit != null) {
+            try {
+                info.put("status", record.audit.statusMessage());
+                info.put("request_count", record.audit.requestCount());
+                info.put("issue_count", record.audit.issues().size());
+            } catch (Exception ignored) {}
+        }
+        sendJson(exchange, JsonUtil.toJson(info));
+    }
+
+    /**
+     * Get scan details (resume not supported by Montoya API).
+     * POST /api/scanner/scan/{id}/resume
+     */
+    private void handleResumeScan(HttpExchange exchange, String path) throws Exception {
+        int scanId = extractScanId(path.replace("/resume", ""));
+        ScanRecord record = findScan(scanId);
+        if (record == null) {
+            sendError(exchange, 404, "Scan #" + scanId + " not found");
+            return;
+        }
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("scan_id", scanId);
+        info.put("description", record.description);
+        info.put("message", "Resume not supported by Burp Montoya API. Scan runs continuously.");
+        if (record.audit != null) {
+            try {
+                info.put("status", record.audit.statusMessage());
+                info.put("request_count", record.audit.requestCount());
+                info.put("issue_count", record.audit.issues().size());
+            } catch (Exception ignored) {}
+        }
+        sendJson(exchange, JsonUtil.toJson(info));
+    }
+
+    /**
+     * Get new scanner findings since a given count.
+     * GET /api/scanner/findings/new?since=N
+     */
+    private void handleNewFindings(HttpExchange exchange) throws Exception {
+        Map<String, String> params = queryParams(exchange);
+        int since = intParam(params, "since", 0);
+
+        List<AuditIssue> issues;
+        try {
+            issues = api.siteMap().issues();
+        } catch (Exception e) {
+            sendError(exchange, 500, "Scanner not available: " + e.getMessage());
+            return;
+        }
+
+        int total = issues.size();
+        if (since >= total) {
+            sendJson(exchange, JsonUtil.object(
+                "total", total,
+                "new_count", 0,
+                "items", new ArrayList<>()
+            ));
+            return;
+        }
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (int i = since; i < total; i++) {
+            AuditIssue issue = issues.get(i);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("index", i);
+            entry.put("name", issue.name());
+            entry.put("severity", issue.severity().toString());
+            entry.put("confidence", issue.confidence().toString());
+            entry.put("base_url", issue.baseUrl());
+            entry.put("detail", truncate(issue.detail(), 500));
+            items.add(entry);
+        }
+
+        sendJson(exchange, JsonUtil.object(
+            "total", total,
+            "new_count", items.size(),
+            "since", since,
+            "items", items
+        ));
+    }
+
+    private int extractScanId(String path) {
+        String[] parts = path.split("/");
+        for (int i = parts.length - 1; i >= 0; i--) {
+            try {
+                return Integer.parseInt(parts[i]);
+            } catch (NumberFormatException ignored) {}
+        }
+        return -1;
+    }
+
+    private ScanRecord findScan(int scanId) {
+        for (ScanRecord record : activeScans) {
+            if (record.id == scanId) return record;
+        }
+        return null;
     }
 
     private record ScanRecord(int id, String description, Audit audit, long startedAt) {}
