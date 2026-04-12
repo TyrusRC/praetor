@@ -336,7 +336,6 @@ def register(mcp: FastMCP):
         js_crawl: bool = True,
         known_files: bool = False,
         form_fill: bool = False,
-        tech_detect: bool = False,
         filter_similar: bool = True,
         scope_domain: str = "",
         use_proxy: bool = True,
@@ -354,7 +353,6 @@ def register(mcp: FastMCP):
             js_crawl: Parse JavaScript files for endpoints (default true)
             known_files: Probe robots.txt, sitemap.xml (requires depth >= 3)
             form_fill: Auto-fill and submit forms (experimental)
-            tech_detect: Enable technology detection via wappalyzer
             filter_similar: Filter similar-looking URLs like /users/123 vs /users/456 (default true)
             scope_domain: Restrict to domain regex (default: auto from target)
             use_proxy: Route through Burp proxy (default true)
@@ -367,12 +365,14 @@ def register(mcp: FastMCP):
         cmd = ["katana", "-u", target, "-silent", "-no-color",
                "-d", str(depth),
                "-H", f"User-Agent: {_USER_AGENT}",
-               "-rl", "100", "-c", "10"]  # rate limit to avoid overwhelming target
+               "-rl", "100", "-c", "10",
+               "-e", "cdn,private-ips",           # exclude CDN and private IP ranges
+               "-td",                              # tech detection via wappalyzer
+               "-kb"]                              # knowledge base classification
 
         # Crawl mode
-        # -nos = katana's --no-sandbox flag
-        # -ho  = pass options to Chrome (--disable-gpu, --disable-dev-shm-usage)
-        # -xhr = extract XHR request URLs (finds API calls)
+        # -nos = no-sandbox (required for root/WSL)
+        # -xhr = extract XHR request URLs (finds hidden API calls)
         if crawl_mode == "hybrid":
             cmd.extend(["-hh", "-nos", "-xhr"])
         elif crawl_mode == "headless":
@@ -384,8 +384,6 @@ def register(mcp: FastMCP):
             cmd.extend(["-kf", "all"])
         if form_fill:
             cmd.append("-aff")
-        if tech_detect:
-            cmd.append("-td")
         if filter_similar:
             cmd.append("-fsu")
         if scope_domain:
@@ -522,6 +520,7 @@ def register(mcp: FastMCP):
             katana_depth = 2 if depth == "standard" else 4
             cmd = ["katana", "-u", target_url, "-silent", "-no-color",
                    "-d", str(katana_depth), "-jc", "-hh", "-nos", "-fsu", "-xhr",
+                   "-td", "-kb", "-e", "cdn,private-ips",
                    "-rl", "100", "-c", "10",
                    "-H", f"User-Agent: {_USER_AGENT}"]
             if use_proxy:
