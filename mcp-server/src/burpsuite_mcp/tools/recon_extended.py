@@ -440,7 +440,7 @@ def register(mcp: FastMCP):
                 response_times.append(elapsed)
                 continue
 
-            status = data.get("status_code", 0)
+            status = data.get("status", data.get("status_code", 0))
             status_codes.append(status)
             response_times.append(elapsed)
 
@@ -501,7 +501,7 @@ def register(mcp: FastMCP):
                     lines.append(f"    {header_name}: ERROR - {data['error'][:60]}")
                     continue
 
-                status = data.get("status_code", 0)
+                status = data.get("status", data.get("status_code", 0))
                 bypassed = status != 429
                 marker = "BYPASSED" if bypassed else "blocked"
                 lines.append(f"    {header_name}: [{status}] {marker}")

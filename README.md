@@ -210,7 +210,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (142 total)
+## Tools (164 total)
 
 ### Scope & Configuration
 | Tool | Description |
@@ -380,6 +380,40 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `test_open_redirect` | Test open redirects with Collaborator-verified payloads — protocol-relative, encoding bypasses |
 | `test_lfi` | Test LFI/path traversal — Linux/Windows traversal, PHP wrappers, null bytes, encoding bypasses |
 | `test_file_upload` | Test file upload bypasses — double extension, content-type mismatch, polyglot, SVG XSS |
+
+### Advanced Testing
+| Tool | Description |
+|------|-------------|
+| `test_host_header` | Host header injection — alternate host, X-Forwarded-Host, duplicate headers, cache poisoning |
+| `test_crlf_injection` | CRLF injection / HTTP response splitting — header injection, body injection |
+| `test_request_smuggling` | HTTP request smuggling — CL.TE, TE.CL probes with timing-based detection |
+| `test_mass_assignment` | Mass assignment / parameter binding — detect extra param acceptance (role, admin, price) |
+| `test_cache_poisoning` | Web cache poisoning — unkeyed headers, cache deception, parameter cloaking |
+| `test_business_logic` | Business logic — negative values, zero, large numbers, type confusion, boundary testing |
+| `test_graphql_deep` | Extended GraphQL — alias DoS, batch abuse, depth limits, __typename, field suggestion leakage |
+| `parse_api_schema` | OpenAPI/Swagger parser — extract endpoints, params, auto-suggest vuln tests |
+| `test_rate_limit` | Rate limit detection + bypass testing (X-Forwarded-For, X-Real-IP rotation) |
+
+### Extended Recon (Python-only, no external tools needed)
+| Tool | Description |
+|------|-------------|
+| `query_crtsh` | Certificate Transparency subdomain discovery via crt.sh |
+| `fetch_wayback_urls` | Historical URLs from Wayback Machine — find old endpoints, removed pages |
+| `analyze_dns` | DNS record analysis — A, MX, NS, TXT, CNAME, SOA, DMARC, wildcard detection |
+| `test_subdomain_takeover` | Detect dangling CNAME to unclaimed services (GitHub Pages, S3, Heroku, etc.) |
+
+### Burp Native Tools
+| Tool | Description |
+|------|-------------|
+| `websocket_connect` | Open WebSocket connection through Burp for testing WS-based APIs |
+| `websocket_send_message` | Send text message on open WebSocket — test injection, auth, protocol abuse |
+| `websocket_close` | Close WebSocket connection |
+| `websocket_list_connections` | List open WebSocket connections |
+| `send_to_organizer` | Send proxy item to Burp's Organizer tab for categorization |
+| `send_bulk_to_organizer` | Send multiple items to Organizer at once |
+| `get_project_info` | Burp project name, ID, version, edition |
+| `get_logger_entries` | Logger entries with timing data, annotations, and metadata |
+| `send_to_intruder_configured` | Send to Intruder with auto-detect or manual insertion point positions |
 
 ### Scanner Control (Burp Professional)
 | Tool | Description |
