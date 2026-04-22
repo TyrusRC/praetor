@@ -273,6 +273,25 @@ install_pd_tool "gau" \
 install_pd_tool "waybackurls" \
     "go install -v github.com/tomnomnom/waybackurls@latest"
 
+install_pd_tool "ffuf" \
+    "go install -v github.com/ffuf/ffuf/v2@latest"
+
+# nmap — system package, not Go
+if has nmap; then
+    ok "nmap already installed"
+else
+    info "Installing nmap..."
+    pkg_install nmap || warn "nmap install failed — install manually: https://nmap.org/download"
+fi
+
+# sqlmap — system package or pip
+if has sqlmap; then
+    ok "sqlmap already installed"
+else
+    info "Installing sqlmap..."
+    pkg_install sqlmap || warn "sqlmap install failed — try: pip install sqlmap"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # PHASE 4: Generate .mcp.json
 # ════════════════════════════════════════════════════════════════════

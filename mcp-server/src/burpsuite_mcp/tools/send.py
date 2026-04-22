@@ -1,4 +1,10 @@
-"""Tools for sending HTTP requests through Burp Suite - appears in HTTP history."""
+"""Tools for sending HTTP requests through Burp Suite.
+
+Requests sent via these tools go through Burp's HTTP client and appear in the
+**Logger** tab (and the MCP history store — see get_mcp_history) — they do NOT
+appear in Proxy → HTTP history, which is populated only by traffic flowing
+through Burp's proxy listener (e.g. browser_crawl).
+"""
 
 from mcp.server.fastmcp import FastMCP
 
@@ -14,9 +20,13 @@ def register(mcp: FastMCP):
         headers: dict | None = None,
         body: str = "",
     ) -> str:
-        """Send an HTTP request through Burp Suite's HTTP stack.
-        The request appears in Burp's HTTP history and gets passive-scanned.
-        Use this instead of curl - all traffic flows through Burp for visibility.
+        """Send an HTTP request through Burp Suite's HTTP client.
+
+        Visibility: appears in Burp's **Logger** tab and MCP history (get_mcp_history).
+        Does NOT appear in Proxy → HTTP history. For that, use browser_crawl /
+        browser_navigate (real proxy-listener traffic).
+
+        Passive scanner still sees the request/response pair.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
@@ -143,13 +153,15 @@ def register(mcp: FastMCP):
         max_redirects: int = 10,
     ) -> str:
         """Send HTTP requests through Burp like curl/httpx - with redirect following, auth, and cookies.
-        All requests flow through Burp's HTTP stack (visible in HTTP history, passive-scanned).
+
+        Visibility: appears in Burp's **Logger** tab and MCP history (get_mcp_history).
+        Does NOT appear in Proxy → HTTP history. For proxy-history entries, use
+        browser_crawl / browser_navigate.
 
         This is the most flexible request tool - use it like curl:
         - Auto-follows redirects and shows the redirect chain
         - Supports Basic auth, Bearer tokens, custom cookies
         - Shortcuts for JSON and form-encoded data
-        - Every request appears in Burp's proxy history
 
         Args:
             url: Target URL (e.g. 'https://target.com/api/users')

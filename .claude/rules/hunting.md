@@ -37,7 +37,7 @@ These rules are ALWAYS active when using Burp Suite MCP tools. They override any
 17. **Don't spray the same payload type endlessly.** If 10 SQLi tests return nothing, pivot to a different vuln category or technique.
 18. **Use extraction tools, not full responses.** `extract_regex`, `extract_json_path`, `extract_css_selector` are 10x more token-efficient than `get_request_detail(full_body=True)`.
 19. **Use advisor tools for decisions.** `get_hunt_plan` and `get_next_action` replace strategic reasoning. `assess_finding` replaces manual 7-Question Gate evaluation.
-20. **Use browser for proxy history.** `browser_crawl` and `browser_navigate` populate proxy history through Burp's proxy. `curl_request` does NOT populate proxy history.
+20. **Know which tools hit proxy history.** `browser_crawl` and `browser_navigate` populate **Proxy → HTTP history** through Burp's proxy listener. Tools that use Burp's HTTP client (`send_http_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in Burp's **Logger** tab and the MCP store (`get_mcp_history`), not Proxy history. External recon tools (`run_nuclei`, `run_katana`, `run_subfinder`, etc.) route their traffic through Burp's proxy (127.0.0.1:8080) so their requests DO appear in Proxy history. Analysis tools that take an `index` read from Burp's proxy history only — MCP-sent requests are not visible there.
 
 ## Reporting
 

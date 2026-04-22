@@ -538,11 +538,18 @@ def register(mcp: FastMCP):
         """
         task_lower = task.lower()
 
-        # Map tasks to tools
+        # Map tasks to tools. Entries are checked in order, first match wins — so
+        # more specific keywords (e.g. "jwt") must come BEFORE more generic ones
+        # (e.g. "token" which could match CSRF tokens). When ambiguous words
+        # appear, use multi-word anchors like "csrf token" rather than bare "token".
         mappings = [
             (["crawl", "browse", "populate history", "visit pages"], "browser_crawl",
              "browser_crawl('https://target.com', max_pages=20)"),
-            (["csrf", "token", "extract from html", "hidden field"], "extract_css_selector",
+            # JWT first — before any generic "token" keyword — because "jwt token" must map to test_jwt
+            (["jwt", "bearer token", "access token", "id_token", "refresh_token", "algorithm none"], "test_jwt",
+             "test_jwt(token='eyJ...')"),
+            # CSRF-specific token extraction uses multi-word anchors so it doesn't eat generic "token" queries
+            (["csrf", "csrf token", "anti-csrf", "extract from html", "hidden field"], "extract_css_selector",
              "extract_css_selector(index, 'input[name=csrf]', attribute='value')"),
             (["header", "security header", "cors header", "cookie"], "extract_headers",
              "extract_headers(index, ['Set-Cookie', 'X-Frame-Options', 'Content-Security-Policy'])"),
@@ -562,8 +569,6 @@ def register(mcp: FastMCP):
              "test_auth_matrix(endpoints=['/api/users/1','/api/users/2'], auth_states={'admin':{...},'user':{...}})"),
             (["race", "concurrent", "double spend", "toctou"], "test_race_condition",
              "test_race_condition(session='hunt', request={...}, concurrent=10)"),
-            (["jwt", "token", "algorithm"], "test_jwt",
-             "test_jwt(token='eyJ...')"),
             (["cors", "origin", "cross-origin"], "test_cors",
              "test_cors(session='hunt', path='/api/endpoint')"),
             (["fuzz", "brute", "payloads", "test parameter"], "fuzz_parameter",
