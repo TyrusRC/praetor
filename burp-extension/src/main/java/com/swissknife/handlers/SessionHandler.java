@@ -6,7 +6,7 @@ import burp.api.montoya.http.message.HttpHeader;
 import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.http.message.responses.HttpResponse;
-import com.sun.net.httpserver.HttpExchange;
+import com.swissknife.http.HttpExchange;
 import com.swissknife.server.BaseHandler;
 import com.swissknife.ui.ConfigTab;
 import com.swissknife.util.JsonUtil;

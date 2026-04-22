@@ -8,7 +8,7 @@ import burp.api.montoya.http.message.responses.HttpResponse;
 import burp.api.montoya.http.message.HttpHeader;
 import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.proxy.ProxyHttpRequestResponse;
-import com.sun.net.httpserver.HttpExchange;
+import com.swissknife.http.HttpExchange;
 import com.swissknife.server.BaseHandler;
 import com.swissknife.util.JsonUtil;
 

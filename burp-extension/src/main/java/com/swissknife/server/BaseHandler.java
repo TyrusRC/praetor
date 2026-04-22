@@ -1,7 +1,7 @@
 package com.swissknife.server;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
+import com.swissknife.http.HttpExchange;
+import com.swissknife.http.HttpHandler;
 import com.swissknife.util.JsonUtil;
 
 import java.io.IOException;

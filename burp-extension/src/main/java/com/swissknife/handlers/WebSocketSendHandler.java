@@ -5,7 +5,7 @@ import burp.api.montoya.http.HttpService;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.websocket.extension.ExtensionWebSocket;
 import burp.api.montoya.websocket.extension.ExtensionWebSocketCreation;
-import com.sun.net.httpserver.HttpExchange;
+import com.swissknife.http.HttpExchange;
 import com.swissknife.server.BaseHandler;
 import com.swissknife.util.JsonUtil;
 

@@ -1,7 +1,7 @@
 package com.swissknife.server;
 
 import burp.api.montoya.MontoyaApi;
-import com.sun.net.httpserver.HttpServer;
+import com.swissknife.http.HttpServer;
 import com.swissknife.handlers.*;
 import com.swissknife.handlers.SessionHandler;
 import com.swissknife.store.FindingsStore;

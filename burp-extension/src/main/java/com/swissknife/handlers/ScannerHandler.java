@@ -10,7 +10,7 @@ import burp.api.montoya.scanner.BuiltInAuditConfiguration;
 import burp.api.montoya.scanner.CrawlConfiguration;
 import burp.api.montoya.scanner.audit.Audit;
 import burp.api.montoya.scanner.audit.issues.AuditIssue;
-import com.sun.net.httpserver.HttpExchange;
+import com.swissknife.http.HttpExchange;
 import com.swissknife.server.BaseHandler;
 import com.swissknife.util.JsonUtil;
 

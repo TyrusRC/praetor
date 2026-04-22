@@ -3,7 +3,7 @@ package com.swissknife.handlers;
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.http.message.responses.HttpResponse;
 import burp.api.montoya.proxy.ProxyHttpRequestResponse;
-import com.sun.net.httpserver.HttpExchange;
+import com.swissknife.http.HttpExchange;
 import com.swissknife.server.BaseHandler;
 import com.swissknife.util.JsonUtil;
 
