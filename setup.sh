@@ -62,27 +62,60 @@ echo "════════════════════════�
 
 # ── Java 21+ ────────────────────────────────────────────────────────
 info "Checking Java..."
-if has java; then
-    JAVA_VER=$(java -version 2>&1 | head -1 | grep -oP '\"(\d+)' | tr -d '"' || echo "0")
-    if [ "$JAVA_VER" -ge 21 ] 2>/dev/null; then
-        ok "Java $JAVA_VER found"
+
+detect_java() {
+    # Returns the path to a java binary, or empty string if none found.
+    if has java; then
+        command -v java
+        return
+    fi
+    if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+        echo "$JAVA_HOME/bin/java"
+        return
+    fi
+    echo ""
+}
+
+parse_java_major() {
+    # Parse the major version from `<java> -version` output (both old "1.8" and new "21" styles).
+    local java_bin="$1"
+    "$java_bin" -version 2>&1 | awk -F'"' '
+        /version/ {
+            split($2, v, ".")
+            if (v[1] == "1") print v[2]; else print v[1]
+            exit
+        }
+    '
+}
+
+JAVA_BIN="$(detect_java)"
+if [ -n "$JAVA_BIN" ]; then
+    JAVA_VER="$(parse_java_major "$JAVA_BIN" 2>/dev/null || echo 0)"
+    if [ -n "$JAVA_VER" ] && [ "$JAVA_VER" -ge 21 ] 2>/dev/null; then
+        ok "Java $JAVA_VER found at $JAVA_BIN"
     else
-        warn "Java found but version $JAVA_VER < 21"
-        warn "Install Java 21+: https://adoptium.net/"
+        warn "Java found at $JAVA_BIN but version=${JAVA_VER:-unknown} < 21"
+        warn "Install Java 21+: https://adoptium.net/temurin/releases/?version=21"
     fi
 else
-    warn "Java not found"
+    warn "Java not found (checked PATH and JAVA_HOME)"
     info "Installing Java 21..."
     if [ "$PLATFORM" = "linux" ]; then
         if has apt-get; then
             sudo apt-get install -y openjdk-21-jdk
         elif has dnf; then
             sudo dnf install -y java-21-openjdk-devel
+        elif has pacman; then
+            sudo pacman -S --noconfirm jdk21-openjdk
         fi
     elif [ "$PLATFORM" = "macos" ]; then
         pkg_install openjdk@21
     fi
-    has java && ok "Java installed" || fail "Java installation failed — install manually: https://adoptium.net/"
+    if has java; then
+        ok "Java installed"
+    else
+        fail "Java installation failed — install manually: https://adoptium.net/temurin/releases/?version=21"
+    fi
 fi
 
 # ── Maven ───────────────────────────────────────────────────────────
@@ -169,7 +202,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 info "Building Burp extension..."
 cd "$SCRIPT_DIR/burp-extension"
 if mvn package -q; then
-    JAR="target/burpsuite-swiss-knife-0.2.0.jar"
+    JAR="target/burpsuite-swiss-knife-0.3.0.jar"
     if [ -f "$JAR" ]; then
         ok "Extension built: $JAR"
     else
@@ -306,7 +339,7 @@ check sqlmap
 
 echo ""
 echo "Project:"
-JAR_PATH="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.2.0.jar"
+JAR_PATH="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar"
 if [ -f "$JAR_PATH" ]; then
     echo -e "  ${GREEN}✓${NC} Burp extension JAR built"
 else
