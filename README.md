@@ -125,11 +125,23 @@ flowchart LR
 
 ### Quick Setup (recommended)
 
+**Linux / macOS:**
+
 ```bash
 chmod +x setup.sh && ./setup.sh
 ```
 
-This installs all required dependencies (Java 21, Maven, Python 3.11+, uv, Go), builds the project, installs optional recon tools (subfinder, nuclei, katana), and generates `.mcp.json`.
+**Windows (PowerShell):**
+
+```powershell
+.\setup.ps1
+```
+
+**Windows (double-click):** Run `setup.bat`.
+
+This installs all required dependencies (Java 21+, Maven, Python 3.11+, uv, Go), builds the project, installs optional recon tools (subfinder, nuclei, katana), and generates `.mcp.json`.
+
+**Requirements:** Java 21 or newer. Get it from [Adoptium Temurin](https://adoptium.net/temurin/releases/?version=21) if the setup script can't install it for you.
 
 ### Manual Setup
 
@@ -140,7 +152,7 @@ cd burp-extension
 mvn package
 ```
 
-Load `target/burpsuite-swiss-knife-0.2.0.jar` in Burp Suite:
+Load `target/burpsuite-swiss-knife-0.3.0.jar` in Burp Suite:
 - **Extensions -> Add -> Java -> Select JAR**
 - Verify: check Burp's output log for "Swiss Knife MCP started on port 8111"
 

@@ -23,7 +23,7 @@ Two codebases in one repo:
 
 2. Build Commands
    - Build extension JAR: `cd burp-extension && mvn package`
-   - Output: `burp-extension/target/burpsuite-swiss-knife-0.2.0.jar`
+   - Output: `burp-extension/target/burpsuite-swiss-knife-0.3.0.jar`
    - Install MCP server: `cd mcp-server && uv pip install -e .`
    - Run MCP server: `uv run python -m burpsuite_mcp`
 
