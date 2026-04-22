@@ -21,6 +21,8 @@ public class SwissKnifeExtension implements BurpExtension {
         String version = getVersion();
         api.extension().setName(EXTENSION_NAME + " v" + version);
 
+        checkJvm(api);
+
         // Read saved config or use defaults
         int port = loadInt(api, "swissknife.port", DEFAULT_PORT);
         String host = loadString(api, "swissknife.host", DEFAULT_HOST);
@@ -88,6 +90,27 @@ public class SwissKnifeExtension implements BurpExtension {
         } catch (Exception ignored) {}
         // 3. Fallback — should never reach here if pom.xml is configured correctly
         return "unknown";
+    }
+
+    private void checkJvm(MontoyaApi api) {
+        String vendor = System.getProperty("java.vendor", "unknown");
+        String jvmName = System.getProperty("java.vm.name", "unknown");
+        String spec = System.getProperty("java.specification.version", "0");
+        int major;
+        try {
+            // Handles "21", "22", "22.0.1", etc.
+            major = Integer.parseInt(spec.split("\\.")[0]);
+        } catch (NumberFormatException e) {
+            major = 0;
+        }
+        api.logging().logToOutput("JVM: " + jvmName + " " + spec + " (" + vendor + ")");
+        if (major < 21) {
+            api.logging().logToError(
+                "WARNING: Detected Java " + spec + ". Swiss Knife MCP requires Java 21 or newer. "
+                + "Launch Burp with a JDK >= 21 (e.g. https://adoptium.net/temurin/releases/?version=21). "
+                + "The extension will attempt to start anyway, but class loading may fail on older JVMs."
+            );
+        }
     }
 
     // Persistence helpers using Burp's extension data
