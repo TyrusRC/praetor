@@ -6,7 +6,7 @@
 
     <groupId>com.swissknife</groupId>
     <artifactId>burpsuite-swiss-knife</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
     <packaging>jar</packaging>
 
     <name>Burp Suite Swiss Knife</name>
@@ -30,7 +30,7 @@
         <dependency>
             <groupId>net.portswigger.burp.extensions</groupId>
             <artifactId>montoya-api</artifactId>
-            <version>2025.5</version>
+            <version>2026.4</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
