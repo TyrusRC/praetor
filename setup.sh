@@ -276,14 +276,6 @@ install_pd_tool "waybackurls" \
 install_pd_tool "ffuf" \
     "go install -v github.com/ffuf/ffuf/v2@latest"
 
-# nmap — system package, not Go
-if has nmap; then
-    ok "nmap already installed"
-else
-    info "Installing nmap..."
-    pkg_install nmap || warn "nmap install failed — install manually: https://nmap.org/download"
-fi
-
 # sqlmap — system package or pip
 if has sqlmap; then
     ok "sqlmap already installed"
@@ -353,7 +345,6 @@ check httpx
 check nuclei
 check katana
 check ffuf
-check nmap
 check sqlmap
 
 echo ""

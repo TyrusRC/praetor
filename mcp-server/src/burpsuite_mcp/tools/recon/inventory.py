@@ -14,12 +14,13 @@ def register(mcp: FastMCP):
         Scans PATH for common security tools and reports availability.
         None of these tools are required — they enhance recon when available.
         """
+        # Web-focused recon tools only. Network-layer tools like nmap are excluded —
+        # their traffic can't route through Burp's HTTP proxy.
         tools = {
             "subfinder": "Subdomain enumeration (passive)",
             "nuclei": "Template-based vulnerability scanner",
             "katana": "Web crawler / URL discovery",
             "ffuf": "Directory/parameter brute-forcing",
-            "nmap": "Port scanning and service detection",
             "dalfox": "XSS scanner",
             "sqlmap": "SQL injection automation",
             "gau": "URL extraction from web archives",

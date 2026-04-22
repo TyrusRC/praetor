@@ -209,14 +209,6 @@ Install-PdTool 'gau'         'github.com/lc/gau/v2/cmd/gau'
 Install-PdTool 'waybackurls' 'github.com/tomnomnom/waybackurls'
 Install-PdTool 'ffuf'        'github.com/ffuf/ffuf/v2'
 
-# nmap - not a Go tool
-if (Has-Command 'nmap') { Ok "nmap already installed" }
-else {
-    Info "Installing nmap..."
-    if (Install-Via-PackageManager 'Insecure.Nmap' 'nmap' 'nmap') { Ok "nmap installed" }
-    else { Warn "nmap install failed - download manually from https://nmap.org/download" }
-}
-
 # sqlmap - Python tool
 if (Has-Command 'sqlmap') { Ok "sqlmap already installed" }
 else {
@@ -274,7 +266,7 @@ Check 'java'; Check 'mvn'; Check 'python'; Check 'uv'; Check 'go'
 Write-Host ""
 Write-Host "Optional (recon):"
 Check 'subfinder'; Check 'httpx'; Check 'nuclei'; Check 'katana'; Check 'dalfox'; Check 'gau'; Check 'waybackurls'
-Check 'ffuf'; Check 'nmap'; Check 'sqlmap'
+Check 'ffuf'; Check 'sqlmap'
 
 $JarPath = Join-Path $ScriptDir 'burp-extension\target\burpsuite-swiss-knife-0.3.0.jar'
 Write-Host ""
