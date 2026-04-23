@@ -34,7 +34,12 @@ def _version_tuple(v: str) -> tuple:
 
 
 def _version_in_range(version: str, range_key: str) -> bool:
-    """Check if version matches a range key like '2.4.49', '8.5.0-8.5.80', or 'any'."""
+    """Check if version matches a range key like '2.4.49', '8.5.0-8.5.80', or 'any'.
+
+    Exact-segment match: `range_key='8.1'` matches `version='8.1'`, `'8.1.3'`,
+    and `'8.1.99'`, but NOT `'8.10'` or `'8.100'`. Prior implementation used a
+    bidirectional prefix-tuple match which treated `8.1` and `8.10` as equal.
+    """
     if range_key == "any":
         return True
     if not version:
@@ -45,13 +50,20 @@ def _version_in_range(version: str, range_key: str) -> bool:
             low, high = range_key.split("-", 1)
             return _version_tuple(low) <= ver <= _version_tuple(high)
         range_ver = _version_tuple(range_key)
-        return ver[:len(range_ver)] == range_ver or range_ver[:len(ver)] == ver
+        # Prefix match only — range_key segments must exactly equal the
+        # corresponding prefix of `version`. Unequal segment count alone is
+        # fine (8.1 matches 8.1.3) but per-segment numbers must be equal.
+        if len(ver) < len(range_ver):
+            return False
+        return ver[:len(range_ver)] == range_ver
     except (ValueError, TypeError):
-        # Fall back to string comparison if version format is unexpected
+        # Fall back to string comparison if version format is unexpected.
+        # Avoid the bidirectional prefix trap here too: only check the
+        # documented range prefix matches the observed version.
         if "-" in range_key:
             low, high = range_key.split("-", 1)
             return low <= version <= high
-        return version.startswith(range_key) or range_key.startswith(version)
+        return version.startswith(range_key + ".") or version == range_key
 
 
 def _match_tech_to_vulns(tech_items: list[str], tech_vulns: dict) -> list[dict]:
@@ -240,24 +252,45 @@ def register(mcp: FastMCP):
     async def search_cve(
         query: str,
         tech: str = "",
+        live_lookup: bool = True,
+        max_results: int = 10,
     ) -> str:
-        """Generate CVE search URLs for manual research.
+        """Search CVEs by query — live NVD 2.0 API lookup by default.
 
-        Builds search links for NVD, Exploit-DB, and GitHub Advisory Database
-        based on technology name, version, or keyword.
+        With `live_lookup=True` (default), queries NVD's JSON 2.0 API
+        (services.nvd.nist.gov/rest/json/cves/2.0) through Burp's proxy and
+        returns structured results (CVE id, summary, CVSS, published date).
+        Set `live_lookup=False` for the offline variant that only emits
+        search URLs (useful when NVD is rate-limiting or unreachable).
 
         Args:
             query: Search query (e.g. 'Apache 2.4.49', 'Spring4Shell', 'CVE-2021-44228')
             tech: Optional technology context for more targeted search
+            live_lookup: Call NVD API and return structured CVE list (default True)
+            max_results: Cap NVD results returned (default 10, max 50)
         """
         import urllib.parse
         q = urllib.parse.quote_plus(query)
-        t = urllib.parse.quote_plus(tech) if tech else ""
 
         lines = [f"CVE Search for: {query}"]
         if tech:
             lines.append(f"Technology: {tech}")
         lines.append("")
+
+        if live_lookup:
+            structured = await _nvd_lookup(query, min(max(1, max_results), 50))
+            if isinstance(structured, str):
+                lines.append(f"NVD lookup failed: {structured}")
+            else:
+                lines.append(f"NVD results ({len(structured)}):")
+                for c in structured:
+                    cvss = c.get("cvss_score")
+                    cvss_str = f" [CVSS {cvss}]" if cvss is not None else ""
+                    lines.append(f"  {c['id']}{cvss_str} ({c.get('published', '?')[:10]})")
+                    summary = c.get("summary", "").replace("\n", " ")[:220]
+                    if summary:
+                        lines.append(f"    {summary}")
+                lines.append("")
 
         lines.append("Search URLs:")
         lines.append(f"  NVD: https://nvd.nist.gov/vuln/search/results?query={q}")
@@ -288,3 +321,62 @@ def register(mcp: FastMCP):
                 lines.append(f"  nuclei -t cves/ -tags {tech_lower.split('/')[0].split(' ')[0]} -u TARGET")
 
         return "\n".join(lines)
+
+
+# ─── NVD API lookup ─────────────────────────────────────────────────────────
+
+_NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+_BURP_PROXY = "http://127.0.0.1:8080"
+
+
+async def _nvd_lookup(query: str, max_results: int) -> list[dict] | str:
+    """Query NVD 2.0 API. Returns a list of CVE dicts or an error string.
+
+    Routes through Burp proxy so the request lands in proxy history — keeps
+    the audit trail honest.
+    """
+    import httpx
+    params: dict[str, str | int]
+    if query.upper().startswith("CVE-"):
+        params = {"cveId": query.upper()}
+    else:
+        params = {"keywordSearch": query, "resultsPerPage": max_results}
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=20,
+            proxy=_BURP_PROXY,
+            verify=False,
+            headers={"User-Agent": "burpsuite-swiss-knife-mcp/cve-lookup"},
+        ) as http:
+            resp = await http.get(_NVD_API_URL, params=params)
+        if resp.status_code == 403:
+            return "NVD returned 403 (rate-limited). Try again in a minute or set live_lookup=False."
+        if resp.status_code != 200:
+            return f"HTTP {resp.status_code}"
+        data = resp.json()
+    except httpx.TimeoutException:
+        return "timed out after 20s"
+    except Exception as e:  # noqa: BLE001 - surface any network/parse issue
+        return str(e)[:150]
+
+    vulns = data.get("vulnerabilities", [])
+    results: list[dict] = []
+    for item in vulns[:max_results]:
+        cve = item.get("cve", {})
+        desc_list = cve.get("descriptions", [])
+        summary = next((d.get("value", "") for d in desc_list if d.get("lang") == "en"), "")
+        metrics = cve.get("metrics", {})
+        score = None
+        for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+            entries = metrics.get(key, [])
+            if entries:
+                score = entries[0].get("cvssData", {}).get("baseScore")
+                break
+        results.append({
+            "id": cve.get("id", "?"),
+            "published": cve.get("published", ""),
+            "summary": summary,
+            "cvss_score": score,
+        })
+    return results
