@@ -39,6 +39,32 @@ _MASS_ASSIGN_PARAMS = [
 ]
 
 
+async def _confirm_timing_anomaly(
+    raw_request: str,
+    host: str,
+    port: int,
+    is_https: bool,
+    threshold_ms: int,
+    attempts: int = 2,
+) -> int:
+    """Re-send a raw request `attempts` times; return how many exceeded threshold_ms.
+
+    Rule 11: timing findings need 3+ iterations. The caller has already observed
+    one anomaly, so a return of ``attempts`` means 1+attempts confirmed hits.
+    """
+    confirmed = 0
+    for _ in range(attempts):
+        start = time.time()
+        resp = await client.post("/api/http/raw", json={
+            "raw": raw_request, "host": host, "port": port, "https": is_https,
+        })
+        elapsed = int((time.time() - start) * 1000)
+        timed_out = "error" in resp and "timeout" in resp["error"].lower()
+        if timed_out or elapsed > threshold_ms:
+            confirmed += 1
+    return confirmed
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -728,19 +754,35 @@ def register(mcp: FastMCP):
 
             if "error" in resp:
                 lines.append(f"  Error: {resp['error']}")
-                # Timeout can indicate smuggling
+                # Timeout can indicate smuggling. Verify with 2 more iterations
+                # (rule 11) — single network timeout is often transient.
                 if "timeout" in resp["error"].lower() or elapsed > 5000:
-                    findings.append(probe_name)
-                    lines.append(f"  [!] TIMEOUT ({elapsed}ms) — potential {probe_name} smuggling")
+                    confirms = await _confirm_timing_anomaly(
+                        raw_request, host, port, is_https,
+                        threshold_ms=max(5000, baseline_time * 3),
+                    )
+                    if confirms >= 2:
+                        findings.append(probe_name)
+                        lines.append(f"  [!] TIMEOUT confirmed ({confirms}/2 re-tests) — potential {probe_name} smuggling")
+                    else:
+                        lines.append(f"  Timeout did not reproduce ({confirms}/2) — likely transient")
                 continue
 
             status = resp.get("status_code", resp.get("status", 0))
             lines.append(f"  Status: {status}, Time: {elapsed}ms (baseline: {baseline_time}ms)")
 
-            # Significant timing difference suggests smuggling
+            # Significant timing difference suggests smuggling. Rule 11 — verify
+            # with 2 more iterations before flagging.
             if elapsed > baseline_time * 3 and elapsed > 3000:
-                findings.append(probe_name)
-                lines.append(f"  [!] Significant delay — potential {probe_name} smuggling")
+                confirms = await _confirm_timing_anomaly(
+                    raw_request, host, port, is_https,
+                    threshold_ms=max(3000, baseline_time * 3),
+                )
+                if confirms >= 2:
+                    findings.append(probe_name)
+                    lines.append(f"  [!] Significant delay confirmed ({confirms}/2 re-tests) — potential {probe_name} smuggling")
+                else:
+                    lines.append(f"  Delay did not reproduce ({confirms}/2) — likely transient")
             elif status == 400:
                 lines.append(f"  Server rejected malformed request (400) — likely not vulnerable")
             else:
@@ -777,15 +819,29 @@ def register(mcp: FastMCP):
             variant_short = variant.split("\r\n")[0][:40]
             if "error" in resp:
                 if "timeout" in resp["error"].lower() or elapsed > 5000:
-                    findings.append(f"TE.TE({variant_short})")
-                    lines.append(f"  [!] {variant_short}: TIMEOUT ({elapsed}ms)")
+                    confirms = await _confirm_timing_anomaly(
+                        te_raw, host, port, is_https,
+                        threshold_ms=max(5000, baseline_time * 3),
+                    )
+                    if confirms >= 2:
+                        findings.append(f"TE.TE({variant_short})")
+                        lines.append(f"  [!] {variant_short}: TIMEOUT confirmed ({confirms}/2)")
+                    else:
+                        lines.append(f"  {variant_short}: single timeout, did not reproduce")
                 else:
                     lines.append(f"  {variant_short}: Error — {resp['error']}")
             else:
                 status = resp.get("status_code", resp.get("status", 0))
                 if elapsed > baseline_time * 3 and elapsed > 3000:
-                    findings.append(f"TE.TE({variant_short})")
-                    lines.append(f"  [!] {variant_short}: Delay {elapsed}ms")
+                    confirms = await _confirm_timing_anomaly(
+                        te_raw, host, port, is_https,
+                        threshold_ms=max(3000, baseline_time * 3),
+                    )
+                    if confirms >= 2:
+                        findings.append(f"TE.TE({variant_short})")
+                        lines.append(f"  [!] {variant_short}: delay confirmed ({confirms}/2, {elapsed}ms)")
+                    else:
+                        lines.append(f"  {variant_short}: single delay, did not reproduce")
                 else:
                     lines.append(f"  {variant_short}: status={status}, {elapsed}ms — OK")
 

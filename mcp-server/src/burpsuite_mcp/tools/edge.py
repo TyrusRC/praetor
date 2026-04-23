@@ -72,17 +72,20 @@ def register(mcp: FastMCP):
             status = resp.get("status", "?")
             if acao:
                 vuln = ""
+                # Browsers compare ACAO byte-for-byte with Origin. Substring match
+                # would false-positive when ACAO contains a longer legitimate origin
+                # (e.g. origin="https://evil.com" vs acao="https://evil.commerce.com").
                 if acac.lower() == "true":
                     if acao == "*":
                         vuln = "CRITICAL: Wildcard + Credentials"
                         vulns.append(vuln)
-                    elif origin in acao:
+                    elif acao == origin:
                         vuln = "CRITICAL: Origin reflected + Credentials"
                         vulns.append(vuln)
                     elif acao == "null":
                         vuln = "HIGH: Null origin + Credentials"
                         vulns.append(vuln)
-                elif origin in acao:
+                elif acao == origin:
                     vuln = "MEDIUM: Origin reflected (no credentials)"
                     vulns.append(vuln)
 
@@ -284,12 +287,16 @@ def register(mcp: FastMCP):
         """
         metadata_endpoints = [
             ("AWS IMDSv1", "http://169.254.169.254/latest/meta-data/", ["ami-id", "instance-id", "hostname"]),
+            # Each indicator must be specific enough that it's extremely unlikely to
+            # appear in a non-metadata response. Weak generic words like "hostname",
+            # "network", "compute", "instance" are rejected — they match documentation
+            # pages, API listings, and any page mentioning servers.
             ("AWS IMDSv1 IAM", "http://169.254.169.254/latest/meta-data/iam/security-credentials/", ["AccessKeyId", "SecretAccessKey"]),
             ("AWS Hex IP", "http://0xA9FEA9FE/latest/meta-data/", ["ami-id", "instance-id"]),
             ("AWS Decimal IP", "http://2852039166/latest/meta-data/", ["ami-id", "instance-id"]),
-            ("GCP Metadata", "http://metadata.google.internal/computeMetadata/v1/", ["project-id", "instance"]),
-            ("Azure Metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["compute", "network"]),
-            ("DigitalOcean", "http://169.254.169.254/metadata/v1/", ["droplet_id", "hostname"]),
+            ("GCP Metadata", "http://metadata.google.internal/computeMetadata/v1/", ["project-id", "service-accounts/default"]),
+            ("Azure Metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["azEnvironment", "vmId"]),
+            ("DigitalOcean", "http://169.254.169.254/metadata/v1/", ["droplet_id"]),
         ]
 
         lines = [f"Cloud Metadata SSRF Test: {parameter} on {path}\n"]
@@ -595,10 +602,16 @@ def register(mcp: FastMCP):
         })
         baseline_length = baseline_resp.get("response_length", 0) if "error" not in baseline_resp else 0
 
-        # Linux/Windows indicators
-        linux_indicators = ["root:x:", "root:*:", "/bin/bash", "/bin/sh", "daemon:"]
+        # Linux/Windows indicators.
+        # Strong /etc/passwd markers only — "/bin/bash", "/bin/sh", "daemon:" alone
+        # false-positive on docs, man pages, or any shell-scripting content.
+        linux_indicators = ["root:x:0:0:", "root:!:0:0:", "root:*:0:0:",
+                            "nobody:x:", "daemon:x:1:"]
         windows_indicators = ["[fonts]", "[extensions]", "for 16-bit app", "[mail]"]
-        wrapper_indicators = ["PD9waH", "PCFET0", "eyJ"]  # base64 prefixes for PHP, HTML, JSON
+        # Wrapper markers: "<?php" decoded prefix (PD9waH), "<!DOCTYPE" decoded
+        # prefix (PCFET0). "eyJ" dropped — it's the base64 prefix of every JWT
+        # token, so false-positives on any page that renders JWTs.
+        wrapper_indicators = ["PD9waH", "PCFET0"]
 
         lines = [f"LFI/Path Traversal Test: {parameter} on {path}\n"]
         lines.append(f"OS: {os_type} | Depth: {depth} | Wrappers: {test_wrappers}")

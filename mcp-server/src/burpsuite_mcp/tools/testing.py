@@ -12,7 +12,13 @@ _SMART_PAYLOAD_MAP = {
     "sqli": {
         "names": ["id", "uid", "pid", "user_id", "account_id", "order_id", "item_id",
                   "product_id", "num", "number", "count", "page", "limit", "offset"],
-        "payloads": ["'", "1 OR 1=1--", "1' AND '1'='1", "1 UNION SELECT NULL--", "1; WAITFOR DELAY '0:0:3'--"],
+        # Tautology "1 OR 1=1" removed — on UPDATE/DELETE WHERE clauses it
+        # matches every row (rule 8). Boolean-based detection stays via the
+        # AND '1'='1 / AND '1'='2 pair; error-based stays via bare quote;
+        # time-based stays via WAITFOR/SLEEP. Caller can pass OR-1=1 explicitly
+        # when they've confirmed the endpoint is read-only.
+        "payloads": ["'", "1' AND '1'='1", "1' AND '1'='2",
+                     "1 UNION SELECT NULL--", "1; WAITFOR DELAY '0:0:3'--"],
     },
     "xss": {
         "names": ["search", "q", "query", "keyword", "name", "comment", "message",
