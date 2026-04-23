@@ -37,20 +37,62 @@ def register(mcp: FastMCP):
 
     # ── Match & Replace ─────────────────────────────────────────
 
+    # Headers whose rewriting frequently breaks traffic or leaks auth. Flag before applying.
+    _DANGEROUS_HEADER_PATTERNS = (
+        "host:",               # breaks TLS SNI / vhost routing
+        "authorization:",      # auth-leak risk if replaced globally
+        "cookie:",             # session leak across targets
+        "content-length:",     # mismatches body length → smuggling/500s
+        "transfer-encoding:",  # request smuggling risk
+    )
+
     @mcp.tool()
-    async def set_match_replace(rules: list[dict]) -> str:
+    async def set_match_replace(rules: list[dict], force: bool = False) -> str:
         """Add match-and-replace rules to automatically modify proxy traffic.
         Each rule: {'type': 'request'|'response', 'match': 'regex', 'replace': 'replacement'}
-        Optional: 'enabled' (default True), 'scope': 'all'|'in_scope' (default 'all')
+        Optional: 'enabled' (default True), 'scope': 'all'|'in_scope' (recommended 'in_scope')
+
+        Safety:
+        - Rules affect ALL proxy traffic unless `scope: 'in_scope'` is set. For most
+          bug-bounty use cases, set scope='in_scope' so out-of-scope sites aren't
+          touched.
+        - Rewriting Host, Authorization, Cookie, Content-Length, or Transfer-Encoding
+          headers is refused unless `force=True` — these commonly break traffic or
+          leak auth across hosts.
+        - Rules live in Burp memory only; restarting Burp wipes them. Persist
+          important rules in your hunt notes.
 
         Use cases:
-        - Add header: {'type':'request', 'match':'(\\r\\n\\r\\n)', 'replace':'\\r\\nX-Forwarded-For: 127.0.0.1\\r\\n\\r\\n'}
-        - Remove CSP: {'type':'response', 'match':'Content-Security-Policy: [^\\r\\n]+', 'replace':''}
-        - Swap token: {'type':'request', 'match':'Bearer old_token', 'replace':'Bearer new_token'}
+        - Add X-Forwarded-For (in-scope only):
+          {'type':'request', 'scope':'in_scope',
+           'match':'(\\r\\n\\r\\n)', 'replace':'\\r\\nX-Forwarded-For: 127.0.0.1\\r\\n\\r\\n'}
+        - Strip CSP (in-scope):
+          {'type':'response', 'scope':'in_scope',
+           'match':'Content-Security-Policy: [^\\r\\n]+', 'replace':''}
+        - Swap Bearer token (in-scope):
+          {'type':'request', 'scope':'in_scope',
+           'match':'Bearer old_token', 'replace':'Bearer new_token'}
 
         Args:
             rules: List of match-replace rule dicts
+            force: Allow rules that target dangerous headers (Host, Auth, Cookie,
+                   Content-Length, Transfer-Encoding). Default False.
         """
+        if not force:
+            blocked = []
+            for i, r in enumerate(rules):
+                match_str = str(r.get("match", "")).lower()
+                for pat in _DANGEROUS_HEADER_PATTERNS:
+                    if pat in match_str:
+                        blocked.append(f"rule #{i}: matches '{pat}' — set force=True to override")
+                        break
+            if blocked:
+                return (
+                    "Refused: dangerous header rewrite detected.\n  "
+                    + "\n  ".join(blocked)
+                    + "\nRe-run with force=True if intentional."
+                )
+
         data = await client.post("/api/match-replace/add", json={"rules": rules})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -69,6 +111,10 @@ def register(mcp: FastMCP):
                 f"{r.get('id', '?'):<5} {r.get('type', '?'):<10} {r.get('scope', 'all'):<10} "
                 f"{match_short} → {replace_short}"
             )
+        global_rules = [r for r in active if r.get("scope") not in ("in_scope",)]
+        if global_rules:
+            lines.append(f"\nWarning: {len(global_rules)} rule(s) apply to ALL traffic (not in-scope-only).")
+        lines.append("Note: rules are in-memory only — Burp restart wipes them.")
         return "\n".join(lines)
 
     @mcp.tool()

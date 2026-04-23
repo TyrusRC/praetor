@@ -149,17 +149,17 @@ def register(mcp: FastMCP):
         auth_pass: str = "",
         bearer_token: str = "",
         cookies: dict | None = None,
-        follow_redirects: bool = True,
+        follow_redirects: bool = False,
         max_redirects: int = 10,
     ) -> str:
-        """Send HTTP requests through Burp like curl/httpx - with redirect following, auth, and cookies.
+        """Send HTTP requests through Burp like curl/httpx - with optional redirect following, auth, and cookies.
 
         Visibility: appears in Burp's **Logger** tab and MCP history (get_mcp_history).
         Does NOT appear in Proxy → HTTP history. For proxy-history entries, use
         browser_crawl / browser_navigate.
 
         This is the most flexible request tool - use it like curl:
-        - Auto-follows redirects and shows the redirect chain
+        - Opt-in redirect following (off by default to avoid cross-scope cookie/token leaks)
         - Supports Basic auth, Bearer tokens, custom cookies
         - Shortcuts for JSON and form-encoded data
 
@@ -174,7 +174,10 @@ def register(mcp: FastMCP):
             auth_pass: Password for Basic auth
             bearer_token: Bearer token for Authorization header
             cookies: Cookies dict (e.g. {"session": "abc123"})
-            follow_redirects: Follow HTTP redirects (default True)
+            follow_redirects: Follow HTTP redirects. Default False — enabling can leak
+                              auth cookies / bearer tokens cross-scope on a 302. Only
+                              enable when you've verified the target domain doesn't
+                              redirect off-origin.
             max_redirects: Max redirect hops (default 10)
         """
         payload: dict = {

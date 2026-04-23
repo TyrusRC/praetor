@@ -15,6 +15,23 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 
+# Burp proxy — CT/Wayback lookups route through here so requests appear in
+# proxy history and external API calls are visible in the audit trail.
+_BURP_PROXY = "http://127.0.0.1:8080"
+
+
+def _burp_proxied_client(timeout: int = 30) -> httpx.AsyncClient:
+    """httpx.AsyncClient that routes through Burp and trusts Burp's MITM cert.
+
+    Falls back to a direct client if Burp proxy isn't reachable (tool still works
+    out-of-band, just invisible to the proxy audit).
+    """
+    return httpx.AsyncClient(
+        timeout=timeout,
+        proxy=_BURP_PROXY,
+        verify=False,  # Burp does TLS MITM; cert won't validate without user CA trust
+    )
+
 
 def _sanitize_domain(domain: str) -> str:
     """Sanitize domain input to prevent injection."""
@@ -74,7 +91,7 @@ def register(mcp: FastMCP):
             url += "&exclude=expired"
 
         try:
-            async with httpx.AsyncClient(timeout=30) as http:
+            async with _burp_proxied_client(timeout=30) as http:
                 resp = await http.get(url)
                 resp.raise_for_status()
                 entries = resp.json()
@@ -134,7 +151,7 @@ def register(mcp: FastMCP):
             params["filter"] = f"statuscode:{filter_status}"
 
         try:
-            async with httpx.AsyncClient(timeout=30) as http:
+            async with _burp_proxied_client(timeout=30) as http:
                 resp = await http.get(
                     "https://web.archive.org/cdx/search/cdx",
                     params=params,

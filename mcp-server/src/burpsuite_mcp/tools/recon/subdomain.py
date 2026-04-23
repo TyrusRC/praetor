@@ -33,8 +33,9 @@ def register(mcp: FastMCP):
             return "Error: subfinder not installed. Install: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
 
         domain = _sanitize_domain(domain)
-        # -max-time is in minutes; cap at timeout-10s so we give our _run_cmd kill a buffer
-        max_time_minutes = max(1, (timeout - 10) // 60) if timeout > 70 else 1
+        # -max-time is in minutes. Budget matches the outer timeout so subfinder
+        # uses the full time; our _run_cmd kill is the hard backstop.
+        max_time_minutes = max(1, timeout // 60)
         cmd = ["subfinder", "-d", domain,
                "-max-time", str(max_time_minutes),
                "-timeout", "15"]                # per-source timeout

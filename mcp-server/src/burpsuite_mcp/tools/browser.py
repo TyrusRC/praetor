@@ -422,13 +422,26 @@ def register(mcp: FastMCP):
         """Navigate to a URL and automatically interact with all buttons, links, and forms.
         Maximizes proxy history coverage by triggering all UI paths.
 
+        Scope enforcement: the starting URL is checked against Burp's scope, and
+        each navigation link is re-checked before follow. Out-of-scope links
+        (e.g. social media footer icons, external CDNs) are skipped. Buttons
+        and dropdowns that trigger same-origin XHRs are always allowed — scope
+        rules govern network destinations, not button clicks.
+
         This is the most aggressive crawl — it clicks every button, expands every dropdown,
         and follows every link to generate maximum traffic through Burp's proxy.
 
         Args:
-            url: Starting URL
+            url: Starting URL (must be in scope)
             max_clicks: Maximum interactions to perform (default 30)
         """
+        from burpsuite_mcp import client as burp_client
+
+        # Scope check before we do anything
+        scope_resp = await burp_client.post("/api/scope/check", json={"url": url})
+        if "error" not in scope_resp and not scope_resp.get("in_scope", False):
+            return f"Error: {url} is OUT OF SCOPE. Add to scope first or use a scoped URL."
+
         _, _, page = await _ensure_browser()
 
         try:
@@ -436,6 +449,7 @@ def register(mcp: FastMCP):
             await page.wait_for_timeout(2000)
 
             interactions = 0
+            skipped_oos = 0
             results = [f"Starting interaction sweep on {url}\n"]
 
             # 1. Click all buttons (not submit/logout)
@@ -453,7 +467,7 @@ def register(mcp: FastMCP):
                 except Exception:
                     pass
 
-            # 2. Click navigation links
+            # 2. Click navigation links — scope-checked per href
             nav_links = await page.query_selector_all("nav a[href], .nav a[href], header a[href]")
             from urllib.parse import urlparse
             origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
@@ -461,12 +475,19 @@ def register(mcp: FastMCP):
             for link in nav_links[:max_clicks // 3]:
                 try:
                     href = await link.get_attribute("href")
-                    if not href or not href.startswith(origin):
-                        if href and href.startswith("/"):
-                            href = origin + href
-                        else:
-                            continue
+                    if not href:
+                        continue
+                    # Normalize relative → absolute
+                    if href.startswith("/"):
+                        href = origin + href
+                    elif not href.startswith(("http://", "https://")):
+                        continue  # mailto:, tel:, javascript:, etc.
                     if any(x in href.lower() for x in ["/logout", "/signout", "/delete"]):
+                        continue
+                    # Scope check — skip out-of-scope links silently
+                    scope_check = await burp_client.post("/api/scope/check", json={"url": href})
+                    if "error" not in scope_check and not scope_check.get("in_scope", False):
+                        skipped_oos += 1
                         continue
                     text = await link.inner_text()
                     await page.goto(href, wait_until="domcontentloaded", timeout=10000)
@@ -494,6 +515,8 @@ def register(mcp: FastMCP):
                 pass
 
             results.append(f"\nCompleted: {interactions} interactions")
+            if skipped_oos:
+                results.append(f"Skipped {skipped_oos} out-of-scope links.")
             results.append(f"Check Burp proxy history for all captured traffic.")
             return "\n".join(results)
         except Exception as e:

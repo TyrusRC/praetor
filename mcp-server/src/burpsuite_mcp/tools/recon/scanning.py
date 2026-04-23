@@ -232,8 +232,8 @@ def register(mcp: FastMCP):
         if filter_words:
             cmd.extend(["-fw", filter_words])
         if use_proxy:
-            # ffuf uses -x for proxy (not --proxy)
-            cmd.extend(["-x", BURP_PROXY_URL])
+            # ffuf uses -x for proxy (not --proxy); -k skips TLS verify for Burp MITM
+            cmd.extend(["-x", BURP_PROXY_URL, "-k"])
 
         stdout, stderr, code = await _run_cmd(cmd, timeout)
 
