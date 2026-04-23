@@ -297,16 +297,110 @@ def register(mcp: FastMCP):
         return _format_platform_finding(finding, platform, domain)
 
 
+# Severity caps for vulnerability classes that are informative at best
+# (hunting.md NEVER SUBMIT list + low-impact classes). A hunter can still
+# submit if they've escalated via chain-findings, but the solo report severity
+# is capped so the triager sees an honest label.
+_SEVERITY_CAPS = {
+    # key (substring of vuln_type/title) → max allowed severity
+    "clickjacking": "LOW",
+    "missing security header": "INFO",
+    "missing header": "INFO",
+    "cookie flag": "INFO",
+    "cookie without secure": "INFO",
+    "cookie without httponly": "INFO",
+    "csrf on logout": "INFO",
+    "csrf on non-state": "INFO",
+    "mixed content": "INFO",
+    "rate limit": "LOW",
+    "stack trace": "LOW",
+    "information disclosure": "LOW",
+    "info disclosure": "LOW",
+    "user enumeration": "LOW",
+    "username enumeration": "LOW",
+    "email enumeration": "LOW",
+    "referrer-policy": "INFO",
+    "spf": "INFO",
+    "dmarc": "INFO",
+    "dkim": "INFO",
+    "content spoofing": "LOW",
+    "text injection": "INFO",
+    "self-xss": "INFO",
+    "self xss": "INFO",
+    "tabnabbing": "INFO",
+    "autocomplete": "INFO",
+    "options method": "INFO",
+    "version disclosure": "LOW",
+    "idn homograph": "INFO",
+    "open redirect": "MEDIUM",   # LOW unless chained; MEDIUM if chain evidence present
+}
+
+_SEVERITY_RANK = {"CRITICAL": 5, "HIGH": 4, "MEDIUM": 3, "LOW": 2, "INFO": 1}
+
+
+def _honest_severity(claimed: str, vuln_type: str, title: str, evidence: str, impact: str) -> tuple[str, str]:
+    """Return (capped_severity, note). Honest-severity enforcement per rule 21.
+
+    Compares the claimed severity against a cap table keyed on vuln class.
+    If the finding shows chain evidence ("chained with", "escalated via"),
+    the cap is relaxed one step.
+    """
+    claimed_up = (claimed or "MEDIUM").upper()
+    if claimed_up not in _SEVERITY_RANK:
+        claimed_up = "MEDIUM"
+
+    haystack = f"{vuln_type} {title}".lower()
+    chain_hint = any(w in f"{evidence} {impact}".lower() for w in
+                     ("chained with", "escalated via", "chain ->", "chain to", "→ account takeover"))
+
+    for key, cap in _SEVERITY_CAPS.items():
+        if key in haystack:
+            cap_up = cap
+            if chain_hint:
+                # Relax one step when chained
+                ranks = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+                cap_up = ranks[min(ranks.index(cap) + 1, 4)]
+            if _SEVERITY_RANK[claimed_up] > _SEVERITY_RANK[cap_up]:
+                note = f"Severity capped at {cap_up} ({key} alone is informative; requested {claimed_up})"
+                return cap_up, note
+            return claimed_up, ""
+    return claimed_up, ""
+
+
+def _cvss_vector(severity: str) -> str:
+    """Return a reasonable CVSS 3.1 vector hint for each severity band."""
+    sev = severity.upper()
+    # Generic vectors — the reporter should replace with target-specific metrics
+    if sev == "CRITICAL":
+        return "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    if sev == "HIGH":
+        return "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+    if sev == "MEDIUM":
+        return "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N"
+    if sev == "LOW":
+        return "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N"
+    return "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:N"
+
+
 def _format_platform_finding(finding: dict, platform: str, domain: str) -> str:
     """Format a single finding for a specific platform."""
     vuln_type = finding.get("vulnerability_type", finding.get("title", "Vulnerability"))
     endpoint = finding.get("endpoint", "/")
-    severity = finding.get("severity", "MEDIUM")
     description = finding.get("description", "")
     impact = finding.get("impact", "")
     evidence = finding.get("evidence", {})
     poc = finding.get("poc_request", {})
     param = finding.get("parameter", "")
+
+    # Honest-severity cap — rule 21 says no inflating. Evidence-driven CVSS.
+    severity, severity_note = _honest_severity(
+        finding.get("severity", "MEDIUM"),
+        vuln_type,
+        finding.get("title", ""),
+        evidence if isinstance(evidence, str) else str(evidence),
+        impact,
+    )
+    cvss_vector = _cvss_vector(severity)
 
     # Build PoC steps
     poc_steps = ""
@@ -348,7 +442,9 @@ def _format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 ## Supporting Material/References
 {evidence_str}
 - Severity: {severity}
-- Parameter: {param}"""
+- CVSS vector (edit to match): {cvss_vector}
+- Parameter: {param}
+{f'- Note: {severity_note}' if severity_note else ''}"""
 
     elif platform == "bugcrowd":
         return f"""## Title
@@ -373,11 +469,13 @@ def _format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 {impact or description}
 
 ## CVSS
-Score: [calculate]
-Vector: CVSS:3.1/AV:N/AC:L/PR:[N|L|H]/UI:[N|R]/S:[U|C]/C:[N|L|H]/I:[N|L|H]/A:[N|L|H]
+Severity: {severity}
+Vector (edit to match your target): {cvss_vector}
 
 ## Attachments
-{evidence_str}"""
+{evidence_str}
+
+{f'_Note: {severity_note}_' if severity_note else ''}"""
 
     elif platform == "intigriti":
         return f"""## Vulnerability Type
@@ -397,11 +495,13 @@ https://{domain}{endpoint}
 Severity: {severity}
 
 ## CVSS 3.1
-Score: [calculate]
-Vector String: CVSS:3.1/AV:N/AC:L/PR:[N|L|H]/UI:[N|R]/S:[U|C]/C:[N|L|H]/I:[N|L|H]/A:[N|L|H]
+Severity: {severity}
+Vector String (edit to match your target): {cvss_vector}
 
 ## Proof
-{evidence_str}"""
+{evidence_str}
+
+{f'_Note: {severity_note}_' if severity_note else ''}"""
 
     elif platform == "immunefi":
         return f"""## Bug Description
