@@ -297,10 +297,14 @@ def register(mcp: FastMCP):
         techs = tech.get("technologies", [])
         if techs:
             lines.append(f"Tech Stack: {', '.join(techs)}")
-        security_headers = tech.get("security_headers", {})
-        missing = [k for k, v in security_headers.items() if not v] if security_headers else []
+        # TechStackDetector emits `security_headers_missing` as a list. Prior
+        # code read `security_headers` as a bool-dict and always produced [].
+        missing = tech.get("security_headers_missing", [])
         if missing:
             lines.append(f"Missing Security Headers: {', '.join(missing)}")
+        present = tech.get("security_headers_present", [])
+        if present:
+            lines.append(f"Security Headers Present: {len(present)}")
 
         # Parameters
         params = data.get("parameters", {})

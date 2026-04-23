@@ -7,7 +7,9 @@ and returns structured action plans. Claude focuses on EXECUTING, not deciding.
 Decision logic sourced from: hunt.md, burp-workflow.md, verify-finding.md skills.
 """
 
+import json
 import re
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -432,12 +434,24 @@ def register(mcp: FastMCP):
         endpoint: str,
         parameter: str = "",
         response_diff: str = "",
+        domain: str = "",
     ) -> str:
         """Assess a suspected finding against the 7-Question Validation Gate.
-        Returns REPORT or DO NOT REPORT with specific reasoning.
+        Returns REPORT / NEEDS MORE EVIDENCE / DO NOT REPORT with specific reasoning.
 
         Call this BEFORE save_finding() to avoid false positives.
         Replaces 300-500 tokens of manual reasoning per finding.
+
+        The gate checks (aligned with .claude/rules/hunting.md):
+          Q1 Scope: endpoint is in-scope per Burp scope config
+          Q2 Reproducible: evidence doesn't say "intermittent"
+          Q3 Real impact: vuln_type + evidence combo isn't no-impact
+          Q4 Not a duplicate: no matching endpoint+vuln_type+parameter in
+             stored findings (requires `domain`)
+          Q5 Meets evidence requirements: per-vuln strong-evidence heuristics
+          Q6 Not in NEVER SUBMIT list
+          Q7 Triager-mass-report check: informative severities on noisy classes
+             are rejected
 
         Args:
             vuln_type: Vulnerability type (e.g. 'xss', 'sqli', 'idor', 'ssrf')
@@ -445,65 +459,154 @@ def register(mcp: FastMCP):
             endpoint: The endpoint tested
             parameter: The parameter tested
             response_diff: How the response differed from baseline
+            domain: Target domain for scope + duplicate checks. If empty, Q1
+                    and Q4 are skipped with a warning.
         """
         issues = []
         verdict = "REPORT"
 
-        # NEVER SUBMIT list check
-        never_submit = {
-            "missing_headers": "Missing security headers alone are informative, not reportable",
-            "cookie_flags": "Cookie without Secure/HttpOnly requires MitM or XSS to exploit",
-            "clickjacking_non_sensitive": "Clickjacking on non-sensitive pages has no impact",
-            "self_xss": "Self-XSS requires victim to paste payload — not reportable",
-            "csrf_logout": "CSRF on logout has minimal impact",
-            "open_redirect_no_chain": "Open redirect without token theft chain is low impact",
-            "version_disclosure": "Software version disclosure alone needs exploit chain",
-            "rate_limit_missing": "Missing rate limiting on non-sensitive endpoints has no security impact",
-            "options_method": "OPTIONS method enabled is normal HTTP behavior",
+        # NEVER SUBMIT — aligned with .claude/rules/hunting.md. Matching is
+        # done on vuln_type AND on evidence keywords so hunters writing
+        # vuln_type='xss' + evidence='self-XSS requires paste' still trip.
+        never_submit_types = {
+            "missing_headers": "Missing security headers alone — informative, not reportable",
+            "cookie_flags": "Cookie without Secure/HttpOnly — requires MitM or XSS to exploit",
+            "clickjacking": "Clickjacking on non-sensitive pages has no impact",
+            "self_xss": "Self-XSS — victim must paste payload themselves",
+            "csrf_logout": "CSRF on logout — minimal impact",
+            "csrf_non_state_changing": "CSRF on non-state-changing endpoint — no impact",
+            "open_redirect_no_chain": "Open redirect without token theft chain — low impact",
+            "mixed_content": "Mixed content — browser mitigates",
+            "rate_limit_missing": "Missing rate limiting on non-sensitive endpoint — no security impact",
+            "stack_trace": "Stack traces alone — info disclosure, not exploitable",
+            "user_enumeration": "Username enumeration on public sign-up — often by design",
+            "referrer_policy": "Missing Referrer-Policy — extremely minor",
+            "spf": "SPF/DMARC/DKIM issues — email security, usually out of scope",
+            "dmarc": "SPF/DMARC/DKIM issues — email security, usually out of scope",
+            "content_spoofing": "Content spoofing without XSS — minimal impact",
+            "host_header_no_cache": "Host header injection without cache poisoning — no exploit path",
+            "cors_no_creds": "CORS without credentials + sensitive data — browser blocks",
+            "ssl_config": "SSL/TLS configuration issues — scanner noise",
+            "version_disclosure": "Software version disclosure alone — needs exploit chain",
+            "tabnabbing": "Reverse tabnabbing — low impact, disputed",
+            "text_injection": "Text injection without HTML context — no code execution",
+            "idn_homograph": "IDN homograph attacks — browser-mitigated",
+            "autocomplete": "Missing autocomplete=off — password managers handle this",
+            "options_method": "OPTIONS method enabled — normal HTTP behavior",
+        }
+
+        # Evidence keywords that imply a NEVER SUBMIT class regardless of vuln_type
+        never_submit_keywords = {
+            "self-xss": "Self-XSS — victim must paste payload themselves",
+            "self xss": "Self-XSS — victim must paste payload themselves",
+            "clickjacking": "Clickjacking on non-sensitive pages has no impact",
+            "csrf on logout": "CSRF on logout — minimal impact",
+            "autocomplete=off": "Missing autocomplete=off — password managers handle this",
+            "stack trace": "Stack traces alone — info disclosure, not exploitable",
+            "tabnabbing": "Reverse tabnabbing — low impact, disputed",
         }
 
         vuln_lower = vuln_type.lower()
         evidence_lower = evidence.lower()
 
-        # Question 1: Reproducible?
-        if "once" in evidence_lower or "intermittent" in evidence_lower:
-            issues.append("Q2 FAIL: Finding may not be reproducible. Test 3+ times.")
+        # Q1: Scope. Skipped when domain omitted — but surfaced as a warning.
+        if domain:
+            try:
+                scope_resp = await client.post("/api/scope/check", json={"url": endpoint if "://" in endpoint else f"https://{domain}{endpoint}"})
+                if "error" not in scope_resp and not scope_resp.get("in_scope", False):
+                    issues.append(f"Q1 FAIL: endpoint {endpoint} is OUT OF SCOPE — do not report")
+                    verdict = "DO NOT REPORT"
+            except Exception:
+                issues.append("Q1 SKIP: scope check failed (extension unreachable)")
+        else:
+            issues.append("Q1 SKIP: pass `domain=...` to enable scope verification")
 
-        # Question 2: Real impact?
-        if vuln_lower == "xss" and "self" in evidence_lower:
-            issues.append("NEVER SUBMIT: Self-XSS is not reportable")
-            verdict = "DO NOT REPORT"
-        if vuln_lower == "open_redirect" and "chain" not in evidence_lower:
-            issues.append("LOW IMPACT: Open redirect without chain — consider escalation path")
-        if vuln_lower in ("missing_headers", "cookie_flags", "version_disclosure"):
-            issues.append(f"NEVER SUBMIT: {never_submit.get(vuln_lower, 'Informative only')}")
-            verdict = "DO NOT REPORT"
+        # Q2: Reproducible
+        if any(w in evidence_lower for w in ("once", "intermittent", "one time", "non-reproducible", "could not reproduce")):
+            issues.append("Q2 FAIL: evidence suggests non-reproducible — re-test 3+ times from clean state")
 
-        # Evidence quality
+        # Q6: NEVER SUBMIT type match
+        for ns_key, ns_reason in never_submit_types.items():
+            if ns_key in vuln_lower:
+                issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
+                verdict = "DO NOT REPORT"
+                break
+
+        # Q6: NEVER SUBMIT evidence-keyword match
+        if verdict == "REPORT":
+            for ns_key, ns_reason in never_submit_keywords.items():
+                if ns_key in evidence_lower:
+                    issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
+                    verdict = "DO NOT REPORT"
+                    break
+
+        # Q3 / Q5: Impact + evidence quality per vuln class
+        weak_evidence = False
         if vuln_lower == "sqli":
-            strong = any(x in evidence_lower for x in ["sleep", "delay", "error", "union", "version()", "database()"])
+            strong = any(x in evidence_lower for x in ["sleep", "delay", "union", "version()", "current_user", "database()"]) \
+                     or any(err in evidence_lower for err in ["sql syntax", "ora-", "mysql_fetch", "pg_query", "sqlite"])
             if not strong:
-                issues.append("WEAK EVIDENCE: SQLi needs timing (3x), error-based, or UNION evidence")
+                issues.append("Q5 WEAK EVIDENCE: SQLi needs timing (3x), vendor error, or UNION proof")
+                weak_evidence = True
 
         if vuln_lower == "ssrf":
-            strong = any(x in evidence_lower for x in ["collaborator", "callback", "dns", "metadata", "169.254"])
+            strong = any(x in evidence_lower for x in ["collaborator", "callback", "dns", "metadata", "169.254", "ami-id"])
             if not strong:
-                issues.append("WEAK EVIDENCE: SSRF needs Collaborator callback or metadata access proof")
+                issues.append("Q5 WEAK EVIDENCE: SSRF needs Collaborator callback or metadata access proof")
+                weak_evidence = True
 
-        if vuln_lower == "xss":
-            strong = any(x in evidence_lower for x in ["alert", "reflected", "executed", "dom", "stored"])
+        if vuln_lower in ("xss", "reflected xss", "stored xss"):
+            strong = any(x in evidence_lower for x in ["alert(", "executed", "dom-based", "stored", "reflected in"])
             if not strong:
-                issues.append("WEAK EVIDENCE: XSS needs proof of execution (reflected in context, not just present)")
+                issues.append("Q5 WEAK EVIDENCE: XSS needs proof of execution — not just reflection in text context")
+                weak_evidence = True
 
         if vuln_lower == "idor":
-            strong = any(x in evidence_lower for x in ["different user", "unauthorized", "other account", "access"])
+            strong = any(x in evidence_lower for x in ["different user", "unauthorized", "other account", "cross-tenant", "200 ok"])
             if not strong:
-                issues.append("WEAK EVIDENCE: IDOR needs proof of accessing another user's data")
+                issues.append("Q5 WEAK EVIDENCE: IDOR needs proof of reading another user's data with different session")
+                weak_evidence = True
 
-        # Timing-based needs 3x
-        if "time" in evidence_lower or "delay" in evidence_lower or "sleep" in evidence_lower:
-            if "3x" not in evidence_lower and "three" not in evidence_lower:
-                issues.append("TIMING RULE: Timing-based findings must be verified 3+ times (network noise)")
+        if vuln_lower == "rce":
+            strong = any(x in evidence_lower for x in ["uid=", "gid=", "whoami", "collaborator", "dns callback"])
+            if not strong:
+                issues.append("Q5 WEAK EVIDENCE: RCE needs uid=/gid=/whoami output or OOB callback")
+                weak_evidence = True
+
+        # Timing-based needs 3x (rule 11)
+        if any(w in evidence_lower for w in ("time", "delay", "sleep")) and not any(w in evidence_lower for w in ("3x", "three", "3/3", "consistent", "confirmed 3")):
+            issues.append("Q5 TIMING RULE: timing-based findings require 3+ consistent iterations")
+            weak_evidence = True
+
+        # Q4: Duplicate check — read persisted findings if domain given
+        if domain and verdict == "REPORT":
+            try:
+                import re as _re
+                sanitized = _re.sub(r'[^a-zA-Z0-9._-]', '_', domain)
+                findings_path = Path.cwd() / ".burp-intel" / sanitized / "findings.json"
+                if findings_path.exists():
+                    existing = json.loads(findings_path.read_text()).get("findings", [])
+                    for f in existing:
+                        same_ep = f.get("endpoint", "") == endpoint
+                        same_type = vuln_lower in f.get("vuln_type", "").lower() or vuln_lower in f.get("title", "").lower()
+                        same_param = (f.get("parameter", "") == parameter) if parameter else True
+                        if same_ep and same_type and same_param:
+                            issues.append(f"Q4 DUPLICATE: already saved as {f.get('id', '?')} — update instead of re-save")
+                            verdict = "DO NOT REPORT"
+                            break
+            except (OSError, json.JSONDecodeError, ImportError):
+                pass  # best-effort; no crash on missing intel
+
+        # Q7: Triager-mass-report heuristic. If only weak-evidence flags and
+        # a low-impact vuln class, the triager will mark informative.
+        low_impact_classes = {"open_redirect", "information_disclosure", "info_disclosure"}
+        if verdict == "REPORT" and weak_evidence and vuln_lower in low_impact_classes:
+            issues.append("Q7 TRIAGER TEST: low-impact class + weak evidence — likely marked informative. Chain with another finding first.")
+            verdict = "NEEDS MORE EVIDENCE"
+
+        # Any weak-evidence flag alone downgrades from REPORT to NEEDS MORE EVIDENCE
+        if verdict == "REPORT" and weak_evidence:
+            verdict = "NEEDS MORE EVIDENCE"
 
         if not issues:
             return (
@@ -516,14 +619,18 @@ def register(mcp: FastMCP):
         lines = [f"VERDICT: {verdict}"]
         lines.append(f"  Type: {vuln_type}")
         lines.append(f"  Endpoint: {endpoint}")
-        lines.append(f"\n  Issues ({len(issues)}):")
+        if parameter:
+            lines.append(f"  Parameter: {parameter}")
+        lines.append(f"\n  Gate issues ({len(issues)}):")
         for issue in issues:
             lines.append(f"    - {issue}")
 
-        if verdict == "REPORT":
-            lines.append(f"\n  Action: Address the issues above, then save_finding().")
-        else:
+        if verdict == "DO NOT REPORT":
             lines.append(f"\n  Action: Do not report. Move to next target/parameter.")
+        elif verdict == "NEEDS MORE EVIDENCE":
+            lines.append(f"\n  Action: Strengthen the flagged evidence items, then re-assess before save_finding().")
+        else:
+            lines.append(f"\n  Action: Address the issues above, then save_finding().")
 
         return "\n".join(lines)
 
@@ -555,9 +662,9 @@ def register(mcp: FastMCP):
              "extract_headers(index, ['Set-Cookie', 'X-Frame-Options', 'Content-Security-Policy'])"),
             (["json", "api response", "json field", "json path"], "extract_json_path",
              "extract_json_path(index, '$.data.user.role')"),
-            (["regex", "pattern", "extract value"], "extract_regex",
+            (["regex", "regex pattern", "extract value"], "extract_regex",
              "extract_regex(index, 'pattern_here', group=1)"),
-            (["sqli", "sql injection", "database"], "auto_probe",
+            (["sqli", "sql injection"], "auto_probe",
              "auto_probe(session='hunt', categories=['sqli'])"),
             (["xss", "cross-site", "reflected"], "auto_probe",
              "auto_probe(session='hunt', categories=['xss'])"),
@@ -565,19 +672,24 @@ def register(mcp: FastMCP):
              "auto_probe(session='hunt', categories=['ssrf'])"),
             (["ssti", "template injection"], "auto_probe",
              "auto_probe(session='hunt', categories=['ssti'])"),
+            (["open redirect", "unvalidated redirect"], "test_open_redirect",
+             "test_open_redirect(session='hunt', path='/login', parameter='next')"),
             (["idor", "access control", "authorization"], "test_auth_matrix",
              "test_auth_matrix(endpoints=['/api/users/1','/api/users/2'], auth_states={'admin':{...},'user':{...}})"),
             (["race", "concurrent", "double spend", "toctou"], "test_race_condition",
              "test_race_condition(session='hunt', request={...}, concurrent=10)"),
-            (["cors", "origin", "cross-origin"], "test_cors",
+            (["cors", "cross-origin"], "test_cors",
              "test_cors(session='hunt', path='/api/endpoint')"),
-            (["fuzz", "brute", "payloads", "test parameter"], "fuzz_parameter",
+            # fuzz anchors are multi-word so bare "test parameter X for SQLi"
+            # doesn't hijack more specific routes
+            (["fuzz", "smart fuzz", "fuzz param"], "fuzz_parameter",
              "fuzz_parameter(index, parameter='param_name', smart_payloads=True)"),
             (["encode", "decode", "base64", "url encode"], "transform_chain",
              "transform_chain('input', ['url_encode', 'base64_encode'])"),
             (["waf bypass", "encoding chain", "bypass filter"], "transform_chain",
              "transform_chain('<script>alert(1)</script>', ['url_encode', 'base64_encode', 'url_encode'])"),
-            (["login", "authenticate", "session"], "create_macro",
+            # "session" keyword removed — too generic; "login flow" / "authenticate" stay
+            (["login flow", "authenticate", "login macro"], "create_macro",
              "create_macro(name='login', steps=[{method:'GET',url:'/login',extract:[...]},{method:'POST',...}])"),
             (["compare", "diff", "different response"], "compare_responses",
              "compare_responses(index1, index2, mode='full')"),
