@@ -256,7 +256,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def run_sqlmap(
-        url: str,
+        target: str,
         data: str = "",
         cookie: str = "",
         method: str = "GET",
@@ -267,15 +267,13 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 600,
     ) -> str:
-        """Run sqlmap against a URL to detect/exploit SQL injection.
-
-        All requests route through Burp proxy by default. sqlmap runs in
-        batch mode (no prompts) and emits a concise summary.
+        """Run sqlmap against a target URL to detect/exploit SQL injection.
+        All requests route through Burp proxy by default.
 
         Requires sqlmap: https://sqlmap.org (pip install sqlmap, or system package)
 
         Args:
-            url: Target URL (e.g. 'https://target.com/item?id=1')
+            target: Target URL (e.g. 'https://target.com/item?id=1')
             data: POST body (switches to --method=POST automatically)
             cookie: Cookie header
             method: HTTP method (default GET; ignored if data is given)
@@ -294,7 +292,7 @@ def register(mcp: FastMCP):
             )
 
         cmd = [
-            "sqlmap", "-u", url,
+            "sqlmap", "-u", target,
             "--level", str(max(1, min(5, level))),
             "--risk", str(max(1, min(3, risk))),
             "--technique", technique,
@@ -325,12 +323,12 @@ def register(mcp: FastMCP):
                                         "available databases", "[CRITICAL]", "[WARNING]", "[ERROR]")):
                 key_lines.append(line.strip())
 
-        lines = [f"sqlmap scan of {url}:", ""]
+        lines = [f"sqlmap findings for {target} ({len(key_lines)}):", ""]
         if key_lines:
             for l in key_lines[:80]:
                 lines.append(f"  {l}")
         else:
-            lines.append("  No injection found at level=%d risk=%d. Try higher level/risk or more techniques." % (level, risk))
+            lines.append(f"  No injection found at level={level} risk={risk}. Try higher level/risk or more techniques.")
 
         if use_proxy:
             lines.append("\nAll requests routed through Burp proxy — check proxy history.")
