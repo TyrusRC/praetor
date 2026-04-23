@@ -179,6 +179,13 @@ try {
     $toolCount = & uv run python -c "from burpsuite_mcp.server import mcp; print(len(mcp._tool_manager._tools))" 2>$null
     if ($toolCount -and [int]$toolCount -gt 0) { Ok "MCP server verified: $toolCount tools loaded" }
     else { Fail "MCP server failed to load" }
+
+    # Browser tools (browser_crawl, browser_navigate, etc.) need Chromium.
+    # Playwright ships an installer that fetches a pinned Chromium build.
+    Info "Installing Playwright Chromium (for browser_* tools)..."
+    & uv run python -m playwright install chromium 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) { Ok "Playwright Chromium installed" }
+    else { Warn "Playwright Chromium install failed - browser_* tools won't work until you run: uv run python -m playwright install chromium" }
 } finally { Pop-Location }
 
 # ════════════════════════════════════════════════════════════════════

@@ -23,8 +23,17 @@ def _sanitize_domain(domain: str) -> str:
     return domain
 
 
+_DIG_MISSING_LOGGED = False
+
+
 async def _dig(domain: str, record_type: str, timeout: int = 10) -> str:
-    """Run dig for a specific record type. Returns +short output."""
+    """Run dig for a specific record type. Returns +short output.
+
+    Returns empty string if dig is missing (common on Windows) or the lookup
+    times out. Use `_dig_available()` to distinguish "dig missing" from
+    "no records exist" before reporting to the user.
+    """
+    global _DIG_MISSING_LOGGED
     try:
         proc = await asyncio.create_subprocess_exec(
             "dig", domain, record_type, "+short",
@@ -33,8 +42,21 @@ async def _dig(domain: str, record_type: str, timeout: int = 10) -> str:
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return stdout.decode(errors="replace").strip()
-    except (asyncio.TimeoutError, FileNotFoundError):
+    except asyncio.TimeoutError:
         return ""
+    except FileNotFoundError:
+        _DIG_MISSING_LOGGED = True
+        return ""
+
+
+def _dig_available() -> bool:
+    """Return True if dig produced any result at least once OR is on PATH.
+
+    Cheap heuristic: we set _DIG_MISSING_LOGGED to True the first time a
+    FileNotFoundError fires. If that's ever set, dig is not installed.
+    """
+    import shutil
+    return shutil.which("dig") is not None
 
 
 # Known services vulnerable to subdomain takeover
@@ -217,7 +239,12 @@ def register(mcp: FastMCP):
     async def analyze_dns(domain: str) -> str:
         """Analyze DNS records for a domain. Checks A, AAAA, MX, TXT, NS, CNAME, SOA.
         Flags security-relevant findings (SPF, DMARC, wildcard DNS, external CNAMEs).
-        Pure Python — uses socket + dig.
+
+        Requirements:
+          - A/AAAA: always available (via Python socket)
+          - MX/TXT/NS/CNAME/SOA: requires `dig` on PATH. On Windows, install
+            BIND utils (`scoop install dnsutils`) or run from WSL. A warning is
+            emitted up-front when dig is missing so output isn't silently thin.
 
         Args:
             domain: Target domain (e.g. 'example.com')
@@ -225,6 +252,15 @@ def register(mcp: FastMCP):
         domain = _sanitize_domain(domain)
         lines = [f"DNS records for {domain}:", ""]
         notes: list[str] = []
+
+        # Warn up front if dig is missing — socket-only output is misleading
+        # for a tool that claims MX/TXT/NS/CNAME/SOA support.
+        dig_ok = _dig_available()
+        if not dig_ok:
+            lines.append("  [!] `dig` not found on PATH — only A/AAAA records available")
+            lines.append("      Install BIND utils (Linux: `apt install dnsutils`;")
+            lines.append("      Windows: `scoop install dnsutils` or use WSL)")
+            lines.append("")
 
         # A records via socket
         try:

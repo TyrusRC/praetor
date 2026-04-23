@@ -306,25 +306,34 @@ def register(mcp: FastMCP):
         if present:
             lines.append(f"Security Headers Present: {len(present)}")
 
-        # Parameters
+        # Parameters. ParameterExtractor emits `query_parameters`,
+        # `body_parameters`, `cookie_parameters` (NOT `query`/`body`/`cookie`).
         params = data.get("parameters", {})
-        for location in ["query", "body", "cookie"]:
-            param_list = params.get(location, [])
+        for location, server_key in (("query", "query_parameters"),
+                                     ("body", "body_parameters"),
+                                     ("cookie", "cookie_parameters")):
+            param_list = params.get(server_key, [])
             if param_list:
                 names = [p.get("name", "?") for p in param_list] if isinstance(param_list, list) else []
                 if names:
                     lines.append(f"Params ({location}): {', '.join(names)}")
 
-        # Injection points
-        injection = data.get("injection_points", {})
-        high_risk = injection.get("high_risk", [])
+        # Injection points. InjectionPointDetector emits a flat list under
+        # `injection_points` (already sorted by risk_score desc). There's no
+        # `.high_risk` sub-key — prior code always produced empty output.
+        injection_block = data.get("injection_points", {})
+        injection_list = injection_block.get("injection_points", []) if isinstance(injection_block, dict) else []
+        # Keep only the risky ones so low-signal cookies don't dominate output
+        high_risk = [ip for ip in injection_list if ip.get("risk_score", 0) >= 1]
         if high_risk:
-            lines.append(f"\nInjection Points ({len(high_risk)} high-risk):")
+            lines.append(f"\nInjection Points ({len(high_risk)}):")
             for ip in high_risk[:10]:
                 name = ip.get("name", "?")
-                types = ", ".join(ip.get("types", []))
+                location = ip.get("location", ip.get("type", ""))
+                types = ", ".join(ip.get("potential_vulnerabilities", ip.get("types", [])))
                 score = ip.get("risk_score", 0)
-                lines.append(f"  {name} [{types}] (risk: {score})")
+                loc_str = f" ({location})" if location else ""
+                lines.append(f"  {name}{loc_str} [{types}] (risk: {score})")
 
         # Forms
         forms = data.get("forms", {})

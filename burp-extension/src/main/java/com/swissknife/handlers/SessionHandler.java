@@ -559,6 +559,39 @@ public class SessionHandler extends BaseHandler {
         return path;
     }
 
+    /**
+     * Match a parameter name against a knowledge-base param_match list.
+     *
+     * Exact-lowercase match wins first (fast path). Otherwise tokenize
+     * camelCase / snake_case / kebab-case and check each token, plus an
+     * entry-is-prefix-of-parameter check so "cat" still matches "category".
+     * This lets modern names like "productId", "user_email", "post-id"
+     * match the short tokens (id, email) that the knowledge base uses.
+     */
+    static boolean paramMatcherHits(String parameter, List<String> paramMatch) {
+        if (parameter == null || paramMatch == null || paramMatch.isEmpty()) return true;
+        String lower = parameter.toLowerCase();
+        Set<String> tokens = new HashSet<>();
+        tokens.add(lower);
+        for (String t : lower.split("[_\\-\\s\\.]+")) {
+            if (!t.isEmpty()) tokens.add(t);
+        }
+        // camelCase boundary split on the original casing
+        for (String t : parameter.split("(?<!^)(?=[A-Z])")) {
+            if (!t.isEmpty()) tokens.add(t.toLowerCase());
+        }
+        for (String entry : paramMatch) {
+            if (entry == null) continue;
+            String e = entry.toLowerCase();
+            if (tokens.contains(e)) return true;
+            // Prefix-of-parameter check (e.g. entry="cat" matches "category").
+            // Require entry length >= 3 to avoid "id" matching "identifier"
+            // (which we already catch via the id-token split for snake/camel).
+            if (e.length() >= 3 && lower.startsWith(e)) return true;
+        }
+        return false;
+    }
+
     // ── Adaptive tech detection from response headers/body ──
 
     private List<String> detectTechFromResponse(HttpRequestResponse result) {
@@ -1095,9 +1128,12 @@ public class SessionHandler extends BaseHandler {
                         List<String> techMatch = (List<String>) context.getOrDefault("tech_match", List.of());
                         if (!techMatch.isEmpty() && detectedTech.stream().noneMatch(techMatch::contains)) continue;
 
-                        // Check param_match
+                        // Check param_match — exact match OR tokenized match so
+                        // modern camelCase/snake_case names match the simple
+                        // tokens in the knowledge base (productId→id,
+                        // post_id→id, category→cat, user_email→email).
                         List<String> paramMatch = (List<String>) context.getOrDefault("param_match", List.of());
-                        if (!paramMatch.isEmpty() && !paramMatch.contains(parameter.toLowerCase())) continue;
+                        if (!paramMatch.isEmpty() && !paramMatcherHits(parameter, paramMatch)) continue;
 
                         // Run probes
                         List<Map<String, Object>> probes = (List<Map<String, Object>>) context.getOrDefault("probes", List.of());

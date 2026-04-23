@@ -342,17 +342,29 @@ def register(mcp: FastMCP):
         lines = [f"Status: {resp.get('status')} | Length: {resp.get('response_length', 0)} bytes"]
         analysis = resp.get("analysis", {})
         if analysis:
-            techs = analysis.get("tech_stack", {}).get("technologies", [])
-            if techs: lines.append(f"\nTech Stack: {', '.join(techs)}")
-            missing = [k for k, v in analysis.get("tech_stack", {}).get("security_headers", {}).items() if not v]
-            if missing: lines.append(f"Missing Headers: {', '.join(missing)}")
-            high_risk = analysis.get("injection_points", {}).get("high_risk", [])
+            tech = analysis.get("tech_stack", {})
+            techs = tech.get("technologies", [])
+            if techs:
+                lines.append(f"\nTech Stack: {', '.join(techs)}")
+            # TechStackDetector emits `security_headers_missing` as a list
+            missing = tech.get("security_headers_missing", [])
+            if missing:
+                lines.append(f"Missing Headers: {', '.join(missing)}")
+            # InjectionPointDetector emits flat list under `injection_points`
+            injection_block = analysis.get("injection_points", {})
+            ij_list = injection_block.get("injection_points", []) if isinstance(injection_block, dict) else []
+            high_risk = [ip for ip in ij_list if ip.get("risk_score", 0) >= 1]
             if high_risk:
                 lines.append(f"\nInjection Points ({len(high_risk)}):")
                 for ip in high_risk[:10]:
-                    lines.append(f"  {ip.get('name', '?')} [{', '.join(ip.get('types', []))}] risk={ip.get('risk_score', 0)}")
-            for loc in ["query", "body", "cookie"]:
-                pl = analysis.get("parameters", {}).get(loc, [])
+                    vulns = ip.get("potential_vulnerabilities", ip.get("types", []))
+                    lines.append(f"  {ip.get('name', '?')} [{', '.join(vulns)}] risk={ip.get('risk_score', 0)}")
+            # ParameterExtractor emits query_parameters / body_parameters / cookie_parameters
+            params = analysis.get("parameters", {})
+            for loc, key in (("query", "query_parameters"),
+                             ("body", "body_parameters"),
+                             ("cookie", "cookie_parameters")):
+                pl = params.get(key, [])
                 if pl and isinstance(pl, list):
                     lines.append(f"Params ({loc}): {', '.join(p.get('name', '?') for p in pl)}")
         return "\n".join(lines)

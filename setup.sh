@@ -227,6 +227,14 @@ else
     fail "MCP server failed to load"
 fi
 
+# Playwright Chromium for browser_* tools (browser_crawl, browser_navigate, ...)
+info "Installing Playwright Chromium (for browser_* tools)..."
+if uv run python -m playwright install chromium >/dev/null 2>&1; then
+    ok "Playwright Chromium installed"
+else
+    warn "Playwright Chromium install failed — browser_* tools will error until you run: uv run python -m playwright install chromium"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # PHASE 3: Optional — ProjectDiscovery Recon Tools
 # ════════════════════════════════════════════════════════════════════
