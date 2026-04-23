@@ -326,14 +326,13 @@ def register(mcp: FastMCP):
 # ─── NVD API lookup ─────────────────────────────────────────────────────────
 
 _NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-_BURP_PROXY = "http://127.0.0.1:8080"
 
 
 async def _nvd_lookup(query: str, max_results: int) -> list[dict] | str:
     """Query NVD 2.0 API. Returns a list of CVE dicts or an error string.
 
-    Routes through Burp proxy so the request lands in proxy history — keeps
-    the audit trail honest.
+    Direct call — NVD is a reference/intel database, not the target. Keeping
+    it out of Burp proxy history avoids polluting the hunt audit trail.
     """
     import httpx
     params: dict[str, str | int]
@@ -345,8 +344,6 @@ async def _nvd_lookup(query: str, max_results: int) -> list[dict] | str:
     try:
         async with httpx.AsyncClient(
             timeout=20,
-            proxy=_BURP_PROXY,
-            verify=False,
             headers={"User-Agent": "burpsuite-swiss-knife-mcp/cve-lookup"},
         ) as http:
             resp = await http.get(_NVD_API_URL, params=params)
