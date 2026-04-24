@@ -247,15 +247,29 @@ def register(mcp: FastMCP):
         lines = [f"Auto-Probe: {data.get('parameters_tested', 0)} params, {data.get('total_probes_sent', 0)} probes\n"]
 
         findings = data.get("findings", [])
-        # Sort by score descending
-        findings_sorted = sorted(findings, key=lambda f: f.get("score", 0), reverse=True)
+        # Sort by confidence descending (falls back to score for older server
+        # builds that don't emit confidence yet).
+        findings_sorted = sorted(
+            findings,
+            key=lambda f: (f.get("confidence", f.get("score", 0) / 100.0), f.get("score", 0)),
+            reverse=True,
+        )
         if findings_sorted:
             lines.append(f"Findings ({len(findings_sorted)}):\n")
             for finding in findings_sorted:
                 sev = finding.get("severity", "?")
                 score = finding.get("score", 0)
+                conf = finding.get("confidence")
                 anomaly = finding.get("anomaly_score", 0)
-                lines.append(f"  [{sev:>8s}] {finding.get('endpoint', '?')} -> {finding.get('parameter', '?')} (score: {score})")
+                # Colour hint in the header mirrors what lands in Proxy history
+                color = (
+                    "RED" if conf is not None and conf >= 0.90 else
+                    "ORA" if conf is not None and conf >= 0.60 else
+                    "YEL" if conf is not None and conf >= 0.30 else
+                    "GRN"
+                )
+                conf_str = f"c={conf:.2f} [{color}]" if conf is not None else f"score={score}"
+                lines.append(f"  [{sev:>8s}] {conf_str}  {finding.get('endpoint', '?')} -> {finding.get('parameter', '?')}")
                 lines.append(f"           {finding.get('category', '?')}/{finding.get('context', '?')}: {finding.get('description', '?')}")
                 lines.append(f"           Payload: {finding.get('probe', '?')}")
                 matched = finding.get("matched_matchers", [])
@@ -270,7 +284,7 @@ def register(mcp: FastMCP):
 
         saved = data.get("auto_saved_findings", 0)
         if saved:
-            lines.append(f"\n{saved} findings detected. Use save_finding() to document or export_report() for report.")
+            lines.append(f"\n{saved} findings detected. Pass the confidence value to save_finding(confidence=...) or export_report() for report.")
 
         return "\n".join(lines)
 

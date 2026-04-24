@@ -573,9 +573,17 @@ def register(mcp: FastMCP):
                 issues.append("Q5 WEAK EVIDENCE: RCE needs uid=/gid=/whoami output or OOB callback")
                 weak_evidence = True
 
-        # Timing-based needs 3x (rule 11)
-        if any(w in evidence_lower for w in ("time", "delay", "sleep")) and not any(w in evidence_lower for w in ("3x", "three", "3/3", "consistent", "confirmed 3")):
-            issues.append("Q5 TIMING RULE: timing-based findings require 3+ consistent iterations")
+        # Timing-based needs 3x (rule 11). Gate this on actual timing
+        # *injection* vocabulary, not the loose word "time" which hits
+        # reproducibility phrasing like "reproduced 3 times".
+        timing_markers = ("sleep(", "waitfor", "pg_sleep", "benchmark(",
+                          "time delay", "response time", "ms delay",
+                          "seconds delay", "timing attack", "time-based",
+                          "timing-based", "timing side channel")
+        if any(m in evidence_lower for m in timing_markers) and not any(
+            w in evidence_lower for w in ("3x", "three iterations", "3/3", "3 consistent", "consistent across", "confirmed 3", "3 repeats", "repeated 3")
+        ):
+            issues.append("Q5 TIMING RULE: timing-based findings require 3+ consistent iterations (confirm with '3/3' in evidence)")
             weak_evidence = True
 
         # Q4: Duplicate check — read persisted findings if domain given
@@ -608,12 +616,32 @@ def register(mcp: FastMCP):
         if verdict == "REPORT" and weak_evidence:
             verdict = "NEEDS MORE EVIDENCE"
 
+        # Derive a suggested confidence in [0.0, 1.0]. Pass this straight to
+        # save_finding(confidence=...). The thresholds line up with
+        # ProxyHighlight's RED/ORANGE/YELLOW/GREEN mapping so the colour of
+        # the proxy-history entry matches the gate's verdict.
+        if verdict == "DO NOT REPORT":
+            suggested_confidence = 0.05
+        elif verdict == "NEEDS MORE EVIDENCE":
+            # Weak evidence → ORANGE-ish band. Each flag drags it down ~0.05,
+            # floor at 0.40 so something survives to the hunter.
+            penalty = max(0, len(issues) - 1) * 0.05
+            suggested_confidence = max(0.40, 0.65 - penalty)
+        elif not issues:
+            # Verdict REPORT and zero gate issues — highest confidence.
+            suggested_confidence = 0.92
+        else:
+            # REPORT with some non-fatal issues (e.g. Q1 skipped because no
+            # domain passed). Slightly lower than the clean-pass case.
+            suggested_confidence = 0.80
+
         if not issues:
             return (
                 f"VERDICT: {verdict}\n"
                 f"  Type: {vuln_type}\n"
                 f"  Endpoint: {endpoint}\n"
-                f"  All 7 questions PASS. Proceed with save_finding()."
+                f"  Suggested confidence: {suggested_confidence:.2f}\n"
+                f"  All 7 questions PASS. Proceed with save_finding(confidence={suggested_confidence:.2f})."
             )
 
         lines = [f"VERDICT: {verdict}"]
@@ -621,6 +649,7 @@ def register(mcp: FastMCP):
         lines.append(f"  Endpoint: {endpoint}")
         if parameter:
             lines.append(f"  Parameter: {parameter}")
+        lines.append(f"  Suggested confidence: {suggested_confidence:.2f}")
         lines.append(f"\n  Gate issues ({len(issues)}):")
         for issue in issues:
             lines.append(f"    - {issue}")
@@ -628,9 +657,9 @@ def register(mcp: FastMCP):
         if verdict == "DO NOT REPORT":
             lines.append(f"\n  Action: Do not report. Move to next target/parameter.")
         elif verdict == "NEEDS MORE EVIDENCE":
-            lines.append(f"\n  Action: Strengthen the flagged evidence items, then re-assess before save_finding().")
+            lines.append(f"\n  Action: Strengthen the flagged evidence items, then re-assess before save_finding(confidence={suggested_confidence:.2f}).")
         else:
-            lines.append(f"\n  Action: Address the issues above, then save_finding().")
+            lines.append(f"\n  Action: Address the issues above, then save_finding(confidence={suggested_confidence:.2f}).")
 
         return "\n".join(lines)
 

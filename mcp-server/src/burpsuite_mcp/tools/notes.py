@@ -76,6 +76,7 @@ def register(mcp: FastMCP):
         domain: str = "",
         parameter: str = "",
         vuln_type: str = "",
+        confidence: float = 0.5,
     ) -> str:
         """Save a pentest finding/vulnerability note.
 
@@ -86,6 +87,16 @@ def register(mcp: FastMCP):
         Findings are deduplicated by (endpoint + title + parameter). A second
         save_finding with the same key updates the entry instead of creating a
         duplicate (rule 23).
+
+        Confidence convention (0.0–1.0):
+          ≥ 0.90  Confirmed — exploit reproduced with concrete evidence
+                  (working PoC, vendor error leak, Collaborator callback).
+          0.60–0.89  Strong suspicion — multiple anomalies or matcher hit
+                     but not yet reproduced end-to-end.
+          0.30–0.59  Weak signal — single status/length anomaly, needs more work.
+          < 0.30   Informational — behaviour observed, no attack path yet.
+        Prefer calling assess_finding() first; it returns a suggested
+        confidence you can pass here directly.
 
         Args:
             title: Short finding title (e.g. "SQL Injection in login form")
@@ -100,7 +111,18 @@ def register(mcp: FastMCP):
             parameter: Parameter name (used for dedup key)
             vuln_type: Vulnerability class (e.g. 'xss', 'sqli'). Stored with
                        the finding for future cross-target pattern lookup.
+            confidence: 0.0–1.0 score for how confident you are this finding
+                        is real. Default 0.5. Drives report prioritisation and
+                        — via ProxyHighlight — the colour of the linked
+                        proxy-history entry (RED only at ≥ 0.9).
         """
+        # Clamp confidence to the documented range so callers can't poison
+        # the highlight logic with -1 or 99.
+        try:
+            confidence = max(0.0, min(1.0, float(confidence)))
+        except (TypeError, ValueError):
+            confidence = 0.5
+
         resolved_domain = domain or _domain_from_endpoint(endpoint)
 
         # Dedupe against persistent store first
@@ -119,6 +141,7 @@ def register(mcp: FastMCP):
                 "status": status,
                 "parameter": parameter,
                 "vuln_type": vuln_type,
+                "confidence": round(confidence, 2),
                 "last_updated": now,
             }
             existing_list = store.get("findings", [])
@@ -155,7 +178,7 @@ def register(mcp: FastMCP):
 
         action_label = "Updated" if dedup_action == "updated" else "Saved"
         return (
-            f"{action_label} [{severity}] {title}\n"
+            f"{action_label} [{severity}] c={confidence:.2f} {title}\n"
             f"  Persistent ID: {saved_id} ({resolved_domain})\n"
             f"  Burp ID: {burp_id}\n"
             f"  Location: .burp-intel/{_sanitized(resolved_domain)}/findings.json"

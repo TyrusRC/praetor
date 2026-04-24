@@ -63,9 +63,12 @@ def register(mcp: FastMCP):
         if severity:
             cmd.extend(["-severity", severity])
         if use_proxy:
-            # Route through Burp. Burp performs TLS MITM, so we must skip nuclei's
-            # cert verification or every HTTPS request fails after the CONNECT.
-            cmd.extend(["-proxy", BURP_PROXY_URL, "-insecure"])
+            # Route through Burp. Nuclei v3 removed -insecure/-tls-skip-verify,
+            # so HTTPS through Burp's MITM cert only works if the user installed
+            # Burp CA into the system trust store (cacert.der from Burp ->
+            # Windows Cert Manager / Keychain). If not, HTTPS scans will emit
+            # TLS errors in nuclei output — visible to the hunter.
+            cmd.extend(["-proxy", BURP_PROXY_URL])
 
         stdout, stderr, code = await _run_cmd(cmd, timeout)
 

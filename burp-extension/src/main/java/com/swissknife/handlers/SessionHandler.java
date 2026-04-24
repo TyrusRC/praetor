@@ -1214,13 +1214,41 @@ public class SessionHandler extends BaseHandler {
                                 anomalies.add("timing:+" + timeDiff + "ms vs baseline");
                             }
 
-                            if (Boolean.TRUE.equals(matchResult.get("matched"))) {
+                            // Compute a single confidence score in [0.0, 1.0]
+                            // that drives BOTH the finding record and the
+                            // Proxy → HTTP history highlight colour. The
+                            // formula combines matcher match quality, matcher
+                            // boost from the knowledge base, and the anomaly
+                            // signals. Only matcher hits with high boost +
+                            // anomaly reach ≥0.9 (RED).
+                            boolean matcherHit = Boolean.TRUE.equals(matchResult.get("matched"));
+                            int probeBoost = probe.containsKey("confidence_boost")
+                                ? ((Number) probe.get("confidence_boost")).intValue() : 0;
+                            int matcherBoost = ((Number) matchResult.getOrDefault("confidence_boost", 0)).intValue();
+                            int rawScore = Math.min(100, probeBoost + matcherBoost + anomalyScore);
+
+                            double confidence;
+                            if (matcherHit) {
+                                // Matcher fired. Lift to ≥0.6 floor, add the
+                                // raw boost fraction, and require strong
+                                // signal (boost ≥ 70 or anomaly backing) for
+                                // the ≥0.9 RED threshold.
+                                double base = 0.60 + (Math.min(probeBoost + matcherBoost, 100) / 250.0);
+                                if (anomalyScore >= 20) base += 0.10;  // anomaly corroborates
+                                if ((probeBoost + matcherBoost) >= 70 && anomalyScore >= 20) base = Math.max(base, 0.92);
+                                confidence = Math.min(1.0, base);
+                            } else if (anomalyScore >= 40 && anomalies.size() >= 2) {
+                                // No matcher but multiple anomalies — MEDIUM confidence.
+                                confidence = 0.45 + Math.min(anomalyScore, 60) / 200.0;  // 0.45 .. 0.75
+                            } else if (anomalyScore > 0) {
+                                confidence = 0.30 + anomalyScore / 500.0;  // 0.30 .. 0.50
+                            } else {
+                                confidence = 0.20;  // routine probe, no signal
+                            }
+
+                            if (matcherHit) {
                                 String severity = (String) probe.getOrDefault("severity", "medium");
                                 String description = (String) probe.getOrDefault("description", "");
-                                int boost = probe.containsKey("confidence_boost")
-                                    ? ((Number) probe.get("confidence_boost")).intValue() : 0;
-                                int matcherBoost = ((Number) matchResult.getOrDefault("confidence_boost", 0)).intValue();
-                                int normalizedScore = Math.min(100, boost + matcherBoost + anomalyScore);
                                 String cwe = CWE_MAP.getOrDefault(category, "");
 
                                 Map<String, Object> finding = new LinkedHashMap<>();
@@ -1230,7 +1258,8 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("context", contextName);
                                 finding.put("probe", payload);
                                 finding.put("status", probeStatus);
-                                finding.put("score", normalizedScore);
+                                finding.put("score", rawScore);
+                                finding.put("confidence", Math.round(confidence * 100.0) / 100.0);
                                 finding.put("anomaly_score", anomalyScore);
                                 finding.put("anomalies", anomalies);
                                 finding.put("severity", severity);
@@ -1239,16 +1268,15 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("description", description);
                                 findings.add(finding);
 
-                                // Persist to FindingsStore
+                                // Persist to FindingsStore with confidence note
                                 findingsStore.add(
                                     category + "/" + contextName + ": " + description,
                                     "Parameter: " + parameter + ", Payload: " + payload + ", Matchers: " + matchResult.get("matched_matchers"),
                                     severity,
                                     method + " " + path,
-                                    "Status: " + probeStatus + ", Score: " + normalizedScore + (cwe.isEmpty() ? "" : ", " + cwe)
+                                    "Status: " + probeStatus + ", Confidence: " + String.format("%.2f", confidence) + ", Score: " + rawScore + (cwe.isEmpty() ? "" : ", " + cwe)
                                 );
                             } else if (anomalyScore >= 40 && anomalies.size() >= 2) {
-                                // No matcher fired but MULTIPLE strong anomaly signals — flag for review
                                 int normalizedAnomaly = Math.min(100, anomalyScore);
                                 String cwe = CWE_MAP.getOrDefault(category, "");
 
@@ -1260,6 +1288,7 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("probe", payload);
                                 finding.put("status", probeStatus);
                                 finding.put("score", normalizedAnomaly);
+                                finding.put("confidence", Math.round(confidence * 100.0) / 100.0);
                                 finding.put("anomaly_score", normalizedAnomaly);
                                 finding.put("anomalies", anomalies);
                                 finding.put("severity", "info");
@@ -1268,32 +1297,28 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("description", "Anomalous response (no matcher matched) — review manually");
                                 findings.add(finding);
 
-                                // Persist anomalous finding to FindingsStore
                                 findingsStore.add(
                                     category + "/" + contextName + ": Anomalous response",
                                     "Parameter: " + parameter + ", Payload: " + payload + ", Anomalies: " + anomalies,
                                     "info",
                                     method + " " + path,
-                                    "Status: " + probeStatus + ", Anomaly score: " + normalizedAnomaly
+                                    "Status: " + probeStatus + ", Confidence: " + String.format("%.2f", confidence) + ", Anomaly score: " + normalizedAnomaly
                                 );
                             }
 
-                            // Auto-highlight the Proxy history entry so the
-                            // hunter can sort by colour to triage.
-                            //   RED    = matcher fired (confirmed-ish)
-                            //   ORANGE = strong anomaly cluster (no matcher)
-                            //   YELLOW = routine probe
-                            com.swissknife.http.ProxyHighlight.Level level;
-                            String note;
-                            if (Boolean.TRUE.equals(matchResult.get("matched"))) {
-                                level = com.swissknife.http.ProxyHighlight.Level.CONFIRMED;
-                                note = category + "/" + contextName + " hit: " + matchResult.get("matched_matchers");
-                            } else if (anomalyScore >= 40 && anomalies.size() >= 2) {
-                                level = com.swissknife.http.ProxyHighlight.Level.ANOMALY;
-                                note = category + "/" + contextName + " anomalies: " + anomalies;
+                            // Auto-highlight driven by confidence threshold.
+                            // RED only at ≥0.9 — matches hunter feedback that
+                            // RED should mean high-confidence evidence, not
+                            // just "a matcher fired".
+                            com.swissknife.http.ProxyHighlight.Level level =
+                                com.swissknife.http.ProxyHighlight.levelFromConfidence(confidence);
+                            String note = String.format("%s/%s c=%.2f", category, contextName, confidence);
+                            if (matcherHit) {
+                                note += " match=" + matchResult.get("matched_matchers");
+                            } else if (!anomalies.isEmpty()) {
+                                note += " anomalies=" + anomalies;
                             } else {
-                                level = com.swissknife.http.ProxyHighlight.Level.PROBE;
-                                note = category + "/" + contextName + " probe: " + (payload.length() > 40 ? payload.substring(0, 40) + "…" : payload);
+                                note += " probe=" + (payload.length() > 30 ? payload.substring(0, 30) + "…" : payload);
                             }
                             com.swissknife.http.ProxyHighlight.tagLatest(api, probeUrl, level, note);
                         }

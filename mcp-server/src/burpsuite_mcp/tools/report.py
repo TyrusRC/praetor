@@ -85,6 +85,17 @@ def _build_finding_section(finding: dict, index: int) -> str:
 
     status = finding.get("status", "suspected")
     lines.append(f"**Status:** {status}")
+
+    confidence = finding.get("confidence")
+    if isinstance(confidence, (int, float)):
+        pct = int(round(confidence * 100))
+        band = (
+            "Confirmed" if confidence >= 0.90 else
+            "Strong suspicion" if confidence >= 0.60 else
+            "Weak signal" if confidence >= 0.30 else
+            "Informational"
+        )
+        lines.append(f"**Confidence:** {pct}% ({band})")
     lines.append("")
 
     desc = finding.get("description", "")
@@ -402,6 +413,11 @@ def _format_platform_finding(finding: dict, platform: str, domain: str) -> str:
     )
     cvss_vector = _cvss_vector(severity)
 
+    # Confidence: displayed as a percentage so triagers can see how sure the
+    # hunter is. Comes from assess_finding or explicit save_finding arg.
+    confidence = finding.get("confidence")
+    conf_line = f"- Confidence: {int(round(confidence * 100))}%" if isinstance(confidence, (int, float)) else ""
+
     # Build PoC steps
     poc_steps = ""
     if isinstance(poc, dict):
@@ -442,6 +458,7 @@ def _format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 ## Supporting Material/References
 {evidence_str}
 - Severity: {severity}
+{conf_line}
 - CVSS vector (edit to match): {cvss_vector}
 - Parameter: {param}
 {f'- Note: {severity_note}' if severity_note else ''}"""
@@ -470,6 +487,7 @@ def _format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 
 ## CVSS
 Severity: {severity}
+{conf_line}
 Vector (edit to match your target): {cvss_vector}
 
 ## Attachments
@@ -496,6 +514,7 @@ Severity: {severity}
 
 ## CVSS 3.1
 Severity: {severity}
+{conf_line}
 Vector String (edit to match your target): {cvss_vector}
 
 ## Proof

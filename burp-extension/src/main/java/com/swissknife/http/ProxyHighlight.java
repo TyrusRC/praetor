@@ -40,6 +40,20 @@ public final class ProxyHighlight {
     private ProxyHighlight() {}
 
     /**
+     * Map a confidence score (0.0–1.0) to a highlight level.
+     *   ≥ 0.90 → RED     (high-confidence confirmed evidence)
+     *   ≥ 0.60 → ORANGE  (strong anomaly cluster, worth manual review)
+     *   ≥ 0.30 → YELLOW  (routine probe, some signal)
+     *   <  0.30 → GREEN  (baseline / near-zero signal)
+     */
+    public static Level levelFromConfidence(double confidence) {
+        if (confidence >= 0.90) return Level.CONFIRMED;
+        if (confidence >= 0.60) return Level.ANOMALY;
+        if (confidence >= 0.30) return Level.PROBE;
+        return Level.BASELINE;
+    }
+
+    /**
      * Find the most recent Proxy history entry whose URL equals {@code url}
      * and annotate it with {@code level} and {@code note}. Silently no-ops
      * if no matching entry is found (the tunnel may not have flushed yet, or

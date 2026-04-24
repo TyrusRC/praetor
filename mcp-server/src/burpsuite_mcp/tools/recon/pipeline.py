@@ -129,8 +129,9 @@ def register(mcp: FastMCP):
             for host_url in live_hosts:
                 cmd.extend(["-u", host_url])
             if use_proxy:
-                # -insecure so Burp's MITM cert doesn't break every HTTPS request
-                cmd.extend(["-proxy", BURP_PROXY_URL, "-insecure"])
+                # Nuclei v3 dropped -insecure; HTTPS through Burp MITM needs
+                # Burp CA in the system trust store.
+                cmd.extend(["-proxy", BURP_PROXY_URL])
             if depth == "standard":
                 cmd.extend(["-severity", "critical,high"])
 
