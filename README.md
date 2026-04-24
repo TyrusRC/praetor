@@ -13,19 +13,18 @@ graph TB
     end
 
     subgraph Burp Suite
-        BS[Burp Proxy] -->|captures| PH[(Proxy History)]
+        BS[Burp Proxy Listener<br/>:8080] -->|captures| PH[(Proxy History)]
         BS -->|passive scan| SC[(Scanner Findings)]
         BS -->|builds| SM[(Sitemap)]
         BScan[Burp Scanner] -->|active scan| SC
         SK[Swiss Knife Extension<br/>REST API :8111] -->|reads| PH
         SK -->|reads| SC
         SK -->|reads| SM
-        SK -->|sends via| HTTP[Burp HTTP Client]
-        HTTP -->|appears in| PH
+        SK -->|ProxyTunnel<br/>CONNECT + TLS| BS
+        SK -->|auto-highlight<br/>RED/ORA/YEL/GRN| ANN[Proxy Annotations]
         SK -->|collaborator| COLLAB[Burp Collaborator]
         SK -->|sessions| SESS[(Session Store)]
         SK -->|intercept| INT[Proxy Intercept]
-        SK -->|annotations| ANN[Proxy Annotations]
         SK -->|monitors| MON[Traffic Monitors]
     end
 
@@ -40,7 +39,7 @@ graph TB
     end
 
     T <-->|traffic| BS
-    HTTP -->|requests| T
+    BS -->|forwards to target| T
     CC -->|"1. Scope & configure"| MCP
     CC -->|"2. Read what Burp found"| MCP
     CC -->|"3. Analyze attack surface"| MCP
@@ -139,9 +138,20 @@ chmod +x setup.sh && ./setup.sh
 
 **Windows (double-click):** Run `setup.bat`.
 
-This installs all required dependencies (Java 21+, Maven, Python 3.11+, uv, Go), builds the project, installs optional recon tools (subfinder, nuclei, katana), and generates `.mcp.json`.
+This installs all required dependencies (Java 21+, Maven, Python 3.11+, uv, Go, Playwright Chromium), builds the project, installs optional recon tools (subfinder, nuclei, katana), and generates `.mcp.json`.
 
 **Requirements:** Java 21 or newer. Get it from [Adoptium Temurin](https://adoptium.net/temurin/releases/?version=21) if the setup script can't install it for you.
+
+### Health check
+
+Run `./doctor.sh` (portable: Linux / macOS / Windows git-bash) to verify your install:
+
+```
+OK: 18   optional missing: 4   failures: 0
+Healthy. Optional items in [--] can be installed when needed.
+```
+
+Checks Java 21+, Maven, uv, Python (rejects the Windows Store stub), the extension JAR, the MCP venv + tool count, Burp extension API (127.0.0.1:8111), Burp proxy listener (127.0.0.1:8080), Playwright Chromium, optional recon tools, and project config files. Exits non-zero only on critical failures.
 
 ### Manual Setup
 
@@ -222,7 +232,30 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored — each user creates their own with their local path.
 
-## Tools (164 total)
+## Tools (167 total)
+
+### Proxy-history routing
+
+All tools that send a request to the target route through Burp's proxy listener at `127.0.0.1:8080`, so the request/response pair appears in **Proxy → HTTP history** for manual review and replay in Repeater. This covers:
+
+- Java-side HTTP tools (`send_http_request`, `curl_request`, `session_request`, `send_raw_request`, `resend_with_modification`, `probe_endpoint`, `auto_probe`, `bulk_test`, `fuzz_parameter`, `test_*`, `run_macro`, `quick_scan`, `batch_probe`, `discover_hidden_parameters`, `fetch_resource`).
+- External recon tools (`run_nuclei`, `run_ffuf`, `run_dalfox`, `run_subfinder`) via their native `-proxy` flag.
+- Browser tools (`browser_navigate`, `browser_crawl`, etc.) via Playwright's `--proxy-server`.
+
+Intel-only lookups (`search_cve`, `query_crtsh`, `fetch_wayback_urls`) stay direct — they don't touch the target and don't belong in proxy history.
+
+### Auto-highlight by confidence
+
+`auto_probe` tags each Proxy history entry with a highlight colour and short note, based on a computed confidence score:
+
+| Confidence | Colour | Meaning |
+|---|---|---|
+| ≥ 0.90 | RED | Confirmed evidence — matcher fired with high boost + corroborating anomaly |
+| 0.60–0.89 | ORANGE | Strong suspicion — matcher hit or multi-signal anomaly cluster |
+| 0.30–0.59 | YELLOW | Routine probe — some signal, needs follow-up |
+| < 0.30 | GREEN | Baseline capture or near-zero signal |
+
+Sort the Proxy panel by Highlight to see probe pairs grouped by confidence. The same confidence flows into `save_finding(confidence=...)` and into the Confidence line of `generate_report` / `format_finding_for_platform` output.
 
 ### Scope & Configuration
 | Tool | Description |
@@ -282,26 +315,29 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Stealth mode:** Uses `playwright-stealth` to bypass bot detection — removes `navigator.webdriver`, spoofs plugins/languages/chrome runtime, sets realistic User-Agent and viewport. All traffic routes through Burp's proxy with SSL errors ignored (Burp CA).
 
-### Hunt Advisor (Advisor Strategy — token-efficient decisions)
+### Hunt Advisor
 | Tool | Description |
 |------|-------------|
 | `get_hunt_plan` | Get prioritized testing plan for a target — phases, tool order, vuln priorities by tech stack. FIRST call for any hunt. |
 | `get_next_action` | Get the single best next action — returns ONE specific tool call to execute. Replaces strategic reasoning. |
-| `run_recon_phase` | Execute entire recon phase in ONE call — session + fetch + tech detect + analyze + sensitive files. Replaces 5-8 calls. |
-| `assess_finding` | Validate a suspected finding against the 7-Question Gate BEFORE reporting. Returns REPORT or DO NOT REPORT. |
-| `pick_tool` | Given a task description, instantly returns the best tool + example arguments. Saves 100-200 thinking tokens. |
+| `run_recon_phase` | Execute entire recon phase in one call — session + fetch + tech detect + analyze + sensitive files |
+| `assess_finding` | Validate a suspected finding against the full 7-Question Gate (scope, reproducibility, impact, dedup, evidence, NEVER-SUBMIT list, triager test). Returns REPORT / NEEDS MORE EVIDENCE / DO NOT REPORT and a suggested confidence ready to pass to `save_finding(confidence=...)`. |
+| `pick_tool` | Given a task description, returns the best tool with example arguments. |
 
-> **Advisor Strategy:** Instead of Claude spending tokens reasoning about WHAT to test and in WHAT order, the advisor encodes expert methodology directly and returns structured action plans. Claude focuses on executing, not deciding. Based on [The Advisor Strategy](https://claude.com/blog/the-advisor-strategy).
+> **Advisor Strategy:** The advisor encodes expert methodology and returns structured action plans so Claude focuses on executing. Based on [The Advisor Strategy](https://claude.com/blog/the-advisor-strategy).
 
 ### Send (through Burp)
+
+All tools in this section route through Burp's proxy listener — request + response land in Proxy → HTTP history.
+
 | Tool | Description |
 |------|-------------|
-| `send_http_request` | Send structured HTTP request through Burp |
-| `send_raw_request` | Send raw HTTP bytes (request smuggling) |
-| `curl_request` | curl-like with redirects, Basic/Bearer auth, cookies |
-| `resend_with_modification` | Modify and resend a history request |
-| `send_to_repeater` | Send request to Repeater tab |
-| `send_to_intruder` | Send request to Intruder |
+| `send_http_request` | Send a structured HTTP request (method, URL, headers, body) |
+| `send_raw_request` | Send raw HTTP bytes — exact byte control for request smuggling, CRLF, malformed requests |
+| `curl_request` | curl-like interface with optional redirect following, Basic/Bearer auth, cookies, JSON/form shortcuts. `follow_redirects` defaults to `False` to prevent cross-scope cookie leaks on 302 |
+| `resend_with_modification` | Pick a proxy history item, modify headers/body/path/method, resend |
+| `send_to_repeater` | Send request to a named Repeater tab for manual iteration |
+| `send_to_intruder` | Send request to Intruder (point-and-click payload positions) |
 
 ### Proxy Control
 | Tool | Description |
@@ -309,7 +345,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `enable_intercept` | Enable Burp proxy interception — requests held for review |
 | `disable_intercept` | Disable interception — resume normal traffic flow |
 | `get_intercept_status` | Check if intercept is currently enabled |
-| `set_match_replace` | Add match-and-replace rules to auto-modify proxy traffic (add headers, swap tokens, remove CSP) |
+| `set_match_replace` | Add match-and-replace rules to auto-modify proxy traffic (add headers, swap tokens, remove CSP). Refuses rules on Host, Authorization, Cookie, Content-Length, or Transfer-Encoding headers unless `force=True`. Warns if a rule isn't scoped to `in_scope` |
 | `get_match_replace` | List active match-and-replace rules |
 | `remove_match_replace` | Remove a specific match-and-replace rule by ID |
 | `clear_match_replace` | Remove all match-and-replace rules |
@@ -323,13 +359,16 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 | `remove_traffic_monitor` | Remove a traffic monitor |
 
 ### Response Extraction
+
+Pull only the value you need from a response instead of reading the full body.
+
 | Tool | Description |
 |------|-------------|
-| `extract_regex` | Pull data from responses via regex — 10x more efficient than reading full response body |
-| `extract_json_path` | Extract values from JSON responses using path expressions (`$.data.users[0].email`) |
-| `extract_css_selector` | Extract HTML elements with CSS-like selectors (`input[name=csrf_token]`) |
-| `extract_headers` | Extract specific response/request headers by name |
-| `extract_links` | Extract all links from HTML — anchors, forms, scripts, images, iframes (internal/external) |
+| `extract_regex` | Pull data via regex with optional group index and `find_all` |
+| `extract_json_path` | Extract values from JSON responses using path expressions (`$.data.users[0].email`, wildcards via `$.items[*].id`) |
+| `extract_css_selector` | Extract HTML elements with CSS-like selectors (`input[name=csrf_token]`, attribute optional) |
+| `extract_headers` | Extract named response/request headers, or all headers when `names` is empty |
+| `extract_links` | Extract links from HTML — anchors, forms, scripts, images, iframes; filter `internal` / `external` / `all` |
 | `get_response_hash` | SHA-256/MD5/SHA-1 hash of response body for quick change detection |
 
 ### Encoding & Transform
@@ -360,15 +399,15 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 ### Adaptive Scan Engine
 | Tool | Description |
 |------|-------------|
-| `scan_target` | Two-mode scan: discover attack surface OR probe parameters with knowledge-driven detection |
-| `discover_attack_surface` | Crawl target and map endpoints, parameters (risk-scored), forms, tech stack in one call |
-| `auto_probe` | Knowledge-driven vulnerability probing — auto-detects tech, selects matching probes from 27 categories |
-| `quick_scan` | Send request + auto-analyze in one call — returns tech stack, injection points, params, secrets |
-| `probe_endpoint` | Adaptive vulnerability probe — auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection |
+| `scan_target` | Two-mode scan: `discover` crawls + maps attack surface; `probe` runs knowledge-driven probes on specified targets |
+| `discover_attack_surface` | Crawl a target and map endpoints, parameters (risk-scored), forms, tech stack |
+| `auto_probe` | Knowledge-driven vulnerability probing. Auto-detects tech, selects matching probes from 25 categories, runs server-side matchers, emits a **confidence score** per finding, and auto-annotates the Proxy history entry (RED ≥ 0.9, ORANGE 0.6–0.9, YELLOW 0.3–0.6, GREEN baseline). Param-name matching is tokenized so `productId` / `post_id` match bare-token entries like `id` |
+| `quick_scan` | Send a request and return tech stack, injection points, parameters, forms, and secrets in one response |
+| `probe_endpoint` | Adaptive vulnerability probe — auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection and anomalies |
 | `batch_probe` | Test multiple endpoints in one call — returns status, length, timing for each |
-| `discover_hidden_parameters` | Arjun-style hidden parameter discovery — brute-force param names, detect anomalies |
-| `full_recon` | One-call recon pipeline (quick/standard/deep) — tech stack, endpoints, secrets, headers, priorities |
-| `bulk_test` | Test all endpoints for one vuln type — sqli, xss, lfi, ssrf, ssti, cmdi, open_redirect |
+| `discover_hidden_parameters` | Arjun-style hidden parameter discovery — brute-force common param names, detect anomalies |
+| `full_recon` | One-call recon pipeline with depth levels `quick` / `standard` / `deep` — tech stack, endpoints, secrets, headers, priorities |
+| `bulk_test` | Test all endpoints for one vuln type — `sqli`, `xss`, `lfi`, `ssrf`, `ssti`, `command_injection`, `open_redirect`. 3x-iteration verification on timing and status anomalies |
 
 ### Precision Attack Tools
 | Tool | Description |
@@ -444,7 +483,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 |------|-------------|
 | `get_payloads` | Context-aware payloads from HackTricks/PayloadsAllTheThings — XSS, SQLi, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, open redirect, LFI, file upload |
 
-> **Knowledge base:** 25 categories with server-side matchers for auto-probe: SQLi, XSS, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, IDOR, JWT, GraphQL, deserialization, CRLF injection, open redirect, mass assignment, request smuggling, LLM injection, info disclosure, WebSocket, file upload, tech-specific vulns
+> **Knowledge base:** 25 categories with server-side matchers in `mcp-server/src/burpsuite_mcp/knowledge/`: SQLi, XSS, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, IDOR, JWT, GraphQL, deserialization, CRLF injection, open redirect, mass assignment, request smuggling, LLM injection, info disclosure, WebSocket, file upload, tech-specific vulns. `auto_probe` loads and caches these at runtime — add a new `.json` file following the schema to extend coverage.
 
 ### Target Intelligence (persistent memory)
 | Tool | Description |
@@ -460,14 +499,14 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 ### CVE Intelligence
 | Tool | Description |
 |------|-------------|
-| `check_tech_vulns` | Match detected tech stack against known CVEs and misconfigurations from knowledge base |
-| `search_cve` | Generate CVE search URLs for NVD, Exploit-DB, GitHub Advisory, with nuclei template suggestions |
+| `check_tech_vulns` | Match a detected tech stack against the local `knowledge/tech_vulns.json` — returns matching CVEs, misconfigurations, and suggested test commands. Version ranges use exact-segment matching (`8.1` matches `8.1.x` but not `8.10`) |
+| `search_cve` | Live NVD 2.0 API lookup by default. Returns structured CVE records (id, published date, CVSS score, summary) for a keyword or specific `CVE-YYYY-NNNN`. Falls back to URL-only output with `live_lookup=False` when NVD is rate-limiting |
 
 ### Professional Reporting
 | Tool | Description |
 |------|-------------|
-| `generate_report` | Full pentest report with executive summary, methodology, sorted findings, coverage, recommendations |
-| `format_finding_for_platform` | Format a finding for HackerOne, Bugcrowd, Intigriti, or Immunefi submission |
+| `generate_report` | Full pentest report with executive summary, methodology, sorted findings, coverage, recommendations. Each finding includes its confidence band (Confirmed / Strong suspicion / Weak signal / Informational) |
+| `format_finding_for_platform` | Format a finding for HackerOne, Bugcrowd, Intigriti, or Immunefi. Severity is honesty-capped for NEVER-SUBMIT classes (clickjacking-alone becomes LOW, missing-header-alone becomes INFO) and the CVSS vector is derived from the capped severity rather than a literal placeholder |
 
 ### External Recon
 
@@ -522,9 +561,20 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 ### Notes & Reporting
 | Tool | Description |
 |------|-------------|
-| `save_finding` | Save a vulnerability finding |
-| `get_findings` | List saved findings |
-| `export_report` | Export as markdown or JSON report |
+| `save_finding` | Save a vulnerability finding. Accepts a `confidence` value in `[0.0, 1.0]` (see convention below). Persists to `.burp-intel/<domain>/findings.json` as well as Burp's in-memory store, and deduplicates by `(endpoint + title + parameter)` so repeated saves update instead of creating new rows |
+| `get_findings` | List saved findings with optional endpoint filter |
+| `export_report` | Export all findings as markdown or JSON |
+
+**Confidence convention used across `save_finding`, `assess_finding`, and `auto_probe`:**
+
+| Range | Band | Typical evidence |
+|---|---|---|
+| ≥ 0.90 | Confirmed | Reproduced PoC, vendor error leak, Collaborator callback, scanner CERTAIN |
+| 0.60–0.89 | Strong suspicion | Multiple anomalies, matcher hit without full reproduction |
+| 0.30–0.59 | Weak signal | Single status/length anomaly, needs more work |
+| < 0.30 | Informational | Behaviour observed, no attack path yet |
+
+`assess_finding` returns a suggested confidence in its output — you can pass the value directly to `save_finding(confidence=...)`.
 
 ## Bug Bounty Skills
 
@@ -538,8 +588,8 @@ Claude Code skills in `.claude/skills/` that encode expert bug bounty methodolog
 | `chain-findings.md` | Exploit chain building — escalate low-severity findings via A->B->C chains. Escalation table maps every low finding to chain paths with required evidence |
 | `report-templates.md` | Platform-specific reports for HackerOne, Bugcrowd, Intigriti, Immunefi. CVSS 3.1 reference, quality checklist, severity inflation red flags |
 | `autopilot.md` | Autonomous hunt loop — circuit breaker (5x 403 = stop), rate limiting, checkpoint modes (paranoid/normal/aggressive), scope guard, emergency stop |
-| `dispatch-agents.md` | Parallel agent orchestration — 5 dispatch patterns with prompt templates, 2.5x speedup |
-| `burp-workflow.md` | Tool selection decision trees for 125 MCP tools |
+| `dispatch-agents.md` | Parallel agent orchestration — 5 dispatch patterns with prompt templates |
+| `burp-workflow.md` | Tool selection decision trees for the MCP tool surface |
 | `investigate.md` | Deep anomaly investigation — filter mapping, finding escalation, attack chaining |
 | `craft-payload.md` | WAF/filter bypass engineering — filter recon, encoding chains, incremental testing |
 | `static-dynamic-analysis.md` | JS source analysis, DOM sink/source tracing, behavioral profiling, page change detection |
@@ -552,17 +602,21 @@ Always-active rules in `.claude/rules/`:
 
 ## Design Philosophy
 
-- **Precision over spray** — no mass brute force or enumeration. Use nuclei/sqlmap/ffuf for that. This tool focuses on intelligent, context-aware vulnerability testing.
-- **Token efficient** — one smart tool call > five chatty ones. `run_flow` executes multi-step attacks in a single call. `discover_attack_surface` + `auto_probe` replaces dozens of manual calls. `extract_regex` pulls just what you need instead of reading 50KB response bodies.
-- **Claude crafts the attack** — tools are execution engines, not decision makers. Claude thinks, tools execute.
-- **Building blocks + smart helpers** — low-level primitives for creative attack chaining, plus high-level tools where server-side coordination matters (race conditions, auth matrix).
-- **Full proxy control** — intercept, match-replace, annotations, live traffic monitoring. Claude doesn't just send requests — it controls how Burp processes ALL traffic.
-- **Two knowledge systems** — `payloads/` (16 files) for `get_payloads` tool with human-readable attack recipes. `knowledge/` (27 files) for `auto_probe` engine with server-side matchers and anomaly detection.
-- **Knowledge fills gaps** — Claude knows basic payloads but not Angular sandbox bypass or Spring SSTI. The curated knowledge base provides advanced/evasive techniques (WAF bypass, blind injection, framework-specific SSTI).
-- **Persistent memory** — target intel survives across sessions. Claude remembers tech stack, endpoints, test coverage, and findings without re-scanning. Staleness detection ensures memory stays fresh.
-- **Zero false positives** — findings require reproducible evidence (Collaborator callbacks, timing anomalies, error strings). Re-verification on resume catches patched or intermittent issues.
+- **Precision over spray** — no mass brute force or enumeration. Use nuclei / ffuf / external scanners for that. This tool focuses on context-aware vulnerability testing driven by Claude's reasoning.
+- **Smart helpers over chatty primitives** — `run_flow` executes multi-step attacks in a single call; `discover_attack_surface` + `auto_probe` map and probe in two calls; `extract_regex` / `extract_json_path` / `extract_css_selector` pull only the value you need from a response.
+- **Claude crafts the attack** — tools are execution engines, not decision makers. Claude plans, tools execute.
+- **Building blocks + smart helpers** — low-level primitives for creative attack chaining, plus high-level tools where server-side coordination matters (race conditions, auth matrix, Collaborator auto-test).
+- **Everything lands in Proxy history** — every request-sending tool tunnels through Burp's proxy listener so hunters can review, replay, and manually iterate on any probe from the Proxy panel.
+- **Auto-highlight by confidence** — `auto_probe` colours proxy entries RED (≥ 0.90), ORANGE (0.60–0.89), YELLOW (0.30–0.59), GREEN (< 0.30) so triage is a sort-by-highlight operation.
+- **Full proxy control** — intercept, match-and-replace (with safety refuse list on Host/Auth/Cookie/CL/TE headers), annotations, live traffic monitoring.
+- **Two knowledge systems** — `payloads/` for `get_payloads` tool with human-readable attack recipes; `knowledge/` for `auto_probe` engine with server-side matchers and anomaly detection.
+- **Knowledge fills gaps** — the curated knowledge base covers framework-specific techniques Claude doesn't know from pretraining (Angular sandbox bypass, Spring SSTI, WAF-bypass encoding chains, blind injection patterns).
+- **Persistent memory** — target intel survives across sessions in `.burp-intel/<domain>/`. Claude remembers tech stack, endpoints, test coverage, and findings without re-scanning. Staleness detection re-verifies fingerprinted pages.
+- **Honest findings** — every finding carries a confidence score and a status. `assess_finding` enforces the full 7-Question Gate (scope, reproducibility, impact, dedup, evidence, NEVER-SUBMIT list, triager test) before save. Severity is honesty-capped in reports for NEVER-SUBMIT vuln classes.
 
 ## Environment Variables
+
+Applies to the Python MCP server (read from `.env` or the `env` block of `.mcp.json`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -570,10 +624,18 @@ Always-active rules in `.claude/rules/`:
 | `BURP_API_PORT` | `8111` | Burp extension port |
 | `BURP_API_TIMEOUT` | `30` | Request timeout (seconds) |
 | `BURP_MAX_RESPONSE_SIZE` | `50000` | Max response body chars |
-| `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
+| `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host (used by external recon + browser tools) |
 | `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
 
-> For WSL setups: set `BURP_API_HOST` to your Windows host IP in `.mcp.json` env, and change the extension bind address to `0.0.0.0` in Burp's Swiss Knife config tab.
+The Java extension's `ProxyTunnel` (used by Java-side HTTP tools) reads the proxy endpoint in this order:
+
+1. JVM system property: `-Dswissknife.proxy.host=… -Dswissknife.proxy.port=…` (highest precedence; set via `burpsuite_pro.vmoptions` when launching Burp from a GUI)
+2. Environment variable: `BURP_PROXY_HOST` / `BURP_PROXY_PORT` (works when Burp is launched from a shell that loaded your `.env`)
+3. Fallback: `127.0.0.1:8080`
+
+The extension logs the resolved endpoint at startup, e.g. `Proxy tunnel → 127.0.0.1:8080 (override with env BURP_PROXY_HOST/PORT or -Dswissknife.proxy.{host,port})`.
+
+> For WSL setups: set `BURP_API_HOST` to your Windows host IP in the `.mcp.json` `env` block, and change the extension bind address to `0.0.0.0` in Burp's Swiss Knife config tab.
 
 ## Requirements
 
