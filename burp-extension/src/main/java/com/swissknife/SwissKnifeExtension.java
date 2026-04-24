@@ -48,6 +48,12 @@ public class SwissKnifeExtension implements BurpExtension {
         try {
             apiServer.start();
             api.logging().logToOutput(EXTENSION_NAME + " v" + getVersion() + " started on " + host + ":" + port);
+            // Surface the proxy-tunnel endpoint so hunters can spot misconfigs
+            // (e.g. custom Burp proxy port not reflected in BURP_PROXY_PORT).
+            api.logging().logToOutput("Proxy tunnel → "
+                + com.swissknife.http.ProxyTunnel.BURP_PROXY_HOST + ":"
+                + com.swissknife.http.ProxyTunnel.BURP_PROXY_PORT
+                + " (override with env BURP_PROXY_HOST/PORT or -Dswissknife.proxy.{host,port})");
         } catch (Exception e) {
             api.logging().logToError("Failed to start API server on " + host + ":" + port + ": " + e.getMessage());
         }
