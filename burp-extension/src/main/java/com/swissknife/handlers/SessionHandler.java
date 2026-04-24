@@ -1168,6 +1168,10 @@ public class SessionHandler extends BaseHandler {
                             if (probeResult == null || probeResult.response() == null) continue;
                             updateCookiesFromResponse(session, probeResult);
 
+                            // URL of what we just sent — used to annotate the
+                            // matching Proxy history entry after matchers run.
+                            String probeUrl = probeResult.request() != null ? probeResult.request().url() : "";
+
                             // Evaluate matchers
                             List<Map<String, Object>> matchers = (List<Map<String, Object>>) probe.get("matchers");
                             Map<String, Object> matchResult = com.swissknife.analysis.MatcherEngine.evaluate(
@@ -1273,8 +1277,35 @@ public class SessionHandler extends BaseHandler {
                                     "Status: " + probeStatus + ", Anomaly score: " + normalizedAnomaly
                                 );
                             }
+
+                            // Auto-highlight the Proxy history entry so the
+                            // hunter can sort by colour to triage.
+                            //   RED    = matcher fired (confirmed-ish)
+                            //   ORANGE = strong anomaly cluster (no matcher)
+                            //   YELLOW = routine probe
+                            com.swissknife.http.ProxyHighlight.Level level;
+                            String note;
+                            if (Boolean.TRUE.equals(matchResult.get("matched"))) {
+                                level = com.swissknife.http.ProxyHighlight.Level.CONFIRMED;
+                                note = category + "/" + contextName + " hit: " + matchResult.get("matched_matchers");
+                            } else if (anomalyScore >= 40 && anomalies.size() >= 2) {
+                                level = com.swissknife.http.ProxyHighlight.Level.ANOMALY;
+                                note = category + "/" + contextName + " anomalies: " + anomalies;
+                            } else {
+                                level = com.swissknife.http.ProxyHighlight.Level.PROBE;
+                                note = category + "/" + contextName + " probe: " + (payload.length() > 40 ? payload.substring(0, 40) + "…" : payload);
+                            }
+                            com.swissknife.http.ProxyHighlight.tagLatest(api, probeUrl, level, note);
                         }
                     }
+                }
+
+                // Tag the baseline green so the pair is obvious in history.
+                if (baselineResult != null && baselineResult.request() != null) {
+                    com.swissknife.http.ProxyHighlight.tagLatest(
+                        api, baselineResult.request().url(),
+                        com.swissknife.http.ProxyHighlight.Level.BASELINE,
+                        "baseline for " + parameter);
                 }
             }
 
@@ -1402,7 +1433,11 @@ public class SessionHandler extends BaseHandler {
             // Body handling
             request = resolveBody(request, params, session.variables);
 
-            HttpRequestResponse result = api.http().sendRequest(request);
+            // Route through Burp proxy listener so the exchange lands in
+            // Proxy → HTTP history (not just Logger). Every probe/test tool
+            // ultimately funnels through here, so this wins visibility for
+            // session_request, auto_probe, probe_endpoint, bulk_test, test_*.
+            HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
 
             // Follow redirects if requested (default: false to preserve raw behavior)
             Object followFlag = params.get("follow_redirects");
@@ -1460,7 +1495,7 @@ public class SessionHandler extends BaseHandler {
                     redirReq = redirReq.withHeader("Cookie", cb.toString());
                 }
 
-                result = api.http().sendRequest(redirReq);
+                result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, redirReq);
                 redirectCount++;
             }
 

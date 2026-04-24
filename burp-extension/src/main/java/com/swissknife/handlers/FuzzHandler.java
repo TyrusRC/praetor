@@ -103,7 +103,7 @@ public class FuzzHandler extends BaseHandler {
             }
 
             long startNanos = System.nanoTime();
-            HttpRequestResponse reqResp = api.http().sendRequest(variant.request);
+            HttpRequestResponse reqResp = com.swissknife.http.ProxyTunnel.sendOrFallback(api, variant.request);
             long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
 
             HttpResponse resp = reqResp.response();

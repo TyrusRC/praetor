@@ -257,7 +257,7 @@ public class MacroHandler extends BaseHandler {
                 }
 
                 // Send request
-                HttpRequestResponse result = api.http().sendRequest(request);
+                HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
                 HttpResponse response = result.response();
                 int statusCode = response != null ? response.statusCode() : 0;
 

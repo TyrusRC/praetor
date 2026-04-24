@@ -253,7 +253,7 @@ public class AttackHandler extends BaseHandler {
                 result.put("index", index);
 
                 try {
-                    HttpRequestResponse response = api.http().sendRequest(finalRequest);
+                    HttpRequestResponse response = com.swissknife.http.ProxyTunnel.sendOrFallback(api, finalRequest);
                     long reqEnd = System.currentTimeMillis();
                     result.put("time_ms", reqEnd - reqStart);
 
@@ -395,7 +395,7 @@ public class AttackHandler extends BaseHandler {
             return;
         }
 
-        HttpRequestResponse baselineResult = api.http().sendRequest(baselineReq);
+        HttpRequestResponse baselineResult = com.swissknife.http.ProxyTunnel.sendOrFallback(api, baselineReq);
         int baselineStatus = 0;
         int baselineLength = 0;
         if (baselineResult != null && baselineResult.response() != null) {
@@ -418,7 +418,7 @@ public class AttackHandler extends BaseHandler {
                     HttpRequest variantReq = buildHppRequest(
                         baseUrl, basePath, parameter, originalValue, pollutedValue, location, session);
 
-                    HttpRequestResponse variantResult = api.http().sendRequest(variantReq);
+                    HttpRequestResponse variantResult = com.swissknife.http.ProxyTunnel.sendOrFallback(api, variantReq);
 
                     if (variantResult != null && variantResult.response() != null) {
                         HttpResponse resp = variantResult.response();
@@ -547,7 +547,7 @@ public class AttackHandler extends BaseHandler {
                 request = request.withBody(body);
             }
 
-            return api.http().sendRequest(request);
+            return com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
         } catch (Exception e) {
             return null;
         }

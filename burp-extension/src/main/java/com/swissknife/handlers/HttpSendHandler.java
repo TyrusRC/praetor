@@ -92,7 +92,7 @@ public class HttpSendHandler extends BaseHandler {
         }
 
         // Send through Burp — this makes it appear in HTTP history
-        HttpRequestResponse result = api.http().sendRequest(request);
+        HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
         sendResponseJson(exchange, result);
     }
 
@@ -118,7 +118,7 @@ public class HttpSendHandler extends BaseHandler {
         HttpService service = HttpService.httpService(host, port, useHttps);
         HttpRequest request = HttpRequest.httpRequest(service, raw);
 
-        HttpRequestResponse result = api.http().sendRequest(request);
+        HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
         sendResponseJson(exchange, result);
     }
 
@@ -154,7 +154,7 @@ public class HttpSendHandler extends BaseHandler {
         String newBody = (String) body.get("modify_body");
         if (newBody != null) modified = modified.withBody(newBody);
 
-        HttpRequestResponse result = api.http().sendRequest(modified);
+        HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, modified);
         sendResponseJson(exchange, result);
     }
 
@@ -286,7 +286,7 @@ public class HttpSendHandler extends BaseHandler {
 
         // Send with redirect following
         List<Map<String, Object>> redirectChain = new ArrayList<>();
-        HttpRequestResponse result = api.http().sendRequest(request);
+        HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
         int redirectCount = 0;
 
         while (followRedirects && redirectCount < maxRedirects && result.response() != null) {
@@ -324,7 +324,7 @@ public class HttpSendHandler extends BaseHandler {
                 .withService(nextService)
                 .withHeader("Host", nextService.host());
 
-            result = api.http().sendRequest(nextRequest);
+            result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, nextRequest);
             service = nextService;
             redirectCount++;
         }

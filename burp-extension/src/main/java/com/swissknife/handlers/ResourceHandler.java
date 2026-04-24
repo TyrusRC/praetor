@@ -355,7 +355,7 @@ public class ResourceHandler extends BaseHandler {
                     .withHeader("Host", service.host())
                     .withHeader("User-Agent", "Mozilla/5.0 (compatible; BurpSuite SwissKnife)");
 
-            return api.http().sendRequest(request);
+            return com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
         } catch (Exception e) {
             return null;
         }

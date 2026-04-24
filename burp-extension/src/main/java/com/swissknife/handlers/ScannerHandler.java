@@ -95,7 +95,7 @@ public class ScannerHandler extends BaseHandler {
                 }
                 HttpService service = HttpService.httpService(url);
                 HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                targets.add(api.http().sendRequest(request));
+                targets.add(com.swissknife.http.ProxyTunnel.sendOrFallback(api, request));
                 description = "Audit of " + url;
             }
             // Option 3: Scan multiple URLs
@@ -105,7 +105,7 @@ public class ScannerHandler extends BaseHandler {
                 for (String url : urls) {
                     HttpService service = HttpService.httpService(url);
                     HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                    targets.add(api.http().sendRequest(request));
+                    targets.add(com.swissknife.http.ProxyTunnel.sendOrFallback(api, request));
                 }
                 description = "Audit of " + urls.size() + " URLs";
             } else {

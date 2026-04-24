@@ -128,7 +128,7 @@ public class CollaboratorHandler extends BaseHandler {
             }
 
             // Send the modified request
-            HttpRequestResponse result = api.http().sendRequest(modified);
+            HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, modified);
             int responseStatus = result.response() != null ? result.response().statusCode() : 0;
 
             // Wait and poll for interactions

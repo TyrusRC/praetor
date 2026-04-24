@@ -159,7 +159,7 @@ public class RepeaterHandler extends BaseHandler {
         if (newBody != null) modified = modified.withBody(newBody);
 
         // Send through Burp HTTP stack
-        HttpRequestResponse result = api.http().sendRequest(modified);
+        HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, modified);
 
         // Update tracked state (thread-safe)
         tab.updateAfterSend(modified, result);
