@@ -739,16 +739,13 @@ def register(mcp: FastMCP):
         lines.append(f"Baseline response time: {baseline_time}ms")
         findings = []
 
-        # Extract host/port from URL
-        try:
-            parsed = urllib.parse.urlparse(target_url)
-            host = parsed.hostname or "target"
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            is_https = parsed.scheme == "https"
-        except Exception:
-            host = "target"
-            port = 443
-            is_https = True
+        host, port, is_https, err = await _resolve_host_from(target_url, session)
+        if err:
+            return f"Error: {err}"
+
+        scope_err = await _scope_or_error(host, is_https, port)
+        if scope_err:
+            return scope_err
 
         # CL.TE probe: Content-Length says body is short, but Transfer-Encoding: chunked
         # sends incomplete chunk, causing timeout if front-end uses CL and back-end uses TE
