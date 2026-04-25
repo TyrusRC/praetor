@@ -1820,7 +1820,10 @@ public class SessionHandler extends BaseHandler {
 
     private Map<String, Object> buildResponseMap(HttpRequestResponse result) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("url", result.request().url());
+        HttpRequest req = result.request();
+        if (req != null) {
+            out.put("url", req.url());
+        }
         HttpResponse resp = result.response();
 
         out.put("status", resp != null ? resp.statusCode() : 0);
