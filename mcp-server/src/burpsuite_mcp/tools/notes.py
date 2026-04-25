@@ -69,55 +69,58 @@ def register(mcp: FastMCP):
     async def save_finding(
         title: str,
         description: str,
+        evidence: dict,
         severity: str = "INFO",
         endpoint: str = "",
-        evidence: str = "",
+        evidence_text: str = "",
+        reproductions: list[dict] | None = None,
+        chain_with: list[str] | None = None,
         status: str = "suspected",
         domain: str = "",
         parameter: str = "",
         vuln_type: str = "",
         confidence: float = 0.5,
     ) -> str:
-        """Save a pentest finding/vulnerability note.
+        """Save a pentest finding/vulnerability note. ZERO-NOISE GATE.
 
-        Persists to BOTH:
-          1. Burp's in-memory FindingsStore (gone on extension reload)
-          2. .burp-intel/<domain>/findings.json (survives reload; rule 16)
+        The Burp extension HARD-REJECTS findings without verified evidence:
+          - `evidence` MUST be a dict with at least one of:
+              {"logger_index": <int>}
+              {"proxy_history_index": <int>}
+              {"collaborator_interaction_id": "<str>"}
+            and the index/ID MUST resolve against live Burp data.
+          - For timing/blind vuln_types (sqli_blind, sqli_time, ssrf_blind,
+            race_condition, request_smuggling, ssti_blind,
+            command_injection_blind, xxe_blind), `reproductions` MUST be a list
+            of >= 2 dicts of shape:
+              {"logger_index": <int>, "elapsed_ms": <int>, "status_code": <int>}
+          - If `vuln_type` (or `title`) matches the NEVER SUBMIT list (missing
+            security headers, self-XSS, OPTIONS enabled, etc. — see hunting.md),
+            `chain_with` MUST be a non-empty list of existing finding IDs.
 
-        Findings are deduplicated by (endpoint + title + parameter). A second
-        save_finding with the same key updates the entry instead of creating a
-        duplicate (rule 23).
-
-        Confidence convention (0.0–1.0):
-          ≥ 0.90  Confirmed — exploit reproduced with concrete evidence
-                  (working PoC, vendor error leak, Collaborator callback).
-          0.60–0.89  Strong suspicion — multiple anomalies or matcher hit
-                     but not yet reproduced end-to-end.
-          0.30–0.59  Weak signal — single status/length anomaly, needs more work.
-          < 0.30   Informational — behaviour observed, no attack path yet.
-        Prefer calling assess_finding() first; it returns a suggested
-        confidence you can pass here directly.
+        The server returns a 400 with a clear remediation message when any check
+        fails — propagate it back to the caller.
 
         Args:
-            title: Short finding title (e.g. "SQL Injection in login form")
-            description: Detailed description of the vulnerability
-            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO
-            endpoint: Affected URL/endpoint
-            evidence: Proof (request/response snippets, payloads used)
-            status: Finding status — 'suspected', 'confirmed', 'stale', or 'likely_false_positive'
-            domain: Target domain for persistent storage. If empty, extracted
-                    from endpoint host. When neither is available, the finding
-                    is only stored in Burp memory and you get a warning.
-            parameter: Parameter name (used for dedup key)
-            vuln_type: Vulnerability class (e.g. 'xss', 'sqli'). Stored with
-                       the finding for future cross-target pattern lookup.
-            confidence: 0.0–1.0 score for how confident you are this finding
-                        is real. Default 0.5. Drives report prioritisation and
-                        — via ProxyHighlight — the colour of the linked
-                        proxy-history entry (RED only at ≥ 0.9).
+            title: Short finding title (e.g. "SQL Injection in login form").
+            description: Detailed description of the vulnerability.
+            evidence: Required. {"logger_index": int} OR {"proxy_history_index": int}
+                      OR {"collaborator_interaction_id": str}. Combine if you have
+                      more than one.
+            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO.
+            endpoint: Affected URL/endpoint.
+            evidence_text: Freeform proof string (req/resp snippets, payloads).
+                           Goes into the report; not used for validation.
+            reproductions: Required for timing/blind vuln_types. List of >=2 dicts:
+                           [{"logger_index": int, "elapsed_ms": int, "status_code": int}, ...]
+            chain_with: Required for NEVER SUBMIT vuln_types. List of existing
+                        finding IDs that turn this into a reportable chain.
+            status: 'suspected', 'confirmed', 'stale', or 'likely_false_positive'.
+            domain: Target domain for persistent .burp-intel storage.
+            parameter: Parameter name (used for dedup key).
+            vuln_type: Vulnerability class (e.g. 'sqli', 'xss', 'sqli_blind').
+            confidence: 0.0–1.0 score. RED highlight only at >= 0.9.
         """
-        # Clamp confidence to the documented range so callers can't poison
-        # the highlight logic with -1 or 99.
         try:
             confidence = max(0.0, min(1.0, float(confidence)))
         except (TypeError, ValueError):
@@ -125,7 +128,7 @@ def register(mcp: FastMCP):
 
         resolved_domain = domain or _domain_from_endpoint(endpoint)
 
-        # Dedupe against persistent store first
+        # Persistent .burp-intel store (unchanged behavior)
         dedup_action = "created"
         saved_id = ""
         if resolved_domain:
@@ -137,7 +140,10 @@ def register(mcp: FastMCP):
                 "description": description,
                 "severity": severity,
                 "endpoint": endpoint,
+                "evidence_text": evidence_text,
                 "evidence": evidence,
+                "reproductions": reproductions or [],
+                "chain_with": chain_with or [],
                 "status": status,
                 "parameter": parameter,
                 "vuln_type": vuln_type,
@@ -158,16 +164,26 @@ def register(mcp: FastMCP):
             store["last_modified"] = now
             _write_findings_file(findings_path, store)
 
-        # Mirror to Burp's in-memory store (best effort)
-        data = await client.post("/api/notes/findings", json={
+        # Burp in-memory mirror — this is where the zero-noise gate lives.
+        payload = {
             "title": title,
             "description": description,
             "severity": severity,
             "endpoint": endpoint,
+            "evidence_text": evidence_text,
             "evidence": evidence,
+            "vuln_type": vuln_type,
             "status": status,
-        })
-        burp_id = data.get("id", "?") if "error" not in data else "?"
+        }
+        if reproductions:
+            payload["reproductions"] = reproductions
+        if chain_with:
+            payload["chain_with"] = chain_with
+
+        data = await client.post("/api/notes/findings", json=payload)
+        if "error" in data:
+            return f"Error: {data['error']}"
+        burp_id = data.get("id", "?")
 
         if not resolved_domain:
             return (
