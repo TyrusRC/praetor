@@ -15,9 +15,11 @@ import java.util.Map;
 public class NotesHandler extends BaseHandler {
 
     private final FindingsStore store;
+    private final burp.api.montoya.MontoyaApi api;
 
-    public NotesHandler(FindingsStore store) {
+    public NotesHandler(FindingsStore store, burp.api.montoya.MontoyaApi api) {
         this.store = store;
+        this.api = api;
     }
 
     @Override

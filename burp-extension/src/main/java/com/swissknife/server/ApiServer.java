@@ -65,7 +65,7 @@ public class ApiServer {
         server.createContext("/api/analysis", new AnalysisHandler(api));
 
         // Notes / findings
-        server.createContext("/api/notes", new NotesHandler(findingsStore));
+        server.createContext("/api/notes", new NotesHandler(findingsStore, api));
 
         // Search across history
         server.createContext("/api/search", new SearchHandler(api));
