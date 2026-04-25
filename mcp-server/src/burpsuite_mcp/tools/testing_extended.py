@@ -563,6 +563,16 @@ def register(mcp: FastMCP):
         baseline_body = baseline.get("response_body", "")
         baseline_status = baseline.get("status", 0)
 
+        host, port, is_https, err = await _resolve_host_from(baseline.get("url", ""), session)
+        if err:
+            return f"Error: {err}"
+        scope_err = await _scope_or_error(host, is_https, port)
+        if scope_err:
+            return scope_err
+        scheme = "https" if is_https else "http"
+        authority = host if (is_https and port == 443) or (not is_https and port == 80) else f"{host}:{port}"
+        target_url = f"{scheme}://{authority}{path}"
+
         tests = [
             ("Alternate Host", {"Host": "evil.com"}, "evil.com"),
             ("X-Forwarded-Host", {"X-Forwarded-Host": "evil.com"}, "evil.com"),
@@ -574,7 +584,7 @@ def register(mcp: FastMCP):
         for test_name, headers, check_value in tests:
             resp = await client.post("/api/http/send", json={
                 "method": "GET",
-                "url": baseline.get("url", f"http://target{path}"),
+                "url": target_url,
                 "headers": headers,
             })
             if "error" in resp:
