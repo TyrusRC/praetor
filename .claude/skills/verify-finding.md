@@ -7,6 +7,28 @@ description: Verify a suspected vulnerability is real with reproducible evidence
 
 You are verifying a suspected vulnerability. Your job is to PROVE it's real or mark it as a false positive. No guessing, no assumptions.
 
+## Step 0: Logger Replay — MANDATORY for all finding types
+
+Before any vuln-type-specific checks below, you MUST:
+
+1. Identify the request that triggered the suspicion. Note its index from
+   `get_logger_entries` (preferred) or `get_proxy_history`.
+2. Replay it with no modification: `resend_with_modification(index)`. Confirm
+   the same anomaly (status code, body delta, error message, etc.).
+3. Note the Logger index of the **confirming replay** — this is what goes into
+   `evidence.logger_index` when you eventually call `save_finding`.
+4. For timing/blind findings (`sqli_blind`, `sqli_time`, `ssrf_blind`,
+   `race_condition`, `request_smuggling`, `ssti_blind`,
+   `command_injection_blind`, `xxe_blind`): replay 2 more times after the
+   confirmation. For each replay, capture `{logger_index, elapsed_ms, status_code}`.
+   These three records become `reproductions[]` on `save_finding`.
+5. If the anomaly does not reproduce on the second send, mark the finding as
+   `likely_false_positive` and STOP. Do not call `save_finding`.
+
+The server hard-rejects `save_finding` calls that lack a resolvable
+`evidence.logger_index` (or `proxy_history_index` / `collaborator_interaction_id`),
+so skipping this step means the finding cannot be stored.
+
 ## Process
 
 1. **Auto-validate first:** `assess_finding(vuln_type, evidence, endpoint)` — runs the 7-Question Gate automatically. If it says DO NOT REPORT, stop.
