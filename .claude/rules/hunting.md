@@ -24,7 +24,7 @@ These rules are ALWAYS active when using Burp Suite MCP tools. They override any
 
 ## Evidence
 
-10. **NEVER claim a finding without reproduction.** Every finding needs: exact request, exact response, and comparison to baseline.
+10. **NEVER claim a finding without verified evidence.** Every `save_finding` call MUST include an `evidence` dict with at least one of `logger_index`, `proxy_history_index`, or `collaborator_interaction_id` — and the index/ID MUST exist in live Burp data at the time of the call. Timing and blind findings (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`) MUST also include `reproductions[]` with ≥2 verified Logger entries. Findings whose `vuln_type` (or title) matches the NEVER SUBMIT list MUST include `chain_with[]` referencing existing finding IDs. The server enforces all three — calls that miss any will return a 400 error and the finding will not be stored. There is no override.
 11. **Test timing-based findings 3 times** minimum. Single slow responses are network noise.
 12. **Always compare against baseline.** A 500 error is only interesting if the baseline returns 200.
 13. **Screenshot/save evidence BEFORE attempting further exploitation.** Targets get patched.
@@ -44,6 +44,7 @@ These rules are ALWAYS active when using Burp Suite MCP tools. They override any
 21. **NEVER inflate severity.** A reflected XSS is not CRITICAL. An info disclosure is not HIGH. Be honest.
 22. **NEVER submit a finding that requires the victim to do something absurd** ("user must paste this 500-char payload into the console").
 23. **NEVER submit duplicate findings.** Check existing findings with `load_target_intel(domain, "findings")` before saving.
+24. **Always replay before saving.** Before calling `save_finding`, fetch the candidate Logger/Proxy entry via `get_logger_entries` (or `get_proxy_history`), replay the request via `resend_with_modification(index)` and confirm the anomaly persists. The Logger index of the **confirming replay** (not the original suspicion) is what goes into `evidence.logger_index`. For timing/blind findings, replay 2 more times after the confirmation and put each replay's index/elapsed_ms/status_code into `reproductions[]`.
 
 ## 7-Question Validation Gate
 
