@@ -65,6 +65,49 @@ async def _confirm_timing_anomaly(
     return confirmed
 
 
+async def _resolve_host_from(target_url: str, session: str = "") -> tuple[str, int, bool, str]:
+    """Resolve (host, port, https, error) for raw-request probes.
+
+    Order:
+      1. parse target_url — if hostname present, use it.
+      2. else fall back to session's last request via the extension.
+      3. else return error.
+
+    On success the error field is an empty string. On failure host/port/https are
+    placeholder zeros and the error is a human-readable message the caller can
+    return verbatim.
+    """
+    if target_url:
+        parsed = urllib.parse.urlparse(target_url)
+        if parsed.hostname:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            return (parsed.hostname, port, parsed.scheme == "https", "")
+
+    if session:
+        info = await client.get_session_last_host(session)
+        if "error" not in info:
+            return (info["host"], int(info.get("port", 443)),
+                    bool(info.get("https", True)), "")
+
+    return ("", 0, False, "target_url required (no parseable hostname; no active session with prior requests)")
+
+
+async def _scope_or_error(host: str, https: bool, port: int) -> str:
+    """Returns empty string if in scope, else an Error: ... message."""
+    scheme = "https" if https else "http"
+    if (https and port == 443) or (not https and port == 80):
+        url = f"{scheme}://{host}/"
+    else:
+        url = f"{scheme}://{host}:{port}/"
+    res = await client.check_scope(url)
+    if "error" in res:
+        # Treat scope-API failure as "do not send" — safer default.
+        return f"Error: scope check failed for {host}: {res['error']}"
+    if not res.get("in_scope", False):
+        return f"Error: {host} not in scope"
+    return ""
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
