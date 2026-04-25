@@ -561,9 +561,11 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 ### Notes & Reporting
 | Tool | Description |
 |------|-------------|
-| `save_finding` | Save a vulnerability finding. Accepts a `confidence` value in `[0.0, 1.0]` (see convention below). Persists to `.burp-intel/<domain>/findings.json` as well as Burp's in-memory store, and deduplicates by `(endpoint + title + parameter)` so repeated saves update instead of creating new rows |
+| `save_finding` | Save a vulnerability finding. **Zero-noise gate (server-enforced):** requires `evidence={"logger_index" \| "proxy_history_index" \| "collaborator_interaction_id": ...}` resolving to live Burp data; timing/blind vuln types require `reproductions[]` with ≥2 entries; NEVER SUBMIT vuln types require `chain_with[]` referencing existing finding IDs. Accepts a `confidence` value in `[0.0, 1.0]`. Persists to `.burp-intel/<domain>/findings.json` and Burp's in-memory store; deduplicates by `(endpoint + title + parameter)` |
 | `get_findings` | List saved findings with optional endpoint filter |
 | `export_report` | Export all findings as markdown or JSON |
+
+**Zero-noise gate:** `save_finding` calls without verified evidence are HARD-REJECTED with a 400 error. The Burp extension validates `evidence.logger_index` / `proxy_history_index` against `api.proxy().history()` size; rejects 27 NEVER SUBMIT vuln types unless `chain_with[]` lists existing finding IDs; and refuses any `*_blind` / `sqli_time` / `race_condition` / `request_smuggling` finding without `reproductions[]` ≥ 2. Freeform proof text moves to `evidence_text` so it doesn't collide with the structured `evidence` object.
 
 **Confidence convention used across `save_finding`, `assess_finding`, and `auto_probe`:**
 
@@ -583,7 +585,7 @@ Claude Code skills in `.claude/skills/` that encode expert bug bounty methodolog
 | Skill | Purpose |
 |-------|---------|
 | `hunt.md` | Systematic vulnerability hunting — loads target memory, checks freshness, tests by tech-adaptive priority (PHP: SQLi/LFI/upload, Java: deser/XXE, API: IDOR/auth), saves progress at checkpoints |
-| `verify-finding.md` | 7-Question Validation Gate + evidence requirements for 17 vuln types + NEVER SUBMIT list (23+ non-reportable findings). False positive gating: 2+ failures = likely_false_positive |
+| `verify-finding.md` | Mandatory Step 0 (Logger replay before any save) + 7-Question Validation Gate + evidence requirements for 17 vuln types + NEVER SUBMIT list (23+ non-reportable findings). False positive gating: 2+ failures = likely_false_positive |
 | `resume.md` | Continue from previous session — re-verify findings on changed endpoints, show coverage dashboard, suggest prioritized next actions |
 | `chain-findings.md` | Exploit chain building — escalate low-severity findings via A->B->C chains. Escalation table maps every low finding to chain paths with required evidence |
 | `report-templates.md` | Platform-specific reports for HackerOne, Bugcrowd, Intigriti, Immunefi. CVSS 3.1 reference, quality checklist, severity inflation red flags |
@@ -598,7 +600,7 @@ Always-active rules in `.claude/rules/`:
 
 | Rule | Purpose |
 |------|---------|
-| `hunting.md` | 20 behavioral constraints enforced every turn — scope safety, evidence requirements, 7-Question Gate, NEVER SUBMIT list |
+| `hunting.md` | 24 behavioral constraints enforced every turn — scope safety, evidence requirements, 7-Question Gate, NEVER SUBMIT list, replay-before-save (Rule 24) |
 
 ## Design Philosophy
 
@@ -612,7 +614,7 @@ Always-active rules in `.claude/rules/`:
 - **Two knowledge systems** — `payloads/` for `get_payloads` tool with human-readable attack recipes; `knowledge/` for `auto_probe` engine with server-side matchers and anomaly detection.
 - **Knowledge fills gaps** — the curated knowledge base covers framework-specific techniques Claude doesn't know from pretraining (Angular sandbox bypass, Spring SSTI, WAF-bypass encoding chains, blind injection patterns).
 - **Persistent memory** — target intel survives across sessions in `.burp-intel/<domain>/`. Claude remembers tech stack, endpoints, test coverage, and findings without re-scanning. Staleness detection re-verifies fingerprinted pages.
-- **Honest findings** — every finding carries a confidence score and a status. `assess_finding` enforces the full 7-Question Gate (scope, reproducibility, impact, dedup, evidence, NEVER-SUBMIT list, triager test) before save. Severity is honesty-capped in reports for NEVER-SUBMIT vuln classes.
+- **Honest findings** — every finding carries a confidence score and a status. `assess_finding` enforces the full 7-Question Gate (scope, reproducibility, impact, dedup, evidence, NEVER-SUBMIT list, triager test) before save. The Burp extension itself **server-side hard-rejects** any `save_finding` without verified evidence (live Logger/Proxy/Collaborator lookup), without `reproductions[]` ≥ 2 for timing/blind classes, or whose vuln type / title hits the NEVER SUBMIT blocklist (overrideable only via `chain_with[]` to an existing finding ID). Severity is honesty-capped in reports for NEVER-SUBMIT vuln classes.
 
 ## Environment Variables
 
