@@ -104,6 +104,9 @@ public class SessionHandler extends BaseHandler {
             case "GET" -> {
                 if ("/api/session/list".equals(path)) {
                     handleList(exchange);
+                } else if (path.startsWith("/api/session/") && path.endsWith("/last-host")) {
+                    String name = path.substring("/api/session/".length(), path.length() - "/last-host".length());
+                    handleLastHost(exchange, name);
                 } else {
                     sendError(exchange, 404, "Not found");
                 }
@@ -410,6 +413,30 @@ public class SessionHandler extends BaseHandler {
         out.put("sessions", list);
         out.put("total", list.size());
         sendJson(exchange, JsonUtil.toJson(out));
+    }
+
+    // ── GET /api/session/{name}/last-host ─────────────────────────
+
+    private void handleLastHost(HttpExchange exchange, String name) throws Exception {
+        Session session = sessions.get(name);
+        if (session == null) {
+            sendError(exchange, 404, "Session not found: " + name);
+            return;
+        }
+        if (session.lastResponse == null || session.lastResponse.request() == null) {
+            sendError(exchange, 404, "Session has no requests yet: " + name);
+            return;
+        }
+        HttpService svc = session.lastResponse.request().httpService();
+        if (svc == null) {
+            sendError(exchange, 404, "Session last request has no http service");
+            return;
+        }
+        sendJson(exchange, JsonUtil.object(
+            "host", svc.host(),
+            "port", svc.port(),
+            "https", svc.secure()
+        ));
     }
 
     // ── DELETE /api/session/{name} ────────────────────────────────
