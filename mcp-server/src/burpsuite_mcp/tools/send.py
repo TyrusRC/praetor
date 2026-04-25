@@ -1,9 +1,10 @@
 """Tools for sending HTTP requests through Burp Suite.
 
-Requests sent via these tools go through Burp's HTTP client and appear in the
-**Logger** tab (and the MCP history store — see get_mcp_history) — they do NOT
-appear in Proxy → HTTP history, which is populated only by traffic flowing
-through Burp's proxy listener (e.g. browser_crawl).
+Requests are routed through Burp's proxy listener (ProxyTunnel) so they appear
+in **Proxy → HTTP history** AND the **Logger** tab AND the MCP history store
+(get_mcp_history). Anomalies are auto-highlighted on the Proxy entry. If the
+proxy listener is unreachable, the extension falls back to the direct HTTP
+client and only Logger sees the request.
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -22,9 +23,9 @@ def register(mcp: FastMCP):
     ) -> str:
         """Send an HTTP request through Burp Suite's HTTP client.
 
-        Visibility: appears in Burp's **Logger** tab and MCP history (get_mcp_history).
-        Does NOT appear in Proxy → HTTP history. For that, use browser_crawl /
-        browser_navigate (real proxy-listener traffic).
+        Visibility: appears in Proxy → HTTP history (with anomaly highlighting),
+        the Logger tab, and MCP history (get_mcp_history). Use this index in
+        save_finding evidence.proxy_history_index or evidence.logger_index.
 
         Passive scanner still sees the request/response pair.
 
@@ -154,9 +155,8 @@ def register(mcp: FastMCP):
     ) -> str:
         """Send HTTP requests through Burp like curl/httpx - with optional redirect following, auth, and cookies.
 
-        Visibility: appears in Burp's **Logger** tab and MCP history (get_mcp_history).
-        Does NOT appear in Proxy → HTTP history. For proxy-history entries, use
-        browser_crawl / browser_navigate.
+        Visibility: appears in Proxy → HTTP history (with anomaly highlighting),
+        the Logger tab, and MCP history (get_mcp_history).
 
         This is the most flexible request tool - use it like curl:
         - Opt-in redirect following (off by default to avoid cross-scope cookie/token leaks)
