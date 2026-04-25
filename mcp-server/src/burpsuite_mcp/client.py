@@ -49,3 +49,13 @@ async def delete(path: str) -> dict:
         return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}
     except Exception as e:
         return {"error": str(e)}
+
+
+async def check_scope(url: str) -> dict:
+    """Returns {'in_scope': bool} or {'error': ...}. Wraps GET /api/scope/check."""
+    return await get("/api/scope/check", params={"url": url})
+
+
+async def get_session_last_host(name: str) -> dict:
+    """Returns {'host', 'port', 'https'} or {'error': ...}. Wraps GET /api/session/{name}/last-host."""
+    return await get(f"/api/session/{name}/last-host")
