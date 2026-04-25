@@ -75,8 +75,12 @@ public class NotesHandler extends BaseHandler {
         }
 
         // ── evidence object: at least one non-null field ──
-        @SuppressWarnings("unchecked")
-        Map<String, Object> evidence = (Map<String, Object>) body.get("evidence");
+        // Legacy callers may send `evidence` as a String (freeform proof text);
+        // only treat it as the structured object when it actually IS a Map.
+        Object evidenceObj = body.get("evidence");
+        Map<String, Object> evidence = (evidenceObj instanceof Map<?, ?> m)
+            ? toStringObjectMap(m)
+            : null;
         if (evidence == null) {
             sendError(exchange, 400,
                 "evidence required: provide {logger_index, proxy_history_index, or collaborator_interaction_id}");
@@ -130,8 +134,18 @@ public class NotesHandler extends BaseHandler {
         }
 
         // ── reproductions for timing/blind ──
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> reproductions = (List<Map<String, Object>>) body.get("reproductions");
+        // Type-guard: callers may send a non-list shape (e.g. null, scalar) — coerce
+        // only when the JSON value is actually a List.
+        Object reproductionsObj = body.get("reproductions");
+        List<Map<String, Object>> reproductions = null;
+        if (reproductionsObj instanceof List<?> rawList) {
+            reproductions = new java.util.ArrayList<>();
+            for (Object item : rawList) {
+                if (item instanceof Map<?, ?> rawMap) {
+                    reproductions.add(toStringObjectMap(rawMap));
+                }
+            }
+        }
         if (com.swissknife.store.FindingsStore.requiresReproductions(vulnType)) {
             if (reproductions == null || reproductions.size() < 2) {
                 sendError(exchange, 400,
@@ -182,5 +196,18 @@ public class NotesHandler extends BaseHandler {
             // Return markdown as JSON-wrapped string
             sendJson(exchange, JsonUtil.object("format", "markdown", "content", store.exportMarkdown()));
         }
+    }
+
+    /**
+     * Coerce a raw {@code Map<?, ?>} produced by JsonUtil into {@code Map<String, Object>}.
+     * JsonUtil only ever emits string keys, so this is purely a type-system
+     * adapter — no runtime data conversion needed.
+     */
+    private static Map<String, Object> toStringObjectMap(Map<?, ?> raw) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        for (Map.Entry<?, ?> e : raw.entrySet()) {
+            out.put(String.valueOf(e.getKey()), e.getValue());
+        }
+        return out;
     }
 }
