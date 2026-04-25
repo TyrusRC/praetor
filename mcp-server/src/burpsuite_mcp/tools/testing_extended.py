@@ -660,6 +660,13 @@ def register(mcp: FastMCP):
             ("%E5%98%8A%E5%98%8DInjected-Header:true", "Injected-Header"),  # Unicode CRLF
         ]
 
+        host_info = await client.get_session_last_host(session)
+        if "error" in host_info:
+            return f"Error: {host_info['error']}"
+        scope_err = await _scope_or_error(host_info["host"], host_info.get("https", True), host_info.get("port", 443))
+        if scope_err:
+            return scope_err
+
         lines = [f"CRLF Injection Tests: {path}"]
         if parameter:
             lines[0] += f" [{parameter}]"
@@ -1053,6 +1060,13 @@ def register(mcp: FastMCP):
 
         lines = [f"Cache Poisoning Tests: {path}\n"]
         findings = []
+
+        host_info = await client.get_session_last_host(session)
+        if "error" in host_info:
+            return f"Error: {host_info['error']}"
+        scope_err = await _scope_or_error(host_info["host"], host_info.get("https", True), host_info.get("port", 443))
+        if scope_err:
+            return scope_err
 
         # Generate unique cache buster
         cb = hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
