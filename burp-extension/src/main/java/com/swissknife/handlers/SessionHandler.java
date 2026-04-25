@@ -418,25 +418,31 @@ public class SessionHandler extends BaseHandler {
     // ── GET /api/session/{name}/last-host ─────────────────────────
 
     private void handleLastHost(HttpExchange exchange, String name) throws Exception {
+        if (name == null || name.isEmpty()) {
+            sendError(exchange, 400, "Session name required");
+            return;
+        }
         Session session = sessions.get(name);
         if (session == null) {
             sendError(exchange, 404, "Session not found: " + name);
             return;
         }
-        if (session.lastResponse == null || session.lastResponse.request() == null) {
-            sendError(exchange, 404, "Session has no requests yet: " + name);
-            return;
+        synchronized (session) {
+            if (session.lastResponse == null || session.lastResponse.request() == null) {
+                sendError(exchange, 409, "Session has no requests yet: " + name);
+                return;
+            }
+            HttpService svc = session.lastResponse.request().httpService();
+            if (svc == null) {
+                sendError(exchange, 500, "Session last request has no http service");
+                return;
+            }
+            sendJson(exchange, JsonUtil.object(
+                "host", svc.host(),
+                "port", svc.port(),
+                "https", svc.secure()
+            ));
         }
-        HttpService svc = session.lastResponse.request().httpService();
-        if (svc == null) {
-            sendError(exchange, 404, "Session last request has no http service");
-            return;
-        }
-        sendJson(exchange, JsonUtil.object(
-            "host", svc.host(),
-            "port", svc.port(),
-            "https", svc.secure()
-        ));
     }
 
     // ── DELETE /api/session/{name} ────────────────────────────────
