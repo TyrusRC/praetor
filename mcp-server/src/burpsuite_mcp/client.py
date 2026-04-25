@@ -52,8 +52,8 @@ async def delete(path: str) -> dict:
 
 
 async def check_scope(url: str) -> dict:
-    """Returns {'in_scope': bool} or {'error': ...}. Wraps GET /api/scope/check."""
-    return await get("/api/scope/check", params={"url": url})
+    """Returns {'in_scope': bool} or {'error': ...}. Wraps POST /api/scope/check."""
+    return await post("/api/scope/check", json={"url": url})
 
 
 async def get_session_last_host(name: str) -> dict:
