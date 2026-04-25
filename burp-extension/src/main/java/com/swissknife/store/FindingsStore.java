@@ -58,14 +58,28 @@ public class FindingsStore {
     private final AtomicInteger idCounter = new AtomicInteger(0);
 
     public Map<String, Object> add(String title, String description, String severity,
-                                    String endpoint, String evidence) {
+                                    String endpoint, String evidenceText) {
+        return addFull(title, description, severity, endpoint, evidenceText,
+                       null, null, null, null);
+    }
+
+    public Map<String, Object> addFull(String title, String description, String severity,
+                                        String endpoint, String evidenceText,
+                                        String vulnType,
+                                        Map<String, Object> evidence,
+                                        List<Map<String, Object>> reproductions,
+                                        List<String> chainWith) {
         Map<String, Object> finding = new LinkedHashMap<>();
         finding.put("id", idCounter.incrementAndGet());
         finding.put("title", title);
         finding.put("description", description);
         finding.put("severity", severity != null ? severity : "INFO");
         finding.put("endpoint", endpoint != null ? endpoint : "");
-        finding.put("evidence", evidence != null ? evidence : "");
+        finding.put("evidence", evidenceText != null ? evidenceText : "");
+        finding.put("vuln_type", vulnType != null ? vulnType : "");
+        if (evidence != null) finding.put("evidence_refs", evidence);
+        if (reproductions != null) finding.put("reproductions", reproductions);
+        if (chainWith != null) finding.put("chain_with", chainWith);
         finding.put("timestamp", java.time.Instant.now().toString());
         findings.add(finding);
         return finding;
