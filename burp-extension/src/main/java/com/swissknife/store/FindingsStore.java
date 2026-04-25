@@ -21,6 +21,39 @@ public class FindingsStore {
         Map.entry("CWE-1336", "Never pass user input directly to template engines. Use sandboxed rendering.")
     );
 
+    /** Vuln types that require reproductions[] with >= 2 verified Logger entries. */
+    public static final Set<String> TIMING_BLIND_TYPES = Set.of(
+        "sqli_blind", "sqli_time", "ssrf_blind", "race_condition",
+        "request_smuggling", "ssti_blind", "command_injection_blind", "xxe_blind"
+    );
+
+    /** Vuln types that are non-reportable on their own (per hunting.md NEVER SUBMIT list). */
+    public static final Set<String> NEVER_SUBMIT_TYPES = Set.of(
+        "missing_security_header", "missing_csp", "missing_hsts", "missing_x_frame_options",
+        "cookie_without_secure", "cookie_without_httponly",
+        "clickjacking_no_state_change", "self_xss",
+        "csrf_logout", "csrf_no_state_change",
+        "open_redirect_no_chain", "mixed_content",
+        "rate_limit_absent_non_sensitive", "stack_trace_disclosure",
+        "username_enumeration_signup", "missing_referrer_policy",
+        "spf_dmarc_dkim", "content_spoofing_no_xss",
+        "host_header_no_cache_poison", "cors_no_credentials",
+        "ssl_tls_config", "version_disclosure",
+        "tabnabbing", "text_injection", "idn_homograph",
+        "missing_autocomplete_off", "options_method_enabled"
+    );
+
+    /** Title substrings that map to NEVER SUBMIT regardless of vuln_type. */
+    public static final List<String> NEVER_SUBMIT_TITLE_PHRASES = List.of(
+        "missing security header", "missing csp", "missing hsts",
+        "x-frame-options", "clickjacking", "self-xss", "self xss",
+        "csrf on logout", "csrf logout", "open redirect (no chain",
+        "mixed content", "stack trace disclosure", "username enumeration",
+        "referrer-policy", "referrer policy", "spf record", "dmarc",
+        "tabnabbing", "options method", "autocomplete=off",
+        "version disclosure"
+    );
+
     private final List<Map<String, Object>> findings = new CopyOnWriteArrayList<>();
     private final AtomicInteger idCounter = new AtomicInteger(0);
 
@@ -162,5 +195,36 @@ public class FindingsStore {
             sb.append(com.swissknife.util.JsonUtil.toJson(findings.get(i)));
         }
         return sb.append("]").toString();
+    }
+
+    /**
+     * Returns true if (vulnType, title) hits the NEVER SUBMIT blocklist.
+     * Title is matched case-insensitively as substring against the phrase list.
+     */
+    public static boolean isNeverSubmit(String vulnType, String title) {
+        if (vulnType != null && NEVER_SUBMIT_TYPES.contains(vulnType.toLowerCase())) {
+            return true;
+        }
+        if (title == null) return false;
+        String lower = title.toLowerCase();
+        for (String phrase : NEVER_SUBMIT_TITLE_PHRASES) {
+            if (lower.contains(phrase)) return true;
+        }
+        return false;
+    }
+
+    /** Returns true if vulnType requires reproductions[] with >= 2 entries. */
+    public static boolean requiresReproductions(String vulnType) {
+        return vulnType != null && TIMING_BLIND_TYPES.contains(vulnType.toLowerCase());
+    }
+
+    /** Returns true if a finding with the given id exists in the store. */
+    public boolean hasFinding(String id) {
+        if (id == null || id.isEmpty()) return false;
+        for (Map<String, Object> f : findings) {
+            Object fid = f.get("id");
+            if (fid != null && id.equals(String.valueOf(fid))) return true;
+        }
+        return false;
     }
 }
