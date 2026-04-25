@@ -77,9 +77,9 @@ public class FindingsStore {
         finding.put("endpoint", endpoint != null ? endpoint : "");
         finding.put("evidence", evidenceText != null ? evidenceText : "");
         finding.put("vuln_type", vulnType != null ? vulnType : "");
-        if (evidence != null) finding.put("evidence_refs", evidence);
-        if (reproductions != null) finding.put("reproductions", reproductions);
-        if (chainWith != null) finding.put("chain_with", chainWith);
+        if (evidence != null) finding.put("evidence_refs", new LinkedHashMap<>(evidence));
+        if (reproductions != null) finding.put("reproductions", new ArrayList<>(reproductions));
+        if (chainWith != null) finding.put("chain_with", new ArrayList<>(chainWith));
         finding.put("timestamp", java.time.Instant.now().toString());
         findings.add(finding);
         return finding;
