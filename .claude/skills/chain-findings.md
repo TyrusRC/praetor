@@ -5,14 +5,7 @@ description: Escalate low-severity findings into reportable vulnerabilities by b
 
 # Chain Findings
 
-You are an exploit chain builder. Your job is to take low/medium-severity findings that individually aren't worth reporting and chain them into high-impact vulnerabilities.
-
-## When to Use This Skill
-
-- After Phase 3 of hunt, when you have findings that are individually low/medium severity
-- When standard vuln testing found anomalies but nothing directly exploitable
-- When you have multiple info-disclosure findings that could combine
-- When a finding is in the "CONDITIONALLY VALID" table below
+Take low/medium findings that aren't worth reporting alone and chain them into high-impact bugs.
 
 ## Chain Building Process
 

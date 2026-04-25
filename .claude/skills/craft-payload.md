@@ -5,19 +5,9 @@ description: Adaptive payload crafting when standard attacks fail — probe filt
 
 # Craft Custom Payloads
 
-Standard payloads from auto_probe and get_payloads didn't work. The target has filtering, WAF, or unusual input handling. Your job: understand WHAT is blocked, WHY, and craft a bypass.
+Standard payloads blocked. Understand WHAT is filtered and craft a bypass.
 
-## When to Use This Skill
-
-- auto_probe returned 0 findings on parameters you believe are vulnerable
-- fuzz_parameter shows all payloads blocked/filtered identically
-- WAF detected (403 on injection attempts, generic error page)
-- Reflected input is encoded/stripped in unexpected ways
-- You need to bypass a specific filter or content security policy
-
-## Phase 1: Reconnaissance the Filter
-
-Before crafting bypasses, understand what you're fighting. Use 3-5 tool calls max.
+## Phase 1: Reconnaissance the Filter (3-5 calls max)
 
 ### Step 1: Character-level probing
 
