@@ -238,6 +238,109 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
+    async def hydrate_burp_findings(domain: str = "all", include_suspected: bool = False) -> str:
+        """Re-populate Burp's in-memory Findings tab from `.burp-intel/<domain>/findings.json`.
+
+        Use after a Burp extension reload — `FindingsStore` is in-memory only and
+        empties on reload, but `.burp-intel/<domain>/findings.json` survives.
+        This tool POSTs each persisted finding back to `/api/notes/findings`
+        so the Burp UI Findings tab reflects what's on disk.
+
+        Findings whose evidence indices no longer resolve in live Burp data
+        (e.g. proxy history was reset too) are skipped and reported — they
+        remain on disk but won't appear in the UI until the underlying
+        request is re-captured.
+
+        Args:
+            domain: Specific domain to hydrate, or 'all' to walk every
+                    `.burp-intel/<domain>/` directory.
+            include_suspected: If True, also restore status='suspected'/'stale'
+                               findings (default: confirmed-only — match
+                               generate_report's true-positives gate).
+        """
+        targets: list[Path] = []
+        if domain == "all":
+            if INTEL_DIR.exists():
+                for d in sorted(INTEL_DIR.iterdir()):
+                    if d.is_dir() and (d / "findings.json").exists():
+                        targets.append(d / "findings.json")
+        else:
+            p = INTEL_DIR / _sanitized(domain) / "findings.json"
+            if p.exists():
+                targets.append(p)
+
+        if not targets:
+            return f"No findings.json found for {domain!r} under .burp-intel/. Nothing to hydrate."
+
+        allowed_statuses = {"confirmed"}
+        if include_suspected:
+            allowed_statuses |= {"suspected", "stale"}
+
+        restored = 0
+        skipped_status = 0
+        skipped_gate = 0
+        skipped_dup = 0
+        gate_errors: list[str] = []
+
+        for path in targets:
+            try:
+                data = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            findings = data.get("findings", [])
+
+            for f in findings:
+                status = f.get("status", "suspected")
+                if status not in allowed_statuses:
+                    skipped_status += 1
+                    continue
+
+                payload = {
+                    "title": f.get("title", ""),
+                    "description": f.get("description", ""),
+                    "severity": f.get("severity", "INFO"),
+                    "endpoint": f.get("endpoint", ""),
+                    "evidence_text": f.get("evidence_text", ""),
+                    "evidence": f.get("evidence", {}),
+                    "vuln_type": f.get("vuln_type", ""),
+                    "status": status,
+                }
+                if f.get("reproductions"):
+                    payload["reproductions"] = f["reproductions"]
+                if f.get("chain_with"):
+                    payload["chain_with"] = f["chain_with"]
+
+                resp = await client.post("/api/notes/findings", json=payload)
+                if "error" in resp:
+                    err = resp["error"]
+                    if "duplicate" in err.lower() or "already" in err.lower():
+                        skipped_dup += 1
+                    else:
+                        skipped_gate += 1
+                        if len(gate_errors) < 5:
+                            fid = f.get("id", "?")
+                            gate_errors.append(f"  {fid} ({f.get('title','')[:40]}): {err[:120]}")
+                    continue
+                restored += 1
+
+        lines = [
+            f"Hydrated Burp Findings tab from {len(targets)} domain(s).",
+            f"  Restored:        {restored}",
+            f"  Skipped (status not in {sorted(allowed_statuses)}): {skipped_status}",
+            f"  Skipped (already in Burp memory):                   {skipped_dup}",
+            f"  Skipped (gate rejection — evidence index stale):    {skipped_gate}",
+        ]
+        if gate_errors:
+            lines.append("")
+            lines.append("First gate rejections (evidence indices likely no longer resolve):")
+            lines.extend(gate_errors)
+            lines.append("")
+            lines.append("Persistent .burp-intel store unchanged. Re-capture the underlying")
+            lines.append("requests via search_history / browser_crawl to make these visible.")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def export_report(format: str = "markdown") -> str:
         """Export all findings as a pentest report.
 
