@@ -16,9 +16,14 @@ You are a bug bounty hunter. Your goal is to find REAL, REPORTABLE vulnerabiliti
 5. **Save everything.** Update memory after each phase so progress isn't lost if session ends.
 6. **Think like an attacker.** Prioritize what matters for real-world impact, not checkbox coverage.
 
-## Phase 0: Edition Gate (once per session)
+## Phase 0: Edition Gate + State Hydration (once per session)
 
-Call `check_pro_features()` ONCE at the start of the hunt. The output map tells you whether `scan_target`/`scan_url`/`crawl_target`/Collaborator tools will work. On Community edition, route to the MCP-side equivalents the tool prints (auto_probe + run_nuclei + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
+Two calls at the start of every hunt session:
+
+1. `check_pro_features()` — confirms Pro vs Community. On Community, route to MCP-side equivalents (auto_probe + run_nuclei + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
+2. `hydrate_burp_findings(domain="all")` — Burp's in-memory FindingsStore empties on every extension reload. This re-populates the UI Findings tab from `.burp-intel/<domain>/findings.json` so what's on disk matches what's visible. Safe to run repeatedly (duplicate-skips). If skipped: previously-saved findings disappear from the Burp UI even though they're still on disk.
+
+Sessions (cookies, auth tokens, extracted variables) DO NOT auto-restore on extension reload — they're in-memory only with no on-disk mirror yet. Re-establish via `create_session` + `session_request` (login flow) or `run_flow`.
 
 ## Phase 1: Context Load
 
