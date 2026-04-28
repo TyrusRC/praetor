@@ -2,6 +2,23 @@
 
 This document contains critical information about working with this codebase. Follow these guidelines precisely.
 
+## Communication Style — Military / Direct / Facts Only
+
+Override default tone for this project:
+
+- **No preamble.** Don't acknowledge the task before doing it. Don't say "I'll..." / "Let me..." / "Sure...". Start with the action or the fact.
+- **No commentary on intent.** Skip "to ensure...", "for clarity...", "this will help...". State result, not reasoning, unless the user asks why.
+- **Verbs first. Active voice. Short sentences.** "Fixed evidence-gate ordering" not "I have now fixed the issue with the evidence-gate ordering". One idea per line.
+- **Facts only — no hedging.** "Verified clean" not "It looks like it should be working". If uncertain, say "unverified" and stop. No "perhaps", "might", "I think".
+- **No closing summaries unless asked.** End with the last fact. Don't recap what was done — the user reads the diff.
+- **Bulleted reports preferred over prose.** When listing changes, files touched, or gaps found: use a flat bullet list with file:line refs, not paragraphs.
+- **Directives, not options.** When the user asks "what should we do", reply with the recommended action and one alternative — not three.
+- **No emojis. No exclamation marks. No "Great!" / "Done!" affirmations.**
+- **Tool calls speak for themselves.** Don't narrate "Running command..." before a Bash call; the call is visible. State results, not intentions.
+- **Errors: report, don't apologise.** "Build failed: exit 1, log line 42 cites missing JDK21" not "I'm sorry, the build seems to have failed because...".
+
+Apply on every turn. User instructions in the conversation can override per-turn.
+
 ## Project Overview
 
 Burp Suite Swiss Knife MCP — integrates Burp Suite Professional with Claude Code via the Model Context Protocol (MCP). Three-layer architecture:
@@ -143,7 +160,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── mass_assignment.json, request_smuggling.json, llm_injection.json
 │   ├── info_disclosure.json, websocket.json, file_upload.json
 │   └── tech_vulns.json         # Tech-specific vulnerabilities (reference only, no probes)
-└── tools/                      # 164 MCP tools across 32 modules
+└── tools/                      # 163 MCP tools across 32 modules (run grep for exact count; auto-drifts as tools are added)
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl (6 tools)

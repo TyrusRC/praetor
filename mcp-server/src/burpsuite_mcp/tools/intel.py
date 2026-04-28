@@ -92,6 +92,92 @@ def _deduplicate_finding(existing_list: list[dict], new_finding: dict) -> list[d
     return existing_list
 
 
+# ── Header profile helpers ──────────────────────────────────────
+# A "header profile" is a clean dict of headers captured from real client
+# traffic to the target, suitable for replay via curl_request / session_request
+# / send_raw_request. The goal: when a fresh request is genuinely needed
+# (no captured equivalent), the curl call mimics the real browser/client so
+# WAFs don't trip on default httpx/curl signatures.
+
+# Headers that must NEVER be reused from a captured request — they're either
+# session-specific (Cookie), auto-derived by the HTTP client (Host,
+# Content-Length, Connection, Transfer-Encoding), or sensitive (Authorization
+# without explicit opt-in).
+_HEADER_PROFILE_DROP = {
+    "host", "content-length", "connection", "transfer-encoding",
+    "te", "upgrade", "proxy-connection", "proxy-authenticate",
+    "expect", "trailer", "x-forwarded-for", "x-forwarded-host",
+    "x-forwarded-proto", "x-real-ip", "cf-connecting-ip",
+}
+
+# Browser-fingerprint indicator headers — presence of these means the source
+# request looks like a real browser, not a bot/scanner. Score higher.
+_BROWSER_FINGERPRINT_HEADERS = {
+    "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "sec-fetch-user",
+    "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+    "upgrade-insecure-requests", "accept-language", "accept-encoding",
+}
+
+# User-Agent substrings that indicate a real browser worth mimicking.
+_REAL_BROWSER_UA_HINTS = ("mozilla", "chrome", "safari", "firefox", "edg/", "webkit")
+# User-Agent substrings that indicate scanners/bots/curl — avoid as profile sources.
+_BOT_UA_HINTS = ("nuclei", "ffuf", "sqlmap", "gobuster", "dirb", "wfuzz",
+                 "scrapy", "python-httpx", "python-requests", "curl/",
+                 "java-http-client", "okhttp/4.0", "go-http-client",
+                 "burp", "katana", "wappalyzer", "nmap", "masscan")
+
+
+def _score_header_set(headers: list[dict]) -> int:
+    """Return a "browser-likeness" score for a header list. Higher = more
+    realistic. Used to pick the best source request for a header profile.
+    """
+    score = 0
+    by_name = {h.get("name", "").lower(): h.get("value", "") for h in headers}
+    ua = by_name.get("user-agent", "").lower()
+    if any(hint in ua for hint in _REAL_BROWSER_UA_HINTS):
+        score += 50
+    if any(bot in ua for bot in _BOT_UA_HINTS):
+        score -= 100
+    score += sum(5 for h in _BROWSER_FINGERPRINT_HEADERS if h in by_name)
+    if "accept" in by_name and "html" in by_name["accept"].lower():
+        score += 10
+    if "referer" in by_name and by_name["referer"]:
+        score += 5
+    if "cookie" in by_name and by_name["cookie"]:
+        score += 3  # logged-in real session — rare but valuable signal
+    score += min(20, len(by_name))  # general richness, capped
+    return score
+
+
+def _normalize_headers(headers_list: list[dict]) -> dict[str, str]:
+    """Convert a [{name, value}, ...] list into a clean dict suitable for
+    curl_request / session_request, with session-specific and auto-derived
+    headers removed.
+    """
+    out: dict[str, str] = {}
+    seen = set()
+    for h in headers_list:
+        name = (h.get("name") or "").strip()
+        value = h.get("value") or ""
+        if not name:
+            continue
+        low = name.lower()
+        if low in _HEADER_PROFILE_DROP:
+            continue
+        if low == "cookie":
+            # Strip session cookies — session_request manages the cookie jar.
+            continue
+        if low == "authorization":
+            # Don't blindly carry an auth header into fresh requests —
+            # caller must opt in via session.
+            continue
+        if low in seen:
+            continue
+        seen.add(low)
+        out[name] = value
+    return out
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -494,3 +580,172 @@ def register(mcp: FastMCP):
             lines.append(f"  ... and {len(matches) - 20} more patterns")
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def build_target_header_profile(
+        domain: str,
+        sample_size: int = 50,
+        force: bool = False,
+    ) -> str:
+        """Capture a realistic-client header profile from proxy history.
+
+        Scans the last `sample_size` proxy-history entries for `domain`, picks
+        the entry whose headers most resemble a real browser (User-Agent,
+        Sec-Fetch-* / Sec-CH-UA / Accept / Accept-Language / Referer), strips
+        session-specific and auto-derived headers (Cookie, Authorization,
+        Host, Content-Length, X-Forwarded-*), and saves the result under
+        `.burp-intel/<domain>/profile.json` → `realistic_headers`.
+
+        Why this matters: when curl_request / send_raw_request must be used
+        for a fresh first-touch endpoint, default Python httpx headers
+        (e.g. User-Agent: python-httpx/X.Y) will trip WAFs and skew test
+        results. Calling this once per target gives you a header dict you
+        can pass to curl_request(headers=...) so the fresh request looks
+        like the real client.
+
+        Args:
+            domain: Target domain (e.g. 'example.com')
+            sample_size: How many recent proxy history entries to scan (default 50)
+            force: If False and a profile already exists, returns it without
+                   rebuilding. If True, rebuild from scratch.
+        """
+        path = _ensure_dir(domain) / "profile.json"
+        existing = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text())
+            except (json.JSONDecodeError, OSError):
+                existing = {}
+
+        if not force and existing.get("realistic_headers"):
+            built_idx = existing.get("header_profile_built_from_index", "?")
+            built_at = existing.get("header_profile_built_at", "?")
+            return (
+                f"Header profile already exists for {domain} "
+                f"(source index {built_idx}, built {built_at}). "
+                "Pass force=True to rebuild. Read it via get_target_headers(domain)."
+            )
+
+        # Pull recent proxy history filtered by domain
+        history = await client.get(
+            "/api/proxy/history",
+            params={"limit": sample_size, "host": domain},
+        )
+        if "error" in history:
+            return f"Error reading proxy history: {history['error']}"
+
+        items = history.get("history", []) or history.get("items", [])
+        if not items:
+            return (
+                f"No proxy-history entries for {domain}. Browse the target "
+                "first (browser_crawl, or visit pages through the Burp proxy), "
+                "then re-run this."
+            )
+
+        best_idx = -1
+        best_score = -10**6
+        best_headers: list[dict] = []
+        for item in items:
+            idx = item.get("index", -1)
+            # Each history entry should expose `request.headers` as a list of
+            # {name, value}. Some endpoints flatten — handle both shapes.
+            req = item.get("request") or {}
+            headers = req.get("headers") or item.get("request_headers") or []
+            if not isinstance(headers, list) or not headers:
+                # Fall back: ask for the full request detail for this index.
+                detail = await client.get(f"/api/proxy/history/{idx}")
+                if "error" in detail:
+                    continue
+                headers = detail.get("request_headers") or detail.get("headers") or []
+            if not headers:
+                continue
+            score = _score_header_set(headers)
+            if score > best_score:
+                best_score = score
+                best_idx = idx
+                best_headers = headers
+
+        if not best_headers:
+            return (
+                f"Could not extract a usable header set from {len(items)} "
+                "history entries for {domain}. Try a higher sample_size, or "
+                "browse a real page (e.g. /login) through the Burp proxy first."
+            )
+
+        cleaned = _normalize_headers(best_headers)
+        ua = cleaned.get("User-Agent") or cleaned.get("user-agent") or "(none)"
+
+        existing["realistic_headers"] = cleaned
+        existing["header_profile_built_from_index"] = best_idx
+        existing["header_profile_built_at"] = datetime.now(timezone.utc).isoformat()
+        existing["header_profile_score"] = best_score
+        _atomic_write_json(path, existing)
+
+        lines = [
+            f"Header profile saved for {domain}",
+            f"  Source proxy-history index: {best_idx}  (score: {best_score})",
+            f"  Headers captured: {len(cleaned)}",
+            f"  User-Agent: {ua[:120]}",
+            "",
+            "Pass to curl_request: headers=<get_target_headers(domain)>",
+        ]
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def get_target_headers(domain: str, auto_build: bool = True) -> str:
+        """Return the realistic-client header dict for `domain`.
+
+        Reads `.burp-intel/<domain>/profile.json::realistic_headers`. If the
+        profile is missing and `auto_build=True`, runs
+        `build_target_header_profile` first.
+
+        Use this BEFORE every fresh `curl_request` / `send_raw_request` to
+        an in-scope target with captured proxy history. Pass the returned
+        headers via the `headers=` parameter so the fresh request looks
+        like the real client (avoids WAF triggers, gets accurate test
+        coverage).
+
+        Returns either a JSON-encoded dict (suitable for direct copy into a
+        tool call) or a human-readable miss message if no profile exists
+        and auto_build is False.
+
+        Args:
+            domain: Target domain
+            auto_build: If True, build the profile on-demand when missing
+        """
+        path = _intel_path(domain) / "profile.json"
+        profile: dict = {}
+        if path.exists():
+            try:
+                profile = json.loads(path.read_text())
+            except (json.JSONDecodeError, OSError):
+                profile = {}
+
+        headers = profile.get("realistic_headers") or {}
+
+        if not headers and auto_build:
+            # Trigger an on-demand build then re-read.
+            build_msg = await build_target_header_profile(domain=domain)
+            try:
+                profile = json.loads(path.read_text()) if path.exists() else {}
+            except (json.JSONDecodeError, OSError):
+                profile = {}
+            headers = profile.get("realistic_headers") or {}
+            if not headers:
+                return f"No header profile for {domain}. {build_msg}"
+
+        if not headers:
+            return (
+                f"No header profile for {domain}. "
+                "Call build_target_header_profile(domain) after browsing "
+                "the target through the Burp proxy."
+            )
+
+        # Emit as JSON so the model can copy it straight into a tool call.
+        out = {
+            "domain": domain,
+            "source_index": profile.get("header_profile_built_from_index"),
+            "built_at": profile.get("header_profile_built_at"),
+            "headers": headers,
+        }
+        return json.dumps(out, indent=2)

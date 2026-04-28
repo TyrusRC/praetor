@@ -113,6 +113,72 @@ def register(mcp: FastMCP):
         ]
         return "\n".join(lines)
 
+    @mcp.tool()
+    async def check_pro_features() -> str:
+        """Check which Burp features are usable on this edition.
+
+        Call this BEFORE picking tools when unsure whether the target Burp is
+        Professional or Community. Saves tokens vs trying a Pro-only tool and
+        getting an opaque error mid-hunt.
+
+        Returns a feature map with `available: True/False` per Pro-only
+        capability:
+          - scanner / active_scan / passive_scan : Burp's automated scanner
+          - collaborator                          : Burp Collaborator (OOB)
+          - logger                                : Logger++ tab API (some
+                                                    Pro builds only)
+          - repeater / intruder / proxy / fuzz   : always available
+
+        On Community, the advisor will route you to MCP-side equivalents
+        (auto_probe + auto_collaborator_test still work for OOB via DNS
+        wildcard providers; ffuf/dalfox/sqlmap fill the scanner gap).
+        """
+        data = await client.get("/api/burp-tools/project")
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        edition_raw = (data.get("edition", "") or "").upper()
+        is_pro = "PROFESSIONAL" in edition_raw
+        version = data.get("burp_version", "?")
+
+        # Feature map. Pro-only flags are flipped on COMMUNITY so Claude can
+        # short-circuit before calling tools that would fail.
+        features = {
+            "scanner":       {"available": is_pro, "tool_examples": ["scan_target", "scan_url", "quick_scan", "auto_probe"]},
+            "active_scan":   {"available": is_pro, "tool_examples": ["scan_target", "scan_url"]},
+            "passive_scan":  {"available": is_pro, "tool_examples": ["get_scanner_findings", "get_issues_dashboard"]},
+            "collaborator":  {"available": is_pro, "tool_examples": ["generate_collaborator_payload", "auto_collaborator_test", "get_collaborator_interactions"]},
+            "logger":        {"available": is_pro, "tool_examples": ["get_logger_entries"], "note": "Logger API may also be unavailable on older Pro builds — falls back to proxy history."},
+            "crawl":         {"available": is_pro, "tool_examples": ["crawl_target", "scan_target(mode='discover')"]},
+            "repeater":      {"available": True,   "tool_examples": ["send_to_repeater", "repeater_resend"]},
+            "intruder":      {"available": True,   "tool_examples": ["send_to_intruder", "send_to_intruder_configured"], "note": "Community throttles Intruder heavily — prefer fuzz_parameter via MCP."},
+            "proxy":         {"available": True,   "tool_examples": ["get_proxy_history", "set_match_replace", "enable_intercept"]},
+            "fuzz":          {"available": True,   "tool_examples": ["fuzz_parameter", "auto_probe", "batch_probe"]},
+        }
+
+        lines = [
+            f"Burp: {version} | Edition: {edition_raw or 'UNKNOWN'} | Pro features: {'YES' if is_pro else 'NO'}",
+            "",
+            "Feature              Available  Tool examples",
+            "-" * 88,
+        ]
+        for name, info in features.items():
+            avail = "YES" if info["available"] else "NO"
+            tools = ", ".join(info["tool_examples"][:3])
+            lines.append(f"{name:<20} {avail:<10} {tools}")
+            if info.get("note"):
+                lines.append(f"{'':<31} note: {info['note']}")
+
+        if not is_pro:
+            lines.append("")
+            lines.append("COMMUNITY EDITION — workarounds when Pro-only tools are unavailable:")
+            lines.append("  - Active scan          → auto_probe + run_nuclei + run_dalfox + run_sqlmap")
+            lines.append("  - Collaborator (OOB)   → use a public DNS-wildcard provider (interact.sh) and watch with poll loops")
+            lines.append("  - Crawl                → browser_crawl + run_katana (both work on Community)")
+            lines.append("  - Logger++             → get_proxy_history + get_mcp_history")
+
+        return "\n".join(lines)
+
     # ── Logger ──────────────────────────────────────────────────
 
     @mcp.tool()

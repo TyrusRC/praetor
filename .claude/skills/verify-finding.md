@@ -1,211 +1,211 @@
 ---
 name: verify-finding
-description: Verify a suspected vulnerability is real with reproducible evidence before marking confirmed
+description: Verify a suspected vulnerability is real with reproducible evidence before marking confirmed. Three steps in order — Logger replay → assess_finding → save_finding. Skipping any step results in either a server-side rejection or a false-positive in the report.
 ---
 
 # Verify Finding
 
-You are verifying a suspected vulnerability. Your job is to PROVE it's real or mark it as a false positive. No guessing, no assumptions.
+```
+Step 0: Logger replay  →  Step 1: assess_finding  →  Step 2: save_finding
+prove reproducible        prove reportable          persist
+```
 
-## Step 0: Logger Replay — MANDATORY for all finding types
+Skip Step 0 → server rejects with 400 (no resolvable evidence index).
+Skip Step 1 → wasted tokens drafting reports for findings that fail the 7-Question Gate downstream.
 
-Before any vuln-type-specific checks below, you MUST:
+## Step 0 — Logger Replay (MANDATORY)
 
-1. Identify the request that triggered the suspicion. Note its index from
-   `get_logger_entries` (preferred) or `get_proxy_history`.
-2. Replay it with no modification: `resend_with_modification(index)`. Confirm
-   the same anomaly (status code, body delta, error message, etc.).
-3. Note the Logger index of the **confirming replay** — this is what goes into
-   `evidence.logger_index` when you eventually call `save_finding`.
-4. For timing/blind findings (`sqli_blind`, `sqli_time`, `ssrf_blind`,
-   `race_condition`, `request_smuggling`, `ssti_blind`,
-   `command_injection_blind`, `xxe_blind`): replay 2 more times after the
-   confirmation. For each replay, capture `{logger_index, elapsed_ms, status_code}`.
-   These three records become `reproductions[]` on `save_finding`.
-5. If the anomaly does not reproduce on the second send, mark the finding as
-   `likely_false_positive` and STOP. Do not call `save_finding`.
+1. Identify the suspicious request via `get_logger_entries` (preferred) or `get_proxy_history`. Note its index.
+2. `resend_with_modification(index)` — confirm the same anomaly (status, body delta, error string).
+3. The Logger index of the **confirming replay** is what goes into `evidence.logger_index`.
+4. **Timing/blind classes** (`sqli_blind`, `sqli_time`, `ssrf_blind`, `race_condition`, `request_smuggling`, `ssti_blind`, `command_injection_blind`, `xxe_blind`): replay 2 more times after the confirmation. Capture `{logger_index, elapsed_ms, status_code}` for each → these become `reproductions[]`.
+5. If the anomaly does not reproduce on the second send → mark `likely_false_positive` and STOP. Do not call `save_finding`.
 
-The server hard-rejects `save_finding` calls that lack a resolvable
-`evidence.logger_index` (or `proxy_history_index` / `collaborator_interaction_id`),
-so skipping this step means the finding cannot be stored.
+The server hard-rejects `save_finding` calls without a resolvable `evidence.logger_index` / `proxy_history_index` / `collaborator_interaction_id`.
 
-## Process
+## Step 1 — assess_finding (MANDATORY)
 
-1. **Auto-validate first:** `assess_finding(vuln_type, evidence, endpoint)` — runs the 7-Question Gate automatically. If it says DO NOT REPORT, stop.
-2. **Load the finding** from `load_target_intel(domain, "findings")`
-3. **Re-send the PoC request** exactly as stored — use `session_request` or `send_http_request` with the exact method, path, headers, body
-4. **Check the expected behavior** matches what was originally observed
-5. **Test 2-3 times** for timing-based findings to rule out network jitter
+```
+assess_finding(
+  vuln_type="<class>",          # "sqli", "xss", "idor", ...
+  evidence="<what you saw>",    # include "3/3" for timing
+  endpoint="<full URL>",
+  parameter="<name>",
+  domain="<domain>",            # required: enables Q1 scope + Q4 dup
+)
+```
 
-### Efficient Evidence Extraction
+Verdict → action:
 
-Use specialized tools instead of reading full responses:
-- `extract_regex(index, 'proof_pattern', group=1)` — just extract the proof
-- `extract_json_path(index, '$.error')` — specific JSON field from API response
-- `get_response_hash(index)` — compare hashes not full bodies for consistency checks
-- `extract_headers(index, ['Set-Cookie', 'Location'])` — just the headers that matter
+| Verdict | Action |
+|---|---|
+| `REPORT` | Proceed to Step 2 with `confidence=<suggested>` |
+| `NEEDS MORE EVIDENCE` | Strengthen the flagged items, redo Step 0, re-assess |
+| `DO NOT REPORT` | Mark `likely_false_positive`, move to next target |
 
-## Evidence Requirements
+Calling `save_finding` without `assess_finding` violates Rule 25.
 
-Each vulnerability type needs SPECIFIC proof. Without meeting these requirements, the finding is NOT confirmed.
+## Step 2 — save_finding
+
+Pass the suggested confidence directly. The Burp gate will reject only if Step 0's index is wrong.
+
+## Efficient Evidence Extraction
+
+Use specialised tools, not full responses:
+- `extract_regex(index, '<proof_pattern>', group=1)` — just the proof
+- `extract_json_path(index, '$.error')` — JSON field
+- `get_response_hash(index)` — compare hashes for consistency
+- `extract_headers(index, ['Set-Cookie', 'Location'])` — headers only
+
+## Evidence Requirements (per vuln class)
+
+Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
 
 ### SQL Injection
-- **Time-based:** Response time > 3x baseline (e.g., SLEEP(3) causes 3+ second delay). Test 2-3 times to rule out network jitter. Compare against baseline timing.
-- **Error-based:** SQL error string in response (unclosed quotation, syntax error, ORA-, mysql_fetch, pg_query, ODBC, Microsoft OLE DB)
-- **Union-based:** Response contains data from injected UNION SELECT (version string, table names, different column count)
-- **Boolean-blind:** Consistent response difference between AND 1=1 and AND 1=2 (content length, specific content present/absent)
-- **Blind OOB:** Collaborator DNS/HTTP interaction via `auto_collaborator_test`
-- **NOT sufficient:** Status code change alone. Generic error page. Different response length without error strings or consistent boolean behavior.
+- **Time-based:** response time > 3× baseline; replay 3×; compare to baseline
+- **Error-based:** SQL error string (unclosed quote, ORA-, mysql_fetch, pg_query, ODBC, OLE DB)
+- **Union:** UNION SELECT-injected data visible (version, table names, distinct column count)
+- **Boolean blind:** consistent content delta between AND 1=1 and AND 1=2
+- **Blind OOB:** Collaborator DNS/HTTP via `auto_collaborator_test`
+- **NOT sufficient:** status code alone, generic error page, length without error string or boolean stability
 
-### XSS (Cross-Site Scripting)
-- **Reflected:** Payload appears UNENCODED in response body (exact string match of `<script>`, `onerror=`, `onload=`, etc.) in an executable context
-- **Stored:** Payload appears on a DIFFERENT page/request after submission
-- **DOM-based:** Payload reaches a dangerous sink (innerHTML, eval) — verify via `analyze_dom` showing source-to-sink flow
-- **NOT sufficient:** Payload appears URL-encoded (%3Cscript%3E) or HTML-encoded. Payload reflected inside a JavaScript string but properly escaped. Payload inside HTML comment.
+### XSS
+- **Reflected:** payload UNENCODED in body in executable context
+- **Stored:** payload appears on a DIFFERENT page after submission
+- **DOM:** payload reaches innerHTML/eval — verify via `analyze_dom` source→sink
+- **NOT sufficient:** URL-encoded / HTML-encoded reflection, payload inside JS string properly escaped, inside HTML comment
 
-### SSRF (Server-Side Request Forgery)
-- **Confirmed:** Collaborator HTTP or DNS interaction received via `auto_collaborator_test` or `get_collaborator_interactions`
-- **Confirmed:** Cloud metadata content in response (ami-id, instance-id, AccessKeyId, subscriptionId)
-- **Partial:** Internal service response content (internal IPs, error messages from internal services, Redis/SSH banners)
-- **NOT sufficient:** Different status code alone. Timeout without Collaborator interaction. Connection refused error (shows attempt but not success).
+### SSRF
+- **Confirmed:** Collaborator HTTP/DNS via `auto_collaborator_test` or `get_collaborator_interactions`
+- **Confirmed:** cloud-metadata content (ami-id, AccessKeyId, subscriptionId)
+- **Partial:** internal-service response (internal IPs, Redis/SSH banners)
+- **NOT sufficient:** status alone, timeout without Collaborator, connection-refused
 
 ### Open Redirect
-- **Confirmed:** Collaborator interaction (server followed redirect to Collaborator URL) via `test_open_redirect`
-- **Partial:** Location header contains attacker-controlled external URL (client-side redirect — still reportable but lower severity)
-- **NOT sufficient:** Parameter reflected in page body but no redirect headers. JavaScript redirect that doesn't actually fire.
+- **Confirmed:** Collaborator interaction via `test_open_redirect`
+- **Partial:** Location header to attacker-controlled external URL (LOW alone)
+- **NOT sufficient:** parameter reflected in body but no redirect headers
 
 ### LFI / Path Traversal
-- **Linux:** Response contains `root:x:`, `daemon:`, `/bin/bash`, `/bin/sh`, `nobody:`
-- **Windows:** Response contains `[fonts]`, `[extensions]`, `for 16-bit app`, `[mail]`
-- **PHP wrappers:** Base64-encoded file contents (long alphanumeric string starting with PD9, PCFE, etc.)
-- **Source code:** Application source code visible (PHP tags, config files with DB credentials)
-- **NOT sufficient:** Different error message. Status code change. Generic "file not found". Length anomaly without file content indicators.
+- **Linux:** `root:x:`, `daemon:`, `/bin/bash`, `/bin/sh`, `nobody:`
+- **Windows:** `[fonts]`, `[extensions]`, `for 16-bit app`, `[mail]`
+- **PHP wrappers:** base64 contents (PD9..., PCFE...)
+- **Source code:** PHP/config visible
+- **NOT sufficient:** different error, status change, "file not found", length anomaly without file content
 
-### IDOR / Broken Access Control
-- **Confirmed:** `compare_auth_states` shows same response (>90% similarity) with DIFFERENT user credentials
-- **Confirmed:** Accessing another user's PII/data with lower-privilege credentials
-- **Confirmed:** Modifying/deleting another user's resources with their ID
-- **NOT sufficient:** Same status code with completely different content. Admin-only endpoint returning 200 with "access denied" in body. Different response that contains only your own data.
+### IDOR
+- **Confirmed:** `compare_auth_states` shows >90% similarity with DIFFERENT user creds
+- **Confirmed:** read another user's PII with lower-priv creds
+- **Confirmed:** modify/delete another user's resources via their ID
+- **NOT sufficient:** same status with completely different content, admin endpoint returning 200 with "access denied" body
 
 ### File Upload
-- **Confirmed:** Uploaded file is ACCESSIBLE at a URL AND server processes it (PHP executes, SVG renders with XSS, JSP executes)
-- **Partial:** Upload accepted (200) but file location unknown — still reportable if dangerous extensions accepted (.php, .jsp, .aspx)
-- **NOT sufficient:** Upload rejected with 200 status and error in body. Upload accepted but file stored with safe extension or in non-executable path.
+- **Confirmed:** uploaded file ACCESSIBLE at URL AND server processes it (PHP exec, SVG XSS, JSP exec)
+- **Partial:** upload accepted (200) but location unknown — reportable only if dangerous extensions accepted
+- **NOT sufficient:** upload rejected with 200 + error in body, file stored with safe extension
 
-### SSTI (Server-Side Template Injection)
-- **Confirmed:** Mathematical expression evaluated (7*7 returns 49 in response body) — verify it's NOT client-side (AngularJS) by checking if server response contains the result before JavaScript executes
-- **Confirmed:** RCE probe returns system output (uid=, hostname, whoami output)
-- **Confirmed:** Config/environment leak (SECRET_KEY, database credentials via config dump)
-- **Differentiate engines:** `7*'7'` = "7777777" means Jinja2, = "49" means Twig
-- **NOT sufficient:** Expression reflected as literal string. Client-side template rendering (Angular/React). Expression in JavaScript context that browser evaluates.
+### SSTI
+- **Confirmed:** math eval (7*7→49) — verify NOT client-side (Angular) by checking pre-JS response
+- **Confirmed:** RCE probe returns system output (uid=, hostname, whoami)
+- **Confirmed:** config/env leak (SECRET_KEY, DB creds)
+- **Engine differentiation:** `7*'7'` = "7777777" → Jinja2; "49" → Twig
+- **NOT sufficient:** literal expression reflected, client-side template, JS-context expression
 
 ### Command Injection
-- **Confirmed:** Unique marker echoed in response (`; echo UNIQUE_STRING` and UNIQUE_STRING appears in response)
-- **Confirmed:** System command output in response (uid=, whoami output, hostname)
-- **Time-based:** `; sleep 5` causes 5+ second delay (test 2-3 times, compare to baseline)
-- **Blind OOB:** Collaborator DNS/HTTP interaction via `; curl COLLABORATOR` or `; nslookup COLLABORATOR`
-- **NOT sufficient:** Status 500 alone. Different error message. Timeout without timing correlation.
+- **Confirmed:** unique marker echoed (`; echo UNIQUE_STRING` → UNIQUE_STRING in response)
+- **Confirmed:** system output (uid=, whoami, hostname)
+- **Time-based:** `; sleep 5` causes 5s+ delay (3 replays, vs baseline)
+- **Blind OOB:** Collaborator via `; curl COLLAB` or `; nslookup COLLAB`
+- **NOT sufficient:** status 500 alone, different error, timeout without timing correlation
 
-### CSRF (Cross-Site Request Forgery)
-- **Confirmed:** State-changing action succeeds WITHOUT CSRF token (remove token entirely, verify action executed)
-- **Confirmed:** State-changing action succeeds with CSRF token from DIFFERENT user session
-- **Confirmed:** Action succeeds when switching POST to GET (method override bypass)
-- **Assess impact:** The action must have real-world impact (change password, transfer funds, modify settings) — not just viewing data
-- **NOT sufficient:** Missing CSRF token on GET requests. Missing CSRF on actions with no side effects. SameSite cookie attribute present (reduces but doesn't eliminate risk).
+### CSRF
+- **Confirmed:** state-change without CSRF token (remove entirely; action executes)
+- **Confirmed:** action succeeds with token from DIFFERENT user session
+- **Confirmed:** POST→GET method-override bypass
+- **Impact:** action MUST have real impact (password, funds, settings)
+- **NOT sufficient:** missing CSRF on GET, no side effect, SameSite present
 
 ### Race Condition
-- **Confirmed:** `test_race_condition` shows action succeeded MORE times than expected (e.g., coupon applied 3x, balance debited 3x)
-- **Confirmed:** Duplicate records created from simultaneous identical requests
-- **Quantify impact:** How much money/credit/resource can be gained? Is it consistently reproducible?
-- **NOT sufficient:** Multiple 200 responses (server may return 200 but only process once). Inconsistent reproduction (< 30% success rate suggests network timing, not real TOCTOU).
+- **Confirmed:** `test_race_condition` shows action ran MORE times than expected (coupon 3×, balance debited 3×)
+- **Confirmed:** duplicate records from simultaneous identical requests
+- **Quantify:** how much money/credit gained, repeatedly
+- **NOT sufficient:** multiple 200s (server may return 200 but process once), <30% success rate (timing, not TOCTOU)
 
-### JWT Attacks
-- **alg:none:** Server accepts JWT with algorithm set to "none" and empty signature — action succeeds with forged claims
-- **Weak secret:** JWT re-signed with common secret (secret, password, 123456) is accepted by server
-- **Algorithm confusion:** JWT changed from RS256 to HS256, signed with public key, accepted by server
-- **kid injection:** Path traversal or SQLi in kid header field returns different data
-- **NOT sufficient:** Decoding the JWT and seeing claims (that's expected). Server returning 200 but ignoring the JWT.
+### JWT
+- **alg:none:** server accepts JWT with `alg=none` and empty signature
+- **Weak secret:** re-signed with common secret accepted (secret, password, 123456)
+- **Algorithm confusion:** RS256→HS256, signed with public key, accepted
+- **kid injection:** path traversal/SQLi in `kid` returns different data
+- **NOT sufficient:** decoding the JWT (expected), 200 response while ignoring the JWT
 
-### CORS Misconfiguration
-- **Confirmed:** Server reflects arbitrary Origin in Access-Control-Allow-Origin WITH Access-Control-Allow-Credentials: true
-- **Confirmed:** Server accepts Origin: null with credentials (exploitable via sandboxed iframe)
-- **Partial:** Origin reflected without credentials (lower impact — no cookie theft, but can read public API data cross-origin)
-- **NOT sufficient:** Wildcard ACAO without credentials (browser blocks credentialed requests). CORS headers present but no sensitive data accessible.
+### CORS
+- **Confirmed:** server reflects arbitrary Origin in ACAO WITH ACAC: true
+- **Confirmed:** server accepts Origin: null with credentials
+- **Partial:** Origin reflected without credentials (LOW — read public data only)
+- **NOT sufficient:** wildcard ACAO without credentials (browser blocks credentialed)
 
 ### Mass Assignment
-- **Confirmed:** Adding `role=admin` or `is_admin=true` to request actually changes the user's privilege (verify by checking profile/permissions after)
-- **Confirmed:** Setting `price=0` or `discount=100` actually changes the transaction amount
-- **Confirmed:** Setting `verified=true` bypasses email verification
-- **NOT sufficient:** Server accepts the extra field without error but doesn't use it. Field appears in response but privilege hasn't changed.
+- **Confirmed:** `role=admin` / `is_admin=true` actually changes privilege (verify via profile after)
+- **Confirmed:** `price=0` / `discount=100` actually changes amount
+- **Confirmed:** `verified=true` bypasses email verification
+- **NOT sufficient:** server accepts extra field without using it
 
-### CRLF Injection
-- **Confirmed:** Injected header appears in HTTP response headers (X-Injected: true visible in response)
-- **Confirmed:** Set-Cookie injection — malicious cookie set in victim's browser
-- **Confirmed:** Response splitting — injected body content after double CRLF
-- **NOT sufficient:** CRLF characters reflected in response body (not headers). URL-encoded CRLF in Location header value (not a new header).
+### CRLF
+- **Confirmed:** injected header in response headers (X-Injected: true visible)
+- **Confirmed:** Set-Cookie injection sets cookie in victim
+- **Confirmed:** response splitting — body content after double CRLF
+- **NOT sufficient:** CRLF reflected in body (not headers), URL-encoded CRLF in Location value
 
-### HPP (HTTP Parameter Pollution)
-- **Confirmed:** Duplicate parameter causes different behavior than single parameter (different status, significantly different response content, different data returned)
-- **Confirmed:** Backend uses different parameter instance than frontend validator (WAF bypass, auth bypass)
-- **NOT sufficient:** Server just uses first or last value consistently. Response length differs by < 10%.
+### HPP
+- **Confirmed:** duplicate parameter causes different behaviour (status, content, returned data)
+- **Confirmed:** backend uses different param instance than frontend (WAF/auth bypass)
+- **NOT sufficient:** server consistently uses first/last, length differs <10%
 
 ### Deserialization
-- **Confirmed:** Crafted serialized object causes server error with deserialization stack trace (ObjectInputStream, unserialize, Marshal.load)
-- **Confirmed:** RCE via gadget chain (command output in response, Collaborator callback)
-- **Confirmed:** Denial of service via deeply nested object (measurable performance degradation)
-- **NOT sufficient:** Base64 data in parameter (might not be deserialized). Server accepts input without error (might validate but not deserialize).
+- **Confirmed:** crafted serialized object → server error with deserialization stack (ObjectInputStream, unserialize, Marshal.load)
+- **Confirmed:** RCE via gadget chain (output in response, Collaborator callback)
+- **Confirmed:** DoS via deeply nested object (measurable degradation)
+- **NOT sufficient:** base64 in parameter (might not be deserialized), input accepted without error
 
 ### GraphQL
-- **Introspection:** Full schema returned from __schema query (enumerate types, fields, mutations)
-- **Injection:** SQL error strings from resolver arguments
-- **Batch abuse:** Server processes unbounded batch queries (DoS vector)
-- **NOT sufficient:** GraphQL endpoint exists. Field suggestions enabled (low severity info leak).
+- **Introspection:** full schema returned from `__schema`
+- **Injection:** SQL error from resolver arguments
+- **Batch abuse:** unbounded batch processed (DoS vector)
+- **NOT sufficient:** endpoint exists, field-suggestion enabled (low info leak)
 
 ## Decision
 
-### If VERIFIED:
+### VERIFIED → save with full evidence
 
-Save with full evidence:
 ```
 save_target_intel(domain, "findings", {
-  "endpoint": "...",
-  "vulnerability_type": "...",
-  "parameter": "...",
-  "status": "confirmed",
-  "severity": "CRITICAL/HIGH/MEDIUM/LOW",
-  "evidence": {payload, baseline response, exploit response, collaborator proof},
+  "endpoint": "...", "vulnerability_type": "...", "parameter": "...",
+  "status": "confirmed", "severity": "CRITICAL/HIGH/MEDIUM/LOW",
+  "evidence": {payload, baseline, exploit, collaborator_proof},
   "poc_request": {method, path, headers, body, expected_behavior},
-  "impact": "What can an attacker actually do with this?",
-  "last_verified": "<current timestamp>",
-  "verification_failures": 0
+  "impact": "...",
+  "last_verified": "<ts>", "verification_failures": 0
 })
 ```
 
-### If NOT VERIFIED:
+### NOT VERIFIED → update status
 
-Update the finding status:
-- **First failure:** Set status to `stale` (might be intermittent or patched)
-- **Second failure (verification_failures >= 2):** Set status to `likely_false_positive`
-- Add a note explaining what changed (different response, patched, WAF blocked, etc.)
+- **First failure:** `stale` (intermittent or patched)
+- **Second failure (verification_failures >= 2):** `likely_false_positive`
+- Note what changed (different response, patched, WAF blocked)
 
-```
-save_target_intel(domain, "findings", {
-  ...existing_finding,
-  "status": "stale" or "likely_false_positive",
-  "verification_failures": N,
-  "last_verified": "<current timestamp>"
-})
-```
+`generate_report` will hard-delete `likely_false_positive` entries.
 
-## Cross-references (don't duplicate here)
+## Cross-references
 
-- **7-Question Gate** + **NEVER SUBMIT list**: see `.claude/rules/hunting.md` (always loaded)
-- **Conditionally Valid findings + required chains**: see `chain-findings.md`
+- **7-Question Gate + NEVER SUBMIT:** `.claude/rules/hunting.md` (always loaded)
+- **Conditionally Valid + chains:** `chain-findings.md`
+- **Effort vs noise calls:** `noise-budget.md`
 
-## Hard rules
+## Hard Rules
 
-- Never confirm without meeting the evidence requirements above
+- Never confirm without meeting evidence requirements above
 - Never skip Step 0 replay
-- Never trust single-request timing (jitter — replay 3x, compare to baseline)
+- Never trust single-request timing (jitter — replay 3×, compare to baseline)
 - Never report IDOR without access to ANOTHER user's data
 - Never report XSS without payload in executable context (not encoded, not commented)

@@ -1,227 +1,305 @@
 ---
 name: report-templates
-description: Generate platform-specific vulnerability reports for HackerOne, Bugcrowd, Intigriti, and Immunefi
+description: Generate platform-specific bug-bounty reports (HackerOne, Bugcrowd, Intigriti, Immunefi). Use after a finding is `confirmed` and `assess_finding` returned `REPORT`. Output follows PTES + OWASP WSTG layout with CVSS 4.0.
 ---
 
 # Report Templates
 
-Generate professional bug bounty reports optimized for each platform. Reports must be evidence-driven, impact-focused, and follow the platform's preferred format.
+## Pre-flight Gate (Rule 28)
 
-## Universal Report Rules
+Before `generate_report` or `format_finding_for_platform`:
 
-1. **Title formula:** `[Bug Class] in [Component/Endpoint] allows [actor] to [impact]`
-   - Good: "Stored XSS in comment field allows authenticated user to steal admin session"
-   - Bad: "XSS vulnerability found" / "Security issue in application"
+1. Finding has `status='confirmed'` (else excluded)
+2. `assess_finding` returned `REPORT` (else gated upstream)
+3. Step-0 replay passed (`verify-finding.md`)
+4. False positives → set `status='likely_false_positive'`. The next `generate_report` HARD-DELETES them. No tracking, no tombstones.
 
-2. **Impact-first:** Lead with what the attacker can DO, not how the bug works
-3. **Under 600 words** for the main body — triagers read hundreds of reports
-4. **Human tone:** Write like a skilled researcher, not an AI. Avoid "I discovered", "upon further analysis"
-5. **Reproduction must work** in under 5 minutes from a cold start
-6. **One finding per report** — don't bundle unless it's a chain
-7. **CVSS 3.1 required** — calculate honestly, don't inflate
+If `generate_report` says "No reportable findings", you haven't confirmed anything — go verify, don't argue with the gate.
 
-## CVSS 3.1 Quick Reference
+## Canonical Finding Layout (PTES §7 + OWASP WSTG)
 
-| Vector | Values | Notes |
+Every finding — regardless of platform — must include these sections in this order. The MCP `_build_finding_section` already emits this structure when the `finding` dict has the right keys.
+
+| Section | Source key | Purpose |
 |---|---|---|
-| Attack Vector (AV) | N=Network, A=Adjacent, L=Local, P=Physical | Most web vulns = Network |
-| Attack Complexity (AC) | L=Low, H=High | High if needs race condition or specific config |
-| Privileges Required (PR) | N=None, L=Low, H=High | None = unauthenticated, Low = any user, High = admin |
-| User Interaction (UI) | N=None, R=Required | XSS/CSRF = Required, IDOR/SQLi = None |
-| Scope (S) | U=Unchanged, C=Changed | Changed if affects other components (XSS, SSRF) |
-| Confidentiality (C) | N/L/H | H = all data, L = some data, N = none |
-| Integrity (I) | N/L/H | H = full modification, L = some, N = none |
-| Availability (A) | N/L/H | H = full DoS, L = degraded, N = none |
+| Classification | `vuln_type` `cwe` `owasp` `cvss_vector` `severity` `confidence` | Triager filters by class |
+| Context | `context` | What this endpoint does, who reaches it, why it matters |
+| Vulnerability | `description` | Plain-language description of the bug |
+| Attack Walkthrough | `attack_walkthrough` (list[str]) | End-to-end exploitation: discover → trigger → control → impact |
+| Impact | `impact` | Concrete outcome (data, access, money, account control) |
+| Escalation Path | `escalation` `chain_with` | How to chain into higher-impact bug (ATO, RCE, lateral) |
+| Proof of Concept | `poc_request` (dict) | Exact HTTP request — copy-paste reproducible |
+| Steps to Reproduce | `reproduction_steps` (list[str]) | Cold-start steps a triager can follow in <5 min |
+| Evidence | `evidence` `evidence_text` `reproductions` | Logger indices, Collaborator IDs, response excerpts, replay table |
+| Remediation | `remediation` (list[str]) | Concrete fix guidance for defenders |
+| References | `references` (list[str]) | CWE, OWASP, CVE, vendor advisory, ATT&CK |
 
-**Common scores:**
-- RCE: CVSS 9.8 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)
-- SQLi (data extraction): CVSS 8.6-9.1
-- Stored XSS (admin): CVSS 8.1-8.7
-- IDOR (read other user data): CVSS 6.5-7.5
-- Reflected XSS: CVSS 6.1
-- Open redirect: CVSS 4.7 (unless chained)
+## Universal Rules
 
-## HackerOne Format
+1. **Title:** `[Bug Class] in [Component] allows [actor] to [impact]`
+2. **Impact-first** in the summary — what an attacker DOES, not how the bug works
+3. **<600 words** main body (triagers read hundreds of reports)
+4. **Reproduction must work cold-start in <5 min**
+5. **One finding per report** — bundle only when it's a chain
+6. **Severity honest** — Rule 21. NEVER inflate.
+
+## CVSS 4.0 — Use the Calculator
+
+Calculator: https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator
+
+CVSS v4 metrics (Scope is REMOVED; replaced by Vulnerable / Subsequent System axes):
+
+| Metric | Values | Notes |
+|---|---|---|
+| AV — Attack Vector | N=Network, A=Adjacent, L=Local, P=Physical | Most web vulns = N |
+| AC — Attack Complexity | L=Low, H=High | H if needs race / specific config |
+| AT — Attack Requirements | N=None, P=Present | P if conditions outside attacker control needed |
+| PR — Privileges Required | N=None, L=Low, H=High | N=unauth, L=any user, H=admin |
+| UI — User Interaction | N=None, P=Passive, A=Active | XSS/CSRF=A; IDOR/SQLi=N |
+| VC, VI, VA — Vulnerable System Confidentiality / Integrity / Availability | H/L/N | Direct impact on the vulnerable component |
+| SC, SI, SA — Subsequent System impact | H/L/N | Impact propagated to other components |
+
+Severity bands (CVSS-BR base): None 0.0 / Low 0.1–3.9 / Medium 4.0–6.9 / High 7.0–8.9 / Critical 9.0–10.0.
+
+**Common starting vectors** (replace AT/PR/UI/SC/SI/SA per target):
+- RCE unauth: `CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N` (~9.3)
+- SQLi data extraction: `CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N` (~8.7)
+- Stored XSS hitting admin: `CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:A/VC:L/VI:L/VA:N/SC:H/SI:H/SA:N` (~7.x)
+- IDOR read other-user PII: `CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N` (~7.0)
+- Reflected XSS: `CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N` (~5.x)
+- Open redirect (no chain): `CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:A/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N` (~3.x)
+
+## HackerOne
 
 ```markdown
 ## Summary
-[1-2 sentences: what the vulnerability is and its impact]
+[Bug class] in [component] on [domain] allows [actor] to [impact].
 
-## Steps to Reproduce
-1. Navigate to [URL]
-2. [Exact action with exact values]
-3. [Exact action]
-4. Observe: [what proves the vulnerability]
+## Context
+[Endpoint purpose, auth state, who reaches it.]
 
-## Impact
-[What can an attacker actually do? Be specific about data/access/actions affected]
-[Who is affected? All users? Only admins? Specific roles?]
+## Vulnerability Details
+[2-3 sentences: root cause, affected component.]
 
-## Supporting Material/References
-- [Screenshot/video if helpful]
-- [Relevant CWE: CWE-XXX]
-- [CVSS 3.1: X.X (vector string)]
+## Steps to Reproduce (cold start)
+1. [Auth step or "skip if unauth"]
+2. [Exact request to URL with values]
+3. [Observe: indicator]
 
-## Severity Justification
-[Why you chose this severity — map to their taxonomy]
+## Proof of Concept Request
+```http
+METHOD /path HTTP/1.1
+Host: target
+[headers]
+
+[body]
 ```
 
-**HackerOne tips:**
-- Use their severity taxonomy: Critical/High/Medium/Low
-- Reference their specific program policy for scope/severity guidance
-- Include CWE ID — triagers use it for categorization
-- Don't include remediation advice unless asked (some programs dislike it)
-- Mention if you have additional impact not yet demonstrated
+## Attack Walkthrough
+1. Discovery: [how the issue is found]
+2. Trigger: [exact payload / step]
+3. Control: [what the attacker now controls]
+4. Impact: [end outcome]
 
-## Bugcrowd Format
+## Escalation Path
+[Chain to ATO / RCE / lateral movement.]
+
+## Impact
+[What an attacker actually does — data, money, accounts.]
+
+## Remediation
+- [Concrete fix #1]
+- [Concrete fix #2]
+
+## Supporting Material / Evidence
+[Logger indices, Collaborator ID, response excerpt.]
+
+## References
+- CWE-XXX
+- OWASP A0X:2021-XXX
+- CVSS 4.0: <vector>
+- Severity: HIGH
+```
+
+H1 tips: use their severity taxonomy; reference program policy for scope; CWE required; remediation optional.
+
+## Bugcrowd
 
 ```markdown
 ## Title
 [Bug Class] in [Endpoint] — [Impact Summary]
 
+## Context
+[Endpoint purpose, auth state.]
+
 ## Description
-[2-3 sentences describing the vulnerability, affected component, and root cause]
+[Root cause + affected component.]
 
 ## Proof of Concept
 ### Environment
-- URL: [target URL]
-- Browser/Tool: [what you used]
-- Auth state: [authenticated as role X / unauthenticated]
+- URL, Auth state, Browser/Tool
 
-### Steps
-1. [Step with exact URL, params, headers]
-2. [Step]
-3. [Step]
-
-### Expected vs Actual
-- Expected: [what should happen]
-- Actual: [what happens — the vulnerability]
-
-## Impact Statement
-[Business impact: what can attacker achieve, who is affected, what data is at risk]
-
-## CVSS
-Score: X.X
-Vector: CVSS:3.1/AV:X/AC:X/PR:X/UI:X/S:X/C:X/I:X/A:X
-
-## Attachments
-[Screenshots, HTTP request/response pairs, video PoC]
+### PoC Request
+```http
+[HTTP request]
 ```
 
-**Bugcrowd tips:**
-- Bugcrowd uses VRT (Vulnerability Rating Taxonomy) — map your finding to their taxonomy
-- P1-P5 severity scale: P1=Critical, P2=High, P3=Medium, P4=Low, P5=Info
-- Include raw HTTP requests (from `get_request_detail`) — they love seeing the actual traffic
-- Bugcrowd prefers detailed reproduction steps over theoretical analysis
+### Steps to Reproduce (cold start)
+1. ...
 
-## Intigriti Format
+### Expected vs Actual
+- Expected: [secure handling]
+- Actual: [observed exploit]
+
+## Attack Walkthrough
+[Discovery → trigger → control → impact.]
+
+## Escalation Path
+[Chain.]
+
+## Impact Statement
+[Business impact, scope of affected users.]
+
+## Remediation
+- ...
+
+## CVSS 4.0
+Vector: <vector>   |   Severity: HIGH
+CWE: CWE-XXX
+OWASP: A0X:2021-XXX
+
+## Attachments / Evidence
+[Raw req/resp pairs, screenshots, video.]
+
+## References
+- ...
+```
+
+Bugcrowd tips: VRT mapping is required; P1–P5 (P1=Critical); they prefer raw HTTP traffic.
+
+## Intigriti
 
 ```markdown
 ## Vulnerability Type
-[Select from their categories: XSS, SQLi, IDOR, etc.]
+[Their category]
 
 ## Domain/URL
-[Exact affected URL]
+https://target/path
+
+## Context
+[What this endpoint does.]
 
 ## Summary
-[Brief description of the vulnerability]
+[Brief.]
 
-## Steps to Reproduce
-1. Go to [URL]
-2. [Action with specific values]
-3. [Action]
-4. Result: [observable vulnerability proof]
-
-## Impact
-[What is the real-world security impact?]
-[Rate: Critical / High / Medium / Low / Informational]
-
-## CVSS 3.1
-Score: X.X
-Vector String: CVSS:3.1/AV:X/AC:X/PR:X/UI:X/S:X/C:X/I:X/A:X
-
-## Proof
-[HTTP request/response showing the vulnerability]
-[Screenshot or video demonstrating impact]
+## Proof of Concept Request
+```http
+[HTTP request]
 ```
 
-**Intigriti tips:**
-- They use CVSS heavily for severity determination
-- Duplicate detection is strict — check disclosed reports first
-- Clean, concise reports get faster triage
-- Include both request AND response in proof section
+## Steps to Reproduce (cold start)
+1. ...
 
-## Immunefi (Web3/DeFi)
+## Attack Walkthrough
+1. ...
+
+## Escalation Path
+[Chain.]
+
+## Impact
+[Outcome.]   Severity: HIGH
+
+## Remediation
+- ...
+
+## CVSS 4.0
+Vector: <vector>
+CWE: CWE-XXX
+OWASP: A0X:2021-XXX
+
+## Proof / Evidence
+[Req + resp.]
+
+## References
+- ...
+```
+
+Intigriti tips: heavy CVSS reliance; check disclosed reports for dupes; include both request and response.
+
+## Immunefi (Web3 / DeFi)
 
 ```markdown
 ## Bug Description
-[Detailed technical description of the vulnerability]
+[Technical description.]
+
+## Context
+[Protocol component, on-chain or off-chain.]
 
 ## Impact
-[Concrete impact on the protocol/smart contract/frontend]
-[Quantify financial impact if possible: "could drain $X from pool"]
+[Funds at risk, governance, asset loss — quantify if possible.]
 
 ## Risk Breakdown
-Difficulty to Exploit: [Easy/Medium/Hard]
-CVSS: X.X (vector string)
+Difficulty: Easy/Medium/Hard
+Severity: HIGH
+CVSS 4.0: <vector>
 
 ## Proof of Concept
-[For smart contracts: Foundry/Hardhat test demonstrating the exploit]
-[For web vulns: step-by-step with exact requests]
+[Foundry/Hardhat test for smart contracts; HTTP req + steps for web frontend.]
 
-## Recommendation
-[How to fix the vulnerability]
+## Steps to Reproduce
+1. ...
+
+## Attack Walkthrough
+[End-to-end including any setup.]
+
+## Escalation
+[How this compounds across the protocol.]
+
+## Recommendation / Remediation
+- ...
+
+## References
+- ...
 ```
 
-**Immunefi tips:**
-- Immunefi REQUIRES fix recommendations (unlike other platforms)
-- Smart contract bugs need working PoC code (Foundry test preferred)
-- Web frontend bugs follow standard format but always tie back to DeFi impact
-- Severity based on funds at risk: Critical=$10M+, High=$1M+, Medium=$100K+
+Immunefi tips: remediation REQUIRED; severity by funds at risk (Critical $10M+, High $1M+, Medium $100K+).
 
-## Generating Reports with Tools
-
-To build a report, gather evidence using these tools:
+## Pipeline (use the MCP tools)
 
 ```
-1. Get the finding details:
-   load_target_intel(domain, "findings")
-
-2. Get the PoC request/response:
-   get_request_detail(index=POC_INDEX)
-
-3. Get tech context:
-   load_target_intel(domain, "profile")
-
-4. Format using the platform template above
-
-5. Save the report:
-   export_report(format="markdown")
-   # or generate directly in conversation
+1. load_target_intel(domain, "findings")              # finding dict
+2. load_target_intel(domain, "profile")               # tech context
+3. get_request_detail(index=<poc_logger_index>)       # PoC req/resp
+4. format_finding_for_platform(domain, finding_id, platform)
+   # OR
+   generate_report(domain, format="pentest", platform="")
 ```
 
-## Report Quality Checklist
+## Quality Checklist
 
-Before submitting, verify:
+- [ ] Title: bug class + component + impact
+- [ ] Cold-start reproduction <5 min
+- [ ] No assumed knowledge
+- [ ] Impact is specific, not "attacker can do bad things"
+- [ ] CVSS 4.0 honest, not inflated
+- [ ] Raw req + resp included
+- [ ] No sensitive data leaked in screenshots
+- [ ] Tested against current production
+- [ ] Scope + excluded vuln-types double-checked against program policy
+- [ ] One finding per report (or chain clearly labelled)
 
-- [ ] Title clearly states bug class + component + impact
-- [ ] Steps reproduce from scratch in < 5 minutes
-- [ ] No assumed knowledge — a triager unfamiliar with the app can follow
-- [ ] Impact is specific (not "attacker can do bad things")
-- [ ] CVSS score is honest (not inflated)
-- [ ] Raw HTTP evidence included (request + response)
-- [ ] No sensitive data in screenshots (your own credentials, other users' PII)
-- [ ] Tested on the latest version / production environment
-- [ ] Checked program policy for scope and excluded vuln types
-- [ ] Single finding per report (chains clearly marked as chains)
+## Severity Inflation — DON'T
 
-## Severity Inflation Red Flags
+- Reflected XSS as "Critical" without an ATO chain
+- "RCE from SQLi" claimed but only error-based proof
+- Open redirect "High" without token-theft chain
+- CORS misconfig "Critical" without proven data exfil
+- "Could lead to" without proof it does
+- Worst-case CVSS when PoC shows limited impact
 
-Never do these — triagers will downgrade or close:
+## Cross-references
 
-- Calling reflected XSS "critical" without ATO chain
-- Claiming RCE from error-based SQLi without demonstrating it
-- Rating open redirect as "high" without token theft chain
-- Calling CORS misconfiguration "critical" without proving data theft
-- Saying "could lead to" without proving it actually does
-- Using worst-case CVSS when your PoC only demonstrates limited impact
+- **Finding lifecycle:** `verify-finding.md`
+- **NEVER SUBMIT list + 7-Question Gate:** `.claude/rules/hunting.md`
+- **Chain low-severity into high-severity:** `chain-findings.md`
+- **CVSS 4.0 calculator:** https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator

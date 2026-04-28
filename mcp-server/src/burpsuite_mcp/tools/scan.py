@@ -254,6 +254,36 @@ def register(mcp: FastMCP):
             key=lambda f: (f.get("confidence", f.get("score", 0) / 100.0), f.get("score", 0)),
             reverse=True,
         )
+
+        # ── Auto-annotate proxy history for findings with a resolvable index
+        # so the human operator (and future Claude sessions) see the highlights
+        # in Burp UI and via search_history. Rule 31 enforcement.
+        annotated = 0
+        for finding in findings_sorted:
+            idx = finding.get("history_index") or finding.get("proxy_index") or finding.get("logger_index")
+            if idx is None:
+                continue
+            conf = finding.get("confidence", 0) or 0
+            color = (
+                "RED" if conf >= 0.90 else
+                "ORANGE" if conf >= 0.60 else
+                "YELLOW" if conf >= 0.30 else
+                "GRAY"
+            )
+            cat = finding.get("category", "?")
+            ctx = finding.get("context", "?")
+            param = finding.get("parameter", "?")
+            comment = f"auto_probe | {cat}/{ctx} | param={param} | c={conf:.2f}"
+            try:
+                await client.post("/api/annotations/set", json={
+                    "index": int(idx),
+                    "color": color,
+                    "comment": comment[:300],
+                })
+                annotated += 1
+            except Exception:
+                # Don't fail the whole tool if annotation endpoint refuses.
+                pass
         if findings_sorted:
             lines.append(f"Findings ({len(findings_sorted)}):\n")
             for finding in findings_sorted:
@@ -285,6 +315,8 @@ def register(mcp: FastMCP):
         saved = data.get("auto_saved_findings", 0)
         if saved:
             lines.append(f"\n{saved} findings detected. Pass the confidence value to save_finding(confidence=...) or export_report() for report.")
+        if annotated:
+            lines.append(f"Auto-annotated {annotated} proxy-history entries with severity colours (Rule 31).")
 
         return "\n".join(lines)
 

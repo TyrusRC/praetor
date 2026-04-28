@@ -186,6 +186,14 @@ def register(mcp: FastMCP):
         lines.append(f"Priority vulns: {', '.join(vuln_priority[:8])}")
         lines.append("")
 
+        # Phase 0: Edition gate — call once per session.
+        lines.append("PHASE 0 — EDITION CHECK (do this FIRST, once per session):")
+        lines.append(f"  0. check_pro_features()")
+        lines.append(f"     → Confirms Pro vs Community. If Community: skip scan_target/")
+        lines.append(f"       scan_url/crawl_target/Collaborator-based tools and use the")
+        lines.append(f"       MCP-side equivalents listed in that tool's output.")
+        lines.append("")
+
         # Phase 1: Recon
         lines.append("PHASE 1 — RECON (do these first, in order):")
         lines.append(f"  1. browser_crawl('{target_url}', max_pages=20)")
@@ -679,6 +687,29 @@ def register(mcp: FastMCP):
         # (e.g. "token" which could match CSRF tokens). When ambiguous words
         # appear, use multi-word anchors like "csrf token" rather than bare "token".
         mappings = [
+            # ── Evidence-first: SEARCH proxy history before sending new traffic (Rule 29)
+            (["find evidence", "find request", "find response", "search history", "look in history",
+              "captured request", "evidence for finding", "where is the request", "did we capture",
+              "proxy history", "logger entry"], "search_history",
+             "search_history(query='<endpoint or string>', filter_method='POST')"),
+            # ── Modify-and-iterate on a captured request → Repeater (Rule 30)
+            (["modify request", "tweak request", "change header", "change body", "iterate request",
+              "test variation", "send to repeater", "repeater"], "send_to_repeater",
+             "send_to_repeater(index=<N>, tab_name='f001-sqli-login') then repeater_resend(tab_name, modifications={...})"),
+            # ── Volume work → Intruder (Rule 30)
+            (["brute", "brute force", "tested creds", "common creds", "default creds",
+              "rate limit", "rate-limit", "ratelimit", "spam", "flood", "value enumeration",
+              "header injection sweep", "send to intruder", "intruder", "attack with payloads"],
+             "send_to_intruder_configured",
+             "send_to_intruder_configured(index=<N>, mode='auto', payload_lists=[['admin','test','guest']], attack_type='sniper', tab_name='f002-creds')"),
+            # ── Bookmark evidence for the report (Rule 31)
+            (["bookmark", "save for report", "organize evidence", "send to organizer", "organizer",
+              "remember this request"], "send_to_organizer",
+             "send_to_organizer(index=<N>)  # then later: get_organizer_entries() to retrieve"),
+            # ── Read existing captured req/resp without re-sending
+            (["read request", "read response", "show request", "show response",
+              "view captured", "request detail"], "get_request_detail",
+             "get_request_detail(index=<N>)  # use extract_regex/headers/json_path for token efficiency"),
             (["crawl", "browse", "populate history", "visit pages"], "browser_crawl",
              "browser_crawl('https://target.com', max_pages=20)"),
             # JWT first — before any generic "token" keyword — because "jwt token" must map to test_jwt

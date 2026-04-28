@@ -5,7 +5,7 @@ description: Pick which advanced playbook to load based on target traits. Use wh
 
 # Playbook Router
 
-You have **5 advanced playbooks** that go beyond OWASP WSTG. **Loading all of them wastes context.** This router runs a quick target classifier and returns the 1-2 playbooks that actually fit. If none match, stay on `hunt.md`.
+You have **6 advanced playbooks** that go beyond OWASP WSTG. **Loading all of them wastes context.** This router runs a quick target classifier and returns the 1-2 playbooks that actually fit. If none match, stay on `hunt.md`.
 
 ## When to invoke this router
 
@@ -71,17 +71,27 @@ Often co-load `playbook-api-advanced.md` since mobile backends are API-first.
 
 **Match → load `playbook-pollution.md`** (PRIMARY) — pollution flaws hide where standard payloads can't reach. Often co-load `playbook-red-team-web.md` for chain hunting.
 
-### Q5 — User said "red team", "chain", "exploit", or signals suggest cloud/SSO?
+### Q5 — User said "red team", "chain", "exploit", or signals suggest SSO/serialization/LLM?
 
 **Signals (any one):**
 - User explicit ask: "red team", "find a chain", "post-exploitation"
 - Target uses OAuth, OIDC, SAML (login flow goes through identity provider)
-- Cloud metadata endpoints reachable (169.254.169.254, metadata.google.internal)
 - Java/.NET/Python/Ruby with serialized data in cookies/params
 - npm/PyPI/Maven dependency files exposed (`.npmrc`, `requirements.txt`, `package-lock.json` reachable)
 - LLM features in product (chat, summarization, "AI assistant")
 
 **Match → load `playbook-red-team-web.md`** (PRIMARY).
+
+### Q6 — Cloud-native stack (AWS / GCP / Azure) reachable from web tier?
+
+**Signals (need 1+):**
+- Cloud metadata endpoints reachable (`169.254.169.254`, `metadata.google.internal`)
+- JS bundles or responses contain cloud domains: `s3.amazonaws.com`, `*.lambda-url.*.on.aws`, `cognito-idp.*.amazonaws.com`, `storage.googleapis.com`, `*.firebaseio.com`, `*.azurewebsites.net`, `*.blob.core.windows.net`
+- AWS access keys (`AKIA…`, `ASIA…`), Azure SAS query strings (`?sv=…&sig=…`), Firebase API keys (`AIza…`), GCP tokens (`ya29.…`) in JS or responses
+- Cognito JWT issuer in `iss` claim
+- Cloud SDK error fingerprints in 5xx pages (`AccessDenied`, `SignatureDoesNotMatch`, `Microsoft.WindowsAzure.Storage`, etc.)
+
+**Match → load `playbook-cloud-native.md`** (PRIMARY). Often co-load `playbook-red-team-web.md` if SSO/Cognito present, or `playbook-api-advanced.md` if API Gateway / Lambda Function URLs are the surface.
 
 ## Decision matrix (combined)
 
@@ -89,9 +99,10 @@ Often co-load `playbook-api-advanced.md` since mobile backends are API-first.
 |---|---|---|
 | Mobile API | `mobile-backend` | `api-advanced` |
 | GraphQL/gRPC/WS heavy | `api-advanced` | `pollution` if WAF |
-| Versioned stack leaked | (whatever Q1-Q5 said) | `cve-research` |
+| Versioned stack leaked | (whatever Q1-Q6 said) | `cve-research` |
 | Mature target, nothing found | `pollution` | `red-team-web` |
-| OAuth/SSO/cloud/LLM | `red-team-web` | `cve-research` |
+| OAuth/SSO/serialization/LLM | `red-team-web` | `cve-research` |
+| Cloud-native (AWS/GCP/Azure) | `cloud-native` | `red-team-web` if SSO |
 | Plain webapp, standard CMS | none — stay on `hunt.md` | — |
 
 **Hard cap: never load more than 2 playbooks at once.** If 3 match, pick the two with strongest signals.
@@ -105,7 +116,8 @@ Every playbook has a `stop_condition`. After 10 tool calls inside a playbook wit
 
 ## Anti-patterns
 
-- **Don't load all 5** — that's 4000+ lines of context spam. The router exists to prevent this.
+- **Don't load all 6** — that's 4000+ lines of context spam. The router exists to prevent this.
+- **Don't load `cloud-native` for an on-prem app** — its IMDS/SAS/Cognito techniques don't apply.
 - **Don't load `cve-research` without a versioned stack** — it has nothing to match against.
 - **Don't load `mobile-backend` for a regular webapp** — its techniques (deep-link, IAP) don't apply.
 - **Don't skip the router** — even experienced operators waste tokens on wrong techniques.

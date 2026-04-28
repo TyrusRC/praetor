@@ -83,6 +83,13 @@ def register(mcp: FastMCP):
     ) -> str:
         """Save a pentest finding/vulnerability note. ZERO-NOISE GATE.
 
+        PRECONDITION: call `assess_finding(vuln_type, evidence, endpoint, parameter, domain)`
+        FIRST. If the verdict is `DO NOT REPORT` or `NEEDS MORE EVIDENCE`, do NOT
+        call this. The advisor catches duplicates, NEVER SUBMIT classes, weak
+        evidence, and out-of-scope endpoints — all of which would otherwise burn
+        tokens here on rejected `save_finding` calls. See Rule 25 in
+        `.claude/rules/hunting.md`.
+
         The Burp extension HARD-REJECTS findings without verified evidence:
           - `evidence` MUST be a dict with at least one of:
               {"logger_index": <int>}
@@ -128,7 +135,32 @@ def register(mcp: FastMCP):
 
         resolved_domain = domain or _domain_from_endpoint(endpoint)
 
-        # Persistent .burp-intel store (unchanged behavior)
+        # ZERO-NOISE GATE — call Burp first. If the server rejects (missing
+        # evidence index, NEVER SUBMIT without chain, missing reproductions),
+        # we MUST NOT persist anything to .burp-intel/findings.json. Otherwise
+        # rejected findings accumulate locally and get re-loaded next session,
+        # wasting tokens on phantom "confirmed" findings.
+        payload = {
+            "title": title,
+            "description": description,
+            "severity": severity,
+            "endpoint": endpoint,
+            "evidence_text": evidence_text,
+            "evidence": evidence,
+            "vuln_type": vuln_type,
+            "status": status,
+        }
+        if reproductions:
+            payload["reproductions"] = reproductions
+        if chain_with:
+            payload["chain_with"] = chain_with
+
+        data = await client.post("/api/notes/findings", json=payload)
+        if "error" in data:
+            return f"Error (gate rejected — nothing persisted): {data['error']}"
+        burp_id = data.get("id", "?")
+
+        # Gate passed — now safe to persist locally.
         dedup_action = "created"
         saved_id = ""
         if resolved_domain:
@@ -163,27 +195,6 @@ def register(mcp: FastMCP):
             store["findings"] = updated_list
             store["last_modified"] = now
             _write_findings_file(findings_path, store)
-
-        # Burp in-memory mirror — this is where the zero-noise gate lives.
-        payload = {
-            "title": title,
-            "description": description,
-            "severity": severity,
-            "endpoint": endpoint,
-            "evidence_text": evidence_text,
-            "evidence": evidence,
-            "vuln_type": vuln_type,
-            "status": status,
-        }
-        if reproductions:
-            payload["reproductions"] = reproductions
-        if chain_with:
-            payload["chain_with"] = chain_with
-
-        data = await client.post("/api/notes/findings", json=payload)
-        if "error" in data:
-            return f"Error: {data['error']}"
-        burp_id = data.get("id", "?")
 
         if not resolved_domain:
             return (

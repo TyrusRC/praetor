@@ -1,91 +1,126 @@
 ---
-description: Always-active behavioral rules for bug bounty hunting. Apply these constraints on every turn when interacting with Burp Suite MCP tools.
-globs: 
+description: Always-active behavioral rules for bug bounty hunting. Apply on every turn when interacting with Burp Suite MCP tools.
+globs:
 ---
 
 # Hunting Rules
 
-These rules are ALWAYS active when using Burp Suite MCP tools. They override any conflicting behavior.
+These rules are ALWAYS active. They override conflicting behavior. Each rule has ONE job — read every rule before assuming overlap.
 
-## Scope
+## Scope (1–4)
 
-1. **NEVER send requests to out-of-scope domains.** Before any request to a new domain, call `check_scope(url)`. If not in scope, STOP.
-2. **NEVER follow redirects to out-of-scope domains.** If a response redirects out of scope, note it but don't follow.
-3. **Respect excluded paths.** If the program excludes `/logout`, `/delete-account`, or similar — never touch them.
+1. **Never send requests to out-of-scope domains.** Before any request to a new domain call `check_scope(url)`. If not in scope, STOP.
+2. **Never follow redirects to out-of-scope domains.** Note the redirect; don't follow.
+3. **Respect excluded paths** (`/logout`, `/delete-account`, etc. per program policy).
 4. **When in doubt about scope, ASK.** Don't assume a subdomain or API is in scope.
 
-## Safety
+## Safety (5–9)
 
-5. **NEVER send destructive payloads** that could damage the target: `DROP TABLE`, `rm -rf`, `shutdown`, `format`, `DELETE FROM`, `TRUNCATE`. Use benign detection payloads (SLEEP, math expressions, Collaborator callbacks).
-6. **NEVER brute-force credentials.** Testing default/common creds (admin:admin, test:test) is fine. Dictionary attacks are not.
-7. **NEVER exfiltrate real user data.** If SQLi works, demonstrate with `SELECT version()` or `SELECT current_user()`, not `SELECT * FROM users`.
-8. **NEVER modify or delete other users' data.** Prove IDOR with READ access, not DELETE.
-9. **Prefer Collaborator for blind testing** over payloads that cause visible side effects.
+5. **Never send destructive payloads** (`DROP TABLE`, `rm -rf`, `shutdown`, `format`, `DELETE FROM`, `TRUNCATE`). Use benign detection payloads (SLEEP, math expressions, Collaborator callbacks).
+6. **Never brute-force credentials.** Default/common creds (admin:admin, test:test) are fine. Dictionary attacks are not.
+7. **Never exfiltrate real user data.** SQLi PoC = `SELECT version()` / `SELECT current_user()`, not `SELECT * FROM users`.
+8. **Never modify or delete other users' data.** Prove IDOR with READ access, not WRITE.
+9. **Prefer Collaborator for blind testing** over payloads with visible side effects.
 
-## Evidence
+## The Save-Finding Pipeline (10) — single canonical rule
 
-10. **NEVER claim a finding without verified evidence.** Every `save_finding` call MUST include an `evidence` dict with at least one of `logger_index`, `proxy_history_index`, or `collaborator_interaction_id` — and the index/ID MUST exist in live Burp data at the time of the call. Timing and blind findings (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`) MUST also include `reproductions[]` with ≥2 verified Logger entries. Findings whose `vuln_type` (or title) matches the NEVER SUBMIT list MUST include `chain_with[]` referencing existing finding IDs. The server enforces all three — calls that miss any will return a 400 error and the finding will not be stored. There is no override.
-11. **Test timing-based findings 3 times** minimum. Single slow responses are network noise.
-12. **Always compare against baseline.** A 500 error is only interesting if the baseline returns 200.
-13. **Screenshot/save evidence BEFORE attempting further exploitation.** Targets get patched.
+10. **`save_finding` requires three phases, in order:**
+    - **a) Replay (Step 0 of `verify-finding.md`):** fetch the candidate Logger/Proxy entry, `resend_with_modification(index)` to confirm the anomaly persists. The Logger index of the **confirming replay** (not the original suspicion) is what goes into `evidence.logger_index`. For timing/blind classes (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`), replay 2 more times — capture `{logger_index, elapsed_ms, status_code}` per replay → `reproductions[]` (≥3 entries total).
+    - **b) Assess (`assess_finding`):** call `assess_finding(vuln_type, evidence, endpoint, parameter, domain)` BEFORE `save_finding`. Verdict `DO NOT REPORT` or `NEEDS MORE EVIDENCE` → do NOT save. The advisor handles scope, duplicate, NEVER-SUBMIT, weak-evidence, and triager-mass-report checks.
+    - **c) Save:** `save_finding` with `evidence` containing at least one of `logger_index` / `proxy_history_index` / `collaborator_interaction_id` (each must resolve in live Burp data). For NEVER-SUBMIT vuln_types, supply `chain_with[]`. Server hard-rejects violations with 400.
 
-## Efficiency
+## Evidence (11–13)
 
-14. **One smart tool call > five chatty ones.** Use `smart_analyze`, `auto_probe`, `run_flow`, `discover_attack_surface` instead of many individual calls.
-15. **Check coverage before testing.** Don't re-test parameters already covered in this session. Use `load_target_intel(domain, "coverage")`.
-16. **Save progress at every checkpoint.** If the session ends unexpectedly, you should be able to resume without re-doing work.
-17. **Don't spray the same payload type endlessly.** If 10 SQLi tests return nothing, pivot to a different vuln category or technique.
-18. **Use extraction tools, not full responses.** `extract_regex`, `extract_json_path`, `extract_css_selector` are 10x more token-efficient than `get_request_detail(full_body=True)`.
-19. **Use advisor tools for decisions.** `get_hunt_plan` and `get_next_action` replace strategic reasoning. `assess_finding` replaces manual 7-Question Gate evaluation.
-20. **Know which tools hit proxy history.** `browser_crawl` and `browser_navigate` populate **Proxy → HTTP history** through Burp's proxy listener. Tools that use Burp's HTTP client (`send_http_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in Burp's **Logger** tab and the MCP store (`get_mcp_history`), not Proxy history. External recon tools (`run_nuclei`, `run_katana`, `run_subfinder`, etc.) route their traffic through Burp's proxy (127.0.0.1:8080) so their requests DO appear in Proxy history. Analysis tools that take an `index` read from Burp's proxy history only — MCP-sent requests are not visible there.
+11. **Always compare against a recorded baseline.** Capture `{status, length, response_hash}` of the clean request before any probe sequence. Anomaly claims = deltas from baseline ("500 vs baseline 200, len delta +1842, error 'pg_query'"), not absolute observations. Without a baseline, evidence is unfalsifiable.
+12. **Save evidence BEFORE further exploitation.** Annotate + Organize the moment something is interesting (Rule 18). Targets get patched.
+13. **Verified evidence > theory.** Stack traces / parsing errors / status changes are clues, not proof. Match the per-class bar in `verify-finding.md` (e.g., XSS needs payload in executable context, not just reflection).
 
-## Reporting
+## Reporting (14–17)
 
-21. **NEVER inflate severity.** A reflected XSS is not CRITICAL. An info disclosure is not HIGH. Be honest.
-22. **NEVER submit a finding that requires the victim to do something absurd** ("user must paste this 500-char payload into the console").
-23. **NEVER submit duplicate findings.** Check existing findings with `load_target_intel(domain, "findings")` before saving.
-24. **Always replay before saving.** Before calling `save_finding`, fetch the candidate Logger/Proxy entry via `get_logger_entries` (or `get_proxy_history`), replay the request via `resend_with_modification(index)` and confirm the anomaly persists. The Logger index of the **confirming replay** (not the original suspicion) is what goes into `evidence.logger_index`. For timing/blind findings, replay 2 more times after the confirmation and put each replay's index/elapsed_ms/status_code into `reproductions[]`.
+14. **Never inflate severity.** Reflected XSS is not CRITICAL. Info disclosure is not HIGH. Open redirect alone is not MEDIUM. Cap honestly.
+15. **Never submit findings requiring absurd victim action** ("user pastes a 500-char payload into devtools"). Self-XSS, victim-side-only DoS, etc. fail this gate.
+16. **Reports are TRUE-POSITIVES-ONLY. Delete false positives, don't track them.** `generate_report` includes only `status='confirmed'` findings AND hard-deletes `likely_false_positive` entries from `.burp-intel/<domain>/findings.json` (no tombstones, no removed-FP lists, no audit trail). Tracking dead findings re-loads them every session and burns tokens forever.
+17. **NEVER SUBMIT list (informative-alone, see table below)** can only be reported when CHAINED with another finding for real impact (`chain_with[]`).
 
-## 7-Question Validation Gate
+## Coverage Strategy (18–21)
 
-Before marking ANY finding as confirmed, it must pass ALL 7 questions. One "NO" = do not report.
+18. **Annotate + Organize as you work.** Every interesting captured request gets `annotate_request(index, color='RED|ORANGE|YELLOW|GREEN|CYAN|BLUE|PINK|MAGENTA|GRAY', comment='<f-id> | <vuln> | <evidence>')` AND `send_to_organizer(index)`. Color convention: RED=confirmed crit/high, ORANGE=strong suspicion, YELLOW=anomaly, GREEN=baseline/pass, CYAN=chain candidate, GRAY=noise. Without these, reporting time has to re-search the entire history.
+19. **Coverage-first noise budget — skip impossible work, never skip real coverage.** Cut tokens on tech-mismatch CVEs (PHP CVE on Laravel), wrong-runtime payloads (Windows LFI on Linux), encoding-defeated reflections (3+ encoded → switch technique, not skip class), and exhausted suspicions (3/3 verification fails). Framework-wide vuln classes (React DOM XSS, Node prototype pollution, Java deserialization, JWT confusion, mass assignment, IDOR matrix, race conditions) get FULL sweeps even when expensive. Stop only when (a) class is impossible for the stack, (b) knowledge-base matchers cleared AND no param-name signal otherwise, (c) negative result documented in `coverage.json`. See `noise-budget.md`.
+20. **Check coverage before testing.** Don't re-test parameters already covered this session. `load_target_intel(domain, "coverage")`.
+21. **Save progress at every checkpoint.** Session ends → resume without re-doing work. `save_target_intel(domain, ...)` after each phase.
 
-1. **Is it in scope?** Check program policy, not just target domain.
-2. **Is it reproducible?** Can you trigger it again right now, from scratch?
-3. **Is there real impact?** What can an attacker actually DO with this? (Not theoretical)
-4. **Is it not a duplicate?** Check saved findings AND common public reports for this target.
-5. **Does it meet evidence requirements?** Check the verify-finding skill for your vuln type.
-6. **Is it not in the NEVER SUBMIT list?** See below.
-7. **Would you mass-report this if you were the triager?** If you'd mark it as informative, don't submit.
+## Tool Selection (22–25)
+
+22. **One smart tool call > five chatty ones.** `smart_analyze`, `auto_probe`, `run_flow`, `discover_attack_surface` over many individual calls. `extract_regex/json_path/css_selector` over `get_request_detail(full_body=True)`.
+23. **For EVIDENCE retrieval, prefer captured-first.** `search_history` / `get_proxy_history` / `get_logger_entries` / `extract_*` against existing indices. Don't re-fetch with `curl_request` what's already captured — captured requests carry real session state.
+24. **Match the tool to the work — every Burp surface is on the table.** Pick by intent, not ranking:
+    - One-shot tweak of captured request → `resend_with_modification(index, modify_*)` or `probe_with_diff(index, ...)` for auto-diff
+    - Iterate visibly in Burp UI → `send_to_repeater(index, tab_name='<f-id>-<vuln>')` + `repeater_resend`
+    - Volume tied to captured baseline → `send_to_intruder_configured`
+    - Custom volume / brute / spam / rate-limit with branching/decoding logic Intruder can't express → `concurrent_requests(requests=[...], concurrency=N)` (parallel) or sequential `curl_request`/`session_request` loops
+    - Race condition (server-side latch) → `test_race_condition`
+    - Multi-step business-logic flow → `run_flow` (linear) or explicit `session_request` chain (branchy)
+    - Multi-param fuzz with anomaly detection → `fuzz_parameter`
+    - Knowledge-driven vuln sweep → `auto_probe`
+    - Fresh first-touch / fully-controlled request → `curl_request`/`send_raw_request`/`session_request`
+25. **Default to a realistic header profile when LOOKING like the real client; bare headers when TESTING the server.**
+    - Realistic mode (default for normal traffic): `get_target_headers(domain)` once → pass via `headers=`. Default httpx signatures get WAF-blocked.
+    - Bare/custom mode (intentional): WAF detection, header injection, smuggling, CRLF, malformed-input — bare/hand-crafted is correct. Don't auto-mimic when the test is about NOT looking like a browser.
+    - Build profile once via `build_target_header_profile(domain)` after first browser_crawl.
+
+## Visibility (26)
+
+26. **Know which tools hit Proxy history.** `browser_crawl`/`browser_navigate` populate **Proxy → HTTP history**. Burp HTTP-client tools (`send_http_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in **Logger** + MCP store (not Proxy history) unless explicitly proxied. External recon (`run_nuclei`, `run_katana`, `run_subfinder`) routes through Burp proxy (127.0.0.1:8080) → Proxy history. Analysis tools that take an `index` read Proxy history only.
+
+## Creative Hunting (27) — anti-checklist mandate
+
+27. **Hunt for the unknown, not just the catalogued.** ≥20% of every session must be open-ended exploration that goes outside the knowledge-base categories:
+    - **Chain reasoning.** Walk the saved findings list and ask "what does each finding ENABLE?" — open redirect → token theft → ATO; CSRF on email-change → ATO; info-disclosure → recon → IDOR. Use `chain-findings.md`. Many programs only pay for chained impact.
+    - **Business-logic flaws specific to THIS target.** Read 3–5 of the highest-value endpoints (`smart_analyze`) and ask: what's the trust assumption? What if the steps are reordered? Skipped? Run twice? Run with stale state? Run with another user's resource ID swapped in one step but not another? `auto_probe` does NOT find these.
+    - **Outside-class anomalies.** Any unexplained delta vs baseline (status, length, hash, header, latency) is a candidate even if no class matches. Don't dismiss because "it doesn't fit a pattern" — open `investigate.md` and dig.
+    - **Attacker-perspective questions.** What would an attacker WANT here? Money, account control, data exfiltration, privilege escalation, denial-of-service for competitors? Then work backwards from the goal to find the path.
+
+   Following the checklist gets you info-disclosure and self-XSS. Real bugs and high-impact chains live outside it. Budget tokens explicitly for unstructured time.
+
+## 7-Question Validation Gate (called by `assess_finding`, Rule 10b)
+
+Before any finding is `confirmed`, all 7 must pass. One "NO" = do not report.
+
+1. **In scope?** Per program policy, not just domain.
+2. **Reproducible?** Trigger again from scratch right now?
+3. **Real impact?** What can an attacker actually DO? (Not theoretical.)
+4. **Not a duplicate?** Saved findings + common public reports for this target.
+5. **Meets evidence requirements?** Per-class bar in `verify-finding.md`.
+6. **Not in NEVER SUBMIT list?** See below.
+7. **Would you mass-report this if you were the triager?** If you'd mark it informative — don't submit.
 
 ## NEVER SUBMIT List
 
-These findings should NEVER be submitted as standalone reports. They are informative at best or noise at worst:
+Standalone reports of these are noise. Reportable only when CHAINED for real impact (Rule 17).
 
-| Finding | Why Not Reportable |
+| Finding | Why not reportable alone |
 |---|---|
-| Missing security headers (X-Frame-Options, CSP, HSTS) alone | No direct exploit — info only |
-| Cookie without Secure/HttpOnly flag alone | Requires MitM or XSS to exploit |
-| Clickjacking on non-sensitive pages | No state-changing action = no impact |
-| Self-XSS (only fires in your own session) | Requires victim to paste payload themselves |
-| CSRF on logout | Minimal impact |
-| CSRF on non-state-changing endpoints | No actual impact |
-| Open redirect without token theft chain | Low impact without escalation |
-| Mixed content (HTTP resources on HTTPS page) | Browser mitigates |
-| Rate limiting absence on non-sensitive endpoints | No direct security impact |
-| Stack traces / verbose errors alone | Info disclosure, not exploitable alone |
+| Missing security headers (X-Frame-Options, CSP, HSTS) | No direct exploit |
+| Cookie without Secure/HttpOnly | Requires MitM or XSS to exploit |
+| Clickjacking on non-sensitive pages | No state-changing action |
+| Self-XSS | Victim must paste payload |
+| CSRF on logout / non-state-changing endpoints | No real impact |
+| Open redirect alone | Low impact without chain |
+| Mixed content | Browser mitigates |
+| Rate-limit absence on non-sensitive endpoints | No security impact |
+| Stack traces / verbose errors alone | Info disclosure, not exploitable |
 | Username / email enumeration on public sign-up | Often by design |
-| Missing `Referrer-Policy` header | Extremely minor |
-| SPF/DMARC/DKIM issues | Email security, usually out of scope |
+| Missing `Referrer-Policy` | Extremely minor |
+| SPF/DMARC/DKIM | Email security, usually OOS |
 | Content spoofing without XSS | Minimal impact |
-| Host header injection without cache poisoning | No exploit path |
-| CORS without credentials + sensitive data | Browser blocks credentialed requests |
-| SSL/TLS configuration issues (unless critical) | Scanner noise |
-| Software version disclosure alone | Need to chain with actual exploit |
-| Tabnabbing (reverse) | Low impact, disputed |
+| Host-header injection without cache poisoning | No exploit path |
+| CORS without credentials + sensitive data | Browser blocks credentialed |
+| SSL/TLS config (unless critical) | Scanner noise |
+| Software version disclosure alone | Need exploit chain |
+| Reverse tabnabbing | Low impact, disputed |
 | Text injection (non-HTML) | No code execution |
 | IDN homograph attacks | Browser-mitigated |
 | Missing `autocomplete=off` | Password managers handle this |
-| OPTIONS method enabled | This is normal HTTP behavior |
+| OPTIONS method enabled | Normal HTTP behavior |
 
-**Exception:** If any of these can be CHAINED with another finding for real impact, the CHAIN is reportable. Use the chain-findings skill.
+**Exception:** chain with another finding → reportable. Use `chain-findings.md`.
