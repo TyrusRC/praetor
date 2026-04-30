@@ -1,0 +1,359 @@
+{
+  "category": "mobile_api",
+  "contexts": {
+    "broken_object_level_auth": {
+      "description": "IDOR in mobile APIs — mobile apps often use predictable resource IDs in REST paths and JSON bodies without server-side ownership checks",
+      "tech_match": [],
+      "param_match": ["user_id", "uid", "account_id", "profile_id", "device_id", "order_id", "wallet_id", "subscription_id"],
+      "probes": [
+        {
+          "payload": "2",
+          "description": "Replace user/resource ID with 2 in path or body — mobile APIs frequently skip ownership validation trusting the app layer",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"baseline_value": "1"}
+        },
+        {
+          "payload": "00000000-0000-0000-0000-000000000001",
+          "description": "Sequential UUID probe — mobile APIs using v1 UUIDs may have predictable IDs from MAC-based generation",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"baseline_value": "00000000-0000-0000-0000-000000000002"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Replay request without Authorization header — mobile APIs may rely solely on API key rather than per-user auth for object access",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"remove_header": "Authorization"}
+        }
+      ]
+    },
+    "excessive_data_exposure": {
+      "description": "API returns more fields than mobile app displays — common when backend serves web and mobile with the same endpoints; PII, internal IDs, and admin flags leak in JSON",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect user/profile endpoint response for excessive fields — look for email, phone, SSN, address, internal_id, role, is_admin, password_hash, created_at, ip_address",
+          "matchers": [
+            {"type": "word", "words": ["password", "password_hash", "ssn", "social_security", "credit_card", "card_number"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for internal identifiers and infrastructure details leaked in API responses — database IDs, internal hostnames, microservice names",
+          "matchers": [
+            {"type": "word", "words": ["internal_id", "db_id", "mongo_id", "_id", "internal_url", "service_url", "aws_", "s3://"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for debug/admin flags leaked to mobile client — is_admin, is_staff, permissions array, feature_flags with internal names",
+          "matchers": [
+            {"type": "word", "words": ["is_admin", "is_staff", "is_superuser", "permissions", "role\":\"admin", "privilege"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "broken_function_level_auth": {
+      "description": "Admin or privileged endpoints accessible with regular user tokens — mobile apps hide UI but backend may not enforce role checks",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Access /admin or /api/admin path with regular user bearer token — mobile app hides admin UI but API may not check role",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["forbidden", "unauthorized", "denied", "not found", "admin required"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Send PUT/DELETE to endpoint the mobile app only calls with GET — write methods may lack auth checks",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 204]},
+            {"type": "not_word", "words": ["method not allowed", "405", "forbidden", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"method_override": "PUT"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-HTTP-Method-Override: DELETE on a resource endpoint — framework may honor override header bypassing method-level auth",
+          "matchers": [
+            {"type": "status", "status": [200, 204]},
+            {"type": "not_word", "words": ["method not allowed", "forbidden"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"header": "X-HTTP-Method-Override: DELETE"}
+        }
+      ]
+    },
+    "mass_assignment": {
+      "description": "Hidden fields accepted in POST/PUT bodies — mobile apps send limited fields but backend model binds all submitted keys including role, balance, verified status",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"role\":\"admin\"}",
+          "description": "Inject role=admin into profile update or registration JSON body",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["forbidden", "unauthorized", "unknown field", "not allowed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"is_verified\":true,\"email_verified\":true}",
+          "description": "Set verification flags directly — bypass email/phone verification flow",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["forbidden", "invalid", "unknown"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{\"balance\":999999,\"credits\":999999}",
+          "description": "Inject balance/credits fields into account update — in-app currency manipulation",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["forbidden", "invalid", "not allowed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"price\":0,\"discount\":100}",
+          "description": "Set price to 0 or discount to 100% in purchase/cart endpoint",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["invalid price", "error", "not allowed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "api_versioning": {
+      "description": "Old API versions still active with weaker security — mobile apps may ship with v1 hardcoded while v2 added auth; test by changing version prefix in URL path",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Replace /v2/ or /v3/ with /v1/ in API path — older version may lack auth middleware, rate limiting, or input validation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["not found", "404", "deprecated", "gone"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_replace": {"from": "/v[0-9]+/", "to": "/v1/"}}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Remove version prefix entirely — unversioned path may route to oldest handler with no auth",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["not found", "404"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_replace": {"from": "/v[0-9]+/", "to": "/"}}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Try /api-internal/ or /api/internal/ path prefix — mobile backend may expose internal endpoints without auth",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["not found", "forbidden", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"path_replace": {"from": "/api/", "to": "/api-internal/"}}
+        }
+      ]
+    },
+    "certificate_pinning_context": {
+      "description": "After SSL pinning bypass, inspect intercepted traffic for secrets and debug artifacts the app assumed were hidden by pinning",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Scan request/response for hardcoded API keys, secrets, and credentials transmitted assuming pinning protects them",
+          "matchers": [
+            {"type": "word", "words": ["api_key", "api_secret", "client_secret", "private_key", "aws_access_key", "AKIA"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect debug mode indicators and internal environment URLs in API responses — dev teams often leave debug=true in mobile builds",
+          "matchers": [
+            {"type": "word", "words": ["debug", "staging", "dev-api", "localhost", "10.0.", "192.168.", "172.16.", "internal."]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for Firebase/cloud credentials exposed in traffic — mobile apps embed project configs that should be server-side",
+          "matchers": [
+            {"type": "word", "words": ["firebase", "firebaseio.com", "fcm_key", "google-services", "AIzaSy", "cloudfront"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "insecure_token_handling": {
+      "description": "JWT or session tokens exposed in URLs, GET parameters, logs, or with insecure lifecycle — mobile apps often pass tokens in query strings or never rotate them",
+      "tech_match": [],
+      "param_match": ["token", "access_token", "auth_token", "session_token", "jwt", "refresh_token", "api_key"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if auth tokens appear in URL query parameters instead of headers — tokens in URLs leak via logs, referrer, browser history",
+          "matchers": [
+            {"type": "word", "words": ["token=", "access_token=", "jwt=", "auth=", "session=", "key="]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Test token reuse after logout — send request with token obtained before logout; 200 means token was not invalidated server-side",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "expired", "invalid token", "revoked"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"use_expired_token": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check JWT for none algorithm and weak signing — decode token and look for alg:none acceptance or HS256 with guessable secret",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "invalid", "expired"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"jwt_alg_none": true}
+        }
+      ]
+    },
+    "deeplink_injection": {
+      "description": "Deep link and custom URL scheme abuse — crafted deep links can trigger actions, bypass auth flows, or redirect to attacker-controlled content",
+      "tech_match": ["Android", "iOS", "React Native", "Flutter"],
+      "param_match": ["redirect_uri", "callback", "return_url", "deep_link", "scheme", "intent", "url", "next"],
+      "probes": [
+        {
+          "payload": "https://evil.com/steal",
+          "description": "Replace redirect_uri/callback with attacker URL — OAuth or deep link redirect may send tokens to attacker",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid redirect", "not allowed", "unauthorized", "invalid_redirect_uri"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "javascript:alert(1)",
+          "description": "javascript: scheme in deep link parameter — may execute in WebView if not validated",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "blocked", "not allowed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "intent://evil.com#Intent;scheme=http;end",
+          "description": "Android intent URI injection — if deep link handler passes this to startActivity, it opens attacker URL in browser",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "blocked"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "push_token_abuse": {
+      "description": "FCM/APNs push notification tokens leaked in API responses or accessible via IDOR — allows attacker to send push notifications to arbitrary users",
+      "tech_match": ["Android", "iOS", "Firebase"],
+      "param_match": ["device_token", "push_token", "fcm_token", "apns_token", "registration_id", "notification_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check user/device endpoints for push token leakage in response body — FCM/APNs tokens in API responses enable targeted push spam",
+          "matchers": [
+            {"type": "word", "words": ["fcm_token", "push_token", "device_token", "apns_token", "registration_id", "gcm_token"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "2",
+          "description": "IDOR on device registration endpoint — access another user's push token by changing user/device ID",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"baseline_value": "1"}
+        },
+        {
+          "payload": "{\"device_token\":\"attacker_fcm_token_here\",\"user_id\":\"2\"}",
+          "description": "Register attacker push token for another user — if accepted, attacker receives victim's push notifications",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

