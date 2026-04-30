@@ -1,0 +1,87 @@
+{
+  "category": "session_puzzling",
+  "contexts": {
+    "variable_overwrite": {
+      "description": "Session variable overwrite -- same session variable used for multiple purposes (auth state, password reset, MFA) allows cross-feature manipulation",
+      "tech_match": ["PHP", "Java", "ASP.NET", "Python", "Django", "Flask", "Ruby on Rails"],
+      "param_match": ["email", "username", "user", "token", "code", "otp", "reset", "verify"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Password reset then access authenticated pages -- initiate password reset flow (sets session user context), then access authenticated endpoints without logging in",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["login", "unauthorized", "redirect"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Registration flow session carryover -- complete registration flow then access admin features; registration may set role/privilege session vars that persist",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "MFA bypass via session puzzling -- start MFA verification for one action, use session state to bypass MFA on different action",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["verify", "mfa", "two-factor", "otp"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "session_race": {
+      "description": "Session race conditions -- concurrent requests manipulate same session variables, causing inconsistent state",
+      "tech_match": ["PHP", "Node.js", "Python", "Java"],
+      "param_match": ["email", "user", "role", "action", "step"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Concurrent session modification -- send login and password-reset simultaneously; race may leave session in elevated state",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Step-skipping via parallel requests -- send step-1 and step-3 of multi-step flow simultaneously; session may accept step-3 without completing step-2 validation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid step", "complete previous", "error"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "session_fixation_variant": {
+      "description": "Session fixation via session puzzling -- force victim into attacker-controlled session state without traditional fixation",
+      "tech_match": ["PHP", "Java", "ASP.NET"],
+      "param_match": ["session", "sid", "token", "jsessionid", "phpsessid"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Session not regenerated after auth state change -- check if session ID remains same after login/logout/privilege change, enabling session fixation",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "contains": "session"},
+            {"type": "status", "status": [200, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

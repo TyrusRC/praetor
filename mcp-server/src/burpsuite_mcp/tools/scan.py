@@ -30,7 +30,7 @@ def _load_knowledge(category: str) -> dict | None:
 # Reference-only files (no probes, skip in auto_probe)
 _REFERENCE_ONLY = {"tech_vulns", "file_upload", "race_condition", "request_smuggling", "clickjacking",
                     "web_cache_deception", "insecure_randomness", "source_code_exposure", "csv_injection",
-                    "dependency_confusion", "xs_leak"}
+                    "dependency_confusion", "xs_leak", "web_cache_poisoning_dos", "captcha_bypass"}
 
 # Parameter name to vulnerability type mapping for attack prioritization
 _PARAM_RISK_MAP = {

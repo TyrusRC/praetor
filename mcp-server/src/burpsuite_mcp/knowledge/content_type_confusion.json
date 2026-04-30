@@ -1,0 +1,85 @@
+{
+  "category": "content_type_confusion",
+  "contexts": {
+    "mime_sniffing": {
+      "description": "MIME type sniffing -- browser ignores Content-Type and sniffs content as executable type (HTML/JS)",
+      "tech_match": ["IIS", "Apache", "Nginx", "Node.js", "Express"],
+      "param_match": ["file", "upload", "content", "type", "format", "callback", "jsonp", "name"],
+      "probes": [
+        {
+          "payload": "<html><body>swktest-sniff-{{marker}}</body></html>",
+          "description": "HTML content in non-HTML response -- if uploaded/reflected content renders as HTML despite non-HTML Content-Type, MIME sniffing is active",
+          "matchers": [
+            {"type": "reflection", "check_variants": true},
+            {"type": "not_header", "name": "X-Content-Type-Options", "contains": "nosniff"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check X-Content-Type-Options header -- missing nosniff allows browser MIME sniffing on responses",
+          "matchers": [
+            {"type": "not_header", "name": "X-Content-Type-Options", "contains": "nosniff"}
+          ],
+          "severity": "low",
+          "confidence_boost": 15
+        }
+      ]
+    },
+    "content_type_mismatch": {
+      "description": "Content-Type mismatch exploitation -- server returns wrong Content-Type allowing XSS in uploaded files or API responses",
+      "tech_match": [],
+      "param_match": ["file", "upload", "callback", "jsonp", "format", "type", "content_type"],
+      "probes": [
+        {
+          "payload": "{{baseline}}&callback=swktest_{{marker}}",
+          "description": "JSONP callback injection -- if response wraps data in callback function with text/javascript Content-Type, arbitrary JS execution possible",
+          "matchers": [
+            {"type": "word", "words": ["swktest_"], "condition": "or"},
+            {"type": "header", "name": "Content-Type", "contains": "javascript"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "SVG served as image -- SVG files containing script tags served with image/svg+xml execute JavaScript in browser",
+          "matchers": [
+            {"type": "header", "name": "Content-Type", "contains": "svg"},
+            {"type": "not_header", "name": "Content-Disposition", "contains": "attachment"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "polyglot": {
+      "description": "Polyglot file attacks -- files valid as multiple types simultaneously (e.g., valid JPEG + valid JS)",
+      "tech_match": [],
+      "param_match": ["file", "upload", "image", "avatar", "photo", "attachment", "document"],
+      "probes": [
+        {
+          "payload": "GIF89a/*<svg/onload=alert(1)>*/=alert('swktest-{{marker}}')//;",
+          "description": "GIF/JS polyglot -- file passes GIF magic byte validation but executes as JavaScript when loaded via script tag",
+          "matchers": [
+            {"type": "word", "words": ["GIF89a"], "condition": "or"},
+            {"type": "not_header", "name": "Content-Disposition", "contains": "attachment"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "%PDF-1.4 1 0 obj<</Pages 1 0 R>>endobj trailer<</Root 1 0 R>>",
+          "description": "PDF polyglot probe -- if uploaded file served inline with permissive Content-Type, PDF features (FormCalc) can exfiltrate data",
+          "matchers": [
+            {"type": "word", "words": ["%PDF"], "condition": "or"},
+            {"type": "not_header", "name": "Content-Disposition", "contains": "attachment"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

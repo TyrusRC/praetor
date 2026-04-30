@@ -1,0 +1,87 @@
+{
+  "category": "grpc_injection",
+  "contexts": {
+    "reflection_enumeration": {
+      "description": "gRPC reflection enumeration -- discover services, methods, and message types via server reflection API",
+      "tech_match": ["gRPC", "gRPC-Web", "Protocol Buffers", "Envoy", "Go", "Java", "Python"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "gRPC reflection list services -- query ServerReflection/ServerReflectionInfo to enumerate all registered gRPC services and methods",
+          "matchers": [
+            {"type": "word", "words": ["grpc.reflection", "ServerReflection", "ListServices", "service_response"], "condition": "or"},
+            {"type": "header", "name": "Content-Type", "contains": "grpc"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {"header": "Content-Type: application/grpc-web+proto"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "gRPC-Web endpoint detection -- check if endpoint accepts gRPC-Web content type, indicating protobuf service",
+          "matchers": [
+            {"type": "header", "name": "Content-Type", "contains": "grpc"},
+            {"type": "status", "status": [200, 415]}
+          ],
+          "severity": "low",
+          "confidence_boost": 20
+        }
+      ]
+    },
+    "message_manipulation": {
+      "description": "gRPC message type manipulation -- send malformed or unexpected protobuf messages to trigger errors or bypass validation",
+      "tech_match": ["gRPC", "gRPC-Web", "Protocol Buffers"],
+      "param_match": ["id", "user_id", "role", "admin", "type", "action"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Unknown field injection -- add extra protobuf fields not in the expected schema; server may process them if using permissive deserialization",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 20}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Type confusion in protobuf -- send field with wrong wire type (e.g., string where int expected) to trigger deserialization errors revealing internal structure",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["proto", "wire type", "field", "deserialize", "unmarshal", "parse error"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "auth_bypass": {
+      "description": "gRPC authentication bypass -- test for missing or weak auth on gRPC endpoints",
+      "tech_match": ["gRPC", "gRPC-Web", "Envoy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "gRPC call without auth metadata -- send request without Authorization/token metadata to test for unauthenticated access",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthenticated", "unauthorized", "UNAUTHENTICATED"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "gRPC admin method access -- attempt to call admin/internal gRPC methods discovered via reflection without elevated credentials",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 30}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

