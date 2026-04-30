@@ -92,8 +92,9 @@ public class HttpSendHandler extends BaseHandler {
         }
 
         // Send through Burp — this makes it appear in HTTP history
+        int preSize = api.proxy().history().size();
         HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
-        sendResponseJson(exchange, result);
+        sendResponseJson(exchange, result, preSize);
     }
 
     /**
@@ -118,8 +119,9 @@ public class HttpSendHandler extends BaseHandler {
         HttpService service = HttpService.httpService(host, port, useHttps);
         HttpRequest request = HttpRequest.httpRequest(service, raw);
 
+        int preSize = api.proxy().history().size();
         HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
-        sendResponseJson(exchange, result);
+        sendResponseJson(exchange, result, preSize);
     }
 
     /**
@@ -154,8 +156,9 @@ public class HttpSendHandler extends BaseHandler {
         String newBody = (String) body.get("modify_body");
         if (newBody != null) modified = modified.withBody(newBody);
 
+        int preSize = api.proxy().history().size();
         HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, modified);
-        sendResponseJson(exchange, result);
+        sendResponseJson(exchange, result, preSize);
     }
 
     /**
@@ -286,6 +289,7 @@ public class HttpSendHandler extends BaseHandler {
 
         // Send with redirect following
         List<Map<String, Object>> redirectChain = new ArrayList<>();
+        int preSize = api.proxy().history().size();
         HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
         int redirectCount = 0;
 
@@ -333,6 +337,13 @@ public class HttpSendHandler extends BaseHandler {
         Map<String, Object> out = new LinkedHashMap<>();
         HttpResponse resp = result.response();
         out.put("status_code", resp != null ? resp.statusCode() : 0);
+
+        // Resolve proxy history index for the final response
+        int postSize = api.proxy().history().size();
+        if (postSize > preSize) {
+            out.put("history_index", postSize - 1);
+        }
+
         out.put("redirects_followed", redirectCount);
         if (!redirectChain.isEmpty()) {
             out.put("redirect_chain", redirectChain);
@@ -371,11 +382,17 @@ public class HttpSendHandler extends BaseHandler {
 
     // ── Helpers ────────────────────────────────────────────────
 
-    private void sendResponseJson(HttpExchange exchange, HttpRequestResponse result) throws Exception {
+    private void sendResponseJson(HttpExchange exchange, HttpRequestResponse result, int preSendHistorySize) throws Exception {
         if (result == null) { sendError(exchange, 502, "No response from target"); return; }
         HttpResponse resp = result.response();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status_code", resp != null ? resp.statusCode() : 0);
+
+        // Resolve proxy history index: new entry should be at preSendHistorySize
+        int postSize = api.proxy().history().size();
+        if (postSize > preSendHistorySize) {
+            out.put("history_index", postSize - 1);
+        }
 
         if (resp != null) {
             List<Map<String, Object>> headers = new ArrayList<>();
