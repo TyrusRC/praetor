@@ -17,16 +17,13 @@ def register(mcp: FastMCP):
         parameter: str,
         test_type: str = "all",
     ) -> str:
-        """Test business logic flaws — negative values, zero, large numbers, type confusion, boundary.
-
-        Example:
-            test_business_logic(session="s1", endpoint="/api/purchase", parameter="quantity", test_type="all")
+        """Test business logic flaws with negative values, zero, large numbers, type confusion, and boundary inputs.
 
         Args:
             session: Session name for auth state
             endpoint: Target endpoint path
-            parameter: Parameter name to test (e.g. price, quantity, amount)
-            test_type: Test category — "all", "negative_values", "zero_values", "large_values", "type_confusion", "boundary"
+            parameter: Parameter name to test
+            test_type: 'all', 'negative_values', 'zero_values', 'large_values', 'type_confusion', 'boundary'
         """
         test_cases = {}
 

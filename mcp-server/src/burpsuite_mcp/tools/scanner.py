@@ -13,16 +13,7 @@ def register(mcp: FastMCP):
         urls: list[str] | None = None,
         index: int = -1,
     ) -> str:
-        """Start an active scan/audit on a target through Burp Suite Professional.
-        Scans the target for vulnerabilities (SQLi, XSS, SSRF, etc.).
-
-        Provide ONE of:
-        - url: Single URL to scan (e.g. 'https://target.com/api/users?id=1')
-        - urls: List of URLs to scan
-        - index: Proxy history index to scan a captured request
-
-        The scan runs in the background. Use get_scan_status() to check progress
-        and get_scanner_findings() to see results.
+        """Start an active vulnerability scan on a target. Provide one of url, urls, or index.
 
         Args:
             url: Single target URL to scan
@@ -56,9 +47,7 @@ def register(mcp: FastMCP):
         url: str = "",
         urls: list[str] | None = None,
     ) -> str:
-        """Start a crawl on target URLs to discover endpoints and content.
-        Burp will spider the target, discovering pages, forms, and API endpoints.
-        Requires Burp Suite Professional.
+        """Start a crawl on target URLs to discover endpoints and content. Requires Burp Professional.
 
         Args:
             url: Single seed URL to crawl
@@ -84,8 +73,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_scan_status() -> str:
-        """Check the status of active and completed scans.
-        Shows scan IDs, descriptions, request counts, issue counts, and status messages."""
+        """Check status of active and completed scans with request/issue counts."""
         data = await client.get("/api/scanner/status")
         if "error" in data:
             return f"Error: {data['error']}"

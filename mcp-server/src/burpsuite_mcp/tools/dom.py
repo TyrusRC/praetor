@@ -9,14 +9,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def analyze_dom(index: int) -> str:
-        """Analyze HTML structure and JavaScript for security issues.
-        Performs two types of analysis from the response body (no headless browser):
-
-        HTML Analysis: Hidden fields, inline scripts, event handlers,
-        iframes, HTML comments, meta tags, data attributes, framework detection.
-
-        JS Sink/Source Analysis: Detects dangerous DOM manipulation patterns,
-        user-input sources, prototype pollution, and potential source-to-sink flows.
+        """Analyze HTML structure and JavaScript for security issues (sinks, sources, hidden fields, event handlers).
 
         Args:
             index: Proxy history index of the response to analyze

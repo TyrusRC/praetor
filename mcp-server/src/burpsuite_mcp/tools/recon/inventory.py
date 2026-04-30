@@ -9,11 +9,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def check_recon_tools() -> str:
-        """Check which external recon tools are installed on this system.
-
-        Scans PATH for common security tools and reports availability.
-        None of these tools are required — they enhance recon when available.
-        """
+        """Check which external recon tools are installed on this system."""
         # Web-focused recon tools only. Network-layer tools like nmap are excluded —
         # their traffic can't route through Burp's HTTP proxy.
         tools = {
@@ -80,11 +76,10 @@ def register(mcp: FastMCP):
         timeout: int = 30,
     ) -> str:
         """Probe live hosts from a list of URLs/domains via Burp's HTTP client.
-        Returns status code, server header, and response size. No external tools required.
 
         Args:
             targets: List of URLs or domains to probe
-            timeout: Max seconds per target (default: 30)
+            timeout: Max seconds per target (default 30)
         """
         from burpsuite_mcp import client
 

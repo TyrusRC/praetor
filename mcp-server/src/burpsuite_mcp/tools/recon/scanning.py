@@ -21,19 +21,16 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 600,
     ) -> str:
-        """Run nuclei vulnerability scanner against a target.
-        All requests route through Burp proxy by default.
-
-        Requires nuclei: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+        """Run nuclei vulnerability scanner against a target through Burp proxy. Requires nuclei installed.
 
         Args:
-            target: Target URL (e.g. 'https://example.com')
-            templates: Template path (e.g. 'http/cves/', 'http/misconfiguration/', 'ssl/')
-            tags: Filter by tags (e.g. 'apache,rce', 'xss,sqli')
-            severity: Filter by severity (e.g. 'critical,high', 'medium,high,critical')
-            auto_scan: Auto-detect tech stack and run matching templates (-as flag)
-            dast: Enable DAST fuzzing mode for active testing
-            use_proxy: Route through Burp proxy (default true)
+            target: Target URL
+            templates: Template path filter
+            tags: Tag filter (comma-separated)
+            severity: Severity filter (comma-separated)
+            auto_scan: Auto-detect tech and run matching templates
+            dast: Enable DAST fuzzing mode
+            use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 600)
         """
         if not _check_tool("nuclei"):
@@ -121,19 +118,15 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
-        """Run dalfox XSS scanner against a URL.
-
-        All requests route through Burp proxy by default.
-
-        Requires dalfox: go install -v github.com/hahwul/dalfox/v2@latest
+        """Run dalfox XSS scanner against a URL through Burp proxy. Requires dalfox installed.
 
         Args:
-            target: Target URL (e.g. 'https://target.com/search?q=test')
-            blind_xss_url: Callback URL for blind XSS detection (Collaborator)
+            target: Target URL with parameters
+            blind_xss_url: Callback URL for blind XSS detection
             method: HTTP method
             data: POST body
             cookie: Cookie header
-            use_proxy: Route through Burp proxy (default true)
+            use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 300)
         """
         if not _check_tool("dalfox"):
@@ -178,24 +171,16 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
-        """Run ffuf for fuzzing directories, files, or parameters.
-
-        The target must contain the FUZZ keyword (e.g. 'https://target.com/FUZZ',
-        'https://target.com/?id=FUZZ'). All requests route through Burp proxy by default.
-
-        Requires ffuf: https://github.com/ffuf/ffuf
-        Install on Windows: scoop install ffuf
-        Install on Linux/macOS: brew install ffuf  (or download from releases)
+        """Run ffuf for directory/file/parameter fuzzing. Target URL must contain FUZZ keyword. Requires ffuf installed.
 
         Args:
-            target: Target URL with FUZZ placeholder (e.g. 'https://target.com/FUZZ')
-            wordlist: Path to wordlist file. Default: SecLists common.txt if present,
-                      else a tiny built-in set.
-            match_codes: HTTP status codes to include (default: '200,204,301,302,307,401,403,405')
-            filter_size: Response size to filter out (hide common 404 size)
+            target: Target URL with FUZZ placeholder
+            wordlist: Path to wordlist file (auto-detected if empty)
+            match_codes: HTTP status codes to include (default '200,204,301,302,307,401,403,405')
+            filter_size: Response size to filter out
             filter_words: Response word-count to filter out
             threads: Concurrency (default 40)
-            use_proxy: Route through Burp proxy (default true)
+            use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 300)
         """
         if not _check_tool("ffuf"):
@@ -270,21 +255,18 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 600,
     ) -> str:
-        """Run sqlmap against a target URL to detect/exploit SQL injection.
-        All requests route through Burp proxy by default.
-
-        Requires sqlmap: https://sqlmap.org (pip install sqlmap, or system package)
+        """Run sqlmap SQL injection scanner against a target URL. Requires sqlmap installed.
 
         Args:
-            target: Target URL (e.g. 'https://target.com/item?id=1')
-            data: POST body (switches to --method=POST automatically)
+            target: Target URL with injectable parameter
+            data: POST body (auto-switches to POST)
             cookie: Cookie header
-            method: HTTP method (default GET; ignored if data is given)
-            level: Test level 1-5 (default 1, higher = more payloads)
-            risk: Risk 1-3 (default 1, higher = more destructive payloads)
-            technique: Technique flags — B=Boolean, E=Error, U=UNION, S=Stacked, T=Time, Q=Inline
-            batch: Non-interactive (default true)
-            use_proxy: Route through Burp proxy (default true)
+            method: HTTP method (default GET)
+            level: Test level 1-5 (default 1)
+            risk: Risk level 1-3 (default 1)
+            technique: Technique flags (B=Boolean, E=Error, U=UNION, S=Stacked, T=Time, Q=Inline)
+            batch: Non-interactive mode (default True)
+            use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 600)
         """
         if not _check_tool("sqlmap"):

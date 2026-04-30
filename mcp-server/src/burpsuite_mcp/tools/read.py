@@ -16,10 +16,15 @@ def register(mcp: FastMCP):
         filter_method: str = "",
         filter_status: str = "",
     ) -> str:
-        """Get HTTP proxy history from Burp Suite.
-        Returns a summary table of requests captured by Burp's proxy.
-        Use filter_url to search by URL substring, filter_method for HTTP method (GET/POST/etc),
-        filter_status for status code. Results are ordered newest-first."""
+        """Get HTTP proxy history from Burp Suite with optional filters.
+
+        Args:
+            limit: Max items to return
+            offset: Pagination offset
+            filter_url: URL substring filter
+            filter_method: HTTP method filter (GET/POST/etc)
+            filter_status: Status code filter
+        """
         params = {"limit": limit, "offset": offset}
         if filter_url:
             params["filter_url"] = filter_url
@@ -35,12 +40,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_request_detail(index: int, full_body: bool = False) -> str:
-        """Get full request and response details for a specific proxy history item.
-        Returns headers, body, status code. Use after get_proxy_history to inspect interesting requests.
+        """Get full request/response details for a proxy history item.
 
         Args:
             index: Proxy history index
-            full_body: If True, return complete response body without truncation (default False, 5000 char limit)
+            full_body: Return complete response body without truncation
         """
         data = await client.get(f"/api/proxy/history/{index}")
         if "error" in data:
@@ -80,8 +84,12 @@ def register(mcp: FastMCP):
         limit: int = 100,
     ) -> str:
         """Get scanner/audit findings from Burp Suite Professional.
-        Filter by severity (HIGH, MEDIUM, LOW, INFORMATION) and confidence (CERTAIN, FIRM, TENTATIVE).
-        Returns vulnerability name, severity, URL, and evidence."""
+
+        Args:
+            severity: Filter by severity (HIGH, MEDIUM, LOW, INFORMATION)
+            confidence: Filter by confidence (CERTAIN, FIRM, TENTATIVE)
+            limit: Max findings to return
+        """
         params = {"limit": limit}
         if severity:
             params["severity"] = severity
@@ -95,8 +103,12 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_sitemap(url_prefix: str = "", limit: int = 200) -> str:
-        """Get the site map from Burp Suite - all discovered URLs/endpoints.
-        Filter by url_prefix to focus on a specific target. Shows methods, status codes, and response sizes."""
+        """Get Burp's site map showing all discovered URLs/endpoints.
+
+        Args:
+            url_prefix: Filter by URL prefix
+            limit: Max entries to return
+        """
         params = {"limit": limit}
         if url_prefix:
             params["prefix"] = url_prefix
@@ -121,8 +133,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_scope() -> str:
-        """Get the current target scope from Burp Suite.
-        Shows which hosts/URLs are in scope for testing."""
+        """Get the current target scope configuration from Burp Suite."""
         data = await client.get("/api/scope")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -140,7 +151,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def check_scope(url: str) -> str:
-        """Check if a specific URL is within the target scope."""
+        """Check if a specific URL is within the target scope.
+
+        Args:
+            url: URL to check
+        """
         data = await client.post("/api/scope/check", json={"url": url})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -151,10 +166,9 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def add_to_scope(url: str) -> str:
         """Add a URL or host to Burp's target scope.
-        Use this to programmatically set the scope before scanning.
 
         Args:
-            url: URL to include in scope (e.g. 'https://target.com')
+            url: URL to include in scope
         """
         data = await client.post("/api/scope/add", json={"url": url})
         if "error" in data:
@@ -176,12 +190,10 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def get_cookies(domain: str = "", full_values: bool = False) -> str:
         """Get cookies from Burp's cookie jar.
-        Shows cookie name, value, domain, path, and expiration.
-        Useful for session analysis and auth testing.
 
         Args:
-            domain: Optional domain filter (e.g. 'target.com')
-            full_values: If True, show complete cookie values without truncation
+            domain: Filter by domain
+            full_values: Show complete cookie values without truncation
         """
         params = {}
         if domain:
@@ -217,10 +229,9 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def get_websocket_history(limit: int = 50) -> str:
         """Get WebSocket message history from Burp's proxy.
-        Shows message direction, payload, and size. Newest messages first.
 
         Args:
-            limit: Maximum number of messages to return (default 50)
+            limit: Max messages to return
         """
         data = await client.get("/api/websocket/history", params={"limit": limit})
         if "error" in data:

@@ -16,11 +16,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def test_request_smuggling(session: str, path: str = "/") -> str:
-        """Test for HTTP request smuggling (CL.TE and TE.CL) using timing-based detection.
-        Uses safe detection payloads only — no destructive testing.
-
-        Example:
-            test_request_smuggling(session="s1", path="/")
+        """Test for HTTP request smuggling (CL.TE, TE.CL, TE.TE) using safe timing-based detection.
 
         Args:
             session: Session name for auth state

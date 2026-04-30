@@ -139,30 +139,19 @@ def register(mcp: FastMCP):
         delay_ms: int = 0,
         smart_payloads: bool = False,
     ) -> str:
-        """Smart fuzz engine - send Claude-generated payloads and analyze responses for anomalies.
-        You are the brain: analyze the target's tech stack, parameters, and context to craft
-        targeted payloads. This tool is the execution engine.
-
-        Attack types:
-        - sniper: One parameter at a time, each payload (default)
-        - battering_ram: Same payload in all parameters simultaneously
-        - pitchfork: Parallel payload lists (payload[i] in param[i])
-        - cluster_bomb: All combinations across all parameters
-
-        Results include anomaly detection: status code changes, response length variance,
-        timing anomalies, and grep pattern matches.
+        """Fuzz parameters with payloads and detect response anomalies.
 
         Args:
             index: Proxy history index of the base request
-            parameters: List of parameter configs: [{"name": "id", "position": "query", "payloads": ["1", "' OR 1=1--"]}]
-            parameter: Simple mode - single parameter name (use with payloads + injection_point)
-            payloads: Simple mode - payload list for single parameter
-            injection_point: Simple mode - where to inject: query, body, header, path, cookie
+            parameters: Parameter configs with payloads per param
+            parameter: Single parameter name (simple mode)
+            payloads: Payload list for single parameter (simple mode)
+            injection_point: Where to inject: query, body, header, path, cookie
             attack_type: sniper, battering_ram, pitchfork, or cluster_bomb
-            grep_match: List of strings to search for in responses (e.g. ["error", "SQL", "syntax"])
-            grep_extract: Regex pattern to extract from responses
-            delay_ms: Delay between requests in milliseconds
-            smart_payloads: Auto-generate payloads based on parameter names (e.g. 'id' gets SQLi, 'search' gets XSS)
+            grep_match: Strings to search for in responses
+            grep_extract: Regex to extract from responses
+            delay_ms: Delay between requests in ms
+            smart_payloads: Auto-select payloads based on parameter name
         """
         # Smart payload auto-generation based on parameter name heuristics
         if smart_payloads:
@@ -205,21 +194,15 @@ def register(mcp: FastMCP):
         alt_token: str = "",
         remove_auth: bool = False,
     ) -> str:
-        """Compare responses between different authentication states to find IDOR/auth bypass.
-        Resends a request with different credentials and diffs the responses.
-
-        Use cases:
-        - IDOR: Same endpoint with different user's session cookie
-        - Auth bypass: Request with vs without authentication
-        - Privilege escalation: Admin endpoint with regular user token
+        """Compare responses between auth states to detect IDOR/auth bypass.
 
         Args:
             index: Proxy history index of the request to test
-            original_cookies: Cookies dict for first request (uses original if empty)
-            alt_cookies: Cookies dict for second request (different user)
-            original_token: Bearer token for first request (uses original if empty)
-            alt_token: Bearer token for second request (different user)
-            remove_auth: If True, second request strips all auth headers/cookies
+            original_cookies: Cookies for first request
+            alt_cookies: Cookies for second request (different user)
+            original_token: Bearer token for first request
+            alt_token: Bearer token for second request
+            remove_auth: Strip all auth from second request
         """
         # First request: original or with specified auth
         modify1: dict = {"index": index}
@@ -296,7 +279,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def send_to_comparer(index1: int, index2: int) -> str:
-        """Send two proxy history items to Burp's Comparer tab for visual comparison.
+        """Send two proxy history items to Burp's Comparer tab.
 
         Args:
             index1: First proxy history index
@@ -316,14 +299,12 @@ def register(mcp: FastMCP):
         index2: int,
         mode: str = "full",
     ) -> str:
-        """Enhanced response comparison - detailed diff between two proxy history items.
-        More detailed than get_response_diff: shows header diffs, body similarity,
-        unique words in each response.
+        """Detailed diff between two proxy history items with header and body analysis.
 
         Args:
             index1: First proxy history index
             index2: Second proxy history index
-            mode: Comparison mode - 'full', 'headers', or 'body'
+            mode: Comparison mode: 'full', 'headers', or 'body'
         """
         data = await client.post("/api/search/compare", json={
             "index1": index1,
@@ -378,13 +359,11 @@ def register(mcp: FastMCP):
         base_url: str = "",
     ) -> str:
         """Test endpoints across multiple auth states to detect IDOR and broken access control.
-        Fires all combinations and returns a comparison matrix flagging where lower-privilege
-        users get the same response as higher-privilege users.
 
         Args:
-            endpoints: List of endpoints - [{"method": "GET", "path": "/api/users/42"}]
-            auth_states: Auth configurations - {"admin": {"session": "s1"}, "anon": {"remove_auth": True}}
-            base_url: Override base URL (uses first session's base_url if empty)
+            endpoints: Endpoints to test
+            auth_states: Auth configs keyed by role name
+            base_url: Override base URL
         """
         payload: dict = {"endpoints": endpoints, "auth_states": auth_states}
         if base_url:
@@ -427,13 +406,12 @@ def register(mcp: FastMCP):
         expect_once: bool = True,
     ) -> str:
         """Fire N identical requests simultaneously to detect race conditions.
-        Uses server-side thread synchronization for minimal jitter.
 
         Args:
-            session: Session name for auth state
-            request: Request spec - {"method": "POST", "path": "/transfer", "json_body": {"amount": 100}}
-            concurrent: Number of simultaneous requests (default 10, max 50)
-            expect_once: Flag if action succeeded more than once (default True)
+            session: Session name
+            request: Request spec with method, path, and body
+            concurrent: Number of simultaneous requests (max 50)
+            expect_once: Flag if action succeeded more than once
         """
         payload = {
             "session": session,
@@ -474,16 +452,15 @@ def register(mcp: FastMCP):
         polluted_values: list[str],
         locations: list[str] | None = None,
     ) -> str:
-        """Test HTTP Parameter Pollution across query string, body, and mixed positions.
-        Detects when backend parses duplicated/polluted parameters differently.
+        """Test HTTP Parameter Pollution across query, body, and mixed positions.
 
         Args:
-            session: Session name for auth state
-            base_path: Target endpoint path (e.g. '/api/transfer')
-            parameter: Parameter name to pollute (e.g. 'amount')
-            original_value: Original parameter value (e.g. '100')
-            polluted_values: Pollution variants - ['100&amount=99999', '100,99999']
-            locations: Where to inject - ['query', 'body', 'both'] (default all three)
+            session: Session name
+            base_path: Target endpoint path
+            parameter: Parameter name to pollute
+            original_value: Original parameter value
+            polluted_values: Pollution variants to test
+            locations: Where to inject: 'query', 'body', 'both'
         """
         payload: dict = {
             "session": session,

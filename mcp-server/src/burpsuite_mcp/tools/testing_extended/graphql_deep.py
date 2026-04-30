@@ -11,11 +11,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def test_graphql_deep(session: str, path: str = "/graphql") -> str:
-        """Extended GraphQL testing — introspection, field suggestions, alias DoS, batching,
-        depth limits, and type enumeration.
-
-        Example:
-            test_graphql_deep(session="my_session", path="/graphql")
+        """Extended GraphQL testing -- introspection, field suggestions, alias DoS, batching, and depth limits.
 
         Args:
             session: Session name for auth state

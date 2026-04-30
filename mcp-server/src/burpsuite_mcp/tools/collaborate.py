@@ -9,10 +9,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def generate_collaborator_payload() -> str:
-        """Generate a Burp Collaborator payload URL for out-of-band (OOB) testing.
-        Use for detecting blind SSRF, blind XXE, blind SQL injection, blind XSS, etc.
-        Inject the payload URL into parameters and then check for interactions.
-        Requires Burp Suite Professional."""
+        """Generate a Burp Collaborator payload URL for out-of-band testing. Requires Burp Professional."""
         data = await client.post("/api/collaborator/payload")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -32,19 +29,13 @@ def register(mcp: FastMCP):
         injection_point: str = "query",
         poll_seconds: int = 5,
     ) -> str:
-        """Automated Burp Collaborator test - inject payload, send request, and poll for interactions.
-        One-step out-of-band vulnerability detection: generates a Collaborator payload,
-        injects it into the specified parameter, sends the request, waits, and checks for interactions.
-
-        If interactions are detected, the target is making out-of-band connections = VULNERABLE.
-        Use for: blind SSRF, blind XXE, blind SQL injection, blind command injection, etc.
-        Requires Burp Suite Professional.
+        """Inject Collaborator payload into a parameter, send request, and poll for OOB interactions. Requires Burp Professional.
 
         Args:
             index: Proxy history index of the request to test
             parameter: Parameter name to inject the payload into
-            injection_point: Where to inject - 'query', 'body', or 'header' (default: query)
-            poll_seconds: Seconds to wait before polling for interactions (default: 5, max: 15)
+            injection_point: Where to inject — 'query', 'body', or 'header'
+            poll_seconds: Seconds to wait before polling (default 5, max 15)
         """
         data = await client.post("/api/collaborator/auto-test", json={
             "index": index,
@@ -84,10 +75,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_collaborator_interactions() -> str:
-        """Check for Burp Collaborator interactions (DNS, HTTP, SMTP lookups).
-        Call this after injecting a collaborator payload to see if the target made
-        an out-of-band connection. Presence of interactions confirms blind vulnerabilities.
-        Requires Burp Suite Professional."""
+        """Check for Collaborator interactions (DNS, HTTP, SMTP). Presence confirms blind vulnerabilities. Requires Burp Professional."""
         data = await client.get("/api/collaborator/interactions")
         if "error" in data:
             return f"Error: {data['error']}"

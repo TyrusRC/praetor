@@ -20,21 +20,18 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
-        """Crawl a target with katana to discover URLs, endpoints, and JS-rendered paths.
-        All discovered URLs route through Burp proxy by default.
-
-        Requires katana: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
+        """Crawl a target with katana to discover URLs, endpoints, and JS-rendered paths. Requires katana installed.
 
         Args:
-            target: Target URL (e.g. 'https://example.com')
+            target: Target URL
             depth: Crawl depth (default 3, max 10)
-            crawl_mode: 'standard' (HTTP only, fast), 'headless' (full browser), 'hybrid' (best coverage — standard first, headless for JS pages)
-            js_crawl: Parse JavaScript files for endpoints (default true)
-            known_files: Probe robots.txt, sitemap.xml (requires depth >= 3)
+            crawl_mode: 'standard', 'headless', or 'hybrid' (default)
+            js_crawl: Parse JS files for endpoints (default True)
+            known_files: Probe robots.txt, sitemap.xml
             form_fill: Auto-fill and submit forms (experimental)
-            filter_similar: Filter similar-looking URLs like /users/123 vs /users/456 (default true)
-            scope_domain: Restrict to domain regex (default: auto from target)
-            use_proxy: Route through Burp proxy (default true)
+            filter_similar: Deduplicate similar URLs (default True)
+            scope_domain: Restrict to domain regex (auto from target if empty)
+            use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 300)
         """
         if not _check_tool("katana"):

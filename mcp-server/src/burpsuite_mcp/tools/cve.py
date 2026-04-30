@@ -146,21 +146,12 @@ def register(mcp: FastMCP):
         index: int = -1,
         tech_stack: list[str] | None = None,
     ) -> str:
-        """Match detected technology stack against known CVEs and misconfigurations.
-
-        Checks the tech stack (from detect_tech_stack or manually provided) against
-        the knowledge base of technology-specific vulnerabilities. Returns matching
-        CVEs, misconfigurations, and suggested test commands.
-
-        Three ways to provide tech data (pick one):
-        1. session: auto-detect tech from session's base URL
-        2. index: detect tech from a specific proxy history item
-        3. tech_stack: provide a list of tech strings directly
+        """Match detected tech stack against known CVEs and misconfigurations.
 
         Args:
-            session: Session name — will auto-detect tech stack from base URL
-            index: Proxy history index — will detect tech stack from this response
-            tech_stack: Manual list of tech strings (e.g. ['Apache/2.4.49', 'PHP/7.4', 'WordPress 5.8'])
+            session: Session name to auto-detect tech stack from
+            index: Proxy history index to detect tech stack from
+            tech_stack: Manual list of tech strings
         """
         tech_items = tech_stack or []
 
@@ -255,19 +246,13 @@ def register(mcp: FastMCP):
         live_lookup: bool = True,
         max_results: int = 10,
     ) -> str:
-        """Search CVEs by query — live NVD 2.0 API lookup by default.
-
-        With `live_lookup=True` (default), queries NVD's JSON 2.0 API
-        (services.nvd.nist.gov/rest/json/cves/2.0) through Burp's proxy and
-        returns structured results (CVE id, summary, CVSS, published date).
-        Set `live_lookup=False` for the offline variant that only emits
-        search URLs (useful when NVD is rate-limiting or unreachable).
+        """Search CVEs via live NVD 2.0 API lookup or offline search URLs.
 
         Args:
-            query: Search query (e.g. 'Apache 2.4.49', 'Spring4Shell', 'CVE-2021-44228')
-            tech: Optional technology context for more targeted search
-            live_lookup: Call NVD API and return structured CVE list (default True)
-            max_results: Cap NVD results returned (default 10, max 50)
+            query: Search query (CVE ID, product name, or keyword)
+            tech: Optional technology context for targeted search
+            live_lookup: Query NVD API live (default True); False for URLs only
+            max_results: Max NVD results (default 10, max 50)
         """
         import urllib.parse
         q = urllib.parse.quote_plus(query)

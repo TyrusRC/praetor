@@ -11,12 +11,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def websocket_connect(url: str, name: str = "") -> str:
-        """Open a WebSocket connection through Burp for testing WebSocket-based APIs.
-        All traffic flows through Burp. Use websocket_send_message to send data.
+        """Open a WebSocket connection through Burp's proxy.
 
         Args:
             url: WebSocket URL (ws:// or wss://)
-            name: Connection name for reference (default: auto-generated)
+            name: Connection name for reference
         """
         payload: dict = {"url": url}
         if name:
@@ -29,11 +28,10 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def websocket_send_message(name: str, message: str) -> str:
         """Send a text message on an open WebSocket connection.
-        Use for testing WebSocket injection, authorization, and protocol abuse.
 
         Args:
             name: Connection name from websocket_connect
-            message: Text message to send (e.g. JSON payload)
+            message: Text message to send
         """
         data = await client.post("/api/websocket-send/send", json={
             "name": name, "message": message,
@@ -74,8 +72,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def send_to_organizer(index: int) -> str:
-        """Send a proxy history item to Burp's Organizer tab for categorization.
-        Use to organize interesting requests for human review.
+        """Send a proxy history item to Burp's Organizer tab.
 
         Args:
             index: Proxy history index
@@ -115,24 +112,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def check_pro_features() -> str:
-        """Check which Burp features are usable on this edition.
-
-        Call this BEFORE picking tools when unsure whether the target Burp is
-        Professional or Community. Saves tokens vs trying a Pro-only tool and
-        getting an opaque error mid-hunt.
-
-        Returns a feature map with `available: True/False` per Pro-only
-        capability:
-          - scanner / active_scan / passive_scan : Burp's automated scanner
-          - collaborator                          : Burp Collaborator (OOB)
-          - logger                                : Logger++ tab API (some
-                                                    Pro builds only)
-          - repeater / intruder / proxy / fuzz   : always available
-
-        On Community, the advisor will route you to MCP-side equivalents
-        (auto_probe + auto_collaborator_test still work for OOB via DNS
-        wildcard providers; ffuf/dalfox/sqlmap fill the scanner gap).
-        """
+        """Check which Burp features are available on this edition (Pro vs Community)."""
         data = await client.get("/api/burp-tools/project")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -144,12 +124,12 @@ def register(mcp: FastMCP):
         # Feature map. Pro-only flags are flipped on COMMUNITY so Claude can
         # short-circuit before calling tools that would fail.
         features = {
-            "scanner":       {"available": is_pro, "tool_examples": ["scan_target", "scan_url", "quick_scan", "auto_probe"]},
-            "active_scan":   {"available": is_pro, "tool_examples": ["scan_target", "scan_url"]},
+            "scanner":       {"available": is_pro, "tool_examples": ["scan_url", "quick_scan", "auto_probe", "discover_attack_surface"]},
+            "active_scan":   {"available": is_pro, "tool_examples": ["scan_url", "auto_probe"]},
             "passive_scan":  {"available": is_pro, "tool_examples": ["get_scanner_findings", "get_issues_dashboard"]},
             "collaborator":  {"available": is_pro, "tool_examples": ["generate_collaborator_payload", "auto_collaborator_test", "get_collaborator_interactions"]},
             "logger":        {"available": is_pro, "tool_examples": ["get_logger_entries"], "note": "Logger API may also be unavailable on older Pro builds — falls back to proxy history."},
-            "crawl":         {"available": is_pro, "tool_examples": ["crawl_target", "scan_target(mode='discover')"]},
+            "crawl":         {"available": is_pro, "tool_examples": ["crawl_target", "discover_attack_surface"]},
             "repeater":      {"available": True,   "tool_examples": ["send_to_repeater", "repeater_resend"]},
             "intruder":      {"available": True,   "tool_examples": ["send_to_intruder", "send_to_intruder_configured"], "note": "Community throttles Intruder heavily — prefer fuzz_parameter via MCP."},
             "proxy":         {"available": True,   "tool_examples": ["get_proxy_history", "set_match_replace", "enable_intercept"]},
@@ -187,7 +167,6 @@ def register(mcp: FastMCP):
         filter_url: str = "",
     ) -> str:
         """Get Logger entries with timing data, annotations, and metadata.
-        Richer than proxy history — includes color annotations and notes.
 
         Args:
             limit: Max entries to return (default 50)
@@ -230,24 +209,15 @@ def register(mcp: FastMCP):
         positions: list[list[int]] | None = None,
         mode: str = "",
     ) -> str:
-        """Send request to Burp's Intruder with custom insertion point positions.
-        Three modes:
-        1. Simple: just sends to Intruder (like send_to_intruder but with named tab)
-        2. Auto: Burp auto-detects parameter positions (mode='auto')
-        3. Manual: specify exact byte offset positions for injection points
+        """Send request to Burp's Intruder with custom positions. Modes: simple, auto, or manual byte offsets.
 
         Args:
             index: Proxy history index (-1 to skip)
             raw_request: Raw HTTP request string (alternative to index)
             host: Target host for raw request (required with raw_request)
             tab_name: Name for the Intruder tab
-            positions: List of [start, end] byte offsets marking injection points (e.g. [[10,15],[30,35]])
-            mode: 'auto' to let Burp auto-detect positions, '' for simple send
-
-        Examples:
-        - Auto positions: send_to_intruder_configured(index=42, mode='auto')
-        - Manual positions: send_to_intruder_configured(index=42, positions=[[45,50],[78,83]])
-        - Simple: send_to_intruder_configured(index=42, tab_name='SQLi Test')
+            positions: List of [start, end] byte offsets for injection points
+            mode: 'auto' for Burp auto-detection, '' for simple send
         """
         payload: dict = {"tab_name": tab_name}
         if index >= 0:

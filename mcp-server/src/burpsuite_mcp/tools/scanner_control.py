@@ -9,11 +9,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def cancel_scan(scan_id: int) -> str:
-        """Cancel an active scan by its ID. The scan will be stopped and removed from the
-        active scans list. Use get_scan_status() to find scan IDs of running scans.
+        """Cancel an active scan by its ID.
 
         Args:
-            scan_id: The numeric scan ID returned when the scan was started
+            scan_id: Numeric scan ID returned when the scan was started
         """
         data = await client.delete(f"/api/scanner/scan/{scan_id}")
         if "error" in data:
@@ -21,57 +20,8 @@ def register(mcp: FastMCP):
         return data.get("message", f"Scan {scan_id} cancelled.")
 
     @mcp.tool()
-    async def pause_scan(scan_id: int) -> str:
-        """Get status of an active scan. Note: Burp Montoya API does not support pausing scans.
-        Returns current scan status instead.
-
-        Args:
-            scan_id: The numeric scan ID to check
-        """
-        data = await client.post(f"/api/scanner/scan/{scan_id}/pause")
-        if "error" in data:
-            return f"Error: {data['error']}"
-        msg = data.get("message", "")
-        status = data.get("status", "")
-        lines = [msg] if msg else []
-        if status:
-            lines.append(f"Status: {status}")
-        if data.get("request_count"):
-            lines.append(f"Requests: {data['request_count']}, Issues: {data.get('issue_count', 0)}")
-        return "\n".join(lines) if lines else f"Scan {scan_id} status retrieved."
-
-    @mcp.tool()
-    async def resume_scan(scan_id: int) -> str:
-        """Get status of an active scan. Note: Burp Montoya API does not support resume — scans run continuously.
-        Returns current scan status.
-
-        Args:
-            scan_id: The numeric scan ID to check
-        """
-        data = await client.post(f"/api/scanner/scan/{scan_id}/resume")
-        if "error" in data:
-            return f"Error: {data['error']}"
-        msg = data.get("message", "")
-        status = data.get("status", "")
-        lines = [msg] if msg else []
-        if status:
-            lines.append(f"Status: {status}")
-        if data.get("request_count"):
-            lines.append(f"Requests: {data['request_count']}, Issues: {data.get('issue_count', 0)}")
-        return "\n".join(lines) if lines else f"Scan {scan_id} status retrieved."
-
-    @mcp.tool()
     async def get_issues_dashboard() -> str:
-        """Get a compact dashboard of ALL Burp scanner findings grouped by severity.
-        Shows counts, unique affected hosts, and top findings — the first thing to check
-        when assessing what Burp has found.
-
-        Returns:
-        - Severity breakdown (critical/high/medium/low/info counts)
-        - Affected hosts
-        - Top high/critical findings with URLs
-        - Actionable next steps
-        """
+        """Compact dashboard of all Burp scanner findings grouped by severity with affected hosts and top issues."""
         data = await client.get("/api/scanner/findings", params={"limit": 500})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -163,20 +113,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_new_findings(since_count: int = 0) -> str:
-        """Get scanner findings added since a specific count. Useful for polling to detect
-        new findings in real-time during an active scan.
-
-        Workflow:
-        1. Call get_new_findings(since_count=0) to get current total and baseline findings
-        2. After some time, call get_new_findings(since_count=<previous_total>) to get only new ones
-        3. Repeat step 2 to keep polling for new findings
-
-        This avoids re-fetching already-seen findings and is more efficient than
-        calling get_scanner_findings() repeatedly.
+        """Get scanner findings added since a specific count for incremental polling during active scans.
 
         Args:
-            since_count: Number of findings already seen. Findings after this count are returned.
-                         Use 0 to get all current findings and the total count.
+            since_count: Number of findings already seen; only newer ones are returned
         """
         data = await client.get("/api/scanner/findings/new", params={"since": since_count})
         if "error" in data:

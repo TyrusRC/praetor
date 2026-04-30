@@ -141,13 +141,10 @@ def register(mcp: FastMCP):
         max_pages: int = 20,
     ) -> str:
         """Crawl target and map the entire attack surface in ONE call.
-        Returns: endpoints, parameters (risk-scored), forms, tech stack.
-
-        Use this first, then pass high-risk parameters to auto_probe.
 
         Args:
             session: Session name with base_url configured
-            max_pages: Max pages to crawl (default 20)
+            max_pages: Max pages to crawl
         """
         data = await client.post("/api/session/discover", json={
             "session": session, "max_pages": max_pages,
@@ -218,17 +215,13 @@ def register(mcp: FastMCP):
         categories: list[str] | None = None,
         max_probes_per_param: int = 5,
     ) -> str:
-        """Knowledge-driven vulnerability probing. Tests parameters using adaptive
-        payloads with server-side matchers. Auto-detects tech, selects matching probes.
-
-        Pass targets from discover_attack_surface output. Each target:
-        {"method": "GET", "path": "/page.asp", "parameter": "id", "baseline_value": "1", "location": "query"}
+        """Knowledge-driven vulnerability probing with server-side matchers.
 
         Args:
             session: Session name
             targets: Parameters to test (from discover_attack_surface)
-            categories: Filter categories - ["sqli", "xss", "path_traversal"]. Empty = all.
-            max_probes_per_param: Max probes per parameter (default 5)
+            categories: Filter probe categories (empty = all)
+            max_probes_per_param: Max probes per parameter
         """
         knowledge = _load_all_knowledge(categories)
         if not knowledge:
@@ -320,41 +313,6 @@ def register(mcp: FastMCP):
 
         return "\n".join(lines)
 
-    @mcp.tool()
-    async def scan_target(
-        session: str,
-        mode: str = "discover",
-        targets: list[dict] | None = None,
-        categories: list[str] | None = None,
-        max_pages: int = 20,
-        max_probes_per_param: int = 5,
-    ) -> str:
-        """Two-mode scan: discover attack surface OR probe parameters.
-
-        Mode 'discover': crawl target, map endpoints, score parameters.
-        Mode 'probe': run knowledge-driven probes on specified targets.
-
-        Typical flow:
-        1. scan_target(session="s", mode="discover") -> review results
-        2. scan_target(session="s", mode="probe", targets=[...high-risk params...])
-
-        Args:
-            session: Session name
-            mode: 'discover' or 'probe'
-            targets: Parameters to probe (required for mode='probe')
-            categories: Filter vuln categories for probing
-            max_pages: Max pages for discovery (default 20)
-            max_probes_per_param: Max probes per parameter (default 5)
-        """
-        if mode == "discover":
-            return await discover_attack_surface(session=session, max_pages=max_pages)
-        elif mode == "probe":
-            if not targets:
-                return "Error: 'targets' required for mode='probe'. Run with mode='discover' first."
-            return await auto_probe(session=session, targets=targets, categories=categories, max_probes_per_param=max_probes_per_param)
-        else:
-            return f"Error: Unknown mode '{mode}'. Use 'discover' or 'probe'."
-
     # ── Probe tools (moved from session.py) ──
 
     @mcp.tool()
@@ -363,8 +321,7 @@ def register(mcp: FastMCP):
         headers: dict | None = None, body: str = "", data: str = "",
         json_body: dict | None = None,
     ) -> str:
-        """Send request + auto-analyze in ONE call. Returns: status, tech stack,
-        injection points, parameters, forms, secrets — without the response body.
+        """Send request and auto-analyze in ONE call without returning the response body.
 
         Args:
             session: Session name
@@ -421,17 +378,16 @@ def register(mcp: FastMCP):
         baseline_value: str = "1", payload_value: str = "",
         injection_point: str = "query", test_payloads: list[str] | None = None,
     ) -> str:
-        """ADAPTIVE vulnerability probe. Auto-detects tech stack, selects payloads,
-        tests for SQLi/XSS/path traversal/SSTI/RCE, checks multiple reflection variants.
+        """Adaptive vulnerability probe with auto tech detection and payload selection.
 
         Args:
             session: Session name
             method: HTTP method
             path: Base endpoint path
             parameter: Parameter name to test
-            baseline_value: Normal/safe value (default '1')
+            baseline_value: Normal/safe value
             payload_value: Single attack payload (empty = auto-detect)
-            injection_point: Where to inject — 'query' or 'body'
+            injection_point: Where to inject: 'query' or 'body'
             test_payloads: Multiple payloads to test in one call
         """
         req: dict = {
@@ -472,11 +428,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def batch_probe(session: str, endpoints: list[dict]) -> str:
-        """Test multiple endpoints in ONE call. Returns status, length, timing for each.
+        """Test multiple endpoints in ONE call with status, length, and timing.
 
         Args:
             session: Session name
-            endpoints: List of endpoints - [{"method": "GET", "path": "/api/users"}]
+            endpoints: List of endpoint specs with method and path
         """
         data = await client.post("/api/session/batch", json={"session": session, "endpoints": endpoints})
         if "error" in data:
@@ -501,17 +457,15 @@ def register(mcp: FastMCP):
         param_type: str = "query",
         baseline_value: str = "1",
     ) -> str:
-        """Discover hidden/undocumented parameters by brute-forcing parameter names (Arjun-style).
-        Sends requests adding each candidate parameter and detects anomalies
-        (status change, length change, new content, reflection).
+        """Discover hidden parameters by brute-forcing names and detecting anomalies.
 
         Args:
             session: Session name
-            method: HTTP method (GET or POST)
+            method: HTTP method
             path: Endpoint path to test
-            wordlist: 'common' (~60 params) or 'extended' (~150 params)
-            param_type: Where to add params - 'query', 'body', or 'json'
-            baseline_value: Value to use for test parameters (default '1')
+            wordlist: 'common' (~60) or 'extended' (~150)
+            param_type: Where to add: 'query', 'body', or 'json'
+            baseline_value: Value for test parameters
         """
         candidates = _EXTENDED_PARAMS if wordlist == "extended" else _COMMON_PARAMS
 
@@ -594,13 +548,7 @@ def register(mcp: FastMCP):
         session: str,
         depth: str = "standard",
     ) -> str:
-        """Full reconnaissance pipeline in ONE call. Combines tech detection, endpoint mapping,
-        security header audit, JS secret scanning, robots.txt, and sensitive file discovery.
-
-        Depth levels:
-        - quick: Tech stack + unique endpoints + security headers
-        - standard: + JS secrets + robots.txt + forms
-        - deep: + sensitive file discovery + all endpoint injection points
+        """Full recon pipeline: tech detection, endpoints, headers, secrets, robots.txt, sensitive files.
 
         Args:
             session: Session name with base_url configured
@@ -726,13 +674,12 @@ def register(mcp: FastMCP):
         max_endpoints: int = 10,
     ) -> str:
         """Test multiple endpoints for a specific vulnerability type in ONE call.
-        Auto-selects relevant payloads from knowledge base.
 
         Args:
             session: Session name
-            vulnerability: Vulnerability type - 'sqli', 'xss', 'lfi', 'open_redirect', 'ssrf', 'ssti', 'command_injection'
-            targets: [{"path": "/api/users", "parameter": "id", "method": "GET"}] - auto-discover if None
-            max_endpoints: Max endpoints to test (default 10)
+            vulnerability: Type: sqli, xss, lfi, open_redirect, ssrf, ssti, command_injection
+            targets: Endpoint list (auto-discovered if None)
+            max_endpoints: Max endpoints to test
         """
         # Quick payload sets per vulnerability type.
         # Indicators must be specific enough to survive an "is this string also

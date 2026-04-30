@@ -188,12 +188,9 @@ def register(mcp: FastMCP):
     ) -> str:
         """Save persistent target intelligence for a domain.
 
-        Stores structured data across Claude Code sessions so you never lose context
-        about a target. Data is saved to .burp-intel/<domain>/<category>.json.
-
         Args:
-            domain: Target domain (e.g. 'example.com', 'api.target.com:8443')
-            category: One of: profile, endpoints, coverage, findings, fingerprint
+            domain: Target domain
+            category: One of: profile, endpoints, coverage, findings, fingerprint, patterns
             data: Category-specific data dict to save
         """
         if category not in VALID_CATEGORIES:
@@ -302,12 +299,9 @@ def register(mcp: FastMCP):
     ) -> str:
         """Load persistent target intelligence for a domain.
 
-        Retrieves previously stored data so you can resume testing without re-discovering
-        the target's attack surface.
-
         Args:
-            domain: Target domain (e.g. 'example.com')
-            category: 'all' for summary, 'notes' for markdown notes, or a specific category
+            domain: Target domain
+            category: 'all' for summary, 'notes' for markdown, or a specific category
         """
         dir_path = _intel_path(domain)
 
@@ -381,14 +375,11 @@ def register(mcp: FastMCP):
         domain: str,
         session: str,
     ) -> str:
-        """Check if stored target intel is still fresh by re-fingerprinting key pages.
-
-        Sends GET requests to previously fingerprinted pages, compares response hashes
-        and lengths, and reports what has changed. Also checks knowledge base version.
+        """Re-fingerprint key pages and report what changed since last check.
 
         Args:
             domain: Target domain
-            session: Session name to use for requests (must exist via create_session)
+            session: Session name to use for requests
         """
         dir_path = _intel_path(domain)
         fp_path = dir_path / "fingerprint.json"
@@ -479,12 +470,9 @@ def register(mcp: FastMCP):
     ) -> str:
         """Save freeform markdown notes for a target.
 
-        Use this to persist observations, attack ideas, or session summaries
-        that don't fit structured categories.
-
         Args:
             domain: Target domain
-            notes: Markdown text to save (overwrites existing notes)
+            notes: Markdown text to save (overwrites existing)
         """
         dir_path = _ensure_dir(domain)
         notes_path = dir_path / "notes.md"
@@ -496,14 +484,11 @@ def register(mcp: FastMCP):
         tech_stack: list[str],
         vuln_class: str = "",
     ) -> str:
-        """Find attack patterns from OTHER targets that share a similar tech stack.
-
-        Searches all stored target intel for patterns that worked on targets with
-        overlapping technology, so techniques from target A inform testing on target B.
+        """Find attack patterns from other targets with overlapping tech stack.
 
         Args:
-            tech_stack: Current target's tech stack (e.g. ['PHP', 'Apache', 'MySQL'])
-            vuln_class: Optional filter by vulnerability class (e.g. 'sqli', 'xss')
+            tech_stack: Current target's tech stack
+            vuln_class: Optional filter by vulnerability class
         """
         if not INTEL_DIR.exists():
             return "No target intel stored yet."
@@ -587,27 +572,12 @@ def register(mcp: FastMCP):
         sample_size: int = 50,
         force: bool = False,
     ) -> str:
-        """Capture a realistic-client header profile from proxy history.
-
-        Scans the last `sample_size` proxy-history entries for `domain`, picks
-        the entry whose headers most resemble a real browser (User-Agent,
-        Sec-Fetch-* / Sec-CH-UA / Accept / Accept-Language / Referer), strips
-        session-specific and auto-derived headers (Cookie, Authorization,
-        Host, Content-Length, X-Forwarded-*), and saves the result under
-        `.burp-intel/<domain>/profile.json` → `realistic_headers`.
-
-        Why this matters: when curl_request / send_raw_request must be used
-        for a fresh first-touch endpoint, default Python httpx headers
-        (e.g. User-Agent: python-httpx/X.Y) will trip WAFs and skew test
-        results. Calling this once per target gives you a header dict you
-        can pass to curl_request(headers=...) so the fresh request looks
-        like the real client.
+        """Build a realistic-client header profile from proxy history for WAF-safe fresh requests.
 
         Args:
-            domain: Target domain (e.g. 'example.com')
-            sample_size: How many recent proxy history entries to scan (default 50)
-            force: If False and a profile already exists, returns it without
-                   rebuilding. If True, rebuild from scratch.
+            domain: Target domain
+            sample_size: Recent proxy history entries to scan (default 50)
+            force: Rebuild even if profile already exists
         """
         path = _ensure_dir(domain) / "profile.json"
         existing = {}
@@ -693,25 +663,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_target_headers(domain: str, auto_build: bool = True) -> str:
-        """Return the realistic-client header dict for `domain`.
-
-        Reads `.burp-intel/<domain>/profile.json::realistic_headers`. If the
-        profile is missing and `auto_build=True`, runs
-        `build_target_header_profile` first.
-
-        Use this BEFORE every fresh `curl_request` / `send_raw_request` to
-        an in-scope target with captured proxy history. Pass the returned
-        headers via the `headers=` parameter so the fresh request looks
-        like the real client (avoids WAF triggers, gets accurate test
-        coverage).
-
-        Returns either a JSON-encoded dict (suitable for direct copy into a
-        tool call) or a human-readable miss message if no profile exists
-        and auto_build is False.
+        """Return the realistic-client header dict for a domain.
 
         Args:
             domain: Target domain
-            auto_build: If True, build the profile on-demand when missing
+            auto_build: Build profile on-demand if missing (default True)
         """
         path = _intel_path(domain) / "profile.json"
         profile: dict = {}

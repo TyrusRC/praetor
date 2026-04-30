@@ -17,18 +17,13 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 300,
     ) -> str:
-        """Run a full recon pipeline: subfinder → probe → katana → nuclei.
-
-        Subfinder discovers subdomains, probe_hosts filters to live ones, then
-        katana crawls each live host and nuclei scans each. Gracefully degrades
-        if tools are missing.
+        """Run a full recon pipeline: subfinder, probe, katana, nuclei. Degrades gracefully if tools missing.
 
         Args:
-            domain: Target domain (e.g. 'example.com')
-            depth: 'quick' (subfinder + katana crawl), 'standard' (+ nuclei critical/high), 'deep' (+ nuclei all)
-            max_hosts: Cap on live hosts to crawl/scan (default 10). Prevents
-                       pipeline blowup when subfinder returns 100s of subdomains.
-            use_proxy: Route through Burp proxy (default true)
+            domain: Target domain
+            depth: 'quick', 'standard' (+ nuclei crit/high), or 'deep' (+ nuclei all)
+            max_hosts: Cap on live hosts to crawl/scan (default 10)
+            use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds per tool invocation (default 300)
         """
         domain = _sanitize_domain(domain)

@@ -13,35 +13,12 @@ def register(mcp: FastMCP):
         description: str,
         steps: list[dict],
     ) -> str:
-        """Create a reusable request macro (sequence of requests with variable extraction).
-        Macros automate multi-step flows like login, CSRF token extraction, and session setup.
-        Variables extracted in earlier steps are available in later steps via {{variable}} syntax.
-
-        Each step dict:
-            method: HTTP method (GET, POST, etc.)
-            url: Full URL for this step
-            headers: Optional dict of headers
-            body: Optional request body (can use {{variable}} placeholders)
-            extract: Optional list of extraction rules, each with:
-                name: Variable name to store extracted value
-                source: 'body' or 'header'
-                pattern: Regex pattern to match
-                group: Capture group number (default 1)
-
-        Example steps:
-        [
-            {"method": "GET", "url": "https://target.com/login",
-             "extract": [{"name": "csrf", "source": "body", "pattern": "csrf_token\" value=\"([^\"]+)\"", "group": 1}]},
-            {"method": "POST", "url": "https://target.com/login",
-             "headers": {"Content-Type": "application/x-www-form-urlencoded"},
-             "body": "username=admin&password=test&csrf={{csrf}}",
-             "extract": [{"name": "session", "source": "header", "pattern": "Set-Cookie: session=([^;]+)", "group": 1}]}
-        ]
+        """Create a reusable request macro with variable extraction between steps.
 
         Args:
-            name: Unique macro name (e.g. 'login_macro', 'csrf_flow')
-            description: Human-readable description of what this macro does
-            steps: Ordered list of request steps with optional extraction rules
+            name: Unique macro name
+            description: What this macro does
+            steps: Ordered list of request step dicts with optional extract rules
         """
         payload = {
             "name": name,
@@ -63,17 +40,10 @@ def register(mcp: FastMCP):
         variables: dict | None = None,
     ) -> str:
         """Execute a macro and return extracted variables and step results.
-        Optionally provide initial variables that can be used in step templates.
-
-        Use cases:
-        - Auto-login before testing: run_macro('login') -> get session token
-        - CSRF-protected actions: run_macro('get_csrf_and_submit', {'payload': '<script>alert(1)</script>'})
-        - Multi-step exploits: chain requests with extracted tokens
-        - Session setup: extract cookies and tokens for subsequent manual testing
 
         Args:
             name: Name of the macro to execute
-            variables: Optional initial variables available in step templates via {{name}} syntax
+            variables: Optional initial variables for {{name}} interpolation
         """
         payload: dict = {"name": name}
         if variables:
@@ -107,8 +77,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def list_macros() -> str:
-        """List all defined macros with their names, descriptions, and step counts.
-        Use get_macro(name) for full details including steps and extraction rules."""
+        """List all defined macros with names, descriptions, and step counts."""
         data = await client.get("/api/macro/list")
         if "error" in data:
             return f"Error: {data['error']}"

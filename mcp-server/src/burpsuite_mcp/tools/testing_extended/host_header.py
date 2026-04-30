@@ -13,11 +13,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def test_host_header(session: str, path: str = "/") -> str:
-        """Test Host header injection — alternate host, duplicate headers, X-Forwarded-Host,
-        host with port abuse, absolute URL.
-
-        Example:
-            test_host_header(session="s1", path="/password-reset")
+        """Test Host header injection via alternate host, X-Forwarded-Host, X-Original-URL, and variants.
 
         Args:
             session: Session name for auth state

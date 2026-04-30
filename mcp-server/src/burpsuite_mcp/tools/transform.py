@@ -15,20 +15,11 @@ def register(mcp: FastMCP):
         input_text: str,
         operations: list[str],
     ) -> str:
-        """Apply multiple encoding/decoding operations in sequence. Output of each step feeds into the next.
-        Useful for crafting WAF bypass payloads that need multiple encoding layers.
-
-        Operations: base64_encode, base64_decode, url_encode, url_decode, double_url_encode,
-                    html_encode, html_decode, hex_encode, hex_decode, unicode_escape,
-                    unicode_unescape, ascii_hex, reverse, lowercase, uppercase
+        """Apply multiple encoding/decoding operations in sequence.
 
         Args:
             input_text: Starting text
-            operations: List of operations to apply in order
-
-        Examples:
-            - WAF bypass: transform_chain('<script>alert(1)</script>', ['url_encode', 'base64_encode', 'url_encode'])
-            - Decode nested: transform_chain('encoded_value', ['url_decode', 'base64_decode', 'url_decode'])
+            operations: Ordered list of operations to chain
         """
         if not operations:
             return "Error: No operations specified"
@@ -53,18 +44,10 @@ def register(mcp: FastMCP):
         max_rounds: int = 5,
     ) -> str:
         """Auto-detect encoding and recursively decode until plaintext is reached.
-        Peels back multiple encoding layers automatically.
-
-        Detection order: base64, URL encoding, hex encoding, HTML entities, unicode escapes.
 
         Args:
             input_text: Encoded text to decode
             max_rounds: Maximum decoding iterations (default 5)
-
-        Example: smart_decode('JTNDc2NyaXB0JTNFYWxlcnQoMSklM0MlMkZzY3JpcHQlM0U=')
-          -> base64_decode -> '%3Cscript%3Ealert(1)%3C%2Fscript%3E'
-          -> url_decode -> '<script>alert(1)</script>'
-          -> (plaintext, stop)
         """
         steps: list[str] = []
         current = input_text
@@ -95,10 +78,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def detect_encoding(input_text: str) -> str:
-        """Analyze text to detect what encoding(s) are applied.
-        Returns detected encodings and confidence levels.
-
-        Checks for: Base64, URL encoding, Hex, HTML entities, Unicode escapes, JWT, Double URL encoding.
+        """Detect what encoding(s) are applied to the given text.
 
         Args:
             input_text: Text to analyze

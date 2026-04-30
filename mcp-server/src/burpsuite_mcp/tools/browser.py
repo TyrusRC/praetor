@@ -101,16 +101,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def browser_navigate(url: str, wait_until: str = "domcontentloaded") -> str:
-        """Navigate the headless browser to a URL through Burp's proxy.
-        ALL traffic (page, JS, CSS, XHR, images) appears in Burp's proxy history.
-
-        This is the primary way to populate proxy history for a target.
-        After browsing, use get_proxy_history() to see captured requests,
-        then use extraction tools on specific items.
+        """Navigate headless browser to a URL through Burp's proxy. All traffic appears in proxy history.
 
         Args:
             url: URL to navigate to
-            wait_until: When to consider navigation done — 'domcontentloaded' (default), 'load', 'networkidle'
+            wait_until: Navigation event to wait for ('domcontentloaded', 'load', 'networkidle')
         """
         _, _, page = await _ensure_browser()
 
@@ -133,11 +128,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def browser_click(selector: str, wait_after: int = 2000) -> str:
-        """Click an element on the current page. Triggers navigation, AJAX, form submissions.
-        All resulting traffic flows through Burp's proxy.
+        """Click an element on the current page. All resulting traffic flows through Burp's proxy.
 
         Args:
-            selector: CSS selector of element to click (e.g. 'a[href="/login"]', 'button[type=submit]', '#loginBtn')
+            selector: CSS selector of element to click
             wait_after: Milliseconds to wait after click for network activity (default 2000)
         """
         _, _, page = await _ensure_browser()
@@ -155,7 +149,7 @@ def register(mcp: FastMCP):
         """Fill a form field with a value. Use before browser_click to submit forms.
 
         Args:
-            selector: CSS selector of input field (e.g. 'input[name=username]', '#email')
+            selector: CSS selector of input field
             value: Value to type into the field
         """
         _, _, page = await _ensure_browser()
@@ -174,8 +168,8 @@ def register(mcp: FastMCP):
         """Fill multiple form fields and submit. All traffic goes through Burp's proxy.
 
         Args:
-            fields: Dict of CSS selector -> value pairs (e.g. {'input[name=username]': 'admin', 'input[name=password]': 'test'})
-            submit_selector: CSS selector for submit button (default: finds first submit button)
+            fields: Dict of CSS selector -> value pairs
+            submit_selector: CSS selector for submit button (auto-detected if empty)
         """
         _, _, page = await _ensure_browser()
 
@@ -206,11 +200,7 @@ def register(mcp: FastMCP):
         max_pages: int = 20,
         same_origin: bool = True,
     ) -> str:
-        """Auto-crawl a target by visiting pages and clicking links.
-        All traffic flows through Burp's proxy, populating proxy history.
-
-        This is the fastest way to map a target — one call generates dozens of
-        proxy history items for analysis.
+        """Auto-crawl a target by visiting pages and clicking links through Burp's proxy.
 
         Args:
             url: Starting URL to crawl from
@@ -273,7 +263,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def browser_get_links(same_origin: bool = True) -> str:
-        """Get all links on the current page. Useful for mapping navigation before crawling.
+        """Get all links on the current page.
 
         Args:
             same_origin: Only return same-origin links (default True)
@@ -318,8 +308,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def browser_get_page_info() -> str:
-        """Get current page info — URL, title, cookies, forms, and key elements.
-        Quick overview without reading full page content."""
+        """Get current page URL, title, cookies, forms, and key elements."""
         _, _, page = await _ensure_browser()
 
         try:
@@ -373,15 +362,9 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def browser_execute_js(script: str) -> str:
         """Execute JavaScript on the current page and return the result.
-        Use for extracting data, triggering actions, or testing DOM-based vulns.
 
         Args:
             script: JavaScript code to execute (must return a value)
-
-        Examples:
-        - Get all cookies: browser_execute_js('document.cookie')
-        - Check Angular scope: browser_execute_js('angular.element(document.body).scope()')
-        - Extract tokens: browser_execute_js('document.querySelector(\"meta[name=csrf-token]\").content')
         """
         _, _, page = await _ensure_browser()
 
@@ -395,8 +378,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def browser_close() -> str:
-        """Close the headless browser and free resources.
-        Call when done browsing. The browser will auto-restart on next browser_navigate call."""
+        """Close the headless browser and free resources. Auto-restarts on next browser_navigate."""
         global _playwright, _browser, _context, _page
 
         was_running = _browser is not None or _playwright is not None
@@ -419,17 +401,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def browser_interact_all(url: str, max_clicks: int = 30) -> str:
-        """Navigate to a URL and automatically interact with all buttons, links, and forms.
-        Maximizes proxy history coverage by triggering all UI paths.
-
-        Scope enforcement: the starting URL is checked against Burp's scope, and
-        each navigation link is re-checked before follow. Out-of-scope links
-        (e.g. social media footer icons, external CDNs) are skipped. Buttons
-        and dropdowns that trigger same-origin XHRs are always allowed — scope
-        rules govern network destinations, not button clicks.
-
-        This is the most aggressive crawl — it clicks every button, expands every dropdown,
-        and follows every link to generate maximum traffic through Burp's proxy.
+        """Navigate to a URL and interact with all buttons, links, dropdowns for maximum proxy coverage. Scope-checked per link.
 
         Args:
             url: Starting URL (must be in scope)

@@ -48,11 +48,7 @@ def register(mcp: FastMCP):
         known_params: dict,
         extra_params: dict | None = None,
     ) -> str:
-        """Test for mass assignment / parameter binding by injecting extra parameters.
-
-        Example:
-            test_mass_assignment(session="s1", method="POST", path="/api/profile",
-                known_params={"name": "test"}, extra_params={"role": "admin", "is_admin": true})
+        """Test for mass assignment by injecting extra parameters (role, is_admin, price, etc.).
 
         Args:
             session: Session name for auth state

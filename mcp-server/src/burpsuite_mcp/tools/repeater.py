@@ -20,17 +20,11 @@ def register(mcp: FastMCP):
         index: int,
         tab_name: str = "",
     ) -> str:
-        """Send a proxy history item to Burp Repeater and track it for iterative testing.
-        The tab is tracked server-side so you can later resend it with modifications.
-
-        This is the starting point for iterative request testing:
-        1. send_to_repeater_tracked(index) — grab a request from proxy history
-        2. repeater_resend(tab_name, modify_headers=...) — tweak and resend
-        3. Compare responses, adjust, repeat
+        """Send a proxy history item to Burp Repeater and track it for iterative resending.
 
         Args:
             index: Proxy history index of the request to send
-            tab_name: Optional name for the Repeater tab (default: MCP-{index})
+            tab_name: Optional name for the Repeater tab
         """
         payload: dict = {"index": index}
         if tab_name:
@@ -49,11 +43,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_repeater_tabs() -> str:
-        """List all tracked Repeater tabs with their current state.
-        Shows tab name, HTTP method, URL, send count, and whether a response exists.
-
-        Use this to see what requests are available for iterative testing.
-        """
+        """List all tracked Repeater tabs with their current state."""
         data = await client.get("/api/repeater/tabs")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -80,18 +70,13 @@ def register(mcp: FastMCP):
         modify_method: str = "",
     ) -> str:
         """Resend a tracked Repeater tab's request with optional modifications.
-        The modified request is sent through Burp's HTTP stack and the response is returned.
-        Each resend increments the tab's send count and updates its stored response.
-
-        This is the core iteration tool: modify one thing at a time and compare responses
-        to identify injection points, WAF bypasses, or behavior differences.
 
         Args:
             tab_name: Name of the tracked Repeater tab
-            modify_headers: Dict of headers to add/replace (e.g. {"Authorization": "Bearer new_token"})
+            modify_headers: Headers to add/replace
             modify_body: New request body (replaces entire body)
-            modify_path: New request path (e.g. "/api/v2/users")
-            modify_method: New HTTP method (e.g. "PUT")
+            modify_path: New request path
+            modify_method: New HTTP method
         """
         payload: dict = {"name": tab_name}
         if modify_headers:
@@ -111,9 +96,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def remove_repeater_tab(tab_name: str) -> str:
-        """Remove a tracked Repeater tab from the server-side map.
-        This does NOT close the tab in Burp's UI (that's not API-accessible),
-        it only removes it from our tracking so it can no longer be resent.
+        """Remove a tracked Repeater tab from server-side tracking.
 
         Args:
             tab_name: Name of the tab to remove

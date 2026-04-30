@@ -11,8 +11,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def enable_intercept() -> str:
-        """Enable Burp proxy interception. Requests will be held for review/modification.
-        Use disable_intercept() when done to resume normal traffic flow."""
+        """Enable Burp proxy interception. Requests will be held for review/modification."""
         data = await client.post("/api/intercept/enable")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -49,34 +48,10 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def set_match_replace(rules: list[dict], force: bool = False) -> str:
         """Add match-and-replace rules to automatically modify proxy traffic.
-        Each rule: {'type': 'request'|'response', 'match': 'regex', 'replace': 'replacement'}
-        Optional: 'enabled' (default True), 'scope': 'all'|'in_scope' (recommended 'in_scope')
-
-        Safety:
-        - Rules affect ALL proxy traffic unless `scope: 'in_scope'` is set. For most
-          bug-bounty use cases, set scope='in_scope' so out-of-scope sites aren't
-          touched.
-        - Rewriting Host, Authorization, Cookie, Content-Length, or Transfer-Encoding
-          headers is refused unless `force=True` — these commonly break traffic or
-          leak auth across hosts.
-        - Rules live in Burp memory only; restarting Burp wipes them. Persist
-          important rules in your hunt notes.
-
-        Use cases:
-        - Add X-Forwarded-For (in-scope only):
-          {'type':'request', 'scope':'in_scope',
-           'match':'(\\r\\n\\r\\n)', 'replace':'\\r\\nX-Forwarded-For: 127.0.0.1\\r\\n\\r\\n'}
-        - Strip CSP (in-scope):
-          {'type':'response', 'scope':'in_scope',
-           'match':'Content-Security-Policy: [^\\r\\n]+', 'replace':''}
-        - Swap Bearer token (in-scope):
-          {'type':'request', 'scope':'in_scope',
-           'match':'Bearer old_token', 'replace':'Bearer new_token'}
 
         Args:
-            rules: List of match-replace rule dicts
-            force: Allow rules that target dangerous headers (Host, Auth, Cookie,
-                   Content-Length, Transfer-Encoding). Default False.
+            rules: List of rule dicts: {type, match, replace, scope?, enabled?}
+            force: Allow dangerous header rewrites (Host, Auth, Cookie, etc.)
         """
         if not force:
             blocked = []
@@ -166,15 +141,11 @@ def register(mcp: FastMCP):
         comment: str = "",
     ) -> str:
         """Mark a proxy history item with a color and/or comment in Burp's UI.
-        Colors: RED, ORANGE, YELLOW, GREEN, CYAN, BLUE, PINK, MAGENTA, GRAY.
-
-        Use to flag interesting requests, mark tested endpoints, or highlight vulnerabilities.
-        Annotations are visible in Burp's proxy history — useful for human review.
 
         Args:
             index: Proxy history index
-            color: Highlight color (e.g. 'RED' for vulnerabilities, 'GREEN' for tested)
-            comment: Note text (e.g. 'Possible SQLi in id parameter')
+            color: RED, ORANGE, YELLOW, GREEN, CYAN, BLUE, PINK, MAGENTA, GRAY
+            comment: Note text for the annotation
         """
         data = await client.post("/api/annotations/set", json={
             "index": index, "color": color, "comment": comment,
@@ -186,12 +157,9 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def annotate_bulk(items: list[dict]) -> str:
         """Annotate multiple proxy history items at once.
-        Each item: {'index': N, 'color': 'RED', 'comment': 'note'}
-
-        Efficient for marking multiple findings or categorizing traffic.
 
         Args:
-            items: List of annotation dicts with index, color, and/or comment
+            items: List of dicts: {index, color?, comment?}
         """
         data = await client.post("/api/annotations/bulk", json={"items": items})
         if "error" in data:
@@ -219,8 +187,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_proxy_stats() -> str:
-        """Get proxy traffic statistics — total requests, unique hosts, method and status distributions.
-        Quick situational awareness without parsing full history."""
+        """Get proxy traffic statistics -- total requests, unique hosts, method and status distributions."""
         data = await client.get("/api/traffic/stats")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -241,10 +208,6 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def get_live_requests(since_index: int) -> str:
         """Get new proxy requests captured since a given index.
-        Use for polling to watch live traffic as the user browses.
-
-        Call get_proxy_stats() first to get current total, then poll with
-        get_live_requests(total-1) to see new traffic.
 
         Args:
             since_index: Return items after this proxy history index
@@ -271,19 +234,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def register_traffic_monitor(tag: str, patterns: list[dict]) -> str:
-        """Register a traffic monitor that watches for patterns in proxy traffic.
-        Passively detects interesting traffic while the user browses.
-
-        Each pattern: {'location': 'url'|'request_body'|'response_body'|'request_header'|'response_header', 'regex': 'pattern'}
-
-        Examples:
-        - API keys: [{'location':'response_body', 'regex':'(api[_-]?key|apikey)[\"\\s:=]+[a-zA-Z0-9]{20,}'}]
-        - Admin paths: [{'location':'url', 'regex':'/admin|/debug|/internal'}]
-        - SQL errors: [{'location':'response_body', 'regex':'(SQL syntax|ORA-|mysql_)'}]
+        """Register a traffic monitor that watches for regex patterns in proxy traffic.
 
         Args:
             tag: Unique name for this monitor
-            patterns: List of pattern dicts with location and regex
+            patterns: List of dicts: {location, regex}
         """
         data = await client.post("/api/traffic/monitor/register", json={
             "tag": tag, "patterns": patterns,
@@ -294,8 +249,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def check_traffic_monitor(tag: str) -> str:
-        """Check a registered traffic monitor for hits since last check.
-        Returns any proxy items that matched the monitor's patterns.
+        """Check a registered traffic monitor for new pattern hits.
 
         Args:
             tag: Monitor name from register_traffic_monitor

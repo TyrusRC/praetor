@@ -81,52 +81,22 @@ def register(mcp: FastMCP):
         vuln_type: str = "",
         confidence: float = 0.5,
     ) -> str:
-        """Save a pentest finding/vulnerability note. ZERO-NOISE GATE.
-
-        PRECONDITION: call `assess_finding(vuln_type, evidence, endpoint, parameter, domain)`
-        FIRST. If the verdict is `DO NOT REPORT` or `NEEDS MORE EVIDENCE`, do NOT
-        call this. The advisor catches duplicates, NEVER SUBMIT classes, weak
-        evidence, and out-of-scope endpoints — all of which would otherwise burn
-        tokens here on rejected `save_finding` calls. See Rule 25 in
-        `.claude/rules/hunting.md`.
-
-        The Burp extension HARD-REJECTS findings without verified evidence:
-          - `evidence` MUST be a dict with at least one of:
-              {"logger_index": <int>}
-              {"proxy_history_index": <int>}
-              {"collaborator_interaction_id": "<str>"}
-            and the index/ID MUST resolve against live Burp data.
-          - For timing/blind vuln_types (sqli_blind, sqli_time, ssrf_blind,
-            race_condition, request_smuggling, ssti_blind,
-            command_injection_blind, xxe_blind), `reproductions` MUST be a list
-            of >= 2 dicts of shape:
-              {"logger_index": <int>, "elapsed_ms": <int>, "status_code": <int>}
-          - If `vuln_type` (or `title`) matches the NEVER SUBMIT list (missing
-            security headers, self-XSS, OPTIONS enabled, etc. — see hunting.md),
-            `chain_with` MUST be a non-empty list of existing finding IDs.
-
-        The server returns a 400 with a clear remediation message when any check
-        fails — propagate it back to the caller.
+        """Save a pentest finding. Requires prior assess_finding() call. Burp hard-rejects missing evidence.
 
         Args:
-            title: Short finding title (e.g. "SQL Injection in login form").
-            description: Detailed description of the vulnerability.
-            evidence: Required. {"logger_index": int} OR {"proxy_history_index": int}
-                      OR {"collaborator_interaction_id": str}. Combine if you have
-                      more than one.
-            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO.
-            endpoint: Affected URL/endpoint.
-            evidence_text: Freeform proof string (req/resp snippets, payloads).
-                           Goes into the report; not used for validation.
-            reproductions: Required for timing/blind vuln_types. List of >=2 dicts:
-                           [{"logger_index": int, "elapsed_ms": int, "status_code": int}, ...]
-            chain_with: Required for NEVER SUBMIT vuln_types. List of existing
-                        finding IDs that turn this into a reportable chain.
-            status: 'suspected', 'confirmed', 'stale', or 'likely_false_positive'.
-            domain: Target domain for persistent .burp-intel storage.
-            parameter: Parameter name (used for dedup key).
-            vuln_type: Vulnerability class (e.g. 'sqli', 'xss', 'sqli_blind').
-            confidence: 0.0–1.0 score. RED highlight only at >= 0.9.
+            title: Short finding title
+            description: Detailed vulnerability description
+            evidence: Dict with logger_index, proxy_history_index, or collaborator_interaction_id
+            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO
+            endpoint: Affected URL/endpoint
+            evidence_text: Freeform proof string for the report
+            reproductions: Required for timing/blind vuln_types (>=2 dicts with logger_index/elapsed_ms/status_code)
+            chain_with: Required for NEVER SUBMIT vuln_types — list of finding IDs for the chain
+            status: suspected, confirmed, stale, or likely_false_positive
+            domain: Target domain for persistent .burp-intel storage
+            parameter: Parameter name (dedup key)
+            vuln_type: Vulnerability class (e.g. sqli, xss, sqli_blind)
+            confidence: 0.0-1.0 score
         """
         try:
             confidence = max(0.0, min(1.0, float(confidence)))
@@ -213,7 +183,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_findings(endpoint: str = "") -> str:
-        """Get all saved pentest findings, optionally filtered by endpoint URL."""
+        """Get all saved pentest findings, optionally filtered by endpoint URL.
+
+        Args:
+            endpoint: Filter by endpoint URL substring (empty = all)
+        """
         params = {}
         if endpoint:
             params["endpoint"] = endpoint
@@ -239,24 +213,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def hydrate_burp_findings(domain: str = "all", include_suspected: bool = False) -> str:
-        """Re-populate Burp's in-memory Findings tab from `.burp-intel/<domain>/findings.json`.
-
-        Use after a Burp extension reload — `FindingsStore` is in-memory only and
-        empties on reload, but `.burp-intel/<domain>/findings.json` survives.
-        This tool POSTs each persisted finding back to `/api/notes/findings`
-        so the Burp UI Findings tab reflects what's on disk.
-
-        Findings whose evidence indices no longer resolve in live Burp data
-        (e.g. proxy history was reset too) are skipped and reported — they
-        remain on disk but won't appear in the UI until the underlying
-        request is re-captured.
+        """Re-populate Burp's in-memory Findings tab from persisted .burp-intel findings. Use after extension reload.
 
         Args:
-            domain: Specific domain to hydrate, or 'all' to walk every
-                    `.burp-intel/<domain>/` directory.
-            include_suspected: If True, also restore status='suspected'/'stale'
-                               findings (default: confirmed-only — match
-                               generate_report's true-positives gate).
+            domain: Specific domain to hydrate, or 'all' for every .burp-intel domain
+            include_suspected: If True, also restore suspected/stale findings (default: confirmed-only)
         """
         targets: list[Path] = []
         if domain == "all":

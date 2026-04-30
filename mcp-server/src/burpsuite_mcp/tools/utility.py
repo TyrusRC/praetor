@@ -17,22 +17,10 @@ def register(mcp: FastMCP):
         operation: str,
     ) -> str:
         """Encode or decode text using common pentesting encodings.
-        Useful for crafting payloads, decoding tokens, and data transformation.
-
-        Operations:
-        - base64_encode, base64_decode
-        - url_encode, url_decode
-        - html_encode, html_decode
-        - hex_encode, hex_decode
-        - jwt_decode (decode JWT token parts without verification)
-        - unicode_escape, unicode_unescape
-        - md5, sha1, sha256 (hash, one-way)
-        - double_url_encode (for WAF bypass)
-        - ascii_hex (convert to \\xNN format for exploit payloads)
 
         Args:
-            input_text: The text to encode/decode
-            operation: The operation to perform (e.g. 'base64_encode')
+            input_text: Text to encode/decode
+            operation: base64_encode/decode, url_encode/decode, html_encode/decode, hex_encode/decode, jwt_decode, md5, sha1, sha256, double_url_encode, ascii_hex, unicode_escape/unescape
         """
         try:
             result = _perform_operation(input_text, operation)

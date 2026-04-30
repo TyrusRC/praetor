@@ -15,18 +15,12 @@ def register(mcp: FastMCP):
         find_all: bool = False,
     ) -> str:
         """Extract data from a response using regex pattern matching.
-        10x more efficient than get_request_detail — pulls only what you need.
 
         Args:
             index: Proxy history index
             pattern: Regex pattern (use capture groups for specific extraction)
             group: Capture group number (0=whole match, 1=first group)
-            find_all: If True, return all matches instead of just the first
-
-        Examples:
-        - CSRF token: extract_regex(42, 'csrf_token[\"\\s:=]+[\"\\']?([a-f0-9]+)', group=1)
-        - All emails: extract_regex(42, '[\\w.+-]+@[\\w.-]+\\.\\w{2,}', find_all=True)
-        - JSON value: extract_regex(42, '"role"\\s*:\\s*"(\\w+)"', group=1)
+            find_all: Return all matches instead of just the first
         """
         data = await client.post("/api/extract-text/regex", json={
             "index": index, "pattern": pattern, "group": group, "all": find_all,
@@ -46,13 +40,6 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def extract_json_path(index: int, path: str) -> str:
         """Extract a value from a JSON response using a simple path expression.
-        Much more efficient than reading the full response body.
-
-        Path syntax:
-        - $.key — top-level key
-        - $.key.nested — nested access
-        - $.key[0] — array index
-        - $.key[*].field — extract field from all array elements
 
         Args:
             index: Proxy history index
@@ -74,17 +61,11 @@ def register(mcp: FastMCP):
         attribute: str = "",
     ) -> str:
         """Extract elements from an HTML response using CSS-like selectors.
-        Supports: tag, tag.class, tag#id, tag[attr], tag[attr=value].
 
         Args:
             index: Proxy history index
             selector: CSS-like selector (e.g. 'input[name=csrf_token]')
             attribute: Extract this attribute's value (optional)
-
-        Examples:
-        - CSRF token: extract_css_selector(42, 'input[name=csrf_token]', attribute='value')
-        - Form actions: extract_css_selector(42, 'form', attribute='action')
-        - Hidden fields: extract_css_selector(42, 'input[type=hidden]', attribute='value')
         """
         data = await client.post("/api/extract-text/css-selector", json={
             "index": index, "selector": selector, "attribute": attribute,
@@ -114,17 +95,11 @@ def register(mcp: FastMCP):
         from_request: bool = False,
     ) -> str:
         """Extract specific headers from a request or response.
-        If no names specified, returns all headers.
 
         Args:
             index: Proxy history index
             names: Header names to extract (None = all)
-            from_request: If True, extract from request headers
-
-        Examples:
-        - Security: extract_headers(42, ['Content-Security-Policy', 'X-Frame-Options'])
-        - Auth: extract_headers(42, ['Authorization', 'X-Auth-Token'], from_request=True)
-        - CORS: extract_headers(42, ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'])
+            from_request: Extract from request headers instead of response
         """
         payload: dict = {"index": index}
         if names:
@@ -148,11 +123,10 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def extract_links(index: int, link_filter: str = "all") -> str:
         """Extract all links and URLs from an HTML response.
-        Finds anchors, form actions, scripts, stylesheets, images, iframes.
 
         Args:
             index: Proxy history index
-            filter: 'all', 'internal' (same host), or 'external' (different host)
+            link_filter: 'all', 'internal', or 'external'
         """
         data = await client.post("/api/extract-text/links", json={
             "index": index, "filter": link_filter,
@@ -181,8 +155,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_response_hash(index: int, algorithm: str = "sha256") -> str:
-        """Get a hash of a response body for quick change detection.
-        Compare hashes instead of full bodies to detect page changes.
+        """Get a hash of a response body for change detection.
 
         Args:
             index: Proxy history index

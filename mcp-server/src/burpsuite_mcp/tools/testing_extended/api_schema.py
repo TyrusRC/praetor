@@ -30,15 +30,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def parse_api_schema(url: str = "", schema_text: str = "") -> str:
-        """Parse an OpenAPI/Swagger spec and extract testable endpoints with vuln test suggestions.
-
-        Example:
-            parse_api_schema(url="https://api.example.com/openapi.json")
-            parse_api_schema(schema_text='{"openapi":"3.0.0",...}')
+        """Parse an OpenAPI/Swagger spec and extract testable endpoints with vuln suggestions.
 
         Args:
-            url: URL to fetch the OpenAPI/Swagger spec from
-            schema_text: Raw schema text (JSON) — use if you already have the spec
+            url: URL to fetch the spec from
+            schema_text: Raw schema JSON (alternative to url)
         """
         if not url and not schema_text:
             return "Error: Provide either 'url' to fetch spec or 'schema_text' with raw spec content"

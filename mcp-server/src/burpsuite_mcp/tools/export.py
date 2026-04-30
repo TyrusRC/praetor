@@ -12,20 +12,11 @@ def register(mcp: FastMCP):
         url_prefix: str = "",
         format: str = "json",
     ) -> str:
-        """Export all discovered endpoints as a structured API map.
-        Builds from proxy history — groups endpoints, deduplicates, infers parameter types.
-
-        Formats:
-        - json: Compact JSON optimized for LLM consumption (default)
-          Shows each endpoint with methods, parameters (name, location, type, example), responses
-        - openapi: OpenAPI 3.0 YAML spec for external tools (Swagger, Postman, etc.)
-
-        Use the JSON format to quickly understand the full attack surface.
-        Use OpenAPI format to import into other security tools.
+        """Export discovered endpoints as a structured API map (JSON or OpenAPI 3.0).
 
         Args:
-            url_prefix: Filter by URL prefix (e.g. 'https://target.com')
-            format: Output format - 'json' or 'openapi'
+            url_prefix: Filter by URL prefix
+            format: Output format — 'json' or 'openapi'
         """
         params = {"format": format, "prefix": url_prefix}
 

@@ -38,22 +38,12 @@ def register(mcp: FastMCP):
         include_coverage: bool = True,
         include_suspected: bool = False,
     ) -> str:
-        """Generate a professional pentest report from saved findings and intel.
-
-        TRUE-POSITIVES-ONLY GATE (Rule 28):
-        Reports include ONLY findings with status='confirmed'. Findings with
-        status='likely_false_positive' are HARD-DELETED from the persistent
-        store before the report runs — no tombstones, no tracking lists.
-
-        Findings with status='suspected' or 'stale' are excluded by default;
-        they are NOT deleted (they may still be verified later). Pass
-        `include_suspected=True` only for an internal triage draft — never
-        for an external bug-bounty submission.
+        """Generate a professional pentest report from saved findings. True-positives only; hard-deletes false positives.
 
         Args:
             domain: Target domain
-            format: 'pentest' | 'executive' | 'findings'
-            platform: '' | 'hackerone' | 'bugcrowd' | 'intigriti' | 'immunefi'
+            format: 'pentest', 'executive', or 'findings'
+            platform: '' or 'hackerone', 'bugcrowd', 'intigriti', 'immunefi'
             include_coverage: Include test-coverage section (default True)
             include_suspected: Include suspected/stale findings (default False)
         """

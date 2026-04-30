@@ -18,17 +18,15 @@ def register(mcp: FastMCP):
         limit: int = 50,
     ) -> str:
         """Search proxy history for requests matching a query string.
-        Search across URLs, request bodies, and response bodies.
-        Use to find all requests related to a specific feature, parameter, or endpoint.
 
         Args:
-            query: Search string (case-insensitive substring match)
-            in_url: Search in URLs (default True)
+            query: Search string (case-insensitive)
+            in_url: Search in URLs
             in_request_body: Search in request bodies
             in_response_body: Search in response bodies
             method: Filter by HTTP method
-            status_code: Filter by response status code
-            limit: Max results (default 50)
+            status_code: Filter by status code
+            limit: Max results
         """
         payload = {
             "query": query,
@@ -60,8 +58,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_findings_for_endpoint(url: str) -> str:
-        """Get all findings (scanner + manual notes) related to a specific endpoint URL.
-        Combines Burp scanner findings and user-saved notes for comprehensive view."""
+        """Get all scanner and manual findings for a specific endpoint URL.
+
+        Args:
+            url: Endpoint URL to look up
+        """
         # Get scanner findings
         scanner_data = await client.get("/api/scanner/findings")
         notes_data = await client.get("/api/notes/findings", params={"endpoint": url})
@@ -96,7 +97,6 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def get_response_diff(index1: int, index2: int) -> str:
         """Diff two proxy history responses to spot differences.
-        Useful for comparing responses with/without auth, different parameter values, etc.
 
         Args:
             index1: First proxy history index

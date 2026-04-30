@@ -21,19 +21,13 @@ def register(mcp: FastMCP):
         headers: dict | None = None,
         body: str = "",
     ) -> str:
-        """Send an HTTP request through Burp Suite's HTTP client.
-
-        Visibility: appears in Proxy → HTTP history (with anomaly highlighting),
-        the Logger tab, and MCP history (get_mcp_history). Use this index in
-        save_finding evidence.proxy_history_index or evidence.logger_index.
-
-        Passive scanner still sees the request/response pair.
+        """Simple HTTP request through Burp. Prefer curl_request for auth, cookies, or redirects.
 
         Args:
-            method: HTTP method (GET, POST, PUT, DELETE, etc.)
-            url: Full URL (e.g. https://example.com/api/users)
-            headers: Optional dict of headers (e.g. {"Authorization": "Bearer xxx"})
-            body: Optional request body string
+            method: HTTP method
+            url: Full URL
+            headers: Optional headers dict
+            body: Optional request body
         """
         payload = {"method": method, "url": url}
         if headers:
@@ -54,9 +48,7 @@ def register(mcp: FastMCP):
         port: int = 443,
         https: bool = True,
     ) -> str:
-        """Send a raw HTTP request through Burp Suite.
-        Use when you need exact control over the request bytes (e.g. request smuggling tests).
-        The raw string should be a complete HTTP request with CRLF line endings.
+        """Send a raw HTTP request through Burp for exact byte-level control.
 
         Args:
             raw: Complete raw HTTP request string
@@ -82,16 +74,14 @@ def register(mcp: FastMCP):
         modify_path: str = "",
         modify_method: str = "",
     ) -> str:
-        """Resend a proxy history request with modifications through Burp.
-        Takes a request by index and applies changes before sending.
-        Perfect for testing parameter tampering, auth bypass, injection payloads.
+        """Resend a proxy history request with modifications.
 
         Args:
             index: Proxy history index of the original request
-            modify_headers: Dict of headers to add/replace
-            modify_body: New request body (replaces original)
-            modify_path: New URL path (replaces original)
-            modify_method: New HTTP method (replaces original)
+            modify_headers: Headers to add/replace
+            modify_body: New request body
+            modify_path: New URL path
+            modify_method: New HTTP method
         """
         payload: dict = {"index": index}
         if modify_headers:
@@ -110,7 +100,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def send_to_repeater(index: int, tab_name: str = "") -> str:
-        """Send a proxy history request to Burp's Repeater tool for manual testing.
+        """Send a proxy history request to Burp Repeater tab.
 
         Args:
             index: Proxy history index of the request
@@ -153,31 +143,20 @@ def register(mcp: FastMCP):
         follow_redirects: bool = False,
         max_redirects: int = 10,
     ) -> str:
-        """Send HTTP requests through Burp like curl/httpx - with optional redirect following, auth, and cookies.
-
-        Visibility: appears in Proxy → HTTP history (with anomaly highlighting),
-        the Logger tab, and MCP history (get_mcp_history).
-
-        This is the most flexible request tool - use it like curl:
-        - Opt-in redirect following (off by default to avoid cross-scope cookie/token leaks)
-        - Supports Basic auth, Bearer tokens, custom cookies
-        - Shortcuts for JSON and form-encoded data
+        """Flexible HTTP request through Burp with auth, cookies, and optional redirect following.
 
         Args:
-            url: Target URL (e.g. 'https://target.com/api/users')
+            url: Target URL
             method: HTTP method (GET, POST, PUT, DELETE, PATCH, etc.)
-            headers: Custom headers dict (e.g. {"X-Custom": "value"})
+            headers: Custom headers dict
             body: Raw request body string
-            data: Form-encoded data (sets Content-Type: application/x-www-form-urlencoded)
-            json_body: JSON body dict (sets Content-Type: application/json)
+            data: Form-encoded data (auto-sets Content-Type)
+            json_body: JSON body dict (auto-sets Content-Type)
             auth_user: Username for Basic auth
             auth_pass: Password for Basic auth
             bearer_token: Bearer token for Authorization header
-            cookies: Cookies dict (e.g. {"session": "abc123"})
-            follow_redirects: Follow HTTP redirects. Default False — enabling can leak
-                              auth cookies / bearer tokens cross-scope on a 302. Only
-                              enable when you've verified the target domain doesn't
-                              redirect off-origin.
+            cookies: Cookies dict
+            follow_redirects: Follow redirects (default False to prevent cross-scope leaks)
             max_redirects: Max redirect hops (default 10)
         """
         payload: dict = {
@@ -214,38 +193,12 @@ def register(mcp: FastMCP):
         concurrency: int = 10,
         delay_ms_between_batches: int = 0,
     ) -> str:
-        """Fire many requests concurrently. For rate-limit testing, spam tests,
-        custom brute-force loops, business-flow probing, or any case Intruder's
-        position/payload model can't express.
-
-        Each request dict supports the same shape as `curl_request`:
-          {"url", "method", "headers", "body", "data", "json_body",
-           "auth_user", "auth_pass", "bearer_token", "cookies",
-           "follow_redirects", "max_redirects"}
+        """Fire many requests concurrently through Burp. For rate-limit testing, spam, or custom brute-force.
 
         Args:
-            requests: List of request dicts (1..N). All fire through Burp.
-            concurrency: Max in-flight at once (default 10). Use 1 for serial
-                         back-to-back (rate-limit detection); higher for spam
-                         and rate-limit-saturation tests.
-            delay_ms_between_batches: Optional sleep between concurrency-sized
-                         batches. Use 0 for full saturation.
-
-        Returns a compact table:
-          # | status | length | elapsed_ms | url
-        Plus aggregate stats: median/p95/p99 elapsed, status distribution,
-        first 429/Retry-After detection. The Burp Logger / Proxy history
-        keeps the full detail for follow-up.
-
-        Use cases:
-          - Rate-limit absence test: 50 requests, concurrency=20, look for
-            consistent 200s (vulnerable) vs 429 (protected).
-          - Custom brute force: branch on response shape per attempt.
-          - Spam / quota abuse: hammer a paid-feature endpoint.
-          - Business-flow racing without `test_race_condition`'s exact-copy
-            constraint (e.g. distinct payloads per attempt).
-          - Detection-evasion timing tests: vary concurrency to find the
-            burst threshold.
+            requests: List of request dicts (same shape as curl_request args)
+            concurrency: Max in-flight at once (default 10)
+            delay_ms_between_batches: Sleep between batches in ms (default 0)
         """
         import asyncio
         import time
@@ -364,33 +317,15 @@ def register(mcp: FastMCP):
         modify_method: str = "",
         diff_mode: str = "smart",
     ) -> str:
-        """Send a modified copy of a captured request AND auto-diff against
-        the original — in one call.
-
-        Replaces the common 3-call pattern:
-          1) resend_with_modification(index, ...) → new index N'
-          2) get_response_diff(index, N')
-          3) extract_regex / extract_headers for the delta
-
-        Use cases:
-          - SQLi probe: send 'value' AND 'value with quote', see length/error delta
-          - IDOR probe: change ID, see whether response shape diverges
-          - Header injection: add Host:, X-Forwarded-Host:, see whether body reflects
-          - Mass-assignment probe: add `role=admin` to body, see whether response includes new fields
+        """Send a modified copy of a captured request and auto-diff against the original in one call.
 
         Args:
             index: Proxy history index of the baseline request
             modify_headers: Headers dict to merge/override
             modify_body: Body to substitute (entire body)
             modify_path: Path to substitute
-            modify_method: Method to substitute (GET/POST/...)
-            diff_mode: 'smart' (status + length + body keywords),
-                       'full' (full byte diff via get_response_diff),
-                       'headers' (just header set delta)
-
-        Returns the probe response summary + a delta block highlighting
-        what changed vs baseline. Both indices are returned for further
-        use (annotate, save_finding, etc.).
+            modify_method: Method to substitute
+            diff_mode: 'smart' (status+length+keywords), 'full' (byte diff), 'headers' (header delta)
         """
         # 1) Send the probe via existing /api/http/resend
         payload: dict = {"index": index}

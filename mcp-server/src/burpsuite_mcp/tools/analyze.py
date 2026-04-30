@@ -59,9 +59,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def extract_parameters(index: int) -> str:
-        """Extract all parameters from a proxy history request (by index).
-        Shows query params, body params, cookies - grouped by location.
-        Use this to understand what inputs an endpoint accepts."""
+        """Extract all parameters from a proxy history request, grouped by location.
+
+        Args:
+            index: Proxy history index
+        """
         data = await client.post("/api/analysis/parameters", json={"index": index})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -89,8 +91,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def extract_forms(index: int) -> str:
-        """Extract HTML forms from a proxy history response (by index).
-        Shows form action, method, and all input fields - useful for finding submission endpoints."""
+        """Extract HTML forms from a proxy history response.
+
+        Args:
+            index: Proxy history index
+        """
         data = await client.post("/api/analysis/forms", json={"index": index})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -118,8 +123,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def extract_api_endpoints(index: int) -> str:
-        """Extract API endpoints, JS fetch calls, and links from a proxy history response.
-        Discovers hidden endpoints, external URLs, and JavaScript API calls."""
+        """Extract API endpoints, JS fetch calls, and links from a response.
+
+        Args:
+            index: Proxy history index
+        """
         data = await client.post("/api/analysis/endpoints", json={"index": index})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -145,10 +153,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def find_injection_points(index: int) -> str:
-        """Analyze a proxy history request/response for potential injection points.
-        Identifies reflected parameters, common SQLi/XSS/SSRF/path traversal parameter names,
-        IDOR patterns, and response-level indicators (error messages, SQL keywords, debug info).
-        Returns risk-scored results to help prioritize testing."""
+        """Analyze a request/response for injection points with risk scoring.
+
+        Args:
+            index: Proxy history index
+        """
         data = await client.post("/api/analysis/injection-points", json={"index": index})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -178,8 +187,11 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def detect_tech_stack(index: int) -> str:
-        """Detect the technology stack from a proxy history response.
-        Identifies server software, frameworks, CMS, JS libraries, and checks security headers."""
+        """Detect technology stack and audit security headers from a response.
+
+        Args:
+            index: Proxy history index
+        """
         data = await client.post("/api/analysis/tech-stack", json={"index": index})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -214,12 +226,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def extract_js_secrets(index: int) -> str:
-        """Extract potential secrets, API keys, tokens, and sensitive data from a response.
-        Scans for AWS keys, GitHub tokens, JWTs, passwords in code, internal URLs, database URLs, etc.
-        Run this on JavaScript files and API responses to find hardcoded secrets.
+        """Extract secrets, API keys, tokens, and sensitive data from a response.
 
         Args:
-            index: Proxy history index of the response to analyze
+            index: Proxy history index
         """
         data = await client.post("/api/analysis/js-secrets", json={"index": index})
         if "error" in data:
@@ -249,9 +259,12 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_unique_endpoints(url_prefix: str = "", limit: int = 200) -> str:
-        """Get deduplicated endpoints from proxy history with their parameters.
-        Groups by method + path, shows all parameter names per endpoint.
-        Great for getting an overview of the entire attack surface."""
+        """Get deduplicated endpoints from proxy history with parameter names.
+
+        Args:
+            url_prefix: Filter by URL prefix
+            limit: Max endpoints to return
+        """
         params = {"limit": limit}
         if url_prefix:
             params["prefix"] = url_prefix
@@ -276,15 +289,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def smart_analyze(index: int) -> str:
-        """Full attack surface analysis in ONE call. Combines: tech stack detection,
-        injection point identification, parameter extraction, form extraction,
-        API endpoint discovery, and JS secret scanning.
-
-        Use this instead of calling detect_tech_stack + find_injection_points +
-        extract_forms + extract_api_endpoints separately. Saves 3-4 tool calls.
+        """Full attack surface analysis in ONE call: tech stack, injection points, params, forms, endpoints, secrets.
 
         Args:
-            index: Proxy history index of the request/response to analyze
+            index: Proxy history index
         """
         data = await client.post("/api/analysis/smart", json={"index": index})
         if "error" in data:

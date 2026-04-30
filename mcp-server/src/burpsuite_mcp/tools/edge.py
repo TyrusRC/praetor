@@ -32,13 +32,12 @@ def register(mcp: FastMCP):
         path: str = "/",
         test_origins: list[str] | None = None,
     ) -> str:
-        """Test CORS configuration by sending requests with different Origin headers.
-        Detects origin reflection, null origin bypass, wildcard+credentials misconfig.
+        """Test CORS configuration for origin reflection and credential misconfigs.
 
         Args:
             session: Session name
             path: Endpoint path to test
-            test_origins: Custom origins to test (default: evil.com, null, subdomain variants)
+            test_origins: Custom origins to test
         """
         origins = test_origins or [
             "https://evil.com",
@@ -104,11 +103,10 @@ def register(mcp: FastMCP):
     async def test_jwt(
         token: str,
     ) -> str:
-        """Analyze a JWT token for vulnerabilities. Decodes header/payload,
-        checks algorithm, identifies attack vectors.
+        """Analyze a JWT token for vulnerabilities and attack vectors.
 
         Args:
-            token: The JWT token string (eyJ...)
+            token: JWT token string
         """
         parts = token.split(".")
         if len(parts) != 3:
@@ -190,12 +188,11 @@ def register(mcp: FastMCP):
         session: str,
         path: str = "/graphql",
     ) -> str:
-        """Test GraphQL endpoint for common vulnerabilities: introspection enabled,
-        field suggestions, batch query support, depth limits.
+        """Test GraphQL endpoint for introspection, field suggestions, batch queries, and GET CSRF.
 
         Args:
             session: Session name
-            path: GraphQL endpoint path (default /graphql)
+            path: GraphQL endpoint path
         """
         lines = [f"GraphQL Security Test: {path}\n"]
         vulns = []
@@ -276,14 +273,13 @@ def register(mcp: FastMCP):
         path: str = "/",
         injection_point: str = "query",
     ) -> str:
-        """Test for SSRF to cloud metadata services (AWS IMDSv1/v2, GCP, Azure, DigitalOcean).
-        Sends SSRF payloads and checks for credential/metadata leakage.
+        """Test SSRF to cloud metadata services (AWS, GCP, Azure, DigitalOcean).
 
         Args:
             session: Session name
-            parameter: Parameter name to inject SSRF payload into
+            parameter: Parameter to inject SSRF payload into
             path: Endpoint path
-            injection_point: Where to inject — 'query' or 'body'
+            injection_point: Where to inject: 'query' or 'body'
         """
         metadata_endpoints = [
             ("AWS IMDSv1", "http://169.254.169.254/latest/meta-data/", ["ami-id", "instance-id", "hostname"]),
@@ -338,12 +334,11 @@ def register(mcp: FastMCP):
         session: str,
         tech_specific: bool = True,
     ) -> str:
-        """Probe for common sensitive files: .git, .env, backup files, config files.
-        Auto-selects paths based on detected tech stack.
+        """Probe for common sensitive files and paths (.git, .env, actuator, etc).
 
         Args:
             session: Session name
-            tech_specific: If True, add tech-specific paths based on detected stack
+            tech_specific: Add tech-specific paths based on detected stack
         """
         # Universal paths
         paths = [
@@ -418,19 +413,14 @@ def register(mcp: FastMCP):
         poll_seconds: int = 5,
         follow_redirects: bool = False,
     ) -> str:
-        """Test for open redirect using Burp Collaborator for real confirmation.
-        Generates a Collaborator URL, builds redirect bypass payloads from it,
-        injects each payload, then polls for DNS/HTTP interactions to confirm
-        the redirect actually reached the external server.
-
-        Requires Burp Suite Professional with Collaborator configured.
+        """Test open redirect with Collaborator-verified DNS/HTTP confirmation.
 
         Args:
             session: Session name
-            path: Endpoint path (e.g. '/login')
-            parameter: Redirect parameter name (e.g. 'redirect', 'url', 'next', 'return')
-            poll_seconds: Seconds to wait before polling for interactions (default 5, max 15)
-            follow_redirects: If True, follow redirects (useful to test client-side redirects)
+            path: Endpoint path
+            parameter: Redirect parameter name
+            poll_seconds: Seconds to wait before polling (max 15)
+            follow_redirects: Follow redirects to test client-side behavior
         """
         # Step 1: Generate Collaborator payload
         collab = await client.post("/api/collaborator/payload")
@@ -547,16 +537,15 @@ def register(mcp: FastMCP):
         test_wrappers: bool = True,
         depth: int = 6,
     ) -> str:
-        """Test for Local File Inclusion / path traversal vulnerabilities.
-        Auto-generates traversal payloads with encoding bypasses, null bytes, and PHP wrappers.
+        """Test for LFI/path traversal with encoding bypasses and PHP wrappers.
 
         Args:
             session: Session name
-            path: Endpoint path (e.g. '/page')
-            parameter: File parameter name (e.g. 'file', 'page', 'template', 'include')
-            os_type: Target OS - 'linux', 'windows', or 'auto' (tests both)
-            test_wrappers: Test PHP stream wrappers (php://filter, data://, etc.)
-            depth: Traversal depth (default 6)
+            path: Endpoint path
+            parameter: File parameter name
+            os_type: 'linux', 'windows', or 'auto'
+            test_wrappers: Test PHP stream wrappers
+            depth: Traversal depth
         """
         depth = min(depth, 20)
         payloads = []
@@ -692,16 +681,14 @@ def register(mcp: FastMCP):
         test_types: list[str] | None = None,
         content_type_bypass: bool = True,
     ) -> str:
-        """Test file upload endpoint for bypass vulnerabilities.
-        Generates test files with various evasion techniques: double extension,
-        content-type mismatch, magic bytes, polyglot files, SVG XSS.
+        """Test file upload for bypass vulnerabilities with extension and content-type evasion.
 
         Args:
             session: Session name
-            path: Upload endpoint path (e.g. '/upload', '/api/files')
-            parameter: Form field name for file upload (default 'file')
-            test_types: File types to test - ['php', 'jsp', 'aspx', 'svg_xss', 'html', 'polyglot']
-            content_type_bypass: Also test with mismatched Content-Type headers
+            path: Upload endpoint path
+            parameter: Form field name for file upload
+            test_types: Types to test: php, jsp, aspx, svg_xss, html, polyglot
+            content_type_bypass: Test with mismatched Content-Type headers
         """
         types = test_types or ["php", "html", "svg_xss", "polyglot"]
 

@@ -10,15 +10,12 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def test_crlf_injection(session: str, path: str, parameter: str = "") -> str:
-        """Test for CRLF injection / HTTP response splitting in URL path and parameters.
-
-        Example:
-            test_crlf_injection(session="s1", path="/redirect", parameter="url")
+        """Test for CRLF injection and HTTP response splitting in URL path or parameters.
 
         Args:
             session: Session name for auth state
             path: Target endpoint path
-            parameter: Optional parameter name to inject into (tests path if empty)
+            parameter: Parameter to inject into (tests path if empty)
         """
         payloads = [
             ("%0d%0aInjected-Header:true", "Injected-Header"),

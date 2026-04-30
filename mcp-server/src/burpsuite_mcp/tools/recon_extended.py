@@ -84,11 +84,10 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def query_crtsh(domain: str, include_expired: bool = False) -> str:
         """Query crt.sh Certificate Transparency logs for subdomains.
-        Pure Python — no external tools needed.
 
         Args:
-            domain: Target domain (e.g. 'example.com')
-            include_expired: Include expired certificates (default: false)
+            domain: Target domain
+            include_expired: Include expired certificates (default false)
         """
         domain = _sanitize_domain(domain)
         url = f"https://crt.sh/?q=%.{domain}&output=json"
@@ -139,12 +138,11 @@ def register(mcp: FastMCP):
         filter_status: str = "200",
     ) -> str:
         """Get historical URLs from the Wayback Machine CDX API.
-        Pure Python — no external tools needed.
 
         Args:
-            domain: Target domain (e.g. 'example.com')
-            limit: Max URLs to return (default: 200)
-            filter_status: Only return URLs with this HTTP status code (default: '200', use '' for all)
+            domain: Target domain
+            limit: Max URLs to return (default 200)
+            filter_status: HTTP status filter (default '200', '' for all)
         """
         domain = _sanitize_domain(domain)
         params = {
@@ -237,17 +235,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def analyze_dns(domain: str) -> str:
-        """Analyze DNS records for a domain. Checks A, AAAA, MX, TXT, NS, CNAME, SOA.
-        Flags security-relevant findings (SPF, DMARC, wildcard DNS, external CNAMEs).
-
-        Requirements:
-          - A/AAAA: always available (via Python socket)
-          - MX/TXT/NS/CNAME/SOA: requires `dig` on PATH. On Windows, install
-            BIND utils (`scoop install dnsutils`) or run from WSL. A warning is
-            emitted up-front when dig is missing so output isn't silently thin.
+        """Analyze DNS records (A, AAAA, MX, TXT, NS, CNAME, SOA) and flag security-relevant findings.
 
         Args:
-            domain: Target domain (e.g. 'example.com')
+            domain: Target domain
         """
         domain = _sanitize_domain(domain)
         lines = [f"DNS records for {domain}:", ""]
@@ -343,10 +334,9 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def test_subdomain_takeover(subdomains: list[str]) -> str:
         """Check subdomains for potential takeover via dangling CNAME records.
-        Resolves CNAMEs and checks if they point to unclaimed services.
 
         Args:
-            subdomains: List of subdomains to check (e.g. ['blog.example.com', 'shop.example.com'])
+            subdomains: List of subdomains to check
         """
         if not subdomains:
             return "Error: provide at least one subdomain to check"
@@ -445,15 +435,14 @@ def register(mcp: FastMCP):
         requests_count: int = 30,
         delay_ms: int = 0,
     ) -> str:
-        """Test rate limiting on an endpoint and detect bypass opportunities.
-        Sends rapid requests through a Burp session, then tries bypass headers if rate limited.
+        """Test rate limiting on an endpoint with rapid requests, then try bypass headers if limited.
 
         Args:
-            session: Session name (create with create_session first)
-            method: HTTP method (GET, POST, etc.)
-            path: URL path to test (e.g. '/api/login')
-            requests_count: Number of requests to send (default: 30, max: 100)
-            delay_ms: Delay between requests in ms (default: 0 for rapid fire)
+            session: Session name
+            method: HTTP method
+            path: URL path to test
+            requests_count: Number of requests to send (default 30, max 100)
+            delay_ms: Delay between requests in ms (default 0)
         """
         requests_count = min(requests_count, 100)
 

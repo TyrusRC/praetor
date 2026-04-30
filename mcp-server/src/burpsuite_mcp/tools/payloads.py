@@ -35,20 +35,15 @@ def register(mcp: FastMCP):
         limit: int = 20,
         variables: dict | None = None,
     ) -> str:
-        """Get advanced payloads for vulnerability testing. Curated from HackTricks,
-        PayloadsAllTheThings, and PortSwigger research. Use detect_tech_stack first
-        to pick the right context.
-
-        Categories: xss, sqli, ssti, ssrf, command_injection, path_traversal,
-                    xxe, auth_bypass, cors, csrf, race_condition, hpp
+        """Get curated payloads for vulnerability testing by category and context.
 
         Args:
             category: Vulnerability category (e.g. 'xss', 'sqli', 'ssti')
-            context: Narrow to specific context (e.g. 'angular', 'mysql', 'jinja2'). Empty = all contexts.
-            waf_bypass: If True, only return WAF evasion payloads. If False, return all.
-            encoding: Apply encoding - 'none', 'url', 'double_url', 'html', 'unicode'
+            context: Narrow to specific context (e.g. 'angular', 'mysql', 'jinja2')
+            waf_bypass: If True, only return WAF evasion payloads
+            encoding: Apply encoding — 'none', 'url', 'double_url', 'html', 'unicode'
             limit: Max payloads to return (default 20)
-            variables: Template variables to interpolate in payloads (e.g. {"callback": "burpcollaborator.net", "target": "10.0.0.1"})
+            variables: Template variables to interpolate in payloads
         """
         data = _load_payload_file(category)
         if data is None:

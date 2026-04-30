@@ -135,22 +135,12 @@ def register(mcp: FastMCP):
         tech_stack: list[str] | None = None,
         known_endpoints: list[str] | None = None,
     ) -> str:
-        """Get a prioritized testing plan for a target. Returns exactly what to test,
-        in what order, with which tools — so you can execute without reasoning about strategy.
-
-        This is the FIRST tool to call when starting a hunt. It replaces 5-10 minutes
-        of strategic thinking with a pre-computed action plan.
+        """Get a prioritized testing plan for a target with phased tool recommendations based on tech stack.
 
         Args:
-            target_url: Target base URL (e.g. 'https://target.com')
-            tech_stack: Known technologies (e.g. ['php', 'mysql', 'angular']). Auto-detected if omitted.
-            known_endpoints: Already-discovered endpoints to skip re-scanning
-
-        Returns a structured plan with:
-        - Phase 1: Recon actions (which tools, in what order)
-        - Phase 2: Probe actions (which vulns to test first based on tech)
-        - Phase 3: Exploit actions (which attack tools to use)
-        - Priority parameters (which params to fuzz first)
+            target_url: Target base URL
+            tech_stack: Known technologies (auto-detected if omitted)
+            known_endpoints: Already-discovered endpoints to skip
         """
         techs = tech_stack or []
 
@@ -189,8 +179,8 @@ def register(mcp: FastMCP):
         # Phase 0: Edition gate — call once per session.
         lines.append("PHASE 0 — EDITION CHECK (do this FIRST, once per session):")
         lines.append(f"  0. check_pro_features()")
-        lines.append(f"     → Confirms Pro vs Community. If Community: skip scan_target/")
-        lines.append(f"       scan_url/crawl_target/Collaborator-based tools and use the")
+        lines.append(f"     → Confirms Pro vs Community. If Community: skip scan_url/")
+        lines.append(f"       crawl_target/Collaborator-based tools and use the")
         lines.append(f"       MCP-side equivalents listed in that tool's output.")
         lines.append("")
 
@@ -247,16 +237,13 @@ def register(mcp: FastMCP):
         tested_params: list[str] | None = None,
         tech_stack: list[str] | None = None,
     ) -> str:
-        """Get the single best next action to take. Call this when you're unsure what to do next.
-        Returns ONE specific tool call with arguments — just execute it.
-
-        This replaces strategic reasoning with a lookup — saves 200-500 thinking tokens per decision.
+        """Get the single best next action based on current progress. Returns one specific tool call to execute.
 
         Args:
             target_url: Target base URL
-            completed_phases: Which phases are done ('recon', 'probe', 'exploit', 'verify')
+            completed_phases: Phases done ('recon', 'probe', 'exploit', 'verify')
             findings_count: Number of findings so far
-            tested_params: Parameters already tested (to avoid re-testing)
+            tested_params: Parameters already tested
             tech_stack: Detected technologies
         """
         completed = set(completed_phases or [])
@@ -316,10 +303,7 @@ def register(mcp: FastMCP):
         session_name: str = "hunt",
         crawl_depth: int = 20,
     ) -> str:
-        """Execute the entire recon phase in one call — browser crawl + tech detect + analyze.
-        Returns a complete attack surface summary. Replaces 5-8 individual tool calls.
-
-        This is the most token-efficient way to start a hunt.
+        """Execute the entire recon phase in one call -- session create, tech detect, sensitive files, and analysis.
 
         Args:
             target_url: Target URL to recon
@@ -444,31 +428,15 @@ def register(mcp: FastMCP):
         response_diff: str = "",
         domain: str = "",
     ) -> str:
-        """Assess a suspected finding against the 7-Question Validation Gate.
-        Returns REPORT / NEEDS MORE EVIDENCE / DO NOT REPORT with specific reasoning.
-
-        Call this BEFORE save_finding() to avoid false positives.
-        Replaces 300-500 tokens of manual reasoning per finding.
-
-        The gate checks (aligned with .claude/rules/hunting.md):
-          Q1 Scope: endpoint is in-scope per Burp scope config
-          Q2 Reproducible: evidence doesn't say "intermittent"
-          Q3 Real impact: vuln_type + evidence combo isn't no-impact
-          Q4 Not a duplicate: no matching endpoint+vuln_type+parameter in
-             stored findings (requires `domain`)
-          Q5 Meets evidence requirements: per-vuln strong-evidence heuristics
-          Q6 Not in NEVER SUBMIT list
-          Q7 Triager-mass-report check: informative severities on noisy classes
-             are rejected
+        """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
         Args:
             vuln_type: Vulnerability type (e.g. 'xss', 'sqli', 'idor', 'ssrf')
-            evidence: What you observed (e.g. 'payload reflected in response', '5s time delay')
+            evidence: What you observed
             endpoint: The endpoint tested
             parameter: The parameter tested
             response_diff: How the response differed from baseline
-            domain: Target domain for scope + duplicate checks. If empty, Q1
-                    and Q4 are skipped with a warning.
+            domain: Target domain for scope + duplicate checks
         """
         issues = []
         verdict = "REPORT"
@@ -673,12 +641,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def pick_tool(task: str) -> str:
-        """Given a task description, return the best MCP tool to use with example arguments.
-        Instant tool selection — saves 100-200 thinking tokens per decision.
+        """Given a task description, return the best MCP tool with example arguments.
 
         Args:
-            task: What you want to accomplish (e.g. 'extract CSRF token from login page',
-                  'test for SQL injection', 'check if endpoint is vulnerable to IDOR')
+            task: What you want to accomplish
         """
         task_lower = task.lower()
 

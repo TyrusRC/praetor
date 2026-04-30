@@ -13,11 +13,10 @@ def register(mcp: FastMCP):
         resource_type: str = "all",
     ) -> str:
         """List static resources (JS, CSS, source maps) captured in proxy history.
-        Use this to find JavaScript files for secret scanning and sink/source analysis.
 
         Args:
-            url_prefix: Filter by URL prefix (e.g. 'https://target.com')
-            resource_type: Filter by type - 'js', 'css', 'map', or 'all' (default)
+            url_prefix: Filter by URL prefix
+            resource_type: Filter by type — 'js', 'css', 'map', or 'all'
         """
         params = {"type": resource_type}
         if url_prefix:
@@ -43,14 +42,10 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def fetch_resource(url: str) -> str:
-        """Fetch a specific static resource (JS/CSS file) through Burp and return its content.
-        The request goes through Burp's HTTP stack (appears in history, gets passive-scanned).
-
-        Use this to read JavaScript source code for manual analysis,
-        then use extract_js_secrets or analyze_dom on the proxy history index.
+        """Fetch a static resource (JS/CSS) through Burp and return its content.
 
         Args:
-            url: Full URL of the resource to fetch (e.g. 'https://target.com/app.js')
+            url: Full URL of the resource to fetch
         """
         data = await client.post("/api/resources/fetch", json={"url": url})
         if "error" in data:
@@ -76,11 +71,7 @@ def register(mcp: FastMCP):
         index: int = -1,
         url: str = "",
     ) -> str:
-        """Fetch all static resources (JS, CSS, source maps) linked from a page.
-        Parses the HTML for <script src>, <link href>, and .map references,
-        then fetches any resources not already in proxy history.
-
-        Provide either index (proxy history) or url.
+        """Fetch all static resources linked from a page (script/link/map refs). Provide index or url.
 
         Args:
             index: Proxy history index of the HTML page

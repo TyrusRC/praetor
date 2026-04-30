@@ -17,13 +17,11 @@ def register(mcp: FastMCP):
         auth_user: str = "",
         auth_pass: str = "",
     ) -> str:
-        """Create a persistent attack session. Session stores cookies, headers, and auth tokens.
-        Cookies auto-update from Set-Cookie responses. All subsequent session_request calls
-        auto-apply this state.
+        """Create a persistent attack session with auto-updating cookies and auth state.
 
         Args:
-            name: Session name (e.g. 'admin', 'user_b')
-            base_url: Target base URL (e.g. 'https://target.com')
+            name: Session name
+            base_url: Target base URL
             cookies: Initial cookies dict
             headers: Default headers for all requests
             bearer_token: Bearer token for Authorization header
@@ -69,23 +67,19 @@ def register(mcp: FastMCP):
         follow_redirects: bool = False,
         full_body: bool = False,
     ) -> str:
-        """Send HTTP request using a persistent session. Auto-applies cookies, auth, base URL.
-        Cookie jar auto-updates from Set-Cookie responses.
-
-        Use 'extract' to pull values from the response in the same call:
-        extract={"csrf": {"from": "body", "regex": 'name="csrf" value="([^"]+)"'}}
+        """Send HTTP request using a persistent session with auto-applied auth and cookies.
 
         Args:
             session: Session name
-            method: HTTP method (GET, POST, PUT, DELETE, etc.)
-            path: Request path relative to session base_url (e.g. '/api/users/42')
-            headers: Additional headers (merged with session defaults)
+            method: HTTP method
+            path: Request path relative to session base_url
+            headers: Additional headers merged with session defaults
             body: Raw request body
-            data: Form-encoded data (sets Content-Type automatically)
-            json_body: JSON body dict (sets Content-Type automatically)
-            cookies: Additional cookies (merged with session jar)
-            extract: Inline extraction rules - {"var_name": {"from": "body|header|cookie", "regex|json_path|name": "..."}}
-            follow_redirects: Follow 3xx redirects automatically (default False)
+            data: Form-encoded data
+            json_body: JSON body dict
+            cookies: Additional cookies merged with session jar
+            extract: Inline extraction rules for response values
+            follow_redirects: Follow 3xx redirects
         """
         payload_dict: dict = {"session": session, "method": method, "path": path}
         if headers:
@@ -139,11 +133,11 @@ def register(mcp: FastMCP):
         session: str,
         extract: dict,
     ) -> str:
-        """Extract values from the last response in a session without making a new request.
+        """Extract values from the last session response without a new request.
 
         Args:
             session: Session name
-            extract: Extraction rules - {"var_name": {"from": "body|header|cookie", "regex|json_path|name": "..."}}
+            extract: Extraction rules keyed by variable name
         """
         payload = {"session": session, "rules": extract}
         resp = await client.post("/api/session/extract", json=payload)
@@ -172,12 +166,7 @@ def register(mcp: FastMCP):
         session: str,
         steps: list[dict],
     ) -> str:
-        """Execute a multi-step attack flow in one call. Each step can extract variables
-        that are available in subsequent steps via {{variable_name}} interpolation.
-        Session cookies auto-update across all steps.
-
-        Step format: {"method": "POST", "path": "/login", "data": "user=admin&csrf={{csrf}}",
-                      "extract": {"csrf": {"from": "body", "regex": "csrf.*?value=\\"([^\\"]+)\\\""}}}
+        """Execute a multi-step attack flow in one call with variable interpolation between steps.
 
         Args:
             session: Session name

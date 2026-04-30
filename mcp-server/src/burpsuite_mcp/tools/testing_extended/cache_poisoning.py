@@ -13,10 +13,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def test_cache_poisoning(session: str, path: str = "/") -> str:
-        """Test for web cache poisoning and cache deception vulnerabilities.
-
-        Example:
-            test_cache_poisoning(session="s1", path="/")
+        """Test for web cache poisoning and cache deception via unkeyed headers and parameter cloaking.
 
         Args:
             session: Session name for auth state
