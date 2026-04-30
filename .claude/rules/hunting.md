@@ -124,3 +124,36 @@ Standalone reports of these are noise. Reportable only when CHAINED for real imp
 | OPTIONS method enabled | Normal HTTP behavior |
 
 **Exception:** chain with another finding → reportable. Use `chain-findings.md`.
+
+## Testing Mode Selection (28)
+
+28. **Adapt approach to engagement type.** Determine mode at session start and follow the corresponding mindset:
+
+**Black box** (no internal access — URL/IP only):
+- Recon-heavy: `browser_crawl` → `discover_attack_surface` → `full_recon` → `query_crtsh` → `fetch_wayback_urls`
+- Fingerprint everything: `detect_tech_stack`, `extract_js_secrets`, `analyze_dns`
+- Enumerate: `discover_common_files`, `discover_hidden_parameters`
+- Probe blind: `auto_collaborator_test`, `auto_probe` with all categories
+- Chain low findings into impact: `chain-findings.md`
+- Mindset: assume nothing, map everything, then attack. Every response is intelligence.
+
+**Grey box** (credentials, API docs, limited source):
+- Session-first: `create_session` → `session_request` for all subsequent calls
+- Auth boundaries: `test_auth_matrix` across roles — highest ROI test
+- API-focused: `parse_api_schema`, `batch_probe`, `test_mass_assignment`
+- Business logic: `test_business_logic`, `test_race_condition`, `run_flow`
+- Authenticated scanning: `auto_probe` with session reaches hidden endpoints
+- Mindset: go deeper not wider. Authorization, business logic, and state manipulation yield critical bugs.
+
+**White box** (full source access):
+- Source-first: read controllers, routes, middleware. Find unsanitized paths.
+- Trace data flow: input → controller → service → sink. Every unsanitized path is a candidate.
+- Targeted payloads: craft based on actual code, not generic lists. `get_payloads` with specific context.
+- Coverage-driven: `save_target_intel(domain, "coverage", ...)` to track tested paths.
+- Mindset: don't discover what you can read. Go straight to dangerous functions.
+
+**Hybrid** (default for bug bounty — grey box app + black box infra):
+- Start black box: `browser_crawl` → `full_recon` → `detect_tech_stack`
+- Create accounts: `create_session` per role
+- Switch grey box: `test_auth_matrix` → `auto_probe` with session → `test_business_logic`
+- Verify and chain: `verify-finding.md`, `chain-findings.md`

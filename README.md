@@ -10,7 +10,18 @@
     <img style="width: 282px; height: 56px" src="https://opensourcesecurityindex.io/badge.svg" alt="Open Source Security Index - Fastest Growing Open Source Security Projects" width="282" height="56" />
 </a>
 
-Claude Code as your pentesting brain - connected to Burp Suite.
+
+## Authorized Use Only
+
+This tool is built for **authorized penetration testing, bug bounty programs, red team engagements, and security auditing**. All offensive capabilities — payload generation, vulnerability probing, exploitation techniques — are designed for use on systems where you have **explicit written permission** to test.
+
+**You are responsible for:**
+- Obtaining proper authorization before testing any target
+- Complying with applicable laws, regulations, and program policies
+- Staying within defined scope boundaries
+- Reporting findings responsibly through appropriate channels
+
+The authors are not liable for misuse. If you do not have authorization to test a system, do not use this tool against it.
 
 ## Architecture
 
@@ -240,7 +251,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored - each user creates their own with their local path.
 
-## Tools (167 total)
+## Tools (170 total)
 
 ### Proxy-history routing
 
@@ -340,11 +351,13 @@ All tools in this section route through Burp's proxy listener - request + respon
 
 | Tool | Description |
 |------|-------------|
-| `send_http_request` | Send a structured HTTP request (method, URL, headers, body) |
+| `send_http_request` | Simple HTTP request through Burp. Prefer `curl_request` for auth, cookies, or redirects |
 | `send_raw_request` | Send raw HTTP bytes - exact byte control for request smuggling, CRLF, malformed requests |
-| `curl_request` | curl-like interface with optional redirect following, Basic/Bearer auth, cookies, JSON/form shortcuts. `follow_redirects` defaults to `False` to prevent cross-scope cookie leaks on 302 |
-| `resend_with_modification` | Pick a proxy history item, modify headers/body/path/method, resend |
-| `send_to_repeater` | Send request to a named Repeater tab for manual iteration |
+| `curl_request` | Full-featured HTTP request with Basic/Bearer auth, cookies, JSON/form shortcuts. `follow_redirects` defaults to `False` to prevent cross-scope cookie leaks on 302 |
+| `resend_with_modification` | Resend a proxy history request with modified headers/body/path/method. For tracked Repeater iteration, use `repeater_resend` |
+| `probe_with_diff` | Resend a modified copy of a captured request and auto-diff against the original baseline in one call |
+| `concurrent_requests` | Fire many requests concurrently through Burp for rate-limit testing, spam, or custom brute-force |
+| `send_to_repeater` | One-shot send to a named Repeater tab. For iterative testing, use `send_to_repeater_tracked` |
 | `send_to_intruder` | Send request to Intruder (point-and-click payload positions) |
 
 ### Proxy Control
@@ -407,7 +420,6 @@ Pull only the value you need from a response instead of reading the full body.
 ### Adaptive Scan Engine
 | Tool | Description |
 |------|-------------|
-| `scan_target` | Two-mode scan: `discover` crawls + maps attack surface; `probe` runs knowledge-driven probes on specified targets |
 | `discover_attack_surface` | Crawl a target and map endpoints, parameters (risk-scored), forms, tech stack |
 | `auto_probe` | Knowledge-driven vulnerability probing. Auto-detects tech, selects matching probes from 25 categories, runs server-side matchers, emits a **confidence score** per finding, and auto-annotates the Proxy history entry (RED ≥ 0.9, ORANGE 0.6–0.9, YELLOW 0.3–0.6, GREEN baseline). Param-name matching is tokenized so `productId` / `post_id` match bare-token entries like `id` |
 | `quick_scan` | Send a request and return tech stack, injection points, parameters, forms, and secrets in one response |
@@ -471,6 +483,7 @@ Pull only the value you need from a response instead of reading the full body.
 | `send_to_organizer` | Send proxy item to Burp's Organizer tab for categorization |
 | `send_bulk_to_organizer` | Send multiple items to Organizer at once |
 | `get_project_info` | Burp project name, ID, version, edition |
+| `check_pro_features` | Check which Burp features are available on this edition (Pro vs Community) |
 | `get_logger_entries` | Logger entries with timing data, annotations, and metadata |
 | `send_to_intruder_configured` | Send to Intruder with auto-detect or manual insertion point positions |
 
@@ -481,8 +494,6 @@ Pull only the value you need from a response instead of reading the full body.
 | `crawl_target` | Spider/crawl to discover endpoints |
 | `get_scan_status` | Check scan progress |
 | `cancel_scan` | Cancel/remove an active scan from tracking |
-| `pause_scan` | Get scan status (pause not supported by Montoya API) |
-| `resume_scan` | Get scan status (scans run continuously) |
 | `get_new_findings` | Poll for new scanner findings since a count - real-time finding detection |
 | `get_issues_dashboard` | Compact dashboard of ALL findings - severity counts, affected hosts, top critical/high, next steps |
 
@@ -501,6 +512,8 @@ Pull only the value you need from a response instead of reading the full body.
 | `check_target_freshness` | Fingerprint key pages to detect changes since last session |
 | `save_target_notes` | Save freeform markdown notes (human-editable observations and corrections) |
 | `lookup_cross_target_patterns` | Find attack patterns from OTHER targets with overlapping tech stack - techniques from target A inform target B |
+| `build_target_header_profile` | Build a realistic browser header profile from observed traffic for a domain |
+| `get_target_headers` | Get the saved header profile for a domain to use in requests |
 
 > **Memory system:** Data stored in `.burp-intel/<domain>/` (gitignored). Finding states: suspected, confirmed, stale, likely_false_positive. Knowledge version tracking triggers re-testing when probes are updated. Cross-target pattern learning shares successful techniques across targets by tech stack.
 
@@ -571,6 +584,7 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 |------|-------------|
 | `save_finding` | Save a vulnerability finding. **Zero-noise gate (server-enforced):** requires `evidence={"logger_index" \| "proxy_history_index" \| "collaborator_interaction_id": ...}` resolving to live Burp data; timing/blind vuln types require `reproductions[]` with ≥2 entries; NEVER SUBMIT vuln types require `chain_with[]` referencing existing finding IDs. Accepts a `confidence` value in `[0.0, 1.0]`. Persists to `.burp-intel/<domain>/findings.json` and Burp's in-memory store; deduplicates by `(endpoint + title + parameter)` |
 | `get_findings` | List saved findings with optional endpoint filter |
+| `hydrate_burp_findings` | Load findings from `.burp-intel/<domain>/findings.json` into Burp's in-memory store at session start |
 | `export_report` | Export all findings as markdown or JSON |
 
 **Zero-noise gate:** `save_finding` calls without verified evidence are HARD-REJECTED with a 400 error. The Burp extension validates `evidence.logger_index` / `proxy_history_index` against `api.proxy().history()` size; rejects 27 NEVER SUBMIT vuln types unless `chain_with[]` lists existing finding IDs; and refuses any `*_blind` / `sqli_time` / `race_condition` / `request_smuggling` finding without `reproductions[]` ≥ 2. Freeform proof text moves to `evidence_text` so it doesn't collide with the structured `evidence` object.

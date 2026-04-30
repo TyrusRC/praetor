@@ -1,8 +1,8 @@
 ---
 name: playbook-mobile-backend
-description: Mobile-app backend flaws, MASTG-aligned — APK/IPA endpoint extraction, device-bound token replay, IAP receipt bypass, deep-link → WebView intent injection, mobile WS auth, push-token spoofing, predictable ULID/Snowflake IDs.
-prerequisite: Mobile-app indicators present — okhttp/CFNetwork/Dalvik UA, /api/mobile/, X-Device-Id headers, FCM/APNs tokens, IAP endpoints, or user provided APK/IPA.
-stop_condition: 10 calls, no auth difference between mobile/web sessions, no replay-cross-device success, no deep-link payload reaching backend → return to router.
+description: Mobile-app backend flaws across all transport types (REST, GraphQL, gRPC-Web, WebSocket, SSE). MASTG/OWASP Mobile Top 10 aligned — BOLA, BFLA, excessive data, device-bound tokens, IAP bypass, deep-link injection, push-token spoofing, predictable IDs, WS hijack, GraphQL batch abuse, gRPC service enumeration.
+prerequisite: Mobile-app indicators present — okhttp/CFNetwork/Dalvik UA, /api/mobile/, X-Device-Id headers, FCM/APNs tokens, IAP endpoints, GraphQL/gRPC-Web content-types, or user provided APK/IPA.
+stop_condition: 12 calls, no auth difference between mobile/web sessions, no replay-cross-device success, no deep-link payload reaching backend, no GraphQL/gRPC abuse → return to router.
 ---
 
 # Mobile Backend Playbook
@@ -18,7 +18,6 @@ APK/IPA available to inspect?
 
 Mobile-only endpoints found?
     YES → §3 (test as web client — often missing auth)
-    NO  → continue
 
 Device-bound auth visible (X-Device-Id, device certs)?
     YES → §4 (replay across devices)
@@ -28,6 +27,13 @@ IAP/subscription endpoints?
 
 Deep-link / WebView features?
     YES → §6
+
+Transport type?
+    GraphQL  → §10 (introspection, batch abuse, nested DoS)
+    gRPC-Web → §11 (service enum, admin services, proto injection)
+    WebSocket→ §9  (CSWSH, missing auth, message injection)
+    SSE      → §12 (cross-user streams, event leakage)
+    REST     → §3 + §7 (BOLA, predictable IDs)
 ```
 
 ## 1. APK / IPA endpoint extraction
@@ -168,7 +174,77 @@ This is a HIGH-impact bug when present and reproducible. Confirm by checking if 
 
 ## 9. Mobile WebSocket flaws
 
-Mobile apps often skip Origin checks on WS (no browser context), but their WS endpoints are sometimes reachable from browser via CSWSH. See `playbook-api-advanced.md` §4 — same primitives apply.
+Mobile apps often skip Origin checks on WS (no browser context), but their WS endpoints are sometimes reachable from browser via CSWSH.
+
+| Attack | Probe |
+|---|---|
+| Missing Origin check | `websocket_connect` from browser context — if accepted, CSWSH is possible |
+| Auth token in WS URL | `ws://api.target.com/ws?token=xxx` — token in URL leaks via logs, referrer |
+| Message injection | Send SQLi/XSS payloads through WS messages — backend may not sanitize WS input like HTTP |
+| Auth bypass on WS | Connect without auth, send authenticated-user messages — WS auth often checked only at handshake |
+| Subscription abuse | Subscribe to other users' channels/rooms — missing authorization on subscribe events |
+
+```
+websocket_connect(url="wss://api.target.com/ws")
+websocket_send_message(name="ws1", message='{"type":"subscribe","channel":"user_123_private"}')
+```
+
+## 10. Mobile GraphQL backends
+
+Many mobile apps use GraphQL — often a single `/graphql` endpoint handles all operations.
+
+| Attack | Probe |
+|---|---|
+| Introspection enabled | `test_graphql` — mobile backends often leave introspection on since "only the app calls it" |
+| Batch query brute force | `test_graphql_deep` — batch 100 login mutations in one request to bypass rate limits |
+| Nested query DoS | Deep nesting: `{ user { friends { friends { friends { ... } } } } }` — no depth limit |
+| Field suggestion leakage | Typo a field name — GraphQL helpfully suggests valid field names including admin-only fields |
+| Alias-based auth bypass | Query same field with different aliases to compare authorized vs unauthorized access |
+| Mutation without auth | Introspect mutations, call admin mutations with user token |
+
+```
+test_graphql(session, url="/graphql")
+test_graphql_deep(session, url="/graphql")
+```
+
+## 11. Mobile gRPC-Web / Protobuf backends
+
+gRPC traffic proxied through Burp appears as HTTP/2 POST with `Content-Type: application/grpc-web+proto` or `application/grpc-web-text`.
+
+| Attack | Probe |
+|---|---|
+| Service enumeration | gRPC reflection API: `grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo` — lists all services |
+| Unprotected admin services | Mobile app calls `UserService`, but `AdminService` exists on same host — call it with user token |
+| Protobuf field injection | Add extra fields to protobuf message — backend may accept hidden fields (mass assignment via proto) |
+| Missing auth on streaming RPCs | Unary RPCs have auth interceptor, but server-streaming RPCs skip it |
+| Error message leakage | gRPC status details often include stack traces, internal service names |
+
+```
+# gRPC-Web appears as regular HTTP POST in Burp
+curl_request(
+    url="https://api.target.com/service.AdminService/ListUsers",
+    method="POST",
+    headers={"Content-Type": "application/grpc-web+proto", "Authorization": "Bearer <user_token>"},
+    body="<protobuf_bytes>"
+)
+```
+
+**Note:** Protobuf binary encoding makes payloads harder to craft. Look for gRPC-Web-Text (base64-encoded) which is easier to manipulate. Use `decode_encode` to base64 decode/encode protobuf payloads.
+
+## 12. Mobile SSE (Server-Sent Events) and real-time feeds
+
+Mobile apps use SSE for live updates (notifications, chat, price feeds).
+
+| Attack | Probe |
+|---|---|
+| Cross-user event subscription | Change user ID in SSE URL: `/events?user_id=victim` |
+| Auth bypass on event stream | SSE endpoint may not validate token after initial connection |
+| Event data leakage | SSE events may contain more data than the app displays (excessive data exposure) |
+| Connection hijacking | If SSE uses predictable connection IDs, hijack another user's stream |
+
+```
+curl_request(url="https://api.target.com/events/stream?user_id=123", headers={"Accept": "text/event-stream"})
+```
 
 ## Burp MCP tool mapping
 
@@ -178,7 +254,13 @@ Mobile apps often skip Origin checks on WS (no browser context), but their WS en
 | Test mobile endpoint as web client | `session_request`, `curl_request` |
 | Verb tampering | `resend_with_modification(modify_method=...)` |
 | Device-id swap | `session_request(headers={"X-Device-Id": "..."})` |
-| WebSocket replay | `websocket_connect`, `websocket_send_message` |
+| IDOR / auth matrix | `test_auth_matrix` across roles/devices |
+| WebSocket testing | `websocket_connect`, `websocket_send_message` |
+| GraphQL testing | `test_graphql`, `test_graphql_deep` |
+| gRPC-Web probing | `curl_request` with `application/grpc-web+proto` content-type |
+| SSE stream testing | `curl_request` with `Accept: text/event-stream` |
+| Protobuf decode | `decode_encode(operation="base64_decode")` for gRPC-Web-Text |
+| Business logic bypass | `test_business_logic`, `test_race_condition`, `run_flow` |
 
 ## Save-finding template
 
