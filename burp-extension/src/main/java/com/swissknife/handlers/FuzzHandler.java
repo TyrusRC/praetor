@@ -76,7 +76,7 @@ public class FuzzHandler extends BaseHandler {
                 ? toStringList((List<Object>) body.get("grep_match")) : Collections.emptyList();
         String grepExtract = (String) body.get("grep_extract");
         int maxConcurrent = body.get("max_concurrent") instanceof Number n ? n.intValue() : 5;
-        int delayMs = body.get("delay_ms") instanceof Number n ? n.intValue() : 0;
+        int delayMs = Math.min(body.get("delay_ms") instanceof Number n ? n.intValue() : 0, 10_000);
 
         // Get base request
         HttpRequest baseRequest = history.get(index).finalRequest();

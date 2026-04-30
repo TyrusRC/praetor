@@ -265,6 +265,7 @@ public class CollaboratorHandler extends BaseHandler {
                         var dns = interaction.dnsDetails().get();
                         Map<String, Object> dnsData = new LinkedHashMap<>();
                         dnsData.put("query_type", dns.queryType().toString());
+                        dnsData.put("description", dns.queryType().name() + " lookup");
                         entry.put("dns_details", dnsData);
                     }
                 } catch (Exception ignored) {}

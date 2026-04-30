@@ -312,12 +312,19 @@ public class HttpSendHandler extends BaseHandler {
             hop.put("location", location);
             redirectChain.add(hop);
 
-            // Resolve relative URL
+            // Resolve relative URL using URI.resolve() for proper handling
             if (!location.startsWith("http")) {
                 String base = service.secure() ? "https" : "http";
-                location = base + "://" + service.host()
+                String baseUri = base + "://" + service.host()
                     + (service.port() != 80 && service.port() != 443 ? ":" + service.port() : "")
-                    + location;
+                    + extractPath(result.request() != null ? result.request().url() : "/");
+                try {
+                    location = new java.net.URI(baseUri).resolve(location).toString();
+                } catch (Exception e) {
+                    location = base + "://" + service.host()
+                        + (service.port() != 80 && service.port() != 443 ? ":" + service.port() : "")
+                        + location;
+                }
             }
 
             // Follow redirect
@@ -342,6 +349,9 @@ public class HttpSendHandler extends BaseHandler {
         int postSize = api.proxy().history().size();
         if (postSize > preSize) {
             out.put("history_index", postSize - 1);
+        } else {
+            out.put("history_index", -1);
+            out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, visible in Logger)");
         }
 
         out.put("redirects_followed", redirectCount);
@@ -392,6 +402,9 @@ public class HttpSendHandler extends BaseHandler {
         int postSize = api.proxy().history().size();
         if (postSize > preSendHistorySize) {
             out.put("history_index", postSize - 1);
+        } else {
+            out.put("history_index", -1);
+            out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, visible in Logger)");
         }
 
         if (resp != null) {

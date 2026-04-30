@@ -1120,6 +1120,7 @@ public class SessionHandler extends BaseHandler {
 
         synchronized (session) {
             List<Map<String, Object>> findings = new ArrayList<>();
+            Set<String> seenFindingKeys = new HashSet<>();
             int totalProbes = 0;
 
             for (Map<String, Object> target : targets) {
@@ -1280,6 +1281,10 @@ public class SessionHandler extends BaseHandler {
                             }
 
                             if (matcherHit) {
+                                // Deduplicate: same method+path+parameter+category = one finding
+                                String findingKey = method + "|" + path + "|" + parameter + "|" + category;
+                                if (!seenFindingKeys.add(findingKey)) continue;
+
                                 String severity = (String) probe.getOrDefault("severity", "medium");
                                 String description = (String) probe.getOrDefault("description", "");
                                 String cwe = CWE_MAP.getOrDefault(category, "");
@@ -1310,6 +1315,10 @@ public class SessionHandler extends BaseHandler {
                                     "Status: " + probeStatus + ", Confidence: " + String.format("%.2f", confidence) + ", Score: " + rawScore + (cwe.isEmpty() ? "" : ", " + cwe)
                                 );
                             } else if (anomalyScore >= 40 && anomalies.size() >= 2) {
+                                // Deduplicate anomaly findings too
+                                String findingKey = method + "|" + path + "|" + parameter + "|" + category;
+                                if (!seenFindingKeys.add(findingKey)) continue;
+
                                 int normalizedAnomaly = Math.min(100, anomalyScore);
                                 String cwe = CWE_MAP.getOrDefault(category, "");
 

@@ -107,14 +107,16 @@ public class RepeaterHandler extends BaseHandler {
     private void handleListTabs(HttpExchange exchange) throws Exception {
         List<Map<String, Object>> list = new ArrayList<>();
         for (RepeaterTab tab : tabs.values()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", tab.name);
-            m.put("method", tab.currentRequest.method());
-            m.put("url", tab.currentRequest.url());
-            m.put("send_count", tab.sendCount.get());
-            m.put("created_at", tab.createdAt);
-            m.put("has_response", tab.lastResponse != null);
-            list.add(m);
+            synchronized (tab) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("name", tab.name);
+                m.put("method", tab.currentRequest.method());
+                m.put("url", tab.currentRequest.url());
+                m.put("send_count", tab.sendCount.get());
+                m.put("created_at", tab.createdAt);
+                m.put("has_response", tab.lastResponse != null);
+                list.add(m);
+            }
         }
 
         Map<String, Object> out = new LinkedHashMap<>();

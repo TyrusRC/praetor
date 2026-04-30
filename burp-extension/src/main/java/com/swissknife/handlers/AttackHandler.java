@@ -265,8 +265,8 @@ public class AttackHandler extends BaseHandler {
                         result.put("response_length", len);
 
                         String bodyStr = resp.bodyToString();
-                        if (bodyStr.length() > 500) {
-                            bodyStr = bodyStr.substring(0, 500);
+                        if (bodyStr.length() > 5000) {
+                            bodyStr = bodyStr.substring(0, 5000);
                         }
                         result.put("body_preview", bodyStr);
                     } else {
@@ -639,11 +639,13 @@ public class AttackHandler extends BaseHandler {
             }
             case "body" -> {
                 url = buildUrl(baseUrl, basePath, null, null);
-                body = parameter + "=" + pollutedValue;
+                body = java.net.URLEncoder.encode(parameter, StandardCharsets.UTF_8)
+                    + "=" + java.net.URLEncoder.encode(pollutedValue, StandardCharsets.UTF_8);
             }
             case "both" -> {
                 url = buildUrl(baseUrl, basePath, parameter, originalValue);
-                body = parameter + "=" + pollutedValue;
+                body = java.net.URLEncoder.encode(parameter, StandardCharsets.UTF_8)
+                    + "=" + java.net.URLEncoder.encode(pollutedValue, StandardCharsets.UTF_8);
             }
             default -> {
                 url = buildUrl(baseUrl, basePath, parameter, pollutedValue);
@@ -669,7 +671,8 @@ public class AttackHandler extends BaseHandler {
             ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String url = base + path;
         if (param != null && value != null) {
-            url += "?" + param + "=" + value;
+            url += "?" + java.net.URLEncoder.encode(param, StandardCharsets.UTF_8)
+                + "=" + java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
         }
         return url;
     }
@@ -720,6 +723,14 @@ public class AttackHandler extends BaseHandler {
 
         double charSimilarity = samplesToTake > 0 ? (double) matches / samplesToTake : 0.0;
 
-        return (lengthSimilarity + charSimilarity) / 2.0;
+        double combined = (lengthSimilarity + charSimilarity) / 2.0;
+
+        // Length-based penalty: if lengths differ by >20%, cap similarity at 0.7
+        // to catch structural changes that sampling might miss
+        if (lengthSimilarity < 0.8) {
+            combined = Math.min(combined, 0.7);
+        }
+
+        return combined;
     }
 }
