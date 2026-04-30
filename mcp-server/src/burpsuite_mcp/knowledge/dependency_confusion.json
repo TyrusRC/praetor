@@ -1,0 +1,37 @@
+{
+  "category": "dependency_confusion",
+  "contexts": {
+    "npm_confusion": {
+      "description": "NPM dependency confusion -- register public package with same name as internal/private package to hijack install",
+      "tech_match": ["Node.js", "NPM", "Yarn"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check package.json for internal/scoped package names without registry lock -- packages like @company/utils may resolve to public npm if .npmrc misconfigured. Detect via exposed package.json or JS source map analysis.",
+          "matchers": [
+            {"type": "word", "words": ["@", "private", "registry", "dependencies"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "pypi_confusion": {
+      "description": "PyPI dependency confusion -- register public package matching internal Python package name",
+      "tech_match": ["Python", "Django", "Flask", "FastAPI"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check requirements.txt or setup.py for internal package names without --index-url pinning. Look for non-public package names in exposed dependency files.",
+          "matchers": [
+            {"type": "word", "words": ["requirements", "install_requires", "pip install"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}

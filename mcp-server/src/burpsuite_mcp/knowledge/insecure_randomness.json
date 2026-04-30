@@ -1,0 +1,54 @@
+{
+  "category": "insecure_randomness",
+  "contexts": {
+    "predictable_tokens": {
+      "description": "Predictable token/secret generation -- timestamp-based, sequential, weak PRNG, or insufficient entropy in security-sensitive tokens",
+      "tech_match": ["PHP", "Java", "Python", "Node.js", "Ruby"],
+      "param_match": ["token", "reset_token", "session_id", "csrf_token", "api_key", "secret", "nonce", "code", "otp"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Request two tokens in rapid succession and compare -- sequential (token2 = token1 + 1) or timestamp-correlated (similar epoch prefix) indicates weak generation. Manual analysis required.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["token", "code", "key", "secret", "session"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "weak_session_id": {
+      "description": "Weak session ID generation -- short length, limited charset, predictable pattern in Set-Cookie session values",
+      "tech_match": ["PHP", "Java", "ASP.NET", "Custom"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Collect 10+ session IDs and analyze entropy -- short IDs (<32 chars), hex-only, or sequential patterns indicate weak generation. Check if session ID changes after login (session fixation prevention).",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "contains": "session"}
+          ],
+          "severity": "high",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "uuid_v1_leak": {
+      "description": "UUID v1 information leak -- UUIDv1 contains MAC address and timestamp, allowing user tracking and time correlation",
+      "tech_match": [],
+      "param_match": ["id", "uuid", "guid", "ref", "token", "resource_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if UUIDs follow v1 format (time-based) -- 8-4-4-4-12 hex with version nibble = 1 (xxxxxxxx-xxxx-1xxx-xxxx-xxxxxxxxxxxx). Extract MAC from last 12 chars and timestamp from first segments.",
+          "matchers": [
+            {"type": "word", "words": ["-1"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

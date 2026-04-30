@@ -1,0 +1,294 @@
+{
+  "category": "business_logic",
+  "contexts": {
+    "price_manipulation": {
+      "description": "Price/amount tampering -- modify price, quantity, or discount values in client-side requests",
+      "tech_match": [],
+      "param_match": ["price", "amount", "total", "cost", "quantity", "qty", "discount", "coupon", "subtotal", "unit_price", "fee"],
+      "probes": [
+        {
+          "payload": "0",
+          "description": "Zero price/amount -- set financial value to 0 and check if order/transaction succeeds",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 302]},
+            {"type": "not_word", "words": ["invalid", "error", "minimum", "must be greater"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "-1",
+          "description": "Negative value -- set price/quantity to negative to credit account or reverse charges",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 302]},
+            {"type": "not_word", "words": ["invalid", "error", "must be positive", "negative"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "0.001",
+          "description": "Sub-cent amount -- set price to fractional value below minimum unit to exploit rounding",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 302]},
+            {"type": "not_word", "words": ["invalid", "minimum"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "99999999",
+          "description": "Integer overflow -- set quantity/amount to large value to trigger overflow or unexpected behavior",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "word", "words": ["overflow", "range", "maximum"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "coupon_abuse": {
+      "description": "Coupon/promo code abuse -- stacking, reuse, expired code acceptance, race condition double-apply",
+      "tech_match": [],
+      "param_match": ["coupon", "promo", "promo_code", "discount_code", "voucher", "gift_code", "referral"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Apply same coupon twice -- send coupon apply request multiple times to check for double-discount",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["already applied", "already used", "duplicate"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "workflow_bypass": {
+      "description": "Multi-step workflow bypass -- skip steps, access final step directly, or replay intermediate steps",
+      "tech_match": [],
+      "param_match": ["step", "stage", "phase", "state", "status", "action", "flow"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Skip to final workflow step -- access order confirmation/payment success without completing payment",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["success", "confirmed", "complete", "approved", "thank you"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "rate_limit_bypass": {
+      "description": "Rate limit bypass -- circumvent API rate limiting via header manipulation or endpoint variation",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Forwarded-For rotation to bypass IP-based rate limits",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["rate limit", "too many requests", "throttle"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"header": "X-Forwarded-For: 1.2.3.4"}
+        }
+      ]
+    },
+    "privilege_escalation": {
+      "description": "Horizontal/vertical privilege escalation -- access other users data or admin functions by manipulating identifiers or role parameters",
+      "tech_match": [],
+      "param_match": ["user_id", "account_id", "role", "admin", "is_admin", "group", "permission", "org_id"],
+      "probes": [
+        {
+          "payload": "1",
+          "description": "Change user_id/account_id to 1 (likely admin) -- test if response returns different user data",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "admin",
+          "description": "Set role parameter to admin -- test if server accepts role change without authorization",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "invalid role"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "type_juggling": {
+      "description": "Type confusion/juggling -- exploit loose comparisons by sending unexpected types (array, object, boolean, null)",
+      "tech_match": ["PHP", "Node.js", "JavaScript", "Ruby"],
+      "param_match": ["password", "token", "otp", "code", "pin", "secret"],
+      "probes": [
+        {
+          "payload": "true",
+          "description": "Boolean true instead of string -- PHP loose comparison: true == 'any_string' is true",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "[]",
+          "description": "Empty array instead of string -- some frameworks accept arrays and skip validation",
+          "matchers": [
+            {"type": "status", "status": [200, 302, 500]},
+            {"type": "word", "words": ["array", "type", "unexpected"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "currency_confusion": {
+      "description": "Currency handling flaws -- wrong decimal places (JPY=0, USD=2), currency code swap, rounding exploitation",
+      "tech_match": [],
+      "param_match": ["currency", "currency_code", "amount", "price", "total", "payment_amount"],
+      "probes": [
+        {
+          "payload": "JPY",
+          "description": "Switch currency to JPY (zero decimal) -- $100.00 USD treated as 10000 JPY or vice versa due to decimal mismatch",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 302]},
+            {"type": "not_word", "words": ["invalid currency", "unsupported", "error"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "0.001",
+          "description": "Sub-unit amount in currency with no decimals -- exploit rounding (0.001 USD rounds to 0 in some systems)",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["invalid", "minimum"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "quantity_manipulation": {
+      "description": "Quantity/count tampering -- extreme values, integer overflow, negative quantity with negative price yielding positive total",
+      "tech_match": [],
+      "param_match": ["quantity", "qty", "count", "num", "items", "seats", "licenses"],
+      "probes": [
+        {
+          "payload": "999999",
+          "description": "Extreme quantity -- set to 999999 and check if order total overflows or system allows without stock validation",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 500]},
+            {"type": "word", "words": ["overflow", "out of range", "maximum exceeded"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "2147483647",
+          "description": "Max 32-bit integer -- triggers integer overflow in languages using int32 for quantity calculations",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "word", "words": ["overflow", "error", "range"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "-1",
+          "description": "Negative quantity -- combined with positive price may credit account; combined with negative price may yield positive total",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 302]},
+            {"type": "not_word", "words": ["invalid", "must be positive", "negative not allowed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "refund_abuse": {
+      "description": "Refund logic flaws -- refund exceeding original amount, double refund, partial refund manipulation",
+      "tech_match": [],
+      "param_match": ["refund", "refund_amount", "amount", "return_amount", "credit", "partial_refund"],
+      "probes": [
+        {
+          "payload": "99999",
+          "description": "Refund amount exceeding original charge -- set refund_amount higher than order total to extract money",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["exceeds", "greater than", "invalid amount", "cannot exceed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Double refund -- replay refund request to check if same order can be refunded twice",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["already refunded", "duplicate", "already processed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "inventory_toctou": {
+      "description": "Inventory race condition -- concurrent purchase of last item, TOCTOU between stock check and order placement (use test_race_condition for exploitation)",
+      "tech_match": [],
+      "param_match": ["item_id", "product_id", "sku", "variant_id", "quantity"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Concurrent add-to-cart of last-stock item -- send identical purchase requests simultaneously to detect TOCTOU in inventory deduction",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["out of stock", "unavailable", "insufficient"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"concurrent": true, "count": 5}
+        }
+      ]
+    },
+    "subscription_abuse": {
+      "description": "Subscription/trial abuse -- free trial stacking, cancel+refund timing, plan downgrade retaining premium features",
+      "tech_match": [],
+      "param_match": ["plan", "plan_id", "subscription", "tier", "trial", "billing_cycle"],
+      "probes": [
+        {
+          "payload": "free",
+          "description": "Downgrade plan to free -- check if premium features remain accessible after plan change to lower tier",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["upgrade required", "premium only", "not available"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "trial",
+          "description": "Re-activate trial -- switch plan back to trial to check if trial stacking is prevented",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["already used", "trial expired", "one trial per account"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

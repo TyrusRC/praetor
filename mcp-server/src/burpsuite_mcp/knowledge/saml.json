@@ -1,0 +1,100 @@
+{
+  "category": "saml",
+  "contexts": {
+    "signature_bypass": {
+      "description": "SAML signature validation bypass -- remove or manipulate XML signature to forge assertions",
+      "tech_match": ["SAML", "SSO", "Okta", "ADFS", "Shibboleth", "OneLogin", "SimpleSAMLphp"],
+      "param_match": ["SAMLResponse", "SAMLRequest", "RelayState"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Remove Signature element from SAML response -- if SP accepts unsigned assertion, any attribute can be forged",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["signature", "invalid signature", "verification failed", "not signed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Move Signature to different element -- sign a non-critical element while leaving assertion unsigned",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["signature", "invalid", "verification"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "xxe_in_saml": {
+      "description": "XXE injection via SAML XML -- inject external entity in SAMLResponse/SAMLRequest XML payload",
+      "tech_match": ["SAML", "SSO", "Java", "PHP", ".NET"],
+      "param_match": ["SAMLResponse", "SAMLRequest"],
+      "probes": [
+        {
+          "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><samlp:Response>&xxe;</samlp:Response>",
+          "description": "External entity injection in SAML response -- if XML parser resolves entities, file read is possible",
+          "matchers": [
+            {"type": "not_word", "words": ["xml parsing", "entity", "dtd not allowed"]},
+            {"type": "status", "status": [200, 400, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "assertion_replay": {
+      "description": "SAML assertion replay -- reuse a valid assertion after expiry or for a different session",
+      "tech_match": ["SAML", "SSO"],
+      "param_match": ["SAMLResponse"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Replay captured SAMLResponse after session ends -- if accepted, assertion replay allows session hijacking",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["expired", "replay", "already consumed", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "attribute_injection": {
+      "description": "SAML attribute injection -- inject additional attributes (role, email, group) into assertion to escalate privileges",
+      "tech_match": ["SAML", "SSO"],
+      "param_match": ["SAMLResponse"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Add admin role attribute to SAML assertion -- if SP trusts all assertion attributes without validation, privilege escalation occurs",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "word", "words": ["admin", "dashboard", "settings", "management"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "recipient_mismatch": {
+      "description": "SAML recipient/audience validation bypass -- assertion intended for one SP accepted by another",
+      "tech_match": ["SAML", "SSO"],
+      "param_match": ["SAMLResponse"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Submit assertion from SP-A to SP-B -- if recipient/audience not validated, cross-SP impersonation is possible",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["audience", "recipient", "invalid", "mismatch"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "category": "xs_leak",
+  "contexts": {
+    "frame_counting": {
+      "description": "Cross-site leak via frame counting -- detect number of frames in cross-origin page to infer state (logged in vs not, search results count)",
+      "tech_match": ["JavaScript"],
+      "param_match": ["search", "q", "query", "id", "user"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Frame count comparison -- open target in iframe/window.open, compare window.length for authenticated vs unauthenticated state. Different frame count reveals auth status or search results.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "timing_leak": {
+      "description": "Cross-site timing leak -- measure response time differences to infer cross-origin state",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "id", "email", "username"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Performance API timing -- use performance.now() or Resource Timing API to measure cross-origin request duration. Longer response = more results = valid search term/user exists.",
+          "matchers": [
+            {"type": "timing", "min_ms": 500}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "error_event": {
+      "description": "Cross-site leak via error events -- detect if cross-origin resource loads successfully or errors to infer state",
+      "tech_match": [],
+      "param_match": ["id", "file", "image", "avatar", "document"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "onload/onerror event detection -- embed cross-origin resource as <img>, <script>, or <link>. onload = resource exists (user logged in, file accessible). onerror = denied/404.",
+          "matchers": [
+            {"type": "status", "status": [200, 403, 404]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    }
+  }
+}

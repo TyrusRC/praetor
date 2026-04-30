@@ -1,0 +1,81 @@
+{
+  "category": "insecure_deserialization",
+  "contexts": {
+    "java_gadgets": {
+      "description": "Java deserialization gadget detection -- identify exploitable Java serialized objects in requests/responses",
+      "tech_match": ["Java", "Spring", "Tomcat", "JBoss", "WebLogic", "WebSphere"],
+      "param_match": ["data", "object", "serialized", "viewstate", "state", "payload", "session", "token"],
+      "probes": [
+        {
+          "payload": "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAB3CAAAAAEAAAABdAAEdGVzdHQABHRlc3R4",
+          "description": "Java serialized HashMap (harmless) -- if accepted without error, endpoint deserializes user-controlled objects",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "not_word", "words": ["deserialization disabled", "ObjectInputStream not allowed", "ClassNotFound"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for Java serialization markers in responses -- aced0005 magic bytes (base64: rO0AB) indicate serialized Java objects in transport",
+          "matchers": [
+            {"type": "word", "words": ["rO0AB", "aced0005", "java.io.Serializable"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "php_unserialize": {
+      "description": "PHP object injection via unserialize() -- user-controlled data enables arbitrary object instantiation",
+      "tech_match": ["PHP", "Laravel", "Symfony", "WordPress", "Drupal"],
+      "param_match": ["data", "object", "serialized", "cookie", "session", "token", "payload"],
+      "probes": [
+        {
+          "payload": "O:8:\"stdClass\":1:{s:4:\"test\";s:6:\"canary\";}",
+          "description": "PHP serialized stdClass -- if processed without error, unserialize() accepts user input",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["unserialize", "not allowed", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "ruby_yaml": {
+      "description": "Ruby YAML deserialization -- YAML.load processes arbitrary Ruby objects including command execution gadgets",
+      "tech_match": ["Ruby", "Rails", "Sinatra"],
+      "param_match": ["data", "config", "yaml", "import", "content"],
+      "probes": [
+        {
+          "payload": "--- !ruby/object:Gem::Installer\ni: x",
+          "description": "Ruby YAML object instantiation probe -- if Gem::Installer is recognized, unsafe YAML.load is in use",
+          "matchers": [
+            {"type": "word", "words": ["Gem::Installer", "NoMethodError", "undefined method"], "condition": "or"},
+            {"type": "status", "status": [500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "python_unsafe_deser": {
+      "description": "Python unsafe deserialization -- user input passed to unsafe deserialization functions enables code execution",
+      "tech_match": ["Python", "Django", "Flask", "FastAPI"],
+      "param_match": ["data", "object", "session", "state", "serialized"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for Python serialization markers in cookies/parameters -- gASV prefix (base64) or specific byte patterns indicate unsafe deserialization in transport",
+          "matchers": [
+            {"type": "word", "words": ["gASV", "unpickling", "deserialize"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

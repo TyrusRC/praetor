@@ -1,0 +1,113 @@
+{
+  "category": "source_code_exposure",
+  "contexts": {
+    "git_exposure": {
+      "description": "Exposed .git directory -- download repository contents including source code, credentials, and commit history",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.git/HEAD",
+          "description": "Git HEAD file -- if accessible, contains current branch ref confirming .git directory is exposed. Use git-dumper to extract full repo.",
+          "matchers": [
+            {"type": "word", "words": ["ref: refs/heads/", "ref: refs/"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "/.git/config",
+          "description": "Git config -- contains remote URL (may include credentials), author info, branch tracking. Often blocked but .git/HEAD is not.",
+          "matchers": [
+            {"type": "word", "words": ["[core]", "[remote", "repositoryformatversion"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        }
+      ]
+    },
+    "svn_exposure": {
+      "description": "Exposed .svn directory -- download Subversion metadata including source code and credentials",
+      "tech_match": ["Apache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.svn/entries",
+          "description": "SVN entries file (pre-1.7) -- contains file listing and revision info of the working copy",
+          "matchers": [
+            {"type": "word", "words": ["dir", "svn:"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "/.svn/wc.db",
+          "description": "SVN SQLite database (1.7+) -- contains full working copy metadata including file paths and checksums",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["SQLite"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "env_file_exposure": {
+      "description": "Exposed environment/config files -- .env, config.yml, settings files containing credentials and API keys",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.env",
+          "description": ".env file -- contains environment variables (DB passwords, API keys, secret keys). Most critical file to check.",
+          "matchers": [
+            {"type": "word", "words": ["DB_PASSWORD", "SECRET_KEY", "API_KEY", "DATABASE_URL", "AWS_", "REDIS_"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "/.env.backup",
+          "description": ".env.backup -- backup copy of .env file, often with production credentials",
+          "matchers": [
+            {"type": "word", "words": ["DB_", "SECRET", "KEY", "PASSWORD", "TOKEN"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        }
+      ]
+    },
+    "debug_endpoints": {
+      "description": "Exposed debug/admin endpoints -- Spring Actuator, Django debug, PHP info pages leaking configuration",
+      "tech_match": ["Spring", "Django", "PHP", "Laravel", "Rails"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/actuator/env",
+          "description": "Spring Actuator environment -- dumps all environment properties including database credentials and secrets",
+          "matchers": [
+            {"type": "word", "words": ["spring.", "server.port", "database", "datasource"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        },
+        {
+          "payload": "/debug/vars",
+          "description": "Go expvar debug endpoint -- exposes internal variables and runtime stats",
+          "matchers": [
+            {"type": "word", "words": ["memstats", "cmdline", "goroutine"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    }
+  }
+}

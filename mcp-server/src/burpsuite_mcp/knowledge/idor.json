@@ -2,15 +2,16 @@
   "category": "idor",
   "contexts": {
     "numeric_id": {
-      "description": "IDOR probes for numeric integer identifiers — tests whether changing IDs returns other users data",
+      "description": "IDOR probes for numeric integer identifiers — tests whether changing IDs returns other users data. NOTE: length_diff alone is indicative, not conclusive — paginated content, dynamic ads, or personalized widgets can cause length variance. Always verify semantically (different user data in response) before confirming.",
       "tech_match": [],
       "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id"],
       "probes": [
         {
           "payload": "2",
-          "description": "Replace baseline numeric ID with 2 — length diff indicates a different record was returned",
+          "description": "Replace baseline numeric ID with 2 — length diff with same status indicates a different record was returned",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
           ],
           "severity": "high",
@@ -19,9 +20,10 @@
         },
         {
           "payload": "0",
-          "description": "Replace baseline ID with 0 — may return admin or default account data",
+          "description": "Replace baseline ID with 0 — may return admin or default account data; requires matching 200 status",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}
           ],
           "severity": "high",
@@ -30,9 +32,10 @@
         },
         {
           "payload": "-1",
-          "description": "Replace baseline ID with -1 — negative ID may bypass authorization checks",
+          "description": "Replace baseline ID with -1 — negative ID may bypass authorization checks; requires matching 200 status",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}
           ],
           "severity": "medium",
@@ -42,15 +45,16 @@
       ]
     },
     "uuid_id": {
-      "description": "IDOR probes for UUID-format identifiers — tests whether known or guessable UUIDs access other users data",
+      "description": "IDOR probes for UUID-format identifiers — tests whether known or guessable UUIDs access other users data. Requires status match to avoid false positives from error pages.",
       "tech_match": [],
       "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id"],
       "probes": [
         {
           "payload": "00000000-0000-0000-0000-000000000001",
-          "description": "Replace UUID with a low-entropy sequential UUID — may hit admin or seed data records",
+          "description": "Replace UUID with a low-entropy sequential UUID — may hit admin or seed data records; requires 200 status match",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
           ],
           "severity": "high",
@@ -59,9 +63,10 @@
         },
         {
           "payload": "00000000-0000-0000-0000-000000000000",
-          "description": "Nil UUID injection — may bypass UUID validation or access a default resource",
+          "description": "Nil UUID injection — may bypass UUID validation or access a default resource; requires 200 status match",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["unauthorized", "forbidden", "denied"]}
           ],
           "severity": "medium",
@@ -71,15 +76,16 @@
       ]
     },
     "sequential_enum": {
-      "description": "Sequential ID enumeration IDOR — walks IDs above and below baseline to detect access to other records",
+      "description": "Sequential ID enumeration IDOR — walks IDs above and below baseline to detect access to other records. Requires status match to filter error pages.",
       "tech_match": [],
       "param_match": ["id", "uid", "user_id", "account_id", "profile_id", "order_id", "item_id", "doc_id"],
       "probes": [
         {
           "payload": "100",
-          "description": "Jump to ID 100 from baseline 1 — significant length diff with no error indicates a different user record is returned",
+          "description": "Jump to ID 100 from baseline 1 — length diff with same 200 status and no error indicates a different user record is returned",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["not found", "does not exist", "no record"]}
           ],
           "severity": "high",
@@ -88,9 +94,10 @@
         },
         {
           "payload": "0",
-          "description": "ID zero probe — may return admin, system, or seed record; length diff without access error suggests IDOR",
+          "description": "ID zero probe — may return admin, system, or seed record; requires 200 status and length diff without access error",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50},
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
             {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
           ],
           "severity": "high",
@@ -106,9 +113,11 @@
       "probes": [
         {
           "payload": "{{baseline}}&id=2",
-          "description": "Appended duplicate id param — backend may use last value (2) while auth middleware used first value",
+          "description": "Appended duplicate id param — backend may use last value (2) while auth middleware used first value; requires 200 status",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50}
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -116,9 +125,11 @@
         },
         {
           "payload": "id=2&id={{baseline}}",
-          "description": "Reversed param order duplicate — some frameworks use first occurrence; sends attacker ID first",
+          "description": "Reversed param order duplicate — some frameworks use first occurrence; sends attacker ID first; requires 200 status",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50}
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -163,6 +174,109 @@
           "severity": "high",
           "confidence_boost": 50,
           "variables": {"method_override": "PATCH"}
+        }
+      ]
+    },
+    "composite_key": {
+      "description": "Multi-field IDOR -- swap one field of a composite key (org_id + user_id, tenant + resource) while keeping the other to access cross-tenant data",
+      "tech_match": [],
+      "param_match": ["org_id", "tenant_id", "team_id", "workspace_id", "company_id", "group_id", "project_id"],
+      "probes": [
+        {
+          "payload": "1",
+          "description": "Swap org_id/tenant_id to 1 while keeping own user_id -- tests if authorization checks both fields of composite key",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found", "access denied"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"baseline_value": "current_org"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Keep org_id but swap user_id to another user in different org -- tests cross-tenant access via partial key manipulation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "encoded_id": {
+      "description": "IDOR via encoded/obfuscated identifiers -- base64-encoded IDs, hashids, JWT-embedded IDs, or encrypted IDs with discoverable patterns",
+      "tech_match": [],
+      "param_match": ["id", "uid", "user_id", "token", "ref", "resource", "hash", "key"],
+      "probes": [
+        {
+          "payload": "Mg==",
+          "description": "Base64-encoded ID 2 (Mg==) -- replace baseline base64 ID to test if server only checks format, not authorization",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"baseline_value": "MQ=="}
+        },
+        {
+          "payload": "MQ==",
+          "description": "Base64-encoded ID 1 (MQ==) -- likely admin or first user record; test alongside own encoded ID",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "0",
+          "description": "Raw numeric in encoded-ID field -- test if server accepts unencoded values, bypassing obfuscation layer entirely",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid", "format", "decode error", "not found"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "bulk_operations": {
+      "description": "IDOR in bulk/batch endpoints -- delete-all, export, batch update may lack per-item authorization checks",
+      "tech_match": [],
+      "param_match": ["ids", "items", "batch", "bulk", "selected", "resources", "export_ids"],
+      "probes": [
+        {
+          "payload": "[1,2,3,100,200]",
+          "description": "Inject other users resource IDs into bulk operation array -- tests if server validates ownership of each item in batch",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "denied", "not found", "permission"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "*",
+          "description": "Wildcard or 'all' in bulk selector -- test if server returns/affects all records without ownership check",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 500},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "invalid"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {}
         }
       ]
     }

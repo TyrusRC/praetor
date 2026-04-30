@@ -1,0 +1,39 @@
+{
+  "category": "redos",
+  "contexts": {
+    "catastrophic_backtracking": {
+      "description": "Regular expression denial of service -- send input that triggers exponential backtracking in vulnerable regex patterns",
+      "tech_match": ["Node.js", "Python", "Ruby", "Java", "PHP", "JavaScript"],
+      "param_match": ["email", "url", "search", "pattern", "regex", "filter", "input", "name", "query"],
+      "probes": [
+        {
+          "payload": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+          "description": "Classic ReDoS probe -- 30+ repeated chars followed by non-matching char. Triggers exponential backtracking on patterns like (a+)+$ or (a|aa)+$. Detect via response time >5s.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]!",
+          "description": "Character class ReDoS -- triggers backtracking in patterns with nested character classes like [a-zA-Z0-9_]+ on bracket-heavy input",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "user@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "description": "Email validation ReDoS -- long domain with many dots triggers backtracking in common email regex patterns",
+          "matchers": [
+            {"type": "timing", "min_ms": 3000}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

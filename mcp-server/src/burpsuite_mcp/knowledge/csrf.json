@@ -111,6 +111,75 @@
           "variables": {"remove_param": "csrf_token"}
         }
       ]
+    },
+    "samesite_bypass": {
+      "description": "SameSite cookie bypass -- exploit Lax+POST 2-minute window on Chromium, top-level navigation, and popup methods",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "POST within 2 minutes of cookie set (Lax+POST window) -- Chromium sends SameSite=Lax cookies with cross-site POST for 2 min after creation",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["forbidden", "csrf", "unauthorized"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"timing_window": "120s"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Top-level navigation via window.open -- SameSite=Lax allows GET on top-level navigations; chain with method conversion for POST actions",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["forbidden", "csrf", "unauthorized"]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"method": "GET", "delivery": "window.open"}
+        }
+      ]
+    },
+    "method_conversion": {
+      "description": "CSRF via HTTP method conversion -- convert POST to GET to bypass CSRF protection, or exploit multipart boundary tricks",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Convert POST body to GET query string -- many frameworks route GET and POST to same handler but only check CSRF on POST",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["method not allowed", "405", "csrf"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"method_override": "GET"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "POST with _method=PUT override parameter -- framework method override may bypass CSRF middleware that only protects POST",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["csrf", "invalid", "forbidden"]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"extra_param": "_method=PUT"}
+        }
+      ]
+    },
+    "json_csrf": {
+      "description": "CSRF for JSON API endpoints -- Content-Type manipulation to send JSON payloads via HTML forms without CORS preflight",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send JSON body with Content-Type text/plain -- browsers allow cross-origin text/plain POST without preflight; server may still parse as JSON",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["unsupported media", "415", "invalid content", "csrf"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"content_type": "text/plain"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "JSON via form enctype with crafted name -- use form input name as JSON key to construct valid JSON body cross-origin",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["parse error", "invalid json", "csrf"]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"content_type": "application/x-www-form-urlencoded"}
+        }
+      ]
     }
   }
 }

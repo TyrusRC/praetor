@@ -1,5 +1,15 @@
 {
   "category": "ssti",
+  "craft_guidance": [
+    "1. DETECT ENGINE: Send {{7*7}} and ${7*7} and #{7*7} and <%= 7*7 %>. Result 49 tells you which syntax is evaluated. Then fingerprint: {{7*'7'}} = 7777777 (Jinja2) vs 49 (Twig).",
+    "2. IDENTIFY SANDBOX: After detection, test config/settings access. Jinja2: {{config}}, Twig: {{app.request}}, Freemarker: ${.data_model}, Tornado: {{handler.settings}}.",
+    "3. ESCALATION STRATEGY: Config leak (SECRET_KEY) -> session forgery -> admin. Or: class hierarchy traversal -> find subprocess/os module -> RCE.",
+    "4. JINJA2 RCE: Chain through __mro__/__subclasses__ to find Popen/subprocess. Index varies by Python version. Use: {{''.__class__.__mro__[1].__subclasses__()}} then find the right index.",
+    "5. FILTER BYPASS: If {{ blocked, try {%, if _ blocked use attr()|string, if . blocked use []|attr. Encode via request.args (Jinja2) or URL encoding.",
+    "6. BLIND SSTI: No output? Use timing ({{range(999999999)|list}}) or OOB (curl/wget to Collaborator via RCE chain).",
+    "7. FRAMEWORK HINTS: Flask/Django=Jinja2, PHP=Twig/Smarty, Java=Freemarker/Thymeleaf/Velocity, Ruby=ERB/Slim, Node=Pug/Nunjucks/EJS, Go=text/template.",
+    "8. REAL IMPACT: SSTI almost always leads to RCE. Prioritize over XSS. Even info-only ({{config}}) often leaks SECRET_KEY for session forgery."
+  ],
   "contexts": {
     "jinja2": {
       "description": "Server-Side Template Injection probes for Jinja2 (Flask/Django Python stacks)",

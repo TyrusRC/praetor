@@ -14,8 +14,8 @@
           "confidence_boost": 45
         },
         {
-          "payload": "{{baseline}}%0d%0a%0d%0a<script>alert(1)</script>",
-          "description": "CRLF to HTTP response splitting (XSS via header injection)",
+          "payload": "{{baseline}}%0d%0a%0d%0a<swk-crlf-{{marker}}>",
+          "description": "CRLF to HTTP response splitting — unique marker tag in double-CRLF body split; reflection confirms header injection escalated to body control",
           "matchers": [{"type": "reflection", "check_variants": true}],
           "severity": "critical",
           "confidence_boost": 50
@@ -35,16 +35,19 @@
           "confidence_boost": 50
         },
         {
-          "payload": "{{baseline}}%0d%0aLocation: https://evil.com",
-          "description": "CRLF redirect injection — inject Location header to redirect victim",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "payload": "{{baseline}}%0d%0aLocation: https://swktest-{{marker}}.evil.example",
+          "description": "CRLF redirect injection — inject Location header with unique marker to redirect victim",
+          "matchers": [{"type": "header", "name": "Location", "contains": "swktest-"}],
           "severity": "high",
           "confidence_boost": 45
         },
         {
-          "payload": "{{baseline}}%0d%0aContent-Length: 0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0a%0d%0a<script>alert(1)</script>",
-          "description": "HTTP response splitting — inject fake second HTTP response with XSS payload",
-          "matchers": [{"type": "word", "words": ["<script>alert(1)</script>"], "condition": "or"}],
+          "payload": "{{baseline}}%0d%0aContent-Length: 0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0aX-SWK-Split: {{marker}}%0d%0a%0d%0aswk-split-{{marker}}",
+          "description": "HTTP response splitting — inject fake second HTTP response with unique marker; X-SWK-Split header in response confirms full splitting",
+          "matchers": [
+            {"type": "header", "name": "X-SWK-Split", "contains": "swk"},
+            {"type": "word", "words": ["swk-split-"], "condition": "or"}
+          ],
           "severity": "critical",
           "confidence_boost": 50
         }
@@ -56,9 +59,9 @@
       "param_match": ["user", "username", "name", "q", "search", "input", "url", "redirect"],
       "probes": [
         {
-          "payload": "{{baseline}}%0d%0a[CRITICAL] Unauthorized access detected",
-          "description": "CRLF log injection — if server logs the parameter and exposes logs, fake critical entry appears",
-          "matchers": [{"type": "word", "words": ["CRITICAL", "Unauthorized access detected"], "condition": "or"}],
+          "payload": "{{baseline}}%0d%0a[CRITICAL] swk-log-inject-{{marker}}",
+          "description": "CRLF log injection — unique marker in fake log entry; reflection confirms CRLF injection into log output",
+          "matchers": [{"type": "reflection", "check_variants": true}],
           "severity": "medium",
           "confidence_boost": 25
         }

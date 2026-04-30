@@ -1,0 +1,117 @@
+{
+  "category": "access_control",
+  "contexts": {
+    "forced_browsing": {
+      "description": "Forced browsing to unlinked admin/sensitive pages -- access restricted pages by guessing URLs without proper authorization checks",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/admin",
+          "description": "Direct access to /admin endpoint -- check if authorization enforced or relies on UI hiding",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["login", "unauthorized", "forbidden", "redirect"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "/api/admin/users",
+          "description": "Direct access to admin API endpoint -- check if API enforces role-based access control",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["email", "username", "users", "role"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "method_based_bypass": {
+      "description": "HTTP method-based access control bypass -- change GET to POST/PUT/DELETE or use method override headers",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Change request method on restricted endpoint -- authorization may only check specific HTTP methods",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["forbidden", "not allowed", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "parameter_based_access": {
+      "description": "Parameter-based access control -- hidden parameters control access (admin=true, debug=1, internal=1)",
+      "tech_match": [],
+      "param_match": ["admin", "debug", "internal", "test", "role", "access_level", "preview", "hidden"],
+      "probes": [
+        {
+          "payload": "true",
+          "description": "Add admin=true parameter -- some apps check for parameter existence rather than server-side role validation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "referer_based": {
+      "description": "Referer-based access control bypass -- remove or change Referer header to bypass checks that use it for authorization",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Remove Referer header on admin action -- if access control relies on Referer from admin page, removing it may bypass the check",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["forbidden", "unauthorized"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "multitenancy": {
+      "description": "Multi-tenancy access control bypass -- access data from other organizations/tenants by manipulating org/tenant identifiers",
+      "tech_match": [],
+      "param_match": ["org_id", "tenant_id", "workspace_id", "team_id", "company_id", "account_id", "project_id"],
+      "probes": [
+        {
+          "payload": "1",
+          "description": "Change org/tenant ID to 1 -- if IDOR exists at the tenant level, full cross-tenant data access is possible",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "insecure_direct_object": {
+      "description": "IDOR on file/document access -- access other users files by manipulating file IDs or paths",
+      "tech_match": [],
+      "param_match": ["file_id", "doc_id", "document_id", "attachment_id", "media_id", "report_id", "export_id"],
+      "probes": [
+        {
+          "payload": "1",
+          "description": "Change file/document ID to 1 -- access first uploaded document which likely belongs to admin or another user",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["not found", "forbidden", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "category": "authentication",
+  "contexts": {
+    "password_reset_flaws": {
+      "description": "Password reset token weaknesses -- predictable tokens, token reuse, no expiry, token leakage in referrer",
+      "tech_match": [],
+      "param_match": ["token", "reset_token", "code", "otp", "verification"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Reuse password reset token after password change -- token should be invalidated after single use",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["expired", "invalid", "already used", "token"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "000000",
+          "description": "Trivial OTP/reset code -- test if short or predictable codes are accepted",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "expired"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "two_factor_bypass": {
+      "description": "2FA/MFA bypass -- skip 2FA step, brute force codes, reuse codes, direct endpoint access after first factor",
+      "tech_match": [],
+      "param_match": ["otp", "code", "mfa_code", "totp", "verification_code", "2fa"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Access authenticated endpoint without completing 2FA -- navigate directly to post-login pages after first factor only",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["verify", "two-factor", "2fa", "mfa", "verification required"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "000000",
+          "description": "Brute-force 2FA code -- test with common/trivial codes; check if rate limiting exists",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "too many", "rate limit", "locked"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "session_fixation": {
+      "description": "Session fixation -- session ID not regenerated after login, allowing pre-set session takeover",
+      "tech_match": ["PHP", "Java", "ASP.NET"],
+      "param_match": ["PHPSESSID", "JSESSIONID", "ASP.NET_SessionId", "session_id"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Pre-login and post-login session ID comparison -- if same session ID persists after authentication, session fixation is possible",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "contains": "session"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "account_enumeration": {
+      "description": "Username/email enumeration via differential responses -- login, registration, or password reset reveals valid accounts",
+      "tech_match": [],
+      "param_match": ["email", "username", "user", "login"],
+      "probes": [
+        {
+          "payload": "nonexistent_user_swk_probe@example.com",
+          "description": "Login with non-existent email -- compare response with valid email to detect enumeration via timing, status, or message differences",
+          "matchers": [
+            {"type": "word", "words": ["not found", "doesn't exist", "no account", "not registered", "invalid email"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 20
+        }
+      ]
+    },
+    "insecure_remember_me": {
+      "description": "Insecure remember-me token -- predictable, long-lived, or cleartext tokens in cookies",
+      "tech_match": [],
+      "param_match": ["remember", "remember_me", "rememberme", "stay_logged_in", "persistent"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check remember-me cookie attributes -- missing Secure/HttpOnly, base64 decodable to username, no expiry",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "contains": "remember"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "default_credentials": {
+      "description": "Default/common credential testing -- check for well-known username:password combos left from setup or development",
+      "tech_match": [],
+      "param_match": ["username", "password", "user", "login", "email", "pass"],
+      "probes": [
+        {
+          "payload": "admin",
+          "description": "admin:admin -- most common default credential pair across web applications and admin panels",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong", "denied"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"username": "admin", "password": "admin"}
+        },
+        {
+          "payload": "password",
+          "description": "admin:password -- second most common default credential",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong", "denied"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"username": "admin", "password": "password"}
+        },
+        {
+          "payload": "test",
+          "description": "test:test -- common development/staging leftover credential",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"username": "test", "password": "test"}
+        },
+        {
+          "payload": "admin123",
+          "description": "admin:admin123 -- common weak admin password meeting minimum complexity",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong", "denied"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"username": "admin", "password": "admin123"}
+        }
+      ]
+    },
+    "multi_step_bypass": {
+      "description": "Multi-step authentication bypass -- skip intermediate steps and access final authenticated state directly",
+      "tech_match": [],
+      "param_match": ["step", "stage", "phase", "flow", "action", "next"],
+      "probes": [
+        {
+          "payload": "3",
+          "description": "Jump to step 3 without completing step 1 or 2 -- access final auth step directly to bypass MFA or verification",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["complete previous", "step required", "invalid flow", "unauthorized"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Submit step 2 response directly to step 3 endpoint -- skip intermediate validation by posting to final step URL",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "expired", "session", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "token_prediction": {
+      "description": "Predictable token generation -- timestamp-based reset tokens, sequential tokens, weak entropy in secrets",
+      "tech_match": ["PHP", "Java", "ASP.NET", "Ruby"],
+      "param_match": ["token", "reset_token", "code", "otp", "verification", "confirm_token"],
+      "probes": [
+        {
+          "payload": "1",
+          "description": "Sequential token probe -- try token value 1 to detect sequential/incremental token generation",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid", "expired", "not found"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "000001",
+          "description": "Zero-padded sequential token -- common in systems using auto-increment IDs as tokens",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid", "expired", "not found"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Request two tokens in quick succession -- compare for sequential pattern or timestamp correlation (manual analysis required)",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["token", "code", "reset"], "condition": "or"}
+          ],
+          "severity": "info",
+          "confidence_boost": 15
+        }
+      ]
+    }
+  }
+}

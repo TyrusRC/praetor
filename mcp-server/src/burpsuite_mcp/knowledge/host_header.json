@@ -1,0 +1,115 @@
+{
+  "category": "host_header",
+  "contexts": {
+    "password_reset_poison": {
+      "description": "Host header injection in password reset -- attacker-controlled Host value included in reset link sent via email",
+      "tech_match": [],
+      "param_match": ["email", "username", "user", "login"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Override Host header to attacker domain on password reset endpoint -- if reset email contains attacker host, token is leaked",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid host", "bad request"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"header": "Host: evil.example.com"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Forwarded-Host override on password reset -- some frameworks prefer X-Forwarded-Host for link generation",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"header": "X-Forwarded-Host: evil.example.com"}
+        }
+      ]
+    },
+    "routing_abuse": {
+      "description": "Host header routing abuse -- manipulate internal routing to access restricted virtual hosts or admin panels",
+      "tech_match": ["Nginx", "Apache", "IIS", "Node.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Host header set to localhost -- may route to admin vhost or internal application",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 200},
+            {"type": "not_word", "words": ["not found", "bad request"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"header": "Host: localhost"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Host header set to internal hostname -- may bypass reverse proxy ACLs",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"header": "Host: 127.0.0.1"}
+        }
+      ]
+    },
+    "ssrf_via_host": {
+      "description": "SSRF via Host header -- backend uses Host header value to make internal requests",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Absolute URL with overridden Host -- send GET http://target/path with Host: internal to reach internal services",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["bad request"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"header": "Host: 169.254.169.254"}
+        }
+      ]
+    },
+    "cache_poison_via_host": {
+      "description": "Web cache poisoning via Host header -- inject malicious host into cached responses if Host is unkeyed",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inject evil host and check if reflected in response with cache headers -- indicates cache uses Host for content but not for key",
+          "matchers": [
+            {"type": "word", "words": ["evil.example.com"]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"header": "X-Forwarded-Host: evil.example.com"}
+        }
+      ]
+    },
+    "duplicate_host": {
+      "description": "Duplicate Host header -- send two Host headers to exploit parsing differences between proxy and backend",
+      "tech_match": ["Nginx", "Apache", "IIS"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Two Host headers -- proxy uses first (legitimate), backend uses second (attacker-controlled) for link generation",
+          "matchers": [
+            {"type": "word", "words": ["evil.example.com"]},
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

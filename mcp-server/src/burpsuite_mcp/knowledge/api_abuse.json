@@ -258,7 +258,7 @@
           "confidence_boost": 45
         },
         {
-          "payload": "POST / HTTP/2\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding:\x00chunked\r\n\r\n0\r\n\r\n",
+          "payload": "POST / HTTP/2\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding:\\x00chunked\r\n\r\n0\r\n\r\n",
           "description": "H2 TE with null byte — HTTP/2 binary framing allows null bytes in header values; H1 backend may truncate at null or parse differently causing desync",
           "matchers": [
             {"type": "timing", "min_ms": 5000},

