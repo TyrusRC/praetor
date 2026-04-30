@@ -21,7 +21,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_issues_dashboard() -> str:
-        """Compact dashboard of all Burp scanner findings grouped by severity with affected hosts and top issues."""
+        """Compact dashboard of actionable Burp scanner findings. Filters noise (informational/tentative, known FP patterns) and deduplicates by issue type + host."""
         data = await client.get("/api/scanner/findings", params={"limit": 500})
         if "error" in data:
             return f"Error: {data['error']}"
@@ -32,11 +32,39 @@ def register(mcp: FastMCP):
         if not items:
             return "No scanner findings. Run a scan or browse the target through Burp first."
 
-        # Count by severity
+        # Noise filter — same list as format_findings
+        _NOISE_NAMES = {
+            "strict transport security not enforced",
+            "content type incorrectly stated",
+            "input returned in response (reflected)",
+            "cacheable https response",
+            "tls certificate",
+            "cookie without httponly flag set",
+            "cookie without secure flag set",
+            "cookie scoped to parent domain",
+            "cross-domain referer leakage",
+            "http trace method is enabled",
+            "long redirection response",
+            "backup file",
+        }
+
+        # Count by severity, filtering noise
         by_severity: dict[str, list] = {}
         hosts: set[str] = set()
+        noise_count = 0
         for item in items:
             sev = item.get("severity", "INFORMATION").upper()
+            conf = item.get("confidence", "").upper()
+            name = item.get("name", "").lower()
+
+            # Skip noise
+            if sev == "INFORMATION" and conf == "TENTATIVE":
+                noise_count += 1
+                continue
+            if any(n in name for n in _NOISE_NAMES):
+                noise_count += 1
+                continue
+
             by_severity.setdefault(sev, []).append(item)
             url = item.get("base_url", "")
             if url:
@@ -46,7 +74,8 @@ def register(mcp: FastMCP):
                 except Exception:
                     pass
 
-        lines = [f"Burp Scanner Dashboard ({total} findings)", "=" * 50, ""]
+        actionable = sum(len(v) for v in by_severity.values())
+        lines = [f"Burp Scanner Dashboard ({actionable} actionable, {noise_count} noise filtered, {total} raw)", "=" * 50, ""]
 
         # Severity summary
         for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATION"]:
@@ -113,7 +142,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def get_new_findings(since_count: int = 0) -> str:
-        """Get scanner findings added since a specific count for incremental polling during active scans.
+        """Get actionable scanner findings added since a specific count. Filters noise automatically.
 
         Args:
             since_count: Number of findings already seen; only newer ones are returned
@@ -126,20 +155,36 @@ def register(mcp: FastMCP):
         findings = data.get("items", [])
 
         if not findings:
-            return f"No new findings since count {since_count}. Total findings: {total}"
+            return f"No new findings since count {since_count}. Total: {total}"
 
-        lines = [f"New findings since #{since_count} ({len(findings)} new, {total} total):\n"]
+        # Filter noise from new findings
+        actionable = []
+        noise = 0
         for f in findings:
+            sev = f.get("severity", "").upper()
+            conf = f.get("confidence", "").upper()
+            name = f.get("name", "").lower()
+            if sev == "INFORMATION" and conf == "TENTATIVE":
+                noise += 1
+                continue
+            if any(n in name for n in ("strict transport", "cacheable https", "cookie without",
+                                       "content type incorrectly", "cross-domain referer")):
+                noise += 1
+                continue
+            actionable.append(f)
+
+        if not actionable:
+            return f"No actionable new findings ({noise} noise filtered). Total: {total}\nPoll: get_new_findings(since_count={total})"
+
+        lines = [f"New findings since #{since_count} ({len(actionable)} actionable, {noise} noise filtered):\n"]
+        for f in actionable:
             severity = f.get("severity", "unknown")
             name = f.get("name", "Unknown")
             url = f.get("base_url", "")
             confidence = f.get("confidence", "")
-            lines.append(f"  [{severity.upper()}] {name}")
+            lines.append(f"  [{severity.upper()}/{confidence}] {name}")
             if url:
-                lines.append(f"    URL: {url}")
-            if confidence:
-                lines.append(f"    Confidence: {confidence}")
+                lines.append(f"    {url}")
 
-        lines.append(f"\nTotal findings: {total}")
-        lines.append(f"Poll next with: get_new_findings(since_count={total})")
+        lines.append(f"\nTotal: {total}. Poll: get_new_findings(since_count={total})")
         return "\n".join(lines)

@@ -6,6 +6,19 @@ from burpsuite_mcp import client
 from burpsuite_mcp.processing.formatters import format_proxy_table, format_findings
 
 
+def _format_raw_findings(data: dict) -> str:
+    """Format all findings without filtering — for explicit INFORMATION requests."""
+    items = data.get("items", [])
+    total = data.get("total_findings", 0)
+    if not items:
+        return "No scanner findings."
+    lines = [f"Scanner Findings — UNFILTERED ({len(items)}/{total}):\n"]
+    for f in items:
+        lines.append(f"  [{f.get('severity', '?')}/{f.get('confidence', '?')}] {f.get('name', '?')}")
+        lines.append(f"    {f.get('base_url', '')}")
+    return "\n".join(lines)
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -82,13 +95,15 @@ def register(mcp: FastMCP):
         severity: str = "",
         confidence: str = "",
         limit: int = 100,
+        actionable_only: bool = True,
     ) -> str:
-        """Get scanner/audit findings from Burp Suite Professional.
+        """Get scanner/audit findings from Burp Suite Professional with noise filtering.
 
         Args:
             severity: Filter by severity (HIGH, MEDIUM, LOW, INFORMATION)
             confidence: Filter by confidence (CERTAIN, FIRM, TENTATIVE)
             limit: Max findings to return
+            actionable_only: Filter out noise/informational findings (default True). Set False to see everything.
         """
         params = {"limit": limit}
         if severity:
@@ -99,6 +114,11 @@ def register(mcp: FastMCP):
         data = await client.get("/api/scanner/findings", params=params)
         if "error" in data:
             return f"Error: {data['error']}"
+
+        if not actionable_only and severity == "INFORMATION":
+            # Raw mode: skip filtering for explicit INFORMATION requests
+            return _format_raw_findings(data)
+
         return format_findings(data)
 
     @mcp.tool()
