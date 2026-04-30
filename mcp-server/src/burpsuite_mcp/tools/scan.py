@@ -28,7 +28,9 @@ def _load_knowledge(category: str) -> dict | None:
 
 
 # Reference-only files (no probes, skip in auto_probe)
-_REFERENCE_ONLY = {"tech_vulns", "file_upload", "race_condition", "request_smuggling"}
+_REFERENCE_ONLY = {"tech_vulns", "file_upload", "race_condition", "request_smuggling", "clickjacking",
+                    "web_cache_deception", "insecure_randomness", "source_code_exposure", "csv_injection",
+                    "dependency_confusion", "xs_leak"}
 
 # Parameter name to vulnerability type mapping for attack prioritization
 _PARAM_RISK_MAP = {
@@ -54,6 +56,17 @@ _PARAM_RISK_MAP = {
     "idor_uuid": ["uuid", "guid", "ref", "slug", "handle", "hash", "resource_id", "object_id", "entity_id"],
     "oauth": ["code", "state", "redirect_uri", "code_verifier", "code_challenge", "nonce", "client_id"],
     "cache_key": ["cb", "cachebuster", "utm_source", "utm_content", "utm_campaign", "fbclid", "gclid"],
+    "saml": ["SAMLResponse", "SAMLRequest", "RelayState", "saml_token", "assertion"],
+    "authentication": ["otp", "mfa_code", "totp", "verification_code", "2fa", "reset_token", "remember_me"],
+    "business_logic": ["price", "amount", "total", "cost", "quantity", "qty", "discount", "coupon", "step", "stage"],
+    "web_llm": ["message", "prompt", "instruction", "chat", "query", "question", "context", "system_prompt"],
+    "host_header": ["host", "x_forwarded_host", "x_forwarded_for"],
+    "second_order": ["name", "username", "email", "title", "description", "comment", "bio", "feedback"],
+    "ldap_injection": ["username", "user", "login", "uid", "cn", "dn", "search", "filter", "ldap", "query"],
+    "xpath_injection": ["xpath", "path", "node", "xml", "search", "query", "filter"],
+    "ssi_injection": ["name", "title", "comment", "message", "text", "input"],
+    "xslt_injection": ["xsl", "xslt", "transform", "stylesheet", "xml", "template"],
+    "css_injection": ["style", "css", "color", "background", "theme", "class"],
 }
 
 # Common hidden parameter wordlists
@@ -240,11 +253,13 @@ def register(mcp: FastMCP):
         lines = [f"Auto-Probe: {data.get('parameters_tested', 0)} params, {data.get('total_probes_sent', 0)} probes\n"]
 
         findings = data.get("findings", [])
-        # Sort by confidence descending (falls back to score for older server
-        # builds that don't emit confidence yet).
+        # Clamp confidence to [0.0, 1.0] and sort descending.
+        for f in findings:
+            raw = f.get("confidence", f.get("score", 0) / 100.0)
+            f["confidence"] = max(0.0, min(1.0, raw))
         findings_sorted = sorted(
             findings,
-            key=lambda f: (f.get("confidence", f.get("score", 0) / 100.0), f.get("score", 0)),
+            key=lambda f: (f["confidence"], f.get("score", 0)),
             reverse=True,
         )
 
@@ -796,6 +811,7 @@ def register(mcp: FastMCP):
                 continue
             baseline_status = baseline_resp.get("status", 0)
             baseline_length = baseline_resp.get("response_length", 0)
+            baseline_time_ms = baseline_resp.get("time_ms", 0)
             baseline_body = baseline_resp.get("response_body", "")
 
             for payload in vconfig["payloads"]:
@@ -833,9 +849,10 @@ def register(mcp: FastMCP):
 
                 # Check timing anomaly. Rule 11: never trust a single slow
                 # response — network noise triggers false positives. For SLEEP
-                # payloads, re-send twice more and require both repeats to
-                # also breach the 3s threshold before flagging.
-                if time_ms > 3000 and "SLEEP" in payload.upper():
+                # payloads, require delta >2s vs baseline AND re-send twice
+                # more requiring both repeats to also breach the threshold.
+                timing_threshold = max(3000, baseline_time_ms + 2000)
+                if time_ms > timing_threshold and "SLEEP" in payload.upper():
                     confirmed = 1
                     for _ in range(2):
                         verify_resp = await client.post("/api/session/request", json={
@@ -844,10 +861,10 @@ def register(mcp: FastMCP):
                         if "error" in verify_resp:
                             break
                         total_requests += 1
-                        if verify_resp.get("time_ms", 0) > 3000:
+                        if verify_resp.get("time_ms", 0) > timing_threshold:
                             confirmed += 1
                     if confirmed >= 3:
-                        finding_reasons.append(f"timing: {time_ms}ms (3/3 iterations)")
+                        finding_reasons.append(f"timing: {time_ms}ms vs baseline {baseline_time_ms}ms (3/3 iterations)")
 
                 # Status anomaly. Require consecutive 500s — single transient
                 # 500 is common noise and doesn't prove injection.

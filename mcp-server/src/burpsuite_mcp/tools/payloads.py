@@ -99,12 +99,33 @@ def register(mcp: FastMCP):
         for i, r in enumerate(results, 1):
             if r["context"] != current_ctx:
                 current_ctx = r["context"]
-                ctx_desc = contexts.get(current_ctx, {}).get("description", current_ctx)
+                ctx_info = contexts.get(current_ctx, {})
+                ctx_desc = ctx_info.get("description", current_ctx)
                 lines.append(f"# {ctx_desc}")
+                # Surface generation guidance if present
+                guidance = ctx_info.get("craft_guidance")
+                if guidance:
+                    lines.append(f"  CRAFT GUIDE: {guidance}")
 
             bypass = " [WAF]" if r["waf_bypass"] else ""
             lines.append(f"{i}. {r['payload']}")
             lines.append(f"   {r['description']}{bypass}")
+
+        # Also surface category-level craft guidance from knowledge base
+        knowledge_path = Path(__file__).parent.parent / "knowledge" / f"{category}.json"
+        if knowledge_path.exists():
+            try:
+                kb = json.load(open(knowledge_path))
+                kb_guidance = kb.get("craft_guidance")
+                if kb_guidance:
+                    lines.append(f"\n--- Payload Crafting Guide ({category}) ---")
+                    if isinstance(kb_guidance, list):
+                        for g in kb_guidance:
+                            lines.append(f"  - {g}")
+                    else:
+                        lines.append(f"  {kb_guidance}")
+            except (json.JSONDecodeError, OSError):
+                pass
 
         return "\n".join(lines)
 

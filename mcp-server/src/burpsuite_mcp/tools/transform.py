@@ -78,7 +78,7 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def detect_encoding(input_text: str) -> str:
-        """Detect what encoding(s) are applied to the given text.
+        """Detect what encoding(s) are applied to the given text. Also used internally by smart_decode.
 
         Args:
             input_text: Text to analyze

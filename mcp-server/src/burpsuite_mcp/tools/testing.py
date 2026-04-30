@@ -365,6 +365,9 @@ def register(mcp: FastMCP):
             auth_states: Auth configs keyed by role name
             base_url: Override base URL
         """
+        if len(auth_states) < 2:
+            return "Error: need at least 2 auth_states for matrix comparison"
+
         payload: dict = {"endpoints": endpoints, "auth_states": auth_states}
         if base_url:
             payload["base_url"] = base_url

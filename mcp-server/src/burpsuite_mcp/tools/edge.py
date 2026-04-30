@@ -240,7 +240,8 @@ def register(mcp: FastMCP):
         })
         if "error" not in resp3:
             body3 = resp3.get("response_body", "")
-            if body3.count("__typename") >= 2:
+            status3 = resp3.get("status", 0)
+            if status3 == 200 and body3.count("__typename") >= 2:
                 vulns.append("MEDIUM: Batch queries accepted — potential DoS vector")
                 lines.append(f"  [VULN] Batch queries: ACCEPTED (DoS risk)")
             else:

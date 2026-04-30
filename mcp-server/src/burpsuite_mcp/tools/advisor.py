@@ -427,6 +427,8 @@ def register(mcp: FastMCP):
         parameter: str = "",
         response_diff: str = "",
         domain: str = "",
+        business_context: str = "",
+        environment: str = "",
     ) -> str:
         """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
@@ -437,6 +439,8 @@ def register(mcp: FastMCP):
             parameter: The parameter tested
             response_diff: How the response differed from baseline
             domain: Target domain for scope + duplicate checks
+            business_context: Target business type for impact scoring (e.g. 'ecommerce', 'healthcare', 'banking', 'saas', 'social', 'government')
+            environment: Deployment environment (e.g. 'production', 'staging', 'internal', 'public_api')
         """
         issues = []
         verdict = "REPORT"
@@ -592,6 +596,57 @@ def register(mcp: FastMCP):
         if verdict == "REPORT" and weak_evidence:
             verdict = "NEEDS MORE EVIDENCE"
 
+        # ── Business Impact & Environment Scoring ──────────────────
+        # Adjust severity based on what the target handles and where it runs.
+        impact_boost = 0.0
+        impact_notes = []
+
+        biz = business_context.lower() if business_context else ""
+        env = environment.lower() if environment else ""
+
+        # High-value business contexts where same vuln has higher impact
+        biz_multipliers = {
+            "banking": ("financial data at risk", 0.10),
+            "fintech": ("financial data at risk", 0.10),
+            "healthcare": ("PHI/PII exposure — HIPAA implications", 0.10),
+            "government": ("citizen data / national security", 0.08),
+            "ecommerce": ("payment data / PCI scope", 0.08),
+            "payment": ("payment data / PCI scope", 0.08),
+            "saas": ("multi-tenant data leakage risk", 0.06),
+            "social": ("user PII / account takeover risk", 0.05),
+            "crypto": ("financial loss / wallet compromise", 0.10),
+        }
+        for biz_key, (reason, boost) in biz_multipliers.items():
+            if biz_key in biz:
+                impact_boost += boost
+                impact_notes.append(f"Business context ({biz_key}): {reason} (+{boost:.0%})")
+                break
+
+        # Environment context
+        if "production" in env or "prod" in env:
+            impact_boost += 0.05
+            impact_notes.append("Production environment: live user impact (+5%)")
+        elif "internal" in env:
+            impact_boost -= 0.05
+            impact_notes.append("Internal environment: reduced external exposure (-5%)")
+
+        # Vuln-class × business-context amplifiers
+        high_impact_combos = {
+            ("sqli", "banking"): "SQL injection on banking app = direct financial data access",
+            ("sqli", "healthcare"): "SQL injection on healthcare = PHI breach",
+            ("idor", "saas"): "IDOR on multi-tenant SaaS = cross-tenant data leak",
+            ("idor", "ecommerce"): "IDOR on ecommerce = other users orders/payment data",
+            ("ssrf", "cloud"): "SSRF on cloud-hosted = metadata credential theft",
+            ("xss", "banking"): "XSS on banking = session hijack for financial access",
+            ("auth_bypass", "payment"): "Auth bypass on payment = unauthorized transactions",
+            ("rce", "production"): "RCE on production = full system compromise",
+        }
+        for (vtype, ctx), reason in high_impact_combos.items():
+            if vtype in vuln_lower and (ctx in biz or ctx in env):
+                impact_boost += 0.05
+                impact_notes.append(f"High-impact combo: {reason}")
+                break
+
         # Derive a suggested confidence in [0.0, 1.0]. Pass this straight to
         # save_finding(confidence=...). The thresholds line up with
         # ProxyHighlight's RED/ORANGE/YELLOW/GREEN mapping so the colour of
@@ -599,17 +654,22 @@ def register(mcp: FastMCP):
         if verdict == "DO NOT REPORT":
             suggested_confidence = 0.05
         elif verdict == "NEEDS MORE EVIDENCE":
-            # Weak evidence → ORANGE-ish band. Each flag drags it down ~0.05,
+            # Weak evidence -> ORANGE-ish band. Each flag drags it down ~0.05,
             # floor at 0.40 so something survives to the hunter.
             penalty = max(0, len(issues) - 1) * 0.05
-            suggested_confidence = max(0.40, 0.65 - penalty)
+            suggested_confidence = max(0.40, 0.65 - penalty + impact_boost)
         elif not issues:
             # Verdict REPORT and zero gate issues — highest confidence.
-            suggested_confidence = 0.92
+            suggested_confidence = min(1.0, 0.92 + impact_boost)
         else:
             # REPORT with some non-fatal issues (e.g. Q1 skipped because no
             # domain passed). Slightly lower than the clean-pass case.
-            suggested_confidence = 0.80
+            suggested_confidence = min(1.0, 0.80 + impact_boost)
+
+        # Build impact context string
+        impact_str = ""
+        if impact_notes:
+            impact_str = "\n  Impact context:\n" + "\n".join(f"    + {n}" for n in impact_notes)
 
         if not issues:
             return (
@@ -618,6 +678,7 @@ def register(mcp: FastMCP):
                 f"  Endpoint: {endpoint}\n"
                 f"  Suggested confidence: {suggested_confidence:.2f}\n"
                 f"  All 7 questions PASS. Proceed with save_finding(confidence={suggested_confidence:.2f})."
+                f"{impact_str}"
             )
 
         lines = [f"VERDICT: {verdict}"]
@@ -626,6 +687,10 @@ def register(mcp: FastMCP):
         if parameter:
             lines.append(f"  Parameter: {parameter}")
         lines.append(f"  Suggested confidence: {suggested_confidence:.2f}")
+        if impact_notes:
+            lines.append(f"\n  Impact context:")
+            for n in impact_notes:
+                lines.append(f"    + {n}")
         lines.append(f"\n  Gate issues ({len(issues)}):")
         for issue in issues:
             lines.append(f"    - {issue}")

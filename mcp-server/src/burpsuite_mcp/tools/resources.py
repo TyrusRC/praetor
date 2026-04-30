@@ -8,39 +8,6 @@ from burpsuite_mcp import client
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def get_static_resources(
-        url_prefix: str = "",
-        resource_type: str = "all",
-    ) -> str:
-        """List static resources (JS, CSS, source maps) captured in proxy history.
-
-        Args:
-            url_prefix: Filter by URL prefix
-            resource_type: Filter by type — 'js', 'css', 'map', or 'all'
-        """
-        params = {"type": resource_type}
-        if url_prefix:
-            params["url_prefix"] = url_prefix
-
-        data = await client.get("/api/resources", params=params)
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        resources = data.get("resources", [])
-        if not resources:
-            return "No static resources found. Browse the target first, or use fetch_page_resources to auto-fetch."
-
-        lines = [f"Static Resources ({data.get('total', 0)} files):\n"]
-        lines.append(f"{'INDEX':<8} {'TYPE':<6} {'SIZE':<10} URL")
-        lines.append("-" * 80)
-        for r in resources:
-            rtype = r.get("type", "?")
-            size = r.get("size", 0)
-            lines.append(f"{r.get('index', '?'):<8} {rtype:<6} {size:<10} {r.get('url', '')}")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
     async def fetch_resource(url: str) -> str:
         """Fetch a static resource (JS/CSS) through Burp and return its content.
 

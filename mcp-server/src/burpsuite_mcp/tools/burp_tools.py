@@ -94,21 +94,7 @@ def register(mcp: FastMCP):
             return f"Error: {data['error']}"
         return f"Sent {data.get('sent', 0)} items to Organizer"
 
-    # ── Project Info ────────────────────────────────────────────
-
-    @mcp.tool()
-    async def get_project_info() -> str:
-        """Get current Burp Suite project info — name, ID, version, edition."""
-        data = await client.get("/api/burp-tools/project")
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        lines = [
-            f"Project: {data.get('project_name', '?')}",
-            f"ID: {data.get('project_id', '?')}",
-            f"Burp: {data.get('burp_version', '?')} ({data.get('edition', '?')})",
-        ]
-        return "\n".join(lines)
+    # ── Pro Feature Check ─────────────────────────────────────
 
     @mcp.tool()
     async def check_pro_features() -> str:
@@ -157,45 +143,6 @@ def register(mcp: FastMCP):
             lines.append("  - Crawl                → browser_crawl + run_katana (both work on Community)")
             lines.append("  - Logger++             → get_proxy_history + get_mcp_history")
 
-        return "\n".join(lines)
-
-    # ── Logger ──────────────────────────────────────────────────
-
-    @mcp.tool()
-    async def get_logger_entries(
-        limit: int = 50,
-        filter_url: str = "",
-    ) -> str:
-        """Get Logger entries with timing data, annotations, and metadata.
-
-        Args:
-            limit: Max entries to return (default 50)
-            filter_url: Filter by URL substring
-        """
-        params: dict = {"limit": limit}
-        if filter_url:
-            params["filter_url"] = filter_url
-
-        data = await client.get("/api/burp-tools/logger", params=params)
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        items = data.get("items", [])
-        if not items:
-            return "No logger entries"
-
-        lines = [f"Logger ({data.get('returned', len(items))}/{data.get('total', '?')} entries):"]
-        lines.append(f"{'IDX':<6} {'METHOD':<7} {'STATUS':<7} {'SIZE':<8} {'NOTES':<20} URL")
-        lines.append("-" * 90)
-        for item in items:
-            notes = item.get("notes", "")[:18]
-            color = item.get("color", "")
-            prefix = f"[{color}]" if color and color != "NONE" else ""
-            lines.append(
-                f"{item.get('index', '?'):<6} {item.get('method', '?'):<7} "
-                f"{item.get('status_code', '?'):<7} {item.get('response_length', 0):<8} "
-                f"{prefix}{notes:<20} {item.get('url', '?')[:60]}"
-            )
         return "\n".join(lines)
 
     # ── Intruder Config ─────────────────────────────────────────
