@@ -124,7 +124,7 @@ flowchart LR
 flowchart LR
     S[1. Session<br/>create_session<br/>with base_url] --> D[2. Discover<br/>discover_attack_surface<br/>crawl + map + score]
     D --> R{Review<br/>results}
-    R -->|auto| P[3. Probe<br/>auto_probe<br/>24 vuln categories<br/>server-side matchers]
+    R -->|auto| P[3. Probe<br/>auto_probe<br/>knowledge-driven<br/>server-side matchers]
     R -->|targeted| Q[quick_scan<br/>probe_endpoint<br/>batch_probe]
     P --> F[4. Findings<br/>auto-scored<br/>anomaly detection]
     Q --> F
@@ -251,7 +251,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored - each user creates their own with their local path.
 
-## Tools (170 total)
+## Tools (167 total)
 
 ### Proxy-history routing
 
@@ -421,7 +421,7 @@ Pull only the value you need from a response instead of reading the full body.
 | Tool | Description |
 |------|-------------|
 | `discover_attack_surface` | Crawl a target and map endpoints, parameters (risk-scored), forms, tech stack |
-| `auto_probe` | Knowledge-driven vulnerability probing. Auto-detects tech, selects matching probes from 25 categories, runs server-side matchers, emits a **confidence score** per finding, and auto-annotates the Proxy history entry (RED ≥ 0.9, ORANGE 0.6–0.9, YELLOW 0.3–0.6, GREEN baseline). Param-name matching is tokenized so `productId` / `post_id` match bare-token entries like `id` |
+| `auto_probe` | Knowledge-driven vulnerability probing. Auto-detects tech, selects matching probes from the knowledge base, runs server-side matchers, emits a **confidence score** per finding, and auto-annotates the Proxy history entry (RED ≥ 0.9, ORANGE 0.6–0.9, YELLOW 0.3–0.6, GREEN baseline). Param-name matching is tokenized so `productId` / `post_id` match bare-token entries like `id` |
 | `quick_scan` | Send a request and return tech stack, injection points, parameters, forms, and secrets in one response |
 | `probe_endpoint` | Adaptive vulnerability probe - auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection and anomalies |
 | `batch_probe` | Test multiple endpoints in one call - returns status, length, timing for each |
@@ -482,10 +482,8 @@ Pull only the value you need from a response instead of reading the full body.
 | `websocket_list_connections` | List open WebSocket connections |
 | `send_to_organizer` | Send proxy item to Burp's Organizer tab for categorization |
 | `send_bulk_to_organizer` | Send multiple items to Organizer at once |
-| `get_project_info` | Burp project name, ID, version, edition |
 | `check_pro_features` | Check which Burp features are available on this edition (Pro vs Community) |
-| `get_logger_entries` | Logger entries with timing data, annotations, and metadata |
-| `send_to_intruder_configured` | Send to Intruder with auto-detect or manual insertion point positions |
+| `send_to_intruder_configured` | Send to Intruder with auto-detect or manual insertion point positions (UI-only — results require manual review) |
 
 ### Scanner Control (Burp Professional)
 | Tool | Description |
@@ -502,7 +500,7 @@ Pull only the value you need from a response instead of reading the full body.
 |------|-------------|
 | `get_payloads` | Context-aware payloads from HackTricks/PayloadsAllTheThings - XSS, SQLi, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, open redirect, LFI, file upload |
 
-> **Knowledge base:** 25 categories with server-side matchers in `mcp-server/src/burpsuite_mcp/knowledge/`: SQLi, XSS, SSTI, SSRF, command injection, path traversal, XXE, auth bypass, CORS, CSRF, race condition, HPP, IDOR, JWT, GraphQL, deserialization, CRLF injection, open redirect, mass assignment, request smuggling, LLM injection, info disclosure, WebSocket, file upload, tech-specific vulns. `auto_probe` loads and caches these at runtime - add a new `.json` file following the schema to extend coverage.
+> **Knowledge base:** Full attack surface coverage with server-side matchers and `craft_guidance` for dynamic payload generation. Categories include injection (SQLi, XSS, DOM XSS, SSTI, SSRF, command injection, NoSQL, LDAP, XPath, XSLT, SSI, CSS, CSV), authentication (2FA bypass, password reset, session fixation, JWT, SAML, OAuth, default credentials), access control (IDOR, forced browsing, multi-tenancy, privilege escalation), client-side (CORS, CSRF, clickjacking, prototype pollution, DOM clobbering), business logic (price manipulation, coupon abuse, race conditions, type juggling, workflow bypass), infrastructure (request smuggling, cache poisoning, cache deception, host header, reverse proxy), file handling (upload bypass, path traversal, XXE, LFI), information disclosure (source code exposure, insecure randomness, debug endpoints), deserialization (Java/PHP/Ruby/.NET/Python gadget chains), and more. `auto_probe` loads these at runtime — add a new `.json` file following the schema to extend.
 
 ### Target Intelligence (persistent memory)
 | Tool | Description |
@@ -575,7 +573,6 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 | Tool | Description |
 |------|-------------|
 | `export_sitemap` | Export as compact JSON or OpenAPI 3.0 |
-| `get_static_resources` | List JS/CSS/source maps in proxy history |
 | `fetch_resource` | Fetch specific JS/CSS file content |
 | `fetch_page_resources` | Auto-fetch all resources linked from a page |
 
@@ -633,10 +630,9 @@ Always-active rules in `.claude/rules/`:
 - **Everything lands in Proxy history** - every request-sending tool tunnels through Burp's proxy listener so hunters can review, replay, and manually iterate on any probe from the Proxy panel.
 - **Auto-highlight by confidence** - `auto_probe` colours proxy entries RED (≥ 0.90), ORANGE (0.60–0.89), YELLOW (0.30–0.59), GREEN (< 0.30) so triage is a sort-by-highlight operation.
 - **Full proxy control** - intercept, match-and-replace (with safety refuse list on Host/Auth/Cookie/CL/TE headers), annotations, live traffic monitoring.
-- **Two knowledge systems** - `payloads/` for `get_payloads` tool with human-readable attack recipes; `knowledge/` for `auto_probe` engine with server-side matchers and anomaly detection.
-- **Knowledge fills gaps** - the curated knowledge base covers framework-specific techniques Claude doesn't know from pretraining (Angular sandbox bypass, Spring SSTI, WAF-bypass encoding chains, blind injection patterns).
-- **Persistent memory** - target intel survives across sessions in `.burp-intel/<domain>/`. Claude remembers tech stack, endpoints, test coverage, and findings without re-scanning. Staleness detection re-verifies fingerprinted pages.
-- **Honest findings** - every finding carries a confidence score and a status. `assess_finding` enforces the full 7-Question Gate (scope, reproducibility, impact, dedup, evidence, NEVER-SUBMIT list, triager test) before save. The Burp extension itself **server-side hard-rejects** any `save_finding` without verified evidence (live Logger/Proxy/Collaborator lookup), without `reproductions[]` ≥ 2 for timing/blind classes, or whose vuln type / title hits the NEVER SUBMIT blocklist (overrideable only via `chain_with[]` to an existing finding ID). Severity is honesty-capped in reports for NEVER-SUBMIT vuln classes.
+- **Two knowledge systems** - `payloads/` for `get_payloads` with human-readable attack recipes + `craft_guidance`; `knowledge/` for `auto_probe` with server-side matchers. Knowledge covers framework-specific techniques beyond Claude's pretraining.
+- **Persistent memory** - target intel in `.burp-intel/<domain>/` survives across sessions. Staleness detection re-verifies via page fingerprinting.
+- **Honest findings** - `assess_finding` enforces 7-Question Gate + business impact scoring before save. Extension server-side hard-rejects findings without verified evidence. OOB testing requires Burp Collaborator or user-provided callback URL.
 
 ## Environment Variables
 

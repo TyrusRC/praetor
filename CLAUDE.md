@@ -174,15 +174,20 @@ mcp-server/src/burpsuite_mcp/
 │   ├── open_redirect.json
 │   ├── lfi.json
 │   └── file_upload.json
-├── knowledge/                  # Knowledge base with server-side matchers for auto_probe (27 JSON files)
-│   ├── sqli.json, xss.json, ssti.json, ssrf.json, command_injection.json
-│   ├── path_traversal.json, xxe.json, auth_bypass.json, cors.json, csrf.json
-│   ├── race_condition.json, hpp.json, idor.json, jwt.json, graphql.json
-│   ├── deserialization.json, crlf_injection.json, open_redirect.json
-│   ├── mass_assignment.json, request_smuggling.json, llm_injection.json
-│   ├── info_disclosure.json, websocket.json, file_upload.json
-│   └── tech_vulns.json         # Tech-specific vulnerabilities (reference only, no probes)
-└── tools/                      # 170 MCP tools across 32 modules (run grep for exact count; auto-drifts as tools are added)
+├── knowledge/                  # Knowledge base with server-side matchers for auto_probe + craft_guidance for dynamic payload generation
+│   ├── sqli, xss, dom_xss, ssti, ssrf, command_injection, path_traversal, xxe
+│   ├── auth_bypass, access_control, authentication, cors, csrf, clickjacking
+│   ├── race_condition, hpp, idor, jwt, graphql, oauth, saml
+│   ├── deserialization, insecure_deserialization, crlf_injection, open_redirect
+│   ├── mass_assignment, request_smuggling, host_header, business_logic
+│   ├── cache_poisoning, web_cache_deception, prototype_pollution, nosql
+│   ├── api_abuse, info_disclosure, websocket, file_upload, second_order, web_llm
+│   ├── ldap_injection, xpath_injection, xslt_injection, ssi_injection, css_injection
+│   ├── csv_injection, latex_injection, orm_leak, redos, xs_leak
+│   ├── insecure_randomness, source_code_exposure, dependency_confusion
+│   ├── cloud_webapp, mobile_api
+│   └── tech_vulns                # Reference only, no probes
+└── tools/                      # 167 MCP tools across 32 modules (run grep for exact count; auto-drifts as tools are added)
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl, concurrent, probe_with_diff (8 tools)
@@ -199,7 +204,7 @@ mcp-server/src/burpsuite_mcp/
     ├── payloads.py             # get_payloads — context-aware payload lookup (1 tool)
     ├── dom.py                  # DOM structure + JS sink/source analysis (1 tool)
     ├── export.py               # Sitemap export as JSON or OpenAPI (1 tool)
-    ├── resources.py            # Static resources listing, fetch, fetch-page (3 tools)
+    ├── resources.py            # Fetch resource, fetch-page resources (2 tools)
     ├── utility.py              # Encode/decode (base64, URL, HTML, hex, JWT, hashes) (1 tool)
     ├── cve.py                  # CVE intelligence: match tech stack, search CVEs (2 tools)
     ├── report.py               # Professional reports: pentest report + platform-specific formatting (2 tools)
@@ -214,7 +219,7 @@ mcp-server/src/burpsuite_mcp/
     ├── advisor.py              # Hunt advisor: pre-computed plans, tool selection, finding validation (5 tools)
     ├── recon_extended.py       # CT logs, Wayback, DNS analysis, subdomain takeover, rate limit (5 tools)
     ├── testing_extended.py     # Host header, CRLF, smuggling, mass assignment, cache poison, GraphQL deep, API schema, business logic (8 tools)
-    └── burp_tools.py           # WebSocket send, Organizer, Logger, Project info, Intruder templates (9 tools)
+    └── burp_tools.py           # WebSocket send, Organizer, Pro features check, Intruder config (8 tools)
 ```
 
 ## Key Design Decisions
@@ -225,7 +230,7 @@ mcp-server/src/burpsuite_mcp/
 - **Building blocks + smart helpers:** Low-level primitives (session, request, extract) for creative attack chaining, plus high-level tools (auth matrix, race condition) where server-side coordination matters
 - **Smart scope:** Auto-filters tracker/ad/CDN noise for clean bug bounty testing
 - **Payload knowledge:** Curated payloads from HackTricks/PayloadsAllTheThings fill Claude's gaps for advanced/evasive techniques (WAF bypass, framework-specific SSTI, blind injection)
-- **Knowledge-driven scanning:** `knowledge/` directory has 24 categories with server-side matchers — `auto_probe` sends probes and validates findings server-side for low false positives. Separate from `payloads/` which is for `get_payloads` tool
+- **Knowledge-driven scanning:** `knowledge/` directory covers full attack surface with server-side matchers + `craft_guidance` for dynamic payload generation — `auto_probe` sends probes and validates findings server-side for low false positives. Separate from `payloads/` which is for `get_payloads` tool
 - **Precision over spray:** No mass brute force or enumeration — use nuclei/sqlmap/ffuf for that. This tool focuses on intelligent, context-aware vulnerability testing
 - **Response truncation:** Responses > 50KB are trimmed (configurable via `BURP_MAX_RESPONSE_SIZE`)
 - **In-memory storage:** Sessions and FindingsStore are not persisted — lost on extension reload

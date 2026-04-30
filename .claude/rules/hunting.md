@@ -21,6 +21,10 @@ These rules are ALWAYS active. They override conflicting behavior. Each rule has
 7. **Never exfiltrate real user data.** SQLi PoC = `SELECT version()` / `SELECT current_user()`, not `SELECT * FROM users`.
 8. **Never modify or delete other users' data.** Prove IDOR with READ access, not WRITE.
 9. **Prefer Collaborator for blind testing** over payloads with visible side effects.
+9a. **OOB testing MUST use Burp Collaborator or a user-provided callback domain.** Two cases:
+    - **OOB data exfiltration** (blind SQLi via DNS, blind XXE, blind SSRF, blind SSTI, blind command injection): Call `generate_collaborator_payload()` to get a real Collaborator subdomain, then inject it into the payload. If Collaborator is unavailable (Community Edition), ASK the user: "Provide your OOB callback URL (interact.sh, webhook.site, or similar)." Never fabricate callback domains.
+    - **Redirect/reflection testing** (open redirect, OAuth redirect_uri, CORS origin, SSRF filter bypass): Using `evil.com` as a placeholder destination is acceptable — it tests whether the app redirects or reflects to an external domain, not whether a callback is received. The test verifies the redirect behavior itself.
+    - **Never** hardcode a domain you control or a real attacker domain. Knowledge base payloads use `COLLABORATOR` as a placeholder — always replace it with a real Collaborator URL at runtime.
 
 ## The Save-Finding Pipeline (10) — single canonical rule
 
