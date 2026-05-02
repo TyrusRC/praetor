@@ -67,7 +67,7 @@
           "matchers": [{"type": "status", "status": [200]}],
           "severity": "critical",
           "confidence_boost": 50,
-          "variables": {"callback": "attacker.com"}
+          "variables": {"callback": "COLLABORATOR_URL"}
         }
       ]
     },

