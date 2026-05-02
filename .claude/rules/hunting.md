@@ -7,17 +7,25 @@ globs:
 
 These rules are ALWAYS active. They override conflicting behavior. Each rule has ONE job — read every rule before assuming overlap.
 
-## Scope (1–4)
+## Tiers (R11/R16)
+
+- **HARD (1–10)**: Scope, safety, save-finding pipeline. ALWAYS apply. Tool-layer also enforces these — Claude does not get to override silently.
+- **DEFAULT (11–21)**: Evidence, coverage, persistence. Apply on every engagement. Override with explicit `overrides=[...]` parameter on `assess_finding` / `save_finding` and an audit reason.
+- **ADVISORY (22–28)**: Tool selection, visibility, mode mindset. Read once at session start; consult on demand via skill files. Adapt to context.
+
+When tier text and per-skill text disagree, the rule number wins. Skill files reference rules by number — do not restate.
+
+## Scope (1–4) — HARD
 
 1. **Never send requests to out-of-scope domains.** Before any request to a new domain call `check_scope(url)`. If not in scope, STOP.
 2. **Never follow redirects to out-of-scope domains.** Note the redirect; don't follow.
 3. **Respect excluded paths** (`/logout`, `/delete-account`, etc. per program policy).
 4. **When in doubt about scope, ASK.** Don't assume a subdomain or API is in scope.
 
-## Safety (5–9)
+## Safety (5–9) — HARD
 
 5. **Never send destructive payloads** (`DROP TABLE`, `rm -rf`, `shutdown`, `format`, `DELETE FROM`, `TRUNCATE`). Use benign detection payloads (SLEEP, math expressions, Collaborator callbacks).
-6. **Never brute-force credentials.** Default/common creds (admin:admin, test:test) are fine. Dictionary attacks are not.
+6. **Never brute-force credentials.** Default/common creds (admin:admin, test:test) are fine. Dictionary attacks are not. **Scope clarification:** this rule covers credential/auth brute force only. ID enumeration (sequential/predictable IDs, fuzzing `user_id` / `order_id` / `account_id` ranges, walking a UUIDv1 monotonic space) is **authorization testing — IDOR/BOLA**, not credential brute force, and IS in scope. A predictable ID range that yields PII or cross-app data is a HIGH-impact finding; do not collapse it under Rule 6 to save tokens. Save with `vuln_type='idor'` (or `id_enumeration`) and include "sequential"/"predictable"/"enumeration" in evidence so `assess_finding` boosts impact.
 7. **Never exfiltrate real user data.** SQLi PoC = `SELECT version()` / `SELECT current_user()`, not `SELECT * FROM users`.
 8. **Never modify or delete other users' data.** Prove IDOR with READ access, not WRITE.
 9. **Prefer Collaborator for blind testing** over payloads with visible side effects.
@@ -26,34 +34,35 @@ These rules are ALWAYS active. They override conflicting behavior. Each rule has
     - **Redirect/reflection testing** (open redirect, OAuth redirect_uri, CORS origin, SSRF filter bypass): Using `evil.com` as a placeholder destination is acceptable — it tests whether the app redirects or reflects to an external domain, not whether a callback is received. The test verifies the redirect behavior itself.
     - **Never** hardcode a domain you control or a real attacker domain. Knowledge base payloads use `COLLABORATOR` as a placeholder — always replace it with a real Collaborator URL at runtime.
 
-## The Save-Finding Pipeline (10) — single canonical rule
+## The Save-Finding Pipeline (10) — HARD, single canonical rule
 
 10. **`save_finding` requires three phases, in order:**
     - **a) Replay (Step 0 of `verify-finding.md`):** fetch the candidate Logger/Proxy entry, `resend_with_modification(index)` to confirm the anomaly persists. The Logger index of the **confirming replay** (not the original suspicion) is what goes into `evidence.logger_index`. For timing/blind classes (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`), replay 2 more times — capture `{logger_index, elapsed_ms, status_code}` per replay → `reproductions[]` (≥3 entries total).
     - **b) Assess (`assess_finding`):** call `assess_finding(vuln_type, evidence, endpoint, parameter, domain)` BEFORE `save_finding`. Verdict `DO NOT REPORT` or `NEEDS MORE EVIDENCE` → do NOT save. The advisor handles scope, duplicate, NEVER-SUBMIT, weak-evidence, and triager-mass-report checks.
     - **c) Save:** `save_finding` with `evidence` containing at least one of `logger_index` / `proxy_history_index` / `collaborator_interaction_id` (each must resolve in live Burp data). For NEVER-SUBMIT vuln_types, supply `chain_with[]`. Server hard-rejects violations with 400.
 
-## Evidence (11–13)
+## Evidence (11–13) — DEFAULT
 
 11. **Always compare against a recorded baseline.** Capture `{status, length, response_hash}` of the clean request before any probe sequence. Anomaly claims = deltas from baseline ("500 vs baseline 200, len delta +1842, error 'pg_query'"), not absolute observations. Without a baseline, evidence is unfalsifiable.
 12. **Save evidence BEFORE further exploitation.** Annotate + Organize the moment something is interesting (Rule 18). Targets get patched.
 13. **Verified evidence > theory.** Stack traces / parsing errors / status changes are clues, not proof. Match the per-class bar in `verify-finding.md` (e.g., XSS needs payload in executable context, not just reflection).
 
-## Reporting (14–17)
+## Reporting (14–17) — DEFAULT
 
 14. **Never inflate severity.** Reflected XSS is not CRITICAL. Info disclosure is not HIGH. Open redirect alone is not MEDIUM. Cap honestly.
 15. **Never submit findings requiring absurd victim action** ("user pastes a 500-char payload into devtools"). Self-XSS, victim-side-only DoS, etc. fail this gate.
 16. **Reports are TRUE-POSITIVES-ONLY. Delete false positives, don't track them.** `generate_report` includes only `status='confirmed'` findings AND hard-deletes `likely_false_positive` entries from `.burp-intel/<domain>/findings.json` (no tombstones, no removed-FP lists, no audit trail). Tracking dead findings re-loads them every session and burns tokens forever.
 17. **NEVER SUBMIT list (informative-alone, see table below)** can only be reported when CHAINED with another finding for real impact (`chain_with[]`).
 
-## Coverage Strategy (18–21)
+## Coverage Strategy (18–21) — DEFAULT
 
 18. **Annotate + Organize as you work.** Every interesting captured request gets `annotate_request(index, color='RED|ORANGE|YELLOW|GREEN|CYAN|BLUE|PINK|MAGENTA|GRAY', comment='<f-id> | <vuln> | <evidence>')` AND `send_to_organizer(index)`. Color convention: RED=confirmed crit/high, ORANGE=strong suspicion, YELLOW=anomaly, GREEN=baseline/pass, CYAN=chain candidate, GRAY=noise. Without these, reporting time has to re-search the entire history.
-19. **Coverage-first noise budget — skip impossible work, never skip real coverage.** Cut tokens on tech-mismatch CVEs (PHP CVE on Laravel), wrong-runtime payloads (Windows LFI on Linux), encoding-defeated reflections (3+ encoded → switch technique, not skip class), and exhausted suspicions (3/3 verification fails). Framework-wide vuln classes (React DOM XSS, Node prototype pollution, Java deserialization, JWT confusion, mass assignment, IDOR matrix, race conditions) get FULL sweeps even when expensive. Stop only when (a) class is impossible for the stack, (b) knowledge-base matchers cleared AND no param-name signal otherwise, (c) negative result documented in `coverage.json`. See `noise-budget.md`.
+19. **DEFAULT IS FULL COVERAGE.** Test every applicable vuln class against every user-controlled parameter on every reachable endpoint. Skip ONLY when ALL three conditions hold: (a) the class is impossible for the stack (e.g. PHP CVE on Laravel, Windows LFI on Linux), (b) knowledge-base matchers cleared AND param-name signal absent for THIS exact (endpoint, param, class) tuple, (c) `coverage.json` records a documented negative for the same tuple at the current `knowledge_version`. Re-test when knowledge updates. There is NO "save tokens by skipping a class" path — that's the failure mode that misses findings. Token economy: `auto_probe(skip_already_covered=True)` prevents redundant work; pagination on `load_target_intel` keeps recall cheap; `discover_attack_surface` is medium-cost and pre-scopes — these are the levers, not skipping coverage.
 20. **Check coverage before testing.** Don't re-test parameters already covered this session. `load_target_intel(domain, "coverage")`.
+20a. **Session-start recon gate.** First action whenever a target domain is identifiable: call `load_target_intel(domain, "all")` AND `check_target_freshness(domain, session)`. Use the returned profile (tech stack, auth model, scope rules) and findings list as primary context — don't re-discover. Skipping this gate is the most common cause of duplicate work, missed chains, and wasted tokens. If `.burp-intel/<domain>/` is empty, that's a NEW target: run a recon phase (`browser_crawl` → `full_recon` → `discover_attack_surface`) and `save_target_intel` the results before any testing. Do not start testing without either loading prior intel or recording fresh recon.
 21. **Save progress at every checkpoint.** Session ends → resume without re-doing work. `save_target_intel(domain, ...)` after each phase.
 
-## Tool Selection (22–25)
+## Tool Selection (22–25) — ADVISORY
 
 22. **One smart tool call > five chatty ones.** `smart_analyze`, `auto_probe`, `run_flow`, `discover_attack_surface` over many individual calls. `extract_regex/json_path/css_selector` over `get_request_detail(full_body=True)`.
 23. **For EVIDENCE retrieval, prefer captured-first.** `search_history` / `get_proxy_history` / `get_logger_entries` / `extract_*` against existing indices. Don't re-fetch with `curl_request` what's already captured — captured requests carry real session state.
@@ -72,11 +81,18 @@ These rules are ALWAYS active. They override conflicting behavior. Each rule has
     - Bare/custom mode (intentional): WAF detection, header injection, smuggling, CRLF, malformed-input — bare/hand-crafted is correct. Don't auto-mimic when the test is about NOT looking like a browser.
     - Build profile once via `build_target_header_profile(domain)` after first browser_crawl.
 
-## Visibility (26)
+## Visibility (26) — ADVISORY
 
 26. **Know which tools hit Proxy history.** `browser_crawl`/`browser_navigate` populate **Proxy → HTTP history**. Burp HTTP-client tools (`send_http_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in **Logger** + MCP store (not Proxy history) unless explicitly proxied. External recon (`run_nuclei`, `run_katana`, `run_subfinder`) routes through Burp proxy (127.0.0.1:8080) → Proxy history. Analysis tools that take an `index` read Proxy history only.
 
-## Creative Hunting (27) — anti-checklist mandate
+26a. **Volume work is an MCP tool, not a Python script.** When a task needs >1 request, the default is `concurrent_requests`, `send_to_intruder_configured`, `fuzz_parameter`, `auto_probe`, `batch_probe`, `bulk_test`, `test_auth_matrix`, or `test_race_condition` — every one of those routes through Burp and is captured/replayable. **Do NOT write a Python script that calls `requests`/`httpx`/`fetch` directly** — those bypass Burp, leaving no Logger/Proxy entry, no `logger_index` to cite as evidence, no annotation, no replay. If a custom script is genuinely unavoidable (uncommon — usually means the right MCP tool wasn't picked), it MUST proxy through Burp:
+   - `export HTTPS_PROXY=http://127.0.0.1:8080 HTTP_PROXY=http://127.0.0.1:8080`
+   - Trust Burp's CA (`http://burp/cert`) or pass `verify=False` for testing only
+   - Or call `get_burp_proxy_env()` MCP tool to get the exact env-var lines
+
+   A finding sourced from a non-proxied script cannot satisfy Rule 10b's `evidence.logger_index` requirement and will be hard-rejected by the assess gate.
+
+## Creative Hunting (27) — ADVISORY anti-checklist mandate
 
 27. **Hunt for the unknown, not just the catalogued.** ≥20% of every session must be open-ended exploration that goes outside the knowledge-base categories:
     - **Chain reasoning.** Walk the saved findings list and ask "what does each finding ENABLE?" — open redirect → token theft → ATO; CSRF on email-change → ATO; info-disclosure → recon → IDOR. Use `chain-findings.md`. Many programs only pay for chained impact.
@@ -131,7 +147,7 @@ Standalone reports of these are noise. Reportable only when CHAINED for real imp
 
 ## Testing Mode Selection (28)
 
-28. **Adapt approach to engagement type.** Determine mode at session start and follow the corresponding mindset:
+28. **Mode is per-tool-call, not per-session.** Determine the mindset at session start as a default, BUT re-evaluate per call: whenever the active session has cookies / Authorization header / authenticated state, use the GREY-BOX mindset for that call regardless of session-start mode. A session that began black-box but acquired credentials mid-engagement should immediately be tested for IDOR / BFLA / business logic / authenticated-only attack surface. Locking into one mode after session start is a primary cause of missed findings. The mindsets:
 
 **Black box** (no internal access — URL/IP only):
 - Recon-heavy: `browser_crawl` → `discover_attack_surface` → `full_recon` → `query_crtsh` → `fetch_wayback_urls`

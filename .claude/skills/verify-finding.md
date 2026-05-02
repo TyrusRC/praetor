@@ -5,6 +5,8 @@ description: Verify a suspected vulnerability is real with reproducible evidence
 
 # Verify Finding
 
+> **Rule reference (R12):** rules in this skill are NOT restated. The pipeline below references `hunting.md` Rule 10 (save-finding pipeline), Rule 11 (baseline), Rule 13 (verified evidence). When this skill text disagrees with the rule numbers, the rule wins.
+
 ```
 Step 0: Logger replay  →  Step 1: assess_finding  →  Step 2: save_finding
 prove reproducible        prove reportable          persist

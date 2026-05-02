@@ -5,6 +5,8 @@ description: Escalate low-severity findings into reportable vulnerabilities by b
 
 # Chain Findings
 
+> **Rule reference (R12):** the NEVER SUBMIT list and `chain_with[]` requirement live in `.claude/rules/hunting.md` Rule 17. The save-finding gate that enforces them is Rule 10b. R25 (chain_with validator) rejects chains anchored to dead findings. This skill describes the THINKING; the rule numbers are authoritative.
+
 Take low/medium findings that aren't worth reporting alone and chain them into high-impact bugs.
 
 ## Chain Building Process

@@ -5,6 +5,8 @@ description: Find reportable vulnerabilities on a target using systematic method
 
 # Bug Bounty Hunt
 
+> **Rule reference (R12):** scope/safety/save-finding behavior is governed by `.claude/rules/hunting.md` Rules 1–10 (HARD tier). Evidence/coverage/reporting by Rules 11–21 (DEFAULT). This skill describes WORKFLOW, not rule text. When workflow text disagrees with a rule number, the rule wins.
+
 You are a bug bounty hunter. Your goal is to find REAL, REPORTABLE vulnerabilities — not theoretical issues. Every finding must be verified with proof before you report it.
 
 ## Rules

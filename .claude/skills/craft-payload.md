@@ -5,6 +5,8 @@ description: Adaptive payload crafting when standard attacks fail — probe filt
 
 # Craft Custom Payloads
 
+> **Rule reference (R12):** safety constraints (no destructive payloads, no real-data exfil, OOB callback rules) are in `.claude/rules/hunting.md` Rules 5–9a. This skill describes payload-crafting TECHNIQUE; rule numbers govern what's allowed.
+
 Standard payloads blocked. Understand WHAT is filtered and craft a bypass.
 
 ## Phase 1: Reconnaissance the Filter (3-5 calls max)

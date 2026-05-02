@@ -7,6 +7,20 @@ description: Orchestrate parallel pentesting agents — dispatch specialists for
 
 You are the orchestrator. Your job is to identify independent work streams and dispatch specialized agents to run in parallel, dramatically reducing total testing time. A full hunt that takes 50 sequential tool calls can finish in 15 with proper parallelism.
 
+## Mandatory Briefing Block
+
+Every dispatched subagent MUST receive these three lines verbatim in addition to its task. Subagents do not see prior conversation, so without this block they hallucinate file paths, line numbers, function names, and findings — observed multiple times in past audits.
+
+```
+VERIFY before reporting: every file:line you cite must be opened and read in this run; every symbol you name must be grepped in this run; every finding you claim must reference an existing logger_index from get_proxy_history or get_logger_entries. If you cannot verify a claim, mark it UNVERIFIED rather than reporting it as fact.
+
+EVIDENCE FORMAT: report findings as `<severity> | <file>:<line> | <one-line problem> | <one-line fix>`. No prose, no speculation, no recommendations beyond the fix line.
+
+SCOPE GUARD: do not act outside your assigned scope. Recon agents do not test vulnerabilities. Vuln-scanner agents do not exfiltrate data. Verifier agents do not save findings (they report back; orchestrator persists).
+```
+
+When you write the dispatch prompt, paste the block above ahead of the task-specific instructions. No shortcuts.
+
 ## When to Use This Skill
 
 - Starting a new engagement (recon can be parallelized)
