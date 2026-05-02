@@ -251,7 +251,7 @@ Create a `.mcp.json` file in the project root. Replace the path with the actual 
 
 > **Note:** `.mcp.json` is gitignored - each user creates their own with their local path.
 
-## Tools (167 total)
+## Tools (174 total)
 
 ### Proxy-history routing
 
@@ -274,7 +274,26 @@ Intel-only lookups (`search_cve`, `query_crtsh`, `fetch_wayback_urls`) stay dire
 | 0.30–0.59 | YELLOW | Routine probe - some signal, needs follow-up |
 | < 0.30 | GREEN | Baseline capture or near-zero signal |
 
-Sort the Proxy panel by Highlight to see probe pairs grouped by confidence. The same confidence flows into `save_finding(confidence=...)` and into the Confidence line of `generate_report` / `format_finding_for_platform` output.
+Sort the Proxy panel by Highlight to see probe pairs grouped by confidence. `assess_finding` decouples severity (drives color) from confidence (separate 0.0-1.0 number) — both shown in advisor output to prevent operators from reading color as a confidence signal.
+
+### Save-finding gates (assess_finding)
+
+`assess_finding` runs a 7-question gate before any `save_finding`:
+
+| Gate | Check |
+|---|---|
+| Q1 scope | URL in scope per `check_scope` (SKIP on extension transient errors, never FAIL) |
+| Q2 repro | Evidence does not flag intermittent / one-time / non-reproducible |
+| Q4 dedup | Not a duplicate at `(endpoint, vuln_type root, parameter)` — empty parameter on either side ⇒ distinct (no silent merge) |
+| Q5 evidence | Class-specific keyword list (11 classes, ~50+ markers each) OR `logger_index` auto-derives markers from the proxy entry OR `human_verified=True` |
+| Q6 NEVER SUBMIT | Word-boundary match against the NEVER SUBMIT type list AND a negation-aware evidence keyword check ("not a stack trace, the fingerprint is..." passes) |
+| Q7 triager | Low-impact class + weak evidence = informative; program-policy confidence floor enforced |
+
+**Operator overrides** (audit-trailed): pass `overrides=["q5_evidence:human verified in Burp UI", "q4_dedup:distinct payload class"]` or `human_verified=True` to bypass specific gates with a recorded reason. Q1 and Q6 should rarely be overridden.
+
+**Per-program policy:** `set_program_policy(name, scope_text, never_submit_remove=[...], never_submit_add=[...], confidence_floor=N)` persists per-engagement overrides to `.burp-intel/programs/<slug>.json` so programs that DO pay tabnabbing / user-enum aren't auto-blocked.
+
+**Recon gate:** `save_finding` refuses to persist when `.burp-intel/<domain>/profile.json` is missing — recon must be recorded first (or pass `force_recon_gate=True` for in-flight recon).
 
 ### Scope & Configuration
 | Tool | Description |
@@ -303,7 +322,7 @@ Sort the Proxy panel by Highlight to see probe pairs grouped by confidence. The 
 | `get_scanner_findings` | Scanner findings by severity/confidence |
 | `get_sitemap` | All discovered URLs from sitemap |
 | `get_cookies` | Cookies from Burp's cookie jar |
-| `get_websocket_history` | WebSocket messages from proxy |
+| `get_websocket_history` | WebSocket messages with filters: `direction` (client/server), `filter_payload` substring, `filter_url`, `since_index` for polling, pagination. Binary frames surfaced as `payload_b64` snippet |
 
 ### Analyze (attack surface)
 | Tool | Description |
@@ -392,6 +411,12 @@ Pull only the value you need from a response instead of reading the full body.
 | `extract_links` | Extract links from HTML - anchors, forms, scripts, images, iframes; filter `internal` / `external` / `all` |
 | `get_response_hash` | SHA-256/MD5/SHA-1 hash of response body for quick change detection |
 
+### Operator Utilities
+| Tool | Description |
+|------|-------------|
+| `get_burp_proxy_env` | Print shell + Python + curl env-var snippets to route any custom script through Burp's proxy. Use BEFORE writing scripts that hit the target — scripts that bypass Burp leave no `logger_index` and fail the save-finding evidence gate (Rule 26a) |
+| `audit_recent_traffic` | Compare proxy-history entries to expected count after a script run; surfaces calls that bypassed the proxy |
+
 ### Encoding & Transform
 | Tool | Description |
 |------|-------------|
@@ -421,7 +446,7 @@ Pull only the value you need from a response instead of reading the full body.
 | Tool | Description |
 |------|-------------|
 | `discover_attack_surface` | Crawl a target and map endpoints, parameters (risk-scored), forms, tech stack |
-| `auto_probe` | Knowledge-driven vulnerability probing. Auto-detects tech, selects matching probes from the knowledge base, runs server-side matchers, emits a **confidence score** per finding, and auto-annotates the Proxy history entry (RED ≥ 0.9, ORANGE 0.6–0.9, YELLOW 0.3–0.6, GREEN baseline). Param-name matching is tokenized so `productId` / `post_id` match bare-token entries like `id` |
+| `auto_probe` | Knowledge-driven vulnerability probing. Auto-detects tech, selects matching probes from the knowledge base, runs server-side matchers, emits a **confidence score** per finding, and auto-annotates the Proxy history entry (RED ≥ 0.9, ORANGE 0.6–0.9, YELLOW 0.3–0.6, GREEN baseline). Param-name matching is tokenized so `productId` / `post_id` match bare-token entries like `id`. **Coverage skip:** when `domain` is supplied and `skip_already_covered=True` (default), filters (endpoint, param, category) tuples whose `knowledge_version` in `coverage.json` matches current — eliminates re-test cycle. Findings dedup keys on `(endpoint, param, category, context, matcher_signature)` so distinct matchers preserve distinct findings |
 | `quick_scan` | Send a request and return tech stack, injection points, parameters, forms, and secrets in one response |
 | `probe_endpoint` | Adaptive vulnerability probe - auto-selects payloads for SQLi/XSS/SSTI/RCE, checks reflection and anomalies |
 | `batch_probe` | Test multiple endpoints in one call - returns status, length, timing for each |
@@ -506,12 +531,14 @@ Pull only the value you need from a response instead of reading the full body.
 | Tool | Description |
 |------|-------------|
 | `save_target_intel` | Persist target context (profile, endpoints, coverage, findings, fingerprint, patterns) across sessions |
-| `load_target_intel` | Load stored intel - use `"all"` for compact summary or specific category |
+| `load_target_intel` | Load stored intel — `"all"` for summary, or specific category. Findings/endpoints/coverage support `limit`, `offset`, `sort_by` (severity/recency), `status_filter`, `chain_with_open` for chain-relevant subset |
 | `check_target_freshness` | Fingerprint key pages to detect changes since last session |
 | `save_target_notes` | Save freeform markdown notes (human-editable observations and corrections) |
-| `lookup_cross_target_patterns` | Find attack patterns from OTHER targets with overlapping tech stack - techniques from target A inform target B |
+| `lookup_cross_target_patterns` | Find attack patterns from OTHER targets with overlapping tech stack — techniques from target A inform target B |
 | `build_target_header_profile` | Build a realistic browser header profile from observed traffic for a domain |
 | `get_target_headers` | Get the saved header profile for a domain to use in requests |
+| `set_program_policy` | Persist per-engagement policy: scope text, NEVER SUBMIT add/remove overrides, confidence floor. assess_finding merges these dynamically |
+| `get_program_policy` | Read the active or named program policy |
 
 > **Memory system:** Data stored in `.burp-intel/<domain>/` (gitignored). Finding states: suspected, confirmed, stale, likely_false_positive. Knowledge version tracking triggers re-testing when probes are updated. Cross-target pattern learning shares successful techniques across targets by tech stack.
 
@@ -558,16 +585,21 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 ### Correlate
 | Tool | Description |
 |------|-------------|
-| `search_history` | Search history by query, method, status |
+| `search_history` | Search HTTP proxy history by query, method, status |
+| `search_ws_history` | Grep WebSocket payloads — direction filter, URL filter, since_index polling |
 | `get_findings_for_endpoint` | All findings (scanner + manual) for a URL |
 | `get_response_diff` | Diff two responses |
 
-### Collaborator (OOB testing)
+### Collaborator (OOB testing — Burp Pro)
 | Tool | Description |
 |------|-------------|
-| `generate_collaborator_payload` | Generate Collaborator URL for blind testing |
+| `generate_collaborator_payload` | Generate one Collaborator URL for blind testing (consumes from pool if available) |
+| `generate_collaborator_pool` | Pre-generate N subdomains in one call — saves round-trips during OOB-heavy probing |
+| `collaborator_pool_status` | Show how many subdomains remain in the pool |
 | `get_collaborator_interactions` | Check for DNS/HTTP/SMTP callbacks |
 | `auto_collaborator_test` | One-step: inject + send + poll for blind vulns |
+
+**Community Edition users:** Burp Collaborator requires Burp Professional. Use external alternatives (interact.sh, webhook.site, your own DNS-logger) and inject those URLs as the OOB callback; the OOB rule (`hunting.md` Rule 9a) requires a real callback domain regardless of source.
 
 ### Export & Resources
 | Tool | Description |
@@ -579,7 +611,7 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 ### Notes & Reporting
 | Tool | Description |
 |------|-------------|
-| `save_finding` | Save a vulnerability finding. **Zero-noise gate (server-enforced):** requires `evidence={"logger_index" \| "proxy_history_index" \| "collaborator_interaction_id": ...}` resolving to live Burp data; timing/blind vuln types require `reproductions[]` with ≥2 entries; NEVER SUBMIT vuln types require `chain_with[]` referencing existing finding IDs. Accepts a `confidence` value in `[0.0, 1.0]`. Persists to `.burp-intel/<domain>/findings.json` and Burp's in-memory store; deduplicates by `(endpoint + title + parameter)` |
+| `save_finding` | Save a vulnerability finding. **Zero-noise gate (server-enforced):** requires `evidence={"logger_index" \| "proxy_history_index" \| "collaborator_interaction_id": ...}` resolving to live Burp data; timing/blind vuln types require `reproductions[]` with ≥2 entries; NEVER SUBMIT vuln types require `chain_with[]` referencing existing finding IDs. **Recon gate:** refuses to persist when `.burp-intel/<domain>/profile.json` is missing (override with `force_recon_gate=True`). **Chain validator:** rejects `chain_with[]` references to `likely_false_positive` or `stale` anchors. Accepts `human_verified=True` (flagged in entry) and `overrides=[...]` (audit-trailed). Persists to `.burp-intel/<domain>/findings.json` and Burp's in-memory store; deduplicates by `(endpoint + title + parameter)` |
 | `get_findings` | List saved findings with optional endpoint filter |
 | `hydrate_burp_findings` | Load findings from `.burp-intel/<domain>/findings.json` into Burp's in-memory store at session start |
 | `export_report` | Export all findings as markdown or JSON |
@@ -596,6 +628,40 @@ CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest
 | < 0.30 | Informational | Behaviour observed, no attack path yet |
 
 `assess_finding` returns a suggested confidence in its output - you can pass the value directly to `save_finding(confidence=...)`.
+
+### Knowledge-base matchers
+
+`auto_probe` evaluates these matcher types server-side (declared in `knowledge/<class>.json`):
+
+| Type | Purpose |
+|---|---|
+| `status` | Response status equals one of N values |
+| `word` / `not_word` | Body contains all/any/none of N strings |
+| `regex` | Pattern match against body |
+| `timing` / `differential_timing` | Absolute or baseline-delta latency |
+| `length_diff` / `length_delta` | Body-length delta vs baseline ≥ N bytes |
+| `word_count_diff` | Word count delta vs baseline |
+| `header` / `header_change` | Named header present / changed vs baseline |
+| `header_added` / `header_removed` | Specific header newly appears / disappears in probe vs baseline |
+| `mime_changes` | Content-Type type-only differs from baseline (catches XSS via JSON↔HTML context confusion) |
+| `reflection` | Payload reflected raw / URL-encoded / HTML-encoded |
+
+### Hunting Rules (tiered)
+
+Always-active behavioral rules in `.claude/rules/hunting.md`:
+
+| Tier | Rules | Enforcement |
+|---|---|---|
+| HARD | 1–10 (scope, safety, save-finding pipeline) | Tool layer also enforces — Claude cannot override silently |
+| DEFAULT | 11–21 (evidence, coverage, persistence, recon gate) | Overridable via `overrides=[...]` with audit reason |
+| ADVISORY | 22–28 (tool selection, visibility, mode mindset) | Read at session start; consult per-skill on demand |
+
+When skill text disagrees with rule numbers, the rule wins. Skills reference rules by number, do not restate.
+
+Key rules added in v0.4:
+- **Rule 20a** — session-start recon gate. First action when target is identifiable: `load_target_intel(domain, "all")`. Empty intel = run recon FIRST, save it, then test. `save_finding` enforces this at tool layer.
+- **Rule 26a** — volume work is an MCP tool, not a Python script. Scripts that bypass Burp leave no `logger_index` and fail evidence gate. Use `concurrent_requests` / `send_to_intruder_configured` / `fuzz_parameter` / `auto_probe` / `batch_probe`. If a script is unavoidable: `get_burp_proxy_env` returns the proxy env-var snippets.
+- **Rule 28** — mode is per-tool-call. Session that gains credentials switches to grey-box for that call regardless of session-start mode. Locking into one mode is a primary cause of missed findings.
 
 ## Bug Bounty Skills
 
@@ -643,7 +709,6 @@ Applies to the Python MCP server (read from `.env` or the `env` block of `.mcp.j
 | `BURP_API_HOST` | `127.0.0.1` | Burp extension host |
 | `BURP_API_PORT` | `8111` | Burp extension port |
 | `BURP_API_TIMEOUT` | `30` | Request timeout (seconds) |
-| `BURP_MAX_RESPONSE_SIZE` | `50000` | Max response body chars |
 | `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host (used by external recon + browser tools) |
 | `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
 

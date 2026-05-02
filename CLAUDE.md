@@ -80,9 +80,11 @@ Two codebases in one repo:
    - NEVER add external JARs to the extension
 
 5. Testing
-   - No formal test suite exists yet
-   - Manual testing through Burp extension loading and MCP client
-   - When tests are added: JUnit 5 for Java, pytest for Python
+   - **Calibration suite** at `mcp-server/tests/test_assess_finding.py` — stdlib unittest, no pytest required. Run: `cd mcp-server && uv run python -m unittest tests.test_assess_finding -v`
+   - Covers assess_finding verdicts: NEVER SUBMIT block, negation-pass, IDOR strong evidence, dedup distinct-vs-merge
+   - Add cases when adding a new vuln class to `Q5_KEYWORDS` or NEVER SUBMIT list
+   - Manual testing through Burp extension loading and MCP client for Java side
+   - Future: JUnit 5 for Java extension
 
 ## Code Style
 
@@ -153,7 +155,7 @@ burp-extension/src/main/java/com/swissknife/
 
 mcp-server/src/burpsuite_mcp/
 ├── __main__.py                 # Entry point → mcp.run(transport="stdio")
-├── server.py                   # FastMCP instance + tool registration (27 modules)
+├── server.py                   # FastMCP instance + tool registration (32 modules)
 ├── config.py                   # Env vars: BURP_API_HOST, BURP_API_PORT, BURP_API_TIMEOUT
 ├── client.py                   # Async HTTP client (httpx) to extension
 ├── processing/
@@ -187,7 +189,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── insecure_randomness, source_code_exposure, dependency_confusion
 │   ├── cloud_webapp, mobile_api
 │   └── tech_vulns                # Reference only, no probes
-└── tools/                      # 167 MCP tools across 32 modules (run grep for exact count; auto-drifts as tools are added)
+└── tools/                      # 174 MCP tools across 32 modules (run grep for exact count; auto-drifts as tools are added)
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl, concurrent, probe_with_diff (8 tools)
@@ -232,7 +234,7 @@ mcp-server/src/burpsuite_mcp/
 - **Payload knowledge:** Curated payloads from HackTricks/PayloadsAllTheThings fill Claude's gaps for advanced/evasive techniques (WAF bypass, framework-specific SSTI, blind injection)
 - **Knowledge-driven scanning:** `knowledge/` directory covers full attack surface with server-side matchers + `craft_guidance` for dynamic payload generation — `auto_probe` sends probes and validates findings server-side for low false positives. Separate from `payloads/` which is for `get_payloads` tool
 - **Precision over spray:** No mass brute force or enumeration — use nuclei/sqlmap/ffuf for that. This tool focuses on intelligent, context-aware vulnerability testing
-- **Response truncation:** Responses > 50KB are trimmed (configurable via `BURP_MAX_RESPONSE_SIZE`)
+- **Response truncation:** Per-tool body trimming applied at handler/tool level (see `read.py`, `session.py`, `scan.py`). No global env-var cap.
 - **In-memory storage:** Sessions and FindingsStore are not persisted — lost on extension reload
 
 ## Adding New Features
@@ -263,6 +265,21 @@ mcp-server/src/burpsuite_mcp/
 2. Must include `"contexts"` with probes and matchers for server-side validation
 3. Files listed in `_REFERENCE_ONLY` set in `scan.py` are excluded from auto-probe (e.g., `tech_vulns`)
 4. `auto_probe` loads and caches these via `_load_knowledge()` — no registration needed
+
+### Available matcher types (MatcherEngine.java)
+- `status` — response status equals one of N values
+- `word` / `not_word` — body contains all/any/none of N strings
+- `regex` — pattern match against body
+- `timing` — absolute response time ≥ N ms
+- `differential_timing` — response time delta vs baseline ≥ N ms
+- `length_diff` / `length_delta` — body length delta ≥ N bytes
+- `word_count_diff` — word count delta ≥ N
+- `header` (with `contains`) — named header present, optionally containing substring
+- `header_change` — named header value differs from baseline (or any new header appears)
+- `header_added` — named header is in probe but not baseline
+- `header_removed` — named header is in baseline but not probe
+- `mime_changes` — Content-Type type-only differs from baseline
+- `reflection` — payload reflected raw / URL-encoded / HTML-encoded
 
 ## Scanning Tool Hierarchy
 
@@ -322,6 +339,27 @@ Core engineering rules (think first, simplicity, surgical changes, goal-driven) 
 - NEVER mention a `co-authored-by` or similar aspects. Never mention the tool used to create the commit message or PR.
 - Create detailed PR messages focusing on the high-level problem and solution, not code specifics.
 
+## Save-Finding Pipeline
+
+Critical multi-gate flow enforced at three layers (Python advisor + Java extension + persistent store):
+
+```
+verify (Logger replay 3×)  →  assess_finding  →  save_finding
+prove reproducible            run 7-question gate    persist + dedup + chain validate
+```
+
+`assess_finding` parameters of note:
+- `logger_index` — fetches the proxy entry server-side, programmatically extracts class-specific markers (SQLi vendor errors, XSS executable contexts, SSRF cloud-metadata, RCE uid output, path-traversal `/etc/passwd`, CORS credentialed wildcard). Augments evidence text so weak prose still passes Q5.
+- `human_verified=True` — operator confirmed in Burp UI / browser DevTools. Skips Q5 only; Q1/Q4/Q6 still apply. Logged in audit trail.
+- `overrides=["q5_evidence:reason", "q4_dedup:reason", ...]` — unified bypass surface with audit reason. Recognized: `q1_scope`, `q2_repro`, `q4_dedup`, `q5_evidence`, `q6_never_submit`, `q7_triager`, `recon_gate`.
+
+`save_finding` parameters of note:
+- `force_recon_gate=True` — bypass session-start recon gate when recon is in-flight in this session.
+- `human_verified` + `overrides` — passed through to assess gate logic; persisted in finding entry for review.
+- `chain_with=[...]` — referenced findings are validated; chains anchored to `likely_false_positive` / `stale` are rejected.
+
+Per-program policy (`set_program_policy` / `get_program_policy`) persists per-engagement overrides to `.burp-intel/programs/<slug>.json`. assess_finding loads the active policy and merges `never_submit_remove` / `never_submit_add` / `confidence_floor` dynamically.
+
 ## Target Memory System
 
 Persistent target intelligence stored in `.burp-intel/<domain>/` (gitignored, never committed).
@@ -354,6 +392,19 @@ Persistent target intelligence stored in `.burp-intel/<domain>/` (gitignored, ne
 - Knowledge version tracking — new probes trigger re-testing
 - Deduplication — same endpoint + vuln type + param = update, not duplicate
 
+### Auto-Memory Scope (R21)
+
+Auto-memory entries (in `~/.claude/projects/<slug>/memory/`) MUST carry a scope marker so engagement-specific feedback doesn't leak into unrelated targets.
+
+**Required convention** for `feedback` and `project` memories:
+- Engagement-specific (target X said skip rate-limit, target Y pays user-enum): include `applies_to: <domain>` in the body. Example: `applies_to: shop.example.com`.
+- Cross-engagement / true global (user prefers terse output, never use mocks): include `applies_to: global`.
+- When in doubt, default to domain scope — global rules are rare.
+
+**Pruning script** (`scripts/prune_stale_memory.py`) honors `applies_to`. To purge memories tied to a finished engagement: edit script to add a `--domain <X>` filter that deletes only entries with that `applies_to`.
+
+**Read-time enforcement**: when applying a remembered rule, check the `applies_to` line first. If it doesn't match the current target domain (or `global`), do not apply.
+
 ## Bug Bounty Skills
 
 Located in `.claude/skills/`:
@@ -384,7 +435,7 @@ Advanced playbooks (loaded via `playbook-router.md`):
 Located in `.claude/rules/`:
 
 - `engineering.md` — 4 engineering rules for dev, pentesting, bug bounty, and red team: think first, simplicity, surgical changes, goal-driven execution
-- `hunting.md` — 28 behavioral rules enforced every turn: scope safety, evidence requirements, 7-Question Validation Gate, NEVER SUBMIT list, testing mode selection (black/grey/white/hybrid)
+- `hunting.md` — 28 behavioral rules tiered as HARD (1–10, tool-enforced) / DEFAULT (11–21, overridable with audit) / ADVISORY (22–28, on-demand). Covers scope safety, evidence requirements, 7-Question Validation Gate, NEVER SUBMIT list, recon gate (Rule 20a), proxy-routing rule for scripts (Rule 26a), per-tool-call mode selection (Rule 28). Rule numbers are authoritative — skill files reference numbers, do not restate.
 
 ## Agent Team (AGENTS.md)
 
@@ -412,7 +463,6 @@ Defined in `AGENTS.md` at project root. Six specialized agent roles:
 | `BURP_API_HOST` | `127.0.0.1` | Extension API host |
 | `BURP_API_PORT` | `8111` | Extension API port |
 | `BURP_API_TIMEOUT` | `30` | HTTP timeout (seconds) |
-| `BURP_MAX_RESPONSE_SIZE` | `50000` | Max response chars before truncation |
 
 ## Error Resolution
 
