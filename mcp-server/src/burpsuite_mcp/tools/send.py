@@ -188,7 +188,7 @@ def register(mcp: FastMCP):
         return _format_curl_response(resp)
 
     @mcp.tool()
-    async def concurrent_requests(
+    async def concurrent_requests(  # cost: medium (scales with len(requests))
         requests: list[dict],
         concurrency: int = 10,
         delay_ms_between_batches: int = 0,

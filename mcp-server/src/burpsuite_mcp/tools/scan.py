@@ -111,12 +111,25 @@ def _matches_param(param_lower: str, target: str) -> bool:
 
 
 def _classify_param_risk(param_name: str) -> list[str]:
-    """Classify a parameter's vulnerability risk based on its name."""
+    """Classify a parameter's vulnerability risk based on its name.
+
+    R14: Returns at minimum ['BASELINE_PROBE'] for unknown params so every
+    user-supplied parameter gets at least a baseline test pass instead of
+    being silently skipped by ranking-based filters.
+    """
+    if not param_name:
+        return []
     name = param_name.lower()
-    risks = []
+    risks: list[str] = []
     for vuln_type, names in _PARAM_RISK_MAP.items():
         if name in names or any(_matches_param(name, n) for n in names):
             risks.append(vuln_type.replace("_", "/").upper())
+    if not risks:
+        # Unknown param name — still candidate for baseline probing.
+        # Catches application-specific quirky names (redirectAfterLogin,
+        # __EVENTVALIDATION, _csrf_token_v2) that don't match OWASP top-10
+        # keyword lists.
+        risks.append("BASELINE_PROBE")
     return risks
 
 
@@ -149,7 +162,7 @@ def _compact_targets(targets: list[dict]) -> str:
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def discover_attack_surface(
+    async def discover_attack_surface(  # cost: medium
         session: str,
         max_pages: int = 20,
     ) -> str:
@@ -222,24 +235,87 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def auto_probe(
+    async def auto_probe(  # cost: expensive
         session: str,
         targets: list[dict],
         categories: list[str] | None = None,
         max_probes_per_param: int = 5,
+        domain: str = "",
+        force_recon_gate: bool = False,
+        skip_already_covered: bool = True,
     ) -> str:
         """Knowledge-driven vulnerability probing with server-side matchers.
+
+        Cost class: EXPENSIVE — sends N probes per parameter × multiple categories.
+        Run discover_attack_surface first to scope `targets` instead of probing
+        everything. Honors Rule 20a recon gate when `domain` is supplied.
 
         Args:
             session: Session name
             targets: Parameters to test (from discover_attack_surface)
             categories: Filter probe categories (empty = all)
             max_probes_per_param: Max probes per parameter
+            domain: Target domain (enables recon-gate + coverage skip)
+            force_recon_gate: Bypass recon gate for in-flight recon
+            skip_already_covered: Skip (endpoint, param, category) tuples whose knowledge_version in coverage.json matches current. Eliminates re-test cycle (R13). Default True.
         """
+        # ── Rule 20a: recon gate (advisory for auto_probe — warn only) ──
+        if domain and not force_recon_gate:
+            from burpsuite_mcp.tools.intel import recon_gate_check
+            gate_err = recon_gate_check(domain)
+            if gate_err is not None:
+                return (
+                    f"RECON GATE WARNING: {gate_err}\n"
+                    "Pass force_recon_gate=True to probe anyway, but findings "
+                    "from this run cannot be persisted by save_finding without "
+                    "recon intel for this domain."
+                )
+
+        # ── R13: filter targets against existing coverage ──
+        skipped_count = 0
+        if domain and skip_already_covered:
+            try:
+                import re as _re_skip
+                from burpsuite_mcp.tools.intel import _knowledge_version, INTEL_DIR as _ID
+                sanitized = _re_skip.sub(r"[^a-zA-Z0-9._-]", "_", domain)
+                cov_path = _ID / sanitized / "coverage.json"
+                if cov_path.exists():
+                    cov = json.loads(cov_path.read_text())
+                    cur_kv = _knowledge_version()
+                    covered_keys: set[tuple] = set()
+                    for entry in cov.get("entries", []):
+                        if entry.get("knowledge_version") == cur_kv:
+                            covered_keys.add((
+                                entry.get("endpoint", ""),
+                                entry.get("parameter", ""),
+                                entry.get("category", ""),
+                            ))
+                    if covered_keys:
+                        active_cats = set(categories or [
+                            k.get("category") for k in _load_all_knowledge(categories)
+                        ])
+                        new_targets = []
+                        for t in targets:
+                            ep = t.get("path", "")
+                            par = t.get("parameter", "")
+                            cats_to_run = [c for c in active_cats if (ep, par, c) not in covered_keys]
+                            if cats_to_run:
+                                new_targets.append(t)
+                            else:
+                                skipped_count += 1
+                        targets = new_targets
+            except (OSError, json.JSONDecodeError, ValueError):
+                pass  # best-effort
+
         knowledge = _load_all_knowledge(categories)
         if not knowledge:
             available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
             return f"No knowledge base found. Available: {', '.join(sorted(available))}"
+        if not targets:
+            return (
+                f"All requested targets already covered (knowledge_version match). "
+                f"Skipped {skipped_count} tuples. Pass skip_already_covered=False to re-probe."
+            )
 
         data = await client.post("/api/session/auto-probe", json={
             "session": session,
@@ -331,7 +407,7 @@ def register(mcp: FastMCP):
     # ── Probe tools (moved from session.py) ──
 
     @mcp.tool()
-    async def quick_scan(
+    async def quick_scan(  # cost: cheap
         session: str, method: str, path: str,
         headers: dict | None = None, body: str = "", data: str = "",
         json_body: dict | None = None,
@@ -379,12 +455,44 @@ def register(mcp: FastMCP):
                     lines.append(f"  {ip.get('name', '?')} [{', '.join(vulns)}] risk={ip.get('risk_score', 0)}")
             # ParameterExtractor emits query_parameters / body_parameters / cookie_parameters
             params = analysis.get("parameters", {})
+            collected_param_names: list[str] = []
             for loc, key in (("query", "query_parameters"),
                              ("body", "body_parameters"),
                              ("cookie", "cookie_parameters")):
                 pl = params.get(key, [])
                 if pl and isinstance(pl, list):
-                    lines.append(f"Params ({loc}): {', '.join(p.get('name', '?') for p in pl)}")
+                    names = [p.get('name', '?') for p in pl]
+                    collected_param_names.extend(names)
+                    lines.append(f"Params ({loc}): {', '.join(names)}")
+
+            # ── R15: emit concrete next-step tool calls ──
+            tech_str = ",".join(techs[:3]) if techs else ""
+            if collected_param_names:
+                top_params = collected_param_names[:5]
+                lines.append("\nSUGGESTED NEXT STEPS:")
+                lines.append(
+                    f"  1. auto_probe(session='{session}', targets=["
+                    + ", ".join(
+                        f"{{'method':'{method}','path':'{path}','parameter':'{p}','location':'query','baseline_value':'1'}}"
+                        for p in top_params
+                    )
+                    + "], categories=['sqli','xss','ssrf'])"
+                )
+                lines.append(
+                    f"  2. discover_attack_surface(session='{session}', max_pages=20)  "
+                    f"# map full surface before deep probing"
+                )
+                if high_risk:
+                    lines.append(
+                        f"  3. test_auth_matrix(endpoints=[...], auth_states={{...}})  "
+                        f"# {len(high_risk)} injection points need authz coverage"
+                    )
+            elif tech_str:
+                lines.append(f"\nSUGGESTED NEXT STEPS:")
+                lines.append(
+                    f"  1. discover_attack_surface(session='{session}')  "
+                    f"# tech={tech_str} but no params on this response"
+                )
         return "\n".join(lines)
 
     @mcp.tool()
@@ -442,7 +550,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def batch_probe(session: str, endpoints: list[dict]) -> str:
+    async def batch_probe(session: str, endpoints: list[dict]) -> str:  # cost: medium
         """Test multiple endpoints in ONE call with status, length, and timing.
 
         Args:
@@ -464,7 +572,7 @@ def register(mcp: FastMCP):
     # ── New discovery & workflow tools ────────────────────────────────
 
     @mcp.tool()
-    async def discover_hidden_parameters(
+    async def discover_hidden_parameters(  # cost: medium
         session: str,
         method: str = "GET",
         path: str = "/",
@@ -559,7 +667,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def full_recon(
+    async def full_recon(  # cost: expensive
         session: str,
         depth: str = "standard",
     ) -> str:
@@ -600,10 +708,14 @@ def register(mcp: FastMCP):
         lines.append(f"\nENDPOINTS: {len(endpoints)} unique")
         for ep in endpoints[:15]:
             params = ep.get("parameters", [])
-            param_str = f" (params: {', '.join(params)})" if params else ""
-            lines.append(f"  [{ep.get('status_code', '?')}] {ep['endpoint']}{param_str}")
+            param_names = [p.get("name", "?") if isinstance(p, dict) else str(p) for p in params]
+            param_str = f" (params: {', '.join(param_names)})" if param_names else ""
+            lines.append(f"  [{ep.get('status_code', '?')}] {ep.get('endpoint', '?')}{param_str}")
         if len(endpoints) > 15:
-            lines.append(f"  ... and {len(endpoints) - 15} more")
+            lines.append(
+                f"  ... and {len(endpoints) - 15} more "
+                f"[TRUNCATED for token budget; re-run with priority='remaining' to cover the rest]"
+            )
 
         if depth in ("standard", "deep"):
             # JS secrets: fetch page resources then scan
@@ -669,7 +781,8 @@ def register(mcp: FastMCP):
         for ep in endpoints:
             ep_risks = set()
             for p in ep.get("parameters", []):
-                risks = _classify_param_risk(p)
+                pname = p.get("name", "") if isinstance(p, dict) else str(p)
+                risks = _classify_param_risk(pname)
                 ep_risks.update(risks)
             if ep_risks:
                 priorities.append((ep, sorted(ep_risks)))
@@ -677,12 +790,17 @@ def register(mcp: FastMCP):
         if priorities:
             lines.append(f"\nATTACK PRIORITIES:")
             for i, (ep, risks) in enumerate(priorities[:10], 1):
-                lines.append(f"  {i}. {ep['endpoint']} -> {', '.join(risks)}")
+                lines.append(f"  {i}. {ep.get('endpoint', '?')} -> {', '.join(risks)}")
+            if len(priorities) > 10:
+                lines.append(
+                    f"  [+{len(priorities) - 10} more priorities truncated; "
+                    f"call again or use load_target_intel(domain, 'endpoints', limit=N, offset=10)]"
+                )
 
         return "\n".join(lines)
 
     @mcp.tool()
-    async def bulk_test(
+    async def bulk_test(  # cost: expensive
         session: str,
         vulnerability: str,
         targets: list[dict] | None = None,

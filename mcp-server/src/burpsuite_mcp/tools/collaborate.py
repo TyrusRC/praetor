@@ -5,11 +5,31 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 
+# R23: in-process Collaborator pool. Pre-generated subdomains live here
+# so OOB-heavy scans (auto_probe, fuzz_parameter with Collaborator-bound
+# payloads) can pull from cache instead of one round-trip per probe.
+_COLLAB_POOL: list[dict] = []
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
     async def generate_collaborator_payload() -> str:
-        """Generate a Burp Collaborator payload URL for out-of-band testing. Requires Burp Professional."""
+        """Generate a Burp Collaborator payload URL for out-of-band testing. Requires Burp Professional.
+
+        For batched probing, prefer generate_collaborator_pool(count=N) once at
+        session start, then pop_collaborator_payload() per probe (no round-trip).
+        """
+        # Pull from pool if available — saves a round-trip
+        if _COLLAB_POOL:
+            entry = _COLLAB_POOL.pop(0)
+            return (
+                f"Collaborator Payload (from pool, {len(_COLLAB_POOL)} left):\n"
+                f"  Payload URL: {entry.get('payload', '')}\n"
+                f"  Interaction ID: {entry.get('interaction_id', '')}\n"
+                f"  Server: {entry.get('server', '')}\n\n"
+                f"Inject this URL into target parameters, then use get_collaborator_interactions to check for hits."
+            )
         data = await client.post("/api/collaborator/payload")
         if "error" in data:
             return f"Error: {data['error']}"
@@ -21,6 +41,43 @@ def register(mcp: FastMCP):
             f"  Server: {data.get('server', '')}\n\n"
             f"Inject this URL into target parameters, then use get_collaborator_interactions to check for hits."
         )
+
+    @mcp.tool()
+    async def generate_collaborator_pool(count: int = 25) -> str:
+        """Pre-generate a pool of Collaborator subdomains for batched OOB probing (R23).
+
+        Generating one subdomain per probe is wasteful (1 round-trip each).
+        Call this once at session start, then generate_collaborator_payload
+        will consume from the pool until empty before falling back to network.
+
+        Args:
+            count: Number of subdomains to pre-generate (default 25, max 200)
+        """
+        count = max(1, min(200, count))
+        added = 0
+        errors = 0
+        for _ in range(count):
+            data = await client.post("/api/collaborator/payload")
+            if "error" in data:
+                errors += 1
+                if errors >= 3:
+                    break  # Burp Pro likely missing; stop wasting calls
+                continue
+            _COLLAB_POOL.append({
+                "payload": data.get("payload", ""),
+                "interaction_id": data.get("interaction_id", ""),
+                "server": data.get("server", ""),
+            })
+            added += 1
+        return (
+            f"Collaborator pool: +{added} subdomains "
+            f"(total now {len(_COLLAB_POOL)}, errors={errors})"
+        )
+
+    @mcp.tool()
+    async def collaborator_pool_status() -> str:
+        """Show how many Collaborator subdomains are pre-generated in the pool."""
+        return f"Collaborator pool: {len(_COLLAB_POOL)} subdomains available."
 
     @mcp.tool()
     async def auto_collaborator_test(

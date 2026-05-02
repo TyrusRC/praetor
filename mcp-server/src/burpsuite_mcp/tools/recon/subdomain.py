@@ -8,7 +8,7 @@ from ._common import _check_tool, _run_cmd, _sanitize_domain, BURP_PROXY_URL
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def run_subfinder(
+    async def run_subfinder(  # cost: expensive (external binary, network-bound)
         domain: str,
         all_sources: bool = False,
         silent: bool = True,

@@ -247,31 +247,55 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def get_websocket_history(limit: int = 50) -> str:
-        """Get WebSocket message history from Burp's proxy.
+    async def get_websocket_history(
+        limit: int = 50,
+        offset: int = 0,
+        direction: str = "",
+        filter_payload: str = "",
+        filter_url: str = "",
+        since_index: int = -1,
+    ) -> str:
+        """Get WebSocket message history from Burp's proxy with filters.
 
         Args:
             limit: Max messages to return
+            offset: Pagination offset
+            direction: Filter by direction — 'client' (outgoing) or 'server' (incoming)
+            filter_payload: Substring filter applied to message payload (case-insensitive)
+            filter_url: Substring filter applied to the WebSocket connection URL
+            since_index: Only return messages with index > since_index (poll for new traffic)
         """
-        data = await client.get("/api/websocket/history", params={"limit": limit})
+        params: dict = {"limit": limit, "offset": offset}
+        if direction:
+            params["direction"] = direction
+        if filter_payload:
+            params["filter_payload"] = filter_payload
+        if filter_url:
+            params["filter_url"] = filter_url
+        if since_index >= 0:
+            params["since_index"] = since_index
+
+        data = await client.get("/api/websocket/history", params=params)
         if "error" in data:
             return f"Error: {data['error']}"
 
         messages = data.get("messages", [])
         if not messages:
-            return "No WebSocket messages captured. WebSocket traffic must flow through Burp's proxy."
+            hint = " Try clearing filters." if (direction or filter_payload or filter_url or since_index >= 0) else ""
+            return f"No WebSocket messages captured.{hint} WebSocket traffic must flow through Burp's proxy."
 
         lines = [f"WebSocket Messages ({data.get('total', 0)} total, showing {len(messages)}):\n"]
         for msg in messages:
-            direction = msg.get("direction", "?")
+            d = msg.get("direction", "?")
             idx = msg.get("index", "?")
             length = msg.get("length", 0)
             payload = msg.get("payload", "")
+            url = msg.get("url", "")
 
-            arrow = ">>" if "CLIENT" in str(direction).upper() else "<<"
-            lines.append(f"[{idx}] {arrow} ({direction}, {length} bytes)")
+            arrow = ">>" if "CLIENT" in str(d).upper() else "<<"
+            url_part = f" {url}" if url else ""
+            lines.append(f"[{idx}] {arrow} ({d}, {length} bytes){url_part}")
 
-            # Show payload with truncation
             if len(payload) > 200:
                 lines.append(f"  {payload[:200]}...")
             else:

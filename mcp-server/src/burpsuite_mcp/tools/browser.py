@@ -195,7 +195,7 @@ def register(mcp: FastMCP):
             return f"Error submitting form: {e}"
 
     @mcp.tool()
-    async def browser_crawl(
+    async def browser_crawl(  # cost: expensive (scales with max_pages)
         url: str,
         max_pages: int = 20,
         same_origin: bool = True,

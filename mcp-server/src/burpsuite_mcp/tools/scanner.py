@@ -8,7 +8,7 @@ from burpsuite_mcp import client
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def scan_url(
+    async def scan_url(  # cost: expensive (Burp active scan, runs in background)
         url: str = "",
         urls: list[str] | None = None,
         index: int = -1,
@@ -43,7 +43,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def crawl_target(
+    async def crawl_target(  # cost: expensive (Burp crawler, background)
         url: str = "",
         urls: list[str] | None = None,
     ) -> str:

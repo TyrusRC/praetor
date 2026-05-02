@@ -75,6 +75,28 @@ def _finding_vuln_type(finding: dict) -> str:
     return finding.get("vulnerability_type") or finding.get("category") or ""
 
 
+def recon_gate_check(domain: str) -> str | None:
+    """Return None if recon intel exists for the domain, else an actionable error string.
+
+    Used by save_finding and auto_probe to enforce hunting Rule 20a — a finding can't
+    be persisted and probes should warn unless the operator has actually recorded recon
+    for the target. Empty .burp-intel/<domain>/ means no recon has been done.
+    """
+    if not domain:
+        return None  # caller chose not to persist; gate doesn't apply
+    path = _intel_path(domain)
+    profile = path / "profile.json"
+    if not path.exists() or not profile.exists():
+        return (
+            f"RECON GATE: no intel for '{domain}'. Run recon first:\n"
+            f"  1. browser_crawl('https://{domain}', max_pages=20)\n"
+            f"  2. full_recon(session=<name>) or discover_attack_surface(...)\n"
+            f"  3. save_target_intel('{domain}', 'profile', {{...}})\n"
+            f"Then retry. Override with force_recon_gate=True only if recon is in-flight."
+        )
+    return None
+
+
 def _deduplicate_finding(existing_list: list[dict], new_finding: dict) -> list[dict]:
     """If same endpoint + vulnerability type + parameter exists, update it; otherwise append."""
     new_type = _finding_vuln_type(new_finding)
@@ -296,12 +318,22 @@ def register(mcp: FastMCP):
     async def load_target_intel(
         domain: str,
         category: str = "all",
+        limit: int = 0,
+        offset: int = 0,
+        sort_by: str = "",
+        status_filter: str = "",
+        chain_with_open: bool = False,
     ) -> str:
         """Load persistent target intelligence for a domain.
 
         Args:
             domain: Target domain
             category: 'all' for summary, 'notes' for markdown, or a specific category
+            limit: For findings/endpoints/coverage — paginate to N entries (0 = all). R24.
+            offset: Pagination offset.
+            sort_by: For findings — 'severity' (CRITICAL>HIGH>MEDIUM>LOW>INFO) or 'recency' (newest first).
+            status_filter: For findings — comma-separated statuses to keep (e.g. 'confirmed,suspected'). Empty = all.
+            chain_with_open: For findings — only return findings whose status is suspected/confirmed (chain-relevant).
         """
         dir_path = _intel_path(domain)
 
@@ -368,6 +400,37 @@ def register(mcp: FastMCP):
         data["_meta"]["last_modified"] = datetime.fromtimestamp(
             stat.st_mtime, tz=timezone.utc
         ).isoformat()
+
+        # ── R24: filter + sort + paginate findings/endpoints/coverage ──
+        if category == "findings":
+            findings = data.get("findings", []) or []
+            if chain_with_open:
+                findings = [f for f in findings if f.get("status", "") in ("suspected", "confirmed")]
+            if status_filter:
+                allowed = {s.strip() for s in status_filter.split(",") if s.strip()}
+                findings = [f for f in findings if f.get("status", "") in allowed]
+            if sort_by == "severity":
+                sev_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+                findings.sort(key=lambda f: sev_order.get(str(f.get("severity", "INFO")).upper(), 5))
+            elif sort_by == "recency":
+                findings.sort(
+                    key=lambda f: str(f.get("last_updated") or f.get("created") or ""),
+                    reverse=True,
+                )
+            data["_meta"]["filtered_count"] = len(findings)
+            if limit > 0:
+                findings = findings[offset:offset + limit]
+                data["_meta"]["offset"] = offset
+                data["_meta"]["limit"] = limit
+            data["findings"] = findings
+        elif category in ("endpoints", "coverage") and limit > 0:
+            key = "endpoints" if category == "endpoints" else "entries"
+            items = data.get(key, []) or []
+            data["_meta"]["filtered_count"] = len(items)
+            data[key] = items[offset:offset + limit]
+            data["_meta"]["offset"] = offset
+            data["_meta"]["limit"] = limit
+
         return json.dumps(data, indent=2, default=str)
 
     @mcp.tool()
@@ -705,3 +768,97 @@ def register(mcp: FastMCP):
             "headers": headers,
         }
         return json.dumps(out, indent=2)
+
+    # ── Per-program policy (Rule 17 / NEVER SUBMIT overrides) ─────────────
+    # Each engagement (HackerOne, Bugcrowd, Intigriti program, etc) has
+    # different scope rules and different "informative-only" lists. Hardcoded
+    # NEVER SUBMIT in advisor.py over-blocks for programs that DO pay
+    # tabnabbing / username enumeration / etc. This tool persists a per-
+    # program override so assess_finding can apply it dynamically.
+    PROGRAMS_DIR = INTEL_DIR / "programs"
+
+    @mcp.tool()
+    async def set_program_policy(
+        name: str,
+        scope_text: str = "",
+        never_submit_remove: list[str] | None = None,
+        never_submit_add: list[str] | None = None,
+        confidence_floor: float = 0.0,
+        notes: str = "",
+    ) -> str:
+        """Persist per-program policy that overrides hardcoded NEVER SUBMIT defaults.
+
+        Args:
+            name: Program slug (e.g. 'h1-acme', 'bugcrowd-acme', 'intigriti-foo')
+            scope_text: Free-form scope text from the program brief (referenced by humans, not parsed)
+            never_submit_remove: NEVER SUBMIT keys this program DOES accept (e.g. ['user_enumeration', 'tabnabbing'])
+            never_submit_add: Extra NEVER SUBMIT keys for this program (e.g. ['rate_limit_login'])
+            confidence_floor: Minimum confidence to report (0.0 = accept all REPORT verdicts)
+            notes: Free-form operator notes (payout table, triager preferences)
+        """
+        slug = re.sub(r"[^a-zA-Z0-9._-]", "_", name).strip("_") or "default"
+        PROGRAMS_DIR.mkdir(parents=True, exist_ok=True)
+        out_path = PROGRAMS_DIR / f"{slug}.json"
+        record = {
+            "name": name,
+            "slug": slug,
+            "scope_text": scope_text,
+            "never_submit_remove": list(dict.fromkeys(never_submit_remove or [])),
+            "never_submit_add": list(dict.fromkeys(never_submit_add or [])),
+            "confidence_floor": max(0.0, min(1.0, float(confidence_floor))),
+            "notes": notes,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _atomic_write_json(out_path, record)
+        active_path = PROGRAMS_DIR / "active.json"
+        _atomic_write_json(active_path, {"slug": slug})
+        return (
+            f"Program policy saved: {slug} (now active)\n"
+            f"  Path: {out_path}\n"
+            f"  Removed from NEVER SUBMIT: {', '.join(record['never_submit_remove']) or '(none)'}\n"
+            f"  Added to NEVER SUBMIT: {', '.join(record['never_submit_add']) or '(none)'}\n"
+            f"  Confidence floor: {record['confidence_floor']:.2f}\n"
+            "assess_finding will apply these overrides on next call."
+        )
+
+    @mcp.tool()
+    async def get_program_policy(name: str = "") -> str:
+        """Return the active program policy or a named one.
+
+        Args:
+            name: Program slug. Empty = return active program.
+        """
+        if not name:
+            active = PROGRAMS_DIR / "active.json"
+            if not active.exists():
+                return "No active program. Use set_program_policy(...) to create one."
+            try:
+                slug = json.loads(active.read_text()).get("slug", "")
+            except (json.JSONDecodeError, OSError):
+                return "Active marker corrupted; recreate with set_program_policy."
+            target = PROGRAMS_DIR / f"{slug}.json"
+        else:
+            slug = re.sub(r"[^a-zA-Z0-9._-]", "_", name).strip("_")
+            target = PROGRAMS_DIR / f"{slug}.json"
+        if not target.exists():
+            return f"No policy for '{slug or name}'."
+        return target.read_text()
+
+
+# Module-level loader for advisor.py — pure read, no MCP needed.
+def load_active_program_policy() -> dict:
+    """Load the active program policy as a dict, or return empty dict if none."""
+    programs_dir = INTEL_DIR / "programs"
+    active = programs_dir / "active.json"
+    if not active.exists():
+        return {}
+    try:
+        slug = json.loads(active.read_text()).get("slug", "")
+        if not slug:
+            return {}
+        path = programs_dir / f"{slug}.json"
+        if not path.exists():
+            return {}
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}

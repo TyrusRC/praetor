@@ -127,7 +127,7 @@ def _get_smart_payloads(param_name: str) -> list[str]:
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def fuzz_parameter(
+    async def fuzz_parameter(  # cost: medium (scales with payload list)
         index: int,
         parameters: list[dict] | None = None,
         parameter: str = "",
@@ -353,7 +353,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def test_auth_matrix(
+    async def test_auth_matrix(  # cost: medium (N endpoints × M auth states)
         endpoints: list[dict],
         auth_states: dict,
         base_url: str = "",
@@ -402,7 +402,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def test_race_condition(
+    async def test_race_condition(  # cost: medium (N concurrent requests, single endpoint)
         session: str,
         request: dict,
         concurrent: int = 10,

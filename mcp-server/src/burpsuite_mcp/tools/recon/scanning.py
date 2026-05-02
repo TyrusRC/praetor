@@ -11,7 +11,7 @@ from ._common import _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def run_nuclei(
+    async def run_nuclei(  # cost: expensive (external template-based scan)
         target: str,
         templates: str = "",
         tags: str = "",

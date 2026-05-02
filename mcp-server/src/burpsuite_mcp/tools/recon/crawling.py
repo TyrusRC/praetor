@@ -8,7 +8,7 @@ from ._common import _check_tool, _run_cmd, _sanitize_domain, _USER_AGENT, BURP_
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def run_katana(
+    async def run_katana(  # cost: expensive (external crawler)
         target: str,
         depth: int = 3,
         crawl_mode: str = "hybrid",

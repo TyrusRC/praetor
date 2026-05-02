@@ -16,12 +16,12 @@ def format_proxy_table(data: dict) -> str:
 
     for item in items:
         lines.append(
-            f"{item['index']:<8} "
-            f"{item['method']:<8} "
+            f"{item.get('index', '?'):<8} "
+            f"{item.get('method', '?'):<8} "
             f"{item.get('status_code', '-'):<8} "
             f"{item.get('response_length', 0):<8} "
             f"{item.get('mime_type', ''):<15} "
-            f"{item['url']}"
+            f"{item.get('url', '?')}"
         )
 
     return "\n".join(lines)

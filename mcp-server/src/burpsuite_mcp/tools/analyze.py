@@ -288,7 +288,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def smart_analyze(index: int) -> str:
+    async def smart_analyze(index: int) -> str:  # cost: cheap (single index, batched analysis)
         """Full attack surface analysis in ONE call: tech stack, injection points, params, forms, endpoints, secrets.
 
         Args:

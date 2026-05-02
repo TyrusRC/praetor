@@ -82,6 +82,12 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
     walkthrough_str = _numbered(finding.get("attack_walkthrough") or finding.get("walkthrough", ""))
     escalation = finding.get("escalation", "")
     reproduction_str = _numbered(finding.get("reproduction_steps") or finding.get("steps_to_reproduce", ""))
+    default_repro = (
+        f"1. Authenticate (or skip if unauth)\n"
+        f"2. Send the request below to https://{domain}{endpoint}\n"
+        f"3. Observe the response indicators listed under Evidence"
+    )
+    note_line = f"- Note: {severity_note}" if severity_note else ""
     remediation_str = _list_or_str(finding.get("remediation") or finding.get("recommendation", ""), item_prefix="- ")
     references_str = _list_or_str(finding.get("references", []), item_prefix="- ")
     cwe = finding.get("cwe", "")
@@ -100,7 +106,7 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 {description or f'{vuln_type} in the `{param}` parameter at `{endpoint}`.'}
 
 ## Steps to Reproduce (cold start)
-{reproduction_str or poc_steps or f'1. Authenticate (or skip if unauth)\n2. Send the request below to https://{domain}{endpoint}\n3. Observe the response indicators listed under Evidence'}
+{reproduction_str or poc_steps or default_repro}
 
 ## Proof of Concept Request
 {poc_steps or '_Insert HTTP request_'}
@@ -128,7 +134,7 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 - CWE: {cwe or '_e.g. CWE-89, CWE-79_'}
 - OWASP: {owasp or '_e.g. A03:2021-Injection_'}
 - Parameter: {param}
-{f'- Note: {severity_note}' if severity_note else ''}"""
+{note_line}"""
 
     if platform == "bugcrowd":
         return f"""## Title
