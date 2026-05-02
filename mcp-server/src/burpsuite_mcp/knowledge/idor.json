@@ -1,5 +1,17 @@
 {
   "category": "idor",
+  "craft_guidance": [
+    "1. IDENTIFY ID SHAPE: numeric (auto-increment), UUIDv4 (random), UUIDv1 (timestamp+MAC monotonic), Snowflake (timestamp+worker), base32/base62 (often sequential). Sequential or time-based = walkable.",
+    "2. WALK THE SPACE: numeric IDs +1/-1 first; if 200+content delta, IDOR confirmed (Rule 6 — authz, NOT credential brute force). Cap PoC to 3-5 IDs.",
+    "3. MULTIPLE ENDPOINTS PER ID: /api/users/N, /api/users/N/orders, /api/orders?user_id=N. Object-level (BOLA) vs function-level (BFLA) are distinct findings.",
+    "4. NEGATIVE TESTS: ID = 0, -1, MAX_INT, '0' string, null. Edge handlers leak debug info.",
+    "5. INDIRECT IDOR: change non-obvious params (notification_id implies user_id; order_id implies account_id).",
+    "6. CROSS-APP REUSE: same ID space across multiple apps in ecosystem (main-app and admin-app share user_id) — test IDs from one app on the other.",
+    "7. MASS-ASSIGN OWNERSHIP: PATCH/PUT with `owner_id`/`user_id` → other user. If accepted, attacker takes over the resource (different bug class).",
+    "8. ID FORMAT TRANSFORMS: /users/123 vs /users/00123 vs /users/0x7B vs /users/123.json. Some routers normalize differently from auth middleware.",
+    "9. UUIDv1 EXPLOIT: UUIDv1 leaks creation time + MAC. Generate adjacent UUIDs by tweaking timestamp.",
+    "10. DO NOT EXFIL REAL DATA (Rule 7): demonstrate with 2-3 IDs returning distinct content. Don't dump the table."
+  ],
   "contexts": {
     "numeric_id": {
       "description": "IDOR probes for numeric integer identifiers — tests whether changing IDs returns other users data. NOTE: length_diff alone is indicative, not conclusive — paginated content, dynamic ads, or personalized widgets can cause length variance. Always verify semantically (different user data in response) before confirming.",

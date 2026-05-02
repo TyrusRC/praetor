@@ -1,0 +1,71 @@
+{
+  "category": "http3_quic",
+  "description": "HTTP/3 (QUIC) attacks — 0-RTT replay, stream-reset poisoning, connection-migration auth bypass, downgrade to HTTP/2 or HTTP/1.1. Reference-only for now: requires HTTP/3 client tooling. Note: this file is in REFERENCE_ONLY in scan.py.",
+  "contexts": {
+    "zero_rtt_replay": {
+      "description": "QUIC 0-RTT (TLS 1.3 early data) — server accepts requests on first flight before handshake completes. If application processes state-changing requests in 0-RTT, replay is possible (RFC 9001 §9.2 forbids this but some deployments allow).",
+      "tech_match": ["http3", "quic"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send identical state-changing POST twice via 0-RTT. If both succeed (e.g. coupon applied twice, balance debited twice), 0-RTT replay is allowed. Requires HTTP/3 client (e.g. quiche, ngtcp2, curl with --http3).",
+          "matchers": [{"type": "status", "values": [200, 201]}, {"type": "word", "any": ["success", "ok"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "stream_reset_poisoning": {
+      "description": "QUIC STREAM frames followed by RESET_STREAM. Some HTTP/3 servers process partial requests before honoring reset. Variant of CVE-2023-44487 (HTTP/2 Rapid Reset) for QUIC.",
+      "tech_match": ["http3", "quic"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Open N streams, send headers + RESET_STREAM immediately. If server processes the request anyway (logs in DB, queues job), DoS or unauthenticated execution is possible.",
+          "matchers": [{"type": "timing", "min_ms": 5000}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "connection_migration_auth": {
+      "description": "QUIC connection migration — connection ID survives client IP changes. Some servers bind session/auth to (5-tuple) and break on migration; others trust the ID and allow auth bypass when attacker captures a connection ID.",
+      "tech_match": ["http3", "quic"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Capture connection ID, send NEW_CONNECTION_ID frames from attacker IP, then send authenticated request. If server accepts under new path challenge, auth-bound-to-IP is broken.",
+          "matchers": [{"type": "status", "values": [200]}, {"type": "word", "any": ["authenticated", "user", "profile"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "alt_svc_downgrade": {
+      "description": "Alt-Svc header advertising HTTP/3 endpoint that differs in trust boundary from HTTP/2. Some clients pin to advertised endpoint without validating cert chain matches.",
+      "tech_match": ["http3", "quic"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Read Alt-Svc header. If endpoint is on different host/port without strict cert pinning, attacker on path can MITM the HTTP/3 connection.",
+          "matchers": [{"type": "header", "name": "Alt-Svc", "contains": "h3"}],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {}
+        }
+      ]
+    }
+  },
+  "craft_guidance": {
+    "tooling": "Use curl --http3 (curl 7.66+ with quiche/openssl-quic), ngtcp2 examples, or burp-http3 extension. Most Burp Suite versions DO NOT proxy HTTP/3; check via check_pro_features and fall back to direct QUIC client + manual replay.",
+    "fingerprint": "Detect HTTP/3 support via Alt-Svc: h3=\":443\" header on HTTP/2 response. Confirm with: curl -v --http3 https://target",
+    "scope": "0-RTT replay only matters for state-changing endpoints. Test login, payment, vote, transfer, coupon-apply."
+  }
+}

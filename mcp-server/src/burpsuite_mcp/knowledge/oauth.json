@@ -149,6 +149,94 @@
           "variables": {}
         }
       ]
+    },
+    "pkce_reuse_after_capture": {
+      "description": "OAuth 2.1 PKCE chain attack \u2014 attacker captures authorization code (via redirect_uri / referer / log leak), then exchanges it without code_verifier. Some implementations only require code_verifier when code_challenge is present in the original request, allowing post-hoc removal.",
+      "tech_match": ["OAuth", "OpenID", "OIDC"],
+      "param_match": ["code", "code_verifier"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Token exchange with code present but code_verifier omitted \u2014 if server returns access_token, PKCE binding to authorization code is missing.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["access_token", "id_token"]},
+            {"type": "not_word", "words": ["invalid_grant", "code_verifier", "pkce"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{captured_verifier_from_other_session}}",
+          "description": "Cross-session code_verifier reuse \u2014 if server accepts a verifier from a DIFFERENT authorization code, the binding is broken.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["access_token", "id_token"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "oidc_nonce_validation": {
+      "description": "OIDC nonce \u2014 ID token must contain the nonce sent in the authorization request. If server doesn't validate nonce on ID token, attacker can replay an old ID token to authenticate as the original user.",
+      "tech_match": ["OpenID", "OIDC"],
+      "param_match": ["nonce", "id_token"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Empty nonce \u2014 if authorization endpoint accepts empty nonce and issues ID token, downstream replay protection depends entirely on state.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid_request", "nonce_required"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "fixed_nonce_attacker_chosen_12345",
+          "description": "Cross-session nonce reuse \u2014 same nonce in two flows; if both ID tokens are accepted, nonce is not bound to session.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["nonce_mismatch", "invalid_nonce"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "ID token replay \u2014 reuse same ID token in subsequent token exchange (or RP login) without nonce check. Confirms with 200 + new session cookie issued.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Set-Cookie", "contains": ""}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "id_token_alg_confusion": {
+      "description": "ID token alg confusion \u2014 OIDC spec mandates alg validation against discovery doc. Some libs accept alg=none or RS256\u2192HS256 swap on ID tokens just like JWTs.",
+      "tech_match": ["OpenID", "OIDC"],
+      "param_match": ["id_token"],
+      "probes": [
+        {
+          "payload": "{{forged_id_token_alg_none}}",
+          "description": "ID token with alg=none and empty signature, sub=victim_user_id. If server accepts and issues session, RP-side ID token validation is broken.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Set-Cookie", "contains": ""}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_forge": true}
+        }
+      ]
     }
   }
 }

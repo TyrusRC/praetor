@@ -86,6 +86,23 @@ Two codebases in one repo:
    - Manual testing through Burp extension loading and MCP client for Java side
    - Future: JUnit 5 for Java extension
 
+## Recent Improvements (v0.5)
+
+Defaults updated based on missed-finding audit:
+- `auto_probe max_probes_per_param`: 5 → 20 (real bypasses sit at variant 6+)
+- `discover_common_files`: 13 paths → 60+ (env, lockfiles, cloud creds, CI artifacts)
+- `_COMMON_PARAMS` / `_EXTENDED_PARAMS`: 47/97 entries → 200+/500+ (vendor: Shopify, Magento, SAP, Sitecore, Salesforce, AWS)
+- `quick_scan` body capture: 500B → 4KB (vendor stack traces are 1-2KB)
+- `_REFERENCE_ONLY` set: removed `file_upload` (probes are auto-probe-able), added `http3_quic` (manual tooling)
+- New knowledge files: `dom_clobbering`, `cspp`, `http3_quic`, `ai_prompt_injection`, `oauth_device_flow`, `webhook_replay`, `client_side_request`
+- Extended knowledge: `oauth` (PKCE reuse, OIDC nonce), `jwt` (kid path traversal), `saml` (XSW + audience reuse), `cache_poisoning` (CDN-specific), `mass_assignment` (nested), `graphql` (persisted-query hash, alias-login bypass), `websocket` (auth bypass, frame smuggling), `grpc_injection` (field-type, transcoding)
+- `craft_guidance` added on: idor, command_injection, path_traversal, xxe (existing on sqli/xss/ssrf/ssti/cspp/http3_quic)
+- Advisor gate fixes: CORS credentialed-wildcard pass, rate-limit context-aware, tabnabbing-with-chain pass, Q7 chain-skip, Q2 auth-state exemption, Q5 reproductions[] array check, program policy banner, mode 28 wired (`session_name` triggers grey-box impact boost)
+- Recon gate consistent: auto_probe and save_finding both warn-and-allow with auto-bootstrap
+- Scope: `configure_scope(keep_in_scope=[...])` overrides auto-filter per substring
+- Java: structured `error_type` field on save_finding rejections; Python surfaces actionable retry hint
+- Skills: `hunt.md` removed "pivot after 2 categories" (Rule 19 violation); `investigate.md` removed blanket "score <30 = noise"; `autopilot.md` distinguishes WAF 403 from auth-control 403; `dispatch-agents.md` corrected to 6-thread cap; `verify-finding.md` added bars for ID enumeration, password reset, API key, auth bypass; new `user-override.md` skill
+
 ## Code Style
 
 ### Java
@@ -339,6 +356,18 @@ Core engineering rules (think first, simplicity, surgical changes, goal-driven) 
 - NEVER mention a `co-authored-by` or similar aspects. Never mention the tool used to create the commit message or PR.
 - Create detailed PR messages focusing on the high-level problem and solution, not code specifics.
 
+## Override Surfaces (operator-controlled)
+
+When defaults reject legitimate findings or score severity wrong for the engagement, the operator routes via:
+
+1. **Per-call flags** on `assess_finding`: `chain_with`, `human_verified`, `reproductions`, `session_name`, `business_context`, `environment`, `overrides=["q1_scope:reason", ...]`
+2. **Severity lock** on `save_finding`: `severity` is operator-owned; advisor's inferred severity is a SUGGESTION
+3. **Per-program policy** via `set_program_policy`: `never_submit_remove`, `never_submit_add`, `confidence_floor`
+4. **Scope keep-in-scope** on `configure_scope`: `keep_in_scope=["cloudflare", "apis.google"]` overrides auto-filter for target's CDN / OAuth provider / asset host
+5. **Reference-only override**: pass explicit `categories=["file_upload"]` to load otherwise-skipped knowledge files
+
+Full guidance: `.claude/skills/user-override.md`. HARD rules (1–10) cannot be overridden — they're tool-enforced.
+
 ## Save-Finding Pipeline
 
 Critical multi-gate flow enforced at three layers (Python advisor + Java extension + persistent store):
@@ -420,6 +449,7 @@ Located in `.claude/skills/`:
 - `chain-findings.md` — Exploit chain building: escalate low-severity findings via A→B→C chains with escalation table
 - `report-templates.md` — Platform-specific report generation for HackerOne, Bugcrowd, Intigriti, Immunefi with CVSS guide
 - `autopilot.md` — Autonomous hunt loop with circuit breaker, rate limiting, checkpoint modes, and safety controls
+- `user-override.md` — How the operator routes Claude when defaults block legit findings: per-call override flags, severity locks, per-program policy, scope keep-in-scope, NEVER_SUBMIT removal, confidence floor changes
 
 Advanced playbooks (loaded via `playbook-router.md`):
 

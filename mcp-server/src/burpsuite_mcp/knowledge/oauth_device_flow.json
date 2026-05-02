@@ -1,0 +1,61 @@
+{
+  "category": "oauth_device_flow",
+  "description": "OAuth 2.0 Device Authorization Grant (RFC 8628) — used by smart-TV, IoT, CLI tools. Phishing surface: attacker initiates device flow on victim's account, sends victim the user_code via social engineering (email, deep link), gets victim to approve at the verification URI.",
+  "craft_guidance": [
+    "1. IDENTIFY DEVICE FLOW: presence of /oauth/device/code endpoint, user_code field, verification_uri, OR app supports CLI/IoT clients.",
+    "2. REGISTER NEW DEVICE: POST to /device/code with client_id; receive device_code + user_code + verification_uri.",
+    "3. PHISH USER_CODE: short codes (XXX-YYY format) are easy to social-engineer. Test if the verification_uri pre-fills the code, making victim's job a single click.",
+    "4. POLL TIMING: how long is device_code valid? Can attacker race victim's approval?",
+    "5. SCOPE ESCALATION: request scope=admin or scope=offline_access at /device/code. If approval grants without warning, low-privacy UX = full ATO.",
+    "6. RATE LIMIT: poll /token endpoint as fast as possible (no rate limit on poll = brute-force user_code possible).",
+    "7. NO USER CONFIRM: some servers issue tokens before user clicks 'Approve'. Test by polling immediately."
+  ],
+  "contexts": {
+    "device_code_phishing": {
+      "description": "Standard device-flow phishing — attacker initiates flow, victim approves attacker's session.",
+      "tech_match": ["oauth", "device_grant"],
+      "param_match": ["client_id", "device_code", "user_code", "scope"],
+      "probes": [
+        {
+          "payload": "{\"client_id\":\"<official_client>\",\"scope\":\"openid profile email admin offline_access\"}",
+          "description": "Initiate device flow with admin scope. If granted post-approval, scope-creep phishing works.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["device_code", "user_code", "verification_uri"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"grant_type\":\"urn:ietf:params:oauth:grant-type:device_code\",\"device_code\":\"<from_step1>\",\"client_id\":\"<official>\"}",
+          "description": "Poll /token immediately without user approval. Some misconfigured servers grant token if device_code is valid (no authorization_pending check).",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["access_token", "id_token"]},
+            {"type": "not_word", "words": ["authorization_pending", "slow_down"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        }
+      ]
+    },
+    "user_code_brute_force": {
+      "description": "User code is short (e.g. 6-8 chars). If poll endpoint has no rate limit, attacker brute-forces a victim's pending user_code.",
+      "tech_match": ["oauth", "device_grant"],
+      "param_match": ["user_code"],
+      "probes": [
+        {
+          "payload": "<random_user_code>",
+          "description": "Submit random user_code to /device/verify endpoint at high rate. If no rate limit + no CAPTCHA, code is enumerable.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["rate limit", "too many", "throttle"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"rate_limit_test": true}
+        }
+      ]
+    }
+  }
+}

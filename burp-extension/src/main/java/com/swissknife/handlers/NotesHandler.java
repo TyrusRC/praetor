@@ -63,12 +63,18 @@ public class NotesHandler extends BaseHandler {
             if (chainWith.isEmpty()) {
                 sendError(exchange, 400,
                     "'" + (vulnType != null ? vulnType : title) +
-                    "' is in NEVER SUBMIT list — provide chain_with[] of existing finding IDs to escalate");
+                    "' is in NEVER SUBMIT list — provide chain_with[] of existing finding IDs to escalate",
+                    "never_submit",
+                    "Pass chain_with=['fXYZ'] of an existing confirmed finding that this one chains to. "
+                    + "If you believe the class itself should be reportable on this engagement, use "
+                    + "set_program_policy(never_submit_remove=['" + (vulnType != null ? vulnType : "") + "']).");
                 return;
             }
             for (String id : chainWith) {
                 if (!store.hasFinding(id)) {
-                    sendError(exchange, 400, "chain_with references unknown finding id: " + id);
+                    sendError(exchange, 400, "chain_with references unknown finding id: " + id,
+                        "chain_unknown_id",
+                        "Verify the chain anchor is saved and confirmed. List with get_findings()");
                     return;
                 }
             }
@@ -83,7 +89,9 @@ public class NotesHandler extends BaseHandler {
             : null;
         if (evidence == null) {
             sendError(exchange, 400,
-                "evidence required: provide {logger_index, proxy_history_index, or collaborator_interaction_id}");
+                "evidence required: provide {logger_index, proxy_history_index, or collaborator_interaction_id}",
+                "evidence_missing",
+                "Pass evidence={'logger_index': <N>} where N is the index of the confirming replay in proxy/Logger history.");
             return;
         }
 
@@ -97,7 +105,9 @@ public class NotesHandler extends BaseHandler {
 
         if (!hasLogger && !hasProxy && !hasCollab) {
             sendError(exchange, 400,
-                "evidence required: provide logger_index, proxy_history_index, or collaborator_interaction_id");
+                "evidence required: provide logger_index, proxy_history_index, or collaborator_interaction_id",
+                "evidence_missing",
+                "Replay the request via resend_with_modification(index) and pass that index as evidence.logger_index.");
             return;
         }
 
@@ -149,18 +159,24 @@ public class NotesHandler extends BaseHandler {
         if (com.swissknife.store.FindingsStore.requiresReproductions(vulnType)) {
             if (reproductions == null || reproductions.size() < 2) {
                 sendError(exchange, 400,
-                    "'" + vulnType + "' requires reproductions[] with >= 2 verified Logger entries");
+                    "'" + vulnType + "' requires reproductions[] with >= 2 verified Logger entries",
+                    "reproductions_required",
+                    "Replay the timing/blind probe 2 more times and pass reproductions=[{logger_index, elapsed_ms, status_code}, ...].");
                 return;
             }
             for (Map<String, Object> rep : reproductions) {
                 Object ridx = rep.get("logger_index");
                 if (!(ridx instanceof Number)) {
-                    sendError(exchange, 400, "reproductions[].logger_index must be a number");
+                    sendError(exchange, 400, "reproductions[].logger_index must be a number",
+                        "reproductions_invalid",
+                        "Each entry in reproductions[] must include logger_index as an integer.");
                     return;
                 }
                 int ri = ((Number) ridx).intValue();
                 if (ri < 0 || ri >= proxyHistorySize) {
-                    sendError(exchange, 400, "reproductions[].logger_index not found: " + ri);
+                    sendError(exchange, 400, "reproductions[].logger_index not found: " + ri,
+                        "reproductions_invalid",
+                        "Logger index " + ri + " is out of range (history size = " + proxyHistorySize + ").");
                     return;
                 }
             }

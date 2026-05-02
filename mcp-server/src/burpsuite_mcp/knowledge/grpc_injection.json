@@ -82,6 +82,108 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "field_type_injection": {
+      "description": "Protobuf field-type injection — int32 → repeated int32 mismatch causes array append, string → bytes causes binary handling, optional → required omission triggers default-value paths.",
+      "tech_match": ["gRPC", "gRPC-Web", "Protocol Buffers"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send `id` as repeated int32 instead of singular — protobuf may concatenate, last-wins, or first-wins differently across implementations. Useful for IDOR via array smuggling.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 30}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"manual_only": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Send `role` field as bytes (wire type 2) instead of enum (wire type 0). Some servers fail-open and accept any role, leaking admin path.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["admin", "role", "permission"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"manual_only": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Field number collision — send TWO fields with same field number but different wire types. Some implementations process the first, others the last.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "stream_cancellation_race": {
+      "description": "gRPC stream cancellation race — client sends RST_STREAM mid-call. Some servers commit the operation before honoring cancellation, allowing partial-state attacks.",
+      "tech_match": ["gRPC", "gRPC-Web"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Open server-streaming RPC, send RST_STREAM after first message. If server logs full operation despite cancellation, race-condition primitive established.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Grpc-Status", "contains": "1"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "transcoding_open_redirect": {
+      "description": "gRPC-Web transcoding open redirect — Envoy/grpc-gateway maps HTTP path to gRPC service. Service path injection can redirect to attacker-controlled service if transcoding rules are loose.",
+      "tech_match": ["gRPC-Web", "Envoy", "grpc-gateway"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/admin.AdminService/InternalCall",
+          "description": "Direct gRPC service path — bypasses HTTP-route-level auth that doesn't apply at gRPC layer.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthenticated", "permission denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/v1/users/../admin/InternalCall",
+          "description": "Path traversal in transcoded path — Envoy/gateway may resolve traversal before applying auth filter chain.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "deadline_strip": {
+      "description": "Strip grpc-timeout / x-envoy-upstream-rq-timeout-ms headers — some servers default to no timeout, allowing slowloris-style DoS or long-running query abuse.",
+      "tech_match": ["gRPC", "Envoy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Remove grpc-timeout. Send query that should hit the per-RPC deadline. If response time exceeds normal max, deadline is server-default (often unlimited).",
+          "matchers": [
+            {"type": "timing", "min_ms": 30000}
+          ],
+          "severity": "low",
+          "confidence_boost": 25,
+          "variables": {"strip_headers": ["grpc-timeout", "x-envoy-upstream-rq-timeout-ms"]}
+        }
+      ]
     }
   }
 }

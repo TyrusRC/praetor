@@ -27,10 +27,26 @@ def _load_knowledge(category: str) -> dict | None:
         return None
 
 
-# Reference-only files (no probes, skip in auto_probe)
-_REFERENCE_ONLY = {"tech_vulns", "file_upload", "race_condition", "request_smuggling", "clickjacking",
+# Reference-only files — auto_probe skips these. Reasons documented inline so
+# additions/removals are reviewed.
+#   tech_vulns           — pure CVE knowledge, no probes
+#   race_condition       — covered by dedicated test_race_condition tool
+#   request_smuggling    — needs per-request sequence tracking; auto_probe is single-shot
+#   clickjacking         — needs browser context (frame-busting tests)
+#   insecure_randomness  — needs N-sample statistical analysis, not single probe
+#   source_code_exposure — covered by discover_common_files
+#   xs_leak              — needs browser-side timing measurements
+#   captcha_bypass       — needs human-driven verification
+#   csv_injection        — payload is delivered via export, not request
+#   dependency_confusion — package-registry side-channel, not target HTTP
+#   web_cache_deception  — needs path manipulation, not parameter fuzzing
+#   web_cache_poisoning_dos — DoS-class; out of safety scope per Rule 5
+# NOTE: file_upload was previously here; removed in v0.5 — its probes (PHP
+# double-ext, magic-byte spoof, .htaccess) ARE single-shot and auto_probe-able.
+_REFERENCE_ONLY = {"tech_vulns", "race_condition", "request_smuggling", "clickjacking",
                     "web_cache_deception", "insecure_randomness", "source_code_exposure", "csv_injection",
-                    "dependency_confusion", "xs_leak", "web_cache_poisoning_dos", "captcha_bypass"}
+                    "dependency_confusion", "xs_leak", "web_cache_poisoning_dos", "captcha_bypass",
+                    "http3_quic"}
 
 # Parameter name to vulnerability type mapping for attack prioritization
 _PARAM_RISK_MAP = {
@@ -69,31 +85,140 @@ _PARAM_RISK_MAP = {
     "css_injection": ["style", "css", "color", "background", "theme", "class"],
 }
 
-# Common hidden parameter wordlists
+# Common hidden parameter wordlists. Expanded for vendor coverage:
+# Shopify (collections, store_id), Magento (store), SAP (store_code), Sitecore
+# (site_id), Oracle (realm), AWS (region), Salesforce (sObject), WordPress
+# (post_type), and modern API frameworks (relations, includes, fields, sparse).
 _COMMON_PARAMS = [
-    "id", "page", "search", "q", "query", "name", "email", "user", "username",
-    "password", "token", "key", "api_key", "apikey", "secret", "auth", "session",
-    "redirect", "url", "next", "return", "callback", "file", "path", "action",
-    "type", "format", "lang", "debug", "test", "admin", "role", "sort", "order",
-    "limit", "offset", "filter", "category", "status", "view", "mode", "cmd",
-    "command", "input", "output", "data", "value", "template", "include", "v",
-    "version", "config", "setting", "env", "verbose", "force", "confirm",
+    # Identifiers
+    "id", "uid", "pid", "sid", "tid", "cid", "oid", "bid", "fid", "rid",
+    "user_id", "userid", "account_id", "order_id", "item_id", "product_id",
+    "post_id", "comment_id", "doc_id", "ref_id", "guid", "uuid", "ulid",
+    # Pagination / sort
+    "page", "page_size", "per_page", "limit", "offset", "size", "from", "to",
+    "skip", "take", "cursor", "after", "before", "sort", "order", "order_by",
+    "direction", "asc", "desc",
+    # Search / filter
+    "search", "q", "query", "keyword", "term", "filter", "where", "match",
+    "category", "tag", "type", "subtype", "status", "state", "kind",
+    # User / auth
+    "name", "email", "user", "username", "login", "password", "passwd",
+    "token", "access_token", "id_token", "refresh_token", "key", "api_key",
+    "apikey", "secret", "auth", "session", "csrf", "xsrf", "code", "nonce",
+    "state", "client_id", "client_secret",
+    # Redirects / URLs
+    "redirect", "url", "next", "return", "callback", "callback_url",
+    "redirect_uri", "return_url", "return_to", "continue", "goto", "dest",
+    "destination", "redir", "forward", "target", "uri", "site",
+    # Files / paths
+    "file", "filename", "path", "filepath", "dir", "folder", "include",
+    "template", "view", "page", "load", "read", "doc", "download", "src",
+    "source", "import", "export",
+    # Commands / actions
+    "action", "do", "method", "func", "function", "cmd", "command", "exec",
+    "run", "ping", "ip", "hostname", "host", "address", "port", "domain",
+    # Format / locale
+    "format", "fmt", "output", "type", "ext", "extension", "lang", "locale",
+    "language", "country", "region", "timezone", "tz",
+    # Debug / config
+    "debug", "verbose", "trace", "log", "test", "preview", "draft",
+    "force", "confirm", "skip", "ignore", "bypass", "config", "setting",
+    "env", "mode", "level", "phase", "step", "stage",
+    # Privilege / role
+    "admin", "role", "permission", "privilege", "scope", "group",
+    # Generic
+    "input", "output", "data", "value", "v", "version", "ver", "rev",
+    "checksum", "hash", "sig", "signature", "ts", "timestamp", "time",
 ]
 
 _EXTENDED_PARAMS = _COMMON_PARAMS + [
-    "account", "profile", "uid", "pid", "sid", "tid", "cid", "oid", "bid",
-    "item", "product", "article", "post", "comment", "message", "notification",
-    "task", "project", "workspace", "organization", "team", "report", "export",
-    "import", "log", "audit", "level", "app", "client", "client_id",
-    "client_secret", "grant_type", "response_type", "scope", "state", "nonce",
-    "redirect_uri", "return_url", "continue", "goto", "forward", "dest",
-    "destination", "redir", "checkout", "payment", "amount", "price", "quantity",
-    "coupon", "discount", "promo", "address", "phone", "zip", "country", "ip",
-    "host", "port", "domain", "subdomain", "method", "endpoint", "resource",
-    "field", "column", "table", "database", "schema", "index", "timeout",
-    "retry", "cache", "refresh", "delete", "remove", "update", "create",
-    "edit", "submit", "process", "validate", "verify", "check", "preview",
-    "draft", "publish", "upload", "download", "fetch", "load", "read", "write",
+    # Resource identifiers
+    "account", "profile", "invoice_id", "ticket_id", "org_id", "workspace_id",
+    "project_id", "team_id", "tenant_id", "channel_id", "thread_id",
+    "message_id", "notification_id", "task_id", "report_id", "asset_id",
+    "object_id", "entity_id", "resource_id", "node_id", "edge_id",
+    # Auth / OAuth / OIDC
+    "code_verifier", "code_challenge", "code_challenge_method",
+    "grant_type", "response_type", "response_mode", "prompt", "max_age",
+    "id_token_hint", "login_hint", "ui_locales", "acr_values",
+    "audience", "issuer", "subject_token", "actor_token",
+    # API / GraphQL
+    "query", "mutation", "subscription", "operationName", "variables",
+    "extensions", "persistedQuery", "fields", "include", "exclude",
+    "expand", "embed", "relations", "with", "select", "populate",
+    "projection", "aggregate", "lookup", "match", "expr", "pipeline",
+    "sparse", "fieldset",
+    # Business logic / payments
+    "checkout", "payment", "amount", "price", "subtotal", "total", "cost",
+    "quantity", "qty", "coupon", "promo", "discount", "voucher", "credit",
+    "balance", "currency", "rate", "tax", "fee", "shipping",
+    "address", "shipping_address", "billing_address", "phone", "zip",
+    # Networking / infra
+    "host", "port", "domain", "subdomain", "endpoint", "resource", "service",
+    "cluster", "namespace", "pod", "container", "image", "tag", "branch",
+    "environment", "stage",
+    # DB / schema
+    "field", "column", "table", "database", "schema", "index", "collection",
+    "where", "having", "group_by", "having",
+    # Network / HTTP
+    "method", "verb", "request_id", "trace_id", "span_id", "correlation_id",
+    "x_forwarded_for", "x_forwarded_host", "x_real_ip", "x_request_id",
+    # Workflow / state
+    "timeout", "retry", "ttl", "cache", "refresh", "invalidate",
+    "delete", "remove", "update", "create", "edit", "patch", "submit",
+    "process", "validate", "verify", "check", "test", "publish",
+    "draft", "preview", "schedule", "approve", "reject", "lock", "unlock",
+    "activate", "deactivate", "enable", "disable",
+    # File ops
+    "upload", "download", "fetch", "load", "read", "write", "save", "store",
+    "attachment", "image", "photo", "avatar", "media", "csv", "pdf",
+    # Deserialization / RPC
+    "viewstate", "__VIEWSTATE", "__EVENTVALIDATION", "__EVENTTARGET",
+    "data", "object", "serialized", "payload", "body", "envelope",
+    # Mass-assignment honeypots
+    "is_admin", "is_staff", "is_superuser", "is_verified", "is_active",
+    "is_approved", "is_premium", "is_paid", "verified", "active", "approved",
+    "credits", "tokens", "coins", "points", "score", "level", "tier", "plan",
+    "subscription", "membership",
+    # Vendor / framework specific
+    # Shopify
+    "shop", "shop_id", "store_id", "myshopify_domain", "collection_id",
+    "collections", "variant_id", "metafield_id",
+    # Magento
+    "store", "store_code", "store_view", "website_id", "customer_id",
+    # Sitecore
+    "site_id", "site_name", "language_code", "database_name", "item_path",
+    # SAP
+    "client", "system_id", "logical_system",
+    # Salesforce
+    "sObject", "sobject_type", "lead_id", "opportunity_id", "case_id",
+    "contact_id", "campaign_id",
+    # WordPress
+    "post_type", "post_status", "taxonomy", "term_id", "meta_key", "meta_value",
+    # AWS / cloud
+    "region", "availability_zone", "az", "vpc_id", "instance_id", "ami_id",
+    "bucket", "object_key", "arn", "role_arn", "principal",
+    # Atlassian (Jira/Confluence)
+    "issueKey", "issueId", "projectKey", "projectId", "boardId", "sprintId",
+    "spaceKey", "pageId",
+    # Oracle / banking
+    "realm", "schema_name", "principal_id", "lookup_id",
+    # Mobile / IAP
+    "receipt", "transaction_id", "purchase_token", "subscription_id",
+    "device_id", "device_token", "platform",
+    # Generic high-yield
+    "callback_url", "webhook", "webhook_url", "redirect_url",
+    "import_url", "fetch_url", "image_url", "avatar_url", "picture",
+    "logo", "thumbnail", "banner",
+    # Ratelimit / abuse
+    "captcha", "captcha_token", "recaptcha", "hcaptcha", "turnstile",
+    "puzzle", "challenge",
+    # SAML / SSO
+    "SAMLResponse", "SAMLRequest", "RelayState", "saml_token", "assertion",
+    "idp", "sp", "binding", "destination", "issuer",
+    # Misc
+    "preview", "draft", "snapshot", "history", "version_id", "rev_id",
+    "compare", "diff", "merge", "branch", "tag",
 ]
 
 
@@ -239,7 +364,7 @@ def register(mcp: FastMCP):
         session: str,
         targets: list[dict],
         categories: list[str] | None = None,
-        max_probes_per_param: int = 5,
+        max_probes_per_param: int = 20,
         domain: str = "",
         force_recon_gate: bool = False,
         skip_already_covered: bool = True,
@@ -254,22 +379,39 @@ def register(mcp: FastMCP):
             session: Session name
             targets: Parameters to test (from discover_attack_surface)
             categories: Filter probe categories (empty = all)
-            max_probes_per_param: Max probes per parameter
+            max_probes_per_param: Max probes per parameter (default 20). Real
+                JWT/GraphQL/proto-pollution bypasses sit at variant 6+. Lower
+                only if you explicitly want a fast first pass.
             domain: Target domain (enables recon-gate + coverage skip)
             force_recon_gate: Bypass recon gate for in-flight recon
-            skip_already_covered: Skip (endpoint, param, category) tuples whose knowledge_version in coverage.json matches current. Eliminates re-test cycle (R13). Default True.
+            skip_already_covered: Skip (endpoint, param, category) tuples whose knowledge_version in coverage.json matches current. Eliminates re-test cycle (R13). Default True. Set False after knowledge base updates.
         """
-        # ── Rule 20a: recon gate (advisory for auto_probe — warn only) ──
+        # ── Rule 20a: recon gate — consistent with save_finding behavior ──
+        # Auto-creates a minimal recon intel entry on first probe so that
+        # follow-up save_finding calls do not hard-reject. Eliminates the
+        # auto_probe-warn / save_finding-block asymmetry that wasted tokens.
         if domain and not force_recon_gate:
             from burpsuite_mcp.tools.intel import recon_gate_check
             gate_err = recon_gate_check(domain)
             if gate_err is not None:
-                return (
-                    f"RECON GATE WARNING: {gate_err}\n"
-                    "Pass force_recon_gate=True to probe anyway, but findings "
-                    "from this run cannot be persisted by save_finding without "
-                    "recon intel for this domain."
-                )
+                # Auto-bootstrap minimal intel so save_finding does not
+                # reject downstream. The hunter is still free to enrich via
+                # save_target_intel.
+                try:
+                    from burpsuite_mcp.tools.intel import INTEL_DIR as _ID
+                    import re as _re_b, json as _json_b
+                    sanitized = _re_b.sub(r"[^a-zA-Z0-9._-]", "_", domain)
+                    profile_path = _ID / sanitized / "profile.json"
+                    profile_path.parent.mkdir(parents=True, exist_ok=True)
+                    if not profile_path.exists():
+                        profile_path.write_text(_json_b.dumps({
+                            "domain": domain,
+                            "auto_created": True,
+                            "auto_created_by": "auto_probe",
+                            "note": "Minimal stub. Run full_recon / discover_attack_surface to enrich.",
+                        }, indent=2))
+                except Exception:
+                    pass
 
         # ── R13: filter targets against existing coverage ──
         skipped_count = 0
@@ -607,7 +749,7 @@ def register(mcp: FastMCP):
 
         baseline_status = baseline_resp.get("status", 0)
         baseline_length = baseline_resp.get("response_length", 0)
-        baseline_body = baseline_resp.get("response_body", "")[:500]
+        baseline_body = baseline_resp.get("response_body", "")[:4000]  # 4KB — vendor stack traces are 1-2KB
 
         discovered = []
         tested = 0
@@ -634,7 +776,7 @@ def register(mcp: FastMCP):
 
             status = resp.get("status", 0)
             length = resp.get("response_length", 0)
-            body = resp.get("response_body", "")[:500]
+            body = resp.get("response_body", "")[:4000]
 
             reasons = []
             if status != baseline_status:
@@ -751,12 +893,60 @@ def register(mcp: FastMCP):
                         lines.append(f"  {d}")
 
         if depth == "deep":
-            # Sensitive file discovery (top 15 paths)
+            # Sensitive file discovery — expanded coverage. Covers VCS leaks,
+            # env / config dumps, dependency lockfiles (which also disclose
+            # exact versions for CVE matching), API spec documents, framework
+            # actuators, cloud-credential files, and CI artifacts.
             sensitive_paths = [
-                "/.git/HEAD", "/.env", "/robots.txt", "/.htaccess",
-                "/web.config", "/phpinfo.php", "/actuator", "/actuator/env",
-                "/swagger.json", "/api-docs", "/openapi.json",
-                "/.svn/entries", "/.DS_Store", "/server-status", "/debug/",
+                # Version control
+                "/.git/HEAD", "/.git/config", "/.git/index", "/.git/logs/HEAD",
+                "/.gitignore", "/.gitattributes",
+                "/.svn/entries", "/.svn/wc.db", "/.hg/store",
+                # Env / secrets
+                "/.env", "/.env.local", "/.env.production", "/.env.development",
+                "/.env.staging", "/.env.test", "/.env.backup", "/.env.sample",
+                "/config.json", "/config.yml", "/config.yaml", "/secrets.json",
+                "/credentials.json", "/credentials.yml",
+                # Cloud credentials
+                "/.aws/credentials", "/.aws/config", "/.azure/credentials",
+                "/.gcp/credentials.json", "/serviceaccount.json",
+                "/.s3cfg", "/.boto", "/.npmrc", "/.pypirc", "/.netrc",
+                "/.docker/config.json", "/kube/config", "/.kube/config",
+                # Server config
+                "/.htaccess", "/.htpasswd", "/web.config", "/web.xml",
+                "/server.xml", "/context.xml", "/wp-config.php", "/wp-config.bak",
+                "/config.php", "/config.inc.php", "/configuration.php",
+                # Lock / manifest files (version disclosure for CVE matching)
+                "/composer.json", "/composer.lock", "/package.json",
+                "/package-lock.json", "/yarn.lock", "/Gemfile", "/Gemfile.lock",
+                "/Pipfile", "/Pipfile.lock", "/poetry.lock", "/requirements.txt",
+                "/go.mod", "/go.sum", "/Cargo.toml", "/Cargo.lock",
+                "/pom.xml", "/build.gradle", "/settings.gradle",
+                # Backups
+                "/backup.zip", "/backup.tar.gz", "/backup.sql", "/dump.sql",
+                "/database.sql", "/db.sqlite", "/db.sqlite3", "/site.bak",
+                # API docs
+                "/swagger.json", "/swagger/v1/swagger.json", "/api-docs",
+                "/api-docs.json", "/openapi.json", "/openapi.yaml",
+                "/v1/swagger.json", "/v2/swagger.json", "/v3/api-docs",
+                "/graphql/schema.json", "/graphql.json", "/_graphql",
+                # Framework actuators / debug
+                "/phpinfo.php", "/info.php", "/test.php", "/debug.php",
+                "/actuator", "/actuator/env", "/actuator/heapdump",
+                "/actuator/health", "/actuator/mappings", "/actuator/configprops",
+                "/actuator/loggers", "/actuator/threaddump",
+                "/server-status", "/server-info", "/status",
+                "/.well-known/security.txt", "/.well-known/openid-configuration",
+                # Editor / IDE artifacts
+                "/.DS_Store", "/Thumbs.db", "/desktop.ini",
+                "/.idea/workspace.xml", "/.vscode/settings.json",
+                # CI / deployment
+                "/.travis.yml", "/.gitlab-ci.yml", "/.circleci/config.yml",
+                "/Jenkinsfile", "/azure-pipelines.yml", "/.github/workflows/",
+                # Common admin
+                "/admin", "/administrator", "/manager/html", "/console",
+                "/robots.txt", "/sitemap.xml", "/security.txt", "/humans.txt",
+                "/crossdomain.xml", "/clientaccesspolicy.xml",
             ]
             found_files = []
             for sp in sensitive_paths:

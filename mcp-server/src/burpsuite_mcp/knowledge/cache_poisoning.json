@@ -80,6 +80,136 @@
         }
       ]
     },
+    "cloudflare_cache_bypass": {
+      "description": "Cloudflare-specific cache key normalization quirks. Cloudflare treats some query-string variants as identical cache keys, allowing variant-based poisoning. Detection: response carries CF-Ray, CF-Cache-Status, or Server: cloudflare.",
+      "tech_match": ["Cloudflare", "cf-ray", "CF-Cache-Status"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "?{{baseline_q}}&",
+          "description": "Trailing-empty-param trick — ?x=1 and ?x=1& may share cache key. Test by polluting one variant and checking the other.",
+          "matchers": [
+            {"type": "header", "name": "CF-Cache-Status", "contains": "HIT"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "?{{baseline_q}}#x",
+          "description": "Fragment in query — Cloudflare strips fragments before keying but origin may receive full URL. Differential pollution possible.",
+          "matchers": [
+            {"type": "header", "name": "CF-Cache-Status", "contains": "HIT"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-HTTP-Method-Override on cached path — Cloudflare keys on method but origin honors override. Cache HIT for the override response = poisoning.",
+          "matchers": [
+            {"type": "header", "name": "CF-Cache-Status", "contains": "HIT"},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"extra_headers": {"X-HTTP-Method-Override": "PUT"}}
+        }
+      ]
+    },
+    "fastly_normalization": {
+      "description": "Fastly-specific cache normalization. Fastly canonicalizes %2f / / and some Unicode variants before keying, leading to differential responses between cache and origin.",
+      "tech_match": ["Fastly", "x-served-by", "x-cache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline_path}}%2fpoison",
+          "description": "%2f normalization — Fastly may collapse %2f to / for keying while origin treats them differently.",
+          "matchers": [
+            {"type": "header", "name": "X-Cache", "contains": "HIT"},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline_path}}/../{{baseline_path}}",
+          "description": "Path traversal normalized — Fastly may resolve ../ before keying. Origin path differs from cache key.",
+          "matchers": [
+            {"type": "header", "name": "X-Served-By", "contains": "cache"},
+            {"type": "length_diff", "min_diff": 100}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "akamai_param_order": {
+      "description": "Akamai Edge — query-string parameter order may not be normalized in cache key. ?a=1&b=2 and ?b=2&a=1 can be distinct keys, allowing per-order poisoning.",
+      "tech_match": ["Akamai", "x-akamai-staging", "x-akamai"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline_q_reversed}}",
+          "description": "Reverse query-parameter order — if Akamai keys on raw query string and origin accepts both orders, two distinct cached versions exist. Poison the less-common one and survive cache invalidation longer.",
+          "matchers": [
+            {"type": "header", "name": "X-Akamai-Staging", "contains": ""},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "?{{baseline_q}}&Pragma=akamai-x-cache-on,akamai-x-get-cache-key",
+          "description": "Akamai Pragma debug — some Akamai configs leak cache key and origin URL via X-Cache-Key / X-True-Cache-Key headers. Useful intel for crafting collisions.",
+          "matchers": [
+            {"type": "header", "name": "X-Cache-Key", "contains": ""}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "head_request_caching": {
+      "description": "HEAD-request caching — some caches store HEAD responses keyed by URL only, then serve as GET responses. Browsers don't typically issue HEAD but caches may serve HEAD-cached body to GET clients.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "HEAD then GET — issue HEAD to populate cache, then GET. Compare bodies. If GET serves a HEAD-style empty body or different metadata, cache layer is conflating methods.",
+          "matchers": [
+            {"type": "length_delta", "min_delta": 100}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"method_chain": ["HEAD", "GET"]}
+        }
+      ]
+    },
+    "vary_header_bypass": {
+      "description": "Vary header bypass — cache ignores Accept-Encoding or other Vary headers, serving wrong-encoding responses to clients that can't decode them. Combined with Content-Type confusion, can deliver attacker payload as text/html instead of application/json.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send GET with Accept-Encoding: identity and a poison value, then GET with Accept-Encoding: gzip. If both responses match (cache ignored Vary), encoding confusion is possible.",
+          "matchers": [
+            {"type": "header", "name": "Vary", "contains": "Accept-Encoding"},
+            {"type": "length_delta", "min_delta": 200}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
     "parameter_cloaking": {
       "description": "Cache key manipulation via parameter cloaking — exploit cache parameter parsing discrepancies to inject unkeyed parameters into cached responses",
       "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],

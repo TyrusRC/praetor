@@ -90,7 +90,7 @@ def register(mcp: FastMCP):
             title: Short finding title
             description: Detailed vulnerability description
             evidence: Dict with logger_index, proxy_history_index, or collaborator_interaction_id
-            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO
+            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO. Operator-locked — wins over advisor's inferred severity. See user-override skill for routing guidance.
             endpoint: Affected URL/endpoint
             evidence_text: Freeform proof string for the report
             reproductions: Required for timing/blind vuln_types (>=2 dicts with logger_index/elapsed_ms/status_code)
@@ -104,6 +104,17 @@ def register(mcp: FastMCP):
             human_verified: Operator confirmed visually in Burp UI / browser DevTools. Logged in finding metadata (R19).
             overrides: Audit-trailed gate bypasses (R20). Each entry "<gate>:<reason>". Stored in finding entry as 'overrides' for review.
         """
+        # Severity is operator-locked. Validate but don't auto-adjust.
+        valid_severities = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}
+        severity_upper = (severity or "INFO").upper()
+        if severity_upper not in valid_severities:
+            return (
+                f"Error: invalid severity '{severity}'. Must be one of: "
+                f"{', '.join(sorted(valid_severities))}. Operator owns severity choice; "
+                f"see user-override skill for guidance."
+            )
+        severity = severity_upper
+
         try:
             confidence = max(0.0, min(1.0, float(confidence)))
         except (TypeError, ValueError):
@@ -175,7 +186,25 @@ def register(mcp: FastMCP):
 
         data = await client.post("/api/notes/findings", json=payload)
         if "error" in data:
-            return f"Error (gate rejected — nothing persisted): {data['error']}"
+            err_code = data.get("code", "")
+            err_hint = data.get("hint", "")
+            err_msg = data.get("error", "(no message)")
+            # Map error codes to actionable retry guidance
+            retry_advice = {
+                "never_submit": "Either pass chain_with=[<id>] OR set_program_policy() to remove the class.",
+                "chain_unknown_id": "Run get_findings() to list valid chain anchor IDs.",
+                "evidence_missing": "Pass evidence={'logger_index': <N>}.",
+                "reproductions_required": "Pass reproductions=[{logger_index,elapsed_ms,status_code}, ...] (>=2).",
+                "reproductions_invalid": "Each reproductions[] entry needs an integer logger_index in range.",
+            }.get(err_code, "")
+            parts = [f"Error (gate rejected — nothing persisted): {err_msg}"]
+            if err_code:
+                parts.append(f"  Error type: {err_code}")
+            if err_hint:
+                parts.append(f"  Hint: {err_hint}")
+            if retry_advice:
+                parts.append(f"  Retry: {retry_advice}")
+            return "\n".join(parts)
         burp_id = data.get("id", "?")
 
         # Gate passed — now safe to persist locally.

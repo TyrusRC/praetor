@@ -1,0 +1,101 @@
+{
+  "category": "webhook_replay",
+  "description": "Webhook abuse — replay of signed webhook events (Stripe, GitHub, Shopify, Twilio), signature bypass, timestamp tolerance attacks, idempotency-key reuse, downgrade from signed to unsigned variants.",
+  "craft_guidance": [
+    "1. IDENTIFY PROVIDER: Stripe (Stripe-Signature t=...,v1=...), GitHub (X-Hub-Signature-256), Shopify (X-Shopify-Hmac-Sha256), Twilio (X-Twilio-Signature). Each has different verification logic.",
+    "2. CAPTURE WEBHOOK: log into target, trigger event (subscribe, place-order, push). Capture incoming webhook in proxy. Note signature, timestamp, payload, idempotency key.",
+    "3. REPLAY UNCHANGED: send same webhook again. If processed (state changes again), no replay protection.",
+    "4. TIMESTAMP TOLERANCE: most providers have 5-10 min skew. Try replaying within window vs outside. Try negative timestamps, year 2099.",
+    "5. PAYLOAD MUTATION: change amount / user_id / sku in payload, keep signature. Server should reject (sig mismatch) — if it accepts, signature isn't validated.",
+    "6. SIGNATURE STRIP: send without Stripe-Signature header. Some integrations have a 'test mode' or 'allow unsigned' flag in dev that leaks to prod.",
+    "7. ALG CONFUSION: header says sha256, replace with sha1 or md5. Lazy implementations accept any.",
+    "8. IDEMPOTENCY KEY ABUSE: same payload, different idempotency-key = processed N times. Useful for refund / coupon races.",
+    "9. RACE: send 50 identical webhooks in 1 second. If server processes all (vs idempotently dedupes), state corruption.",
+    "10. CROSS-CUSTOMER REPLAY: capture webhook for account A, replay against account B's endpoint. If Stripe-Signature is per-account, won't work; if shared, ATO."
+  ],
+  "contexts": {
+    "stripe_replay": {
+      "description": "Stripe webhook replay — captured charge.succeeded event replayed to apply credit twice, or modified payload bypasses signature check.",
+      "tech_match": ["stripe", "stripe-signature"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{captured_payload_unchanged}}",
+          "description": "Replay captured Stripe webhook unchanged. If server processes again (subscription extended twice, credit applied twice), no replay protection.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["already processed", "duplicate", "replay"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_capture": true}
+        },
+        {
+          "payload": "{{captured_payload_amount_x10}}",
+          "description": "Same signature, payload amount multiplied by 10. If accepted, signature validation is broken.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["signature", "invalid", "mismatch"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_capture": true}
+        }
+      ]
+    },
+    "signature_strip": {
+      "description": "Strip the signature header entirely. Lazy implementations skip verification when header is absent.",
+      "tech_match": ["webhook"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{captured_payload_unchanged}}",
+          "description": "Send webhook payload with NO signature header. If server processes, verification is conditional (broken).",
+          "matchers": [
+            {"type": "status", "status": [200, 202]},
+            {"type": "not_word", "words": ["signature", "unauthorized"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"strip_headers": ["Stripe-Signature", "X-Hub-Signature-256", "X-Shopify-Hmac-Sha256", "X-Twilio-Signature"]}
+        }
+      ]
+    },
+    "alg_downgrade": {
+      "description": "Downgrade signature alg — sha256 → sha1 / md5 / none. Lazy verification trusts the header alg.",
+      "tech_match": ["webhook"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{captured_payload_unchanged}}",
+          "description": "Replace X-Hub-Signature-256 with X-Hub-Signature (sha1) computed with empty/known key.",
+          "matchers": [
+            {"type": "status", "status": [200, 202]},
+            {"type": "not_word", "words": ["unsupported", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_capture": true}
+        }
+      ]
+    },
+    "idempotency_reuse": {
+      "description": "Same payload + different Idempotency-Key processed multiple times. Useful in refund/coupon/balance flows.",
+      "tech_match": ["stripe", "idempotency"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{captured_payload_unchanged}}",
+          "description": "Send 5 webhooks with same payload but different Idempotency-Key headers. Each should result in only one effect; if N effects, idempotency is per-key not per-payload.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 0}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_capture": true}
+        }
+      ]
+    }
+  }
+}

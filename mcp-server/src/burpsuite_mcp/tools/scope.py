@@ -13,6 +13,7 @@ def register(mcp: FastMCP):
         exclude: list[str] | None = None,
         auto_filter: bool = True,
         replace: bool = False,
+        keep_in_scope: list[str] | None = None,
     ) -> str:
         """Configure target scope with include/exclude patterns and auto noise filtering. Entries must be full URLs with protocol.
 
@@ -21,12 +22,18 @@ def register(mcp: FastMCP):
             exclude: Full URL patterns to exclude
             auto_filter: Auto-exclude tracker/ad/CDN noise domains
             replace: Clear existing scope before applying
+            keep_in_scope: Substrings of auto-filter domains to KEEP in scope
+                even when auto_filter=True. Use when target's CDN is itself a
+                test target (subdomain takeover, cache poisoning), when an
+                OAuth provider is the test surface, or when an asset host
+                serves sensitive JS bundles. Example: ['cloudflare', 'apis.google'].
         """
         payload = {
             "include": include,
             "exclude": exclude or [],
             "auto_filter": auto_filter,
             "replace": replace,
+            "keep_in_scope": keep_in_scope or [],
         }
         data = await client.post("/api/scope/configure", json=payload)
         if "error" in data:
@@ -37,6 +44,8 @@ def register(mcp: FastMCP):
         lines.append(f"  Excluded: {data.get('excluded', 0)} rules")
         if data.get("auto_filter_enabled"):
             lines.append(f"  Auto-filtered: {data.get('auto_filtered', 0)} noise domains")
+        if data.get("kept_in_scope", 0):
+            lines.append(f"  Kept in scope (override): {data.get('kept_in_scope', 0)} domains")
 
         rules = data.get("include_rules", [])
         if rules:

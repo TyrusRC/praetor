@@ -267,8 +267,9 @@ save_target_intel(domain, "findings", {
 ## Decision Rules
 
 - **Score >= 50 from auto_probe**: Likely real — do a quick verify (Phase 1 Step 1-2 only) then confirm
-- **Score 30-49**: Suspicious — run full Phase 1-2 investigation
-- **Score 10-29**: Probably noise — spend max 5 tool calls investigating, then move on
-- **Score < 10**: Skip — not worth investigating unless you have a specific hypothesis
+- **Score 30-49**: Suspicious — run full Phase 1-2 investigation. If saved findings exist for this target, FIRST check `chain-findings.md` — the anomaly may unlock a chain rather than be a standalone bug.
+- **Score 10-29**: Cap at 5 tool calls IF the anomaly fits a known class with no chain potential. Run full Phase 1 if any of: (a) unexplained baseline delta with NO matching pattern (length/timing/status/header that doesn't fit any vuln class — these are the unknown-unknowns Rule 27 demands), (b) target is high-value (auth flow, payment, admin, internal API), (c) similar anomalies seen on >1 endpoint (suggests systemic flaw).
+- **Score < 10**: Skip ONLY when scored under a known class. Unscored unexplained behavior (status flip, header change, timing jitter outside pattern catalog) is a Rule 27 candidate — investigate at least one round before dismissing.
 - **Any Collaborator interaction**: Always real — document immediately
 - **Timing > 3x baseline (3+ measurements)**: Very likely real — document and escalate
+- **Business-logic anomaly (workflow skipped, state reused, order changed)**: Always investigate. `auto_probe` does NOT find these — they require the open-ended exploration Rule 27 mandates.

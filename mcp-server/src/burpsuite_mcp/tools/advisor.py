@@ -432,6 +432,9 @@ def register(mcp: FastMCP):
         logger_index: int = -1,
         human_verified: bool = False,
         overrides: list[str] | None = None,
+        chain_with: list[str] | None = None,
+        reproductions: list[dict] | None = None,
+        session_name: str = "",
     ) -> str:
         """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
@@ -447,6 +450,9 @@ def register(mcp: FastMCP):
             logger_index: Proxy-history index of the confirming response. When provided, evidence is auto-augmented with class-specific markers detected programmatically (R1).
             human_verified: Operator manually confirmed in Burp UI / browser. Skips Q5 evidence gate; Q1/Q4/Q6 still apply (R19).
             overrides: Gate names to bypass (R20). Each entry "<gate>:<reason>". Recognized gates: q1_scope, q2_repro, q4_dedup, q5_evidence, q6_never_submit, q7_triager.
+            chain_with: Existing finding IDs this report chains to. Non-empty list (a) allows NEVER-SUBMIT classes through Q6, (b) skips Q7 mass-report downgrade, (c) boosts impact.
+            reproductions: For timing/blind classes — list of dicts {logger_index, elapsed_ms, status_code}. Length >= 3 satisfies the timing rule even without keyword text in `evidence`.
+            session_name: Active session name. When provided, the gate queries session auth state; authenticated sessions boost IDOR/BFLA/business-logic impact (Rule 28 grey-box mindset).
         """
         issues = []
         audit_overrides: list[str] = []
@@ -461,6 +467,9 @@ def register(mcp: FastMCP):
         # NEVER SUBMIT — aligned with .claude/rules/hunting.md. Matching is
         # done on vuln_type AND on evidence keywords so hunters writing
         # vuln_type='xss' + evidence='self-XSS requires paste' still trip.
+        # NOTE: cors_no_creds covers ONLY non-credentialed CORS reflection. The
+        # exploitable credentialed-wildcard case (ACAC: true + ACAO arbitrary)
+        # is allowed through here so its derived marker can pass Q5/Q6.
         never_submit_types = {
             "missing_headers": "Missing security headers alone — informative, not reportable",
             "cookie_flags": "Cookie without Secure/HttpOnly — requires MitM or XSS to exploit",
@@ -470,7 +479,6 @@ def register(mcp: FastMCP):
             "csrf_non_state_changing": "CSRF on non-state-changing endpoint — no impact",
             "open_redirect_no_chain": "Open redirect without token theft chain — low impact",
             "mixed_content": "Mixed content — browser mitigates",
-            "rate_limit_missing": "Missing rate limiting on non-sensitive endpoint — no security impact",
             "stack_trace": "Stack traces alone — info disclosure, not exploitable",
             "user_enumeration": "Username enumeration on public sign-up — often by design",
             "referrer_policy": "Missing Referrer-Policy — extremely minor",
@@ -478,15 +486,33 @@ def register(mcp: FastMCP):
             "dmarc": "SPF/DMARC/DKIM issues — email security, usually out of scope",
             "content_spoofing": "Content spoofing without XSS — minimal impact",
             "host_header_no_cache": "Host header injection without cache poisoning — no exploit path",
-            "cors_no_creds": "CORS without credentials + sensitive data — browser blocks",
+            "cors_no_creds": "CORS reflection without credentials — browser blocks (use cors_credentialed_wildcard for the exploitable case)",
             "ssl_config": "SSL/TLS configuration issues — scanner noise",
             "version_disclosure": "Software version disclosure alone — needs exploit chain",
-            "tabnabbing": "Reverse tabnabbing — low impact, disputed",
             "text_injection": "Text injection without HTML context — no code execution",
             "idn_homograph": "IDN homograph attacks — browser-mitigated",
             "autocomplete": "Missing autocomplete=off — password managers handle this",
             "options_method": "OPTIONS method enabled — normal HTTP behavior",
         }
+
+        # Conditional NEVER SUBMIT — these classes are reportable when chained
+        # (chain_with non-empty) OR when context indicates real impact. Without
+        # those signals, they trip Q6 like the unconditional list. Keys MUST
+        # match Java FindingsStore.CONDITIONAL_NEVER_SUBMIT_TYPES.
+        conditional_never_submit_types = {
+            "tabnabbing": "Reverse tabnabbing alone is low impact — chain with token theft / postMessage hijack",
+            "rate_limit_absent_non_sensitive": "Missing rate limit on non-sensitive endpoint — but rate-limit on auth/reset/OTP/payment IS reportable; tag endpoint accordingly or chain with ATO",
+            "rate_limit_missing": "Missing rate limit on non-sensitive endpoint — but rate-limit on auth/reset/OTP/payment IS reportable; tag endpoint accordingly or chain with ATO",
+        }
+
+        # Endpoint patterns that flip rate-limit-missing from NEVER SUBMIT to reportable
+        sensitive_endpoint_patterns = (
+            "/login", "/signin", "/sign-in", "/auth", "/oauth", "/token",
+            "/password", "/reset", "/forgot", "/recover", "/2fa", "/mfa",
+            "/otp", "/verify", "/verification", "/code", "/captcha",
+            "/payment", "/checkout", "/charge", "/withdraw", "/transfer",
+            "/api-key", "/apikey",
+        )
 
         # Evidence keywords that imply a NEVER SUBMIT class regardless of vuln_type
         never_submit_keywords = {
@@ -496,7 +522,6 @@ def register(mcp: FastMCP):
             "csrf on logout": "CSRF on logout — minimal impact",
             "autocomplete=off": "Missing autocomplete=off — password managers handle this",
             "stack trace": "Stack traces alone — info disclosure, not exploitable",
-            "tabnabbing": "Reverse tabnabbing — low impact, disputed",
         }
 
         vuln_lower = vuln_type.lower()
@@ -605,21 +630,68 @@ def register(mcp: FastMCP):
         else:
             issues.append("Q1 SKIP: pass `domain=...` to enable scope verification")
 
-        # Q2: Reproducible
+        # Q2: Reproducible — exempt auth-state-dependent classes that REQUIRE
+        # the same authenticated session to reproduce by definition.
+        AUTH_STATE_DEPENDENT = {
+            "idor", "bfla", "bola", "business_logic", "authorization",
+            "access_control", "mass_assignment", "privilege_escalation",
+        }
+        q2_class_root = vuln_lower
+        for sep in ("_blind", "_time", "_stored", "_reflected"):
+            if q2_class_root.endswith(sep):
+                q2_class_root = q2_class_root[: -len(sep)]
         if "q2_repro" in override_set:
             issues.append("Q2 OVERRIDE: reproducibility check bypassed")
+        elif q2_class_root in AUTH_STATE_DEPENDENT:
+            issues.append(
+                f"Q2 EXEMPT: '{vuln_type}' is auth-state-dependent — same-session "
+                "reproduction is correct (re-auth would lose the state being tested)"
+            )
         elif any(w in evidence_lower for w in ("once", "intermittent", "one time", "non-reproducible", "could not reproduce")):
             issues.append("Q2 FAIL: evidence suggests non-reproducible — re-test 3+ times from clean state")
 
         # Q6: NEVER SUBMIT type match — word-boundary so `xss_filter_bypass`
         # doesn't mis-fire on `self_xss`, and `idor_via_csrf_logout` doesn't
-        # trip `csrf_logout`.
+        # trip `csrf_logout`. Conditional classes pass through if chain_with
+        # is non-empty OR if the endpoint matches sensitive patterns (auth,
+        # reset, OTP, payment) for the rate_limit_missing case.
         import re as _re_q6
+        chain_provided = bool(chain_with)
+        endpoint_lower = (endpoint or "").lower()
+        endpoint_is_sensitive = any(p in endpoint_lower for p in sensitive_endpoint_patterns)
+
         if "q6_never_submit" in override_set:
             issues.append("Q6 OVERRIDE: NEVER SUBMIT bypass — must include chain_with[] in save_finding")
         else:
+            # Hard NEVER SUBMIT — these never report standalone
             for ns_key, ns_reason in never_submit_types.items():
                 if _re_q6.search(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])", vuln_lower):
+                    if chain_provided:
+                        issues.append(
+                            f"Q6 NEVER SUBMIT (chained): {ns_reason}. chain_with={chain_with} — "
+                            f"will pass save_finding if anchors are confirmed and not stale."
+                        )
+                    else:
+                        issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
+                        verdict = "DO NOT REPORT"
+                    break
+
+            # Conditional NEVER SUBMIT — pass through with chain or sensitive endpoint
+            if verdict == "REPORT":
+                for ns_key, ns_reason in conditional_never_submit_types.items():
+                    if not _re_q6.search(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])", vuln_lower):
+                        continue
+                    if chain_provided:
+                        issues.append(
+                            f"Q6 CONDITIONAL (chained): {ns_reason}. chain_with={chain_with}."
+                        )
+                        break
+                    if ns_key.startswith("rate_limit") and endpoint_is_sensitive:
+                        issues.append(
+                            f"Q6 CONDITIONAL PASS: rate-limit on sensitive endpoint ({endpoint}) "
+                            "— reportable; ATO/account-lockout impact applies."
+                        )
+                        break
                     issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
                     verdict = "DO NOT REPORT"
                     break
@@ -641,6 +713,9 @@ def register(mcp: FastMCP):
                 lookback = evidence_lower[max(0, m.start() - negation_window):m.start()]
                 if any(neg in lookback for neg in negators):
                     continue  # negated — not actually a NEVER SUBMIT signal
+                if chain_provided:
+                    issues.append(f"Q6 NEVER SUBMIT (chained): {ns_reason}. chain_with={chain_with}.")
+                    break
                 issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
                 verdict = "DO NOT REPORT"
                 break
@@ -741,6 +816,12 @@ def register(mcp: FastMCP):
         elif q5_class in Q5_KEYWORDS:
             keywords = Q5_KEYWORDS[q5_class]
             strong = any(k in evidence_lower for k in keywords)
+            if strong and derived_markers:
+                # Surface that auto-derivation contributed (R17)
+                issues.append(
+                    f"Q5 SATISFIED: auto-derived markers from logger_index={logger_index} "
+                    f"({', '.join(derived_markers[:4])}{', ...' if len(derived_markers) > 4 else ''})"
+                )
             if not strong:
                 issues.append(
                     f"Q5 WEAK EVIDENCE: {q5_class} needs at least one of: "
@@ -762,15 +843,26 @@ def register(mcp: FastMCP):
             "request_smuggling", "http_desync",
         }
         if vuln_lower in TIMING_VULN_TYPES and "q5_evidence" not in override_set and not human_verified:
-            has_replays = any(
-                w in evidence_lower
-                for w in ("3x", "three iterations", "3/3", "3 consistent",
-                          "consistent across", "confirmed 3", "3 repeats", "repeated 3")
+            # Accept either (a) >=3 entries in reproductions[] array or (b) keyword text
+            replay_count = len(reproductions or [])
+            has_replays = (
+                replay_count >= 3
+                or any(
+                    w in evidence_lower
+                    for w in ("3x", "three iterations", "3/3", "3 consistent",
+                              "consistent across", "confirmed 3", "3 repeats", "repeated 3")
+                )
             )
+            if has_replays and replay_count >= 3:
+                issues.append(
+                    f"Q5 TIMING SATISFIED: reproductions[] has {replay_count} entries "
+                    f"({sum(1 for r in reproductions if isinstance(r, dict) and 'logger_index' in r)} with logger_index)"
+                )
             if not has_replays:
                 issues.append(
                     "Q5 TIMING RULE: timing/blind vuln types require 3+ consistent "
-                    "iterations (include '3/3' or 'confirmed 3' in evidence)"
+                    "iterations — pass reproductions=[{logger_index, elapsed_ms, status_code}, ...] "
+                    "with len>=3, OR include '3/3' / 'confirmed 3' in evidence text"
                 )
                 weak_evidence = True
 
@@ -818,12 +910,19 @@ def register(mcp: FastMCP):
                 pass  # best-effort; no crash on missing intel
 
         # Q7: Triager-mass-report heuristic. If only weak-evidence flags and
-        # a low-impact vuln class, the triager will mark informative.
+        # a low-impact vuln class, the triager will mark informative — UNLESS
+        # the finding is chained, in which case the chain provides the impact
+        # context that elevates it above mass-report territory.
         low_impact_classes = {"open_redirect", "information_disclosure", "info_disclosure"}
         if "q7_triager" in override_set:
             issues.append("Q7 OVERRIDE: triager-mass-report heuristic bypassed")
+        elif chain_provided and vuln_lower in low_impact_classes:
+            issues.append(
+                f"Q7 SKIP: chain_with={chain_with} supplies impact context — "
+                "low-impact root class is acceptable when chained"
+            )
         elif verdict == "REPORT" and weak_evidence and vuln_lower in low_impact_classes:
-            issues.append("Q7 TRIAGER TEST: low-impact class + weak evidence — likely marked informative. Chain with another finding first.")
+            issues.append("Q7 TRIAGER TEST: low-impact class + weak evidence — likely marked informative. Chain with another finding first (pass chain_with=[<id>]).")
             verdict = "NEEDS MORE EVIDENCE"
 
         # Any weak-evidence flag alone downgrades from REPORT to NEEDS MORE EVIDENCE
@@ -876,6 +975,36 @@ def register(mcp: FastMCP):
             ("rce", "production"): "RCE on production = full system compromise",
         }
 
+        # ── Rule 28: Grey-box mode boost when session is authenticated ──
+        # If session_name is provided, look it up via /api/session/list and
+        # check whether it carries cookies or an Authorization header. An
+        # authenticated session paired with an auth-state-dependent vuln
+        # class deserves higher impact (cross-tenant, privilege escalation).
+        grey_box_active = False
+        if session_name:
+            try:
+                sess_list = await client.get("/api/session/list")
+                if isinstance(sess_list, dict) and "error" not in sess_list:
+                    for s in sess_list.get("sessions", []) or []:
+                        if not isinstance(s, dict):
+                            continue
+                        if s.get("name") != session_name:
+                            continue
+                        cookie_count = s.get("cookie_count", 0) or 0
+                        has_auth = bool(s.get("has_auth_header") or s.get("auth_header"))
+                        if cookie_count > 0 or has_auth:
+                            grey_box_active = True
+                        break
+            except Exception:
+                pass
+
+        if grey_box_active and q2_class_root in AUTH_STATE_DEPENDENT:
+            impact_boost += 0.10
+            impact_notes.append(
+                f"Grey-box mode (session='{session_name}' authenticated): "
+                f"{q2_class_root} carries cross-tenant / privilege-escalation impact (+10%)"
+            )
+
         # Predictable/sequential-ID escalator — independent of business context.
         # This is the "fuzz IDs to dump the table" class. High impact when the
         # endpoint returns PII or when the same ID space is shared across
@@ -915,13 +1044,18 @@ def register(mcp: FastMCP):
             # domain passed). Slightly lower than the clean-pass case.
             suggested_confidence = min(1.0, 0.80 + impact_boost)
 
-        # Apply program-policy confidence floor
+        # Apply program-policy confidence floor — emit a clearly distinct
+        # "PROGRAM POLICY ENFORCED" banner so Claude does not mistake this
+        # for a substantive evidence problem.
         if verdict == "REPORT" and program_confidence_floor > 0:
             if suggested_confidence < program_confidence_floor:
                 issues.append(
-                    f"Q7 PROGRAM POLICY: program requires confidence >= "
-                    f"{program_confidence_floor:.2f}; current is "
-                    f"{suggested_confidence:.2f} — strengthen evidence first"
+                    f"PROGRAM POLICY ENFORCED: program '{program.get('slug', '?')}' "
+                    f"sets confidence_floor={program_confidence_floor:.2f}; "
+                    f"current confidence is {suggested_confidence:.2f}. "
+                    f"This is a POLICY downgrade, not an evidence problem — "
+                    f"either strengthen evidence to meet the floor, OR override "
+                    f"with set_program_policy() if the floor itself is wrong."
                 )
                 verdict = "NEEDS MORE EVIDENCE"
 

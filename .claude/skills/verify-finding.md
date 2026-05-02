@@ -99,7 +99,9 @@ Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
 - **Confirmed:** `compare_auth_states` shows >90% similarity with DIFFERENT user creds
 - **Confirmed:** read another user's PII with lower-priv creds
 - **Confirmed:** modify/delete another user's resources via their ID
-- **NOT sufficient:** same status with completely different content, admin endpoint returning 200 with "access denied" body
+- **Confirmed (ID enumeration / BOLA / BFLA):** sequential / predictable ID space (auto-increment, UUIDv1 monotonic, base32 timestamp) yields cross-user data when walked. Per Rule 6 this is authorization testing, NOT credential brute force. Bar: (a) demonstrate the pattern (e.g. ID 1001→1010 each return distinct user records), (b) confirm at least 2-3 IDs return another user's data, (c) cap PoC count to avoid mass exfil per Rule 7. Tag evidence with "sequential", "predictable", "id enumeration", "cross-app", or "uuidv1" so `assess_finding` boosts impact.
+- **Confirmed (BFLA — function-level):** lower-priv role can call admin/internal function (e.g. `/api/admin/users/delete` succeeds for `user` role). Distinct from object-level IDOR.
+- **NOT sufficient:** same status with completely different content, admin endpoint returning 200 with "access denied" body, sequential IDs without verifying distinct user content
 
 ### File Upload
 - **Confirmed:** uploaded file ACCESSIBLE at URL AND server processes it (PHP exec, SVG XSS, JSP exec)
@@ -173,7 +175,34 @@ Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
 - **Introspection:** full schema returned from `__schema`
 - **Injection:** SQL error from resolver arguments
 - **Batch abuse:** unbounded batch processed (DoS vector)
+- **Persisted-query attacks:** APQ hash collision accepted, hash preimage attacker-controlled, or old hashes cached forever
+- **Alias amplification:** 1000+ aliases on the same field accepted (DoS-class)
 - **NOT sufficient:** endpoint exists, field-suggestion enabled (low info leak)
+
+### Password Reset
+- **Confirmed (token reuse):** same reset link succeeds 2+ times — token not invalidated after first use
+- **Confirmed (cross-account):** token issued for victim works for attacker's account or vice versa (account_id parameter manipulation)
+- **Confirmed (race):** simultaneous reset requests issue different tokens both valid (TOCTOU)
+- **Confirmed (weak token):** sequential / predictable / time-based reset token (epoch ms, sequential int)
+- **Confirmed (host header poison):** `Host: attacker.com` causes reset link to point at attacker host
+- **Confirmed (no rate limit on auth):** rate-limit-missing IS reportable here (sensitive endpoint)
+- **NOT sufficient:** weak password policy alone, missing email confirmation on signup
+
+### API Key / Token Leak
+- **Confirmed:** key found in JS bundle, source map, error response, or git history AND key is live (validate against the API)
+- **Confirmed:** token scope grants access beyond what owner intended (e.g. read-only key allows write)
+- **Confirmed:** internal key exposed via debug header / verbose error
+- **Severity scaling:** CRITICAL if AWS/GCP root keys; HIGH if 3rd-party with billing impact (Stripe, SendGrid); MEDIUM if scoped/limited
+- **NOT sufficient:** dummy / sample / commented-out key, key with no permissions
+
+### Auth Bypass (chain or standalone)
+- **Confirmed (session fixation):** server accepts session ID set BEFORE authentication; victim's session becomes attacker-controlled
+- **Confirmed (forced browsing / direct object access):** `/admin/dashboard` accessible without valid session or with low-priv role
+- **Confirmed (HTTP method bypass):** `GET /api/users/delete/1` works when only POST should
+- **Confirmed (path normalization bypass):** `/admin/..;/dashboard`, `/admin%2f`, `/admin/.`, `/admin/%2e/`
+- **Confirmed (header bypass):** `X-Original-URL`, `X-Rewrite-URL`, `X-Forwarded-For: 127.0.0.1` grants admin access
+- **Confirmed (referer-based auth):** changing Referer to internal URL grants access
+- **NOT sufficient:** missing rate limit on login (separate finding), missing CAPTCHA
 
 ## Decision
 

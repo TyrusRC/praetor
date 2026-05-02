@@ -95,6 +95,85 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "xml_signature_wrapping": {
+      "description": "XSW (XML Signature Wrapping) -- valid signature covers original assertion, but attacker injects a SECOND assertion that the application processes. Distinct from generic 'signature bypass' because the signature IS valid; the parser is tricked into reading a different element. Eight named XSW variants per XSW research.",
+      "tech_match": ["SAML", "SSO"],
+      "param_match": ["SAMLResponse"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] XSW1: wrap a SECOND <Assertion> around the original signed <Response>. Signature still validates (over original), but app reads outer assertion attributes (role=admin).",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "word", "any": ["admin", "dashboard"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] XSW2: same as XSW1 but evil assertion is sibling of the original signed assertion. App may pick first <Assertion> by XPath while signature validates the second.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "word", "any": ["admin", "dashboard"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] XSW3-8: vary placement of signed/evil assertion (wrap signature in evil, evil after signed Response, evil with same ID after copy of signed, etc.). Run all 8 variants automated by SAMLRaider/Same-Origin Method.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "word", "any": ["admin", "dashboard"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "audience_attribute_reuse": {
+      "description": "Audience attribute reuse -- distinct from recipient_mismatch. Some SPs only validate <Recipient> (URL) but ignore <Audience> attribute. Same assertion accepted by SP-B if Recipient happens to match (e.g. wildcard SAML config).",
+      "tech_match": ["SAML", "SSO"],
+      "param_match": ["SAMLResponse"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Use SP-A's Recipient (matching SP-B's ACS URL via misconfig) but SP-A's Audience. If SP-B accepts: cross-SP token reuse with no Recipient bypass needed.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["audience", "invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Multi-Audience assertion -- legitimate SP issues assertion with two <Audience> values (rare misconfig). Both SPs accept the same assertion concurrently.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "saml_request_smuggling": {
+      "description": "SAML request smuggling -- inject second SAMLRequest in same HTTP request via parameter pollution. Some SPs use first, IdP uses last (or vice versa).",
+      "tech_match": ["SAML", "SSO"],
+      "param_match": ["SAMLRequest"],
+      "probes": [
+        {
+          "payload": "valid_request&SAMLRequest=attacker_request",
+          "description": "[Manual] HPP attack on SAMLRequest. Worth testing if HPP works elsewhere on the same SP.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
     }
   }
 }

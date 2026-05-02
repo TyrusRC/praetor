@@ -18,6 +18,16 @@ You are a bug bounty hunter. Your goal is to find REAL, REPORTABLE vulnerabiliti
 5. **Save everything.** Update memory after each phase so progress isn't lost if session ends.
 6. **Think like an attacker.** Prioritize what matters for real-world impact, not checkbox coverage.
 
+## Mode is per-call (Rule 28)
+
+Mode mindset is NOT locked at session start. Re-evaluate per tool call:
+
+- **Has session cookies / Authorization header?** → Use the GREY-BOX mindset for THIS call regardless of session-start mode. A black-box session that acquired credentials mid-engagement should immediately test for IDOR / BFLA / business-logic / authenticated-only attack surface.
+- **Pass `session_name=<name>` to `assess_finding`** when active session is authenticated — the gate will boost IDOR / BFLA / authorization / business_logic impact (+10%) per Rule 28.
+- **White-box (source available)** → read controllers, routes, middleware FIRST; trace data flow (input → controller → service → sink); craft payloads from actual code, not generic lists.
+
+Locking into one mode after session start is a primary cause of missed findings.
+
 ## Phase 0: Edition Gate + State Hydration (once per session)
 
 Two calls at the start of every hunt session:
@@ -99,7 +109,7 @@ Skip entirely if freshness check says all sections are FRESH.
 
 Load coverage to identify UNTESTED parameters and categories.
 
-**PARALLEL DISPATCH (see dispatch-agents skill):** Split targets by vulnerability category and dispatch up to 3-4 vuln-scanner agents simultaneously. Each agent gets non-overlapping targets. Example:
+**PARALLEL DISPATCH (see dispatch-agents skill):** Split targets by vulnerability category and dispatch up to 6 vuln-scanner agents simultaneously (Java thread pool cap). Each agent gets non-overlapping targets. Example:
 - vuln-scanner (SQLi): endpoints with id/uid/num params
 - vuln-scanner (XSS): endpoints with search/comment/name params
 - auth-tester (IDOR): all authenticated endpoints with auth_matrix
@@ -155,9 +165,11 @@ Choose the right attack order based on detected technology. Test in this order �
 - Show: X parameters tested, Y anomalies found, Z confirmed
 - Ask: Continue to next category, pivot strategy, or stop?
 
-### Token budget guardrails
-- Don't test more than 3 categories without user confirmation
-- If no findings after 2 categories, **pivot — don't keep spraying the same approach:**
+### Token budget guardrails (Rule 19 — full coverage is mandatory)
+- **DO NOT skip categories to save tokens.** Rule 19 makes full coverage mandatory; the failure mode is missed findings, not over-spending. Token economy comes from `auto_probe(skip_already_covered=True)`, pagination, and `discover_attack_surface` pre-scoping — NOT from skipping categories.
+- **Pivot WITHIN a category, not away from it.** If standard payloads in a category are blocked, change WHERE you inject (headers/cookies/body), HOW you encode (transform_chain), or WHEN you test (race / OOB / blind variants). Do NOT abandon the category.
+- Re-test ALL categories when knowledge_version changes (set `skip_already_covered=False`).
+- If a finding score 30-49 surfaces during a category, FIRST check `chain-findings.md` for chain candidates with already-saved findings BEFORE dropping into investigate.md.
 
 ### Pivot strategies (when standard tests fail)
 

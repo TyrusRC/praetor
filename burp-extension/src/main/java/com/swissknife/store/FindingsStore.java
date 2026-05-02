@@ -27,20 +27,32 @@ public class FindingsStore {
         "request_smuggling", "ssti_blind", "command_injection_blind", "xxe_blind"
     );
 
-    /** Vuln types that are non-reportable on their own (per hunting.md NEVER SUBMIT list). */
+    /** Vuln types that are non-reportable on their own (per hunting.md NEVER SUBMIT list).
+     *  cors_no_credentials covers ONLY non-credentialed CORS reflection. The
+     *  exploitable credentialed-wildcard case (cors_credentialed_wildcard) is
+     *  NOT in this list — it's a reportable HIGH. */
     public static final Set<String> NEVER_SUBMIT_TYPES = Set.of(
         "missing_security_header", "missing_csp", "missing_hsts", "missing_x_frame_options",
         "cookie_without_secure", "cookie_without_httponly",
         "clickjacking_no_state_change", "self_xss",
         "csrf_logout", "csrf_no_state_change",
         "open_redirect_no_chain", "mixed_content",
-        "rate_limit_absent_non_sensitive", "stack_trace_disclosure",
+        "stack_trace_disclosure",
         "username_enumeration_signup", "missing_referrer_policy",
         "spf_dmarc_dkim", "content_spoofing_no_xss",
         "host_header_no_cache_poison", "cors_no_credentials",
         "ssl_tls_config", "version_disclosure",
-        "tabnabbing", "text_injection", "idn_homograph",
+        "text_injection", "idn_homograph",
         "missing_autocomplete_off", "options_method_enabled"
+    );
+
+    /** Conditional NEVER SUBMIT — informational. These vuln types were
+     *  previously in NEVER_SUBMIT_TYPES (hard-rejected) but are now allowed
+     *  through the Java handler so the Python advisor can decide based on
+     *  chain_with[] and endpoint context. Listed here for cross-reference;
+     *  the set is not consulted by isNeverSubmit(). */
+    public static final Set<String> CONDITIONAL_NEVER_SUBMIT_TYPES = Set.of(
+        "tabnabbing", "rate_limit_absent_non_sensitive", "rate_limit_missing"
     );
 
     /** Title substrings that map to NEVER SUBMIT regardless of vuln_type. */
@@ -50,7 +62,7 @@ public class FindingsStore {
         "csrf on logout", "csrf logout", "open redirect (no chain",
         "mixed content", "stack trace disclosure", "username enumeration",
         "referrer-policy", "referrer policy", "spf record", "dmarc",
-        "tabnabbing", "options method", "autocomplete=off",
+        "options method", "autocomplete=off",
         "version disclosure"
     );
 

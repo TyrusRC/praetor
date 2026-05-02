@@ -77,6 +77,81 @@
           "confidence_boost": 40
         }
       ]
+    },
+    "ws_auth_pre_handshake_send": {
+      "description": "WebSocket authentication race — server registers connection before validating auth, allowing first-message attack window. Common in custom WS servers, less common in Apollo / standard frameworks.",
+      "tech_match": ["WebSocket", "Socket.io"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send authenticated message immediately after handshake without waiting for ACK. If processed before auth check completes, partial response leaks.",
+          "matchers": [{"type": "word", "any": ["data", "result", "payload"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "ws_session_replay": {
+      "description": "Session-ID replay on WebSocket upgrade — server trusts session cookie / token from a previous session, allowing attacker who captured a session ID to upgrade as that user.",
+      "tech_match": ["WebSocket"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Replay captured session cookie on WS upgrade after the underlying HTTP session has logged out. If 101 returned, session-bound auth is broken on WS path.",
+          "matchers": [{"type": "status", "status": [101]}, {"type": "header", "name": "Upgrade", "contains": "websocket"}],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "ws_origin_strip": {
+      "description": "WebSocket upgrade with Origin header REMOVED (vs evil.com). Some servers default-allow when Origin is missing, treating the request as same-origin/non-browser. Browsers always send Origin on WS upgrades.",
+      "tech_match": ["WebSocket"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "WS upgrade WITHOUT Origin header. If 101 returned, attacker non-browser client (curl, Python websockets) gains full access — useful for credential stuffing or rate-limit bypass.",
+          "matchers": [{"type": "status", "status": [101]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"strip_origin": true}
+        }
+      ]
+    },
+    "subprotocol_confusion": {
+      "description": "WS subprotocol confusion — server accepts unrecognized Sec-WebSocket-Protocol value and switches to a less-validated path.",
+      "tech_match": ["WebSocket"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Upgrade with Sec-WebSocket-Protocol: admin / debug / internal. Some implementations have hidden subprotocols with reduced auth.",
+          "matchers": [{"type": "status", "status": [101]}, {"type": "header", "name": "Sec-WebSocket-Protocol", "contains": ""}],
+          "severity": "medium",
+          "confidence_boost": 25,
+          "variables": {"subprotocols": ["admin", "debug", "internal", "v2"]}
+        }
+      ]
+    },
+    "ws_frame_smuggling": {
+      "description": "WebSocket frame smuggling — server reassembles WebSocket frames differently from intermediate proxy. Combined with HTTP/1.1 smuggling, can hijack connection.",
+      "tech_match": ["WebSocket"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Send fragmented WS frames with conflicting FIN bits. If proxy and origin disagree, frame-smuggling primitive established. Test with browser_navigate or burp_websocket_send.",
+          "matchers": [{"type": "status", "status": [101]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"manual_only": true}
+        }
+      ]
     }
   }
 }

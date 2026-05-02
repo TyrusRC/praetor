@@ -149,10 +149,36 @@ public class ScopeHandler extends BaseHandler {
             excludedCount++;
         }
 
+        // Per-domain whitelist that bypasses auto-filter. Use case: target's
+        // own CDN subdomain, OAuth provider being tested (apis.google.com),
+        // asset host serving sensitive JS bundles, or any cdn-pattern domain
+        // that's explicitly in scope. Values are matched as substrings against
+        // the auto-filter list.
+        @SuppressWarnings("unchecked")
+        List<String> keepInScopeRaw = body.get("keep_in_scope") instanceof List<?> list
+            ? (List<String>) (List<?>) list : List.of();
+        Set<String> keepInScope = new java.util.HashSet<>();
+        for (String s : keepInScopeRaw) {
+            if (s != null && !s.isEmpty()) keepInScope.add(s.toLowerCase().trim());
+        }
+
         // Auto-filter noise domains
+        int keptInScope = 0;
         if (autoFilter) {
             autoFilterEnabled = true;
             for (String domain : AUTO_FILTER_DOMAINS) {
+                // Skip if operator explicitly kept it in-scope
+                boolean keep = false;
+                for (String pattern : keepInScope) {
+                    if (domain.contains(pattern) || pattern.contains(domain)) {
+                        keep = true;
+                        break;
+                    }
+                }
+                if (keep) {
+                    keptInScope++;
+                    continue;
+                }
                 String httpsUrl = "https://" + domain;
                 String httpUrl = "http://" + domain;
                 api.scope().excludeFromScope(httpsUrl);
@@ -166,6 +192,7 @@ public class ScopeHandler extends BaseHandler {
             "included", includedCount,
             "excluded", excludedCount,
             "auto_filtered", autoFilteredCount,
+            "kept_in_scope", keptInScope,
             "include_rules", new ArrayList<>(includeRules),
             "exclude_rules", new ArrayList<>(excludeRules),
             "auto_filter_enabled", autoFilterEnabled

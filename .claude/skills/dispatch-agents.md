@@ -7,6 +7,8 @@ description: Orchestrate parallel pentesting agents — dispatch specialists for
 
 You are the orchestrator. Your job is to identify independent work streams and dispatch specialized agents to run in parallel, dramatically reducing total testing time. A full hunt that takes 50 sequential tool calls can finish in 15 with proper parallelism.
 
+**Concurrency cap: up to 6 simultaneous agents.** The Java extension's HTTP server uses a fixed thread pool of 6 (see `ApiServer.java`), so 6 in-flight MCP requests run truly in parallel. Beyond 6, requests queue. Earlier guidance capped this at 3-4 — that was wrong; correct it whenever you see it.
+
 ## Mandatory Briefing Block
 
 Every dispatched subagent MUST receive these three lines verbatim in addition to its task. Subagents do not see prior conversation, so without this block they hallucinate file paths, line numbers, function names, and findings — observed multiple times in past audits.

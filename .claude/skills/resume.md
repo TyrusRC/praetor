@@ -44,7 +44,9 @@ For each finding with status `confirmed`:
    - If YES: update `last_verified` timestamp in memory
    - If NO: mark as `stale`, increment `verification_failures`
    - If `verification_failures >= 2`: mark as `likely_false_positive`
-3. **Priority rule:** Always re-verify CRITICAL/HIGH findings before spending time on new testing
+3. **Priority rule:** Re-verify CRITICAL/HIGH findings before spending time on new testing — but cap at 2 attempts per finding. If re-verification fails twice, mark `stale` and pivot to untested categories. Do NOT loop forever re-verifying flaky findings; that starves coverage on UNTESTED attack surface.
+
+**Mode reminder (Rule 28):** if your restored session has cookies / Authorization header, switch to GREY-BOX mindset for new testing — pass `session_name=<name>` to `assess_finding` so authenticated impact is boosted (+10% for IDOR/BFLA/business_logic/authorization).
 
 Save updated findings: `save_target_intel(domain, "findings", updated_data)`
 

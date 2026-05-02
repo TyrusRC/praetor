@@ -85,9 +85,21 @@ LOOP:
   while iteration < max_iterations:
     iteration += 1
 
-    // Circuit breaker check
-    if errors_consecutive >= 5:
-      REPORT("Circuit breaker triggered after {errors_consecutive} consecutive errors")
+    // Circuit breaker check — distinguish WAF block from auth-control 403.
+    // Generic 403 during IDOR/BFLA/auth-matrix testing is the EXPECTED control
+    // response (server is enforcing access control correctly on the negative
+    // case). Only count toward breaker when 403 carries WAF-class signals:
+    //   - server: cloudflare / cloudfront / akamai / fastly / sucuri / incapsula
+    //   - x-* WAF headers: cf-ray, x-amzn-waf-action, x-akamai-staging, x-incap-*
+    //   - body contains "blocked by" / "ray id" / "request id" + "waf" / "firewall"
+    //   - status 429 (rate limit) — counts directly
+    // 403 without WAF signal during authz testing is signal, not noise — keep
+    // going. Tip: tag tests with phase=authz to flag this branch.
+    if waf_blocks_consecutive >= 5 OR rate_limit_consecutive >= 5:
+      REPORT("Circuit breaker triggered: {N} consecutive WAF/rate-limit blocks. Slow down or pivot to OOB/encoded payloads.")
+      BREAK
+    if errors_consecutive >= 10:
+      REPORT("Circuit breaker triggered: {N} consecutive non-403 errors (5xx, network). Likely server overload or session expired.")
       BREAK
 
     // Phase execution
@@ -116,11 +128,21 @@ LOOP:
         generate summary
         BREAK
 
-    // Error tracking
+    // Error tracking — separate WAF/rate-limit from auth-control / generic
     if last_action_had_error:
-      errors_consecutive += 1
+      if last_status == 429:
+        rate_limit_consecutive += 1
+      elif last_status == 403 AND has_waf_signal(headers, body):
+        waf_blocks_consecutive += 1
+      elif last_status == 403 AND in_authz_test_phase:
+        // Expected response during IDOR/BFLA/auth-matrix — DO NOT increment
+        pass
+      else:
+        errors_consecutive += 1
     else:
       errors_consecutive = 0
+      waf_blocks_consecutive = 0
+      rate_limit_consecutive = 0
 
     // Finding handling by mode
     if new_finding_detected:
