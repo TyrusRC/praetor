@@ -429,21 +429,34 @@ def register(mcp: FastMCP):
         domain: str = "",
         business_context: str = "",
         environment: str = "",
+        logger_index: int = -1,
+        human_verified: bool = False,
+        overrides: list[str] | None = None,
     ) -> str:
         """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
         Args:
             vuln_type: Vulnerability type (e.g. 'xss', 'sqli', 'idor', 'ssrf')
-            evidence: What you observed
+            evidence: What you observed (free-text)
             endpoint: The endpoint tested
             parameter: The parameter tested
             response_diff: How the response differed from baseline
             domain: Target domain for scope + duplicate checks
             business_context: Target business type for impact scoring (e.g. 'ecommerce', 'healthcare', 'banking', 'saas', 'social', 'government')
             environment: Deployment environment (e.g. 'production', 'staging', 'internal', 'public_api')
+            logger_index: Proxy-history index of the confirming response. When provided, evidence is auto-augmented with class-specific markers detected programmatically (R1).
+            human_verified: Operator manually confirmed in Burp UI / browser. Skips Q5 evidence gate; Q1/Q4/Q6 still apply (R19).
+            overrides: Gate names to bypass (R20). Each entry "<gate>:<reason>". Recognized gates: q1_scope, q2_repro, q4_dedup, q5_evidence, q6_never_submit, q7_triager.
         """
         issues = []
+        audit_overrides: list[str] = []
         verdict = "REPORT"
+        override_set: set[str] = set()
+        for ov in (overrides or []):
+            gate = (ov.split(":", 1)[0] if ":" in ov else ov).strip().lower()
+            if gate:
+                override_set.add(gate)
+                audit_overrides.append(ov)
 
         # NEVER SUBMIT — aligned with .claude/rules/hunting.md. Matching is
         # done on vuln_type AND on evidence keywords so hunters writing
@@ -489,95 +502,314 @@ def register(mcp: FastMCP):
         vuln_lower = vuln_type.lower()
         evidence_lower = evidence.lower()
 
-        # Q1: Scope. Skipped when domain omitted — but surfaced as a warning.
-        if domain:
+        # ── R1: Auto-augment evidence from logger_index ────────────────
+        # Hunters often confirm via Burp UI but write thin prose evidence.
+        # When a concrete proxy/logger index is provided, fetch the entry
+        # and append class-specific markers programmatically. Result: Q5
+        # passes on automation evidence the human didn't bother to type.
+        derived_markers: list[str] = []
+        if logger_index is not None and logger_index >= 0:
             try:
-                scope_resp = await client.post("/api/scope/check", json={"url": endpoint if "://" in endpoint else f"https://{domain}{endpoint}"})
-                if "error" not in scope_resp and not scope_resp.get("in_scope", False):
+                detail = await client.get(f"/api/proxy/history/{logger_index}")
+                if "error" not in detail:
+                    status = str(detail.get("status_code", ""))
+                    body = (detail.get("response_body") or "")[:8000].lower()
+                    headers = detail.get("response_headers", []) or []
+                    header_blob = " ".join(
+                        f"{h.get('name','').lower()}: {h.get('value','').lower()}"
+                        for h in headers if isinstance(h, dict)
+                    )
+
+                    # Universal markers
+                    if status:
+                        derived_markers.append(f"status={status}")
+                    if status in ("500", "502", "503"):
+                        derived_markers.append("server-error")
+
+                    # SQLi vendor errors
+                    for sql_err in ("sql syntax", "ora-", "mysql_fetch", "pg_query",
+                                    "sqlite", "syntax error", "unclosed quotation",
+                                    "unterminated", "near \"", "type cast"):
+                        if sql_err in body:
+                            derived_markers.append(sql_err)
+
+                    # XSS: payload echoed in executable context
+                    for xss_marker in ("<script", "onerror=", "onload=", "javascript:",
+                                       "alert(", "<svg", "<img"):
+                        if xss_marker in body:
+                            derived_markers.append(f"executable: {xss_marker}")
+
+                    # SSRF: cloud-metadata or callback proof
+                    for ssrf_marker in ("ami-id", "instance-identity", "169.254.169.254",
+                                        "metadata.google", "compute.metadata"):
+                        if ssrf_marker in body or ssrf_marker in header_blob:
+                            derived_markers.append(ssrf_marker)
+
+                    # RCE markers
+                    for rce_marker in ("uid=", "gid=", "euid=", "/bin/sh", "/bin/bash"):
+                        if rce_marker in body:
+                            derived_markers.append(rce_marker)
+
+                    # Path traversal
+                    if "root:x:" in body or "/etc/passwd" in body[:500]:
+                        derived_markers.append("file_read: passwd")
+
+                    # IDOR proof: status 200 on cross-account access
+                    if status == "200" and parameter:
+                        derived_markers.append("200 ok")
+
+                    # CORS leak
+                    if "access-control-allow-origin: *" in header_blob and "access-control-allow-credentials: true" in header_blob:
+                        derived_markers.append("cors_credentialed_wildcard")
+            except Exception:
+                pass
+
+        if derived_markers:
+            evidence_lower = (evidence_lower + " | derived: " + " ".join(derived_markers)).strip()
+
+        # ── Apply active program policy overrides (Rule 17 dynamic) ──
+        # set_program_policy persists a per-engagement override; merge it on
+        # top of the hardcoded defaults so programs that DO pay
+        # tabnabbing/user_enum aren't auto-killed.
+        try:
+            from burpsuite_mcp.tools.intel import load_active_program_policy
+            program = load_active_program_policy()
+        except Exception:
+            program = {}
+        for k in program.get("never_submit_remove", []) or []:
+            never_submit_types.pop(k, None)
+        for k in program.get("never_submit_add", []) or []:
+            never_submit_types.setdefault(
+                k, f"Program-specific NEVER SUBMIT override ({k})"
+            )
+        program_confidence_floor = float(program.get("confidence_floor", 0.0) or 0.0)
+
+        # Q1: Scope. SKIP on transient extension errors (R17). Only DO NOT
+        # REPORT when the extension explicitly says out-of-scope.
+        if "q1_scope" in override_set:
+            issues.append("Q1 OVERRIDE: scope check bypassed by operator")
+        elif domain:
+            try:
+                scope_resp = await client.post(
+                    "/api/scope/check",
+                    json={"url": endpoint if "://" in endpoint else f"https://{domain}{endpoint}"},
+                )
+                if "error" in scope_resp:
+                    # Transient — extension unreachable / 500 / etc. Skip not Fail.
+                    issues.append(f"Q1 SKIP: scope check unavailable ({scope_resp['error'][:60]})")
+                elif not scope_resp.get("in_scope", False):
                     issues.append(f"Q1 FAIL: endpoint {endpoint} is OUT OF SCOPE — do not report")
                     verdict = "DO NOT REPORT"
-            except Exception:
-                issues.append("Q1 SKIP: scope check failed (extension unreachable)")
+            except Exception as e:
+                issues.append(f"Q1 SKIP: scope check raised ({type(e).__name__})")
         else:
             issues.append("Q1 SKIP: pass `domain=...` to enable scope verification")
 
         # Q2: Reproducible
-        if any(w in evidence_lower for w in ("once", "intermittent", "one time", "non-reproducible", "could not reproduce")):
+        if "q2_repro" in override_set:
+            issues.append("Q2 OVERRIDE: reproducibility check bypassed")
+        elif any(w in evidence_lower for w in ("once", "intermittent", "one time", "non-reproducible", "could not reproduce")):
             issues.append("Q2 FAIL: evidence suggests non-reproducible — re-test 3+ times from clean state")
 
-        # Q6: NEVER SUBMIT type match
-        for ns_key, ns_reason in never_submit_types.items():
-            if ns_key in vuln_lower:
-                issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
-                verdict = "DO NOT REPORT"
-                break
-
-        # Q6: NEVER SUBMIT evidence-keyword match
-        if verdict == "REPORT":
-            for ns_key, ns_reason in never_submit_keywords.items():
-                if ns_key in evidence_lower:
+        # Q6: NEVER SUBMIT type match — word-boundary so `xss_filter_bypass`
+        # doesn't mis-fire on `self_xss`, and `idor_via_csrf_logout` doesn't
+        # trip `csrf_logout`.
+        import re as _re_q6
+        if "q6_never_submit" in override_set:
+            issues.append("Q6 OVERRIDE: NEVER SUBMIT bypass — must include chain_with[] in save_finding")
+        else:
+            for ns_key, ns_reason in never_submit_types.items():
+                if _re_q6.search(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])", vuln_lower):
                     issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
                     verdict = "DO NOT REPORT"
                     break
 
-        # Q3 / Q5: Impact + evidence quality per vuln class
+        # Q6: NEVER SUBMIT evidence-keyword match — skip when the keyword
+        # appears in a NEGATED context. Hunters often write "not a stack
+        # trace, the fingerprint is..." — that's a contrast, not a self-flag.
+        # Heuristic: ignore the match if "not", "isn't", "no ", "without",
+        # "instead of", "ruled out" appears within 24 chars BEFORE the keyword.
+        if verdict == "REPORT" and "q6_never_submit" not in override_set:
+            negation_window = 24
+            negators = (" not ", " no ", "isn't ", "is not", "without ", "instead of", "ruled out", "not a ", "not just")
+            for ns_key, ns_reason in never_submit_keywords.items():
+                pattern = _re_q6.compile(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])")
+                m = pattern.search(evidence_lower)
+                if not m:
+                    continue
+                # Look back up to negation_window chars
+                lookback = evidence_lower[max(0, m.start() - negation_window):m.start()]
+                if any(neg in lookback for neg in negators):
+                    continue  # negated — not actually a NEVER SUBMIT signal
+                issues.append(f"Q6 NEVER SUBMIT: {ns_reason}")
+                verdict = "DO NOT REPORT"
+                break
+
+        # ── Q3 / Q5: Impact + evidence quality per vuln class ──────────
+        # R2: expanded keyword lists; unknown vuln_type SKIPS Q5 (default REPORT
+        # rather than weak). R19: human_verified bypasses Q5 entirely.
         weak_evidence = False
-        if vuln_lower == "sqli":
-            strong = any(x in evidence_lower for x in ["sleep", "delay", "union", "version()", "current_user", "database()"]) \
-                     or any(err in evidence_lower for err in ["sql syntax", "ora-", "mysql_fetch", "pg_query", "sqlite"])
+
+        # Per-class strong-evidence keyword sets. Generous — match how
+        # hunters actually write evidence.
+        Q5_KEYWORDS: dict[str, list[str]] = {
+            "sqli": [
+                "sleep", "delay", "union", "version()", "current_user",
+                "database()", "schema_name", "table_name", "stacked query",
+                "boolean differential", "boolean diff", "subquery",
+                "type cast", "cast error", "type mismatch", "string concat",
+                "concat error", "sql syntax", "ora-", "mysql_fetch",
+                "pg_query", "sqlite", "syntax error", "unclosed quotation",
+                "unterminated", "1=1 vs 1=2", "and 1=1", "and 1=2",
+            ],
+            "ssrf": [
+                "collaborator", "callback", "dns", "metadata", "169.254",
+                "ami-id", "instance-identity", "compute.metadata",
+                "metadata.google", "imdsv1", "imdsv2", "interaction received",
+                "oob", "out-of-band", "pingback",
+            ],
+            "xss": [
+                "alert(", "executed", "dom-based", "stored", "reflected in",
+                "<scr" "ipt", "onerror=", "onload=", "j" "avascript:",
+                "executable context", "html context", "attribute context",
+                "js sink", "innerhtml", "doc-write", "dom xss",
+                "popup", "confirm(", "prompt(", "executable: ",
+                "rendered as raw", "raw <scr" "ipt",
+            ],
+            "idor": [
+                "different user", "unauthorized", "other account",
+                "cross-tenant", "200 ok", "sequential", "predictable",
+                "incrementing", "guessable", "auto-increment", "monotonic",
+                "id range", "id space", "fuzz id", "enumerate id",
+                "id enumeration", "id walk", "user_id=", "userid=",
+                "account_id=", "order_id=", "uuid v1", "uuidv1",
+                "same id space", "shared id", "cross-app", "cross app",
+                "other app same", "bola", "bfla",
+            ],
+            "rce": [
+                "uid=", "gid=", "euid=", "whoami", "collaborator",
+                "dns callback", "/bin/sh", "/bin/bash", "command output",
+                "shell return", "exec returned", "process executed",
+            ],
+            "path_traversal": [
+                "root:x:", "/etc/passwd", "boot.ini", "win.ini",
+                "file_read", "file content disclosed", "../../../",
+                "..\\..\\", "directory traversal",
+            ],
+            "xxe": [
+                "external entity", "doctype", "system identifier",
+                "&xxe;", "collaborator", "file_read", "callback",
+            ],
+            "ssti": [
+                "{{7*7}}", "49", "${{", "<%= ", "template engine",
+                "jinja", "twig", "freemarker", "velocity", "executed template",
+            ],
+            "command_injection": [
+                "uid=", "whoami", "; ls", "| ls", "&& ls",
+                "command output", "shell return", "/bin/", "cmd.exe",
+            ],
+            "open_redirect_chain": [
+                "token leaked", "session captured", "fragment exfil",
+                "oauth code intercepted", "redirect destination controlled",
+            ],
+            "csrf": [
+                "no token", "missing csrf", "samesite none",
+                "state-changing", "performed action", "successfully posted",
+            ],
+        }
+        # Aliases: vuln_type variants normalize to canonical keyword class
+        Q5_ALIASES = {
+            "reflected xss": "xss", "stored xss": "xss", "dom xss": "xss",
+            "blind xss": "xss",
+            "sqli_blind": "sqli", "sqli_time": "sqli", "sqli_boolean": "sqli",
+            "sqli_error": "sqli", "sqli_oob": "sqli",
+            "id_enumeration": "idor", "predictable_id": "idor",
+            "sequential_id": "idor", "access_control": "idor",
+            "bola": "idor", "bfla": "idor",
+            "rce_blind": "rce", "remote code execution": "rce",
+            "lfi": "path_traversal", "directory_traversal": "path_traversal",
+            "cmdi": "command_injection",
+        }
+
+        q5_class = Q5_ALIASES.get(vuln_lower, vuln_lower)
+
+        if human_verified:
+            issues.append("Q5 SKIP: human_verified=True (operator confirmed in Burp UI/browser)")
+            audit_overrides.append("q5_evidence:human_verified")
+        elif "q5_evidence" in override_set:
+            issues.append("Q5 OVERRIDE: evidence gate bypassed by operator")
+        elif q5_class in Q5_KEYWORDS:
+            keywords = Q5_KEYWORDS[q5_class]
+            strong = any(k in evidence_lower for k in keywords)
             if not strong:
-                issues.append("Q5 WEAK EVIDENCE: SQLi needs timing (3x), vendor error, or UNION proof")
+                issues.append(
+                    f"Q5 WEAK EVIDENCE: {q5_class} needs at least one of: "
+                    f"{', '.join(keywords[:6])}, ... ({len(keywords)} accepted markers). "
+                    f"Pass logger_index=<N> to auto-derive, or human_verified=True if confirmed in UI."
+                )
+                weak_evidence = True
+        else:
+            # R2: unknown vuln_type — DEFAULT REPORT, not weak.
+            issues.append(f"Q5 SKIP: unknown vuln_type '{vuln_type}' — no keyword list. Defaulting REPORT.")
+
+        # ── R3: Timing-based requires 3x reproductions, but ONLY when
+        # vuln_type signals timing/blind/race. Don't trip on prose like
+        # "response time was 200ms".
+        TIMING_VULN_TYPES = {
+            "sqli_blind", "sqli_time", "sqli_oob",
+            "command_injection_blind", "ssti_blind", "ssrf_blind",
+            "xxe_blind", "rce_blind", "race_condition",
+            "request_smuggling", "http_desync",
+        }
+        if vuln_lower in TIMING_VULN_TYPES and "q5_evidence" not in override_set and not human_verified:
+            has_replays = any(
+                w in evidence_lower
+                for w in ("3x", "three iterations", "3/3", "3 consistent",
+                          "consistent across", "confirmed 3", "3 repeats", "repeated 3")
+            )
+            if not has_replays:
+                issues.append(
+                    "Q5 TIMING RULE: timing/blind vuln types require 3+ consistent "
+                    "iterations (include '3/3' or 'confirmed 3' in evidence)"
+                )
                 weak_evidence = True
 
-        if vuln_lower == "ssrf":
-            strong = any(x in evidence_lower for x in ["collaborator", "callback", "dns", "metadata", "169.254", "ami-id"])
-            if not strong:
-                issues.append("Q5 WEAK EVIDENCE: SSRF needs Collaborator callback or metadata access proof")
-                weak_evidence = True
+        # Q4: Duplicate check — read persisted findings if domain given.
+        # Match must be on (endpoint, vuln_type root, parameter) tuple. Old
+        # logic used substring `vuln_lower in f.get("vuln_type", "")` which
+        # falsely deduped any `sqli` finding against any prior `sqli_blind`
+        # / `sqli_time`, dropping legitimate distinct findings.
+        def _vuln_root(v: str) -> str:
+            v = (v or "").lower().strip()
+            # Trim common suffixes/prefixes so sqli == sqli_blind == sqli_time
+            for sep in ("_blind", "_time", "_boolean", "_error", "_oob",
+                        "_reflected", "_stored", "_dom", "_second_order"):
+                if v.endswith(sep):
+                    v = v[: -len(sep)]
+            return v
 
-        if vuln_lower in ("xss", "reflected xss", "stored xss"):
-            strong = any(x in evidence_lower for x in ["alert(", "executed", "dom-based", "stored", "reflected in"])
-            if not strong:
-                issues.append("Q5 WEAK EVIDENCE: XSS needs proof of execution — not just reflection in text context")
-                weak_evidence = True
-
-        if vuln_lower == "idor":
-            strong = any(x in evidence_lower for x in ["different user", "unauthorized", "other account", "cross-tenant", "200 ok"])
-            if not strong:
-                issues.append("Q5 WEAK EVIDENCE: IDOR needs proof of reading another user's data with different session")
-                weak_evidence = True
-
-        if vuln_lower == "rce":
-            strong = any(x in evidence_lower for x in ["uid=", "gid=", "whoami", "collaborator", "dns callback"])
-            if not strong:
-                issues.append("Q5 WEAK EVIDENCE: RCE needs uid=/gid=/whoami output or OOB callback")
-                weak_evidence = True
-
-        # Timing-based needs 3x (rule 11). Gate this on actual timing
-        # *injection* vocabulary, not the loose word "time" which hits
-        # reproducibility phrasing like "reproduced 3 times".
-        timing_markers = ("sleep(", "waitfor", "pg_sleep", "benchmark(",
-                          "time delay", "response time", "ms delay",
-                          "seconds delay", "timing attack", "time-based",
-                          "timing-based", "timing side channel")
-        if any(m in evidence_lower for m in timing_markers) and not any(
-            w in evidence_lower for w in ("3x", "three iterations", "3/3", "3 consistent", "consistent across", "confirmed 3", "3 repeats", "repeated 3")
-        ):
-            issues.append("Q5 TIMING RULE: timing-based findings require 3+ consistent iterations (confirm with '3/3' in evidence)")
-            weak_evidence = True
-
-        # Q4: Duplicate check — read persisted findings if domain given
-        if domain and verdict == "REPORT":
+        if domain and verdict == "REPORT" and "q4_dedup" not in override_set:
             try:
                 import re as _re
                 sanitized = _re.sub(r'[^a-zA-Z0-9._-]', '_', domain)
                 findings_path = Path.cwd() / ".burp-intel" / sanitized / "findings.json"
                 if findings_path.exists():
                     existing = json.loads(findings_path.read_text()).get("findings", [])
+                    new_root = _vuln_root(vuln_lower)
+                    # R4: dedup ONLY when both new and existing have non-empty
+                    # parameter and they match. Empty parameter on either side
+                    # = treat as distinct, let through. Stops silent merging.
                     for f in existing:
                         same_ep = f.get("endpoint", "") == endpoint
-                        same_type = vuln_lower in f.get("vuln_type", "").lower() or vuln_lower in f.get("title", "").lower()
-                        same_param = (f.get("parameter", "") == parameter) if parameter else True
+                        existing_root = _vuln_root(f.get("vuln_type", ""))
+                        same_type = (
+                            new_root and existing_root and new_root == existing_root
+                        )
+                        existing_param = f.get("parameter", "") or ""
+                        if not parameter or not existing_param:
+                            same_param = False  # empty -> assume distinct
+                        else:
+                            same_param = existing_param == parameter
                         if same_ep and same_type and same_param:
                             issues.append(f"Q4 DUPLICATE: already saved as {f.get('id', '?')} — update instead of re-save")
                             verdict = "DO NOT REPORT"
@@ -588,7 +820,9 @@ def register(mcp: FastMCP):
         # Q7: Triager-mass-report heuristic. If only weak-evidence flags and
         # a low-impact vuln class, the triager will mark informative.
         low_impact_classes = {"open_redirect", "information_disclosure", "info_disclosure"}
-        if verdict == "REPORT" and weak_evidence and vuln_lower in low_impact_classes:
+        if "q7_triager" in override_set:
+            issues.append("Q7 OVERRIDE: triager-mass-report heuristic bypassed")
+        elif verdict == "REPORT" and weak_evidence and vuln_lower in low_impact_classes:
             issues.append("Q7 TRIAGER TEST: low-impact class + weak evidence — likely marked informative. Chain with another finding first.")
             verdict = "NEEDS MORE EVIDENCE"
 
@@ -641,6 +875,21 @@ def register(mcp: FastMCP):
             ("auth_bypass", "payment"): "Auth bypass on payment = unauthorized transactions",
             ("rce", "production"): "RCE on production = full system compromise",
         }
+
+        # Predictable/sequential-ID escalator — independent of business context.
+        # This is the "fuzz IDs to dump the table" class. High impact when the
+        # endpoint returns PII or when the same ID space is shared across
+        # ecosystem apps (see hunting Rule 6 — this is authz, NOT credential
+        # brute-force).
+        id_enum_signals = ("sequential", "predictable", "incrementing", "guessable",
+                           "auto-increment", "id enumeration", "fuzz id", "enumerate id",
+                           "same id space", "cross-app", "shared id")
+        if any(s in evidence_lower for s in id_enum_signals):
+            impact_boost += 0.08
+            impact_notes.append(
+                "Predictable/sequential ID exposure (+8%): ID range is fuzzable; "
+                "full record set enumerable and likely reusable across apps in same ecosystem"
+            )
         for (vtype, ctx), reason in high_impact_combos.items():
             if vtype in vuln_lower and (ctx in biz or ctx in env):
                 impact_boost += 0.05
@@ -666,6 +915,53 @@ def register(mcp: FastMCP):
             # domain passed). Slightly lower than the clean-pass case.
             suggested_confidence = min(1.0, 0.80 + impact_boost)
 
+        # Apply program-policy confidence floor
+        if verdict == "REPORT" and program_confidence_floor > 0:
+            if suggested_confidence < program_confidence_floor:
+                issues.append(
+                    f"Q7 PROGRAM POLICY: program requires confidence >= "
+                    f"{program_confidence_floor:.2f}; current is "
+                    f"{suggested_confidence:.2f} — strengthen evidence first"
+                )
+                verdict = "NEEDS MORE EVIDENCE"
+
+        # ── R5: Surface program policy at top of output ──
+        program_banner = (
+            f"PROGRAM: {program.get('slug')}"
+            if program.get("slug")
+            else "PROGRAM: DEFAULT (no policy set; consider set_program_policy)"
+        )
+
+        # ── R8: Decouple color from confidence ──
+        # severity_color encodes severity. confidence is a separate number.
+        # Tools that consume this output must NOT use color as a confidence
+        # signal. Both shown explicitly.
+        sev_to_color = {
+            "CRITICAL": "RED",
+            "HIGH": "RED",
+            "MEDIUM": "ORANGE",
+            "LOW": "YELLOW",
+            "INFO": "GRAY",
+        }
+        # Severity is inferred when not explicitly set: REPORT+strong → MEDIUM
+        # by default; weak_evidence → LOW; DO NOT REPORT → INFO.
+        if verdict == "DO NOT REPORT":
+            inferred_severity = "INFO"
+        elif weak_evidence:
+            inferred_severity = "LOW"
+        else:
+            inferred_severity = "MEDIUM"
+        severity_color = sev_to_color.get(inferred_severity, "YELLOW")
+
+        # Derived markers surfaced for transparency (R1)
+        derived_str = ""
+        if derived_markers:
+            derived_str = f"\n  Auto-derived markers: {', '.join(derived_markers[:8])}"
+
+        override_audit = ""
+        if audit_overrides:
+            override_audit = f"\n  Operator overrides: {'; '.join(audit_overrides)}"
+
         # Build impact context string
         impact_str = ""
         if impact_notes:
@@ -674,19 +970,29 @@ def register(mcp: FastMCP):
         if not issues:
             return (
                 f"VERDICT: {verdict}\n"
+                f"  {program_banner}\n"
                 f"  Type: {vuln_type}\n"
                 f"  Endpoint: {endpoint}\n"
-                f"  Suggested confidence: {suggested_confidence:.2f}\n"
+                f"  Severity (inferred): {inferred_severity} [color={severity_color}]\n"
+                f"  Confidence (separate from color): {suggested_confidence:.2f}\n"
                 f"  All 7 questions PASS. Proceed with save_finding(confidence={suggested_confidence:.2f})."
+                f"{derived_str}"
+                f"{override_audit}"
                 f"{impact_str}"
             )
 
         lines = [f"VERDICT: {verdict}"]
+        lines.append(f"  {program_banner}")
         lines.append(f"  Type: {vuln_type}")
         lines.append(f"  Endpoint: {endpoint}")
         if parameter:
             lines.append(f"  Parameter: {parameter}")
-        lines.append(f"  Suggested confidence: {suggested_confidence:.2f}")
+        lines.append(f"  Severity (inferred): {inferred_severity} [color={severity_color}]")
+        lines.append(f"  Confidence (separate from color): {suggested_confidence:.2f}")
+        if derived_markers:
+            lines.append(f"  Auto-derived markers: {', '.join(derived_markers[:8])}")
+        if audit_overrides:
+            lines.append(f"  Operator overrides: {'; '.join(audit_overrides)}")
         if impact_notes:
             lines.append(f"\n  Impact context:")
             for n in impact_notes:
@@ -698,7 +1004,11 @@ def register(mcp: FastMCP):
         if verdict == "DO NOT REPORT":
             lines.append(f"\n  Action: Do not report. Move to next target/parameter.")
         elif verdict == "NEEDS MORE EVIDENCE":
-            lines.append(f"\n  Action: Strengthen the flagged evidence items, then re-assess before save_finding(confidence={suggested_confidence:.2f}).")
+            lines.append(
+                f"\n  Action: Strengthen the flagged evidence items, then re-assess before save_finding."
+                f"\n  Fast path: pass logger_index=<N> to auto-derive evidence, "
+                f"or human_verified=True if confirmed in Burp UI."
+            )
         else:
             lines.append(f"\n  Action: Address the issues above, then save_finding(confidence={suggested_confidence:.2f}).")
 

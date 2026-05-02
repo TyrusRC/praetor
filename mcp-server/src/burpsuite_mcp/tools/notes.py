@@ -80,6 +80,9 @@ def register(mcp: FastMCP):
         parameter: str = "",
         vuln_type: str = "",
         confidence: float = 0.5,
+        force_recon_gate: bool = False,
+        human_verified: bool = False,
+        overrides: list[str] | None = None,
     ) -> str:
         """Save a pentest finding. Requires prior assess_finding() call. Burp hard-rejects missing evidence.
 
@@ -97,6 +100,9 @@ def register(mcp: FastMCP):
             parameter: Parameter name (dedup key)
             vuln_type: Vulnerability class (e.g. sqli, xss, sqli_blind)
             confidence: 0.0-1.0 score
+            force_recon_gate: Bypass the session-start recon gate (Rule 20a). Only use if recon is already in flight in this session and not yet persisted.
+            human_verified: Operator confirmed visually in Burp UI / browser DevTools. Logged in finding metadata (R19).
+            overrides: Audit-trailed gate bypasses (R20). Each entry "<gate>:<reason>". Stored in finding entry as 'overrides' for review.
         """
         try:
             confidence = max(0.0, min(1.0, float(confidence)))
@@ -104,6 +110,48 @@ def register(mcp: FastMCP):
             confidence = 0.5
 
         resolved_domain = domain or _domain_from_endpoint(endpoint)
+
+        # ── Rule 20a: recon gate ──────────────────────────────────
+        # Refuse to persist findings for domains where no recon has been
+        # recorded. Empty `.burp-intel/<domain>/` = operator skipped session-
+        # start intel; saving here would create a phantom history with no
+        # context. force_recon_gate=True overrides for in-flight recon.
+        # R20 unified override: 'recon_gate' in overrides also bypasses gate.
+        override_set = {(o.split(":", 1)[0] if ":" in o else o).strip().lower()
+                        for o in (overrides or [])}
+        skip_recon_gate = force_recon_gate or "recon_gate" in override_set
+        if resolved_domain and not skip_recon_gate:
+            from burpsuite_mcp.tools.intel import recon_gate_check
+            gate_err = recon_gate_check(resolved_domain)
+            if gate_err is not None:
+                return f"RECON GATE: {gate_err}"
+
+        # ── R25: chain_with validator ─────────────────────────────
+        # Reject chain_with referencing findings that are likely_false_positive
+        # or stale. Force re-verification before chain.
+        if chain_with and resolved_domain:
+            try:
+                findings_path = INTEL_DIR / _sanitized(resolved_domain) / "findings.json"
+                if findings_path.exists():
+                    existing = _load_findings_file(findings_path).get("findings", [])
+                    by_id = {f.get("id", ""): f for f in existing if f.get("id")}
+                    bad_chain: list[str] = []
+                    for cid in chain_with:
+                        anchor = by_id.get(cid)
+                        if anchor is None:
+                            bad_chain.append(f"{cid} (not found)")
+                            continue
+                        anchor_status = anchor.get("status", "")
+                        if anchor_status in ("likely_false_positive", "stale"):
+                            bad_chain.append(f"{cid} ({anchor_status})")
+                    if bad_chain:
+                        return (
+                            f"CHAIN GATE: chain_with references dead anchors: "
+                            f"{', '.join(bad_chain)}. Re-verify each before chaining, "
+                            f"or pass overrides=['q4_dedup:reviewed'] only after manual confirmation."
+                        )
+            except (OSError, ValueError):
+                pass  # best-effort
 
         # ZERO-NOISE GATE — call Burp first. If the server rejects (missing
         # evidence index, NEVER SUBMIT without chain, missing reproductions),
@@ -144,6 +192,8 @@ def register(mcp: FastMCP):
                 "endpoint": endpoint,
                 "evidence_text": evidence_text,
                 "evidence": evidence,
+                "human_verified": human_verified,
+                "overrides": list(overrides or []),
                 "reproductions": reproductions or [],
                 "chain_with": chain_with or [],
                 "status": status,
