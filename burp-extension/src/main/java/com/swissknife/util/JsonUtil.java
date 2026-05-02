@@ -160,8 +160,15 @@ public final class JsonUtil {
                         case 'b' -> sb.append('\b');
                         case 'f' -> sb.append('\f');
                         case 'u' -> {
+                            if (pos + 4 > src.length()) {
+                                throw new RuntimeException("Truncated \\uXXXX escape at " + pos);
+                            }
                             String hex = src.substring(pos, pos + 4);
-                            sb.append((char) Integer.parseInt(hex, 16));
+                            try {
+                                sb.append((char) Integer.parseInt(hex, 16));
+                            } catch (NumberFormatException nfe) {
+                                throw new RuntimeException("Invalid \\u escape '" + hex + "' at " + pos);
+                            }
                             pos += 4;
                         }
                         default -> sb.append(esc);

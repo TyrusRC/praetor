@@ -1281,8 +1281,20 @@ public class SessionHandler extends BaseHandler {
                             }
 
                             if (matcherHit) {
-                                // Deduplicate: same method+path+parameter+category = one finding
-                                String findingKey = method + "|" + path + "|" + parameter + "|" + category;
+                                // R9: Deduplicate per matcher (matched_matchers signature),
+                                // not per (endpoint, param, category). Distinct matcher hits
+                                // on the same payload represent independent evidence types
+                                // (status diff vs reflection vs header_added vs timing) and
+                                // each deserves its own finding entry. Old key collapsed
+                                // them into one, hiding evidence the operator needs to
+                                // judge confidence.
+                                @SuppressWarnings("unchecked")
+                                List<String> matched = (List<String>) matchResult.getOrDefault("matched_matchers", List.of());
+                                String matcherSig = matched.isEmpty()
+                                    ? "<no-matcher-tag>"
+                                    : String.join(",", matched);
+                                String findingKey = method + "|" + path + "|" + parameter
+                                    + "|" + category + "|" + contextName + "|" + matcherSig;
                                 if (!seenFindingKeys.add(findingKey)) continue;
 
                                 String severity = (String) probe.getOrDefault("severity", "medium");

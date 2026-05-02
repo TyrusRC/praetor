@@ -101,12 +101,14 @@ public class ExtractTextHandler extends BaseHandler {
         if (all) {
             while (matcher.find()) {
                 if (group <= matcher.groupCount()) {
-                    matches.add(matcher.group(group));
+                    String m = matcher.group(group);
+                    if (m != null) matches.add(m);
                 }
             }
         } else {
             if (matcher.find() && group <= matcher.groupCount()) {
-                matches.add(matcher.group(group));
+                String m = matcher.group(group);
+                if (m != null) matches.add(m);
             }
         }
 

@@ -107,7 +107,42 @@ public abstract class BaseHandler implements HttpHandler {
     }
 
     protected void sendError(HttpExchange exchange, int status, String message) throws IOException {
-        sendJson(exchange, status, JsonUtil.object("error", message));
+        sendError(exchange, status, message, codeFromStatus(status), "");
+    }
+
+    /**
+     * Standardized error envelope (R18). Includes a stable error code and an
+     * actionable hint so Python tools can surface guidance to the operator
+     * instead of opaque "HTTP 500".
+     *
+     * @param exchange HTTP exchange
+     * @param status   HTTP status code
+     * @param message  Human-readable message
+     * @param code     Stable machine code: out_of_scope, missing_index, burp_pro_required, validation_failed, server_error, ...
+     * @param hint     Actionable next step the operator/Claude can take
+     */
+    protected void sendError(HttpExchange exchange, int status, String message, String code, String hint) throws IOException {
+        sendJson(exchange, status, JsonUtil.object(
+            "error", message,
+            "code", code == null ? "" : code,
+            "hint", hint == null ? "" : hint
+        ));
+    }
+
+    private static String codeFromStatus(int status) {
+        return switch (status) {
+            case 400 -> "validation_failed";
+            case 401 -> "unauthorized";
+            case 403 -> "forbidden";
+            case 404 -> "not_found";
+            case 405 -> "method_not_allowed";
+            case 409 -> "conflict";
+            case 422 -> "unprocessable";
+            case 500 -> "server_error";
+            case 501 -> "not_implemented";
+            case 503 -> "unavailable";
+            default -> "error";
+        };
     }
 
     protected void sendOk(HttpExchange exchange, String message) throws IOException {

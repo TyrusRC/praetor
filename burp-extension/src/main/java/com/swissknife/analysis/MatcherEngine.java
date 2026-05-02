@@ -176,6 +176,70 @@ public final class MatcherEngine {
                     }
                     if (matched) matchedDescriptions.add("diff_timing:" + responseTimeMs + "ms");
                 }
+                case "header_added" -> {
+                    // R10: matcher fires when a named header appears in probe but
+                    // NOT in baseline. Use to detect Set-Cookie / Location / WWW-
+                    // Authenticate appearing only on the malicious request.
+                    if (baselineResponse != null) {
+                        String hName = (String) matcher.get("name");
+                        if (hName != null) {
+                            boolean inBase = false, inProbe = false;
+                            for (HttpHeader h : baselineResponse.headers())
+                                if (hName.equalsIgnoreCase(h.name())) { inBase = true; break; }
+                            for (HttpHeader h : response.headers())
+                                if (hName.equalsIgnoreCase(h.name())) { inProbe = true; break; }
+                            if (!inBase && inProbe) {
+                                matched = true;
+                                matchedDescriptions.add("header_added:" + hName);
+                            }
+                        }
+                    }
+                }
+                case "header_removed" -> {
+                    if (baselineResponse != null) {
+                        String hName = (String) matcher.get("name");
+                        if (hName != null) {
+                            boolean inBase = false, inProbe = false;
+                            for (HttpHeader h : baselineResponse.headers())
+                                if (hName.equalsIgnoreCase(h.name())) { inBase = true; break; }
+                            for (HttpHeader h : response.headers())
+                                if (hName.equalsIgnoreCase(h.name())) { inProbe = true; break; }
+                            if (inBase && !inProbe) {
+                                matched = true;
+                                matchedDescriptions.add("header_removed:" + hName);
+                            }
+                        }
+                    }
+                }
+                case "mime_changes" -> {
+                    // R10: detect Content-Type shift between baseline and probe.
+                    // Catches XSS via JSON-vs-HTML context confusion, file-upload
+                    // MIME mismatches, OAuth redirect CT changes, etc.
+                    if (baselineResponse != null) {
+                        String baseCt = "", probeCt = "";
+                        for (HttpHeader h : baselineResponse.headers())
+                            if ("content-type".equalsIgnoreCase(h.name())) { baseCt = h.value().toLowerCase(); break; }
+                        for (HttpHeader h : response.headers())
+                            if ("content-type".equalsIgnoreCase(h.name())) { probeCt = h.value().toLowerCase(); break; }
+                        // Strip charset/boundary suffix for type-only compare
+                        String baseType = baseCt.split(";")[0].trim();
+                        String probeType = probeCt.split(";")[0].trim();
+                        if (!baseType.isEmpty() && !probeType.isEmpty() && !baseType.equals(probeType)) {
+                            matched = true;
+                            matchedDescriptions.add("mime_change:" + baseType + "->" + probeType);
+                        }
+                    }
+                }
+                case "length_delta" -> {
+                    // R10: alias of length_diff with named threshold key for KB clarity.
+                    Number minDelta = (Number) matcher.get("min_delta");
+                    if (minDelta == null) minDelta = (Number) matcher.get("min_diff");
+                    if (minDelta != null && baselineResponse != null) {
+                        int delta = Math.abs(bodyLen - baselineLen);
+                        matched = delta >= minDelta.intValue();
+                        if (matched) matchedDescriptions.add("length_delta:" + delta);
+                    }
+                }
                 case "header_change" -> {
                     if (baselineResponse != null) {
                         @SuppressWarnings("unchecked")

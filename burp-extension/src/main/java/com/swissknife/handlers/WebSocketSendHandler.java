@@ -11,6 +11,7 @@ import com.swissknife.util.JsonUtil;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket send/receive through Burp's WebSocket API.
@@ -120,12 +121,12 @@ public class WebSocketSendHandler extends BaseHandler {
 
         try {
             conn.ws.sendTextMessage(message);
-            conn.messagesSent++;
+            int total = conn.messagesSent.incrementAndGet();
             sendJson(exchange, JsonUtil.object(
                 "status", "ok",
                 "name", name,
                 "message_sent", message.length() > 200 ? message.substring(0, 200) + "..." : message,
-                "total_sent", conn.messagesSent
+                "total_sent", total
             ));
         } catch (Exception e) {
             sendError(exchange, 500, "Send failed: " + e.getMessage());
@@ -151,7 +152,7 @@ public class WebSocketSendHandler extends BaseHandler {
             conn.ws.close();
         } catch (Exception ignored) {}
 
-        sendOk(exchange, "WebSocket '" + name + "' closed (sent " + conn.messagesSent + " messages)");
+        sendOk(exchange, "WebSocket '" + name + "' closed (sent " + conn.messagesSent.get() + " messages)");
     }
 
     private void handleList(HttpExchange exchange) throws Exception {
@@ -160,7 +161,7 @@ public class WebSocketSendHandler extends BaseHandler {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("name", conn.name);
             entry.put("url", conn.url);
-            entry.put("messages_sent", conn.messagesSent);
+            entry.put("messages_sent", conn.messagesSent.get());
             entry.put("connected_at", new Date(conn.connectedAt).toString());
             list.add(entry);
         }
@@ -172,7 +173,7 @@ public class WebSocketSendHandler extends BaseHandler {
         final String url;
         final ExtensionWebSocket ws;
         final long connectedAt;
-        int messagesSent;
+        final AtomicInteger messagesSent = new AtomicInteger(0);
 
         WsConnection(String name, String url, ExtensionWebSocket ws, long connectedAt) {
             this.name = name;

@@ -89,7 +89,13 @@ public class ProxyHandler extends BaseHandler {
     }
 
     private void handleDetail(HttpExchange exchange, String path) throws Exception {
-        int index = Integer.parseInt(path.substring(path.lastIndexOf('/') + 1));
+        int index;
+        try {
+            index = Integer.parseInt(path.substring(path.lastIndexOf('/') + 1));
+        } catch (NumberFormatException nfe) {
+            sendError(exchange, 400, "Invalid index: must be integer");
+            return;
+        }
         List<ProxyHttpRequestResponse> history = api.proxy().history();
 
         if (index < 0 || index >= history.size()) {
