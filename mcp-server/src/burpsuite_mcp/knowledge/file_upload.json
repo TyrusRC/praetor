@@ -168,6 +168,93 @@
           "confidence_boost": 15
         }
       ]
+    },
+    "polyglot_files": {
+      "description": "Polyglot files satisfy multiple format parsers simultaneously. PNG+PHP, JPEG+ZIP, PDF+HTML, GIF+JS — bypass MIME sniffing, file-type allowlists, and content-disposition checks. Combined with image-parser CVE chains (ImageMagick, libheif, libwebp 2024) for RCE.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "[crafted PNG with PHP appended after IEND chunk]",
+          "description": "PNG+PHP polyglot — file passes image_type check, but if served via .php extension or via include(), PHP block runs. Verify by uploading then accessing as /uploads/x.php.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "any": ["uploaded", "url", "path"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "[JPEG with phar archive appended]",
+          "description": "JPEG+phar polyglot — phar:// stream wrapper triggers unserialize. If app uses file_exists() / getimagesize() with phar:// path, RCE via gadget chain.",
+          "matchers": [
+            {"type": "word", "any": ["uploaded", "stored"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "[PDF polyglot with embedded JS / HTML]",
+          "description": "PDF+HTML polyglot — opens as PDF in PDF reader, as HTML in browser when served with text/html. Stored XSS via attachment-served-inline.",
+          "matchers": [
+            {"type": "word", "any": ["%PDF", "<html"]},
+            {"type": "header", "name": "Content-Type", "contains": ""}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "[SVG with foreignObject + script]",
+          "description": "SVG XSS — <foreignObject><iframe srcdoc=\"<script>...\"/></foreignObject>. Served as image/svg+xml = browser executes script in same-origin context.",
+          "matchers": [
+            {"type": "word", "any": ["foreignObject", "<script", "<iframe"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "[ImageMagick MVG/MSL exploit payload]",
+          "description": "ImageMagick CVE chain — MVG/MSL/PS delegates run during conversion. CVE-2016-3714 still hits unpatched libs in 2024.",
+          "matchers": [
+            {"type": "word", "any": ["uid=", "gid="]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true, "COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "[libwebp/libheif crafted image — CVE-2023-4863, CVE-2023-5217]",
+          "description": "libwebp / libheif heap overflow when decoding. Patched 2023-2024 but unpatched servers still vulnerable. Crashes worker process at minimum, RCE in older builds.",
+          "matchers": [
+            {"type": "status", "status": [500, 502, 503]},
+            {"type": "timing", "min_ms": 5000}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "[ZIP polyglot with traversal entries (Zip Slip)]",
+          "description": "Zip Slip — ZIP entries with `../../etc/cron.d/x` paths. If server unpacks without sanitizing entry names, files land outside upload dir.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["uploaded", "extracted"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "[XLSX with embedded DDE / formula injection]",
+          "description": "XLSX file with =cmd|'/c calc'!A1 cell — Excel-side RCE (CSV-injection class). Reportable when uploaded files are sent to admin emails.",
+          "matchers": [
+            {"type": "word", "any": ["uploaded"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
     }
   }
 }

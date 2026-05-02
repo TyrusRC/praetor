@@ -220,6 +220,71 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "federation_service_exposure": {
+      "description": "Apollo Federation gateways expose `_service` and `_entities` fields. `_service.sdl` returns the FULL federated schema (often with internal subgraph types), bypassing introspection-disabled gateways. `_entities` allows cross-subgraph entity resolution which often skips per-subgraph auth.",
+      "tech_match": ["GraphQL", "Apollo", "Federation"],
+      "param_match": ["query", "graphql"],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{ _service { sdl } }\"}",
+          "description": "Apollo Federation _service.sdl — leaks full federated schema even when introspection is disabled. SDL contains internal types, directives, and subgraph composition.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["sdl", "type ", "@key", "@external"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{\"query\":\"query($r:[_Any!]!){ _entities(representations:$r){ ...on User { id email role } } }\",\"variables\":{\"r\":[{\"__typename\":\"User\",\"id\":\"<victim_id>\"}]}}",
+          "description": "_entities cross-subgraph IDOR — gateway resolves entity by typename+key without per-subgraph auth check. Common bug: User subgraph trusts gateway-asserted ID without verifying caller.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["email", "role", "id"]},
+            {"type": "not_word", "words": ["forbidden", "unauthorized"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{\"query\":\"{ _service { sdl } _entities(representations:[]){ __typename } }\"}",
+          "description": "Combined _service + _entities probe — distinguishes Apollo Federation from monolithic GraphQL.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["_service", "_entities", "sdl"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "{\"query\":\"{ user(id:1) @requires(fields:\\\"id\\\") { internalRole } }\"}",
+          "description": "@requires / @provides directive bypass — gateway-only directives that subgraphs may not enforce. internalRole may be exposed to caller without proper auth.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["internalRole", "role", "admin"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "union_type_inline_fragment_leak": {
+      "description": "GraphQL union types (e.g. SearchResult = User | Post | Document). Inline fragments on union let attacker request fields from types they shouldn't see (admin-only, deleted documents).",
+      "tech_match": ["GraphQL"],
+      "param_match": ["query"],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{search(q:\\\"\\\"){...on AdminUser{role permissions} ...on DeletedDocument{contents author}}}\"}",
+          "description": "Union inline fragment fetches admin-only or soft-deleted content. If returned in any branch, type-level auth is missing.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["AdminUser", "permissions", "DeletedDocument", "contents"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
     }
   }
 }

@@ -152,6 +152,43 @@
           "variables": {"manual_only": true}
         }
       ]
+    },
+    "permessage_deflate_compression_oracle": {
+      "description": "WebSocket per-message-deflate compression (RFC 7692) leaks plaintext via compressed-size deltas — a CRIME-class side channel. If attacker can submit chosen plaintext that gets concatenated with secret tokens (e.g. echo-server, debug-broadcast), they recover token bytes one at a time.",
+      "tech_match": ["WebSocket", "permessage-deflate"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect per-message-deflate via Sec-WebSocket-Extensions response header. Presence = compression oracle prerequisite met.",
+          "matchers": [
+            {"type": "header", "name": "Sec-WebSocket-Extensions", "contains": "permessage-deflate"},
+            {"type": "status", "status": [101]}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] If echo-server with chosen-plaintext primitive: send messages with prefix matching guess of token (`token=0`, `token=1`, ...). Compressed frame size drops by 1+ byte when prefix matches actual token bytes (deflate back-reference). Recover token byte-by-byte.",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 1}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Strip Sec-WebSocket-Extensions: permessage-deflate from handshake — if server insists on compressing anyway (config-forced), oracle persists for ALL clients. Most servers downgrade gracefully; check both behaviors.",
+          "matchers": [
+            {"type": "header", "name": "Sec-WebSocket-Extensions", "contains": "permessage-deflate"}
+          ],
+          "severity": "low",
+          "confidence_boost": 20,
+          "variables": {"strip_compression": true}
+        }
+      ]
     }
   }
 }

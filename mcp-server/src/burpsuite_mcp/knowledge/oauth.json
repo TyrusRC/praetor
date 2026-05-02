@@ -237,6 +237,85 @@
           "variables": {"manual_forge": true}
         }
       ]
+    },
+    "jwe_dir_static_key": {
+      "description": "JWE (encrypted JWT) with alg='dir' uses a static shared key for direct encryption. If the key is leaked or hardcoded (mobile app, JS bundle), attacker forges encrypted tokens. Different attack surface from JWS.",
+      "tech_match": ["jwe", "OIDC"],
+      "param_match": ["id_token", "access_token", "token"],
+      "probes": [
+        {
+          "payload": "{{forged_jwe_with_known_key}}",
+          "description": "[Manual] If 'dir' key is leaked, encrypt arbitrary claims with A256GCM. Server decrypts and trusts attacker payload.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Set-Cookie", "contains": ""}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"manual_forge": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Search JS / mobile bundle for 'dir' alg references and 32/64-byte hex keys near JWE patterns. Hits indicate static-key JWE config.",
+          "matchers": [
+            {"type": "regex", "pattern": "\"alg\"\\s*:\\s*\"dir\""}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "jwe_alg_none_inside_jws": {
+      "description": "Nested JWS-inside-JWE \u2014 server decrypts JWE, then trusts the JWS without validating its alg. Attacker forges inner JWS with alg=none; outer JWE is encrypted with attacker key the server doesn't actually verify.",
+      "tech_match": ["jwe", "jws", "OIDC"],
+      "param_match": ["token", "id_token"],
+      "probes": [
+        {
+          "payload": "{{forged_jwe_outer_jws_alg_none_inner}}",
+          "description": "[Manual] Outer JWE with alg='dir' + known-empty key; inner JWS with alg='none'. Some implementations validate ONLY the outer JWE.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_forge": true}
+        }
+      ]
+    },
+    "jwe_zip_compression_oracle": {
+      "description": "JWE supports zip='DEF' (deflate) compression. Like CRIME/BREACH, observable ciphertext length leaks plaintext entropy. With chosen-plaintext (attacker-controlled claim like nonce), token contents recoverable.",
+      "tech_match": ["jwe"],
+      "param_match": ["token"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Send N JWEs with attacker-known prefix vs unknown suffix. Compressed-length delta reveals matching bytes (CRIME-class).",
+          "matchers": [
+            {"type": "header", "name": "Content-Length", "contains": ""}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "jwe_rsa_oaep_downgrade": {
+      "description": "JWE supports RSA-OAEP and legacy RSA1_5 (RSAES-PKCS1-v1_5). RSA1_5 is vulnerable to Bleichenbacher / Manger attacks. If server accepts both, attacker forces downgrade.",
+      "tech_match": ["jwe"],
+      "param_match": ["token"],
+      "probes": [
+        {
+          "payload": "{{forged_jwe_rsa1_5}}",
+          "description": "[Manual] Send JWE with alg='RSA1_5' instead of 'RSA-OAEP'. If accepted, run Bleichenbacher oracle against the endpoint.",
+          "matchers": [
+            {"type": "status", "status": [200, 400]},
+            {"type": "not_word", "words": ["unsupported_algorithm", "alg_not_allowed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_forge": true}
+        }
+      ]
     }
   }
 }

