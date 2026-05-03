@@ -1,34 +1,34 @@
 """DOM-aware probe layer.
 
-Sends a unique marker — optionally wrapped in a polyglot exploit syntax —
-through URL fragment / query / referrer and captures which dangerous DOM
-sinks it reaches. Closes the gap that pure HTTP-and-look-at-response
-probing cannot detect:
+Sends a unique marker — optionally wrapped in a polyglot exploit syntax
+and embedded in a custom URL-shape — through query / fragment / referrer
+and captures which DOM sinks the marker reaches. Designed to surface
+the vuln classes pure HTTP-and-look-at-response probing cannot detect:
 
 - DOM-based XSS         (innerHTML / code-eval / document.write / Function)
 - DOM open redirection  (location.assign / replace / href / window.open)
 - Link manipulation     (href / src / action attribute set with marker)
 - DOM data manipulation (textNode marker reflection without sink fire)
-- CSPP                  (Object.prototype canary acquired marker OR any
-                         non-standard own-prop appeared on Object.prototype)
-- AngularJS CSTI        (ng-bind / ng-include text contains marker after
-                         evaluation)
+- CSPP                  (Object.prototype canary OR new own-prop appeared)
+- AngularJS CSTI        (ng-bind / ng-include text contains marker)
 
-Polyglot variants rotated per source kind so the same source/sink pair
-gets multiple exploit attempts:
+Source kinds:
 
-- plain          : __SWMARKER__
-- angular_csti   : {{__SWMARKER__}}              (AngularJS expression eval)
-- vue_csti       : {{ __SWMARKER__ }}            (Vue mustache)
-- handlebars     : {{= __SWMARKER__ }}
-- proto_pollute  : __proto__[__SWMARKER__]=1     (merge-gadget canary)
-- proto_constr   : constructor[prototype][__SWMARKER__]=1
-- xss_svg        : <svg/onload=__SWMARKER__>
-- xss_img        : <img src=x onerror=__SWMARKER__>
-- url_break      : "><__SWMARKER__               (attribute breakout)
+- query         ?<source_param>=<payload>
+- fragment      #<payload>
+- fragment_kv   #<source_param>=<payload>
+- fragment_shapes  several router patterns (see _FRAGMENT_SHAPES)
+- referrer      Referer: <attacker>?<source_param>=<payload>
 
-The init script always grep-s the BASE marker; the polyglot wrapper just
-gives the application a chance to evaluate / mutate / pollute on the way.
+Polyglot wrappers are rotated per source kind so the same source/sink
+pair gets multiple chances to trigger framework evaluation, DOM
+injection, or prototype pollution.
+
+Iteration 3: post-navigation in-app click-crawl. After the initial
+navigation we click up to N visible same-origin anchors (skipping
+logout / delete / signout), waiting wait_ms between clicks. SPAs that
+render their content from a fragment-driven router only fire their
+DOM sinks after a navigation event — not just the first goto.
 """
 
 import time
@@ -74,18 +74,32 @@ _SINK_TO_VULN_CLASS = {
 }
 
 
-# Polyglot wrappers. Key = name; value = python format string with {marker} placeholder.
-# Order matters — we test highest-signal first and short-circuit on the first hit
-# per source kind.
+# Polyglot exploit wrappers. Key = name; value = python format string with {marker}.
 _POLYGLOTS: dict[str, str] = {
     "plain":         "{marker}",
-    "angular_csti":  "{{{{{marker}}}}}",                     # {{<marker>}} — Angular/Vue
+    "angular_csti":  "{{{{{marker}}}}}",                     # {{<marker>}}
     "handlebars":    "{{{{= {marker} }}}}",                  # Handlebars triple-stash
-    "proto_pollute": "__proto__[{marker}]=1",                # CSPP merge gadget marker
+    "proto_pollute": "__proto__[{marker}]=1",                # CSPP merge-gadget marker
     "proto_constr":  "constructor[prototype][{marker}]=1",   # CSPP via constructor
     "xss_svg":       "<svg/onload={marker}>",
     "xss_img":       "<img src=x onerror={marker}>",
     "url_break":     "\"><{marker}",
+}
+
+
+# Fragment-shape variants — many SPAs use the URL fragment as a router
+# input. The same payload has very different chances of reaching a sink
+# depending on whether it's bare, after a `?` inside the fragment, after
+# a slash, or shaped like a hash-route.
+_FRAGMENT_SHAPES: dict[str, str] = {
+    "bare":          "{payload}",
+    "param":         "{param}={payload}",
+    "amp_param":     "&{param}={payload}",
+    "qs_in_hash":    "?{param}={payload}",
+    "hash_route":    "/{payload}",
+    "hash_route_kv": "/{param}/{payload}",
+    "hashbang":      "!{payload}",
+    "hashbang_kv":   "!/{param}/{payload}",
 }
 
 
@@ -94,7 +108,13 @@ def _make_marker(suffix: str = "") -> str:
     return f"swk{seq:x}{suffix}"
 
 
-def _build_target_url(base_url: str, payload: str, source_param: str, source_kind: str) -> tuple[str, dict]:
+def _build_target_url(
+    base_url: str,
+    payload: str,
+    source_param: str,
+    source_kind: str,
+    fragment_shape: str = "bare",
+) -> tuple[str, dict]:
     parsed = urlparse(base_url)
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
     fragment = parsed.fragment
@@ -106,6 +126,9 @@ def _build_target_url(base_url: str, payload: str, source_param: str, source_kin
         fragment = payload
     elif source_kind == "fragment_kv":
         fragment = f"{source_param}={payload}"
+    elif source_kind == "fragment_shapes":
+        shape = _FRAGMENT_SHAPES.get(fragment_shape, "{payload}")
+        fragment = shape.format(param=source_param, payload=payload)
     elif source_kind == "referrer":
         extra_headers["Referer"] = f"https://attacker.example/?{source_param}={payload}"
     else:
@@ -118,6 +141,49 @@ def _build_target_url(base_url: str, payload: str, source_param: str, source_kin
     return new_url, extra_headers
 
 
+_DESTRUCTIVE_HREFS = ("/logout", "/signout", "/delete", "/remove", "/cancel")
+
+
+async def _click_crawl(page, max_clicks: int = 4, wait_each_ms: int = 1500) -> None:
+    """Click up to N visible same-origin anchors, waiting between each.
+    Skips destructive links. Best-effort — stays defensive on stale DOM."""
+    try:
+        same_origin = await page.evaluate(
+            """() => {
+                const out = [];
+                const origin = location.origin;
+                document.querySelectorAll('a[href]').forEach(a => {
+                    try {
+                        const href = a.href;
+                        if (!href || !href.startsWith(origin)) return;
+                        const txt = (a.textContent || '').trim().slice(0, 40);
+                        if (a.offsetParent === null) return;  // not visible
+                        out.push(href);
+                    } catch (e) {}
+                });
+                // De-dupe, keep first 10
+                return Array.from(new Set(out)).slice(0, 10);
+            }"""
+        )
+    except Exception:
+        return
+
+    if not same_origin:
+        return
+
+    candidates = [
+        h for h in same_origin
+        if not any(d in h.lower() for d in _DESTRUCTIVE_HREFS)
+    ][:max_clicks]
+
+    for href in candidates:
+        try:
+            await page.goto(href, wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(wait_each_ms)
+        except Exception:
+            continue
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -126,28 +192,36 @@ def register(mcp: FastMCP) -> None:
         source_param: str = "q",
         source_kinds: list[str] | None = None,
         polyglots: list[str] | None = None,
+        fragment_shapes: list[str] | None = None,
         wait_ms: int = 2500,
+        click_crawl: bool = True,
+        max_clicks: int = 3,
     ) -> str:
         """Inject a unique marker (optionally wrapped in a polyglot exploit
         payload) through query / fragment / referrer and capture which DOM
-        sinks it reaches.
-
-        Detects DOM-based XSS, DOM open-redirect, link manipulation, DOM
-        data manipulation, client-side prototype pollution, and AngularJS
-        client-side template injection.
+        sinks it reaches. Detects DOM-based XSS, DOM open-redirect, link
+        manipulation, DOM data manipulation, CSPP, AngularJS CSTI.
 
         Args:
             url: Target URL (must already be in scope).
-            source_param: Parameter name to inject the marker into
-                (for query / fragment_kv / referrer kinds).
-            source_kinds: Subset of ['query', 'fragment', 'fragment_kv', 'referrer'].
-                Default: all four.
-            polyglots: Subset of polyglot wrappers to rotate per source kind.
-                Default: ['plain', 'angular_csti', 'proto_pollute', 'xss_svg'].
+            source_param: Parameter name to inject the marker into (for
+                query / fragment_kv / fragment_shapes / referrer kinds).
+            source_kinds: Subset of ['query', 'fragment', 'fragment_kv',
+                'fragment_shapes', 'referrer']. Default: all five.
+            polyglots: Subset of polyglot wrappers. Default:
+                ['plain', 'angular_csti', 'proto_pollute', 'xss_svg'].
                 Full list: plain, angular_csti, handlebars, proto_pollute,
                 proto_constr, xss_svg, xss_img, url_break.
-            wait_ms: How long to wait after navigation for async DOM mutations
-                (default 2500ms).
+            fragment_shapes: When source_kinds includes 'fragment_shapes',
+                which router patterns to test. Default: all of bare, param,
+                qs_in_hash, hash_route, hash_route_kv, hashbang_kv.
+            wait_ms: How long to wait after navigation for async DOM
+                mutations (default 2500ms).
+            click_crawl: After the initial navigation, click up to
+                `max_clicks` visible same-origin anchors so SPA routers
+                that only fire DOM sinks after a navigation event get
+                a chance to trigger. Default True.
+            max_clicks: Cap on click_crawl follow-up navigations. Default 3.
         """
         from burpsuite_mcp import client as burp_client
 
@@ -155,8 +229,8 @@ def register(mcp: FastMCP) -> None:
         if "error" not in scope and not scope.get("in_scope", False):
             return f"Error: {url} is OUT OF SCOPE. configure_scope() first."
 
-        kinds = source_kinds or ["query", "fragment", "fragment_kv", "referrer"]
-        valid_kinds = {"query", "fragment", "fragment_kv", "referrer"}
+        kinds = source_kinds or ["query", "fragment", "fragment_kv", "fragment_shapes", "referrer"]
+        valid_kinds = {"query", "fragment", "fragment_kv", "fragment_shapes", "referrer"}
         bad = [k for k in kinds if k not in valid_kinds]
         if bad:
             return f"Error: unknown source_kind(s) {bad}. Choose from {sorted(valid_kinds)}."
@@ -165,6 +239,13 @@ def register(mcp: FastMCP) -> None:
         bad_p = [p for p in active_polys if p not in _POLYGLOTS]
         if bad_p:
             return f"Error: unknown polyglot(s) {bad_p}. Choose from {sorted(_POLYGLOTS)}."
+
+        active_shapes = fragment_shapes or [
+            "bare", "param", "qs_in_hash", "hash_route", "hash_route_kv", "hashbang_kv",
+        ]
+        bad_s = [s for s in active_shapes if s not in _FRAGMENT_SHAPES]
+        if bad_s:
+            return f"Error: unknown fragment_shape(s) {bad_s}. Choose from {sorted(_FRAGMENT_SHAPES)}."
 
         try:
             init_template = _load_init_js()
@@ -176,11 +257,24 @@ def register(mcp: FastMCP) -> None:
         all_findings: list[dict] = []
         per_run_summary: list[str] = []
 
+        # Build the (kind, shape) tuples to iterate. fragment_shapes expands
+        # into one entry per shape; other kinds appear once with shape=None.
+        run_specs: list[tuple[str, str | None]] = []
         for kind in kinds:
+            if kind == "fragment_shapes":
+                for shape in active_shapes:
+                    run_specs.append((kind, shape))
+            else:
+                run_specs.append((kind, None))
+
+        for kind, shape in run_specs:
             for poly_name in active_polys:
-                marker = _make_marker(suffix=kind[:1] + poly_name[:1])
+                shape_tag = (shape or "")[:3]
+                marker = _make_marker(suffix=f"{kind[:1]}{poly_name[:1]}{shape_tag}")
                 payload = _POLYGLOTS[poly_name].format(marker=marker)
-                target_url, extra_headers = _build_target_url(url, payload, source_param, kind)
+                target_url, extra_headers = _build_target_url(
+                    url, payload, source_param, kind, shape or "bare",
+                )
                 init = init_template.replace("__SWMARKER__", marker)
 
                 page = await context.new_page()
@@ -191,7 +285,9 @@ def register(mcp: FastMCP) -> None:
                     try:
                         await page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
                     except Exception as e:
-                        per_run_summary.append(f"  [{kind}/{poly_name}] navigate failed: {str(e)[:120]}")
+                        per_run_summary.append(
+                            f"  [{kind}{('/'+shape) if shape else ''}/{poly_name}] navigate failed: {str(e)[:120]}"
+                        )
                         continue
 
                     try:
@@ -204,14 +300,28 @@ def register(mcp: FastMCP) -> None:
 
                     await page.wait_for_timeout(wait_ms)
 
+                    # In-app click-crawl: SPA routers often only fire their
+                    # DOM-side template/render sinks after a navigation event.
+                    # The initial goto sets the URL, but the JS routing code
+                    # that consumes the fragment may not run until a click
+                    # triggers it.
+                    if click_crawl:
+                        await _click_crawl(page, max_clicks=max_clicks, wait_each_ms=wait_ms // 2 or 800)
+
                     try:
-                        scan = await page.evaluate("() => window.__sw_post_scan ? window.__sw_post_scan() : null")
+                        scan = await page.evaluate(
+                            "() => window.__sw_post_scan ? window.__sw_post_scan() : null"
+                        )
                     except Exception as e:
-                        per_run_summary.append(f"  [{kind}/{poly_name}] scan call failed: {str(e)[:120]}")
+                        per_run_summary.append(
+                            f"  [{kind}{('/'+shape) if shape else ''}/{poly_name}] scan call failed: {str(e)[:120]}"
+                        )
                         continue
 
                     if not scan:
-                        per_run_summary.append(f"  [{kind}/{poly_name}] init script did not load")
+                        per_run_summary.append(
+                            f"  [{kind}{('/'+shape) if shape else ''}/{poly_name}] init script did not load"
+                        )
                         continue
 
                     hits = scan.get("hits", []) or []
@@ -228,6 +338,7 @@ def register(mcp: FastMCP) -> None:
                             "vuln_class": vclass,
                             "sink": sink,
                             "source_kind": kind,
+                            "fragment_shape": shape,
                             "polyglot": poly_name,
                             "source_param": source_param if kind != "fragment" else "(fragment)",
                             "marker": marker,
@@ -242,6 +353,7 @@ def register(mcp: FastMCP) -> None:
                             "vuln_class": "link_manipulation",
                             "sink": f"<{a.get('tag','?').lower()} {a.get('attr','?')}>",
                             "source_kind": kind,
+                            "fragment_shape": shape,
                             "polyglot": poly_name,
                             "source_param": source_param if kind != "fragment" else "(fragment)",
                             "marker": marker,
@@ -249,15 +361,22 @@ def register(mcp: FastMCP) -> None:
                             "value_excerpt": a.get("value", "")[:200],
                         })
 
-                    if text_hits > 0 and not any(h.get("sink") in ("innerHTML", "outerHTML", "document.write") for h in hits):
+                    if text_hits > 0 and not any(
+                        h.get("sink") in ("innerHTML", "outerHTML", "document.write") for h in hits
+                    ):
                         all_findings.append({
                             "vuln_class": "dom_data_manipulation",
                             "sink": "textnode",
                             "source_kind": kind,
+                            "fragment_shape": shape,
                             "polyglot": poly_name,
                             "source_param": source_param if kind != "fragment" else "(fragment)",
                             "marker": marker,
-                            "description": f"Marker written into {text_hits} text node(s) — DOM data manipulation (no executable sink, but content reflects user-controlled source)",
+                            "description": (
+                                f"Marker written into {text_hits} text node(s) — DOM data "
+                                f"manipulation (no executable sink, but content reflects "
+                                f"user-controlled source)"
+                            ),
                         })
 
                     if isinstance(pp_canary, str) and marker in pp_canary:
@@ -265,6 +384,7 @@ def register(mcp: FastMCP) -> None:
                             "vuln_class": "client_side_prototype_pollution",
                             "sink": "Object.prototype.__sw_pp_canary__",
                             "source_kind": kind,
+                            "fragment_shape": shape,
                             "polyglot": poly_name,
                             "source_param": source_param if kind != "fragment" else "(fragment)",
                             "marker": marker,
@@ -272,23 +392,26 @@ def register(mcp: FastMCP) -> None:
                             "value_excerpt": str(pp_canary)[:200],
                         })
 
-                    # Marker landed as an OWN PROPERTY of Object.prototype.
-                    # That's the proto_pollute polyglot succeeding.
                     if marker in pp_keys:
                         all_findings.append({
                             "vuln_class": "client_side_prototype_pollution",
                             "sink": f"Object.prototype.{marker}",
                             "source_kind": kind,
+                            "fragment_shape": shape,
                             "polyglot": poly_name,
                             "source_param": source_param if kind != "fragment" else "(fragment)",
                             "marker": marker,
-                            "description": f"`__proto__[{marker}]=1` polyglot succeeded — Object.prototype acquired the marker key. Confirms CSPP merge-gadget.",
+                            "description": (
+                                f"`__proto__[{marker}]=1` polyglot succeeded — "
+                                f"Object.prototype acquired the marker key. Confirms CSPP merge-gadget."
+                            ),
                         })
 
                     per_run_summary.append(
-                        f"  [{kind}/{poly_name}] sinks={len(hits)} attr={len(attr_hits)} "
-                        f"text={text_hits} pp_canary={'Y' if pp_canary else 'N'} "
-                        f"pp_keys={len(pp_keys)} html={'Y' if rendered_marker else 'N'}"
+                        f"  [{kind}{('/'+shape) if shape else ''}/{poly_name}] "
+                        f"sinks={len(hits)} attr={len(attr_hits)} text={text_hits} "
+                        f"pp_canary={'Y' if pp_canary else 'N'} pp_keys={len(pp_keys)} "
+                        f"html={'Y' if rendered_marker else 'N'}"
                     )
                 finally:
                     try:
@@ -297,7 +420,12 @@ def register(mcp: FastMCP) -> None:
                         pass
 
         lines = [f"DOM probe: {url}"]
-        lines.append(f"Source param: {source_param} | Kinds: {', '.join(kinds)} | Polyglots: {', '.join(active_polys)}")
+        lines.append(
+            f"Source param: {source_param} | Kinds: {', '.join(kinds)} | "
+            f"Polyglots: {', '.join(active_polys)}"
+            + (f" | Frag shapes: {', '.join(active_shapes)}" if "fragment_shapes" in kinds else "")
+            + (f" | click_crawl=on (max {max_clicks})" if click_crawl else " | click_crawl=off")
+        )
         lines.append("")
         lines.extend(per_run_summary)
         lines.append("")
@@ -312,7 +440,12 @@ def register(mcp: FastMCP) -> None:
         for vc, fs in grouped.items():
             lines.append(f"\n--- {vc.upper()} ({len(fs)}) ---")
             for f in fs[:8]:
-                lines.append(f"  sink={f['sink']}  source={f['source_kind']}({f['source_param']})  poly={f.get('polyglot','-')}")
+                shape = f.get("fragment_shape")
+                shape_str = f"/{shape}" if shape else ""
+                lines.append(
+                    f"  sink={f['sink']}  source={f['source_kind']}{shape_str}({f['source_param']})  "
+                    f"poly={f.get('polyglot','-')}"
+                )
                 lines.append(f"    {f['description']}")
                 ve = f.get("value_excerpt", "")
                 if ve:
@@ -324,7 +457,9 @@ def register(mcp: FastMCP) -> None:
                 lines.append(f"  ... +{len(fs) - 8} more")
 
         lines.append("")
-        lines.append("Verify each finding manually before save_finding — confirm the source is")
-        lines.append("attacker-controllable (cross-origin / link-shared / fragment-craftable) and")
-        lines.append("the sink isn't sanitised (Trusted Types / DOMPurify / framework escaping).")
+        lines.append(
+            "Verify each finding manually before save_finding — confirm the source is "
+            "attacker-controllable (cross-origin / link-shared / fragment-craftable) and "
+            "the sink isn't sanitised (Trusted Types / DOMPurify / framework escaping)."
+        )
         return "\n".join(lines)
