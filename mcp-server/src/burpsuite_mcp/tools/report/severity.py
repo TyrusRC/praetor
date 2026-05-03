@@ -13,39 +13,59 @@ CVSS4_CALCULATOR_URL = "https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator"
 # (hunting.md NEVER SUBMIT list + low-impact classes). A hunter can still
 # submit if they've escalated via chain-findings, but the solo report severity
 # is capped so the triager sees an honest label.
-SEVERITY_CAPS = {
-    # key (substring of vuln_type/title) → max allowed severity
+# Caps are applied via VULN_TYPE FIRST (exact match on the canonical vuln_type
+# string), then a narrow title-substring fallback. The previous bare-substring
+# match captured legitimate XSS findings whose title incidentally said
+# "missing security header" or "info disclosure", silently capping a real bug
+# to INFO/LOW. The two-tier approach keeps the operator's labelled vuln_type
+# authoritative.
+SEVERITY_CAPS_BY_VULN_TYPE = {
     "clickjacking": "LOW",
-    "missing security header": "INFO",
-    "missing header": "INFO",
-    "cookie flag": "INFO",
-    "cookie without secure": "INFO",
-    "cookie without httponly": "INFO",
-    "csrf on logout": "INFO",
-    "csrf on non-state": "INFO",
-    "mixed content": "INFO",
-    "rate limit": "LOW",
-    "stack trace": "LOW",
-    "information disclosure": "LOW",
-    "info disclosure": "LOW",
-    "user enumeration": "LOW",
-    "username enumeration": "LOW",
-    "email enumeration": "LOW",
-    "referrer-policy": "INFO",
+    "missing_security_header": "INFO",
+    "missing_csp": "INFO",
+    "missing_hsts": "INFO",
+    "missing_x_frame_options": "INFO",
+    "cookie_flag": "INFO",
+    "cookie_without_secure": "INFO",
+    "cookie_without_httponly": "INFO",
+    "csrf_logout": "INFO",
+    "mixed_content": "INFO",
+    "rate_limit_missing": "LOW",
+    "stack_trace": "LOW",
+    "information_disclosure": "LOW",
+    "info_disclosure": "LOW",
+    "user_enumeration": "LOW",
+    "username_enumeration": "LOW",
+    "email_enumeration": "LOW",
+    "referrer_policy_missing": "INFO",
     "spf": "INFO",
     "dmarc": "INFO",
     "dkim": "INFO",
-    "content spoofing": "LOW",
-    "text injection": "INFO",
+    "content_spoofing": "LOW",
+    "text_injection": "INFO",
+    "self_xss": "INFO",
+    "tabnabbing": "INFO",
+    "autocomplete_off_missing": "INFO",
+    "options_method_enabled": "INFO",
+    "version_disclosure": "LOW",
+    "idn_homograph": "INFO",
+    "open_redirect_no_chain": "LOW",
+    "open_redirect": "LOW",
+    "cors_no_credentials": "LOW",
+}
+
+# Title-substring caps — applied ONLY when the operator did not pass an explicit
+# vuln_type. Conservative list (clear-cut categories that operators rarely mis-tag).
+SEVERITY_CAPS_BY_TITLE = {
     "self-xss": "INFO",
     "self xss": "INFO",
-    "tabnabbing": "INFO",
-    "autocomplete": "INFO",
-    "options method": "INFO",
-    "version disclosure": "LOW",
-    "idn homograph": "INFO",
-    "open redirect": "LOW",   # MEDIUM only when chained — caller passes the chain context
+    "spf record": "INFO",
+    "dmarc record": "INFO",
+    "dkim record": "INFO",
 }
+
+# Backward-compat alias for any older callers reaching SEVERITY_CAPS directly.
+SEVERITY_CAPS = SEVERITY_CAPS_BY_VULN_TYPE
 
 SEVERITY_RANK = {"CRITICAL": 5, "HIGH": 4, "MEDIUM": 3, "LOW": 2, "INFO": 1}
 
@@ -57,26 +77,50 @@ def severity_sort_key(severity: str) -> int:
 def honest_severity(claimed: str, vuln_type: str, title: str, evidence: str, impact: str) -> tuple[str, str]:
     """Return (capped_severity, note). Honest-severity enforcement per Rule 21.
 
+    Two-tier cap: vuln_type exact match wins; if no vuln_type or no match,
+    fall back to a tight title-substring set. This avoids the previous
+    behaviour of capping a real XSS to INFO because its title incidentally
+    contained "missing security header" / "info disclosure" / etc.
+
     If the finding shows chain evidence, the cap is relaxed one step.
     """
     claimed_up = (claimed or "MEDIUM").upper()
     if claimed_up not in SEVERITY_RANK:
         claimed_up = "MEDIUM"
 
-    haystack = f"{vuln_type} {title}".lower()
     chain_hint = any(w in f"{evidence} {impact}".lower() for w in
-                     ("chained with", "escalated via", "chain ->", "chain to", "→ account takeover"))
+                     ("chained with", "escalated via", "chain ->", "chain to",
+                      "→ account takeover", "→ ato", "led to ato",
+                      "framed funds-transfer", "framed 2fa", "framed oauth consent"))
 
-    for key, cap in SEVERITY_CAPS.items():
-        if key in haystack:
-            cap_up = cap
-            if chain_hint:
-                ranks = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
-                cap_up = ranks[min(ranks.index(cap) + 1, 4)]
-            if SEVERITY_RANK[claimed_up] > SEVERITY_RANK[cap_up]:
-                note = f"Severity capped at {cap_up} ({key} alone is informative; requested {claimed_up})"
-                return cap_up, note
-            return claimed_up, ""
+    cap = None
+    matched_key = None
+
+    # Tier 1: exact vuln_type match (operator-controlled label is authoritative)
+    vt = (vuln_type or "").strip().lower()
+    if vt and vt in SEVERITY_CAPS_BY_VULN_TYPE:
+        cap = SEVERITY_CAPS_BY_VULN_TYPE[vt]
+        matched_key = vt
+
+    # Tier 2: title-substring fallback ONLY when no vuln_type (or vuln_type didn't match)
+    if cap is None:
+        title_l = (title or "").lower()
+        for key, c in SEVERITY_CAPS_BY_TITLE.items():
+            if key in title_l:
+                cap = c
+                matched_key = key
+                break
+
+    if cap is None:
+        return claimed_up, ""
+
+    cap_up = cap
+    if chain_hint:
+        ranks = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        cap_up = ranks[min(ranks.index(cap) + 1, 4)]
+    if SEVERITY_RANK[claimed_up] > SEVERITY_RANK[cap_up]:
+        note = f"Severity capped at {cap_up} ({matched_key} alone is informative; requested {claimed_up})"
+        return cap_up, note
     return claimed_up, ""
 
 
