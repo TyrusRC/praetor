@@ -1,12 +1,17 @@
-/* DOM-sink monitor v2 — filters out self-induced hits where the marker
- * came from the page's own location.href (not from a user-controlled
- * source flowing through a real sink).
+/* DOM-sink monitor v3 — polyglot-aware.
+ *
+ * Two markers per call: a unique alphanumeric base marker (__SWMARKER__) AND
+ * a polyglot wrapper that the Python side rotates (e.g. {{__SWMARKER__}} for
+ * AngularJS CSTI, __proto__[__SWMARKER__]=1 for CSPP). The init script always
+ * looks for the BASE marker — wherever it lands, we know the source flowed
+ * to that sink, and the polyglot syntax tells us which class triggered.
+ *
+ * Self-href noise filter (v2) preserved.
  */
 (() => {
   if (window.__sw_sink_install_done) return;
   window.__sw_sink_install_done = true;
   window.__sw_sink_hits = [];
-  // Capture the navigated URL once so we can skip self-href noise.
   const _navHref = location.href;
   const _navOrigin = location.origin;
   const _navPath = location.pathname + location.search + location.hash;
@@ -14,13 +19,9 @@
   const isSelfHrefNoise = (sink, value) => {
     if (!value) return false;
     const v = String(value);
-    // setAttribute(href|src|action) where the value EQUALS the page's
-    // current URL is the SPA router / canonical link / form action being
-    // initialized — not user-controlled flow.
     if (sink && sink.indexOf('setAttribute(') === 0) {
       if (v === _navHref) return true;
       if (v === _navPath) return true;
-      // location.href without query/fragment changes
       if (_navHref.indexOf(v) === 0 && v.length > _navOrigin.length) return true;
     }
     return false;
@@ -116,20 +117,51 @@
   setTimeout(installJQueryHook, 500);
   setTimeout(installJQueryHook, 1500);
 
+  // CSPP canary — observe whether marker reached Object.prototype via merge gadget.
   try {
     Object.defineProperty(Object.prototype, '__sw_pp_canary__', {
       configurable: true, writable: true, value: undefined,
     });
   } catch (e) {}
 
+  // Polyglot evaluation tap — when the page or a framework actually evaluates
+  // a {{...}} expression that contains the marker, it produces the marker
+  // string somewhere we can detect (text-node reflection / attribute / sink).
+  // We additionally snapshot ANY expression-evaluation footprint — Angular
+  // exposes window.angular if loaded; we install a minimal hook on
+  // angular.module().controller and $parse if present.
+  const installAngularHook = () => {
+    if (window.angular && !window.__sw_ng_hook_done) {
+      window.__sw_ng_hook_done = true;
+      try {
+        const origInjector = window.angular.injector;
+        // Best-effort — most apps already booted by now. Just check expressions
+        // in attached scopes for the marker.
+        document.querySelectorAll('[ng-bind],[ng-bind-html],[ng-include],[ng-app] *').forEach((el) => {
+          try {
+            const txt = (el.textContent || '') + ' ' + (el.outerHTML || '');
+            if (txt.indexOf('__SWMARKER__') >= 0) {
+              captured('angular_ng_bind', txt.slice(0, 200), { tag: el.tagName });
+            }
+          } catch (e) {}
+        });
+      } catch (e) {}
+    }
+  };
+  setTimeout(installAngularHook, 200);
+  setTimeout(installAngularHook, 800);
+  setTimeout(installAngularHook, 2000);
+
   window.__sw_post_scan = () => {
     const out = {
       hits: window.__sw_sink_hits.slice(),
       pp_canary: Object.prototype.__sw_pp_canary__,
+      pp_polluted_keys: [],
       rendered_html_marker: false,
       attribute_marker_hits: [],
       textnode_marker_hits: 0,
-      nav_href: _navHref
+      nav_href: _navHref,
+      angular_loaded: !!(window.angular)
     };
     try {
       const html = document.documentElement.outerHTML || '';
@@ -140,7 +172,6 @@
       document.querySelectorAll(sel).forEach(el => {
         for (const a of el.attributes) {
           if (a.value && a.value.indexOf('__SWMARKER__') >= 0) {
-            // Skip self-href noise — attribute equals current URL
             if (a.value === _navHref) continue;
             out.attribute_marker_hits.push({ tag: el.tagName, attr: a.name, value: a.value.slice(0, 200) });
           }
@@ -152,6 +183,30 @@
       let n; while ((n = walker.nextNode())) {
         if (n.nodeValue && n.nodeValue.indexOf('__SWMARKER__') >= 0) out.textnode_marker_hits++;
       }
+    } catch (e) {}
+    // Enumerate any keys on Object.prototype that didn't exist at init —
+    // CSPP gadgets that succeeded would have written one or more.
+    try {
+      const expected = new Set(['__sw_pp_canary__', '__sw_sink_install_done']);
+      const polluted = [];
+      for (const k of Object.getOwnPropertyNames(Object.prototype)) {
+        if (!expected.has(k) && !(k in {})) {
+          polluted.push(k);
+        }
+      }
+      // Also enumerate own props on Object.prototype that look custom
+      // (i.e. not the standard built-ins). Use a small-scale comparison.
+      const stdProps = new Set([
+        'constructor','toString','toLocaleString','valueOf','hasOwnProperty',
+        'isPrototypeOf','propertyIsEnumerable','__defineGetter__','__defineSetter__',
+        '__lookupGetter__','__lookupSetter__','__proto__'
+      ]);
+      for (const k of Object.getOwnPropertyNames(Object.prototype)) {
+        if (!stdProps.has(k) && !expected.has(k)) {
+          polluted.push(k);
+        }
+      }
+      out.pp_polluted_keys = Array.from(new Set(polluted));
     } catch (e) {}
     return out;
   };
