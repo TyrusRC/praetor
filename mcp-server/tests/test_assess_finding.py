@@ -64,6 +64,9 @@ class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
             domain="example.com",
         )
         self.assertNotIn("DO NOT REPORT", out)
+        # Negation must not redirect into a different rejection bucket.
+        self.assertNotIn("Self-XSS", out)
+        self.assertIn("VERDICT", out)
 
     async def test_idor_predictable_id_strong(self):
         out = await self._call(
@@ -72,8 +75,9 @@ class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
             evidence="user_id is sequential auto-increment; can fuzz id range to enumerate other accounts",
             domain="example.com",
         )
-        # Must NOT downgrade to NEEDS MORE EVIDENCE
-        self.assertIn("REPORT", out)
+        # Must reach a positive verdict, NOT a "DO NOT REPORT" or weak-evidence rejection.
+        self.assertIn("VERDICT: REPORT", out)
+        self.assertNotIn("DO NOT REPORT", out)
         self.assertNotIn("Q5 WEAK EVIDENCE: IDOR", out)
 
     async def test_idor_no_evidence_weak(self):
@@ -140,6 +144,42 @@ class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
         )
         # sqli vs sqli_blind share root → dedup
         self.assertIn("Q4 DUPLICATE", out)
+
+    async def test_human_verified_passes_weak_evidence(self):
+        # Q5 evidence-strength check is skipped under human_verified=True;
+        # the finding must reach a REPORT verdict despite thin prose.
+        out = await self._call(
+            vuln_type="idor",
+            endpoint="/api/orders/1",
+            parameter="id",
+            evidence="changed id; got another user's order",
+            human_verified=True,
+            domain="example.com",
+        )
+        self.assertIn("VERDICT: REPORT", out)
+        self.assertNotIn("Q5 WEAK EVIDENCE", out)
+
+    async def test_overrides_q5_skips_evidence_gate(self):
+        out = await self._call(
+            vuln_type="idor",
+            endpoint="/api/orders/2",
+            parameter="id",
+            evidence="lacks the magic words but verified by hand",
+            overrides=["q5_evidence:hand-verified in Burp UI"],
+            domain="example.com",
+        )
+        self.assertNotIn("Q5 WEAK EVIDENCE", out)
+
+    async def test_clickjacking_never_submit_blocked(self):
+        # Clickjacking on a non-sensitive page is in the NEVER SUBMIT list;
+        # without chain_with[] it must not reach REPORT.
+        out = await self._call(
+            vuln_type="clickjacking",
+            endpoint="/about",
+            evidence="page can be framed; missing X-Frame-Options",
+            domain="example.com",
+        )
+        self.assertIn("DO NOT REPORT", out)
 
 
 if __name__ == "__main__":

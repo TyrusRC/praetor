@@ -114,7 +114,7 @@ def register(mcp: FastMCP):
             "active_scan":   {"available": is_pro, "tool_examples": ["scan_url", "auto_probe"]},
             "passive_scan":  {"available": is_pro, "tool_examples": ["get_scanner_findings", "get_issues_dashboard"]},
             "collaborator":  {"available": is_pro, "tool_examples": ["generate_collaborator_payload", "auto_collaborator_test", "get_collaborator_interactions"]},
-            "logger":        {"available": is_pro, "tool_examples": ["get_logger_entries"], "note": "Logger API may also be unavailable on older Pro builds — falls back to proxy history."},
+            "logger":        {"available": is_pro, "tool_examples": ["get_proxy_history", "search_history"], "note": "Logger entries surface via proxy history + search_history. Burp's standalone Logger view has no first-party MCP tool."},
             "crawl":         {"available": is_pro, "tool_examples": ["crawl_target", "discover_attack_surface"]},
             "repeater":      {"available": True,   "tool_examples": ["send_to_repeater", "repeater_resend"]},
             "intruder":      {"available": True,   "tool_examples": ["send_to_intruder", "send_to_intruder_configured"], "note": "Community throttles Intruder heavily — prefer fuzz_parameter via MCP."},

@@ -290,9 +290,8 @@ unauthenticated and authenticated perspective where credentials were provided.
 
 **Tooling:** Burp Suite Professional (intercepting proxy, scanner, repeater,
 intruder, collaborator), Burp Suite Swiss Knife MCP integration with Claude
-Code (164 MCP tools across 32 modules), supplementary external recon tools
-(subfinder, nuclei, katana, ffuf, dalfox, sqlmap) routed through the Burp
-proxy for full traffic capture.
+Code, supplementary external recon tools (subfinder, nuclei, katana, ffuf,
+dalfox, sqlmap) routed through the Burp proxy for full traffic capture.
 
 **Scope discipline:** All testing constrained to the program's declared scope.
 Destructive payloads (DROP, DELETE, TRUNCATE, rm -rf), credential brute-force,
