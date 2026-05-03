@@ -7,8 +7,12 @@ import com.swissknife.handlers.SessionHandler;
 import com.swissknife.store.FindingsStore;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class ApiServer {
 
@@ -16,6 +20,7 @@ public class ApiServer {
     private final String host;
     private final int port;
     private HttpServer server;
+    private ExecutorService executor;
     private final FindingsStore findingsStore = new FindingsStore();
     private SessionHandler sessionHandler;
 
@@ -28,6 +33,17 @@ public class ApiServer {
         this.version = version;
     }
 
+    /** True iff the given bind host is a loopback address. */
+    private static boolean isLoopback(String host) {
+        if (host == null) return false;
+        if ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "::1".equals(host)) return true;
+        try {
+            return InetAddress.getByName(host).isLoopbackAddress();
+        } catch (UnknownHostException e) {
+            return false;
+        }
+    }
+
     public SessionHandler getSessionHandler() {
         return sessionHandler;
     }
@@ -37,8 +53,24 @@ public class ApiServer {
     }
 
     public void start() throws IOException {
+        // Refuse to bind on a non-loopback interface unless the operator
+        // explicitly opted in. The MCP API is unauthenticated and proxies
+        // arbitrary requests through Burp on behalf of the caller —
+        // exposing it on the LAN would let any local-network attacker drive
+        // Burp directly.
+        if (!isLoopback(host) && !"true".equalsIgnoreCase(System.getProperty("swissknife.allow_non_loopback_bind"))) {
+            throw new IOException(
+                "Refusing to bind API on non-loopback host '" + host + "'. " +
+                "The Burp Swiss Knife API is unauthenticated; binding it on " +
+                "a routable interface exposes Burp to anyone on the network. " +
+                "Use 127.0.0.1 / ::1 / localhost, or pass " +
+                "-Dswissknife.allow_non_loopback_bind=true to override."
+            );
+        }
         server = HttpServer.create(new InetSocketAddress(host, port), 0);
-        server.setExecutor(Executors.newFixedThreadPool(6));
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        server.setExecutor(pool);
+        this.executor = pool;
 
         // Health
         server.createContext("/api/health", new HealthHandler(version));
@@ -131,6 +163,19 @@ public class ApiServer {
     public void stop() {
         if (server != null) {
             server.stop(1);
+            server = null;
+        }
+        if (executor != null) {
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(2, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            executor = null;
         }
     }
 }

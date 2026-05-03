@@ -52,7 +52,12 @@ public class ScopeHandler extends BaseHandler {
         "recaptcha.net", "gstatic.com", "gravatar.com", "wp.com",
         "stats.wp.com", "pixel.wp.com", "cookielaw.org", "onetrust.com",
         "trustarc.com", "intercom.io", "intercomcdn.com", "pusher.com",
-        "pusherapp.com", "stripe.com", "js.stripe.com",
+        "pusherapp.com",
+        // Stripe is intentionally NOT auto-filtered: payment integrations are
+        // first-class attack surface for fintech engagements (webhook
+        // verification, IAP bypass, setup_intent business logic, BOLA on
+        // payment_method/customer IDs). Operators who want to drop Stripe can
+        // exclude it explicitly via configure_scope(exclude=[...]).
         "maps.googleapis.com", "maps.gstatic.com"
     );
 
@@ -167,10 +172,14 @@ public class ScopeHandler extends BaseHandler {
         if (autoFilter) {
             autoFilterEnabled = true;
             for (String domain : AUTO_FILTER_DOMAINS) {
-                // Skip if operator explicitly kept it in-scope
+                // Skip if operator explicitly kept it in-scope. Match exactly
+                // or on a domain-suffix boundary so a pattern like "cdn"
+                // doesn't match every cdnjs.* / cdn-anything host. The
+                // operator can still pass an explicit "cdn." or full domain
+                // suffix when that's the intent.
                 boolean keep = false;
                 for (String pattern : keepInScope) {
-                    if (domain.contains(pattern) || pattern.contains(domain)) {
+                    if (matchesDomainPattern(domain, pattern)) {
                         keep = true;
                         break;
                     }
@@ -197,6 +206,29 @@ public class ScopeHandler extends BaseHandler {
             "exclude_rules", new ArrayList<>(excludeRules),
             "auto_filter_enabled", autoFilterEnabled
         ));
+    }
+
+    /**
+     * Match an auto-filter domain against an operator-supplied keep-in-scope
+     * pattern using domain-suffix semantics. Avoids the bidirectional
+     * substring match that previously matched "cdn" against every CDN host.
+     *
+     * Rules:
+     *   - exact (case-insensitive) match
+     *   - pattern matches as a host suffix on a label boundary
+     *     ("apis.google.com" pattern matches "apis.google.com" only, not
+     *     "evilapis.google.com"; "*.google.com" matches any subdomain)
+     */
+    private boolean matchesDomainPattern(String domain, String pattern) {
+        if (domain == null || pattern == null) return false;
+        String d = domain.toLowerCase(Locale.ROOT);
+        String p = pattern.toLowerCase(Locale.ROOT);
+        if (p.startsWith("*.")) {
+            String suffix = p.substring(1); // ".google.com"
+            return d.equals(suffix.substring(1)) || d.endsWith(suffix);
+        }
+        if (d.equals(p)) return true;
+        return d.endsWith("." + p);
     }
 
     /**

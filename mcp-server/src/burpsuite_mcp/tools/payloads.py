@@ -115,7 +115,8 @@ def register(mcp: FastMCP):
         knowledge_path = Path(__file__).parent.parent / "knowledge" / f"{category}.json"
         if knowledge_path.exists():
             try:
-                kb = json.load(open(knowledge_path))
+                with open(knowledge_path) as kb_fh:
+                    kb = json.load(kb_fh)
                 kb_guidance = kb.get("craft_guidance")
                 if kb_guidance:
                     lines.append(f"\n--- Payload Crafting Guide ({category}) ---")

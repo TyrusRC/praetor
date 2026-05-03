@@ -64,6 +64,23 @@ public final class ProxyTunnel {
         return "127.0.0.1";
     }
 
+    /**
+     * The trust-all SSLContext is only safe when we are talking to a Burp
+     * proxy that we expect to MITM the upstream cert. If the operator points
+     * the tunnel at a non-loopback proxy host, we'd be building a real
+     * cert-validation bypass for every outbound request. Refuse that with
+     * a clear error so the misconfiguration is visible at handshake time.
+     */
+    private static boolean isLoopbackProxyHost(String host) {
+        if (host == null) return false;
+        if ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "::1".equals(host)) return true;
+        try {
+            return java.net.InetAddress.getByName(host).isLoopbackAddress();
+        } catch (java.net.UnknownHostException e) {
+            return false;
+        }
+    }
+
     private static int resolvePort() {
         String v = System.getProperty("swissknife.proxy.port");
         if (v == null || v.isBlank()) v = System.getenv("BURP_PROXY_PORT");
@@ -138,6 +155,14 @@ public final class ProxyTunnel {
             if (ln == null || ln.isEmpty()) break;
         }
 
+        if (!isLoopbackProxyHost(BURP_PROXY_HOST)) {
+            throw new IOException(
+                "Refusing TLS tunnel: BURP_PROXY_HOST=" + BURP_PROXY_HOST +
+                " is not a loopback address. The trust-all context is only safe " +
+                "for a local Burp instance. Set BURP_PROXY_HOST to 127.0.0.1 / localhost / ::1, " +
+                "or front the tunnel with a real CA-trusted proxy."
+            );
+        }
         try {
             SSLContext ctx = SSLContext.getInstance("TLS");
             ctx.init(null, TRUST_ALL, new SecureRandom());
