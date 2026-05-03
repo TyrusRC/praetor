@@ -76,7 +76,9 @@ public class FuzzHandler extends BaseHandler {
                 ? toStringList((List<Object>) body.get("grep_match")) : Collections.emptyList();
         String grepExtract = (String) body.get("grep_extract");
         int maxConcurrent = body.get("max_concurrent") instanceof Number n ? n.intValue() : 5;
-        int delayMs = Math.min(body.get("delay_ms") instanceof Number n ? n.intValue() : 0, 10_000);
+        // Cap at 2s. The handler thread is one of a fixed 6-thread pool;
+        // a 10-second per-iteration delay starves the API.
+        int delayMs = Math.max(0, Math.min(body.get("delay_ms") instanceof Number n ? n.intValue() : 0, 2_000));
 
         // Get base request
         HttpRequest baseRequest = history.get(index).finalRequest();

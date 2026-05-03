@@ -86,7 +86,9 @@ public class CollaboratorHandler extends BaseHandler {
             int index = ((Number) indexObj).intValue();
             String injectionPoint = (String) body.getOrDefault("injection_point", "query");
             int pollSeconds = body.get("poll_seconds") instanceof Number n ? n.intValue() : 5;
-            pollSeconds = Math.min(pollSeconds, 15); // Cap at 15 seconds
+            // Cap at 8 seconds. The handler thread is a worker out of a fixed
+            // 6-thread pool; longer blocking poll windows starve the API.
+            pollSeconds = Math.max(0, Math.min(pollSeconds, 8));
 
             // Get the original request
             List<ProxyHttpRequestResponse> history = api.proxy().history();

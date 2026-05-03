@@ -104,23 +104,23 @@ public final class HttpServer {
     }
 
     private void handleClient(Socket client) {
-        try {
-            // Reasonable socket timeouts to avoid leaking threads on dead clients.
-            client.setSoTimeout(30_000);
+        // Single try-with-resources keeps the socket close path uniform and
+        // removes the catch-and-ignore boilerplate that previously littered
+        // every error branch.
+        try (Socket socket = client) {
+            socket.setSoTimeout(30_000);
 
-            InputStream in = new BufferedInputStream(client.getInputStream(), 8192);
-            OutputStream out = client.getOutputStream();
+            InputStream in = new BufferedInputStream(socket.getInputStream(), 8192);
+            OutputStream out = socket.getOutputStream();
 
             // 1. Read request line.
             String requestLine = readLine(in, MAX_HEADER_BYTES);
             if (requestLine == null || requestLine.isEmpty()) {
-                try { client.close(); } catch (IOException ignored) {}
                 return;
             }
             String[] parts = requestLine.split(" ");
             if (parts.length < 3) {
                 writeSimpleError(out, 400, "Bad Request");
-                try { client.close(); } catch (IOException ignored) {}
                 return;
             }
             String method = parts[0];
@@ -131,7 +131,7 @@ public final class HttpServer {
             int headerBytes = requestLine.length();
             while (true) {
                 String line = readLine(in, MAX_HEADER_BYTES - headerBytes);
-                if (line == null) { writeSimpleError(out, 400, "Bad Request"); try { client.close(); } catch (IOException ignored) {} return; }
+                if (line == null) { writeSimpleError(out, 400, "Bad Request"); return; }
                 if (line.isEmpty()) break;
                 headerBytes += line.length();
                 int colon = line.indexOf(':');
@@ -147,8 +147,8 @@ public final class HttpServer {
             if (contentLength != null) {
                 int len;
                 try { len = Integer.parseInt(contentLength.trim()); }
-                catch (NumberFormatException e) { writeSimpleError(out, 400, "Bad Content-Length"); try { client.close(); } catch (IOException ignored) {} return; }
-                if (len < 0 || len > MAX_REQUEST_BODY) { writeSimpleError(out, 413, "Payload Too Large"); try { client.close(); } catch (IOException ignored) {} return; }
+                catch (NumberFormatException e) { writeSimpleError(out, 400, "Bad Content-Length"); return; }
+                if (len < 0 || len > MAX_REQUEST_BODY) { writeSimpleError(out, 413, "Payload Too Large"); return; }
                 body = readExactly(in, len);
             }
 
@@ -156,17 +156,15 @@ public final class HttpServer {
             HttpHandler handler = findHandler(pathOnly(pathAndQuery));
             if (handler == null) {
                 writeSimpleError(out, 404, "No matching context");
-                try { client.close(); } catch (IOException ignored) {}
                 return;
             }
 
-            // 5. Build exchange and invoke handler. Handler closes the socket on return.
+            // 5. Build exchange and invoke handler.
             HttpExchange exchange;
             try {
-                exchange = new HttpExchange(client, method, pathAndQuery, headers, body, out);
+                exchange = new HttpExchange(socket, method, pathAndQuery, headers, body, out);
             } catch (URISyntaxException e) {
                 writeSimpleError(out, 400, "Bad URI");
-                try { client.close(); } catch (IOException ignored) {}
                 return;
             }
             try {
@@ -174,8 +172,8 @@ public final class HttpServer {
             } finally {
                 exchange.close();
             }
-        } catch (IOException e) {
-            try { client.close(); } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+            // socket closed by try-with-resources; nothing else to do.
         }
     }
 

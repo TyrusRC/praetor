@@ -756,7 +756,11 @@ public class ConfigTab {
         String entry = "[" + ts + "] " + message;
         SwingUtilities.invokeLater(() -> {
             current.logModel.addElement(entry);
-            while (current.logModel.size() > 500) current.logModel.remove(0);
+            // Trim in one bulk removeRange call rather than removing one
+            // element at a time (DefaultListModel.remove(0) is O(n) per
+            // call, which death-spiraled under high arrival rate).
+            int over = current.logModel.size() - 500;
+            if (over > 0) current.logModel.removeRange(0, over - 1);
         });
     }
 }
