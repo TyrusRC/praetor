@@ -518,12 +518,37 @@ public final class DomAnalyzer {
         return body.substring(lineStart, Math.min(lineEnd, body.length())).trim();
     }
 
+    /**
+     * Cached newline offsets per body (per-thread). The previous implementation
+     * walked from 0 every call; with N regex matches and a 1MB body that's
+     * O(N·body_len) just to attach line numbers. We now build a sorted int[]
+     * of newline indices once per body, then binary-search per match.
+     */
+    private static final ThreadLocal<java.lang.ref.WeakReference<int[]>> LINE_OFFSETS =
+        ThreadLocal.withInitial(() -> new java.lang.ref.WeakReference<>(null));
+    private static final ThreadLocal<java.lang.ref.WeakReference<String>> LINE_OFFSETS_BODY =
+        ThreadLocal.withInitial(() -> new java.lang.ref.WeakReference<>(null));
+
     private static int lineNumber(String body, int position) {
-        int line = 1;
-        for (int i = 0; i < position && i < body.length(); i++) {
-            if (body.charAt(i) == '\n') line++;
+        if (body == null || body.isEmpty()) return 1;
+        String cachedBody = LINE_OFFSETS_BODY.get().get();
+        int[] offsets = LINE_OFFSETS.get().get();
+        if (cachedBody != body || offsets == null) {
+            // Build once: indices of every '\n' in the body.
+            java.util.List<Integer> tmp = new java.util.ArrayList<>();
+            for (int i = 0; i < body.length(); i++) {
+                if (body.charAt(i) == '\n') tmp.add(i);
+            }
+            offsets = new int[tmp.size()];
+            for (int i = 0; i < tmp.size(); i++) offsets[i] = tmp.get(i);
+            LINE_OFFSETS.set(new java.lang.ref.WeakReference<>(offsets));
+            LINE_OFFSETS_BODY.set(new java.lang.ref.WeakReference<>(body));
         }
-        return line;
+        // Binary search for first newline >= position. Line number = idx + 1
+        // (line 1 has no newlines preceding it).
+        int idx = java.util.Arrays.binarySearch(offsets, position);
+        if (idx < 0) idx = -idx - 1;
+        return idx + 1;
     }
 
     private static String truncate(String s) {

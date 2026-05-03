@@ -507,12 +507,13 @@ def register(mcp: FastMCP):
 
         # ── Auto-annotate proxy history for findings with a resolvable index
         # so the human operator (and future Claude sessions) see the highlights
-        # in Burp UI and via search_history. Rule 31 enforcement.
-        annotated = 0
-        for finding in findings_sorted:
+        # in Burp UI and via search_history. Rule 31 enforcement. Run all
+        # annotation calls concurrently — sequential awaits added ~50ms each
+        # which compounded to 1-2s on 30-finding runs.
+        async def _annotate(finding: dict) -> bool:
             idx = finding.get("history_index") or finding.get("proxy_index") or finding.get("logger_index")
             if idx is None:
-                continue
+                return False
             conf = finding.get("confidence", 0) or 0
             color = (
                 "RED" if conf >= 0.90 else
@@ -530,10 +531,12 @@ def register(mcp: FastMCP):
                     "color": color,
                     "comment": comment[:300],
                 })
-                annotated += 1
+                return True
             except Exception:
-                # Don't fail the whole tool if annotation endpoint refuses.
-                pass
+                return False
+
+        ann_results = await asyncio.gather(*(_annotate(f) for f in findings_sorted), return_exceptions=True)
+        annotated = sum(1 for r in ann_results if r is True)
         if findings_sorted:
             lines.append(f"Findings ({len(findings_sorted)}):\n")
             for finding in findings_sorted:
@@ -972,12 +975,26 @@ def register(mcp: FastMCP):
                 "/robots.txt", "/sitemap.xml", "/security.txt", "/humans.txt",
                 "/crossdomain.xml", "/clientaccesspolicy.xml",
             ]
-            found_files = []
-            for sp in sensitive_paths:
-                resp = await client.post("/api/session/request", json={
+            # Parallelise sensitive-paths probe in chunks of 10. Sequential
+            # was 30-60s wall-clock; 10-wide gather drops it to ~5s.
+            found_files: list[str] = []
+
+            async def _probe(sp: str):
+                r = await client.post("/api/session/request", json={
                     "session": session, "method": "GET", "path": sp,
                 })
-                if "error" not in resp:
+                return sp, r
+
+            CHUNK = 10
+            for i in range(0, len(sensitive_paths), CHUNK):
+                chunk = sensitive_paths[i:i + CHUNK]
+                results = await asyncio.gather(*(_probe(sp) for sp in chunk), return_exceptions=True)
+                for item in results:
+                    if isinstance(item, Exception):
+                        continue
+                    sp, resp = item
+                    if "error" in resp:
+                        continue
                     status = resp.get("status", 0)
                     length = resp.get("response_length", 0)
                     if status == 200 and length > 0:

@@ -74,7 +74,11 @@ public class ApiServer {
             );
         }
         server = HttpServer.create(new InetSocketAddress(host, port), 0);
-        ExecutorService pool = Executors.newFixedThreadPool(6);
+        // 12 threads (was 6). Long-running handlers (auto_probe ~30s,
+        // race_condition Thread.sleep, large body decodes) frequently
+        // pinned half the pool; concurrent agent dispatch (4 parallel)
+        // would block downstream probes.
+        ExecutorService pool = Executors.newFixedThreadPool(12);
         server.setExecutor(pool);
         this.executor = pool;
 

@@ -67,12 +67,34 @@ def _atomic_write_json(path: Path, data: dict | list) -> None:
         raise
 
 
+_KNOWLEDGE_VERSION_CACHE: tuple[float, str] | None = None
+
+
 def _knowledge_version() -> str:
-    """SHA256 hash (first 12 chars) of all knowledge/*.json files concatenated."""
+    """SHA256 hash (first 12 chars) of all knowledge/*.json files concatenated.
+
+    Cached against the directory mtime so repeat calls (auto_probe coverage
+    check fires on every probe) don't re-read all 55 JSON files each time.
+    """
+    global _KNOWLEDGE_VERSION_CACHE
+    try:
+        # Newest mtime across all knowledge files. Cheap stat-only walk.
+        latest = 0.0
+        for p in KNOWLEDGE_DIR.glob("*.json"):
+            try:
+                latest = max(latest, p.stat().st_mtime)
+            except OSError:
+                pass
+    except OSError:
+        latest = 0.0
+    if _KNOWLEDGE_VERSION_CACHE is not None and _KNOWLEDGE_VERSION_CACHE[0] == latest:
+        return _KNOWLEDGE_VERSION_CACHE[1]
     h = hashlib.sha256()
     for p in sorted(KNOWLEDGE_DIR.glob("*.json")):
         h.update(p.read_bytes())
-    return h.hexdigest()[:12]
+    digest = h.hexdigest()[:12]
+    _KNOWLEDGE_VERSION_CACHE = (latest, digest)
+    return digest
 
 
 def _empty_structure(category: str) -> dict:
@@ -588,39 +610,44 @@ def register(mcp: FastMCP):
             return "No target intel stored yet."
 
         tech_lower = {t.lower() for t in tech_stack}
+
+        # Walk the intel tree off the event loop — sync iterdir + read_text on
+        # 30+ stored targets was the longest blocking call in the codebase.
+        import asyncio as _asyncio
+
+        def _scan() -> list[tuple[Path, dict, dict]]:
+            """Returns list of (domain_dir, profile, patterns) for every overlapping target."""
+            out: list[tuple[Path, dict, dict]] = []
+            for domain_dir in intel_root.iterdir():
+                if not domain_dir.is_dir():
+                    continue
+                profile_path = domain_dir / "profile.json"
+                if not profile_path.exists():
+                    continue
+                try:
+                    profile = json.loads(profile_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    continue
+                other_tech = profile.get("tech_stack", []) + profile.get("frameworks", [])
+                if not (tech_lower & {t.lower() for t in other_tech}):
+                    continue
+                patterns_path = domain_dir / "patterns.json"
+                patterns: dict = {}
+                if patterns_path.exists():
+                    try:
+                        patterns = json.loads(patterns_path.read_text())
+                    except (json.JSONDecodeError, OSError):
+                        patterns = {}
+                out.append((domain_dir, profile, patterns))
+            return out
+
+        scanned = await _asyncio.to_thread(_scan)
         matches = []
 
-        for domain_dir in intel_root.iterdir():
-            if not domain_dir.is_dir():
-                continue
-
-            # Check tech stack overlap
-            profile_path = domain_dir / "profile.json"
-            if not profile_path.exists():
-                continue
-
-            try:
-                profile = json.loads(profile_path.read_text())
-            except (json.JSONDecodeError, OSError):
-                continue
-
+        for domain_dir, profile, patterns_data in scanned:
+            # Re-derive overlap for the per-match output (cheap; already filtered above).
             other_tech = profile.get("tech_stack", []) + profile.get("frameworks", [])
-            other_lower = {t.lower() for t in other_tech}
-            overlap = tech_lower & other_lower
-
-            if not overlap:
-                continue
-
-            # Load patterns from this target
-            patterns_path = domain_dir / "patterns.json"
-            if not patterns_path.exists():
-                continue
-
-            try:
-                patterns_data = json.loads(patterns_path.read_text())
-            except (json.JSONDecodeError, OSError):
-                continue
-
+            overlap = tech_lower & {t.lower() for t in other_tech}
             for pattern in patterns_data.get("patterns", []):
                 if vuln_class and pattern.get("vuln_class", "").lower() != vuln_class.lower():
                     continue
