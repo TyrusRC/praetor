@@ -407,10 +407,12 @@ public class HttpSendHandler extends BaseHandler {
             out.put("response_headers", respHeaders);
 
             String respBody = resp.bodyToString();
-            if (respBody.length() > 50000) {
-                respBody = respBody.substring(0, 25000)
-                    + "\n\n[... TRUNCATED " + (respBody.length() - 50000) + " chars ...]\n\n"
-                    + respBody.substring(respBody.length() - 25000);
+            int cap = com.swissknife.server.ResponseLimits.MAX_RESPONSE_BODY;
+            if (respBody.length() > cap) {
+                int half = cap / 2;
+                respBody = respBody.substring(0, half)
+                    + "\n\n[... TRUNCATED " + (respBody.length() - cap) + " chars ...]\n\n"
+                    + respBody.substring(respBody.length() - half);
             }
             out.put("response_body", respBody);
             out.put("response_length", resp.body().length());
@@ -455,10 +457,12 @@ public class HttpSendHandler extends BaseHandler {
             out.put("response_headers", headers);
 
             String body = resp.bodyToString();
-            if (body.length() > 50000) {
-                body = body.substring(0, 25000)
-                    + "\n\n[... TRUNCATED " + (body.length() - 50000) + " chars ...]\n\n"
-                    + body.substring(body.length() - 25000);
+            int cap = com.swissknife.server.ResponseLimits.MAX_RESPONSE_BODY;
+            if (body.length() > cap) {
+                int half = cap / 2;
+                body = body.substring(0, half)
+                    + "\n\n[... TRUNCATED " + (body.length() - cap) + " chars ...]\n\n"
+                    + body.substring(body.length() - half);
             }
             out.put("response_body", body);
             out.put("response_length", resp.body().length());

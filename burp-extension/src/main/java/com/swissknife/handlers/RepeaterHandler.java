@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class RepeaterHandler extends BaseHandler {
 
-    private static final int MAX_RESPONSE_SIZE = 50000;
+    private static final int MAX_RESPONSE_SIZE = com.swissknife.server.ResponseLimits.MAX_RESPONSE_BODY;
 
     private final MontoyaApi api;
     private final ConcurrentHashMap<String, RepeaterTab> tabs = new ConcurrentHashMap<>();

@@ -9,7 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class FindingsStore {
 
-    private static final Map<String, String> REMEDIATION = Map.ofEntries(
+    /** CWE → remediation guidance. Single source of truth shared with the UI tab. */
+    public static final Map<String, String> REMEDIATION = Map.ofEntries(
         Map.entry("CWE-89", "Use parameterized queries or prepared statements. Never concatenate user input into SQL."),
         Map.entry("CWE-79", "Encode output according to context (HTML, JS, URL). Use Content-Security-Policy header."),
         Map.entry("CWE-22", "Validate and sanitize file paths. Use allowlists for permitted files."),

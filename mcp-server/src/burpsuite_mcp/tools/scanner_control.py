@@ -5,6 +5,33 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 
+# Single source of truth for noisy / known-FP scanner findings. Used by both
+# the dashboard (exact match) and the new-findings poll (substring match);
+# keeping one list prevents the two filters from drifting apart.
+NOISE_FINDING_NAMES = (
+    "strict transport security not enforced",
+    "content type incorrectly stated",
+    "input returned in response (reflected)",
+    "cacheable https response",
+    "tls certificate",
+    "cookie without httponly flag set",
+    "cookie without secure flag set",
+    "cookie scoped to parent domain",
+    "cross-domain referer leakage",
+    "http trace method is enabled",
+    "long redirection response",
+    "backup file",
+)
+NOISE_FINDING_NAMES_SET = set(NOISE_FINDING_NAMES)
+NOISE_FINDING_SUBSTRINGS = (
+    "strict transport",
+    "cacheable https",
+    "cookie without",
+    "content type incorrectly",
+    "cross-domain referer",
+)
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -32,21 +59,8 @@ def register(mcp: FastMCP):
         if not items:
             return "No scanner findings. Run a scan or browse the target through Burp first."
 
-        # Noise filter — same list as format_findings
-        _NOISE_NAMES = {
-            "strict transport security not enforced",
-            "content type incorrectly stated",
-            "input returned in response (reflected)",
-            "cacheable https response",
-            "tls certificate",
-            "cookie without httponly flag set",
-            "cookie without secure flag set",
-            "cookie scoped to parent domain",
-            "cross-domain referer leakage",
-            "http trace method is enabled",
-            "long redirection response",
-            "backup file",
-        }
+        # Noise filter — shared with get_new_findings via NOISE_FINDING_NAMES_SET.
+        _NOISE_NAMES = NOISE_FINDING_NAMES_SET
 
         # Count by severity, filtering noise
         by_severity: dict[str, list] = {}
@@ -167,8 +181,7 @@ def register(mcp: FastMCP):
             if sev == "INFORMATION" and conf == "TENTATIVE":
                 noise += 1
                 continue
-            if any(n in name for n in ("strict transport", "cacheable https", "cookie without",
-                                       "content type incorrectly", "cross-domain referer")):
+            if any(n in name for n in NOISE_FINDING_SUBSTRINGS):
                 noise += 1
                 continue
             actionable.append(f)

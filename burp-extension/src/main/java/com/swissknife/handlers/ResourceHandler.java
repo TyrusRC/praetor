@@ -25,7 +25,7 @@ public class ResourceHandler extends BaseHandler {
 
     private final MontoyaApi api;
 
-    private static final int MAX_RESOURCE_SIZE = 50000;
+    private static final int MAX_RESOURCE_SIZE = com.swissknife.server.ResponseLimits.MAX_RESOURCE_BODY;
 
     private static final Set<String> JS_EXTENSIONS = Set.of(".js", ".mjs", ".jsx", ".ts", ".tsx");
     private static final Set<String> CSS_EXTENSIONS = Set.of(".css");

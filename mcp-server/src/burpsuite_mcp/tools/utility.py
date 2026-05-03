@@ -113,59 +113,28 @@ def register(mcp: FastMCP):
 
 
 def _perform_operation(text: str, op: str) -> str:
-    match op.lower():
-        # Base64
-        case "base64_encode" | "b64e":
-            return base64.b64encode(text.encode()).decode()
-        case "base64_decode" | "b64d":
-            # Handle padding
-            padded = text + "=" * (4 - len(text) % 4) if len(text) % 4 else text
-            return base64.b64decode(padded).decode(errors="replace")
+    """Encode/decode/hash dispatcher used by decode_encode tool.
 
-        # URL encoding
-        case "url_encode" | "urle":
-            return urllib.parse.quote(text, safe="")
-        case "url_decode" | "urld":
-            return urllib.parse.unquote(text)
-        case "double_url_encode":
-            return urllib.parse.quote(urllib.parse.quote(text, safe=""), safe="")
-
-        # HTML encoding
-        case "html_encode" | "htmle":
-            return html.escape(text)
-        case "html_decode" | "htmld":
-            return html.unescape(text)
-
-        # Hex encoding
-        case "hex_encode" | "hexe":
-            return text.encode().hex()
-        case "hex_decode" | "hexd":
-            return bytes.fromhex(text).decode(errors="replace")
-
-        # ASCII hex for payloads
-        case "ascii_hex":
-            return "".join(f"\\x{b:02x}" for b in text.encode())
-
-        # Unicode
-        case "unicode_escape":
-            return text.encode("unicode_escape").decode()
-        case "unicode_unescape":
-            return text.encode().decode("unicode_escape")
-
-        # JWT decode
-        case "jwt_decode" | "jwt":
-            return _decode_jwt(text)
-
-        # Hashes
-        case "md5":
-            return md5(text.encode()).hexdigest()
-        case "sha1":
-            return sha1(text.encode()).hexdigest()
-        case "sha256":
-            return sha256(text.encode()).hexdigest()
-
-        case _:
-            return f"Unknown operation: {op}. Available: base64_encode, base64_decode, url_encode, url_decode, html_encode, html_decode, hex_encode, hex_decode, jwt_decode, md5, sha1, sha256, double_url_encode, ascii_hex, unicode_escape, unicode_unescape"
+    Shared encode/decode ops live in processing/encoding so transform.py
+    and this tool can't drift. Hashes and JWT decode are utility-specific.
+    """
+    op_lower = op.lower()
+    if op_lower in ("jwt_decode", "jwt"):
+        return _decode_jwt(text)
+    if op_lower == "md5":
+        return md5(text.encode()).hexdigest()
+    if op_lower == "sha1":
+        return sha1(text.encode()).hexdigest()
+    if op_lower == "sha256":
+        return sha256(text.encode()).hexdigest()
+    from burpsuite_mcp.processing.encoding import apply_operation, SHARED_OPS
+    try:
+        return apply_operation(text, op)
+    except ValueError:
+        return (
+            f"Unknown operation: {op}. Available: "
+            + ", ".join(SHARED_OPS + ("jwt_decode", "md5", "sha1", "sha256"))
+        )
 
 
 def _decode_jwt(token: str) -> str:

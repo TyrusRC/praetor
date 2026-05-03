@@ -77,18 +77,9 @@ public class ConfigTab {
     private static final Color SEV_MEDIUM = new Color(180, 130, 0);
     private static final Color SEV_LOW = new Color(22, 163, 74);
 
-    // CWE remediation (mirrors FindingsStore for UI display)
-    private static final Map<String, String> REMEDIATION = Map.ofEntries(
-        Map.entry("CWE-89", "Use parameterized queries or prepared statements. Never concatenate user input into SQL."),
-        Map.entry("CWE-79", "Encode output according to context (HTML, JS, URL). Use Content-Security-Policy header."),
-        Map.entry("CWE-22", "Validate and sanitize file paths. Use allowlists for permitted files."),
-        Map.entry("CWE-78", "Avoid system commands with user input. Use safe APIs instead of shell execution."),
-        Map.entry("CWE-918", "Validate and restrict URLs. Block internal/private IP ranges."),
-        Map.entry("CWE-611", "Disable external entity processing in XML parsers."),
-        Map.entry("CWE-639", "Implement proper authorization checks. Verify object ownership on every request."),
-        Map.entry("CWE-200", "Disable debug mode and verbose error messages in production."),
-        Map.entry("CWE-1336", "Never pass user input directly to template engines. Use sandboxed rendering.")
-    );
+    // CWE remediation — pulled from FindingsStore so the table and store stay
+    // in lockstep. Don't redefine here.
+    private static final Map<String, String> REMEDIATION = FindingsStore.REMEDIATION;
 
     public ConfigTab(MontoyaApi api, String currentHost, int currentPort, String version,
                      BiConsumer<String, Integer> restartCallback,

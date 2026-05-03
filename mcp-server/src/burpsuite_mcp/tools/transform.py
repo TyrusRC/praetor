@@ -163,60 +163,18 @@ def register(mcp: FastMCP):
 # ── Operation implementations ──────────────────────────────────────
 
 def _apply_operation(text: str, op: str) -> str:
-    """Apply a single encoding/decoding operation."""
-    match op.lower():
-        # Base64
-        case "base64_encode":
-            return base64.b64encode(text.encode()).decode()
-        case "base64_decode":
-            padded = text + "=" * (4 - len(text) % 4) if len(text) % 4 else text
-            return base64.b64decode(padded).decode(errors="replace")
+    """Apply a single encoding/decoding operation.
 
-        # URL encoding
-        case "url_encode":
-            return urllib.parse.quote(text, safe="")
-        case "url_decode":
-            return urllib.parse.unquote(text)
-        case "double_url_encode":
-            return urllib.parse.quote(urllib.parse.quote(text, safe=""), safe="")
-
-        # HTML encoding
-        case "html_encode":
-            return html.escape(text)
-        case "html_decode":
-            return html.unescape(text)
-
-        # Hex encoding
-        case "hex_encode":
-            return text.encode().hex()
-        case "hex_decode":
-            return bytes.fromhex(text).decode(errors="replace")
-
-        # ASCII hex for exploit payloads
-        case "ascii_hex":
-            return "".join(f"\\x{b:02x}" for b in text.encode())
-
-        # Unicode
-        case "unicode_escape":
-            return text.encode("unicode_escape").decode()
-        case "unicode_unescape":
-            return text.encode().decode("unicode_escape")
-
-        # String transforms
-        case "reverse":
-            return text[::-1]
-        case "lowercase":
-            return text.lower()
-        case "uppercase":
-            return text.upper()
-
-        case _:
-            raise ValueError(
-                f"Unknown operation: {op}. Available: base64_encode, base64_decode, "
-                "url_encode, url_decode, double_url_encode, html_encode, html_decode, "
-                "hex_encode, hex_decode, unicode_escape, unicode_unescape, ascii_hex, "
-                "reverse, lowercase, uppercase"
-            )
+    Delegates to the shared helper so transform.py and utility.py never
+    diverge on the same op name.
+    """
+    from burpsuite_mcp.processing.encoding import apply_operation, SHARED_OPS
+    try:
+        return apply_operation(text, op)
+    except ValueError:
+        raise ValueError(
+            f"Unknown operation: {op}. Available: " + ", ".join(SHARED_OPS)
+        )
 
 
 def _detect_primary_encoding(text: str) -> str | None:

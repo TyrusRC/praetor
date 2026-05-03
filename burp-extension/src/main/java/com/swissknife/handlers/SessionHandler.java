@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
  */
 public class SessionHandler extends BaseHandler {
 
-    private static final int MAX_RESPONSE_SIZE = 50000;
+    private static final int MAX_RESPONSE_SIZE = com.swissknife.server.ResponseLimits.MAX_RESPONSE_BODY;
     /** Monotonic counter so probe markers stay unique even within the same millisecond. */
     private static final AtomicLong PROBE_MARKER_SEQ = new AtomicLong();
 
