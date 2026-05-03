@@ -290,10 +290,14 @@ def register(mcp: FastMCP):
                 f"  4. fuzz_parameter() with smart_payloads=True on highest-risk params"
             )
 
+        from urllib.parse import urlparse
+        parsed_host = urlparse(target_url).hostname
+        if not parsed_host:
+            parsed_host = target_url.split("/", 1)[0] or target_url
         return (
             f"NEXT: All phases complete with {findings_count} findings.\n"
             f"  - save_finding() for each confirmed finding\n"
-            f"  - generate_report('{target_url.split('//')[1].split('/')[0]}')\n"
+            f"  - generate_report('{parsed_host}')\n"
             f"  - save_target_intel() to persist for future sessions"
         )
 

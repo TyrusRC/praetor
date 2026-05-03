@@ -1106,7 +1106,8 @@ def register(mcp: FastMCP):
         if not targets:
             return "No targets found. Browse the target first or provide targets manually."
 
-        tested_targets = targets[:max_endpoints]
+        # Targets are already trimmed above; treat them as the tested set.
+        tested_targets = targets
         lines = [f"BULK TEST: {vulnerability} across {len(tested_targets)} targets\n"]
         findings = []
         total_requests = 0
@@ -1236,8 +1237,13 @@ def register(mcp: FastMCP):
             elif findings:
                 lines.append(f"\nNo Collaborator interactions (Location header showed redirect but server may not follow).")
 
-        clean = len(tested_targets) - len(set(f"{f['endpoint']}?{f['parameter']}" for f in findings))
-        lines.append(f"CLEAN: {clean} endpoints showed no anomalies")
+        # Count "clean" as targets that produced ZERO findings, not as
+        # arithmetic over unique vulnerable keys (which silently miscounted
+        # endpoints with multiple findings).
+        vulnerable_keys = {f"{f['endpoint']}?{f['parameter']}" for f in findings}
+        tested_keys = {f"{t.get('method','GET')} {t.get('path','/')}?{t.get('parameter','')}" for t in tested_targets}
+        clean = len(tested_keys - vulnerable_keys)
+        lines.append(f"CLEAN: {clean} endpoint/param pairs showed no anomalies")
         lines.append(f"TESTED: {len(tested_targets)} targets, {total_requests} requests total")
 
         return "\n".join(lines)

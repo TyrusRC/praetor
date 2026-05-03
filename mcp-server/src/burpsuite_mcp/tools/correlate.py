@@ -63,18 +63,30 @@ def register(mcp: FastMCP):
         Args:
             url: Endpoint URL to look up
         """
-        # Get scanner findings
-        scanner_data = await client.get("/api/scanner/findings")
-        notes_data = await client.get("/api/notes/findings", params={"endpoint": url})
+        # Get scanner findings (parallel)
+        import asyncio
+        scanner_data, notes_data = await asyncio.gather(
+            client.get("/api/scanner/findings"),
+            client.get("/api/notes/findings", params={"endpoint": url}),
+        )
 
         lines = [f"Findings for: {url}\n"]
         errors: list[str] = []
+
+        def _url_matches(candidate: str, target: str) -> bool:
+            """Match exact URL or proper path/host containment, not bare substring.
+            Avoids /users/1 spuriously matching /users/10."""
+            if not candidate or not target:
+                return False
+            if candidate == target:
+                return True
+            return candidate.startswith(target + "/") or candidate.startswith(target + "?")
 
         # Scanner findings matching this URL
         if "error" in scanner_data:
             errors.append(f"scanner: {scanner_data['error']}")
         elif "items" in scanner_data:
-            matching = [f for f in scanner_data["items"] if url in str(f.get("base_url", ""))]
+            matching = [f for f in scanner_data["items"] if _url_matches(str(f.get("base_url", "")), url)]
             if matching:
                 lines.append(f"--- Scanner Findings ({len(matching)}) ---")
                 for f in matching:

@@ -34,15 +34,22 @@ async def _dig(domain: str, record_type: str, timeout: int = 10) -> str:
     "no records exist" before reporting to the user.
     """
     global _DIG_MISSING_LOGGED
+    proc = None
     try:
         proc = await asyncio.create_subprocess_exec(
             "dig", domain, record_type, "+short",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        return stdout.decode(errors="replace").strip()
+        stdout_b, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return stdout_b.decode(errors="replace").strip()
     except asyncio.TimeoutError:
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+                await proc.wait()
+            except ProcessLookupError:
+                pass
         return ""
     except FileNotFoundError:
         _DIG_MISSING_LOGGED = True
@@ -172,6 +179,10 @@ def register(mcp: FastMCP):
         except Exception as e:
             return f"Error querying Wayback Machine: {e}"
 
+        # Defensive: archive.org may return an error envelope (dict) instead of
+        # the documented list-of-lists shape under maintenance / rate limit.
+        if not isinstance(rows, list):
+            return f"Error: Wayback Machine returned unexpected payload: {str(rows)[:200]}"
         if not rows or len(rows) <= 1:
             return f"No Wayback URLs found for {domain}"
 

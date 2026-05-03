@@ -497,7 +497,7 @@ def register(mcp: FastMCP):
                 continue
 
             body = resp.get("response_body", "")
-            new_hash = "sha256:" + hashlib.sha256(body.encode()).hexdigest()[:16]
+            new_hash = "sha256:" + hashlib.sha256(body.encode("utf-8", "replace")).hexdigest()[:16]
             new_length = resp.get("response_length", len(body))
 
             # Update stored fingerprint
@@ -507,11 +507,19 @@ def register(mcp: FastMCP):
             page["checked_at"] = datetime.now(timezone.utc).isoformat()
 
             if old_hash and new_hash != old_hash:
-                length_diff = abs(new_length - old_length) / max(old_length, 1)
-                if length_diff < 0.05:
-                    fresh.append(f"  {path}: hash changed but length similar (~{length_diff:.0%} diff)")
+                if old_length <= 0:
+                    # No usable baseline length — fall back to absolute size
+                    # rather than treating "anything > 0" as 100% changed.
+                    if new_length < 200:
+                        fresh.append(f"  {path}: changed (no prior length, new={new_length}B)")
+                    else:
+                        changes.append(f"  {path}: CHANGED (no prior length, new={new_length}B)")
                 else:
-                    changes.append(f"  {path}: CHANGED (length {old_length}→{new_length})")
+                    length_diff = abs(new_length - old_length) / old_length
+                    if length_diff < 0.05:
+                        fresh.append(f"  {path}: hash changed but length similar (~{length_diff:.0%} diff)")
+                    else:
+                        changes.append(f"  {path}: CHANGED (length {old_length}→{new_length})")
             else:
                 fresh.append(f"  {path}: fresh")
 
@@ -724,7 +732,7 @@ def register(mcp: FastMCP):
         if not best_headers:
             return (
                 f"Could not extract a usable header set from {len(items)} "
-                "history entries for {domain}. Try a higher sample_size, or "
+                f"history entries for {domain}. Try a higher sample_size, or "
                 "browse a real page (e.g. /login) through the Burp proxy first."
             )
 

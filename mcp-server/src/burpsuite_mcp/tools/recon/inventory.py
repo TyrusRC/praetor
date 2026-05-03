@@ -1,5 +1,8 @@
 """Recon inventory tools: check installed tools and probe live hosts."""
 
+import asyncio
+import socket
+
 from mcp.server.fastmcp import FastMCP
 
 from ._common import _check_tool
@@ -25,13 +28,15 @@ def register(mcp: FastMCP):
             "wpscan": "WordPress vulnerability scanner",
         }
 
-        # Check DNS resolution (common WSL issue)
-        dns_ok = True
-        try:
-            import socket
-            socket.getaddrinfo("example.com", 443, proto=socket.IPPROTO_TCP)
-        except socket.gaierror:
-            dns_ok = False
+        # Check DNS resolution off the event loop — getaddrinfo is blocking.
+        def _dns_check() -> bool:
+            try:
+                socket.getaddrinfo("example.com", 443, proto=socket.IPPROTO_TCP)
+                return True
+            except socket.gaierror:
+                return False
+
+        dns_ok = await asyncio.to_thread(_dns_check)
 
         lines = ["External Recon Tools:", ""]
         if not dns_ok:

