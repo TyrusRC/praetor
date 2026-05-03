@@ -149,13 +149,48 @@ def register(mcp: FastMCP):
             else:
                 rejected.append(param)
 
+        # ── Nested object overrides ──
+        # Many bind-from-JSON frameworks (Rails, Spring, Mongoose, FastAPI/Pydantic)
+        # honor nested keys: {"user":{"role":"admin"}} or {"user.role":"admin"}.
+        # The flat-merge above misses these — try them explicitly.
+        lines.append("\n--- Nested-object Tests ---")
+        nested_accepted: list[str] = []
+        for param, value in extra_params.items():
+            for variant_name, variant_body in (
+                ("nested_user", json.dumps({**known_params, "user": {param: value}})),
+                ("nested_dotted", json.dumps({**known_params, f"user.{param}": value})),
+                ("nested_brackets", json.dumps({**known_params, f"user[{param}]": value})),
+                ("nested_meta", json.dumps({**known_params, "metadata": {param: value}})),
+            ):
+                resp = await client.post("/api/session/request", json={
+                    "session": session, "method": method, "path": path,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": variant_body,
+                })
+                if "error" in resp:
+                    continue
+                rstatus = resp.get("status", 0)
+                rbody = resp.get("response_body", "")
+                if rstatus == baseline_status:
+                    str_val = str(value).lower()
+                    param_lower = param.lower()
+                    if ((param_lower in rbody.lower() or str_val in rbody.lower())
+                        and (param_lower not in baseline_body.lower() and str_val not in baseline_body.lower())):
+                        flag = f"{param}/{variant_name}"
+                        nested_accepted.append(flag)
+                        lines.append(f"  [!REFLECTED] {variant_name}: {param}={fmt_val(value)}")
+
+        if nested_accepted:
+            lines.append(f"\nNested overrides ACCEPTED: {', '.join(nested_accepted)}")
+            lines.append("Risk: framework binds nested parameters — verify privilege effect with a separate auth check.")
+
         lines.append(f"\n--- Summary ---")
         if accepted:
             lines.append(f"ACCEPTED (reflected/changed behavior): {', '.join(accepted)}")
             lines.append("Risk: Server may bind these parameters — test if they persist or change authorization.")
         if rejected:
             lines.append(f"Rejected/ignored: {', '.join(rejected[:10])}" + (f" +{len(rejected)-10} more" if len(rejected) > 10 else ""))
-        if not accepted:
+        if not accepted and not nested_accepted:
             lines.append("No mass assignment indicators detected.")
 
         return "\n".join(lines)

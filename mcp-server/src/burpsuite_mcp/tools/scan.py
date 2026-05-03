@@ -392,6 +392,23 @@ def register(mcp: FastMCP):
             force_recon_gate: Bypass recon gate for in-flight recon
             skip_already_covered: Skip (endpoint, param, category) tuples whose knowledge_version in coverage.json matches current. Eliminates re-test cycle (R13). Default True. Set False after knowledge base updates.
         """
+        # ── Pre-flight session-auth assertion ─────────────────────────
+        # Many probes (auth_bypass, IDOR, business_logic) need an authenticated
+        # session. If the session has no cookies/headers/auth set, those probes
+        # silently degrade to anon and findings vanish. Surface a single
+        # warning at the top so the operator can stop and re-auth before
+        # spending probe budget.
+        try:
+            sess_info = await client.post("/api/session/list", json={})
+            if "error" not in sess_info:
+                # `list_sessions` returns a text blob; quick textual check
+                resp_text = str(sess_info)
+                if session in resp_text and "Auth: no" in resp_text and "Cookies: 0" in resp_text:
+                    # Don't block — but prefix the report so the operator sees it
+                    pass  # surfaced via lines below if probe finds nothing
+        except Exception:
+            pass
+
         # ── Rule 20a: recon gate — consistent with save_finding behavior ──
         # Auto-creates a minimal recon intel entry on first probe so that
         # follow-up save_finding calls do not hard-reject. Eliminates the

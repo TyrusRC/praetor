@@ -69,13 +69,34 @@ def register(mcp: FastMCP):
             else:
                 lines.append(f"  {header_name}: Not reflected")
 
-        # Test 2: Cache deception
-        lines.append("\n--- Test 2: Cache Deception ---")
+        # Test 2: Cache deception — exhaustive path-confusion variants. The
+        # original 4 suffixes missed ;.css matrix-param (Spring quirk),
+        # %2e.css (NGINX path normalization), %00.css (null-byte truncation),
+        # ..%2fstatic%2f (origin-traversal trick), and matrix-param ;jsessionid.
         deception_paths = [
             f"{path}/nonexist.css",
             f"{path}/nonexist.js",
             f"{path}/nonexist.png",
             f"{path}%2f..%2fnonexist.css",
+            # Matrix-param tricks
+            f"{path};.css",
+            f"{path};.js",
+            f"{path};jsessionid=x.css",
+            # Path-normalization quirks
+            f"{path}%2e.css",
+            f"{path}%2e%2e.css",
+            f"{path}%2fstatic%2fnonexist.css",
+            f"{path}..%2fstatic%2fnonexist.css",
+            # Null-byte truncation
+            f"{path}%00.css",
+            f"{path}%00.js",
+            # Trailing-slash + extension
+            f"{path}/.css",
+            f"{path}//.css",
+            # Backslash bypasses
+            f"{path}\\nonexist.css",
+            # Encoded slash
+            f"{path}%5cnonexist.css",
         ]
 
         for test_path in deception_paths:

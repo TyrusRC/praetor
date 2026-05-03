@@ -287,6 +287,36 @@ public final class MatcherEngine {
                         }
                     }
                 }
+                case "shape_fingerprint" -> {
+                    // Match when the response shape (status + body length bucket
+                    // + content-type type) DIFFERS from the baseline. Detects
+                    // "real anomaly" through a sanitised-error wall where
+                    // length_diff alone gives false negatives.
+                    if (baselineResponse != null) {
+                        String baseFp = shapeFingerprint(baselineResponse);
+                        String probeFp = shapeFingerprintFor(status, bodyLen, response);
+                        matched = !baseFp.equals(probeFp);
+                        if (matched) matchedDescriptions.add("shape_fingerprint: " + baseFp + " -> " + probeFp);
+                    }
+                }
+                case "valid_vs_invalid_baseline" -> {
+                    // Caller passes both the valid baseline (baselineResponse)
+                    // AND an invalid-input baseline shape via matcher["invalid_shape"].
+                    // Match when the probe response shape matches the VALID baseline,
+                    // not the INVALID baseline — i.e. the probe was treated as a real
+                    // input, not rejected by the sanitiser. This is the canonical
+                    // bypass detector behind error-wall sanitisers.
+                    String invalidShape = (String) matcher.get("invalid_shape");
+                    if (baselineResponse != null && invalidShape != null) {
+                        String validFp = shapeFingerprint(baselineResponse);
+                        String probeFp = shapeFingerprintFor(status, bodyLen, response);
+                        boolean looksValid = validFp.equals(probeFp);
+                        boolean looksInvalid = invalidShape.equals(probeFp);
+                        // Match: probe matches valid AND not the canned invalid response
+                        matched = looksValid && !looksInvalid;
+                        if (matched) matchedDescriptions.add("valid_baseline_match (not error-wall): " + probeFp);
+                    }
+                }
             }
 
             // Unknown matcher type: record but don't silently force allMatched=false.
@@ -316,5 +346,58 @@ public final class MatcherEngine {
     private static int countWords(String text) {
         if (text == null || text.isEmpty()) return 0;
         return text.split("\\s+").length;
+    }
+
+    /**
+     * Bucket-and-stringify a response: status + content-type-major + length-bucket.
+     * Two responses sharing the same fingerprint are likely the same shape (e.g. canned
+     * sanitised-error JSON), even if individual byte content differs. Used by the
+     * shape_fingerprint and valid_vs_invalid_baseline matchers to defeat error-wall
+     * false negatives.
+     */
+    public static String shapeFingerprint(HttpResponse r) {
+        if (r == null) return "null";
+        String ctype = "";
+        for (HttpHeader h : r.headers()) {
+            if ("Content-Type".equalsIgnoreCase(h.name())) {
+                String v = h.value();
+                int sc = v.indexOf(';');
+                ctype = (sc >= 0 ? v.substring(0, sc) : v).trim().toLowerCase();
+                int slash = ctype.indexOf('/');
+                if (slash > 0) ctype = ctype.substring(0, slash);
+                break;
+            }
+        }
+        return shapeFingerprintFor(r.statusCode(), r.body().length(), r);
+    }
+
+    public static String shapeFingerprintFor(int status, int bodyLen, HttpResponse r) {
+        String ctypeMajor = "";
+        if (r != null) {
+            for (HttpHeader h : r.headers()) {
+                if ("Content-Type".equalsIgnoreCase(h.name())) {
+                    String v = h.value();
+                    int sc = v.indexOf(';');
+                    String cleaned = (sc >= 0 ? v.substring(0, sc) : v).trim().toLowerCase();
+                    int slash = cleaned.indexOf('/');
+                    ctypeMajor = slash > 0 ? cleaned.substring(0, slash) : cleaned;
+                    break;
+                }
+            }
+        }
+        return status + "|" + ctypeMajor + "|" + lengthBucket(bodyLen);
+    }
+
+    private static String lengthBucket(int n) {
+        // Coarse bucket so trivial differences (timestamp / id) collapse to the
+        // same shape; structural differences land in different buckets.
+        if (n < 100) return "<100";
+        if (n < 500) return "100-500";
+        if (n < 1024) return "500-1k";
+        if (n < 4096) return "1k-4k";
+        if (n < 16384) return "4k-16k";
+        if (n < 65536) return "16k-64k";
+        if (n < 262144) return "64k-256k";
+        return ">256k";
     }
 }

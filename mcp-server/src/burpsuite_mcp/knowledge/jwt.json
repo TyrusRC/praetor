@@ -199,6 +199,59 @@
           "variables": {"claim": "exp", "modified_value": 1}
         }
       ]
+    },
+    "kid_path_traversal": {
+      "description": "kid header path traversal — point at a file with predictable content (e.g., /dev/null = empty key, /proc/self/environ = process env), then sign HMAC with that content. Distinct from kid_injection in that it lists OS-specific gadget paths.",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {"payload": "{{baseline}}", "description": "[Manual] kid: /dev/null — empty file = empty HMAC key; sign with empty string", "note": "Manual.", "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "denied"]}], "severity": "critical", "confidence_boost": 50},
+        {"payload": "{{baseline}}", "description": "[Manual] kid: file:///dev/null — protocol smuggling variant", "note": "Manual.", "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid"]}], "severity": "critical", "confidence_boost": 50},
+        {"payload": "{{baseline}}", "description": "[Manual] kid: ../../../../../proc/self/cmdline — read self command-line as key material", "note": "Manual.", "matchers": [{"type": "word", "words": ["python", "node", "java", "ruby"], "condition": "or"}], "severity": "high", "confidence_boost": 40},
+        {"payload": "{{baseline}}", "description": "[Manual] Windows: kid: ..\\..\\..\\..\\windows\\win.ini — IIS variant", "note": "Manual.", "matchers": [{"type": "word", "words": ["[fonts]", "[mail]"], "condition": "or"}], "severity": "high", "confidence_boost": 40}
+      ]
+    },
+    "jwe_direct": {
+      "description": "JWE direct-key encryption with attacker-known static key. If the server uses a hardcoded JWE direct-encryption key (alg=dir, enc=A256GCM) and that key is in source code or a side-channel, the attacker forges arbitrary tokens.",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {"payload": "{{baseline}}", "description": "[Manual] Forge JWE with alg=dir + enc=A256GCM using leaked SECRET_KEY as the direct CEK; arbitrary claims if the key is reused", "note": "Requires the server's static key leaked elsewhere (env var, repo, config endpoint).", "matchers": [{"type": "status", "status": [200]}], "severity": "critical", "confidence_boost": 50}
+      ]
+    },
+    "jwe_rsa_oaep_downgrade": {
+      "description": "JWE RSA-OAEP → RSA1_5 / dir downgrade. If the server accepts multiple alg values, swap to a weaker one (RSA1_5 is vulnerable to Bleichenbacher; dir requires no signature).",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {"payload": "{{baseline}}", "description": "[Manual] Change JWE header alg from RSA-OAEP-256 to RSA1_5; if accepted, Bleichenbacher padding oracle applies", "note": "Manual; requires JWE-shaped tokens.", "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid", "unsupported"]}], "severity": "critical", "confidence_boost": 50},
+        {"payload": "{{baseline}}", "description": "[Manual] Change alg from RSA-OAEP to dir + supply attacker-controlled CEK", "note": "Manual.", "matchers": [{"type": "status", "status": [200]}], "severity": "critical", "confidence_boost": 50}
+      ]
+    },
+    "jwe_zip_oracle": {
+      "description": "JWE compression (zip=DEF) oracle. When a JWE uses DEFLATE before encryption, attacker-supplied plaintext content ratios can leak via response-time/length differences — observe whether known-plaintext compression ratios match.",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {"payload": "{{baseline}}", "description": "[Manual] Forge JWE with zip=DEF and a payload containing a known string + a guessed secret prefix; compare response timings to detect compression hits", "note": "Manual; oracle attack — requires N tokens to converge.", "matchers": [{"type": "differential_timing", "min_delta_ms": 100}], "severity": "high", "confidence_boost": 30}
+      ]
+    },
+    "jku_x5u_attacker": {
+      "description": "jku / x5u header pointing at attacker-controlled URL. Server fetches the JWK Set / x509 cert from the attacker URL and uses it to verify the token, allowing arbitrary forgery.",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {"payload": "{{baseline}}", "description": "[Manual] jku: https://COLLABORATOR/jwks.json — host a JWKS with attacker public key; forge token signed with matching private key", "note": "OOB confirmation via Collaborator hit.", "matchers": [{"type": "status", "status": [200]}], "severity": "critical", "confidence_boost": 50},
+        {"payload": "{{baseline}}", "description": "[Manual] x5u: https://COLLABORATOR/cert.pem — same attack via x5u (x509 cert URL)", "note": "OOB confirmation via Collaborator hit.", "matchers": [{"type": "status", "status": [200]}], "severity": "critical", "confidence_boost": 50}
+      ]
+    },
+    "embedded_jwk_self_sign": {
+      "description": "Self-signed JWT via embedded jwk header (attacker-generated key pair). The original embedded_jwk context covers detection; this one focuses on the full self-sign forgery flow.",
+      "tech_match": [],
+      "param_match": ["token", "jwt", "auth"],
+      "probes": [
+        {"payload": "{{baseline}}", "description": "[Manual] Embed attacker-generated jwk in JWT header, sign with matching private key — bypasses the entire trust chain", "note": "Manual.", "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["invalid signature", "denied"]}], "severity": "critical", "confidence_boost": 50}
+      ]
     }
   }
 }
