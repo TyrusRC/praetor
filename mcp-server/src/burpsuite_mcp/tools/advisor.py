@@ -14,6 +14,17 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.advisor_kb import (
+    AUTH_STATE_DEPENDENT,
+    CONDITIONAL_NEVER_SUBMIT_TYPES,
+    LOW_IMPACT_CLASSES,
+    NEVER_SUBMIT_KEYWORDS,
+    NEVER_SUBMIT_TYPES,
+    Q5_ALIASES,
+    Q5_KEYWORDS,
+    SENSITIVE_ENDPOINT_PATTERNS,
+    TIMING_VULN_TYPES,
+)
 
 # Tech stack → prioritized vulnerability categories
 _TECH_PRIORITIES = {
@@ -486,81 +497,14 @@ def register(mcp: FastMCP):
                 override_set.add(gate)
                 audit_overrides.append(ov)
 
-        # NEVER SUBMIT — aligned with .claude/rules/hunting.md. Matching is
-        # done on vuln_type AND on evidence keywords so hunters writing
-        # vuln_type='xss' + evidence='self-XSS requires paste' still trip.
-        # NOTE: cors_no_creds covers ONLY non-credentialed CORS reflection. The
-        # exploitable credentialed-wildcard case (ACAC: true + ACAO arbitrary)
-        # is allowed through here so its derived marker can pass Q5/Q6.
-        # UNCONDITIONAL NEVER SUBMIT — these classes never reach REPORT
-        # standalone. clickjacking / csrf_logout / host_header_no_cache /
-        # cors_no_creds / version_disclosure / options_method moved to the
-        # conditional list below since each has a real exploit path on a
-        # sensitive endpoint.
-        never_submit_types = {
-            "missing_headers": "Missing security headers alone — informative, not reportable",
-            "cookie_flags": "Cookie without Secure/HttpOnly — requires MitM or XSS to exploit",
-            "self_xss": "Self-XSS — victim must paste payload themselves",
-            "csrf_non_state_changing": "CSRF on non-state-changing endpoint — no impact",
-            "open_redirect_no_chain": "Open redirect without token theft chain — low impact",
-            "mixed_content": "Mixed content — browser mitigates",
-            "stack_trace": "Stack traces alone — info disclosure, not exploitable",
-            "user_enumeration": "Username enumeration on public sign-up — often by design",
-            "referrer_policy": "Missing Referrer-Policy — extremely minor",
-            "spf": "SPF/DMARC/DKIM issues — email security, usually out of scope",
-            "dmarc": "SPF/DMARC/DKIM issues — email security, usually out of scope",
-            "content_spoofing": "Content spoofing without XSS — minimal impact",
-            "ssl_config": "SSL/TLS configuration issues — scanner noise",
-            "text_injection": "Text injection without HTML context — no code execution",
-            "idn_homograph": "IDN homograph attacks — browser-mitigated",
-            "autocomplete": "Missing autocomplete=off — password managers handle this",
-        }
-
-        # Conditional NEVER SUBMIT — these classes are reportable when chained
-        # (chain_with non-empty) OR when context indicates real impact. Without
-        # those signals, they trip Q6 like the unconditional list. Keys MUST
-        # match Java FindingsStore.CONDITIONAL_NEVER_SUBMIT_TYPES.
-        conditional_never_submit_types = {
-            "tabnabbing": "Reverse tabnabbing alone is low impact — chain with token theft / postMessage hijack",
-            "rate_limit_absent_non_sensitive": "Missing rate limit on non-sensitive endpoint — but rate-limit on auth/reset/OTP/payment IS reportable; tag endpoint accordingly or chain with ATO",
-            "rate_limit_missing": "Missing rate limit on non-sensitive endpoint — but rate-limit on auth/reset/OTP/payment IS reportable; tag endpoint accordingly or chain with ATO",
-            # NEW — sensitive-endpoint contextual exemption (clickjacking on
-            # 2FA/funds-transfer/OAuth-consent IS paid). Promoted from
-            # unconditional to conditional with an endpoint-pattern check.
-            "clickjacking": "Clickjacking on non-sensitive pages has no impact — but clickjacking on funds-transfer / 2FA-disable / OAuth consent / password change IS reportable; chain or land on a sensitive endpoint",
-            "csrf_logout": "CSRF logout alone is minimal — but CSRF-logout chained with phishing / pre-auth flow IS reportable",
-            "host_header_no_cache": "Host header injection without cache effect is no exploit — UNLESS the endpoint generates emails (password reset, magic link, 2FA send), in which case host-header poisoning IS reportable",
-            "cors_no_creds": "CORS reflection without Allow-Credentials usually browser-blocks — but if the endpoint serves private artefacts (signed S3 URL, presigned token, API key) without auth, the public-by-flaw exposure IS reportable",
-            "version_disclosure": "Version disclosure alone — but a disclosed version with a known pre-auth CVE IS reportable; chain with the CVE finding",
-            "options_method": "OPTIONS method enabled — normal HTTP — but OPTIONS allowing arbitrary verbs (TRACE/PUT/DELETE) on a sensitive path IS reportable",
-        }
-
-        # Endpoint patterns that flip rate-limit-missing AND the new
-        # sensitive-context conditionals (clickjacking, csrf_logout) from
-        # NEVER SUBMIT to reportable.
-        sensitive_endpoint_patterns = (
-            "/login", "/signin", "/sign-in", "/auth", "/oauth", "/token",
-            "/password", "/reset", "/forgot", "/recover", "/2fa", "/mfa",
-            "/otp", "/verify", "/verification", "/code", "/captcha",
-            "/payment", "/checkout", "/charge", "/withdraw", "/transfer",
-            "/api-key", "/apikey",
-            # newly added — funds, account-control, identity flows
-            "/balance", "/wallet", "/funds", "/payout", "/refund",
-            "/email-change", "/change-email", "/change-password",
-            "/disable-2fa", "/remove-2fa", "/consent", "/authorize",
-            "/admin", "/internal", "/billing", "/subscription",
-            "/delete-account", "/close-account",
-        )
-
-        # Evidence keywords that imply a NEVER SUBMIT class regardless of vuln_type
-        never_submit_keywords = {
-            "self-xss": "Self-XSS — victim must paste payload themselves",
-            "self xss": "Self-XSS — victim must paste payload themselves",
-            "clickjacking": "Clickjacking on non-sensitive pages has no impact",
-            "csrf on logout": "CSRF on logout — minimal impact",
-            "autocomplete=off": "Missing autocomplete=off — password managers handle this",
-            "stack trace": "Stack traces alone — info disclosure, not exploitable",
-        }
+        # NEVER SUBMIT tables live in advisor_kb (lifted out of this closure
+        # so the dicts are allocated once at import, not on every assess_finding
+        # call). `never_submit_types` is a mutable copy because the per-program
+        # policy below may pop entries from it.
+        never_submit_types = dict(NEVER_SUBMIT_TYPES)
+        conditional_never_submit_types = CONDITIONAL_NEVER_SUBMIT_TYPES
+        sensitive_endpoint_patterns = SENSITIVE_ENDPOINT_PATTERNS
+        never_submit_keywords = NEVER_SUBMIT_KEYWORDS
 
         vuln_lower = vuln_type.lower()
         evidence_lower = evidence.lower()
@@ -792,22 +736,7 @@ def register(mcp: FastMCP):
         else:
             issues.append("Q1 SKIP: pass `domain=...` to enable scope verification")
 
-        # Q2: Reproducible — exempt auth-state-dependent classes that REQUIRE
-        # the same authenticated session to reproduce by definition.
-        AUTH_STATE_DEPENDENT = {
-            "idor", "bfla", "bola", "business_logic", "authorization",
-            "access_control", "mass_assignment", "privilege_escalation",
-            # Auth-flow bugs that need the SAME compromised session to repro;
-            # forcing a clean re-login destroys the state being tested.
-            "password_reset", "2fa_bypass", "mfa_bypass",
-            "account_takeover", "ato",
-            "oauth", "oauth_open_redirect", "oauth_state_bypass",
-            "saml", "saml_xsw", "saml_replay",
-            "jwt", "jwt_alg_none", "jwt_kid",
-            "session_fixation", "session_hijack",
-            "auth_bypass", "auth_bypass_403_to_200",
-            "race_condition",  # state mutated by the race itself
-        }
+        # Q2: Reproducible — AUTH_STATE_DEPENDENT lives in advisor_kb.
         q2_class_root = vuln_lower
         for sep in ("_blind", "_time", "_stored", "_reflected"):
             if q2_class_root.endswith(sep):
@@ -904,260 +833,6 @@ def register(mcp: FastMCP):
         # rather than weak). R19: human_verified bypasses Q5 entirely.
         weak_evidence = False
 
-        # Per-class strong-evidence keyword sets. Generous — match how
-        # hunters actually write evidence.
-        # Note: some entries are split across string literals to avoid hook
-        # false-positives when Claude reads/edits this file (e.g. "pic" "kle.loads",
-        # "<scr" "ipt"). At runtime they concatenate to the intended marker.
-        _PIC = "pic" "kle.loads"
-        _MARSHAL = "mar" "shal.loads"
-        _SCRIPT = "<scr" "ipt"
-        _JS = "j" "avascript:"
-        Q5_KEYWORDS: dict[str, list[str]] = {
-            "sqli": [
-                "sleep", "delay", "union", "version()", "current_user",
-                "database()", "schema_name", "table_name", "stacked query",
-                "boolean differential", "boolean diff", "subquery",
-                "type cast", "cast error", "type mismatch", "string concat",
-                "concat error", "sql syntax", "ora-", "mysql_fetch",
-                "pg_query", "sqlite", "syntax error", "unclosed quotation",
-                "unterminated", "1=1 vs 1=2", "and 1=1", "and 1=2",
-                # second-order / multi-DBMS markers
-                "audit log", "second order", "second-order", "stored sqli",
-                "tsvector", "to_tsvector", "json parse error", "json_extract",
-                "to_char", "psql:", "pg_sleep", "waitfor delay", "benchmark(",
-                "dbms_pipe", "dbms_lock.sleep",
-                # bulk_test default markers
-                "7777*7777", "60481729",
-            ],
-            "ssrf": [
-                "collaborator", "callback", "dns", "metadata", "169.254",
-                "ami-id", "instance-identity", "compute.metadata",
-                "metadata.google", "imdsv1", "imdsv2", "interaction received",
-                "oob", "out-of-band", "pingback",
-                "etag flip", "etag changed", "connect delta", "tcp delay",
-                "rebind", "rebound", "internal ip", "169.254.170.2",
-                "internal host reached",
-                "gopher://", "dict://", "ftp://", "file://", "jar://",
-                "phar://", "netdoc://",
-            ],
-            "xss": [
-                "alert(", "executed", "dom-based", "stored", "reflected in",
-                _SCRIPT, "onerror=", "onload=", _JS,
-                "executable context", "html context", "attribute context",
-                "js sink", "innerhtml", "doc-write", "dom xss",
-                "popup", "confirm(", "prompt(", "executable: ",
-                "rendered as raw", "raw " + _SCRIPT,
-                "trusted types bypass", "default policy", "domsanitizer",
-                "dompurify mutation", "sanitizer api",
-                "srcdoc=", "iframe sandbox", "math" "ml href",
-                "<math>", "<svg ", "set" "html unsafe",
-                "dom clobber", "form id=", "import maps",
-                "<xss_probe_", "xss_probe_",
-            ],
-            "idor": [
-                "different user", "unauthorized", "other account",
-                "cross-tenant", "200 ok", "sequential", "predictable",
-                "incrementing", "guessable", "auto-increment", "monotonic",
-                "id range", "id space", "fuzz id", "enumerate id",
-                "id enumeration", "id walk", "user_id=", "userid=",
-                "account_id=", "order_id=", "uuid v1", "uuidv1",
-                "same id space", "shared id", "cross-app", "cross app",
-                "other app same", "bola", "bfla",
-                "viewed another", "modified another", "leaked pii",
-            ],
-            "rce": [
-                "uid=", "gid=", "euid=", "whoami", "collaborator",
-                "dns callback", "/bin/sh", "/bin/bash", "command output",
-                "shell return", "exec returned", "process executed",
-                "code executed", "rce confirmed", "ping received",
-            ],
-            "path_traversal": [
-                "root:x:", "/etc/passwd", "boot.ini", "win.ini",
-                "file_read", "file content disclosed", "../../../",
-                "..\\..\\", "directory traversal",
-                "[boot loader]", "shadow", "/proc/self",
-            ],
-            "xxe": [
-                "external entity", "doctype", "system identifier",
-                "&xxe;", "collaborator", "file_read", "callback",
-                "blind xxe", "ftp:// callback",
-            ],
-            "ssti": [
-                "{{7*7}}", "49", "${{", "<%= ", "template engine",
-                "jinja", "twig", "freemarker", "velocity", "executed template",
-                "7777*7777", "60481729",
-                "config items", "secret_key", "__class__", "__mro__",
-                "subprocess.popen", "ssti confirmed",
-                "${T(java.lang.Runtime)", "*{T(", "#set(",
-            ],
-            "command_injection": [
-                "uid=", "whoami", "; ls", "| ls", "&& ls", "$(whoami",
-                "command output", "shell return", "/bin/", "cmd.exe",
-                "ping received", "dns callback",
-            ],
-            "open_redirect_chain": [
-                "token leaked", "session captured", "fragment exfil",
-                "oauth code intercepted", "redirect destination controlled",
-                "code= intercepted", "access_token= leaked",
-            ],
-            "open_redirect": [
-                "redirects to attacker", "redirects to evil", "location:",
-                "redirected off-origin", "off-origin redirect",
-                "interaction received", "callback received",
-            ],
-            "csrf": [
-                "no token", "missing csrf", "samesite none",
-                "state-changing", "performed action", "successfully posted",
-                "samesite=lax", "lax bypass", "top-level post",
-                "get-based state change", "method tunneling",
-            ],
-            "cors": [
-                "access-control-allow-credentials: true", "credentialed wildcard",
-                "credentialed reflection", "origin reflected",
-                "null origin allowed", "subdomain origin allowed",
-                "private network access",
-            ],
-            "jwt": [
-                "alg: none accepted", "kid path traversal", "kid sqli",
-                "rs256->hs256", "rs256 to hs256", "hs256 with public key",
-                "jku attacker", "x5u attacker", "embedded jwk",
-                "jwe direct", "jwe rsa-oaep", "zip oracle",
-                "expired token accepted", "future iat accepted",
-            ],
-            "graphql": [
-                "introspection enabled", "__schema", "__typename",
-                "field suggestions", "did you mean", "alias amplification",
-                "alias-login", "batch query accepted", "get csrf accepted",
-                "_service", "_entities", "persisted query bypass",
-                "depth 15", "query depth", "circular fragment",
-            ],
-            "mass_assignment": [
-                "is_admin=true reflected", "role=admin echoed",
-                "is_admin: true", "role: admin", "privilege escalated",
-                "field accepted", "extra field stored", "nested override",
-                "user.role override", "user[role]",
-            ],
-            "prototype_pollution": [
-                "__proto__", "constructor.prototype", "polluted",
-                "Object.prototype", "merge gadget", "gadget executed",
-                "express options pollution",
-            ],
-            "request_smuggling": [
-                "te.cl", "cl.te", "h2.cl", "h2.te", "te.0", "rapid reset",
-                "smuggled request", "queue desync", "front-end timeout",
-                "back-end disagreement",
-            ],
-            "cache_poisoning": [
-                "x-cache: hit after poison", "cache poisoned",
-                "x-forwarded-host reflected in cached",
-                "cache key leak", "unkeyed header reflected",
-            ],
-            "host_header": [
-                "host header injection", "x-forwarded-host reflected",
-                "password reset host", "reset link host attacker",
-                "self-referencing redirect to attacker",
-            ],
-            "crlf": [
-                "%0d%0a", "set-cookie injection", "header injection",
-                "response splitting", "x-injected header reflected",
-                "splitting confirmed", "crlf in location",
-            ],
-            "deserialization": [
-                "java.io.objectinputstream", "readobject called",
-                "yaml.load deserialization", _PIC,
-                _MARSHAL, "phar://", "rome deserialization",
-                "ysoserial gadget", "commons-collections",
-                "ruby marshal", "json.net typenamehandling",
-            ],
-            "file_upload": [
-                "uploaded file accepted", "polyglot accepted",
-                "stored as", "magic byte bypass", "content-type bypass",
-                "double extension", "null byte filename",
-                "imagemagick", "ghostscript rce", "zip slip",
-                "svg xxe", "phar polyglot",
-            ],
-            "saml": [
-                "xml signature wrapping", "xsw", "audience reuse",
-                "comment injection", "nameid", "saml replay",
-                "issuer confusion", "signature stripped",
-            ],
-            "auth_bypass": [
-                "401 -> 200", "403 -> 200", "auth bypass confirmed",
-                "x-original-url accepted", "double slash bypass",
-                "trailing dot bypass", "method override accepted",
-                "header-based admin", "internal admin path",
-            ],
-            "business_logic": [
-                "step skipped", "negative quantity accepted",
-                "duplicate redeem", "redeemed twice",
-                "price modified", "currency mismatch",
-                "out-of-order step", "stale token reused",
-                "race outcome", "balance inflated",
-            ],
-            "race_condition": [
-                "race window", "double spend", "redeemed twice",
-                "concurrent success", "race confirmed",
-                "race_synchronised=true", "5-of-5 success",
-            ],
-            "hpp": [
-                "hpp confirmed", "duplicate parameter accepted",
-                "first wins", "last wins", "concatenated values",
-                "filter bypass via hpp",
-            ],
-        }
-        # Aliases: vuln_type variants normalize to canonical keyword class
-        Q5_ALIASES = {
-            "reflected xss": "xss", "stored xss": "xss", "dom xss": "xss",
-            "blind xss": "xss", "self-xss": "xss",
-            "sqli_blind": "sqli", "sqli_time": "sqli", "sqli_boolean": "sqli",
-            "sqli_error": "sqli", "sqli_oob": "sqli", "nosql": "sqli", "nosqli": "sqli",
-            "id_enumeration": "idor", "predictable_id": "idor",
-            "sequential_id": "idor", "access_control": "idor",
-            "bola": "idor", "bfla": "idor", "horizontal_priv_esc": "idor",
-            "rce_blind": "rce", "remote code execution": "rce",
-            "lfi": "path_traversal", "directory_traversal": "path_traversal",
-            "rfi": "path_traversal",
-            "cmdi": "command_injection", "command_injection_blind": "command_injection",
-            "ssrf_blind": "ssrf",
-            "ssti_blind": "ssti",
-            "xxe_blind": "xxe",
-            # Auth-flow variants → existing classes
-            "csrf_token_missing": "csrf", "csrf_logout": "csrf",
-            "open_redirect_no_chain": "open_redirect",
-            "tabnabbing": "open_redirect",
-            "oauth_open_redirect": "open_redirect",
-            "oauth": "jwt",  # most OAuth bug evidence overlaps with JWT keywords; loose alias
-            "jwt_blind": "jwt", "jwt_alg_none": "jwt", "jwt_kid": "jwt",
-            "samesite_lax_bypass": "csrf",
-            # API / smuggling / cache aliases
-            "http_desync": "request_smuggling",
-            "te_cl": "request_smuggling", "cl_te": "request_smuggling",
-            "h2_cl": "request_smuggling", "h2_te": "request_smuggling",
-            "rapid_reset": "request_smuggling",
-            "web_cache_poisoning": "cache_poisoning",
-            "web_cache_deception": "cache_poisoning",
-            # GraphQL / API
-            "graphql_introspection": "graphql",
-            "graphql_field_suggestion": "graphql",
-            "graphql_alias_login": "graphql",
-            "graphql_batch_csrf": "graphql",
-            # Business / race
-            "race": "race_condition", "tocttou": "race_condition",
-            "double_spend": "race_condition",
-            "step_skip": "business_logic", "price_manipulation": "business_logic",
-            "coupon_reuse": "business_logic",
-            # Misc
-            "parameter_pollution": "hpp",
-            "deserialization_java": "deserialization",
-            "deserialization_python": "deserialization",
-            "deserialization_ruby": "deserialization",
-            "insecure_deserialization": "deserialization",
-            "host_header_injection": "host_header",
-            "crlf_injection": "crlf", "response_splitting": "crlf",
-            "saml_xsw": "saml", "saml_replay": "saml",
-            "auth_bypass_403_to_200": "auth_bypass",
-        }
 
         q5_class = Q5_ALIASES.get(vuln_lower, vuln_lower)
 
@@ -1195,15 +870,8 @@ def register(mcp: FastMCP):
             )
             weak_evidence = True
 
-        # ── R3: Timing-based requires 3x reproductions, but ONLY when
-        # vuln_type signals timing/blind/race. Don't trip on prose like
-        # "response time was 200ms".
-        TIMING_VULN_TYPES = {
-            "sqli_blind", "sqli_time", "sqli_oob",
-            "command_injection_blind", "ssti_blind", "ssrf_blind",
-            "xxe_blind", "rce_blind", "race_condition",
-            "request_smuggling", "http_desync",
-        }
+        # ── R3: Timing-based requires 3x reproductions (TIMING_VULN_TYPES
+        # lives in advisor_kb).
         if vuln_lower in TIMING_VULN_TYPES and "q5_evidence" not in override_set and not human_verified:
             # Accept either (a) >=3 entries in reproductions[] array or (b) keyword text
             replay_count = len(reproductions or [])
@@ -1275,15 +943,15 @@ def register(mcp: FastMCP):
         # a low-impact vuln class, the triager will mark informative — UNLESS
         # the finding is chained, in which case the chain provides the impact
         # context that elevates it above mass-report territory.
-        low_impact_classes = {"open_redirect", "information_disclosure", "info_disclosure"}
+        # LOW_IMPACT_CLASSES lives in advisor_kb.
         if "q7_triager" in override_set:
             issues.append("Q7 OVERRIDE: triager-mass-report heuristic bypassed")
-        elif chain_provided and vuln_lower in low_impact_classes:
+        elif chain_provided and vuln_lower in LOW_IMPACT_CLASSES:
             issues.append(
                 f"Q7 SKIP: chain_with={chain_with} supplies impact context — "
                 "low-impact root class is acceptable when chained"
             )
-        elif verdict == "REPORT" and weak_evidence and vuln_lower in low_impact_classes:
+        elif verdict == "REPORT" and weak_evidence and vuln_lower in LOW_IMPACT_CLASSES:
             issues.append("Q7 TRIAGER TEST: low-impact class + weak evidence — likely marked informative. Chain with another finding first (pass chain_with=[<id>]).")
             verdict = "NEEDS MORE EVIDENCE"
 
