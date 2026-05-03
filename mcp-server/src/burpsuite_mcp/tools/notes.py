@@ -10,11 +10,26 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 
-INTEL_DIR = Path.cwd() / ".burp-intel"
+def _intel_dir() -> Path:
+    """Resolve the .burp-intel directory at call time (cwd may change)."""
+    return Path.cwd() / ".burp-intel"
 
 
 def _sanitized(domain: str) -> str:
-    return re.sub(r'[^a-zA-Z0-9._-]', '_', domain)
+    cleaned = re.sub(r'[^a-zA-Z0-9._-]', '_', domain).strip(".")
+    if not cleaned or ".." in cleaned:
+        raise ValueError(f"Invalid domain: {domain!r}")
+    return cleaned
+
+
+def _safe_findings_path(domain: str) -> Path:
+    """Resolve findings.json for a domain with path-traversal guard."""
+    base = _intel_dir().resolve()
+    sub = _sanitized(domain)
+    candidate = (base / sub / "findings.json").resolve()
+    if base != candidate and base not in candidate.parents:
+        raise ValueError(f"Domain escapes intel root: {domain!r}")
+    return _intel_dir() / sub / "findings.json"
 
 
 def _domain_from_endpoint(endpoint: str) -> str:
@@ -142,7 +157,7 @@ def register(mcp: FastMCP):
         # or stale. Force re-verification before chain.
         if chain_with and resolved_domain:
             try:
-                findings_path = INTEL_DIR / _sanitized(resolved_domain) / "findings.json"
+                findings_path = _safe_findings_path(resolved_domain)
                 if findings_path.exists():
                     existing = _load_findings_file(findings_path).get("findings", [])
                     by_id = {f.get("id", ""): f for f in existing if f.get("id")}
@@ -211,7 +226,7 @@ def register(mcp: FastMCP):
         dedup_action = "created"
         saved_id = ""
         if resolved_domain:
-            findings_path = INTEL_DIR / _sanitized(resolved_domain) / "findings.json"
+            findings_path = _safe_findings_path(resolved_domain)
             store = _load_findings_file(findings_path)
             now = datetime.now(timezone.utc).isoformat()
             new_entry = {
@@ -299,13 +314,14 @@ def register(mcp: FastMCP):
             include_suspected: If True, also restore suspected/stale findings (default: confirmed-only)
         """
         targets: list[Path] = []
+        intel_root = _intel_dir()
         if domain == "all":
-            if INTEL_DIR.exists():
-                for d in sorted(INTEL_DIR.iterdir()):
+            if intel_root.exists():
+                for d in sorted(intel_root.iterdir()):
                     if d.is_dir() and (d / "findings.json").exists():
                         targets.append(d / "findings.json")
         else:
-            p = INTEL_DIR / _sanitized(domain) / "findings.json"
+            p = _safe_findings_path(domain)
             if p.exists():
                 targets.append(p)
 

@@ -274,10 +274,16 @@ def _load_all_knowledge(categories: list[str] | None = None) -> list[dict]:
 
 
 def _compact_targets(targets: list[dict]) -> str:
-    """Format targets as a compact JSON-like string for Claude to copy-paste."""
+    """Format targets as a compact JSON string for Claude to copy-paste."""
     items = []
     for t in targets[:15]:  # Cap at 15 for readability
-        items.append(f'{{"method":"{t.get("method","GET")}","path":"{t.get("path","")}","parameter":"{t.get("parameter","")}","baseline_value":"{t.get("baseline_value","1")}","location":"{t.get("location","query")}"}}')
+        items.append(json.dumps({
+            "method": t.get("method", "GET"),
+            "path": t.get("path", ""),
+            "parameter": t.get("parameter", ""),
+            "baseline_value": t.get("baseline_value", "1"),
+            "location": t.get("location", "query"),
+        }, separators=(",", ":")))
     result = "[" + ",".join(items) + "]"
     if len(targets) > 15:
         result += f"  # ... and {len(targets) - 15} more"
@@ -398,10 +404,9 @@ def register(mcp: FastMCP):
                 # reject downstream. The hunter is still free to enrich via
                 # save_target_intel.
                 try:
-                    from burpsuite_mcp.tools.intel import INTEL_DIR as _ID
-                    import re as _re_b, json as _json_b
-                    sanitized = _re_b.sub(r"[^a-zA-Z0-9._-]", "_", domain)
-                    profile_path = _ID / sanitized / "profile.json"
+                    import json as _json_b
+                    from burpsuite_mcp.tools.intel import _intel_path
+                    profile_path = _intel_path(domain) / "profile.json"
                     profile_path.parent.mkdir(parents=True, exist_ok=True)
                     if not profile_path.exists():
                         profile_path.write_text(_json_b.dumps({
@@ -413,14 +418,16 @@ def register(mcp: FastMCP):
                 except Exception:
                     pass
 
+        # Load knowledge once; reused for coverage-filter category derivation
+        # AND the actual probe call below.
+        _knowledge = _load_all_knowledge(categories)
+
         # ── R13: filter targets against existing coverage ──
         skipped_count = 0
         if domain and skip_already_covered:
             try:
-                import re as _re_skip
-                from burpsuite_mcp.tools.intel import _knowledge_version, INTEL_DIR as _ID
-                sanitized = _re_skip.sub(r"[^a-zA-Z0-9._-]", "_", domain)
-                cov_path = _ID / sanitized / "coverage.json"
+                from burpsuite_mcp.tools.intel import _knowledge_version, _intel_path
+                cov_path = _intel_path(domain) / "coverage.json"
                 if cov_path.exists():
                     cov = json.loads(cov_path.read_text())
                     cur_kv = _knowledge_version()
@@ -434,7 +441,7 @@ def register(mcp: FastMCP):
                             ))
                     if covered_keys:
                         active_cats = set(categories or [
-                            k.get("category") for k in _load_all_knowledge(categories)
+                            k.get("category") for k in _knowledge
                         ])
                         new_targets = []
                         for t in targets:
@@ -449,7 +456,7 @@ def register(mcp: FastMCP):
             except (OSError, json.JSONDecodeError, ValueError):
                 pass  # best-effort
 
-        knowledge = _load_all_knowledge(categories)
+        knowledge = _knowledge
         if not knowledge:
             available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
             return f"No knowledge base found. Available: {', '.join(sorted(available))}"
@@ -1156,11 +1163,22 @@ def register(mcp: FastMCP):
                             finding_reasons.append(f"redirect to Collaborator: {h['value'][:50]}")
 
                 # Check timing anomaly. Rule 11: never trust a single slow
-                # response — network noise triggers false positives. For SLEEP
-                # payloads, require delta >2s vs baseline AND re-send twice
-                # more requiring both repeats to also breach the threshold.
-                timing_threshold = max(3000, baseline_time_ms + 2000)
-                if time_ms > timing_threshold and "SLEEP" in payload.upper():
+                # response — network noise triggers false positives. For sleep-style
+                # payloads, require delta >1.5s vs baseline AND re-send twice more
+                # requiring both repeats to also breach the threshold.
+                # Threshold is 1.5s under baseline+2.5s so a SLEEP(3) payload
+                # actually exceeds it under typical jitter.
+                timing_threshold = max(2500, baseline_time_ms + 1500)
+                p_upper = payload.upper()
+                is_timing_payload = (
+                    "SLEEP(" in p_upper
+                    or "PG_SLEEP" in p_upper
+                    or "WAITFOR DELAY" in p_upper
+                    or "BENCHMARK(" in p_upper
+                    or "DBMS_PIPE.RECEIVE_MESSAGE" in p_upper
+                    or "DBMS_LOCK.SLEEP" in p_upper
+                )
+                if time_ms > timing_threshold and is_timing_payload:
                     confirmed = 1
                     for _ in range(2):
                         verify_resp = await client.post("/api/session/request", json={

@@ -12,16 +12,38 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 
-INTEL_DIR = Path.cwd() / ".burp-intel"
+def _intel_root() -> Path:
+    """Resolve the .burp-intel directory at call time (cwd may change)."""
+    return Path.cwd() / ".burp-intel"
+
+
+# Backwards-compat shim: many call sites read INTEL_DIR directly.
+# Kept as a lazy property-like lookup via __getattr__ at module level.
 KNOWLEDGE_DIR = Path(__file__).parent.parent / "knowledge"
+
+
+def __getattr__(name: str):
+    if name == "INTEL_DIR":
+        return _intel_root()
+    raise AttributeError(name)
 
 VALID_CATEGORIES = ("profile", "endpoints", "coverage", "findings", "fingerprint", "patterns")
 
 
 def _intel_path(domain: str) -> Path:
-    """Return the intel directory path for a domain, with sanitized name."""
+    """Return the intel directory path for a domain, with sanitized name.
+
+    Rejects any sanitized name that would escape the intel root (path traversal guard).
+    """
     sanitized = re.sub(r'[^a-zA-Z0-9._-]', '_', domain)
-    return INTEL_DIR / sanitized
+    sanitized = sanitized.strip(".")
+    if not sanitized or ".." in sanitized:
+        raise ValueError(f"Invalid domain for intel path: {domain!r}")
+    base = _intel_root().resolve()
+    candidate = (base / sanitized).resolve()
+    if base != candidate and base not in candidate.parents:
+        raise ValueError(f"Domain escapes intel root: {domain!r}")
+    return _intel_root() / sanitized
 
 
 def _ensure_dir(domain: str) -> Path:
@@ -553,13 +575,14 @@ def register(mcp: FastMCP):
             tech_stack: Current target's tech stack
             vuln_class: Optional filter by vulnerability class
         """
-        if not INTEL_DIR.exists():
+        intel_root = _intel_root()
+        if not intel_root.exists():
             return "No target intel stored yet."
 
         tech_lower = {t.lower() for t in tech_stack}
         matches = []
 
-        for domain_dir in INTEL_DIR.iterdir():
+        for domain_dir in intel_root.iterdir():
             if not domain_dir.is_dir():
                 continue
 
@@ -775,7 +798,8 @@ def register(mcp: FastMCP):
     # NEVER SUBMIT in advisor.py over-blocks for programs that DO pay
     # tabnabbing / username enumeration / etc. This tool persists a per-
     # program override so assess_finding can apply it dynamically.
-    PROGRAMS_DIR = INTEL_DIR / "programs"
+    def _programs_dir() -> Path:
+        return _intel_root() / "programs"
 
     @mcp.tool()
     async def set_program_policy(
@@ -797,8 +821,9 @@ def register(mcp: FastMCP):
             notes: Free-form operator notes (payout table, triager preferences)
         """
         slug = re.sub(r"[^a-zA-Z0-9._-]", "_", name).strip("_") or "default"
-        PROGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-        out_path = PROGRAMS_DIR / f"{slug}.json"
+        programs_dir = _programs_dir()
+        programs_dir.mkdir(parents=True, exist_ok=True)
+        out_path = programs_dir / f"{slug}.json"
         record = {
             "name": name,
             "slug": slug,
@@ -810,7 +835,7 @@ def register(mcp: FastMCP):
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         _atomic_write_json(out_path, record)
-        active_path = PROGRAMS_DIR / "active.json"
+        active_path = programs_dir / "active.json"
         _atomic_write_json(active_path, {"slug": slug})
         return (
             f"Program policy saved: {slug} (now active)\n"
@@ -828,18 +853,19 @@ def register(mcp: FastMCP):
         Args:
             name: Program slug. Empty = return active program.
         """
+        programs_dir = _programs_dir()
         if not name:
-            active = PROGRAMS_DIR / "active.json"
+            active = programs_dir / "active.json"
             if not active.exists():
                 return "No active program. Use set_program_policy(...) to create one."
             try:
                 slug = json.loads(active.read_text()).get("slug", "")
             except (json.JSONDecodeError, OSError):
                 return "Active marker corrupted; recreate with set_program_policy."
-            target = PROGRAMS_DIR / f"{slug}.json"
+            target = programs_dir / f"{slug}.json"
         else:
             slug = re.sub(r"[^a-zA-Z0-9._-]", "_", name).strip("_")
-            target = PROGRAMS_DIR / f"{slug}.json"
+            target = programs_dir / f"{slug}.json"
         if not target.exists():
             return f"No policy for '{slug or name}'."
         return target.read_text()
@@ -848,7 +874,7 @@ def register(mcp: FastMCP):
 # Module-level loader for advisor.py — pure read, no MCP needed.
 def load_active_program_policy() -> dict:
     """Load the active program policy as a dict, or return empty dict if none."""
-    programs_dir = INTEL_DIR / "programs"
+    programs_dir = _intel_root() / "programs"
     active = programs_dir / "active.json"
     if not active.exists():
         return {}
