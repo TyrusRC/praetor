@@ -14,6 +14,9 @@ public class SwissKnifeExtension implements BurpExtension {
     private volatile ApiServer apiServer;
     private ConfigTab configTab;
     private MontoyaApi api;
+    private final Object serverLifecycleLock = new Object();
+    /** Long-lived FindingsStore that survives server restarts — keeps the UI dashboard pointing at the same data. */
+    private final com.swissknife.store.FindingsStore findingsStore = new com.swissknife.store.FindingsStore();
 
     @Override
     public void initialize(MontoyaApi api) {
@@ -30,48 +33,58 @@ public class SwissKnifeExtension implements BurpExtension {
         // Start API server first (creates SessionHandler + FindingsStore)
         startServer(api, host, port);
 
-        // Register UI dashboard tab with references to live data
+        // Register UI dashboard tab with references to live data. The
+        // suppliers re-read `apiServer` on every invocation so a server
+        // restart hands the UI fresh references rather than stale ones.
         configTab = new ConfigTab(api, host, port, version, this::restartServer,
-                () -> apiServer.getSessionHandler() != null ? apiServer.getSessionHandler().getSessionInfoList() : java.util.List.of(),
-                apiServer.getFindingsStore());
+                () -> {
+                    ApiServer current = apiServer;
+                    return (current != null && current.getSessionHandler() != null)
+                        ? current.getSessionHandler().getSessionInfoList()
+                        : java.util.List.of();
+                },
+                findingsStore);
         api.userInterface().registerSuiteTab(EXTENSION_NAME, configTab.getPanel());
 
         api.extension().registerUnloadingHandler(() -> {
-            if (configTab != null) configTab.stop();
-            if (apiServer != null) apiServer.stop();
+            synchronized (serverLifecycleLock) {
+                if (configTab != null) configTab.stop();
+                if (apiServer != null) apiServer.stop();
+            }
             api.logging().logToOutput(EXTENSION_NAME + " stopped");
         });
     }
 
     private void startServer(MontoyaApi api, String host, int port) {
-        apiServer = new ApiServer(api, host, port, getVersion());
-        try {
-            apiServer.start();
-            api.logging().logToOutput(EXTENSION_NAME + " v" + getVersion() + " started on " + host + ":" + port);
-            // Surface the proxy-tunnel endpoint so hunters can spot misconfigs
-            // (e.g. custom Burp proxy port not reflected in BURP_PROXY_PORT).
-            api.logging().logToOutput("Proxy tunnel → "
-                + com.swissknife.http.ProxyTunnel.BURP_PROXY_HOST + ":"
-                + com.swissknife.http.ProxyTunnel.BURP_PROXY_PORT
-                + " (override with env BURP_PROXY_HOST/PORT or -Dswissknife.proxy.{host,port})");
-        } catch (Exception e) {
-            api.logging().logToError("Failed to start API server on " + host + ":" + port + ": " + e.getMessage());
+        synchronized (serverLifecycleLock) {
+            apiServer = new ApiServer(api, host, port, getVersion(), findingsStore);
+            try {
+                apiServer.start();
+                api.logging().logToOutput(EXTENSION_NAME + " v" + getVersion() + " started on " + host + ":" + port);
+                // Surface the proxy-tunnel endpoint so hunters can spot misconfigs
+                // (e.g. custom Burp proxy port not reflected in BURP_PROXY_PORT).
+                api.logging().logToOutput("Proxy tunnel → "
+                    + com.swissknife.http.ProxyTunnel.BURP_PROXY_HOST + ":"
+                    + com.swissknife.http.ProxyTunnel.BURP_PROXY_PORT
+                    + " (override with env BURP_PROXY_HOST/PORT or -Dswissknife.proxy.{host,port})");
+            } catch (Exception e) {
+                api.logging().logToError("Failed to start API server on " + host + ":" + port + ": " + e.getMessage());
+                apiServer = null;
+            }
         }
     }
 
     void restartServer(String newHost, int newPort) {
-        // Stop current server
-        if (apiServer != null) {
-            apiServer.stop();
-            api.logging().logToOutput("API server stopped for reconfiguration");
+        synchronized (serverLifecycleLock) {
+            if (apiServer != null) {
+                apiServer.stop();
+                apiServer = null;
+                api.logging().logToOutput("API server stopped for reconfiguration");
+            }
+            saveString(api, "swissknife.host", newHost);
+            saveInt(api, "swissknife.port", newPort);
+            startServer(api, newHost, newPort);
         }
-
-        // Save new config
-        saveString(api, "swissknife.host", newHost);
-        saveInt(api, "swissknife.port", newPort);
-
-        // Start with new config
-        startServer(api, newHost, newPort);
     }
 
     private String getVersion() {

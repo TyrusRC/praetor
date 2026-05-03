@@ -1,5 +1,7 @@
 """Tools for Burp Collaborator - out-of-band testing for blind vulnerabilities."""
 
+import asyncio
+
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
@@ -8,7 +10,16 @@ from burpsuite_mcp import client
 # R23: in-process Collaborator pool. Pre-generated subdomains live here
 # so OOB-heavy scans (auto_probe, fuzz_parameter with Collaborator-bound
 # payloads) can pull from cache instead of one round-trip per probe.
+# Concurrent FastMCP tool calls would otherwise race on pop()/append().
 _COLLAB_POOL: list[dict] = []
+_COLLAB_POOL_LOCK: asyncio.Lock | None = None
+
+
+def _pool_lock() -> asyncio.Lock:
+    global _COLLAB_POOL_LOCK
+    if _COLLAB_POOL_LOCK is None:
+        _COLLAB_POOL_LOCK = asyncio.Lock()
+    return _COLLAB_POOL_LOCK
 
 
 def register(mcp: FastMCP):
@@ -21,10 +32,12 @@ def register(mcp: FastMCP):
         session start, then pop_collaborator_payload() per probe (no round-trip).
         """
         # Pull from pool if available — saves a round-trip
-        if _COLLAB_POOL:
-            entry = _COLLAB_POOL.pop(0)
+        async with _pool_lock():
+            entry = _COLLAB_POOL.pop(0) if _COLLAB_POOL else None
+            remaining = len(_COLLAB_POOL)
+        if entry is not None:
             return (
-                f"Collaborator Payload (from pool, {len(_COLLAB_POOL)} left):\n"
+                f"Collaborator Payload (from pool, {remaining} left):\n"
                 f"  Payload URL: {entry.get('payload', '')}\n"
                 f"  Interaction ID: {entry.get('interaction_id', '')}\n"
                 f"  Server: {entry.get('server', '')}\n\n"
@@ -56,6 +69,7 @@ def register(mcp: FastMCP):
         count = max(1, min(200, count))
         added = 0
         errors = 0
+        new_entries: list[dict] = []
         for _ in range(count):
             data = await client.post("/api/collaborator/payload")
             if "error" in data:
@@ -63,15 +77,18 @@ def register(mcp: FastMCP):
                 if errors >= 3:
                     break  # Burp Pro likely missing; stop wasting calls
                 continue
-            _COLLAB_POOL.append({
+            new_entries.append({
                 "payload": data.get("payload", ""),
                 "interaction_id": data.get("interaction_id", ""),
                 "server": data.get("server", ""),
             })
             added += 1
+        async with _pool_lock():
+            _COLLAB_POOL.extend(new_entries)
+            total = len(_COLLAB_POOL)
         return (
             f"Collaborator pool: +{added} subdomains "
-            f"(total now {len(_COLLAB_POOL)}, errors={errors})"
+            f"(total now {total}, errors={errors})"
         )
 
     @mcp.tool()

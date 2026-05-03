@@ -11,12 +11,21 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.config import BURP_PROXY_HOST, BURP_PROXY_PORT
 
-# Lazy-loaded browser state (survives across tool calls within a session)
+# Lazy-loaded browser state (survives across tool calls within a session).
+# `_lock` is created lazily inside the running event loop so it doesn't
+# get bound to the import-time loop (FastMCP creates its own loop).
 _playwright = None
 _browser = None
 _context = None
 _page = None
-_lock = asyncio.Lock()
+_lock: asyncio.Lock | None = None
+
+
+def _get_lock() -> asyncio.Lock:
+    global _lock
+    if _lock is None:
+        _lock = asyncio.Lock()
+    return _lock
 
 # Stealth settings to avoid bot detection
 _STEALTH_ARGS = [
@@ -41,12 +50,19 @@ async def _ensure_browser():
     """Launch browser if not already running. Returns (browser, context, page)."""
     global _playwright, _browser, _context, _page
 
-    async with _lock:
+    async with _get_lock():
         if _browser and _browser.is_connected():
-            if _page and not _page.is_closed():
+            # Reset the page when the context died — otherwise the next
+            # _context.new_page() raises on a stale context.
+            if _context is None:
+                _page = None
+            elif _page and not _page.is_closed():
                 return _browser, _context, _page
-            _page = await _context.new_page()
-            return _browser, _context, _page
+            else:
+                _page = None
+            if _context is not None:
+                _page = await _context.new_page()
+                return _browser, _context, _page
 
         try:
             from playwright.async_api import async_playwright
@@ -410,7 +426,7 @@ def register(mcp: FastMCP):
         from burpsuite_mcp import client as burp_client
 
         # Scope check before we do anything
-        scope_resp = await burp_client.post("/api/scope/check", json={"url": url})
+        scope_resp = await burp_client.check_scope(url)
         if "error" not in scope_resp and not scope_resp.get("in_scope", False):
             return f"Error: {url} is OUT OF SCOPE. Add to scope first or use a scoped URL."
 
@@ -457,7 +473,7 @@ def register(mcp: FastMCP):
                     if any(x in href.lower() for x in ["/logout", "/signout", "/delete"]):
                         continue
                     # Scope check — skip out-of-scope links silently
-                    scope_check = await burp_client.post("/api/scope/check", json={"url": href})
+                    scope_check = await burp_client.check_scope(href)
                     if "error" not in scope_check and not scope_check.get("in_scope", False):
                         skipped_oos += 1
                         continue

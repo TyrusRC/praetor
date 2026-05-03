@@ -172,6 +172,9 @@ public class MacroHandler extends BaseHandler {
             macro.steps.add(step);
         }
 
+        // Freeze the step list before publishing so concurrent run/list calls
+        // see a consistent snapshot and cannot accidentally mutate it.
+        macro.steps = java.util.Collections.unmodifiableList(new ArrayList<>(macro.steps));
         macros.put(name, macro);
         ConfigTab.log("Macro created: " + name + " (" + macro.steps.size() + " steps)");
 

@@ -134,7 +134,11 @@ public class WebSocketSendHandler extends BaseHandler {
                 "total_sent", total
             ));
         } catch (Exception e) {
-            sendError(exchange, 500, "Send failed: " + e.getMessage());
+            // The remote end is gone (or the socket transitioned to CLOSED).
+            // Drop the entry so /connections doesn't keep advertising a
+            // zombie session forever.
+            connections.remove(name);
+            sendError(exchange, 500, "Send failed (connection dropped): " + e.getMessage());
         }
     }
 

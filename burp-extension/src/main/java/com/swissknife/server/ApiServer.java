@@ -21,16 +21,22 @@ public class ApiServer {
     private final int port;
     private HttpServer server;
     private ExecutorService executor;
-    private final FindingsStore findingsStore = new FindingsStore();
+    private final FindingsStore findingsStore;
     private SessionHandler sessionHandler;
 
     private final String version;
 
     public ApiServer(MontoyaApi api, String host, int port, String version) {
+        this(api, host, port, version, new FindingsStore());
+    }
+
+    /** Constructor that lets the caller supply (and outlive) the FindingsStore — keeps the UI tab attached to a single store across server restarts. */
+    public ApiServer(MontoyaApi api, String host, int port, String version, FindingsStore findingsStore) {
         this.api = api;
         this.host = host;
         this.port = port;
         this.version = version;
+        this.findingsStore = findingsStore;
     }
 
     /** True iff the given bind host is a loopback address. */
