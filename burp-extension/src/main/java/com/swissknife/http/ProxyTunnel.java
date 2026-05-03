@@ -129,7 +129,7 @@ public final class ProxyTunnel {
         out.flush();
 
         String statusLine = readLine(in);
-        if (statusLine == null || !statusLine.contains(" 200")) {
+        if (statusLine == null || !isHttp200(statusLine)) {
             throw new IOException("Burp proxy refused CONNECT: " + statusLine);
         }
         // drain CONNECT headers until blank line
@@ -161,12 +161,22 @@ public final class ProxyTunnel {
         return readAll(socket.getInputStream());
     }
 
-    /** Change "METHOD /path HTTP/x" to "METHOD http://host[:port]/path HTTP/x". */
+    /**
+     * Change "METHOD /path HTTP/x" to "METHOD http://host[:port]/path HTTP/x".
+     *
+     * Only the request line is text — find the first '\n' byte, rewrite the
+     * line (ASCII), then concatenate the original byte array's remainder
+     * unchanged. This preserves UTF-8 / binary bodies.
+     */
     private static byte[] rewriteAsProxyRequest(byte[] raw, String host, int port) {
-        String s = new String(raw, StandardCharsets.ISO_8859_1);
-        int lf = s.indexOf('\n');
+        int lf = -1;
+        for (int i = 0; i < raw.length; i++) {
+            if (raw[i] == '\n') { lf = i; break; }
+        }
         if (lf < 0) return raw;
-        String requestLine = s.substring(0, lf);
+        // Request line bytes (without trailing '\n', stripping CR if present).
+        int lineEnd = (lf > 0 && raw[lf - 1] == '\r') ? lf - 1 : lf;
+        String requestLine = new String(raw, 0, lineEnd, StandardCharsets.US_ASCII);
         int first = requestLine.indexOf(' ');
         int second = requestLine.indexOf(' ', first + 1);
         if (first < 0 || second < 0) return raw;
@@ -174,9 +184,23 @@ public final class ProxyTunnel {
         String path = requestLine.substring(first + 1, second);
         String rest = requestLine.substring(second);
         String authority = (port == 80) ? host : host + ":" + port;
-        String newLine = method + " http://" + authority + path + rest;
-        String rewritten = newLine + s.substring(lf);
-        return rewritten.getBytes(StandardCharsets.ISO_8859_1);
+        String newLine = method + " http://" + authority + path + rest + "\r\n";
+        byte[] newLineBytes = newLine.getBytes(StandardCharsets.US_ASCII);
+        int restStart = lf + 1;
+        int restLen = raw.length - restStart;
+        byte[] out = new byte[newLineBytes.length + restLen];
+        System.arraycopy(newLineBytes, 0, out, 0, newLineBytes.length);
+        if (restLen > 0) {
+            System.arraycopy(raw, restStart, out, newLineBytes.length, restLen);
+        }
+        return out;
+    }
+
+    /** True when the HTTP/x.y response status line indicates 200. Splits on space rather than substring-matching " 200". */
+    private static boolean isHttp200(String statusLine) {
+        if (statusLine == null) return false;
+        String[] parts = statusLine.split(" ", 3);
+        return parts.length >= 2 && "200".equals(parts[1]);
     }
 
     private static String readLine(InputStream in) throws IOException {
@@ -203,6 +227,19 @@ public final class ProxyTunnel {
         return bos.toByteArray();
     }
 
+    /** Set true by {@link #sendOrFallback} when the most recent send fell through to a non-proxied path. */
+    private static final ThreadLocal<Boolean> LAST_FELL_BACK = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /**
+     * Returns whether the most recent {@link #sendOrFallback} call on this thread
+     * had to bypass Burp's proxy listener. Handlers can read this and surface
+     * a {@code history_index=-1} note so callers know the request did NOT
+     * land in Proxy history (Rule 26a).
+     */
+    public static boolean lastSendFellBack() {
+        return LAST_FELL_BACK.get();
+    }
+
     /**
      * Convenience: send via tunnel, fall back to {@code api.http().sendRequest}
      * if the tunnel is unavailable. Callers that always want proxy-history
@@ -210,9 +247,12 @@ public final class ProxyTunnel {
      */
     public static HttpRequestResponse sendOrFallback(MontoyaApi api, HttpRequest request) {
         HttpRequestResponse result = send(api, request);
-        if (result != null && result.response() != null) return result;
-        // Fallback: direct HTTP client. Traffic lands in Logger, not Proxy history,
-        // but at least the hunt doesn't hard-fail if the proxy listener is down.
+        if (result != null && result.response() != null) {
+            LAST_FELL_BACK.set(Boolean.FALSE);
+            return result;
+        }
+        LAST_FELL_BACK.set(Boolean.TRUE);
+        api.logging().logToOutput("ProxyTunnel: falling back to direct sendRequest — request will NOT appear in Proxy history (Rule 26a). Check Burp proxy listener at " + BURP_PROXY_HOST + ":" + BURP_PROXY_PORT + ".");
         return api.http().sendRequest(request);
     }
 }

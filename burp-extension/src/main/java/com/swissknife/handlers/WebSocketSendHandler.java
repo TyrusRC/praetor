@@ -10,6 +10,7 @@ import com.swissknife.server.BaseHandler;
 import com.swissknife.util.JsonUtil;
 
 import java.util.*;
+import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -70,13 +71,17 @@ public class WebSocketSendHandler extends BaseHandler {
             } catch (Exception ignored) {}
 
             String upgradeUrl = url.replace("wss://", "https://").replace("ws://", "http://");
+            // RFC 6455 §4.1: Sec-WebSocket-Key MUST be a fresh random 16-byte value (base64) per connection.
+            byte[] nonce = new byte[16];
+            new java.security.SecureRandom().nextBytes(nonce);
+            String wsKey = Base64.getEncoder().encodeToString(nonce);
             HttpRequest request = HttpRequest.httpRequest(service,
                 "GET " + wsPath + " HTTP/1.1\r\n" +
                 "Host: " + service.host() + "\r\n" +
                 "Upgrade: websocket\r\n" +
                 "Connection: Upgrade\r\n" +
                 "Sec-WebSocket-Version: 13\r\n" +
-                "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n");
+                "Sec-WebSocket-Key: " + wsKey + "\r\n\r\n");
 
             ExtensionWebSocketCreation creation = api.websockets().createWebSocket(request);
             ExtensionWebSocket ws = creation.webSocket().orElse(null);

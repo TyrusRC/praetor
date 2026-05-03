@@ -327,13 +327,50 @@ public class HttpSendHandler extends BaseHandler {
                 }
             }
 
-            // Follow redirect
+            // Follow redirect.
+            // RFC 7231/7538: 301/302/303 may downgrade to GET; 307/308 MUST
+            // preserve the original method and body.
             HttpService nextService = HttpService.httpService(location);
+            String nextMethod;
+            boolean preserveBody;
+            if (status == 307 || status == 308) {
+                nextMethod = result.request() != null ? result.request().method() : "GET";
+                preserveBody = true;
+            } else if (status == 303) {
+                nextMethod = "GET";
+                preserveBody = false;
+            } else {
+                // 301/302: most clients downgrade non-GET/HEAD to GET, preserve GET/HEAD as-is.
+                String origMethod = result.request() != null ? result.request().method() : "GET";
+                nextMethod = ("GET".equalsIgnoreCase(origMethod) || "HEAD".equalsIgnoreCase(origMethod)) ? origMethod : "GET";
+                preserveBody = "GET".equalsIgnoreCase(nextMethod) ? false : true;
+            }
+
             HttpRequest nextRequest = HttpRequest.httpRequest()
-                .withMethod("GET")
+                .withMethod(nextMethod)
                 .withPath(extractPath(location))
                 .withService(nextService)
                 .withHeader("Host", nextService.host());
+
+            // Cross-origin redirect strips Authorization (and Cookie); same-origin keeps them.
+            boolean sameOrigin = result.request() != null
+                && result.request().httpService() != null
+                && nextService.host().equalsIgnoreCase(result.request().httpService().host())
+                && nextService.port() == result.request().httpService().port()
+                && nextService.secure() == result.request().httpService().secure();
+
+            if (result.request() != null) {
+                for (HttpHeader h : result.request().headers()) {
+                    String name = h.name();
+                    if ("Host".equalsIgnoreCase(name)) continue;
+                    if ("Content-Length".equalsIgnoreCase(name)) continue;
+                    if (!sameOrigin && ("Authorization".equalsIgnoreCase(name) || "Cookie".equalsIgnoreCase(name))) continue;
+                    nextRequest = nextRequest.withHeader(name, h.value());
+                }
+                if (preserveBody && result.request().body() != null && result.request().body().length() > 0) {
+                    nextRequest = nextRequest.withBody(result.request().body());
+                }
+            }
 
             result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, nextRequest);
             service = nextService;

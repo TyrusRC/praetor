@@ -16,8 +16,17 @@ public abstract class BaseHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        // CORS for localhost MCP server
-        exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "http://127.0.0.1");
+        // CORS for localhost MCP/dev clients. Echo the Origin header so any
+        // localhost port (the MCP client picks an ephemeral one) is accepted;
+        // fall back to "*" for non-browser callers that omit Origin.
+        String origin = exchange.getRequestHeaders().getFirst("Origin");
+        exchange.getResponseHeaders().add(
+            "Access-Control-Allow-Origin",
+            (origin != null && !origin.isBlank()) ? origin : "*"
+        );
+        if (origin != null && !origin.isBlank()) {
+            exchange.getResponseHeaders().add("Vary", "Origin");
+        }
         exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
         exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
 
@@ -65,12 +74,16 @@ public abstract class BaseHandler implements HttpHandler {
         String query = uri.getRawQuery();
         if (query == null || query.isEmpty()) return params;
         for (String pair : query.split("&")) {
+            if (pair.isEmpty()) continue;
             int eq = pair.indexOf('=');
             if (eq > 0) {
                 params.put(
                     java.net.URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8),
                     java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8)
                 );
+            } else if (eq < 0) {
+                // Valueless flag: ?flag → flag=""
+                params.put(java.net.URLDecoder.decode(pair, StandardCharsets.UTF_8), "");
             }
         }
         return params;

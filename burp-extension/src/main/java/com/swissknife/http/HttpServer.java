@@ -180,9 +180,11 @@ public final class HttpServer {
     }
 
     private HttpHandler findHandler(String path) {
+        // Match on exact path or on a clean "/" boundary so /api/scope does NOT
+        // capture /api/scopes. Longest-prefix wins.
         Context best = null;
         for (Context c : contexts) {
-            if (path.equals(c.path) || path.startsWith(c.path + "/") || path.startsWith(c.path)) {
+            if (path.equals(c.path) || path.startsWith(c.path + "/")) {
                 if (best == null || c.path.length() > best.path.length()) best = c;
             }
         }
