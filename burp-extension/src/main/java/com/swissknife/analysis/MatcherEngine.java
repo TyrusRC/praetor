@@ -90,10 +90,20 @@ public final class MatcherEngine {
                 }
                 case "regex" -> {
                     String pattern = (String) matcher.get("pattern");
+                    Object flagObj = matcher.get("ignore_case");
+                    int regexFlags = (flagObj instanceof Boolean b && !b) ? 0 : Pattern.CASE_INSENSITIVE;
                     if (pattern != null) {
                         try {
-                            matched = compileCached(pattern, Pattern.CASE_INSENSITIVE).matcher(body).find();
-                        } catch (PatternSyntaxException ignored) {}
+                            matched = compileCached(pattern, regexFlags).matcher(body).find();
+                        } catch (PatternSyntaxException ignored) {
+                            // Invalid KB regex — record but don't kill the whole evaluation
+                            matchedDescriptions.add("regex_invalid:" + pattern);
+                        } catch (StackOverflowError soe) {
+                            // Catastrophic backtracking on adversarial body — fail this matcher,
+                            // not the worker thread.
+                            matchedDescriptions.add("regex_backtrack_overflow:" + pattern);
+                            matched = false;
+                        }
                     }
                     if (matched) matchedDescriptions.add("regex:" + pattern);
                 }
@@ -279,6 +289,13 @@ public final class MatcherEngine {
                 }
             }
 
+            // Unknown matcher type: record but don't silently force allMatched=false.
+            // A typo in a knowledge file otherwise nukes every probe in the context.
+            if (!KNOWN_MATCHER_TYPES.contains(type)) {
+                matchedDescriptions.add("unknown_matcher_type:" + type);
+                continue; // skip this matcher (treat as if not present)
+            }
+
             if (!matched) allMatched = false;
         }
 
@@ -287,6 +304,14 @@ public final class MatcherEngine {
         result.put("confidence_boost", allMatched ? matchedDescriptions.size() * 15 : 0);
         return result;
     }
+
+    private static final java.util.Set<String> KNOWN_MATCHER_TYPES = java.util.Set.of(
+        "status", "word", "not_word", "regex", "timing", "differential_timing",
+        "length_diff", "length_delta", "word_count_diff",
+        "header", "header_change", "header_added", "header_removed",
+        "mime_changes", "reflection",
+        "shape_fingerprint", "valid_vs_invalid_baseline"
+    );
 
     private static int countWords(String text) {
         if (text == null || text.isEmpty()) return 0;

@@ -473,10 +473,14 @@ public class SessionHandler extends BaseHandler {
         String parameter = (String) body.get("parameter");
         String baselineValue = (String) body.getOrDefault("baseline_value", "1");
         String payloadValue = (String) body.getOrDefault("payload_value", "");
-        String injectionPoint = (String) body.getOrDefault("injection_point", "query");
+        String injectionPoint = ((String) body.getOrDefault("injection_point", "query")).toLowerCase();
         List<String> testPayloads = body.containsKey("test_payloads") ? (List<String>) body.get("test_payloads") : null;
 
         if (parameter == null) { sendError(exchange, 400, "Missing 'parameter'"); return; }
+        if (!injectionPoint.equals("query") && !injectionPoint.equals("body")) {
+            sendError(exchange, 400, "injection_point must be 'query' or 'body' (got '" + injectionPoint + "')");
+            return;
+        }
 
         synchronized (session) {
             // ── Step 1: Send baseline request ──
@@ -688,8 +692,10 @@ public class SessionHandler extends BaseHandler {
             payloads.add(isNumeric ? "1 OR 1=1-- -" : "' OR '1'='1");
         }
 
-        // XSS probe (always include)
-        payloads.add("<xss_probe_" + System.currentTimeMillis() % 10000 + ">");
+        // XSS probe (always include) — base36 ms+seq, unique even within the same millisecond
+        long seq = PROBE_MARKER_SEQ.incrementAndGet();
+        payloads.add("<xss_probe_" + Long.toString(System.currentTimeMillis(), 36)
+            + "_" + Long.toString(seq, 36) + ">");
 
         // Path traversal (if parameter looks like a file/path)
         if (parameter.matches("(?i)file|path|item|page|template|include|url|src|doc|dir")) {
@@ -771,16 +777,21 @@ public class SessionHandler extends BaseHandler {
             }
         }
 
-        // Path traversal
-        if (lower.contains("root:x:0") || lower.contains("[extensions]") || lower.contains("[boot loader]") ||
-            lower.contains("for 16-bit app support") || lower.contains("/etc/shadow") || lower.contains("c:\\windows")) {
+        // Path traversal — high-signal markers only. `c:\windows` was matching every
+        // IIS 404 page that says "could not find c:\windows\..."; require root:x:0
+        // / shadow / boot.ini structure, NOT bare path strings.
+        if (lower.contains("root:x:0") || lower.contains("/etc/shadow")
+            || (lower.contains("[boot loader]") && lower.contains("[operating systems]"))
+            || lower.contains("for 16-bit app support")) {
             patterns.add(Map.of("type", "path_traversal", "description", "System file contents leaked", "confidence", "high"));
         }
 
-        // SSTI — only flag explicit template engine errors, not generic "49" matches
+        // SSTI — only flag explicit template engine errors. The bare
+        // "template" + "error" combo flagged every "Email Template Error"
+        // CMS page as SSTI; require an actual engine name.
         if (lower.contains("jinja2") || lower.contains("freemarker") || lower.contains("velocity") ||
             lower.contains("thymeleaf") || lower.contains("twig") || lower.contains("mako") ||
-            (lower.contains("template") && (lower.contains("error") || lower.contains("exception")))) {
+            lower.contains("smarty") || lower.contains("erb") || lower.contains("pug") || lower.contains("nunjucks")) {
             patterns.add(Map.of("type", "ssti", "description", "Template engine error detected", "confidence", "high"));
         }
 
@@ -1115,8 +1126,11 @@ public class SessionHandler extends BaseHandler {
 
         List<Map<String, Object>> targets = (List<Map<String, Object>>) body.get("targets");
         List<Map<String, Object>> knowledgeBase = (List<Map<String, Object>>) body.get("knowledge");
+        // Default 20 (matches CLAUDE.md v0.5 spec). Real bypass variants for
+        // JWT/GraphQL/proto-pollution sit at variant 6+; the previous default
+        // of 5 silently truncated those.
         int maxProbes = body.containsKey("max_probes_per_param")
-            ? ((Number) body.get("max_probes_per_param")).intValue() : 5;
+            ? ((Number) body.get("max_probes_per_param")).intValue() : 20;
 
         if (targets == null || targets.isEmpty()) { sendError(exchange, 400, "Missing 'targets'"); return; }
         if (knowledgeBase == null || knowledgeBase.isEmpty()) { sendError(exchange, 400, "Missing 'knowledge'"); return; }
@@ -1239,9 +1253,13 @@ public class SessionHandler extends BaseHandler {
                                 // 2xx→4xx is normal input validation, not anomaly
                             }
 
-                            // Length: only flag large structural changes (>50% AND >1KB)
+                            // Length anomaly: scale the absolute floor with the baseline so
+                            // a 200B baseline → 1.2KB probe (6×) is flagged. The 1000B floor
+                            // was tuned for large pages; small JSON endpoints need a
+                            // proportional floor instead.
                             int lenDiff = Math.abs(probeLen - baseLen);
-                            if (baseLen > 0 && lenDiff > baseLen * 0.5 && lenDiff > 1000) {
+                            int absFloor = Math.max(64, Math.min(1000, baseLen / 4));
+                            if (baseLen > 0 && lenDiff > baseLen * 0.5 && lenDiff > absFloor) {
                                 anomalyScore += 15;
                                 anomalies.add("length:" + lenDiff + "B diff");
                             }
@@ -1548,7 +1566,8 @@ public class SessionHandler extends BaseHandler {
 
                 // Resolve relative URLs
                 if (location.startsWith("/")) {
-                    location = uri.getScheme() + "://" + host + (port != 80 && port != 443 ? ":" + port : "") + location;
+                    location = (redirectCount == 0 ? uri.getScheme() : (isHttps ? "https" : "http"))
+                        + "://" + host + (port != 80 && port != 443 ? ":" + port : "") + location;
                 } else if (!location.startsWith("http")) {
                     String basePath = requestPath.contains("/") ? requestPath.substring(0, requestPath.lastIndexOf('/') + 1) : "/";
                     location = uri.getScheme() + "://" + host + (port != 80 && port != 443 ? ":" + port : "") + basePath + location;
@@ -1557,7 +1576,6 @@ public class SessionHandler extends BaseHandler {
                 // Update cookies from redirect response
                 updateCookiesFromResponse(session, result);
 
-                // Build redirect request (GET, preserve cookies)
                 URI redirectUri = new URI(location);
                 String redirPath = redirectUri.getRawPath();
                 if (redirPath == null || redirPath.isEmpty()) redirPath = "/";
@@ -1567,14 +1585,58 @@ public class SessionHandler extends BaseHandler {
                 int redirPort = redirectUri.getPort() > 0 ? redirectUri.getPort() : port;
                 boolean redirHttps = "https".equalsIgnoreCase(redirectUri.getScheme());
 
+                // RFC 7231/7538 method/body semantics + same-origin credential handling
+                // (mirrors the HttpSendHandler.handleCurl P1.5 fix).
+                String origMethod = result.request() != null ? result.request().method() : method;
+                String redirMethod;
+                boolean preserveBody;
+                if (statusCode == 307 || statusCode == 308) {
+                    redirMethod = origMethod;
+                    preserveBody = true;
+                } else if (statusCode == 303) {
+                    redirMethod = "GET";
+                    preserveBody = false;
+                } else {
+                    redirMethod = ("GET".equalsIgnoreCase(origMethod) || "HEAD".equalsIgnoreCase(origMethod)) ? origMethod : "GET";
+                    preserveBody = !"GET".equalsIgnoreCase(redirMethod);
+                }
+
+                boolean sameOrigin = redirHost.equalsIgnoreCase(host)
+                    && redirPort == port
+                    && redirHttps == isHttps;
+
                 HttpRequest redirReq = HttpRequest.httpRequest()
-                    .withMethod("GET")
+                    .withMethod(redirMethod)
                     .withPath(redirPath)
                     .withService(HttpService.httpService(redirHost, redirPort, redirHttps))
                     .withHeader("Host", redirHost);
 
-                // Re-apply session cookies (updated from redirect)
-                if (!session.cookies.isEmpty()) {
+                // Forward original request headers; drop hop-specific and (cross-origin only)
+                // credential headers — preserves Authorization, Bearer, X-CSRF, custom auth on
+                // same-origin redirects (matches what real clients do).
+                if (result.request() != null) {
+                    for (HttpHeader h : result.request().headers()) {
+                        String name = h.name();
+                        if ("Host".equalsIgnoreCase(name) || "Content-Length".equalsIgnoreCase(name)) continue;
+                        if (!sameOrigin && (
+                                "Authorization".equalsIgnoreCase(name)
+                                || "Cookie".equalsIgnoreCase(name)
+                                || "Cookie2".equalsIgnoreCase(name)
+                                || "Proxy-Authorization".equalsIgnoreCase(name)
+                                || name.toLowerCase().startsWith("x-auth")
+                                || name.toLowerCase().startsWith("x-api")
+                                || name.toLowerCase().startsWith("x-csrf"))) {
+                            continue;
+                        }
+                        redirReq = redirReq.withHeader(name, h.value());
+                    }
+                    if (preserveBody && result.request().body() != null && result.request().body().length() > 0) {
+                        redirReq = redirReq.withBody(result.request().body());
+                    }
+                }
+
+                // Always re-apply session cookies on same-origin (jar may have been updated by Set-Cookie above).
+                if (sameOrigin && !session.cookies.isEmpty()) {
                     StringBuilder cb = new StringBuilder();
                     for (var e2 : session.cookies.entrySet()) {
                         if (cb.length() > 0) cb.append("; ");
@@ -1584,6 +1646,9 @@ public class SessionHandler extends BaseHandler {
                 }
 
                 result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, redirReq);
+                host = redirHost;
+                port = redirPort;
+                isHttps = redirHttps;
                 redirectCount++;
             }
 

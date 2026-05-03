@@ -146,6 +146,10 @@ public class MacroHandler extends BaseHandler {
             }
 
             step.body = (String) stepMap.getOrDefault("body", "");
+            if (step.body != null && step.body.length() > 1_000_000) {
+                sendError(exchange, 413, "Macro step body exceeds 1MB cap (got " + step.body.length() + " chars)");
+                return;
+            }
 
             // Parse extraction rules
             @SuppressWarnings("unchecked")

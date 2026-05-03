@@ -93,6 +93,11 @@ public class ScannerHandler extends BaseHandler {
                     sendError(exchange, 400, "Missing 'url' field");
                     return;
                 }
+                if (!api.scope().isInScope(url)) {
+                    sendError(exchange, 403, "URL is out of scope: " + url, "out_of_scope",
+                        "Use configure_scope/add_to_scope to include the host before scanning.");
+                    return;
+                }
                 HttpService service = HttpService.httpService(url);
                 HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
                 targets.add(com.swissknife.http.ProxyTunnel.sendOrFallback(api, request));
@@ -102,12 +107,18 @@ public class ScannerHandler extends BaseHandler {
             else if (body.containsKey("urls")) {
                 @SuppressWarnings("unchecked")
                 List<String> urls = (List<String>) body.get("urls");
+                List<String> oos = new ArrayList<>();
                 for (String url : urls) {
+                    if (!api.scope().isInScope(url)) { oos.add(url); continue; }
                     HttpService service = HttpService.httpService(url);
                     HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
                     targets.add(com.swissknife.http.ProxyTunnel.sendOrFallback(api, request));
                 }
-                description = "Audit of " + urls.size() + " URLs";
+                if (!oos.isEmpty() && targets.isEmpty()) {
+                    sendError(exchange, 403, "All URLs are out of scope: " + oos.size(), "out_of_scope", "");
+                    return;
+                }
+                description = "Audit of " + urls.size() + " URLs (" + oos.size() + " skipped, out of scope)";
             } else {
                 sendError(exchange, 400, "Provide 'url', 'urls', or 'index'");
                 return;

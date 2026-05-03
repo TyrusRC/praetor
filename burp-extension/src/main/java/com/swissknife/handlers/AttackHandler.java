@@ -88,8 +88,33 @@ public class AttackHandler extends BaseHandler {
             return;
         }
 
-        // Collect auth state names in order
+        // Reference state: caller can specify which state's response is the
+        // "owner" (the legitimate access). Defaults to first listed state for
+        // backwards compat, but if the operator put the unauthenticated/anon
+        // state first, every authenticated state would falsely flag IDOR. The
+        // proper IDOR test is "user B sees user A's data" — `reference_state`
+        // names user A explicitly.
         List<String> stateNames = new ArrayList<>(authStates.keySet());
+        String referenceState = (String) body.get("reference_state");
+        if (referenceState != null && !stateNames.contains(referenceState)) {
+            sendError(exchange, 400, "reference_state '" + referenceState + "' not in auth_states");
+            return;
+        }
+        if (referenceState != null) {
+            stateNames.remove(referenceState);
+            stateNames.add(0, referenceState);
+        }
+        // Warn (not block) if the first state's name suggests anonymity
+        String firstStateName = stateNames.get(0);
+        if (firstStateName.toLowerCase().matches(".*(anon|guest|public|unauth|noauth|no_auth).*")
+            && referenceState == null) {
+            // The handler still runs, but the result envelope carries a warning
+            // so callers know the IDOR flag may be a false positive.
+            api.logging().logToOutput(
+                "AttackHandler.handleAuthMatrix: first auth state '" + firstStateName +
+                "' looks unauthenticated; IDOR detection compares OTHER states against it. " +
+                "Pass reference_state='<authenticated_state>' to fix.");
+        }
 
         List<Map<String, Object>> matrix = new ArrayList<>();
         int totalRequests = 0;
@@ -286,8 +311,11 @@ public class AttackHandler extends BaseHandler {
             }));
         }
 
-        // Wait for all threads to be ready, then release them simultaneously
-        readyLatch.await(10, TimeUnit.SECONDS);
+        // Wait for all threads to be ready, then release them simultaneously.
+        // If the latch times out, some workers never reached the barrier — fire
+        // the goLatch anyway, but record that the race was unsynchronised so
+        // the caller doesn't trust the "vulnerable" flag.
+        boolean raceSynchronised = readyLatch.await(10, TimeUnit.SECONDS);
         goLatch.countDown();
 
         // Collect results
@@ -304,7 +332,11 @@ public class AttackHandler extends BaseHandler {
 
         long totalTime = System.currentTimeMillis() - startTime;
 
-        // Analyze results
+        // Analyze results — only count a 2xx as a "success" if its body
+        // doesn't carry application-level error / "already processed" tokens
+        // that some apps return alongside 200. Otherwise idempotent endpoints
+        // returning 200+"already processed" inflate successCount and false-
+        // positively flag IDOR/race vulns.
         Map<Integer, Integer> statusDistribution = new LinkedHashMap<>();
         int successCount = 0;
         for (Map<String, Object> r : results) {
@@ -312,19 +344,32 @@ public class AttackHandler extends BaseHandler {
             int status = statusObj instanceof Number n ? n.intValue() : 0;
             statusDistribution.merge(status, 1, Integer::sum);
             if (status >= 200 && status < 300) {
-                successCount++;
+                Object preview = r.get("body_preview");
+                String bp = preview instanceof String s ? s.toLowerCase() : "";
+                boolean appLevelDuplicate = bp.contains("already processed")
+                    || bp.contains("already redeemed")
+                    || bp.contains("duplicate request")
+                    || bp.contains("duplicate transaction")
+                    || bp.contains("already used")
+                    || bp.contains("already submitted");
+                if (!appLevelDuplicate) successCount++;
             }
         }
 
-        boolean vulnerable = expectOnce && successCount > 1;
+        boolean vulnerable = raceSynchronised && expectOnce && successCount > 1;
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("concurrent", concurrent);
         out.put("total_time_ms", totalTime);
         out.put("status_distribution", statusDistribution);
         out.put("success_count", successCount);
+        out.put("race_synchronised", raceSynchronised);
         out.put("results", results);
         out.put("vulnerable", vulnerable);
+        if (!raceSynchronised) {
+            out.put("warning", "Some workers did not reach the barrier within 10s; race is NOT synchronised. " +
+                "successCount values cannot be trusted. Re-run with smaller concurrent=N.");
+        }
         if (vulnerable) {
             out.put("finding", "Race condition detected: expected single success but got "
                 + successCount + " successful responses out of " + concurrent + " concurrent requests");

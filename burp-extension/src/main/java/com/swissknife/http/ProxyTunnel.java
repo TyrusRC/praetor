@@ -107,6 +107,14 @@ public final class ProxyTunnel {
     public static HttpRequestResponse send(MontoyaApi api, HttpRequest request) {
         HttpService service = request.httpService();
         if (service == null) return null;
+        // Refuse early — before the CONNECT round-trip — when an HTTPS request
+        // would land on a non-loopback proxy with TRUST_ALL. Saves the wasted
+        // socket connect on misconfig.
+        if (service.secure() && !isLoopbackProxyHost(BURP_PROXY_HOST)) {
+            api.logging().logToError("ProxyTunnel: refusing HTTPS tunnel via non-loopback BURP_PROXY_HOST="
+                + BURP_PROXY_HOST + " (trust-all context unsafe).");
+            return null;
+        }
 
         // Force Connection: close so the server closes after the response and
         // our readAll() terminates cleanly. Keeps the tunnel logic simple and
@@ -155,6 +163,8 @@ public final class ProxyTunnel {
             if (ln == null || ln.isEmpty()) break;
         }
 
+        // Loopback gate is now also enforced in send() before CONNECT (lines below);
+        // keep the redundant check here as a defense-in-depth backstop.
         if (!isLoopbackProxyHost(BURP_PROXY_HOST)) {
             throw new IOException(
                 "Refusing TLS tunnel: BURP_PROXY_HOST=" + BURP_PROXY_HOST +
@@ -263,6 +273,12 @@ public final class ProxyTunnel {
      */
     public static boolean lastSendFellBack() {
         return LAST_FELL_BACK.get();
+    }
+
+    /** Clears the per-thread fallback flag. Workers reused across unrelated calls
+     *  should call this at the start of each new request to avoid stale state. */
+    public static void clearLastSendFellBack() {
+        LAST_FELL_BACK.remove();
     }
 
     /**

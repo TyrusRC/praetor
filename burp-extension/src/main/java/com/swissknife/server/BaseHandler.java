@@ -16,6 +16,10 @@ public abstract class BaseHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        // Reset per-thread proxy-tunnel state so a worker reused across calls
+        // can't leak the previous request's fallback flag.
+        com.swissknife.http.ProxyTunnel.clearLastSendFellBack();
+
         // CORS for localhost MCP/dev clients. Echo the Origin header so any
         // localhost port (the MCP client picks an ephemeral one) is accepted;
         // fall back to "*" for non-browser callers that omit Origin.
@@ -56,9 +60,24 @@ public abstract class BaseHandler implements HttpHandler {
 
     // ── Request helpers ────────────────────────────────────────────
 
+    /** Hard cap on inbound request body. The MCP server is the only legitimate
+     *  caller; even macros/raw-request payloads should fit comfortably. */
+    private static final int MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
+
     protected String readBody(HttpExchange exchange) throws IOException {
         try (InputStream is = exchange.getRequestBody()) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            byte[] buf = new byte[Math.min(MAX_REQUEST_BODY_BYTES + 1, 64 * 1024)];
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            int total = 0;
+            int n;
+            while ((n = is.read(buf)) != -1) {
+                total += n;
+                if (total > MAX_REQUEST_BODY_BYTES) {
+                    throw new IOException("Request body exceeds " + MAX_REQUEST_BODY_BYTES + "-byte cap");
+                }
+                bos.write(buf, 0, n);
+            }
+            return bos.toString(StandardCharsets.UTF_8);
         }
     }
 

@@ -104,7 +104,19 @@ public class MatchReplaceHandler extends BaseHandler {
 
             if (match.isEmpty()) continue;
 
-            // Validate regex
+            // Validate type/length/regex. The match is recompiled per request
+            // by the proxy hook — a 50KB regex with catastrophic backtracking
+            // would burn CPU on every captured request.
+            if (!type.equals("request") && !type.equals("response")
+                && !type.equals("REQUEST_HEADER") && !type.equals("REQUEST_BODY")
+                && !type.equals("RESPONSE_HEADER") && !type.equals("RESPONSE_BODY")) {
+                sendError(exchange, 400, "Invalid type '" + type + "'; expected 'request' or 'response' (or REQUEST_*/RESPONSE_* variants)");
+                return;
+            }
+            if (match.length() > 4096) {
+                sendError(exchange, 400, "match regex exceeds 4096-char cap (" + match.length() + " chars)");
+                return;
+            }
             try {
                 Pattern.compile(match);
             } catch (PatternSyntaxException e) {
