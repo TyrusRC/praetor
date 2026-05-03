@@ -416,7 +416,7 @@ public class MacroHandler extends BaseHandler {
         }
 
         try {
-            Pattern pattern = Pattern.compile(rule.pattern);
+            Pattern pattern = com.swissknife.util.PatternCache.get(rule.pattern);
             Matcher matcher = pattern.matcher(text);
             if (matcher.find() && rule.group <= matcher.groupCount()) {
                 return matcher.group(rule.group);

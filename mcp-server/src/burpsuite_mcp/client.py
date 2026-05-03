@@ -1,9 +1,30 @@
+import asyncio
+
 import httpx
 from burpsuite_mcp.config import BASE_URL, BURP_API_TIMEOUT
 
 
-def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(base_url=BASE_URL, timeout=BURP_API_TIMEOUT)
+# Reuse a single AsyncClient across calls so we get HTTP keep-alive and
+# don't pay TCP setup/teardown on every tool invocation. The client is
+# created lazily inside the running event loop.
+_shared_client: httpx.AsyncClient | None = None
+_client_lock: asyncio.Lock | None = None
+
+
+def _shared_lock() -> asyncio.Lock:
+    global _client_lock
+    if _client_lock is None:
+        _client_lock = asyncio.Lock()
+    return _client_lock
+
+
+async def _get_client() -> httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None:
+        async with _shared_lock():
+            if _shared_client is None:
+                _shared_client = httpx.AsyncClient(base_url=BASE_URL, timeout=BURP_API_TIMEOUT)
+    return _shared_client
 
 
 def _connect_error_envelope() -> dict:
@@ -38,10 +59,10 @@ def _http_status_envelope(e: httpx.HTTPStatusError) -> dict:
 async def get(path: str, params: dict | None = None) -> dict:
     """GET request to the Burp extension REST API."""
     try:
-        async with _client() as client:
-            resp = await client.get(path, params=params)
-            resp.raise_for_status()
-            return resp.json()
+        client = await _get_client()
+        resp = await client.get(path, params=params)
+        resp.raise_for_status()
+        return resp.json()
     except httpx.ConnectError:
         return _connect_error_envelope()
     except httpx.HTTPStatusError as e:
@@ -53,10 +74,10 @@ async def get(path: str, params: dict | None = None) -> dict:
 async def post(path: str, json: dict | None = None) -> dict:
     """POST request to the Burp extension REST API."""
     try:
-        async with _client() as client:
-            resp = await client.post(path, json=json or {})
-            resp.raise_for_status()
-            return resp.json()
+        client = await _get_client()
+        resp = await client.post(path, json=json or {})
+        resp.raise_for_status()
+        return resp.json()
     except httpx.ConnectError:
         return _connect_error_envelope()
     except httpx.HTTPStatusError as e:
@@ -68,16 +89,24 @@ async def post(path: str, json: dict | None = None) -> dict:
 async def delete(path: str) -> dict:
     """Send DELETE request to the Burp extension API."""
     try:
-        async with _client() as c:
-            resp = await c.delete(path)
-            resp.raise_for_status()
-            return resp.json()
+        client = await _get_client()
+        resp = await client.delete(path)
+        resp.raise_for_status()
+        return resp.json()
     except httpx.ConnectError:
         return _connect_error_envelope()
     except httpx.HTTPStatusError as e:
         return _http_status_envelope(e)
     except Exception as e:
         return {"error": str(e), "code": "client_exception", "hint": ""}
+
+
+async def aclose() -> None:
+    """Close the shared client (called on shutdown)."""
+    global _shared_client
+    if _shared_client is not None:
+        await _shared_client.aclose()
+        _shared_client = None
 
 
 async def check_scope(url: str) -> dict:

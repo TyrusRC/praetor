@@ -408,5 +408,5 @@ def register(mcp: FastMCP):
             return f"Error: {data['error']}"
 
         if format == "json":
-            return str(data)
+            return json.dumps(data, indent=2, default=str)
         return data.get("content", "No findings to export.")

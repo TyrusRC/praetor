@@ -1,4 +1,6 @@
-"""Advanced testing tools - smart fuzzing engine and auth state comparison."""
+"""Advanced testing tools — fuzzing, auth-state and response comparison,
+auth-matrix probe, race-condition harness, and HTTP parameter pollution.
+"""
 
 import asyncio
 

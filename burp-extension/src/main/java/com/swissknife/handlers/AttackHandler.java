@@ -59,11 +59,13 @@ public class AttackHandler extends BaseHandler {
             return;
         }
 
-        Map<String, Object> authStates = (Map<String, Object>) body.get("auth_states");
-        if (authStates == null || authStates.isEmpty()) {
-            sendError(exchange, 400, "Missing or empty 'auth_states'");
+        Object authStatesObj = body.get("auth_states");
+        if (!(authStatesObj instanceof Map<?, ?> authStatesRaw) || authStatesRaw.isEmpty()) {
+            sendError(exchange, 400, "Missing or empty 'auth_states' (expected JSON object {state_name: {...}})");
             return;
         }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> authStates = (Map<String, Object>) authStatesRaw;
 
         // Determine base_url
         String baseUrl = (String) body.get("base_url");

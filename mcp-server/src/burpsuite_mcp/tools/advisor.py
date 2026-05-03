@@ -659,7 +659,6 @@ def register(mcp: FastMCP):
         # trip `csrf_logout`. Conditional classes pass through if chain_with
         # is non-empty OR if the endpoint matches sensitive patterns (auth,
         # reset, OTP, payment) for the rate_limit_missing case.
-        import re as _re_q6
         chain_provided = bool(chain_with)
         endpoint_lower = (endpoint or "").lower()
         endpoint_is_sensitive = any(p in endpoint_lower for p in sensitive_endpoint_patterns)
@@ -669,7 +668,7 @@ def register(mcp: FastMCP):
         else:
             # Hard NEVER SUBMIT — these never report standalone
             for ns_key, ns_reason in never_submit_types.items():
-                if _re_q6.search(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])", vuln_lower):
+                if re.search(rf"(?<![a-z]){re.escape(ns_key)}(?![a-z])", vuln_lower):
                     if chain_provided:
                         issues.append(
                             f"Q6 NEVER SUBMIT (chained): {ns_reason}. chain_with={chain_with} — "
@@ -683,7 +682,7 @@ def register(mcp: FastMCP):
             # Conditional NEVER SUBMIT — pass through with chain or sensitive endpoint
             if verdict == "REPORT":
                 for ns_key, ns_reason in conditional_never_submit_types.items():
-                    if not _re_q6.search(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])", vuln_lower):
+                    if not re.search(rf"(?<![a-z]){re.escape(ns_key)}(?![a-z])", vuln_lower):
                         continue
                     if chain_provided:
                         issues.append(
@@ -709,7 +708,7 @@ def register(mcp: FastMCP):
             negation_window = 24
             negators = (" not ", " no ", "isn't ", "is not", "without ", "instead of", "ruled out", "not a ", "not just")
             for ns_key, ns_reason in never_submit_keywords.items():
-                pattern = _re_q6.compile(rf"(?<![a-z]){_re_q6.escape(ns_key)}(?![a-z])")
+                pattern = re.compile(rf"(?<![a-z]){re.escape(ns_key)}(?![a-z])")
                 m = pattern.search(evidence_lower)
                 if not m:
                     continue

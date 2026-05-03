@@ -6,7 +6,7 @@ Layout follows PTES §7 (Reporting), OWASP WSTG v4.2, NIST SP 800-115:
 """
 
 
-def format_poc_request(poc) -> str:
+def format_poc_request(poc: dict | str | None) -> str:
     """Render a poc_request dict (or string) as an http code block."""
     if isinstance(poc, dict):
         method = poc.get("method", "GET")
@@ -28,7 +28,7 @@ def format_poc_request(poc) -> str:
     return ""
 
 
-def format_repro_steps(steps) -> str:
+def format_repro_steps(steps: list | str | None) -> str:
     """Render reproduction steps. Accepts list[str] | list[dict] | str."""
     if isinstance(steps, list):
         out = []

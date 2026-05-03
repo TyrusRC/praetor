@@ -558,7 +558,7 @@ public class FuzzHandler extends BaseHandler {
 
     private String extractPattern(String responseBody, String regex) {
         try {
-            Pattern p = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+            Pattern p = com.swissknife.util.PatternCache.get(regex, Pattern.CASE_INSENSITIVE);
             Matcher m = p.matcher(responseBody);
             if (m.find()) {
                 return m.group();

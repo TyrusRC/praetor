@@ -302,6 +302,10 @@ public class ScannerHandler extends BaseHandler {
      */
     private void handleCancelScan(HttpExchange exchange, String path) throws Exception {
         int scanId = extractScanId(path);
+        if (scanId < 0) {
+            sendError(exchange, 400, "Invalid scan id in path: " + path);
+            return;
+        }
         ScanRecord record = findScan(scanId);
         if (record == null) {
             sendError(exchange, 404, "Scan #" + scanId + " not found");

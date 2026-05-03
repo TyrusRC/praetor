@@ -15,6 +15,10 @@ public final class MatcherEngine {
 
     private MatcherEngine() {}
 
+    private static Pattern compileCached(String pattern, int flags) {
+        return com.swissknife.util.PatternCache.get(pattern, flags);
+    }
+
     /**
      * Evaluate a list of matchers against a response.
      * All matchers must match (AND logic). Each matcher can have internal OR/AND for its values.
@@ -88,7 +92,7 @@ public final class MatcherEngine {
                     String pattern = (String) matcher.get("pattern");
                     if (pattern != null) {
                         try {
-                            matched = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(body).find();
+                            matched = compileCached(pattern, Pattern.CASE_INSENSITIVE).matcher(body).find();
                         } catch (PatternSyntaxException ignored) {}
                     }
                     if (matched) matchedDescriptions.add("regex:" + pattern);

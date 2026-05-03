@@ -17,16 +17,18 @@ def register(mcp: FastMCP):
     async def audit_recent_traffic(window_seconds: int = 300, expected_min_count: int = 1) -> str:
         """Audit whether recent operations actually routed through Burp.
 
-        Use after running a custom script or batch of curl commands. Compares
-        Burp's proxy-history newest-entry timestamp to the current time; if
-        nothing landed in the window, the script bypassed the proxy. Surfaces
-        the gap so you can re-run with HTTPS_PROXY set (see get_burp_proxy_env).
+        Use after running a custom script or batch of curl commands. Counts
+        proxy-history entries and compares against `expected_min_count`; if
+        the count is below threshold, the script likely bypassed the proxy.
+        (Burp's HTTP layer does not expose a stable per-entry timestamp, so
+        `window_seconds` is documentary only — surface it in your error
+        guidance, not as a precise time filter.)
 
         Cost class: cheap.
 
         Args:
-            window_seconds: Lookback window for traffic check (default 5 min)
-            expected_min_count: Min number of new entries expected (default 1)
+            window_seconds: Lookback context for the warning text (no precise filtering)
+            expected_min_count: Min proxy-history entries expected for traffic to count as audited
         """
         from burpsuite_mcp import client as _client
         data = await _client.get("/api/proxy/history", params={"limit": 50, "offset": 0})

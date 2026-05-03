@@ -13,6 +13,8 @@ import com.swissknife.http.HttpExchange;
 import com.swissknife.server.BaseHandler;
 import com.swissknife.util.JsonUtil;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -168,7 +170,7 @@ public class CollaboratorHandler extends BaseHandler {
             String query = uri.getRawQuery();
             if (query == null) {
                 // Append parameter
-                return url + "?" + paramName + "=" + java.net.URLEncoder.encode(newValue, "UTF-8");
+                return url + "?" + paramName + "=" + URLEncoder.encode(newValue, StandardCharsets.UTF_8);
             }
             StringBuilder newQuery = new StringBuilder();
             boolean replaced = false;
@@ -177,14 +179,14 @@ public class CollaboratorHandler extends BaseHandler {
                 int eq = pair.indexOf('=');
                 String key = eq > 0 ? pair.substring(0, eq) : pair;
                 if (key.equals(paramName)) {
-                    newQuery.append(key).append("=").append(java.net.URLEncoder.encode(newValue, "UTF-8"));
+                    newQuery.append(key).append("=").append(URLEncoder.encode(newValue, StandardCharsets.UTF_8));
                     replaced = true;
                 } else {
                     newQuery.append(pair);
                 }
             }
             if (!replaced) {
-                newQuery.append("&").append(paramName).append("=").append(java.net.URLEncoder.encode(newValue, "UTF-8"));
+                newQuery.append("&").append(paramName).append("=").append(URLEncoder.encode(newValue, StandardCharsets.UTF_8));
             }
             return url.split("\\?")[0] + "?" + newQuery;
         } catch (Exception e) {
@@ -202,14 +204,14 @@ public class CollaboratorHandler extends BaseHandler {
                 int eq = pair.indexOf('=');
                 String key = eq > 0 ? pair.substring(0, eq) : pair;
                 if (key.equals(paramName)) {
-                    newBody.append(key).append("=").append(java.net.URLEncoder.encode(newValue, "UTF-8"));
+                    newBody.append(key).append("=").append(URLEncoder.encode(newValue, StandardCharsets.UTF_8));
                     replaced = true;
                 } else {
                     newBody.append(pair);
                 }
             }
             if (!replaced) {
-                newBody.append("&").append(paramName).append("=").append(java.net.URLEncoder.encode(newValue, "UTF-8"));
+                newBody.append("&").append(paramName).append("=").append(URLEncoder.encode(newValue, StandardCharsets.UTF_8));
             }
             return newBody.toString();
         } catch (Exception e) {

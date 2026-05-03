@@ -6,8 +6,6 @@ modify headers/body/path, resend, compare responses, and repeat — all without 
 track of which request is which.
 """
 
-import json
-
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
@@ -124,10 +122,17 @@ def _format_response(data: dict) -> str:
         if len(headers) > 20:
             lines.append(f"  ... +{len(headers) - 20} more")
 
-    # Response body
+    # Response body — cap at 5000 chars so a 1MB asset can't blow up the
+    # tool reply (matches read.py:get_request_detail token-budget).
     body = data.get("response_body", "")
     length = data.get("response_length", len(body))
     lines.append(f"Body ({length} bytes):")
-    lines.append(body if body else "(empty)")
+    if not body:
+        lines.append("(empty)")
+    elif len(body) > 5000:
+        lines.append(body[:5000])
+        lines.append(f"... [truncated; total {len(body)} chars]")
+    else:
+        lines.append(body)
 
     return "\n".join(lines)

@@ -10,7 +10,8 @@ def format_proxy_table(data: dict) -> str:
     if not items:
         return "Proxy history is empty. Browse targets through Burp's proxy first."
 
-    lines = [f"Proxy History ({total} total, showing {offset}-{offset + len(items)}):\n"]
+    end_inclusive = offset + len(items) - 1
+    lines = [f"Proxy History ({total} total, showing {offset}-{end_inclusive}):\n"]
     lines.append(f"{'INDEX':<8} {'METHOD':<8} {'STATUS':<8} {'SIZE':<8} {'MIME':<15} URL")
     lines.append("-" * 100)
 

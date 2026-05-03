@@ -44,7 +44,7 @@ SEVERITY_CAPS = {
     "options method": "INFO",
     "version disclosure": "LOW",
     "idn homograph": "INFO",
-    "open redirect": "MEDIUM",   # LOW unless chained
+    "open redirect": "LOW",   # MEDIUM only when chained — caller passes the chain context
 }
 
 SEVERITY_RANK = {"CRITICAL": 5, "HIGH": 4, "MEDIUM": 3, "LOW": 2, "INFO": 1}
