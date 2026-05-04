@@ -98,6 +98,37 @@
     return origSetAttr.call(this, name, value);
   };
 
+  // HTMLScriptElement.src setter — fires the moment a JS file URL is assigned,
+  // covering the deparam → config.transport_url → script.src DOM XSS path
+  // (gnj /blog & PortSwigger Web Security Academy CSPP-to-XSS lab).
+  try {
+    const scrDesc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
+    if (scrDesc && scrDesc.set) {
+      const origScrSet = scrDesc.set;
+      Object.defineProperty(HTMLScriptElement.prototype, 'src', Object.assign({}, scrDesc, {
+        set(value) { captured('script.src', value, { tag: 'SCRIPT' }); return origScrSet.call(this, value); }
+      }));
+    }
+  } catch (e) {}
+
+  // appendChild / insertBefore: catch <script> insertion with marker-bearing
+  // src even if the src setter ran before our hook installed.
+  for (const m of ['appendChild', 'insertBefore', 'replaceChild']) {
+    const orig = Node.prototype[m];
+    if (typeof orig !== 'function') continue;
+    Node.prototype[m] = function(child) {
+      try {
+        if (child && child.tagName === 'SCRIPT' && child.src) {
+          captured(m + '(<script>)', child.src, { tag: 'SCRIPT' });
+        }
+        if (child && child.tagName === 'IFRAME' && child.src) {
+          captured(m + '(<iframe>)', child.src, { tag: 'IFRAME' });
+        }
+      } catch (e) {}
+      return orig.apply(this, arguments);
+    };
+  }
+
   const origPostMessage = window.postMessage.bind(window);
   window.postMessage = function(message, targetOrigin) {
     captured('postMessage', typeof message === 'string' ? message : JSON.stringify(message), { target_origin: targetOrigin });

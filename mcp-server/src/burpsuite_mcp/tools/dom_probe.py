@@ -69,6 +69,11 @@ _SINK_TO_VULN_CLASS = {
     "setAttribute(src)": ("link_manipulation", "Marker reached src via setAttribute — DOM link manipulation"),
     "setAttribute(action)": ("link_manipulation", "Marker reached form action via setAttribute — link manipulation"),
     "setAttribute(formaction)": ("link_manipulation", "Marker reached formaction via setAttribute — link manipulation"),
+    "script.src": ("dom_xss", "Marker reached HTMLScriptElement.src setter — DOM XSS via dynamic script load"),
+    "appendChild(<script>)": ("dom_xss", "Marker reached <script> appendChild — DOM XSS via dynamic script load"),
+    "insertBefore(<script>)": ("dom_xss", "Marker reached <script> insertBefore — DOM XSS via dynamic script load"),
+    "replaceChild(<script>)": ("dom_xss", "Marker reached <script> replaceChild — DOM XSS via dynamic script load"),
+    "appendChild(<iframe>)": ("link_manipulation", "Marker reached <iframe> appendChild — link manipulation / clickjacking"),
     "postMessage": ("postmessage_leak", "Marker passed to postMessage — potential cross-frame leak"),
     "angular_ng_bind": ("client_side_template_injection", "Marker rendered inside ng-bind / ng-include — AngularJS CSTI"),
 }
@@ -85,6 +90,25 @@ _POLYGLOTS: dict[str, str] = {
     "xss_img":       "<img src=x onerror={marker}>",
     "url_break":     "\"><{marker}",
 }
+
+
+# CSPP "known-key" gadgets: pollute a real, app-used Object.prototype key
+# (e.g. transport_url for searchLogger.js) with the marker as VALUE, then
+# detect the marker arriving at any sink. Unlike `proto_pollute`, the
+# polluted key is one the application code is expected to read.
+_CSPP_DEFAULT_KEYS = (
+    "transport_url",   # gnj searchLogger.js
+    "src",
+    "url",
+    "html",
+    "redirect_uri",
+    "redirectUri",
+    "next",
+    "callback",
+    "action",
+    "include",
+    "template",
+)
 
 
 # Fragment-shape variants — many SPAs use the URL fragment as a router
@@ -193,6 +217,7 @@ def register(mcp: FastMCP) -> None:
         source_kinds: list[str] | None = None,
         polyglots: list[str] | None = None,
         fragment_shapes: list[str] | None = None,
+        cspp_known_keys: list[str] | None = None,
         wait_ms: int = 2500,
         click_crawl: bool = True,
         max_clicks: int = 3,
@@ -215,6 +240,13 @@ def register(mcp: FastMCP) -> None:
             fragment_shapes: When source_kinds includes 'fragment_shapes',
                 which router patterns to test. Default: all of bare, param,
                 qs_in_hash, hash_route, hash_route_kv, hashbang_kv.
+            cspp_known_keys: List of Object.prototype keys to attempt to
+                pollute via `?__proto__[<key>]=<marker>`. The marker is
+                the VALUE, so any sink that later reads that key (e.g.
+                `script.src = config.transport_url`) flags as DOM XSS via
+                CSPP. Default: transport_url, src, url, html, redirect_uri,
+                redirectUri, next, callback, action, include, template.
+                Pass [] to disable.
             wait_ms: How long to wait after navigation for async DOM
                 mutations (default 2500ms).
             click_crawl: After the initial navigation, click up to
@@ -246,6 +278,11 @@ def register(mcp: FastMCP) -> None:
         bad_s = [s for s in active_shapes if s not in _FRAGMENT_SHAPES]
         if bad_s:
             return f"Error: unknown fragment_shape(s) {bad_s}. Choose from {sorted(_FRAGMENT_SHAPES)}."
+
+        if cspp_known_keys is None:
+            active_cspp_keys = list(_CSPP_DEFAULT_KEYS)
+        else:
+            active_cspp_keys = [str(k) for k in cspp_known_keys if isinstance(k, str) and k]
 
         try:
             init_template = _load_init_js()
@@ -419,11 +456,121 @@ def register(mcp: FastMCP) -> None:
                     except Exception:
                         pass
 
+        # CSPP known-key pass: pollute Object.prototype.<key> with the marker
+        # as VALUE. Detection: marker showed up at any sink, or
+        # Object.prototype[<key>] === marker post-scan.
+        for ck in active_cspp_keys:
+            marker = _make_marker(suffix=f"c{ck[:4]}")
+            payload_qs = f"__proto__[{ck}]=" + marker
+            parsed = urlparse(url)
+            sep = "&" if parsed.query else "?"
+            target_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}{('?' + parsed.query) if parsed.query else ''}{sep}__proto__[{ck}]={marker}"
+            if parsed.fragment:
+                target_url += f"#{parsed.fragment}"
+            init = init_template.replace("__SWMARKER__", marker)
+            page = await context.new_page()
+            try:
+                await page.add_init_script(init)
+                try:
+                    await page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
+                except Exception as e:
+                    per_run_summary.append(
+                        f"  [cspp_known_key/{ck}] navigate failed: {str(e)[:120]}"
+                    )
+                    continue
+                await page.wait_for_timeout(wait_ms)
+                if click_crawl:
+                    await _click_crawl(page, max_clicks=max_clicks, wait_each_ms=wait_ms // 2 or 800)
+
+                try:
+                    proto_val = await page.evaluate(
+                        "(k) => { try { return Object.prototype[k]; } catch(e) { return null; } }",
+                        ck,
+                    )
+                except Exception:
+                    proto_val = None
+                try:
+                    scan = await page.evaluate(
+                        "() => window.__sw_post_scan ? window.__sw_post_scan() : null"
+                    )
+                except Exception:
+                    scan = None
+
+                hits = (scan or {}).get("hits", []) or []
+                attr_hits = (scan or {}).get("attribute_marker_hits", []) or []
+                polluted = isinstance(proto_val, str) and marker in proto_val
+
+                if polluted:
+                    all_findings.append({
+                        "vuln_class": "client_side_prototype_pollution",
+                        "sink": f"Object.prototype.{ck}",
+                        "source_kind": "query",
+                        "fragment_shape": None,
+                        "polyglot": "cspp_known_key",
+                        "source_param": f"__proto__[{ck}]",
+                        "marker": marker,
+                        "description": (
+                            f"`?__proto__[{ck}]=...` polluted Object.prototype.{ck} "
+                            f"with the marker. App-used key — direct gadget for any "
+                            f"sink that reads {ck} from a config object."
+                        ),
+                        "value_excerpt": str(proto_val)[:200],
+                    })
+
+                for h in hits:
+                    sink = h.get("sink", "?")
+                    vclass, descr = _SINK_TO_VULN_CLASS.get(sink, ("dom_xss", f"Marker reached {sink}"))
+                    chain_note = (
+                        f" (CSPP→sink chain: __proto__[{ck}] populated, then {sink} read it)"
+                        if polluted else f" (CSPP attempt for key={ck})"
+                    )
+                    all_findings.append({
+                        "vuln_class": vclass,
+                        "sink": sink,
+                        "source_kind": "query",
+                        "fragment_shape": None,
+                        "polyglot": f"cspp_known_key[{ck}]",
+                        "source_param": f"__proto__[{ck}]",
+                        "marker": marker,
+                        "description": descr + chain_note,
+                        "value_excerpt": h.get("value_excerpt", ""),
+                        "stack": h.get("stack", ""),
+                        "tag": h.get("tag", ""),
+                    })
+
+                for a in attr_hits:
+                    all_findings.append({
+                        "vuln_class": "link_manipulation",
+                        "sink": f"<{a.get('tag','?').lower()} {a.get('attr','?')}>",
+                        "source_kind": "query",
+                        "fragment_shape": None,
+                        "polyglot": f"cspp_known_key[{ck}]",
+                        "source_param": f"__proto__[{ck}]",
+                        "marker": marker,
+                        "description": (
+                            f"CSPP→link chain: marker reflected into "
+                            f"{a.get('attr', '?')} of <{a.get('tag','?').lower()}> after "
+                            f"polluting Object.prototype.{ck}"
+                        ),
+                        "value_excerpt": a.get("value", "")[:200],
+                    })
+
+                per_run_summary.append(
+                    f"  [cspp_known_key/{ck}] sinks={len(hits)} attr={len(attr_hits)} "
+                    f"polluted={'Y' if polluted else 'N'}"
+                )
+            finally:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+
         lines = [f"DOM probe: {url}"]
         lines.append(
             f"Source param: {source_param} | Kinds: {', '.join(kinds)} | "
             f"Polyglots: {', '.join(active_polys)}"
             + (f" | Frag shapes: {', '.join(active_shapes)}" if "fragment_shapes" in kinds else "")
+            + (f" | CSPP keys: {len(active_cspp_keys)}" if active_cspp_keys else "")
             + (f" | click_crawl=on (max {max_clicks})" if click_crawl else " | click_crawl=off")
         )
         lines.append("")
