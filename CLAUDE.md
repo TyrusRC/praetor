@@ -206,7 +206,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── insecure_randomness, source_code_exposure, dependency_confusion
 │   ├── cloud_webapp, mobile_api
 │   └── tech_vulns                # Reference only, no probes
-└── tools/                      # 174 MCP tools across 32 modules (run grep for exact count; auto-drifts as tools are added)
+└── tools/                      # 175 MCP tools across 33 registered modules (run `grep -rn "@mcp.tool()" mcp-server/src/burpsuite_mcp/tools/ | wc -l` for exact count)
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl, concurrent, probe_with_diff (8 tools)

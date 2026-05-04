@@ -45,8 +45,13 @@ public class CookieHandler extends BaseHandler {
             entry.put("domain", domain);
             entry.put("path", cookie.path());
 
+            // expiration() returns Optional<ZonedDateTime> in Montoya. The
+            // previous .toString() call yielded "Optional[…]"/"Optional.empty"
+            // which JSON consumers couldn't parse. Unwrap and emit ISO-8601
+            // (or null when the cookie has no expiration set).
             var expiration = cookie.expiration();
-            entry.put("expiration", expiration != null ? expiration.toString() : null);
+            entry.put("expiration",
+                expiration != null && expiration.isPresent() ? expiration.get().toString() : null);
 
             items.add(entry);
         }

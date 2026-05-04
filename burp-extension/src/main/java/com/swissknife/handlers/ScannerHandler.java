@@ -51,10 +51,6 @@ public class ScannerHandler extends BaseHandler {
             handleNewFindings(exchange);
         } else if (path.matches("/api/scanner/scan/\\d+") && "DELETE".equalsIgnoreCase(method)) {
             handleCancelScan(exchange, path);
-        } else if (path.matches("/api/scanner/scan/\\d+/pause") && "POST".equalsIgnoreCase(method)) {
-            handlePauseScan(exchange, path);
-        } else if (path.matches("/api/scanner/scan/\\d+/resume") && "POST".equalsIgnoreCase(method)) {
-            handleResumeScan(exchange, path);
         } else {
             sendError(exchange, 404, "Not found");
         }
@@ -326,56 +322,8 @@ public class ScannerHandler extends BaseHandler {
         sendOk(exchange, "Scan #" + scanId + " removed from tracking");
     }
 
-    /**
-     * Get scan details (pause not supported by Montoya API).
-     * POST /api/scanner/scan/{id}/pause
-     */
-    private void handlePauseScan(HttpExchange exchange, String path) throws Exception {
-        int scanId = extractScanId(path.replace("/pause", ""));
-        ScanRecord record = findScan(scanId);
-        if (record == null) {
-            sendError(exchange, 404, "Scan #" + scanId + " not found");
-            return;
-        }
-        // Montoya API Audit does not expose pause/resume — return status info instead
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("scan_id", scanId);
-        info.put("description", record.description);
-        info.put("message", "Pause not supported by Burp Montoya API. Scan continues in background.");
-        if (record.audit != null) {
-            try {
-                info.put("status", record.audit.statusMessage());
-                info.put("request_count", record.audit.requestCount());
-                info.put("issue_count", record.audit.issues().size());
-            } catch (Exception ignored) {}
-        }
-        sendJson(exchange, JsonUtil.toJson(info));
-    }
-
-    /**
-     * Get scan details (resume not supported by Montoya API).
-     * POST /api/scanner/scan/{id}/resume
-     */
-    private void handleResumeScan(HttpExchange exchange, String path) throws Exception {
-        int scanId = extractScanId(path.replace("/resume", ""));
-        ScanRecord record = findScan(scanId);
-        if (record == null) {
-            sendError(exchange, 404, "Scan #" + scanId + " not found");
-            return;
-        }
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("scan_id", scanId);
-        info.put("description", record.description);
-        info.put("message", "Resume not supported by Burp Montoya API. Scan runs continuously.");
-        if (record.audit != null) {
-            try {
-                info.put("status", record.audit.statusMessage());
-                info.put("request_count", record.audit.requestCount());
-                info.put("issue_count", record.audit.issues().size());
-            } catch (Exception ignored) {}
-        }
-        sendJson(exchange, JsonUtil.toJson(info));
-    }
+    // pause / resume removed: Burp's Montoya API does not expose them and
+    // the corresponding Python tools were dropped in v0.5.
 
     /**
      * Get new scanner findings since a given count.
