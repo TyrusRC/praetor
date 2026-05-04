@@ -141,6 +141,33 @@ def register(mcp: FastMCP):
         except (TypeError, ValueError):
             confidence = 0.5
 
+        # Tool-call format guard: if the caller's evidence_text contains
+        # literal Anthropic-style tool-parameter markers, the harness almost
+        # certainly truncated the parameter block — every later parameter
+        # (status / vuln_type / parameter / confidence / chain_with) silently
+        # reverted to defaults, producing a "saved but with empty fields"
+        # finding that's hard to spot. Reject up-front with a precise hint.
+        leak_markers = (
+            "</evidence_text>",
+            "</invoke>",
+            "<status>",
+            "<vuln_type>",
+            "<parameter>",
+            "<confidence>",
+            "<chain_with>",
+            "<human_verified>",
+        )
+        for m in leak_markers:
+            if m in (evidence_text or ""):
+                return (
+                    f"Error: evidence_text contains tool-call leak marker {m!r}. "
+                    "This usually means a malformed parameter block (the harness "
+                    "swallowed later parameters into evidence_text, leaving "
+                    "vuln_type / parameter / status / confidence at defaults). "
+                    "Re-issue save_finding with a clean evidence_text and each "
+                    "parameter as its own argument."
+                )
+
         resolved_domain = domain or _domain_from_endpoint(endpoint)
 
         # ── Rule 20a: recon gate ──────────────────────────────────
