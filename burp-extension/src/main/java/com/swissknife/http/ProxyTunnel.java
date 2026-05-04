@@ -294,6 +294,15 @@ public final class ProxyTunnel {
         }
         LAST_FELL_BACK.set(Boolean.TRUE);
         api.logging().logToOutput("ProxyTunnel: falling back to direct sendRequest — request will NOT appear in Proxy history (Rule 26a). Check Burp proxy listener at " + BURP_PROXY_HOST + ":" + BURP_PROXY_PORT + ".");
-        return api.http().sendRequest(request);
+        // Wrap the fallback so a transient HTTP error (DNS failure, connection
+        // refused, malformed payload) does not propagate up as an uncaught
+        // RuntimeException and abort the calling loop (fuzz / macro / probe).
+        // Callers already null-handle missing responses.
+        try {
+            return api.http().sendRequest(request);
+        } catch (RuntimeException e) {
+            api.logging().logToError("ProxyTunnel.sendOrFallback: direct send threw " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return null;
+        }
     }
 }

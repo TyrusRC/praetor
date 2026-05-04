@@ -84,6 +84,10 @@ public class FuzzHandler extends BaseHandler {
         HttpRequest baseRequest = history.get(index).finalRequest();
         HttpResponse baseResponse = history.get(index).originalResponse();
 
+        // Scope gate (Rule 1 HARD): the base host is reused for every variant
+        // so one upfront check is sufficient — variants only mutate params.
+        if (!requireInScope(api, exchange, baseRequest.url())) return;
+
         int baselineStatus = baseResponse != null ? baseResponse.statusCode() : 0;
         int baselineLength = baseResponse != null ? baseResponse.body().length() : 0;
 
@@ -108,7 +112,10 @@ public class FuzzHandler extends BaseHandler {
             HttpRequestResponse reqResp = com.swissknife.http.ProxyTunnel.sendOrFallback(api, variant.request);
             long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
 
-            HttpResponse resp = reqResp.response();
+            // Null-guard: ProxyTunnel returns null when both the proxy tunnel
+            // and direct fallback fail. Skip this variant rather than NPE
+            // and abort the entire fuzz run.
+            HttpResponse resp = reqResp != null ? reqResp.response() : null;
             FuzzResult result = new FuzzResult();
             result.payloadIndex = i;
             result.parameter = variant.paramName;

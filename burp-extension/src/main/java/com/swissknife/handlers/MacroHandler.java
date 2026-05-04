@@ -245,6 +245,21 @@ public class MacroHandler extends BaseHandler {
                 String rawQuery = uri.getRawQuery();
                 if (rawQuery != null) requestPath += "?" + rawQuery;
 
+                // Scope gate (Rule 1 HARD): skip out-of-scope steps with a
+                // recorded error rather than aborting the whole macro — macros
+                // chain steps and the operator may have authored the rule
+                // before scope was tightened.
+                if (!isInScopeQuiet(api, url)) {
+                    Map<String, Object> stepResult = new LinkedHashMap<>();
+                    stepResult.put("step", stepNum);
+                    stepResult.put("status", 0);
+                    stepResult.put("url", url);
+                    stepResult.put("error", "out_of_scope");
+                    stepResult.put("hint", "Add the URL/host to Burp scope (configure_scope) before running this macro.");
+                    results.add(stepResult);
+                    continue;
+                }
+
                 HttpService service = HttpService.httpService(host, port, isHttps);
 
                 HttpRequest request = HttpRequest.httpRequest()

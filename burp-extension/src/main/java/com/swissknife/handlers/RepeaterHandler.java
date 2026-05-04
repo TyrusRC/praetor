@@ -140,6 +140,8 @@ public class RepeaterHandler extends BaseHandler {
             return;
         }
 
+        if (!requireInScope(api, exchange, tab.currentRequest.url())) return;
+
         HttpRequest modified = tab.currentRequest;
 
         // Apply optional modifications

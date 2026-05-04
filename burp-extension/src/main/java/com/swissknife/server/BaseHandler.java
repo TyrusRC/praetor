@@ -50,6 +50,12 @@ public abstract class BaseHandler implements HttpHandler {
 
         try {
             handleRequest(exchange);
+        } catch (JsonParseException e) {
+            com.swissknife.ui.ConfigTab.log("BAD_JSON: " + path + " -> " + e.getMessage());
+            sendError(exchange, 400,
+                "Malformed JSON body: " + e.getMessage(),
+                "validation_failed",
+                "Verify the request body is valid JSON before retrying.");
         } catch (Exception e) {
             com.swissknife.ui.ConfigTab.log("ERROR: " + path + " -> " + e.getMessage());
             sendError(exchange, 500, "Internal error: " + e.getMessage());
@@ -84,7 +90,23 @@ public abstract class BaseHandler implements HttpHandler {
     protected Map<String, Object> readJsonBody(HttpExchange exchange) throws IOException {
         String body = readBody(exchange);
         if (body == null || body.isBlank()) return Map.of();
-        return JsonUtil.parseObject(body);
+        try {
+            return JsonUtil.parseObject(body);
+        } catch (RuntimeException e) {
+            // Convert parse failure into a structured 400 so the operator gets
+            // an actionable hint instead of an opaque "Internal error" 500.
+            // Throwing JsonParseException avoids leaking to the outer catch in
+            // handle() which maps to 500/server_error.
+            throw new JsonParseException(e.getMessage());
+        }
+    }
+
+    /**
+     * Wraps malformed-JSON errors so the outer handle() catch can map them to
+     * a 400/validation_failed envelope instead of 500/server_error.
+     */
+    public static final class JsonParseException extends RuntimeException {
+        public JsonParseException(String message) { super(message); }
     }
 
     protected Map<String, String> queryParams(HttpExchange exchange) {
@@ -179,5 +201,59 @@ public abstract class BaseHandler implements HttpHandler {
 
     protected void sendOk(HttpExchange exchange, String message) throws IOException {
         sendJson(exchange, 200, JsonUtil.object("status", "ok", "message", message));
+    }
+
+    // ── Scope gate (Rule 1 HARD) ────────────────────────────────────
+
+    /**
+     * Returns true and lets the caller continue iff the URL is in scope.
+     * Otherwise sends a structured 403 error envelope and returns false —
+     * the caller MUST bail without issuing the outbound request.
+     *
+     * Every handler that sends a caller-supplied URL through Burp's HTTP
+     * stack is required to gate through this. ScopeHandler / configure_scope
+     * is the operator's way to widen scope when an asset host (CDN, OAuth
+     * provider, S3 bucket) needs to be reachable.
+     */
+    protected boolean requireInScope(burp.api.montoya.MontoyaApi api, HttpExchange exchange, String url) throws IOException {
+        if (api == null || url == null || url.isBlank()) {
+            sendError(exchange, 400,
+                "Missing URL for scope check",
+                "validation_failed",
+                "Provide a non-empty url before sending.");
+            return false;
+        }
+        try {
+            if (!api.scope().isInScope(url)) {
+                sendError(exchange, 403,
+                    "URL is out of scope: " + url,
+                    "out_of_scope",
+                    "Add the URL/host to Burp scope (configure_scope) before sending requests to it.");
+                return false;
+            }
+        } catch (Exception e) {
+            sendError(exchange, 400,
+                "Invalid URL for scope check: " + url + " — " + e.getMessage(),
+                "validation_failed",
+                "Verify the URL is well-formed before retrying.");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Quiet variant: returns true when in-scope, false when out-of-scope or
+     * malformed. Used inside loops where the caller wants to skip individual
+     * out-of-scope items without sending an HTTP error response (a 403
+     * envelope mid-loop would abort the whole batch). Caller decides how to
+     * report the skip.
+     */
+    protected boolean isInScopeQuiet(burp.api.montoya.MontoyaApi api, String url) {
+        if (api == null || url == null || url.isBlank()) return false;
+        try {
+            return api.scope().isInScope(url);
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

@@ -66,6 +66,8 @@ public class HttpSendHandler extends BaseHandler {
             return;
         }
 
+        if (!requireInScope(api, exchange, url)) return;
+
         // Build the request
         HttpRequest request = HttpRequest.httpRequest()
             .withMethod(method)
@@ -116,6 +118,11 @@ public class HttpSendHandler extends BaseHandler {
         int port = portObj instanceof Number n ? n.intValue() : 443;
         boolean useHttps = httpsObj instanceof Boolean b ? b : true;
 
+        // Scope check: synthesize URL from host/port/https for the gate.
+        String synthUrl = (useHttps ? "https://" : "http://") + host
+            + (port != (useHttps ? 443 : 80) ? ":" + port : "") + "/";
+        if (!requireInScope(api, exchange, synthUrl)) return;
+
         HttpService service = HttpService.httpService(host, port, useHttps);
         HttpRequest request = HttpRequest.httpRequest(service, raw);
 
@@ -136,6 +143,12 @@ public class HttpSendHandler extends BaseHandler {
         if (index >= history.size()) { sendError(exchange, 404, "Index out of range"); return; }
 
         HttpRequest original = history.get(index).finalRequest();
+
+        // Scope check on the (possibly modified) target URL. If the caller
+        // changes the path, scope still gates by host so the original URL is
+        // a sufficient proxy for "where the resend lands".
+        if (!requireInScope(api, exchange, original.url())) return;
+
         HttpRequest modified = original;
 
         // Apply modifications
@@ -213,6 +226,8 @@ public class HttpSendHandler extends BaseHandler {
             sendError(exchange, 400, "Missing 'url'");
             return;
         }
+
+        if (!requireInScope(api, exchange, url)) return;
 
         boolean followRedirects = body.get("follow_redirects") instanceof Boolean b ? b : true;
         int maxRedirects = body.get("max_redirects") instanceof Number n ? n.intValue() : 10;

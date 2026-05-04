@@ -1069,6 +1069,42 @@ public class SessionHandler extends BaseHandler {
                                 payload = payload.replace("{{" + v.getKey() + "}}", String.valueOf(v.getValue()));
                             }
 
+                            // {{collaborator}} substitution + OOB-receipt prep:
+                            // when the probe template references {{collaborator}}
+                            // OR carries any matcher of type=collaborator,
+                            // generate a fresh Collaborator subdomain for this
+                            // probe and remember the interaction id so the
+                            // matcher can be evaluated after the response
+                            // returns.
+                            String oobPayloadId = null;
+                            String oobHost = null;
+                            List<Map<String, Object>> probeMatchers = (List<Map<String, Object>>) probe.get("matchers");
+                            boolean needsCollaborator = payload.contains("{{collaborator}}");
+                            if (!needsCollaborator && probeMatchers != null) {
+                                for (Map<String, Object> mt : probeMatchers) {
+                                    if ("collaborator".equals(mt.get("type"))) { needsCollaborator = true; break; }
+                                }
+                            }
+                            if (needsCollaborator) {
+                                burp.api.montoya.collaborator.CollaboratorClient cc =
+                                    com.swissknife.collaborator.CollaboratorPool.tryGetOrCreate(api);
+                                if (cc != null) {
+                                    try {
+                                        burp.api.montoya.collaborator.CollaboratorPayload cp = cc.generatePayload();
+                                        oobPayloadId = cp.id().toString();
+                                        oobHost = cp.toString();
+                                        payload = payload.replace("{{collaborator}}", oobHost);
+                                    } catch (Throwable t) {
+                                        // Collaborator allocation failed (Community Edition or
+                                        // unreachable). Skip this probe rather than send a
+                                        // payload with the literal "{{collaborator}}" marker.
+                                        continue;
+                                    }
+                                } else {
+                                    continue;
+                                }
+                            }
+
                             // Send probe request
                             Map<String, Object> probeParams = new LinkedHashMap<>();
                             probeParams.put("method", method);
@@ -1090,6 +1126,42 @@ public class SessionHandler extends BaseHandler {
 
                             // Evaluate matchers
                             List<Map<String, Object>> matchers = (List<Map<String, Object>>) probe.get("matchers");
+
+                            // OOB-receipt poll: when this probe carries any
+                            // collaborator matcher and we generated a payload
+                            // for it, wait briefly for the OOB callback and
+                            // attach the interactions list to the matcher map.
+                            // MatcherEngine reads `_interactions` and decides
+                            // match by protocol filter.
+                            if (oobPayloadId != null && matchers != null) {
+                                try {
+                                    Thread.sleep(750);
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                }
+                                burp.api.montoya.collaborator.CollaboratorClient cc =
+                                    com.swissknife.collaborator.CollaboratorPool.tryGetOrCreate(api);
+                                if (cc != null) {
+                                    try {
+                                        var filter = burp.api.montoya.collaborator.InteractionFilter
+                                            .interactionPayloadFilter(oobPayloadId);
+                                        var interactions = cc.getInteractions(filter);
+                                        List<Map<String, Object>> simplified = new ArrayList<>();
+                                        for (var ix : interactions) {
+                                            Map<String, Object> entry = new LinkedHashMap<>();
+                                            entry.put("type", ix.type().toString());
+                                            entry.put("payload_id", ix.id().toString());
+                                            simplified.add(entry);
+                                        }
+                                        for (Map<String, Object> mt : matchers) {
+                                            if ("collaborator".equals(mt.get("type"))) {
+                                                mt.put("_interactions", simplified);
+                                            }
+                                        }
+                                    } catch (Throwable ignored) {}
+                                }
+                            }
+
                             Map<String, Object> matchResult = com.swissknife.analysis.MatcherEngine.evaluate(
                                 matchers, probeResult.response(), elapsedMs, baselineResult.response(), payload
                             );
@@ -1320,6 +1392,14 @@ public class SessionHandler extends BaseHandler {
             fullUrl = base + path;
         } else {
             fullUrl = path;
+        }
+
+        // Scope gate (Rule 1 HARD): all session-driven outbound goes through this.
+        // Returning null surfaces as a clean no-response in callers (which already
+        // handle null), and the failure is logged for the operator's audit trail.
+        if (!isInScopeQuiet(api, fullUrl)) {
+            com.swissknife.ui.ConfigTab.log("session_request: dropped out-of-scope URL " + fullUrl);
+            return null;
         }
 
         try {

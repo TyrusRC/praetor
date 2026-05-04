@@ -88,6 +88,8 @@ public class AttackHandler extends BaseHandler {
             return;
         }
 
+        if (!requireInScope(api, exchange, baseUrl)) return;
+
         // Reference state: caller can specify which state's response is the
         // "owner" (the legitimate access). Defaults to first listed state for
         // backwards compat, but if the operator put the unauthenticated/anon
@@ -247,6 +249,8 @@ public class AttackHandler extends BaseHandler {
         } else {
             fullUrl = reqPath;
         }
+
+        if (!requireInScope(api, exchange, fullUrl)) return;
 
         HttpRequest baseRequest;
         try {
@@ -433,6 +437,8 @@ public class AttackHandler extends BaseHandler {
 
         // Send baseline: original value in query
         String baselineUrl = buildUrl(baseUrl, basePath, parameter, originalValue);
+
+        if (!requireInScope(api, exchange, baselineUrl)) return;
         HttpRequest baselineReq;
         try {
             URI uri = new URI(baselineUrl);

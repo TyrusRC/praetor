@@ -122,6 +122,8 @@ public class ResourceHandler extends BaseHandler {
             return;
         }
 
+        if (!requireInScope(api, exchange, url)) return;
+
         // Check proxy history first
         String content = findInHistory(url);
         if (content != null) {
@@ -166,6 +168,8 @@ public class ResourceHandler extends BaseHandler {
             pageBody = resp.bodyToString();
             pageUrl = item.finalRequest().url();
         } else if (urlStr != null && !urlStr.isEmpty()) {
+            if (!requireInScope(api, exchange, urlStr)) return;
+
             // Try history first, then fetch
             String fromHistory = findInHistory(urlStr);
             if (fromHistory != null) {
@@ -199,6 +203,16 @@ public class ResourceHandler extends BaseHandler {
             if (content != null) {
                 source = "proxy_history";
             } else {
+                // Scope gate (Rule 1 HARD). Static-resource sweep can pull
+                // hundreds of CDN URLs; out-of-scope ones are recorded with
+                // an explicit marker rather than 403-ing the whole batch.
+                if (!isInScopeQuiet(api, resUrl)) {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("url", resUrl);
+                    entry.put("error", "out_of_scope");
+                    resources.add(entry);
+                    continue;
+                }
                 // Fetch through Burp
                 HttpRequestResponse result = fetchUrl(resUrl);
                 if (result == null || result.response() == null) {
@@ -244,6 +258,7 @@ public class ResourceHandler extends BaseHandler {
             if (content != null) {
                 source = "proxy_history";
             } else {
+                if (!isInScopeQuiet(api, mapUrl)) continue;
                 HttpRequestResponse result = fetchUrl(mapUrl);
                 if (result == null || result.response() == null) continue;
                 content = result.response().bodyToString();
