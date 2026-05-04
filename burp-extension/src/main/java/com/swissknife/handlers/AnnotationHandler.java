@@ -42,7 +42,16 @@ public class AnnotationHandler extends BaseHandler {
 
     private void handleAnnotationSet(HttpExchange exchange) throws Exception {
         Map<String, Object> body = readJsonBody(exchange);
-        applyAnnotation(body);
+        try {
+            applyAnnotation(body);
+        } catch (IllegalArgumentException e) {
+            // Map operator-input mistakes to 400 instead of the outer
+            // catch-all 500. Caller (annotate_request after auto_probe) needs
+            // to know it was a bad index, not a server crash.
+            sendError(exchange, 400, e.getMessage(), "validation_failed",
+                "Verify 'index' is a valid proxy-history index (0 <= index < history.size()) and 'color' is one of RED/ORANGE/YELLOW/GREEN/CYAN/BLUE/PINK/MAGENTA/GRAY.");
+            return;
+        }
         sendOk(exchange, "Annotation set");
     }
 
@@ -139,7 +148,11 @@ public class AnnotationHandler extends BaseHandler {
             case "PINK" -> HighlightColor.PINK;
             case "MAGENTA" -> HighlightColor.MAGENTA;
             case "GRAY" -> HighlightColor.GRAY;
-            default -> HighlightColor.NONE;
+            // Unknown color name: surface it as a validation error instead of
+            // silently clearing the annotation. Used to map to NONE which left
+            // the operator wondering why their RED tag turned to nothing.
+            default -> throw new IllegalArgumentException(
+                "Unknown highlight color '" + name + "'. Allowed: RED, ORANGE, YELLOW, GREEN, CYAN, BLUE, PINK, MAGENTA, GRAY.");
         };
     }
 }

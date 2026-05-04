@@ -168,6 +168,55 @@ def register(mcp: FastMCP) -> None:
         ann_results = await asyncio.gather(*(_annotate(f) for f in findings_sorted), return_exceptions=True)
         annotated = sum(1 for r in ann_results if r is True)
 
+        # R20 economy lever — record every (endpoint, parameter, category)
+        # tuple we just probed so a follow-on auto_probe with
+        # skip_already_covered=True doesn't re-test them. Previously
+        # auto_probe READ coverage.json but never wrote it, so the skip
+        # gate was a no-op across sessions.
+        if domain:
+            try:
+                from burpsuite_mcp.tools.intel import _knowledge_version, _intel_path
+                cov_path = _intel_path(domain) / "coverage.json"
+                cov_path.parent.mkdir(parents=True, exist_ok=True)
+                cov = {"entries": []}
+                if cov_path.exists():
+                    try:
+                        cov = json.loads(cov_path.read_text()) or {"entries": []}
+                    except (OSError, json.JSONDecodeError):
+                        cov = {"entries": []}
+                if "entries" not in cov or not isinstance(cov["entries"], list):
+                    cov["entries"] = []
+                kv = _knowledge_version()
+                # Index existing entries so we update kv in place rather than
+                # appending duplicates each run.
+                seen: set[tuple] = set()
+                for e in cov["entries"]:
+                    seen.add((e.get("endpoint", ""), e.get("parameter", ""), e.get("category", "")))
+                active_cats = list({k.get("category") for k in knowledge if k.get("category")})
+                for t in targets:
+                    ep = t.get("path", "")
+                    par = t.get("parameter", "")
+                    for cat in active_cats:
+                        key = (ep, par, cat)
+                        if key in seen:
+                            for e in cov["entries"]:
+                                if (e.get("endpoint"), e.get("parameter"), e.get("category")) == key:
+                                    e["knowledge_version"] = kv
+                                    break
+                        else:
+                            cov["entries"].append({
+                                "endpoint": ep,
+                                "parameter": par,
+                                "category": cat,
+                                "knowledge_version": kv,
+                            })
+                            seen.add(key)
+                cov_path.write_text(json.dumps(cov, indent=2))
+            except Exception:
+                # coverage write is best-effort; failure must not break the
+                # main probe response.
+                pass
+
         if findings_sorted:
             lines.append(f"Findings ({len(findings_sorted)}):\n")
             for finding in findings_sorted:

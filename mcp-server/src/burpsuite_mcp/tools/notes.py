@@ -52,8 +52,24 @@ def _load_findings_file(path: Path) -> dict:
 
 
 def _write_findings_file(path: Path, data: dict) -> None:
+    """Atomic write — concurrent agents saving to the same domain mustn't
+    corrupt findings.json by interleaving partial writes. Render to a temp
+    file in the same directory, then os.replace() — POSIX-atomic on the
+    same filesystem."""
+    import os
+    import tempfile
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2))
+    fd, tmp_name = tempfile.mkstemp(prefix=".findings-", suffix=".json", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, int]:
