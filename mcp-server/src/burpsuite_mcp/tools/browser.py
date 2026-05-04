@@ -123,6 +123,22 @@ def register(mcp: FastMCP):
             url: URL to navigate to
             wait_until: Navigation event to wait for ('domcontentloaded', 'load', 'networkidle')
         """
+        # Rule 1 (HARD) — the headless browser pulls every sub-resource
+        # referenced by the page. If the entry URL is OOS we have no business
+        # touching it; sub-resources can still go off-scope when in-scope
+        # pages embed CDN/analytics, but the entry gate at least matches the
+        # other Java handlers' scope discipline.
+        from burpsuite_mcp import client as _client
+        try:
+            scope_resp = await _client.post("/api/scope/check", json={"url": url})
+        except Exception as e:  # pragma: no cover — scope handler should be reachable
+            return f"Error: scope check unavailable ({type(e).__name__}: {e})"
+        if "error" not in scope_resp and not scope_resp.get("in_scope", False):
+            return (
+                f"Out of scope: {url}\n"
+                "Add the host to Burp scope (configure_scope) before navigating to it."
+            )
+
         _, _, page = await _ensure_browser()
 
         try:

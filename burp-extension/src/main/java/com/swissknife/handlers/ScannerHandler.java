@@ -164,6 +164,14 @@ public class ScannerHandler extends BaseHandler {
                 return;
             }
 
+            // Rule 1 (HARD) — Burp Pro will actively crawl whatever we hand it,
+            // so every seed must be in scope. Reject the whole batch on the
+            // first OOS hit; surfacing the bad URL is better than silently
+            // crawling out-of-scope assets.
+            for (String u : seedUrls) {
+                if (!requireInScope(api, exchange, u)) return;
+            }
+
             api.scanner().startCrawl(
                 CrawlConfiguration.crawlConfiguration(seedUrls.toArray(new String[0]))
             );

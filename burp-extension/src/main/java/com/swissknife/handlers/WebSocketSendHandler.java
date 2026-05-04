@@ -62,6 +62,13 @@ public class WebSocketSendHandler extends BaseHandler {
             return;
         }
 
+        // Rule 1 (HARD) — WebSocket connections are outbound traffic and
+        // must respect Burp scope. Translate ws:// / wss:// to the matching
+        // http(s) form for the scope check (Burp scope rules are URL-scheme
+        // aware but the scope check accepts the upgraded form).
+        String scopeUrl = url.replace("wss://", "https://").replace("ws://", "http://");
+        if (!requireInScope(api, exchange, scopeUrl)) return;
+
         try {
             // Build upgrade request
             HttpService service = HttpService.httpService(url);

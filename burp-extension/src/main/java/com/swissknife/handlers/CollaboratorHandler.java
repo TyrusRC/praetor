@@ -97,13 +97,19 @@ public class CollaboratorHandler extends BaseHandler {
                 return;
             }
 
+            // Modify the request with the collaborator payload
+            HttpRequest original = history.get(index).finalRequest();
+
+            // Rule 1 (HARD) — auto_collaborator_test was previously firing
+            // requests at whatever URL the captured proxy entry pointed at,
+            // skipping the scope gate that every other outbound path now uses.
+            if (!requireInScope(api, exchange, original.url())) return;
+
             // Generate collaborator payload
             CollaboratorClient c = getClient();
             CollaboratorPayload payload = c.generatePayload();
             String payloadUrl = payload.toString();
 
-            // Modify the request with the collaborator payload
-            HttpRequest original = history.get(index).finalRequest();
             HttpRequest modified = original;
 
             switch (injectionPoint.toLowerCase()) {
@@ -131,7 +137,9 @@ public class CollaboratorHandler extends BaseHandler {
 
             // Send the modified request
             HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, modified);
-            int responseStatus = result.response() != null ? result.response().statusCode() : 0;
+            // Null-guard: ProxyTunnel can return null on tunnel + fallback
+            // failure (e.g. DNS dropout). Don't NPE on .response().
+            int responseStatus = (result != null && result.response() != null) ? result.response().statusCode() : 0;
 
             // Wait and poll for interactions
             Thread.sleep(pollSeconds * 1000L);
