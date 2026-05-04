@@ -27,13 +27,13 @@ public class MatchReplaceHandler extends BaseHandler {
 
     // ── Inner type ────────────────────────────────────────────────
 
-    static final class MatchReplaceRule {
-        final int id;
-        final String type;      // "request" or "response"
-        final String match;     // regex pattern
-        final String replace;
-        final boolean enabled;
-        final String scope;     // "all" or "in_scope"
+    public static final class MatchReplaceRule {
+        public final int id;
+        public final String type;      // "request" or "response"
+        public final String match;     // regex pattern
+        public final String replace;
+        public final boolean enabled;
+        public final String scope;     // "all" or "in_scope"
 
         MatchReplaceRule(int id, String type, String match, String replace, boolean enabled, String scope) {
             this.id = id;

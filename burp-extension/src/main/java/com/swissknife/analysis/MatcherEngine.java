@@ -149,6 +149,89 @@ public final class MatcherEngine {
                         }
                     }
                 }
+                case "not_header" -> {
+                    // Inverse of "header": match when the named header is absent,
+                    // or — if `contains` is specified — when the header is absent
+                    // OR present but the value does not contain the substring.
+                    // Used by clickjacking (no X-Frame-Options) and
+                    // content_type_confusion (no nosniff) probes.
+                    String headerName = (String) matcher.get("name");
+                    String contains = (String) matcher.get("contains");
+                    @SuppressWarnings("unchecked")
+                    List<String> headerNames = (List<String>) matcher.get("headers");
+                    if (headerName != null) {
+                        boolean present = false;
+                        String value = null;
+                        for (HttpHeader h : response.headers()) {
+                            if (headerName.equalsIgnoreCase(h.name())) {
+                                present = true;
+                                value = h.value();
+                                break;
+                            }
+                        }
+                        if (!present) {
+                            matched = true;
+                            matchedDescriptions.add("not_header:" + headerName);
+                        } else if (contains != null && !value.toLowerCase().contains(contains.toLowerCase())) {
+                            matched = true;
+                            matchedDescriptions.add("not_header:" + headerName + " (missing '" + contains + "')");
+                        }
+                    } else if (headerNames != null && !headerNames.isEmpty()) {
+                        // Multi-header: match when NONE of the listed headers is present.
+                        boolean anyPresent = false;
+                        for (String hn : headerNames) {
+                            for (HttpHeader h : response.headers()) {
+                                if (hn.equalsIgnoreCase(h.name())) { anyPresent = true; break; }
+                            }
+                            if (anyPresent) break;
+                        }
+                        if (!anyPresent) {
+                            matched = true;
+                            matchedDescriptions.add("not_header:" + String.join(",", headerNames));
+                        }
+                    }
+                }
+                case "literal" -> {
+                    // Case-sensitive substring match against body. Used by
+                    // cloud_webapp.json for exact field-name and SDK marker
+                    // detection ("SecretAccessKey", "projects/-/serviceAccounts/").
+                    // For case-insensitive substring use "word" instead.
+                    String pattern = (String) matcher.get("pattern");
+                    if (pattern != null && !pattern.isEmpty()) {
+                        matched = body.contains(pattern);
+                        if (matched) matchedDescriptions.add("literal:" + pattern);
+                    }
+                }
+                case "collaborator" -> {
+                    // OOB receipt matcher. The auto-probe driver injects a
+                    // pre-polled `_interactions` list (per-probe poll after
+                    // send) into the matcher map at runtime; the list shape is
+                    // [{"type":"DNS|HTTP|SMTP", ...}, ...]. The probe payload
+                    // is expected to embed the Collaborator host where the
+                    // template said {{collaborator}}.
+                    //
+                    // Without injection (e.g. the driver did not call
+                    // SessionProbeHelpers.attachInteractions), this case fails
+                    // closed — better than the previous fail-open default.
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> interactions = (List<Map<String, Object>>) matcher.get("_interactions");
+                    String wantProto = (String) matcher.get("protocol");
+                    if (interactions != null && !interactions.isEmpty()) {
+                        if (wantProto == null || wantProto.isBlank()) {
+                            matched = true;
+                        } else {
+                            String want = wantProto.toLowerCase();
+                            for (Map<String, Object> i : interactions) {
+                                Object t = i.get("type");
+                                if (t != null && t.toString().toLowerCase().equals(want)) {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (matched) matchedDescriptions.add("collaborator:" + interactions.size() + " " + (wantProto == null ? "any" : wantProto));
+                    }
+                }
                 case "reflection" -> {
                     if (payload != null && !payload.isEmpty()) {
                         if (body.contains(payload)) {
@@ -319,11 +402,16 @@ public final class MatcherEngine {
                 }
             }
 
-            // Unknown matcher type: record but don't silently force allMatched=false.
-            // A typo in a knowledge file otherwise nukes every probe in the context.
+            // Unknown matcher type: fail closed. Probes whose ONLY matcher is
+            // unknown would otherwise return matched=true (false positive),
+            // because allMatched starts true and never flips. Failing closed
+            // is more correct: a probe author who lists matchers expects ALL
+            // of them to be evaluable. Drift in KB stays detectable via the
+            // "unknown_matcher_type:" tag in matchedDescriptions.
             if (!KNOWN_MATCHER_TYPES.contains(type)) {
                 matchedDescriptions.add("unknown_matcher_type:" + type);
-                continue; // skip this matcher (treat as if not present)
+                allMatched = false;
+                continue;
             }
 
             if (!matched) allMatched = false;
@@ -338,8 +426,8 @@ public final class MatcherEngine {
     private static final java.util.Set<String> KNOWN_MATCHER_TYPES = java.util.Set.of(
         "status", "word", "not_word", "regex", "timing", "differential_timing",
         "length_diff", "length_delta", "word_count_diff",
-        "header", "header_change", "header_added", "header_removed",
-        "mime_changes", "reflection",
+        "header", "not_header", "header_change", "header_added", "header_removed",
+        "mime_changes", "reflection", "literal", "collaborator",
         "shape_fingerprint", "valid_vs_invalid_baseline"
     );
 

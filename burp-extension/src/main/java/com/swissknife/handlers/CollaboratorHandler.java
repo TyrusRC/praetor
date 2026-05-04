@@ -25,7 +25,6 @@ import java.util.*;
 public class CollaboratorHandler extends BaseHandler {
 
     private final MontoyaApi api;
-    private volatile CollaboratorClient client;
 
     public CollaboratorHandler(MontoyaApi api) {
         this.api = api;
@@ -48,11 +47,10 @@ public class CollaboratorHandler extends BaseHandler {
         }
     }
 
-    private synchronized CollaboratorClient getClient() {
-        if (client == null) {
-            client = api.collaborator().createClient();
-        }
-        return client;
+    private CollaboratorClient getClient() {
+        // Share the singleton with auto-probe / OOB matchers so a payload
+        // generated here is observable everywhere via the same payload id.
+        return com.swissknife.collaborator.CollaboratorPool.getOrCreate(api);
     }
 
     private void handleGeneratePayload(HttpExchange exchange) throws Exception {

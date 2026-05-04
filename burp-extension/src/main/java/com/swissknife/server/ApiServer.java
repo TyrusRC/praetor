@@ -141,7 +141,14 @@ public class ApiServer {
         server.createContext("/api/intercept", new InterceptHandler(api));
 
         // Match-and-replace rules
-        server.createContext("/api/match-replace", new MatchReplaceHandler(api));
+        MatchReplaceHandler matchReplaceHandler = new MatchReplaceHandler(api);
+        server.createContext("/api/match-replace", matchReplaceHandler);
+        // Wire rules into Burp's HTTP pipeline so they actually mutate live
+        // traffic. Without this registration set_match_replace would store
+        // rules but never apply them.
+        api.http().registerHttpHandler(
+            new com.swissknife.proxy.MatchReplaceHttpHandler(api, matchReplaceHandler)
+        );
 
         // Proxy history annotations
         server.createContext("/api/annotations", new AnnotationHandler(api));
