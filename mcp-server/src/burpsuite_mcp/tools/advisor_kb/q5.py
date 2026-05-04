@@ -125,6 +125,21 @@ Q5_KEYWORDS: dict[str, list[str]] = {
         "jwe direct", "jwe rsa-oaep", "zip oracle",
         "expired token accepted", "future iat accepted",
     ],
+    "oauth": [
+        # OAuth-specific evidence: state, PKCE, redirect_uri, response_type
+        # bugs that don't necessarily touch a JWT.
+        "state missing", "state not validated", "state reused",
+        "pkce missing", "pkce downgrade", "code_verifier reused",
+        "redirect_uri bypass", "redirect_uri partial match",
+        "redirect_uri scheme confusion", "open redirect via redirect_uri",
+        "response_type=token leaked", "code in fragment",
+        "consent prompt bypass", "implicit flow on confidential client",
+        "cross-tenant code accepted", "victim code intercepted",
+        "auth code reuse", "auth code replay",
+        "device code phishing", "device flow abuse",
+        "nonce missing", "nonce reused", "id_token replay",
+        "client_secret in url", "client_secret leaked",
+    ],
     "graphql": [
         "introspection enabled", "__schema", "__typename",
         "field suggestions", "did you mean", "alias amplification",
@@ -228,7 +243,12 @@ Q5_ALIASES = {
     "open_redirect_no_chain": "open_redirect",
     "tabnabbing": "open_redirect",
     "oauth_open_redirect": "open_redirect",
-    "oauth": "jwt",  # OAuth bug evidence overlaps with JWT keywords; loose alias
+    # OAuth has its own keyword set now (state/PKCE/redirect_uri/nonce). The
+    # legacy alias to "jwt" forced non-JWT OAuth bugs through JWT keywords
+    # and failed Q5 with no path forward.
+    "oauth_state": "oauth", "oauth_pkce": "oauth",
+    "oauth_redirect_uri": "oauth", "oauth_nonce": "oauth",
+    "oidc": "oauth", "openid_connect": "oauth",
     "jwt_blind": "jwt", "jwt_alg_none": "jwt", "jwt_kid": "jwt",
     "samesite_lax_bypass": "csrf",
     # API / smuggling / cache aliases

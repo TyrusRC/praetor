@@ -271,13 +271,25 @@ async def assess_finding_impl(
 
     # Q1: Scope. SKIP on transient extension errors (R17). Only DO NOT
     # REPORT when the extension explicitly says out-of-scope.
+    #
+    # Domain resolution: prefer explicit `domain`, otherwise derive from a
+    # full-URL endpoint. A bare path-only endpoint with no domain still SKIPs
+    # — the advisor cannot verify scope without a host.
+    effective_domain = domain
+    if not effective_domain and "://" in endpoint:
+        try:
+            from urllib.parse import urlparse
+            effective_domain = urlparse(endpoint).hostname or ""
+        except Exception:
+            effective_domain = ""
+
     if "q1_scope" in override_set:
         issues.append("Q1 OVERRIDE: scope check bypassed by operator")
-    elif domain:
+    elif effective_domain:
         try:
             scope_resp = await client.post(
                 "/api/scope/check",
-                json={"url": endpoint if "://" in endpoint else f"https://{domain}{endpoint}"},
+                json={"url": endpoint if "://" in endpoint else f"https://{effective_domain}{endpoint}"},
             )
             if "error" in scope_resp:
                 # Transient — extension unreachable / 500 / etc. Skip not Fail.
@@ -288,7 +300,7 @@ async def assess_finding_impl(
         except Exception as e:
             issues.append(f"Q1 SKIP: scope check raised ({type(e).__name__})")
     else:
-        issues.append("Q1 SKIP: pass `domain=...` to enable scope verification")
+        issues.append("Q1 SKIP: pass `domain=...` (or full URL endpoint) to enable scope verification")
 
     # Q2: Reproducible — AUTH_STATE_DEPENDENT lives in advisor_kb.
     q2_class_root = vuln_lower

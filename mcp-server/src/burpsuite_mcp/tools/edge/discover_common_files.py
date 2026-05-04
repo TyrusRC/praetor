@@ -16,25 +16,109 @@ async def discover_common_files_impl(
 
     Args:
         session: Session name
-        tech_specific: Add tech-specific paths based on detected stack
+        tech_specific: Add tech-specific paths based on detected stack (Java/Spring,
+            PHP/WordPress, Node, .NET, Ruby/Rails, Python/Django/Flask). Default True.
     """
-    # Universal paths
+    # Universal high-signal paths.
     paths = [
-        "/.git/HEAD", "/.git/config", "/.env", "/.env.bak",
-        "/robots.txt", "/sitemap.xml", "/crossdomain.xml",
+        # VCS exposure
+        "/.git/HEAD", "/.git/config", "/.git/index", "/.gitignore",
+        "/.svn/entries", "/.svn/wc.db", "/.hg/store",
+        # Environment / secrets
+        "/.env", "/.env.bak", "/.env.local", "/.env.production",
+        "/.env.dev", "/.env.development", "/.env.staging",
+        "/credentials.json", "/secrets.json",
+        "/config.json", "/config.yml", "/config.yaml",
+        # Lockfiles / dependency manifests
+        "/package.json", "/package-lock.json", "/yarn.lock",
+        "/composer.json", "/composer.lock",
+        "/Gemfile", "/Gemfile.lock",
+        "/requirements.txt", "/Pipfile", "/Pipfile.lock", "/poetry.lock",
+        "/go.mod", "/go.sum",
+        "/Cargo.toml", "/Cargo.lock",
+        # Cloud creds / CI artefacts
+        "/.aws/credentials", "/.aws/config",
+        "/.npmrc", "/.dockercfg", "/.docker/config.json",
+        "/.gitlab-ci.yml", "/.travis.yml", "/.circleci/config.yml",
+        "/Jenkinsfile", "/.github/workflows/", "/buildspec.yml",
+        # Server config
         "/.htaccess", "/.htpasswd",
         "/web.config", "/Web.config",
-        "/package.json", "/composer.json",
-        "/wp-config.php.bak", "/wp-config.php~",
+        "/nginx.conf", "/httpd.conf", "/apache2.conf",
+        # Status / debug surfaces
         "/server-status", "/server-info",
-        "/.svn/entries", "/.DS_Store",
-        "/backup/", "/debug/", "/test/", "/admin/",
-        "/phpinfo.php", "/info.php",
-        "/elmah.axd", "/trace.axd",
+        "/.DS_Store", "/Thumbs.db",
+        "/backup/", "/backups/", "/old/", "/tmp/",
+        "/debug/", "/test/", "/dev/", "/staging/",
+        # PHP / WordPress
+        "/phpinfo.php", "/info.php", "/test.php",
+        "/wp-config.php.bak", "/wp-config.php~", "/wp-config.php.swp",
+        "/wp-admin/", "/wp-login.php",
+        # .NET
+        "/elmah.axd", "/trace.axd", "/AppPath.config",
+        # Spring Actuator
         "/actuator", "/actuator/env", "/actuator/heapdump",
-        "/console", "/__debug__/",
-        "/swagger.json", "/api-docs", "/openapi.json",
+        "/actuator/threaddump", "/actuator/mappings", "/actuator/configprops",
+        "/actuator/loggers", "/actuator/health",
+        # Java / app servers
+        "/console", "/__debug__/", "/h2-console", "/hawtio/",
+        "/admin/", "/manager/html", "/manager/status",
+        # API docs
+        "/swagger.json", "/swagger.yaml", "/swagger-ui",
+        "/api-docs", "/openapi.json", "/openapi.yaml",
+        "/graphql", "/graphiql", "/playground",
+        # Crawl seeds
+        "/robots.txt", "/sitemap.xml", "/crossdomain.xml",
+        "/security.txt", "/.well-known/security.txt",
     ]
+
+    if tech_specific:
+        # Best-effort tech detection from session intel (cookies, headers).
+        # Falls open: if intel unavailable, the universal list still runs.
+        try:
+            intel = await client.get(f"/api/session/list")
+            stack = (str(intel) if isinstance(intel, dict) else "").lower()
+        except Exception:
+            stack = ""
+
+        extras: list[str] = []
+        if any(t in stack for t in ("php", "wordpress", "laravel")):
+            extras += [
+                "/wp-content/debug.log", "/wp-content/uploads/",
+                "/storage/logs/laravel.log", "/.env.example",
+            ]
+        if any(t in stack for t in ("spring", "java", "tomcat", "jetty")):
+            extras += [
+                "/META-INF/MANIFEST.MF", "/WEB-INF/web.xml",
+                "/WEB-INF/classes/application.properties",
+                "/error", "/trace", "/dump", "/jolokia",
+            ]
+        if any(t in stack for t in ("django", "flask", "python")):
+            extras += [
+                "/__debug__/", "/django_debug/", "/admin/login/",
+                "/static/admin/", "/media/",
+            ]
+        if any(t in stack for t in ("rails", "ruby")):
+            extras += [
+                "/rails/info/properties", "/rails/info/routes",
+                "/rails/db", "/_specs/",
+            ]
+        if any(t in stack for t in ("aspnet", ".net", "iis")):
+            extras += [
+                "/_vti_bin/", "/aspnet_client/", "/bin/",
+                "/App_Data/", "/PrecompiledApp.config",
+            ]
+        if any(t in stack for t in ("node", "express")):
+            extras += [
+                "/server.js", "/index.js", "/app.js",
+                "/.next/static/", "/_next/static/",
+            ]
+        # Dedup while preserving order.
+        seen = set(paths)
+        for p in extras:
+            if p not in seen:
+                paths.append(p)
+                seen.add(p)
 
     # Batch probe all paths
     endpoints = [{"method": "GET", "path": p} for p in paths]

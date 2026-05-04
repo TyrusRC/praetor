@@ -13,6 +13,8 @@ def register(mcp: FastMCP):
         pattern: str,
         group: int = 0,
         find_all: bool = False,
+        max_matches: int = 200,
+        max_match_chars: int = 500,
     ) -> str:
         """Extract data from a response using regex pattern matching.
 
@@ -21,6 +23,8 @@ def register(mcp: FastMCP):
             pattern: Regex pattern (use capture groups for specific extraction)
             group: Capture group number (0=whole match, 1=first group)
             find_all: Return all matches instead of just the first
+            max_matches: Cap on returned matches when find_all=True (default 200). Prevents 10k+ matches blowing the context window.
+            max_match_chars: Per-match length cap (default 500). Long matches are truncated with a marker.
         """
         data = await client.post("/api/extract-text/regex", json={
             "index": index, "pattern": pattern, "group": group, "all": find_all,
@@ -32,9 +36,23 @@ def register(mcp: FastMCP):
         if not matches:
             return f"No matches for /{pattern}/ in response #{index}"
 
-        lines = [f"Matches ({data.get('count', len(matches))})"]
+        total = data.get("count", len(matches))
+        # Per-match cap so a 50KB regex hit doesn't dominate the response.
+        cap_per = max(64, int(max_match_chars))
+        # Total-match cap to keep payload bounded for find_all=True.
+        cap_total = max(1, int(max_matches))
+        truncated_count = max(0, len(matches) - cap_total)
+        if truncated_count:
+            matches = matches[:cap_total]
+
+        lines = [f"Matches ({total}){' [showing first ' + str(cap_total) + ']' if truncated_count else ''}"]
         for i, m in enumerate(matches):
-            lines.append(f"  [{i}] {m}")
+            s = str(m)
+            if len(s) > cap_per:
+                s = s[:cap_per] + f"... [+{len(str(m)) - cap_per} chars]"
+            lines.append(f"  [{i}] {s}")
+        if truncated_count:
+            lines.append(f"  ... +{truncated_count} more matches not shown (raise max_matches to see).")
         return "\n".join(lines)
 
     @mcp.tool()

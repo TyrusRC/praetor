@@ -13,6 +13,8 @@ NEVER_SUBMIT_TYPES = {
     "mixed_content": "Mixed content — browser mitigates",
     "stack_trace": "Stack traces alone — info disclosure, not exploitable",
     "user_enumeration": "Username enumeration on public sign-up — often by design",
+    "username_enumeration": "Username enumeration on public sign-up — often by design",
+    "email_enumeration": "Email enumeration on public sign-up / forgot-password — often by design",
     "referrer_policy": "Missing Referrer-Policy — extremely minor",
     "spf": "SPF/DMARC/DKIM issues — email security, usually out of scope",
     "dmarc": "SPF/DMARC/DKIM issues — email security, usually out of scope",

@@ -57,20 +57,26 @@ def _write_findings_file(path: Path, data: dict) -> None:
 
 
 def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, int]:
-    """Merge `new` into `existing` by (endpoint + title + parameter).
+    """Merge `new` into `existing` by (endpoint + vuln_type + title + parameter).
+
+    vuln_type is part of the key so two distinct classes (e.g. xss vs csrf)
+    that happen to share an endpoint+title don't silently collapse — that
+    used to delete the earlier finding's evidence on the second save.
 
     Returns (updated_list, action, index) where action is 'created' or 'updated'
     and index points at the finding's position in the returned list.
     """
     key_ep = new.get("endpoint", "")
+    key_vuln = (new.get("vuln_type", "") or "").lower()
     key_title = new.get("title", "").lower()
     key_param = new.get("parameter", "")
 
     for i, f in enumerate(existing):
         same_ep = f.get("endpoint", "") == key_ep
+        same_vuln = (f.get("vuln_type", "") or "").lower() == key_vuln
         same_title = f.get("title", "").lower() == key_title
         same_param = f.get("parameter", "") == key_param
-        if same_ep and same_title and same_param:
+        if same_ep and same_vuln and same_title and same_param:
             merged = {**f, **new, "id": f.get("id")}
             existing[i] = merged
             return existing, "updated", i
