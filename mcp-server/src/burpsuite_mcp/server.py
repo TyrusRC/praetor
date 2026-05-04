@@ -7,6 +7,7 @@ from burpsuite_mcp.tools import (
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
+    prompts, resources_mcp,
 )
 
 mcp = FastMCP(
@@ -93,3 +94,5 @@ advisor.register(mcp)          # strategic hunt advisor — pre-computed plans, 
 testing_extended.register(mcp)  # advanced testing: API schema, GraphQL deep, business logic, smuggling, cache poisoning
 burp_tools.register(mcp)       # Burp native: WebSocket send, Organizer, Decoder, Logger, Project info, Intruder config
 dom_probe.register(mcp)        # DOM-aware probe — closes the client-side gap (DOM XSS, DOM-redirect, CSPP, link-manip, DOM-data-manip)
+prompts.register(mcp)          # MCP Prompts — operator-invokable workflow templates (hunt-target, verify-finding, chain-findings, save-finding-checklist, triage-program)
+resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, skills, knowledge, intel, findings) under burp:// URIs

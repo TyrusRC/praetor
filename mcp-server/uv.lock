@@ -34,8 +34,8 @@ wheels = [
 ]
 
 [[package]]
-name = "burpsuite-mcp"
-version = "0.1.0"
+name = "burpsuite-swiss-knife-mcp"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

@@ -1,5 +1,6 @@
 # burpsuite-swiss-knife-mcp
 
+[![MCP Badge](https://lobehub.com/badge/mcp/tyrusrc-burpsuite-swiss-knife-mcp)](https://lobehub.com/mcp/tyrusrc-burpsuite-swiss-knife-mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/releases)
 [![Java](https://img.shields.io/badge/java-21%2B-blue)](https://adoptium.net/temurin/releases/?version=21)
@@ -47,7 +48,35 @@ Optional:
 
 ## Installation
 
-### Automated
+Pick the level of automation you want.
+
+### Quick — `uvx` (no clone needed for the MCP server)
+
+The MCP server runs straight from the source tree with `uvx`. You still need the Burp extension JAR loaded in Burp Suite — see the Manual section below for that part.
+
+```sh
+uvx --from "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server" \
+    burpsuite-swiss-knife-mcp
+```
+
+Or in `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "burpsuite": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server",
+        "burpsuite-swiss-knife-mcp"
+      ]
+    }
+  }
+}
+```
+
+### Automated (full local checkout — extension + server)
 
 ```sh
 ./setup.sh        # Linux / macOS
@@ -73,6 +102,13 @@ uv venv
 uv sync
 
 # 3. Configure your MCP client (see below)
+```
+
+### `pipx`
+
+```sh
+pipx install "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server"
+burpsuite-swiss-knife-mcp     # entrypoint
 ```
 
 ## Configuration
@@ -139,6 +175,32 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
+
+## MCP Prompts
+
+The server publishes ready-to-run workflow templates. Surface them in your client (`/mcp` listing or the prompt picker) and pass arguments to launch a phase.
+
+| Prompt | Args | Purpose |
+|---|---|---|
+| `hunt-target` | `target` | Standard hunt loop: scope → recon → probe → verify → save. |
+| `verify-finding` | `vuln_type`, `endpoint`, `evidence` | Walk a suspected finding through the 7-Question Gate before saving. |
+| `triage-program` | `program` | Set per-program policy, scope, and override defaults at engagement start. |
+| `chain-findings` | `domain` | Walk saved findings and propose chains that lift NEVER-SUBMIT items into impact. |
+| `save-finding-checklist` | `vuln_type`, `endpoint` | Pre-save checklist enforcing replay → assess → save. |
+
+## MCP Resources
+
+Read-only context the agent can attach without spending tool budget. URIs:
+
+| URI | Returns |
+|---|---|
+| `burp://rules/hunting` | The 28 always-active hunting rules (HARD/DEFAULT/ADVISORY). |
+| `burp://rules/engineering` | The 4 engineering rules. |
+| `burp://skills/{name}` | One skill markdown file by stem (`hunt`, `verify-finding`, `chain-findings`, …). |
+| `burp://knowledge/index` | List of all knowledge categories with context counts. |
+| `burp://knowledge/{category}` | Raw JSON for one category (probes + matchers + craft guidance). |
+| `burp://intel/{domain}/{kind}` | Saved target intel: `profile`, `endpoints`, `coverage`, `findings`, `fingerprint`, `patterns`, `notes`. |
+| `burp://findings/{domain}` | Findings JSON for one domain (alias of `burp://intel/{domain}/findings`). |
 
 ## Knowledge Base
 

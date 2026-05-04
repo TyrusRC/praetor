@@ -1,0 +1,24 @@
+{
+  "name": "hunt-target",
+  "description": "Run the standard authorized hunt loop on a target — recon, probe, verify, save. Loads Burp Swiss Knife's hunt advisor, populates Burp proxy history via stealth browser, runs knowledge-driven probes, validates each suspected finding through the 7-Question Gate, and chains low-severity items into reportable impact.",
+  "version": "0.3.0",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp",
+  "category": "security",
+  "tags": ["pentest", "bug-bounty", "burp-suite", "vulnerability-scanning"],
+  "mcp_prompt": "hunt-target",
+  "arguments": [
+    {
+      "name": "target",
+      "description": "Target URL within authorized scope (e.g. https://example.com)",
+      "required": true,
+      "type": "string"
+    }
+  ],
+  "rules": [
+    "Never test out-of-scope domains — call check_scope first",
+    "Never send destructive payloads (DROP TABLE, rm -rf, etc.)",
+    "Use Burp Collaborator for OOB testing, never hardcoded callback domains",
+    "Save evidence (logger_index) BEFORE further exploitation"
+  ]
+}

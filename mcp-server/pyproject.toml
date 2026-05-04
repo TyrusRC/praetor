@@ -1,9 +1,19 @@
 [project]
-name = "burpsuite-mcp"
-version = "0.1.0"
-description = "MCP server for Burp Suite - Claude Code as pentesting brain"
+name = "burpsuite-swiss-knife-mcp"
+version = "0.3.0"
+description = "MCP server for Burp Suite — adaptive scan, save-finding pipeline, browser automation, recon orchestration"
 license = "Apache-2.0"
+readme = "../README.md"
 requires-python = ">=3.11"
+authors = [{name = "Tyrus"}]
+keywords = ["mcp", "burp-suite", "pentest", "security", "bug-bounty"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
 dependencies = [
     "mcp==1.27.0",
     "httpx==0.28.1",
@@ -13,7 +23,13 @@ dependencies = [
     "playwright-stealth>=2.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp"
+Repository = "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp"
+Issues = "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/issues"
+
 [project.scripts]
+burpsuite-swiss-knife-mcp = "burpsuite_mcp.__main__:main"
 burpsuite-mcp = "burpsuite_mcp.__main__:main"
 
 [build-system]
