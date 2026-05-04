@@ -219,10 +219,13 @@ public class SessionHandler extends BaseHandler {
 
             // Inline extraction
             Map<String, String> extracted = new LinkedHashMap<>();
+            List<String> extractWarnings = java.util.Collections.emptyList();
             @SuppressWarnings("unchecked")
             Map<String, Object> extractRules = (Map<String, Object>) body.get("extract");
             if (extractRules != null) {
                 extracted = extractFromResponse(result, extractRules);
+                extractWarnings = new ArrayList<>(_lastExtractWarnings.get());
+                _lastExtractWarnings.remove();
                 mergeVariables(session, extracted);
             }
 
@@ -230,6 +233,9 @@ public class SessionHandler extends BaseHandler {
             out.put("response_time_ms", elapsedMs);
             ConfigTab.log("session_request: " + body.getOrDefault("method", "GET") + " " + body.getOrDefault("path", "/") + " -> " + (result.response() != null ? result.response().statusCode() : 0) + " (" + elapsedMs + "ms)");
             out.put("extracted", extracted);
+            if (!extractWarnings.isEmpty()) {
+                out.put("extract_warnings", extractWarnings);
+            }
             out.put("session_cookies", new LinkedHashMap<>(session.cookies));
             out.put("session_variables", new LinkedHashMap<>(session.variables));
 
@@ -291,11 +297,16 @@ public class SessionHandler extends BaseHandler {
             }
 
             Map<String, String> extracted = extractFromResponse(session.lastResponse, rules);
+            List<String> extractWarnings = new ArrayList<>(_lastExtractWarnings.get());
+            _lastExtractWarnings.remove();
             mergeVariables(session, extracted);
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("status", "ok");
             out.put("extracted", extracted);
+            if (!extractWarnings.isEmpty()) {
+                out.put("extract_warnings", extractWarnings);
+            }
             out.put("session_variables", new LinkedHashMap<>(session.variables));
             sendJson(exchange, JsonUtil.toJson(out));
         }
@@ -350,10 +361,13 @@ public class SessionHandler extends BaseHandler {
 
                 // Per-step extraction
                 Map<String, String> extracted = new LinkedHashMap<>();
+                List<String> stepExtractWarnings = java.util.Collections.emptyList();
                 @SuppressWarnings("unchecked")
                 Map<String, Object> extractRules = (Map<String, Object>) step.get("extract");
                 if (extractRules != null) {
                     extracted = extractFromResponse(result, extractRules);
+                    stepExtractWarnings = new ArrayList<>(_lastExtractWarnings.get());
+                    _lastExtractWarnings.remove();
                     mergeVariables(session, extracted);
                 }
 
@@ -366,6 +380,9 @@ public class SessionHandler extends BaseHandler {
                 stepResult.put("response_length", resp != null ? resp.body().length() : 0);
                 stepResult.put("response_time_ms", stepMs);
                 stepResult.put("extracted", extracted);
+                if (!stepExtractWarnings.isEmpty()) {
+                    stepResult.put("extract_warnings", stepExtractWarnings);
+                }
                 // Include body snippet for flow inspection (500 chars max)
                 if (resp != null) {
                     String bodySnippet = resp.bodyToString();
@@ -1646,64 +1663,105 @@ public class SessionHandler extends BaseHandler {
 
     /**
      * Extract values from a response.
-     * Rules map: variable_name -> {source: "body"|"header"|"cookie", regex: "...", name: "...", json_path: "$.key"}
+     *
+     * Rule shape (per variable):
+     *   {regex: "...", from: "body"}                   — body regex match (group 1)
+     *   {pattern: "..."}                               — alias of {regex: ..., from: body}
+     *   {type: "regex", pattern: "..."}                — shorthand
+     *   {json_path: "$.key", from: "body"}             — JSON path on body
+     *   {type: "json_path", path: "$.key"}             — shorthand
+     *   {from: "header", name: "Set-Cookie"}           — header value
+     *   {type: "header", name: "X-Token"}              — shorthand
+     *   {from: "cookie", name: "session"}              — Set-Cookie value
+     *   {type: "cookie", name: "session"}              — shorthand
+     *
+     * Rules that don't fire are recorded via _lastExtractWarnings (thread-local)
+     * so the calling handler can surface them to the operator.
      */
     @SuppressWarnings("unchecked")
     private Map<String, String> extractFromResponse(HttpRequestResponse result, Map<String, Object> rules) {
         Map<String, String> extracted = new LinkedHashMap<>();
+        List<String> warnings = new ArrayList<>();
         HttpResponse resp = result.response();
-        if (resp == null) return extracted;
+        if (resp == null) {
+            warnings.add("(no response — extraction skipped)");
+            _lastExtractWarnings.set(warnings);
+            return extracted;
+        }
 
         for (var entry : rules.entrySet()) {
             String varName = entry.getKey();
             Object ruleObj = entry.getValue();
-            if (!(ruleObj instanceof Map)) continue;
+            if (!(ruleObj instanceof Map)) {
+                warnings.add(varName + ": rule must be an object");
+                continue;
+            }
 
             Map<String, Object> rule = (Map<String, Object>) ruleObj;
-            // Accept both "from" (Python convention) and "source" (legacy)
-            String source = (String) rule.getOrDefault("from", (String) rule.getOrDefault("source", "body"));
+            // Accept the {type: "..."} shorthand by mapping it onto from/source.
+            String type = (String) rule.get("type");
+            String defaultSource = "body";
+            if (type != null) {
+                switch (type) {
+                    case "regex", "json_path" -> defaultSource = "body";
+                    case "header" -> defaultSource = "header";
+                    case "cookie" -> defaultSource = "cookie";
+                }
+            }
+            String source = (String) rule.getOrDefault("from", (String) rule.getOrDefault("source", defaultSource));
+            // Accept "pattern" as alias for "regex"; "path" as alias for "json_path".
+            String regex = (String) rule.getOrDefault("regex", rule.get("pattern"));
+            String jsonPath = (String) rule.getOrDefault("json_path", rule.get("path"));
             String value = null;
 
             switch (source) {
                 case "body" -> {
                     String bodyStr = resp.bodyToString();
-                    String regex = (String) rule.get("regex");
-                    String jsonPath = (String) rule.get("json_path");
-
                     if (regex != null) {
                         value = extractByRegex(bodyStr, regex);
+                        if (value == null) warnings.add(varName + ": regex did not match (/" + truncate(regex, 60) + "/)");
                     } else if (jsonPath != null) {
                         value = simpleJsonExtract(bodyStr, jsonPath);
+                        if (value == null) warnings.add(varName + ": json_path did not resolve (" + jsonPath + ")");
+                    } else {
+                        warnings.add(varName + ": body rule needs 'regex' (or 'pattern') / 'json_path' (or 'path')");
                     }
                 }
                 case "header" -> {
                     String headerName = (String) rule.get("name");
-                    if (headerName != null) {
-                        for (HttpHeader h : resp.headers()) {
-                            if (headerName.equalsIgnoreCase(h.name())) {
-                                value = h.value();
+                    if (headerName == null) {
+                        warnings.add(varName + ": header rule needs 'name'");
+                        break;
+                    }
+                    for (HttpHeader h : resp.headers()) {
+                        if (headerName.equalsIgnoreCase(h.name())) {
+                            value = h.value();
+                            break;
+                        }
+                    }
+                    if (value == null) warnings.add(varName + ": header '" + headerName + "' not present in response");
+                }
+                case "cookie" -> {
+                    String cookieName = (String) rule.get("name");
+                    if (cookieName == null) {
+                        warnings.add(varName + ": cookie rule needs 'name'");
+                        break;
+                    }
+                    for (HttpHeader h : resp.headers()) {
+                        if ("Set-Cookie".equalsIgnoreCase(h.name())) {
+                            String cv = h.value();
+                            int semi = cv.indexOf(';');
+                            String nv = semi > 0 ? cv.substring(0, semi).trim() : cv.trim();
+                            int eq = nv.indexOf('=');
+                            if (eq > 0 && nv.substring(0, eq).trim().equals(cookieName)) {
+                                value = nv.substring(eq + 1).trim();
                                 break;
                             }
                         }
                     }
+                    if (value == null) warnings.add(varName + ": Set-Cookie '" + cookieName + "' not present in response");
                 }
-                case "cookie" -> {
-                    String cookieName = (String) rule.get("name");
-                    if (cookieName != null) {
-                        for (HttpHeader h : resp.headers()) {
-                            if ("Set-Cookie".equalsIgnoreCase(h.name())) {
-                                String cv = h.value();
-                                int semi = cv.indexOf(';');
-                                String nv = semi > 0 ? cv.substring(0, semi).trim() : cv.trim();
-                                int eq = nv.indexOf('=');
-                                if (eq > 0 && nv.substring(0, eq).trim().equals(cookieName)) {
-                                    value = nv.substring(eq + 1).trim();
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
+                default -> warnings.add(varName + ": unknown source '" + source + "' (use body/header/cookie)");
             }
 
             if (value != null) {
@@ -1711,7 +1769,20 @@ public class SessionHandler extends BaseHandler {
             }
         }
 
+        _lastExtractWarnings.set(warnings);
         return extracted;
+    }
+
+    /**
+     * Per-thread last extraction-warning list so the request handler that
+     * called extractFromResponse can attach `extract_warnings` to the JSON
+     * response without changing the helper's return signature.
+     */
+    private static final ThreadLocal<List<String>> _lastExtractWarnings = ThreadLocal.withInitial(java.util.ArrayList::new);
+
+    private static String truncate(String s, int n) {
+        if (s == null) return "";
+        return s.length() <= n ? s : s.substring(0, n) + "...";
     }
 
     /**

@@ -78,7 +78,18 @@ def register(mcp: FastMCP):
             data: Form-encoded data
             json_body: JSON body dict
             cookies: Additional cookies merged with session jar
-            extract: Inline extraction rules for response values
+            extract: Inline extraction rules. Maps variable name -> rule dict.
+                Extracted values are merged into session variables for later
+                interpolation via {{var}} in run_flow steps. Schema (any of):
+                  body regex   : {"regex": "<re>"}     or {"pattern": "<re>"}
+                                 or {"type": "regex", "pattern": "<re>"}
+                  body json    : {"json_path": "$.k"}  or {"path": "$.k"}
+                                 or {"type": "json_path", "path": "$.k"}
+                  header       : {"from": "header", "name": "X-Foo"}
+                                 or {"type": "header", "name": "X-Foo"}
+                  cookie       : {"from": "cookie", "name": "session"}
+                                 or {"type": "cookie", "name": "session"}
+                Rules that fail to match surface in `extract_warnings`.
             follow_redirects: Follow 3xx redirects
         """
         payload_dict: dict = {"session": session, "method": method, "path": path}
@@ -111,6 +122,12 @@ def register(mcp: FastMCP):
                 display = v if len(str(v)) < 100 else str(v)[:100] + "..."
                 lines.append(f"  {k} = {display}")
 
+        warnings = resp.get("extract_warnings", [])
+        if warnings:
+            lines.append("\nExtract warnings:")
+            for w in warnings:
+                lines.append(f"  ! {w}")
+
         resp_headers = resp.get("response_headers", [])
         if resp_headers:
             lines.append("\n--- Response Headers ---")
@@ -137,7 +154,10 @@ def register(mcp: FastMCP):
 
         Args:
             session: Session name
-            extract: Extraction rules keyed by variable name
+            extract: Extraction rules keyed by variable name. Rule schema is
+                identical to session_request.extract — see that tool for the
+                full grammar (regex/pattern, json_path/path, from header/cookie,
+                or {"type": ...} shorthand).
         """
         payload = {"session": session, "rules": extract}
         resp = await client.post("/api/session/extract", json=payload)
@@ -145,12 +165,20 @@ def register(mcp: FastMCP):
             return f"Error: {resp['error']}"
 
         extracted = resp.get("extracted", {})
+        warnings = resp.get("extract_warnings", [])
         if not extracted:
+            if warnings:
+                return "No values matched extraction rules.\nWarnings:\n  ! " + "\n  ! ".join(warnings)
             return "No values matched extraction rules."
 
         lines = ["Extracted:"]
         for k, v in extracted.items():
             lines.append(f"  {k} = {v}")
+
+        if warnings:
+            lines.append("\nExtract warnings:")
+            for w in warnings:
+                lines.append(f"  ! {w}")
 
         variables = resp.get("session_variables", {})
         if variables:
@@ -170,7 +198,15 @@ def register(mcp: FastMCP):
 
         Args:
             session: Session name
-            steps: Ordered list of request steps with optional extraction
+            steps: Ordered list of request steps. Each step:
+                {method, path, headers?, body?, data?, json_body?, cookies?,
+                 follow_redirects?, continue_on_error?, extract?: {var: rule, ...}}
+                Extracted values become session variables; later steps can
+                interpolate them as {{var}} in path/data/body/headers values.
+                Rule schema is identical to session_request.extract — supports
+                regex/pattern, json_path/path, from header/cookie, and
+                {"type": ...} shorthand. Failed rules surface in
+                step.extract_warnings.
         """
         payload = {"session": session, "steps": steps}
         resp = await client.post("/api/session/flow", json=payload)
@@ -194,6 +230,11 @@ def register(mcp: FastMCP):
                 for k, v in extracted.items():
                     display = v if len(str(v)) < 80 else str(v)[:80] + "..."
                     lines.append(f"  -> {k} = {display}")
+
+            step_warnings = step.get("extract_warnings", [])
+            if step_warnings:
+                for w in step_warnings:
+                    lines.append(f"  ! extract_warning: {w}")
 
             # Show body snippet (from Java side, max 500 chars)
             snippet = step.get("body_snippet") or step.get("response_body", "")
