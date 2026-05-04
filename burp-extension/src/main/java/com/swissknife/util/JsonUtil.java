@@ -183,13 +183,24 @@ public final class JsonUtil {
         Number readNumber() {
             int start = pos;
             if (peek() == '-') pos++;
+            // After consuming the optional sign there must be at least one
+            // digit. Without this guard a lone '-' (or an unexpected char
+            // that fell through from readValue) reaches Long.parseLong("")
+            // and propagates as an opaque NumberFormatException.
+            int digitsStart = pos;
             while (pos < src.length() && (Character.isDigit(src.charAt(pos)) || src.charAt(pos) == '.' || src.charAt(pos) == 'e' || src.charAt(pos) == 'E')) {
                 if (src.charAt(pos) == '.' || src.charAt(pos) == 'e' || src.charAt(pos) == 'E') {
                     pos++;
                     while (pos < src.length() && (Character.isDigit(src.charAt(pos)) || src.charAt(pos) == '+' || src.charAt(pos) == '-')) pos++;
+                    if (pos == digitsStart) {
+                        throw new RuntimeException("Expected digits in number at " + start);
+                    }
                     return Double.parseDouble(src.substring(start, pos));
                 }
                 pos++;
+            }
+            if (pos == digitsStart) {
+                throw new RuntimeException("Expected digits in number at " + start);
             }
             long val = Long.parseLong(src.substring(start, pos));
             if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) return (int) val;

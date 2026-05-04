@@ -232,45 +232,53 @@ public class TrafficMonitorHandler extends BaseHandler {
             return;
         }
 
-        // Scan proxy history from lastCheckedIndex forward
-        List<ProxyHttpRequestResponse> history = api.proxy().history();
-        int total = history.size();
-        int startIndex = rule.lastCheckedIndex + 1;
+        // Synchronize per-rule. Without this two concurrent /check?tag=X
+        // calls both observe the same lastCheckedIndex, both walk the same
+        // history range, and both append duplicate hits. The lock is held
+        // only over the scan window — the response is built outside.
+        int totalScanned;
+        List<Map<String, Object>> hitMaps;
+        synchronized (rule) {
+            // Scan proxy history from lastCheckedIndex forward
+            List<ProxyHttpRequestResponse> history = api.proxy().history();
+            int total = history.size();
+            int startIndex = rule.lastCheckedIndex + 1;
 
-        for (int i = startIndex; i < total; i++) {
-            ProxyHttpRequestResponse item = history.get(i);
-            HttpRequest req = item.finalRequest();
-            HttpResponse resp = item.originalResponse();
+            for (int i = startIndex; i < total; i++) {
+                ProxyHttpRequestResponse item = history.get(i);
+                HttpRequest req = item.finalRequest();
+                HttpResponse resp = item.originalResponse();
 
-            for (MonitorPattern mp : rule.patterns) {
-                String content = extractContent(req, resp, mp.location);
-                if (content == null) continue;
+                for (MonitorPattern mp : rule.patterns) {
+                    String content = extractContent(req, resp, mp.location);
+                    if (content == null) continue;
 
-                Matcher matcher = mp.regex.matcher(content);
-                if (matcher.find()) {
-                    String snippet = matcher.group();
-                    // Limit snippet length
-                    if (snippet.length() > 200) {
-                        snippet = snippet.substring(0, 200) + "...";
+                    Matcher matcher = mp.regex.matcher(content);
+                    if (matcher.find()) {
+                        String snippet = matcher.group();
+                        // Limit snippet length
+                        if (snippet.length() > 200) {
+                            snippet = snippet.substring(0, 200) + "...";
+                        }
+                        rule.hits.add(new MonitorHit(i, snippet, System.currentTimeMillis()));
+                        break; // One hit per history item is enough
                     }
-                    rule.hits.add(new MonitorHit(i, snippet, System.currentTimeMillis()));
-                    break; // One hit per history item is enough
                 }
             }
-        }
 
-        rule.lastCheckedIndex = total - 1;
+            rule.lastCheckedIndex = total - 1;
+            totalScanned = rule.lastCheckedIndex;
 
-        // Build response
-        List<Map<String, Object>> hitMaps = new ArrayList<>();
-        for (MonitorHit hit : rule.hits) {
-            hitMaps.add(hit.toMap());
+            hitMaps = new ArrayList<>();
+            for (MonitorHit hit : rule.hits) {
+                hitMaps.add(hit.toMap());
+            }
         }
 
         sendJson(exchange, JsonUtil.object(
             "tag", tag,
-            "total_hits", rule.hits.size(),
-            "scanned_to_index", rule.lastCheckedIndex,
+            "total_hits", hitMaps.size(),
+            "scanned_to_index", totalScanned,
             "hits", hitMaps
         ));
     }

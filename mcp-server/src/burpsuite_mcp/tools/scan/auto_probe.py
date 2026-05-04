@@ -42,7 +42,7 @@ def register(mcp: FastMCP) -> None:
         """
         # ── Pre-flight session-auth assertion ─────────────────────────
         try:
-            sess_info = await client.post("/api/session/list", json={})
+            sess_info = await client.get("/api/session/list")
             if "error" not in sess_info:
                 resp_text = str(sess_info)
                 if session in resp_text and "Auth: no" in resp_text and "Cookies: 0" in resp_text:

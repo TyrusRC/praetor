@@ -157,11 +157,11 @@ public class NotesHandler extends BaseHandler {
             }
         }
         if (com.swissknife.store.FindingsStore.requiresReproductions(vulnType)) {
-            if (reproductions == null || reproductions.size() < 2) {
+            if (reproductions == null || reproductions.size() < 3) {
                 sendError(exchange, 400,
-                    "'" + vulnType + "' requires reproductions[] with >= 2 verified Logger entries",
+                    "'" + vulnType + "' requires reproductions[] with >= 3 verified Logger entries (Rule 10a)",
                     "reproductions_required",
-                    "Replay the timing/blind probe 2 more times and pass reproductions=[{logger_index, elapsed_ms, status_code}, ...].");
+                    "Replay the timing/blind probe 2 more times so the array totals 3 entries; pass reproductions=[{logger_index, elapsed_ms, status_code}, ...].");
                 return;
             }
             for (Map<String, Object> rep : reproductions) {

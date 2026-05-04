@@ -17,10 +17,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * WebSocket send/receive through Burp's WebSocket API.
  *
- * POST /api/websocket/connect   — open a WebSocket connection through Burp
- * POST /api/websocket/send      — send a text message on an open connection
- * POST /api/websocket/close     — close a WebSocket connection
- * GET  /api/websocket/connections — list open connections
+ * Routed under /api/websocket-send/* (registered in ApiServer.java) — kept
+ * distinct from /api/websocket which serves WebSocket history.
+ *
+ * POST /api/websocket-send/connect      — open a WebSocket connection through Burp
+ * POST /api/websocket-send/send         — send a text message on an open connection
+ * POST /api/websocket-send/close        — close a WebSocket connection
+ * GET  /api/websocket-send/connections  — list open connections
  */
 public class WebSocketSendHandler extends BaseHandler {
 
@@ -36,13 +39,13 @@ public class WebSocketSendHandler extends BaseHandler {
         String path = exchange.getRequestURI().getPath();
         String method = exchange.getRequestMethod();
 
-        if (path.equals("/api/websocket/connect") && "POST".equalsIgnoreCase(method)) {
+        if (path.equals("/api/websocket-send/connect") && "POST".equalsIgnoreCase(method)) {
             handleConnect(exchange);
-        } else if (path.equals("/api/websocket/send") && "POST".equalsIgnoreCase(method)) {
+        } else if (path.equals("/api/websocket-send/send") && "POST".equalsIgnoreCase(method)) {
             handleSend(exchange);
-        } else if (path.equals("/api/websocket/close") && "POST".equalsIgnoreCase(method)) {
+        } else if (path.equals("/api/websocket-send/close") && "POST".equalsIgnoreCase(method)) {
             handleClose(exchange);
-        } else if (path.equals("/api/websocket/connections") && "GET".equalsIgnoreCase(method)) {
+        } else if (path.equals("/api/websocket-send/connections") && "GET".equalsIgnoreCase(method)) {
             handleList(exchange);
         } else {
             sendError(exchange, 404, "Not found");

