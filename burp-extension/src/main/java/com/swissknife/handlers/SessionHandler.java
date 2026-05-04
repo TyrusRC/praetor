@@ -1128,6 +1128,7 @@ public class SessionHandler extends BaseHandler {
                             probeParams.put("path", injectParam(path, parameter, payload, location));
                             if ("body".equals(location)) probeParams.put("data", parameter + "=" + payload);
 
+                            int preHistorySize = api.proxy().history().size();
                             long startMs = System.nanoTime();
                             HttpRequestResponse probeResult = sendSessionRequest(session, probeParams);
                             long elapsedMs = (System.nanoTime() - startMs) / 1_000_000;
@@ -1140,6 +1141,14 @@ public class SessionHandler extends BaseHandler {
                             // URL of what we just sent — used to annotate the
                             // matching Proxy history entry after matchers run.
                             String probeUrl = probeResult.request() != null ? probeResult.request().url() : "";
+
+                            // Resolve the proxy-history index of THIS probe so
+                            // the Python annotator (`auto_probe._annotate`) can
+                            // colour-tag the matching entry. Previously findings
+                            // had no history_index and the auto-annotation step
+                            // silently no-op'd on every hit.
+                            int postHistorySize = api.proxy().history().size();
+                            int probeHistoryIndex = postHistorySize > preHistorySize ? postHistorySize - 1 : -1;
 
                             // Evaluate matchers
                             List<Map<String, Object>> matchers = (List<Map<String, Object>>) probe.get("matchers");
@@ -1291,6 +1300,8 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("cwe", cwe);
                                 finding.put("matched_matchers", matchResult.get("matched_matchers"));
                                 finding.put("description", description);
+                                finding.put("history_index", probeHistoryIndex);
+                                finding.put("proxy_history_index", probeHistoryIndex);
                                 findings.add(finding);
 
                                 // Persist to FindingsStore with confidence note
@@ -1324,6 +1335,8 @@ public class SessionHandler extends BaseHandler {
                                 finding.put("cwe", cwe);
                                 finding.put("matched_matchers", List.of());
                                 finding.put("description", "Anomalous response (no matcher matched) — review manually");
+                                finding.put("history_index", probeHistoryIndex);
+                                finding.put("proxy_history_index", probeHistoryIndex);
                                 findings.add(finding);
 
                                 findingsStore.add(

@@ -112,21 +112,39 @@ public class ExtractDataHandler extends BaseHandler {
         }
 
         Object result;
+        boolean found;
         try {
-            result = traverseJsonPath(root, pathExpr);
+            // Sentinel-based traversal so the caller can distinguish "key has
+            // null value" from "key not present". Previous version returned
+            // null for both, leaving operators guessing on every miss.
+            Object traversed = traverseJsonPath(root, pathExpr);
+            if (traversed == JSON_PATH_MISSING) {
+                result = null;
+                found = false;
+            } else {
+                result = traversed;
+                found = true;
+            }
         } catch (Exception e) {
             sendError(exchange, 400, "JSON path traversal failed: " + e.getMessage());
             return;
         }
 
-        sendJson(exchange, JsonUtil.object("value", result, "path", path));
+        sendJson(exchange, JsonUtil.object("value", result, "path", path, "found", found));
     }
+
+    /** Sentinel returned by traverseJsonPath when a path segment cannot be
+     *  resolved (key absent, index out of range, type mismatch). Callers
+     *  compare against this with reference equality and translate to a
+     *  found=false response so a literal JSON null doesn't get misread as
+     *  a missing path. */
+    private static final Object JSON_PATH_MISSING = new Object();
 
     private Object traverseJsonPath(Object current, String pathExpr) {
         String[] segments = splitPathSegments(pathExpr);
 
         for (String segment : segments) {
-            if (current == null) return null;
+            if (current == null) return JSON_PATH_MISSING;
 
             // Handle array wildcard: field[*]
             if (segment.contains("[*]")) {
@@ -150,10 +168,10 @@ public class ExtractDataHandler extends BaseHandler {
                     if (arrayIndex >= 0 && arrayIndex < list.size()) {
                         current = list.get(arrayIndex);
                     } else {
-                        return null;
+                        return JSON_PATH_MISSING;
                     }
                 } else {
-                    return null;
+                    return JSON_PATH_MISSING;
                 }
                 continue;
             }
@@ -166,10 +184,10 @@ public class ExtractDataHandler extends BaseHandler {
                     if (idx >= 0 && idx < list.size()) {
                         current = list.get(idx);
                     } else {
-                        return null;
+                        return JSON_PATH_MISSING;
                     }
                 } else {
-                    return null;
+                    return JSON_PATH_MISSING;
                 }
                 continue;
             }
@@ -187,11 +205,15 @@ public class ExtractDataHandler extends BaseHandler {
                 continue;
             }
 
-            // Simple key access
+            // Simple key access. containsKey() is the discriminator that
+            // turns "key absent" into JSON_PATH_MISSING vs a literal null.
             if (current instanceof Map<?, ?> map) {
+                if (!map.containsKey(segment)) {
+                    return JSON_PATH_MISSING;
+                }
                 current = map.get(segment);
             } else {
-                return null;
+                return JSON_PATH_MISSING;
             }
         }
 

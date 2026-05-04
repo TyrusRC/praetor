@@ -69,7 +69,12 @@ def register(mcp: FastMCP):
         if "error" in data:
             return f"Error: {data['error']}"
 
+        # Server returns `found` to disambiguate "key holds null" from "key
+        # not present". Older Java builds may omit the field — fall back to
+        # value-presence as before so the tool stays compatible.
         value = data.get("value")
+        if "found" in data and not data["found"]:
+            return f"{path} not found in response"
         return f"{path} = {value}"
 
     @mcp.tool()

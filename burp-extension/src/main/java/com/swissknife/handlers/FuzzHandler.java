@@ -99,49 +99,55 @@ public class FuzzHandler extends BaseHandler {
             return;
         }
 
-        // Execute variants individually (to get per-request timing)
-        List<FuzzResult> results = new ArrayList<>();
-        for (int i = 0; i < variants.size(); i++) {
-            FuzzVariant variant = variants.get(i);
+        // Execute variants. max_concurrent was previously read but ignored;
+        // wire an ExecutorService so the documented parallelism takes effect.
+        // Cap at 20 to match attack-handler conventions and avoid starving
+        // the API thread pool.
+        int parallelism = Math.max(1, Math.min(maxConcurrent, 20));
+        List<FuzzResult> results = new ArrayList<>(variants.size());
+        for (int i = 0; i < variants.size(); i++) results.add(null);
 
-            if (delayMs > 0 && i > 0) {
-                Thread.sleep(delayMs);
+        if (parallelism == 1 || variants.size() <= 1) {
+            for (int i = 0; i < variants.size(); i++) {
+                if (delayMs > 0 && i > 0) Thread.sleep(delayMs);
+                results.set(i, executeVariant(i, variants.get(i), grepMatch, grepExtract));
             }
-
-            long startNanos = System.nanoTime();
-            HttpRequestResponse reqResp = com.swissknife.http.ProxyTunnel.sendOrFallback(api, variant.request);
-            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-
-            // Null-guard: ProxyTunnel returns null when both the proxy tunnel
-            // and direct fallback fail. Skip this variant rather than NPE
-            // and abort the entire fuzz run.
-            HttpResponse resp = reqResp != null ? reqResp.response() : null;
-            FuzzResult result = new FuzzResult();
-            result.payloadIndex = i;
-            result.parameter = variant.paramName;
-            result.payload = variant.payload;
-            result.statusCode = resp != null ? resp.statusCode() : 0;
-            result.responseLength = resp != null ? resp.body().length() : 0;
-            result.responseTimeMs = elapsedMs;
-
-            String respBody = resp != null ? resp.bodyToString() : "";
-
-            // Grep matches
-            if (!grepMatch.isEmpty()) {
-                result.grepMatches = countGrepMatches(respBody, grepMatch);
+        } else {
+            java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(parallelism);
+            try {
+                List<java.util.concurrent.Future<FuzzResult>> futures = new ArrayList<>(variants.size());
+                for (int i = 0; i < variants.size(); i++) {
+                    final int idx = i;
+                    final FuzzVariant variant = variants.get(i);
+                    final int localDelay = delayMs;
+                    futures.add(pool.submit(() -> {
+                        // Stagger inside the worker so delay_ms still throttles
+                        // when parallelism > 1; without this max_concurrent
+                        // would defeat the point of delay_ms.
+                        if (localDelay > 0 && idx > 0) {
+                            try { Thread.sleep(localDelay); } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                            }
+                        }
+                        return executeVariant(idx, variant, grepMatch, grepExtract);
+                    }));
+                }
+                for (int i = 0; i < futures.size(); i++) {
+                    try {
+                        results.set(i, futures.get(i).get(60, java.util.concurrent.TimeUnit.SECONDS));
+                    } catch (Exception e) {
+                        FuzzResult err = new FuzzResult();
+                        err.payloadIndex = i;
+                        err.parameter = variants.get(i).paramName;
+                        err.payload = variants.get(i).payload;
+                        err.anomalies = new ArrayList<>(List.of("EXEC_ERROR:" + e.getClass().getSimpleName()));
+                        results.set(i, err);
+                    }
+                }
+            } finally {
+                pool.shutdown();
             }
-
-            // Grep extract
-            if (grepExtract != null && !grepExtract.isEmpty()) {
-                result.grepExtracted = extractPattern(respBody, grepExtract);
-            }
-
-            // Response snippet around first grep match
-            if (!grepMatch.isEmpty()) {
-                result.responseSnippet = extractSnippet(respBody, grepMatch);
-            }
-
-            results.add(result);
         }
 
         // Compute medians for anomaly detection
@@ -540,6 +546,37 @@ public class FuzzHandler extends BaseHandler {
         }
 
         return request.withHeader("Cookie", newCookies.toString());
+    }
+
+    /** Single-variant send + grep — extracted so both sequential and parallel
+     *  paths share the same request/response handling, including the
+     *  ProxyTunnel null-guard that used to NPE the whole fuzz run. */
+    private FuzzResult executeVariant(int payloadIndex, FuzzVariant variant,
+                                      List<String> grepMatch, String grepExtract) {
+        long startNanos = System.nanoTime();
+        HttpRequestResponse reqResp = com.swissknife.http.ProxyTunnel.sendOrFallback(api, variant.request);
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        HttpResponse resp = reqResp != null ? reqResp.response() : null;
+        FuzzResult result = new FuzzResult();
+        result.payloadIndex = payloadIndex;
+        result.parameter = variant.paramName;
+        result.payload = variant.payload;
+        result.statusCode = resp != null ? resp.statusCode() : 0;
+        result.responseLength = resp != null ? resp.body().length() : 0;
+        result.responseTimeMs = elapsedMs;
+
+        String respBody = resp != null ? resp.bodyToString() : "";
+        if (!grepMatch.isEmpty()) {
+            result.grepMatches = countGrepMatches(respBody, grepMatch);
+        }
+        if (grepExtract != null && !grepExtract.isEmpty()) {
+            result.grepExtracted = extractPattern(respBody, grepExtract);
+        }
+        if (!grepMatch.isEmpty()) {
+            result.responseSnippet = extractSnippet(respBody, grepMatch);
+        }
+        return result;
     }
 
     // ── Grep and analysis helpers ─────────────────────────────
