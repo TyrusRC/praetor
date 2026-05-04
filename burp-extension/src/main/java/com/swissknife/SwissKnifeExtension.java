@@ -51,6 +51,9 @@ public class SwissKnifeExtension implements BurpExtension {
                 if (configTab != null) configTab.stop();
                 if (apiServer != null) apiServer.stop();
             }
+            // Drop the shared Collaborator client on unload so a future
+            // extension reload starts with a fresh payload-id namespace.
+            com.swissknife.collaborator.CollaboratorPool.reset();
             api.logging().logToOutput(EXTENSION_NAME + " stopped");
         });
     }

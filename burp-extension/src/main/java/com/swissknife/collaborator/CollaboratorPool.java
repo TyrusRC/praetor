@@ -38,4 +38,15 @@ public final class CollaboratorPool {
             return null;
         }
     }
+
+    /**
+     * Drop the singleton so the next getOrCreate() builds a fresh client.
+     * Used when the operator switches engagements via configure_scope —
+     * holding interactions for a previous target's payload IDs alongside
+     * the new target's pollutes payloadId namespaces. Also called from
+     * extension unload paths so Burp doesn't keep a stale reference.
+     */
+    public static synchronized void reset() {
+        INSTANCE = null;
+    }
 }

@@ -127,11 +127,14 @@ public class ScopeHandler extends BaseHandler {
         List<String> excludeList = body.get("exclude") instanceof List<?> list
             ? (List<String>) (List<?>) list : List.of();
 
-        // If replace mode, clear previously tracked rules
+        // If replace mode, clear previously tracked rules. Engagement boundary
+        // also drops the shared Collaborator client so payload IDs from the
+        // previous target don't bleed into the new one's interaction polls.
         if (replace) {
             includeRules.clear();
             excludeRules.clear();
             autoFilterEnabled = false;
+            com.swissknife.collaborator.CollaboratorPool.reset();
         }
 
         int includedCount = 0;

@@ -49,15 +49,33 @@ public class TrafficMonitorHandler extends BaseHandler {
     }
 
     static final class MonitorRule {
+        /** Cap on retained hits per rule. Long sessions with chatty regex used
+         *  to grow into hundreds of MB; truncate the oldest once we hit the
+         *  cap and surface a {@code truncated} flag in the response. */
+        static final int MAX_HITS = 2000;
+
         final String tag;
         final List<MonitorPattern> patterns;
         final CopyOnWriteArrayList<MonitorHit> hits = new CopyOnWriteArrayList<>();
         volatile int lastCheckedIndex;
+        volatile boolean hitsTruncated;
 
         MonitorRule(String tag, List<MonitorPattern> patterns) {
             this.tag = tag;
             this.patterns = patterns;
             this.lastCheckedIndex = -1;
+            this.hitsTruncated = false;
+        }
+
+        void appendHit(MonitorHit hit) {
+            hits.add(hit);
+            // Drop oldest entries beyond the cap. CopyOnWriteArrayList.remove(0)
+            // is O(n) on copy but only fires once we cross the threshold and
+            // the cap is bounded, so amortised cost stays low.
+            while (hits.size() > MAX_HITS) {
+                hits.remove(0);
+                hitsTruncated = true;
+            }
         }
     }
 
@@ -260,7 +278,7 @@ public class TrafficMonitorHandler extends BaseHandler {
                         if (snippet.length() > 200) {
                             snippet = snippet.substring(0, 200) + "...";
                         }
-                        rule.hits.add(new MonitorHit(i, snippet, System.currentTimeMillis()));
+                        rule.appendHit(new MonitorHit(i, snippet, System.currentTimeMillis()));
                         break; // One hit per history item is enough
                     }
                 }
@@ -279,7 +297,9 @@ public class TrafficMonitorHandler extends BaseHandler {
             "tag", tag,
             "total_hits", hitMaps.size(),
             "scanned_to_index", totalScanned,
-            "hits", hitMaps
+            "hits", hitMaps,
+            "truncated", rule.hitsTruncated,
+            "max_hits", MonitorRule.MAX_HITS
         ));
     }
 

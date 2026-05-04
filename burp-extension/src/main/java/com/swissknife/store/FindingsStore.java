@@ -67,6 +67,10 @@ public class FindingsStore {
         "version disclosure"
     );
 
+    /** Cap on retained findings. Bounded so a runaway test loop can't grow
+     *  the in-memory list past tens of MB. Drop the oldest when over. */
+    public static final int MAX_FINDINGS = 10_000;
+
     private final List<Map<String, Object>> findings = new CopyOnWriteArrayList<>();
     private final AtomicInteger idCounter = new AtomicInteger(0);
 
@@ -95,6 +99,12 @@ public class FindingsStore {
         if (chainWith != null) finding.put("chain_with", new ArrayList<>(chainWith));
         finding.put("timestamp", java.time.Instant.now().toString());
         findings.add(finding);
+        // FIFO eviction once over the cap. CopyOnWriteArrayList.remove is
+        // O(n) on copy, but the cap is hit at most once per add and copies
+        // a 10k-entry list only when Java's GC isn't already free-listing.
+        while (findings.size() > MAX_FINDINGS) {
+            findings.remove(0);
+        }
         return finding;
     }
 
