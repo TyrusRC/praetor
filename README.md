@@ -229,6 +229,7 @@ Behavioral skills live in `.claude/skills/`:
 - `dispatch-agents.md` — parallel agent orchestration
 - `burp-workflow.md`, `investigate.md`, `craft-payload.md`, `static-dynamic-analysis.md`
 - `user-override.md` — operator override surfaces when defaults block legitimate findings
+- `like-a-pentester.md` — operational discipline: read before you send, replay before save, annotate live, stop when impact is proved, honour the noise budget
 
 Always-active rules in `.claude/rules/`:
 

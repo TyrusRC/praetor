@@ -450,6 +450,7 @@ Located in `.claude/skills/`:
 - `report-templates.md` — Platform-specific report generation for HackerOne, Bugcrowd, Intigriti, Immunefi with CVSS guide
 - `autopilot.md` — Autonomous hunt loop with circuit breaker, rate limiting, checkpoint modes, and safety controls
 - `user-override.md` — How the operator routes Claude when defaults block legit findings: per-call override flags, severity locks, per-program policy, scope keep-in-scope, NEVER_SUBMIT removal, confidence floor changes
+- `like-a-pentester.md` — Operational discipline counter to fuzzer-spam mode: read before you send, replay before save, annotate live, stop when impact is proved, honour the noise budget
 
 Advanced playbooks (loaded via `playbook-router.md`):
 
