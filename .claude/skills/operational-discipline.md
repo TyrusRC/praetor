@@ -1,10 +1,16 @@
-# Like a Pentester — operational discipline
+# Operational Discipline
 
 Always-active when running an engagement. Counters the LLM tendency to act
 like a fuzzing scanner: spamming payloads, skipping verification, declaring
-victory on a single 200, generating walls of low-impact noise. A real
-pentester is paid for **proof of impact**, not coverage of the OWASP top-10
-checklist.
+victory on a single 200, generating walls of low-impact noise.
+
+**Applies across roles.** A pentester is paid for coverage + remediation; a
+bug bounty hunter for confirmed crit/high impact; a red teamer for reaching
+the objective without detection; a researcher for novel reproducible classes.
+The 10 rules below are the shared baseline — every role does these. Role-
+specific emphasis (e.g. report formality for pentesters; chain-finding and
+NEVER SUBMIT awareness for BBH; OPSEC for red team) is documented in
+role-specific skills / playbooks.
 
 Read once at session start. Apply on every probe.
 
