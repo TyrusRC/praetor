@@ -268,7 +268,10 @@ def register(mcp: FastMCP):
                     "Refusing to process likely_false_positive without a domain. "
                     "Pass domain= so we can locate any prior persisted record."
                 )
-            findings_path = _safe_findings_path(resolved_domain)
+            try:
+                findings_path = _safe_findings_path(resolved_domain)
+            except ValueError as e:
+                return f"Error: {e}"
             existing = _load_findings_file(findings_path).get("findings", []) if findings_path.exists() else []
             new_key_ep = endpoint or ""
             new_key_vuln = (vuln_type or "").lower()
@@ -415,6 +418,12 @@ def register(mcp: FastMCP):
                 "vuln_type": vuln_type,
                 "confidence": round(confidence, 2),
                 "last_updated": now,
+                # Persist Burp's in-memory id so a later FP delete can reach
+                # it via DELETE /api/notes/findings/{id}. Without this, the
+                # local .burp-intel/<domain>/findings.json gets cleaned but
+                # Burp's UI Findings tab keeps showing the dead entry until
+                # the next extension reload.
+                "burp_id": str(burp_id) if burp_id != "?" else "",
             }
             existing_list = store.get("findings", [])
             updated_list, dedup_action, idx = _dedupe_finding(existing_list, new_entry)

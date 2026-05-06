@@ -522,10 +522,13 @@ async def assess_finding_impl(
     impact_notes = []
 
     # Auto-load business context from .burp-intel/<domain>/profile.json
-    # when caller didn't pass one. Operator runs capture_business_context()
+    # whenever a domain is set. Operator runs capture_business_context()
     # once per engagement; assess gates pick it up automatically thereafter.
+    # We always pull the structured dict (sensitive_data, kill_switches,
+    # money_flow) when available — the per-call business_context arg is just
+    # a convenient string fallback for the app_type slot.
     biz_data: dict = {}
-    if not business_context and domain:
+    if domain:
         try:
             from burpsuite_mcp.tools.intel import _intel_path
             profile_path = _intel_path(domain) / "profile.json"
@@ -534,7 +537,8 @@ async def assess_finding_impl(
                 bc = profile.get("business_context") or {}
                 if isinstance(bc, dict):
                     biz_data = bc
-                    business_context = bc.get("app_type", "") or ""
+                    if not business_context:
+                        business_context = bc.get("app_type", "") or ""
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -566,6 +570,50 @@ async def assess_finding_impl(
     elif "internal" in env:
         impact_boost -= 0.05
         impact_notes.append("Internal environment: reduced external exposure (-5%)")
+
+    # ── Structured business_context consumers ─────────────────
+    # Operator-captured sensitive_data and kill_switches lift impact when
+    # the affected endpoint or vuln class lines up with what the engagement
+    # already flagged as high-value. Both fields come from
+    # capture_business_context() and are auto-loaded from profile.json.
+    sensitive_data = biz_data.get("sensitive_data") or [] if biz_data else []
+    high_value_data = {"pci", "phi", "financial", "credentials", "biometric"}
+    matched_data = [d for d in sensitive_data if str(d).lower() in high_value_data]
+    if matched_data:
+        impact_boost += 0.05
+        impact_notes.append(
+            f"Sensitive data class in scope ({', '.join(matched_data)}) (+5%)"
+        )
+
+    kill_switches = biz_data.get("kill_switches") or [] if biz_data else []
+    if kill_switches:
+        # Compact-form match: strip all separators on both sides so
+        # "transfer_funds" hits /api/transfer/funds, /api/transferFunds,
+        # and /api/transfer-funds equally. Avoids false positives from
+        # token-reorder cases (e.g. create_api_key vs /api-key/create
+        # which legitimately differ in semantic intent).
+        ep_compact = (
+            (endpoint or "")
+            .replace("/", "")
+            .replace("_", "")
+            .replace("-", "")
+            .replace(" ", "")
+            .lower()
+        )
+        vuln_compact = vuln_lower.replace("_", "").replace("-", "")
+        for ks in kill_switches:
+            ks_str = str(ks).strip()
+            if not ks_str:
+                continue
+            ks_compact = (
+                ks_str.replace("_", "").replace("-", "").replace(" ", "").lower()
+            )
+            if ks_compact and (ks_compact in ep_compact or ks_compact in vuln_compact):
+                impact_boost += 0.10
+                impact_notes.append(
+                    f"Endpoint/vuln aligns with captured kill-switch '{ks}' (+10%)"
+                )
+                break  # one match per assess call is enough
 
     # Vuln-class × business-context amplifiers
     high_impact_combos = {

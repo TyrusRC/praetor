@@ -181,6 +181,35 @@ class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("DO NOT REPORT", out)
 
+    async def test_business_context_kill_switch_boost(self):
+        # capture_business_context wrote profile.json with a kill-switch
+        # entry. The endpoint hits that switch, so the assess gate should
+        # auto-load the structured fields and apply the +10% boost.
+        domain = "kill-switch-test.example"
+        intel_dir = self.tmpdir / ".burp-intel" / domain
+        intel_dir.mkdir(parents=True, exist_ok=True)
+        profile = {
+            "tech_stack": ["Node.js"],
+            "business_context": {
+                "app_type": "fintech",
+                "sensitive_data": ["financial", "pci"],
+                "kill_switches": ["transfer_funds", "rotate_password"],
+            },
+        }
+        (intel_dir / "profile.json").write_text(json.dumps(profile))
+
+        out = await self._call(
+            vuln_type="idor",
+            endpoint=f"https://{domain}/api/transfer/funds",
+            evidence="another user's transfer reachable via incrementing transfer_id",
+            domain=domain,
+            parameter="transfer_id",
+        )
+        # Kill-switch and sensitive-data boosts should both be reported in
+        # the gate's impact-notes block, regardless of overall verdict.
+        self.assertIn("kill-switch", out)
+        self.assertIn("Sensitive data class", out)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
