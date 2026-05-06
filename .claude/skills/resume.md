@@ -11,7 +11,11 @@ You are continuing a bug bounty engagement from a previous session. Your priorit
 
 1. Ask the user for the target domain (or detect from Burp scope/active session)
 2. Call `load_target_intel(domain, "all")` to get the full summary
-3. If no intel exists: "No previous session data found for {domain}. Start fresh with the hunt skill."
+3. **Call `get_business_context(domain)`** — confirms structured business
+   context is present. If empty, run `capture_business_context(...)` BEFORE
+   re-testing; the assess gate uses these fields to score impact and several
+   playbooks (especially `playbook-business-logic.md`) require them.
+4. If no intel exists: "No previous session data found for {domain}. Start fresh with the hunt skill."
 
 ## Step 2: Create/Restore Session
 

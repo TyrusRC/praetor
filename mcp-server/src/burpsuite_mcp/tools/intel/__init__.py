@@ -17,6 +17,7 @@ Public surface preserved:
 from mcp.server.fastmcp import FastMCP
 
 from . import (
+    business_context,
     cross_target,
     freshness,
     header_profile,
@@ -52,6 +53,7 @@ def register(mcp: FastMCP) -> None:
     cross_target.register(mcp)
     header_profile.register(mcp)
     program_policy.register(mcp)
+    business_context.register(mcp)
 
 
 __all__ = [

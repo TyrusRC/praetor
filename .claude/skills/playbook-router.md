@@ -5,7 +5,9 @@ description: Pick which advanced playbook to load based on target traits. Use wh
 
 # Playbook Router
 
-You have **6 advanced playbooks** that go beyond OWASP WSTG. **Loading all of them wastes context.** This router runs a quick target classifier and returns the 1-2 playbooks that actually fit. If none match, stay on `hunt.md`.
+You have **7 advanced playbooks** that go beyond OWASP WSTG. **Loading all of them wastes context.** This router runs a quick target classifier and returns the 1-2 playbooks that actually fit. If none match, stay on `hunt.md`.
+
+**Always-on baseline:** `playbook-business-logic.md` is co-loaded with whatever Q1–Q6 returns when `business_context.app_type` is set and money / sensitive_data / kill_switches are populated. Logic flaws are the highest-paying class on any business-relevant target; never skip them.
 
 ## When to invoke this router
 
@@ -104,6 +106,7 @@ Often co-load `playbook-api-advanced.md` since mobile backends are API-first.
 | OAuth/SSO/serialization/LLM | `red-team-web` | `cve-research` |
 | Cloud-native (AWS/GCP/Azure) | `cloud-native` | `red-team-web` if SSO |
 | Plain webapp, standard CMS | none — stay on `hunt.md` | — |
+| Money flow / kill switches set | (whatever else matches) | `business-logic` (always co-load) |
 
 **Hard cap: never load more than 2 playbooks at once.** If 3 match, pick the two with strongest signals.
 
