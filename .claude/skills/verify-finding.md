@@ -225,7 +225,21 @@ save_target_intel(domain, "findings", {
 - **Second failure (verification_failures >= 2):** `likely_false_positive`
 - Note what changed (different response, patched, WAF blocked)
 
-`generate_report` will hard-delete `likely_false_positive` entries.
+**Hard-delete is now save-time, not report-time.**
+
+- `save_finding(status='likely_false_positive', ...)` no longer persists. If
+  a matching record exists with confidence < 0.6, it is hard-deleted from
+  `.burp-intel/<domain>/findings.json` AND from Burp's in-memory store.
+  Records with confidence ≥ 0.6 must go through the explicit tool.
+- `mark_finding_false_positive(finding_id, domain, ...)` is the explicit
+  delete path. Confidence-tiered review:
+  - **conf < 0.6** → deletes immediately, no prompt.
+  - **0.6 ≤ conf < 0.8** → returns the full evidence dump and asks the
+    operator to re-call with `confirmed_by_user=True, reason='<why>'`.
+  - **conf ≥ 0.8** → refuses unless `force=True` with `reason` — looks
+    like a real finding; operator must explicitly override.
+- `generate_report` still purges any remaining `likely_false_positive`
+  entries as a final safety net.
 
 ## Cross-references
 

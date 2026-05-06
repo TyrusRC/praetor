@@ -103,6 +103,44 @@ Skip entirely if freshness check says all sections are FRESH.
 - Attack priorities (from discover_attack_surface output)
 - High-risk parameters identified
 
+## Phase 2.5: Capture Business Context (mandatory before testing)
+
+Run **once per engagement** before any vuln testing. Skips if already populated
+this engagement (`get_business_context(domain)` returns a record).
+
+```
+capture_business_context(
+    domain="<domain>",
+    app_type="ecommerce|banking|fintech|healthcare|saas|...",
+    money_flow="payments|payouts|subscriptions|none",
+    sensitive_data=["pii", "pci", "phi", "financial", ...],
+    user_roles=["admin", "user", "merchant", "support", ...],
+    kill_switches=["delete_account", "transfer_funds", "create_api_key", ...],
+    key_workflows=[{"name": "checkout", "steps": ["cart", "review", "pay", "confirm"]}],
+    threat_actors=["criminal", "competitor", "insider"],
+    notes="<regulatory regime, third-party integrations, anything else>",
+)
+```
+
+What this unlocks:
+
+- `assess_finding` auto-loads `business_context` on every gate call. SQLi on a
+  `app_type=banking` target gets +10% impact boost without you re-passing it.
+- `playbook-business-logic.md` walks every workflow / kill_switch / role pair
+  systematically. **Loading this skill is mandatory** when business context is
+  set — logic flaws are the highest-paying class on any business-relevant
+  target.
+- Reports cite real impact ("attacker drains $5k/day in coupon stacking")
+  instead of generic technical class.
+
+If you cannot answer the structured fields, **stop and read the app**:
+- `browser_crawl` the main flows
+- Read 3-5 high-value pages with `smart_analyze`
+- Click through signup, checkout, settings, admin (if accessible)
+
+Without business_context, you will miss every business-logic bug and
+under-score every other class.
+
 ## Phase 3: Vulnerability Testing
 
 **ADVISOR SHORTCUT:** Call `get_hunt_plan(target_url)` or `get_next_action(target_url, completed_phases=['recon'])` to get pre-computed testing priorities instead of reasoning about what to test next.

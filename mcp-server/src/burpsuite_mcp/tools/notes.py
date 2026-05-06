@@ -72,6 +72,78 @@ def _write_findings_file(path: Path, data: dict) -> None:
         raise
 
 
+def _find_by_id(findings: list[dict], finding_id: str) -> tuple[int, dict | None]:
+    """Linear scan for a finding by its persistent ID. Returns (index, finding)
+    or (-1, None) if not found."""
+    for i, f in enumerate(findings):
+        if f.get("id") == finding_id:
+            return i, f
+    return -1, None
+
+
+def _format_proof_for_review(f: dict) -> str:
+    """Render a finding's evidence in a compact human-readable block, used when
+    the FP-delete tool needs the operator to confirm a borderline-confidence
+    deletion. Pulls the fields a triager would care about."""
+    lines = [
+        f"  ID:          {f.get('id', '?')}",
+        f"  Title:       {f.get('title', '')[:120]}",
+        f"  Severity:    {f.get('severity', 'INFO')}",
+        f"  Confidence:  {f.get('confidence', 0.0):.2f}",
+        f"  Status:      {f.get('status', 'suspected')}",
+        f"  Vuln class:  {f.get('vuln_type', '')}",
+        f"  Endpoint:    {f.get('endpoint', '')}",
+        f"  Parameter:   {f.get('parameter', '')}",
+    ]
+    et = (f.get("evidence_text") or "").strip()
+    if et:
+        clip = et if len(et) <= 400 else et[:400] + "..."
+        lines.append(f"  Evidence:    {clip}")
+    ev = f.get("evidence") or {}
+    if isinstance(ev, dict):
+        for key in ("logger_index", "proxy_history_index", "collaborator_interaction_id"):
+            if ev.get(key) is not None:
+                lines.append(f"  evidence.{key}: {ev[key]}")
+    if f.get("reproductions"):
+        lines.append(f"  Reproductions: {len(f['reproductions'])} entries")
+    if f.get("chain_with"):
+        lines.append(f"  Chain anchors: {', '.join(f['chain_with'])}")
+    if f.get("human_verified"):
+        lines.append("  Human-verified: yes")
+    return "\n".join(lines)
+
+
+async def _hard_delete_finding(domain: str, finding: dict) -> tuple[bool, str]:
+    """Remove a finding from .burp-intel/<domain>/findings.json AND from Burp's
+    in-memory store. Returns (deleted_locally, burp_msg)."""
+    findings_path = _safe_findings_path(domain)
+    deleted_locally = False
+    if findings_path.exists():
+        store = _load_findings_file(findings_path)
+        all_findings = store.get("findings", [])
+        target_id = finding.get("id")
+        keep = [f for f in all_findings if f.get("id") != target_id]
+        if len(keep) != len(all_findings):
+            store["findings"] = keep
+            store["last_modified"] = datetime.now(timezone.utc).isoformat()
+            _write_findings_file(findings_path, store)
+            deleted_locally = True
+    burp_msg = ""
+    burp_id = (finding.get("burp_id") or "")
+    ev = finding.get("evidence") or {}
+    if not burp_id and isinstance(ev, dict):
+        burp_id = str(ev.get("burp_id") or "")
+    if burp_id:
+        resp = await client.delete(f"/api/notes/findings/{burp_id}")
+        if isinstance(resp, dict) and "error" not in resp:
+            burp_msg = f"Burp in-memory: removed (id={burp_id})"
+        else:
+            burp_msg = f"Burp in-memory: skip ({resp.get('error', 'no response')})"
+    else:
+        burp_msg = "Burp in-memory: no burp_id recorded — Burp store not touched (will not re-appear after extension reload)"
+    return deleted_locally, burp_msg
+
+
 def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, int]:
     """Merge `new` into `existing` by (endpoint + vuln_type + title + parameter).
 
@@ -185,6 +257,55 @@ def register(mcp: FastMCP):
                 )
 
         resolved_domain = domain or _domain_from_endpoint(endpoint)
+
+        # ── Status='likely_false_positive' shortcut ────────────────────
+        # The pipeline does not save FPs. If a matching finding already exists
+        # in .burp-intel/<domain>/findings.json, hard-delete it (and its Burp
+        # in-memory mirror). For genuinely new FP attempts, no-op.
+        if (status or "").lower() == "likely_false_positive":
+            if not resolved_domain:
+                return (
+                    "Refusing to process likely_false_positive without a domain. "
+                    "Pass domain= so we can locate any prior persisted record."
+                )
+            findings_path = _safe_findings_path(resolved_domain)
+            existing = _load_findings_file(findings_path).get("findings", []) if findings_path.exists() else []
+            new_key_ep = endpoint or ""
+            new_key_vuln = (vuln_type or "").lower()
+            new_key_title = (title or "").lower()
+            new_key_param = parameter or ""
+            target = None
+            for f in existing:
+                if (
+                    f.get("endpoint", "") == new_key_ep
+                    and (f.get("vuln_type", "") or "").lower() == new_key_vuln
+                    and f.get("title", "").lower() == new_key_title
+                    and f.get("parameter", "") == new_key_param
+                ):
+                    target = f
+                    break
+            if target is None:
+                return (
+                    "No prior finding matched on (endpoint, vuln_type, title, parameter). "
+                    "Nothing persisted, nothing to delete. (likely_false_positive is "
+                    "never saved — use mark_finding_false_positive(finding_id) for "
+                    "explicit deletion of a known ID.)"
+                )
+            conf = float(target.get("confidence", 0.5) or 0.5)
+            if conf >= 0.6:
+                return (
+                    f"Refusing to silent-delete via save_finding(status='likely_false_positive') — "
+                    f"existing record has confidence={conf:.2f} (>=0.6 requires explicit review).\n"
+                    f"Use: mark_finding_false_positive(finding_id='{target.get('id', '')}', "
+                    f"domain='{resolved_domain}', confirmed_by_user=True, reason='<why>')"
+                )
+            deleted_locally, burp_msg = await _hard_delete_finding(resolved_domain, target)
+            return (
+                f"Hard-deleted FP {target.get('id', '?')} (confidence={conf:.2f}) "
+                f"from {resolved_domain}.\n"
+                f"  Local store: {'removed' if deleted_locally else 'no-op'}\n"
+                f"  {burp_msg}"
+            )
 
         # ── Rule 20a: recon gate ──────────────────────────────────
         # Refuse to persist findings for domains where no recon has been
@@ -444,6 +565,96 @@ def register(mcp: FastMCP):
             lines.append("requests via search_history / browser_crawl to make these visible.")
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def mark_finding_false_positive(
+        finding_id: str,
+        domain: str,
+        confirmed_by_user: bool = False,
+        force: bool = False,
+        reason: str = "",
+    ) -> str:
+        """Hard-delete a saved finding and its Burp in-memory mirror.
+
+        Confidence-tiered review (operator-set policy):
+          - confidence < 0.6           → delete immediately, no prompt.
+          - 0.6 <= confidence < 0.8    → returns full evidence dump and asks the
+                                         operator to re-call with confirmed_by_user=True.
+          - confidence >= 0.8          → refuses unless force=True with reason — looks
+                                         like a real finding; operator must override.
+
+        Args:
+            finding_id: Persistent ID, e.g. 'f003'
+            domain:     Target domain (where the finding lives in .burp-intel)
+            confirmed_by_user: Set True to confirm a 0.6–0.8 borderline deletion.
+            force:      Set True to override the >=0.8 refusal. Requires reason.
+            reason:     Audit trail — why is this an FP? Required for force=True.
+        """
+        if not domain:
+            return "Error: domain is required to locate the finding."
+        try:
+            findings_path = _safe_findings_path(domain)
+        except ValueError as e:
+            return f"Error: {e}"
+        if not findings_path.exists():
+            return f"No findings.json for domain {domain!r}."
+        store = _load_findings_file(findings_path)
+        all_findings = store.get("findings", [])
+        idx, target = _find_by_id(all_findings, finding_id)
+        if target is None:
+            return (
+                f"Finding {finding_id!r} not found in {domain}. "
+                f"Existing IDs: {', '.join(f.get('id', '?') for f in all_findings) or '(none)'}"
+            )
+
+        conf = float(target.get("confidence", 0.5) or 0.5)
+        proof_block = _format_proof_for_review(target)
+
+        # Tier 3: high-confidence — looks like a real finding.
+        if conf >= 0.8:
+            if not force:
+                return (
+                    f"REFUSING to delete {finding_id} — confidence={conf:.2f} "
+                    f"(>=0.8 = looks like a real finding).\n"
+                    f"\nFull record:\n{proof_block}\n"
+                    f"\nIf you have manually verified this is an FP (target patched, "
+                    f"original reproduction was a misread, etc.), re-call with:\n"
+                    f"  mark_finding_false_positive(finding_id='{finding_id}', "
+                    f"domain='{domain}', force=True, reason='<one-line why>')"
+                )
+            if not reason.strip():
+                return (
+                    f"REFUSING to force-delete {finding_id} without a reason. "
+                    f"force=True requires reason='<why this confirmed/high-conf "
+                    f"finding is actually FP>' for the audit trail."
+                )
+
+        # Tier 2: borderline — operator must say yes.
+        elif 0.6 <= conf < 0.8:
+            if not confirmed_by_user:
+                return (
+                    f"BORDERLINE FP — confidence={conf:.2f} on {finding_id}. "
+                    f"Showing full evidence; operator decides.\n"
+                    f"\n{proof_block}\n"
+                    f"\nIf this is genuinely an FP, re-call with:\n"
+                    f"  mark_finding_false_positive(finding_id='{finding_id}', "
+                    f"domain='{domain}', confirmed_by_user=True, reason='<why>')\n"
+                    f"\nIf the suspicion is still real but unverified, leave it alone "
+                    f"or update via save_finding(status='suspected', ...)."
+                )
+
+        # Tier 1: low-conf or all gates passed → hard delete.
+        deleted_locally, burp_msg = await _hard_delete_finding(domain, target)
+        audit = []
+        audit.append(f"Hard-deleted {finding_id} (confidence={conf:.2f}, "
+                     f"severity={target.get('severity', 'INFO')}) from {domain}.")
+        audit.append(f"  Local store: {'removed' if deleted_locally else 'no-op'}")
+        audit.append(f"  {burp_msg}")
+        if force:
+            audit.append(f"  Force-delete reason: {reason}")
+        elif confirmed_by_user:
+            audit.append(f"  Operator-confirmed reason: {reason or '(none given)'}")
+        return "\n".join(audit)
 
     @mcp.tool()
     async def export_report(format: str = "markdown") -> str:

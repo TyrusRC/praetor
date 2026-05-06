@@ -264,4 +264,19 @@ public class FindingsStore {
         }
         return false;
     }
+
+    /** Hard-delete a finding by its in-memory id. Returns true if removed. */
+    public boolean removeById(String id) {
+        if (id == null || id.isEmpty()) return false;
+        Map<String, Object> target = null;
+        for (Map<String, Object> f : findings) {
+            Object fid = f.get("id");
+            if (fid != null && id.equals(String.valueOf(fid))) {
+                target = f;
+                break;
+            }
+        }
+        if (target == null) return false;
+        return findings.remove(target);
+    }
 }

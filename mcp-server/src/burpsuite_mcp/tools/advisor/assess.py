@@ -521,6 +521,23 @@ async def assess_finding_impl(
     impact_boost = 0.0
     impact_notes = []
 
+    # Auto-load business context from .burp-intel/<domain>/profile.json
+    # when caller didn't pass one. Operator runs capture_business_context()
+    # once per engagement; assess gates pick it up automatically thereafter.
+    biz_data: dict = {}
+    if not business_context and domain:
+        try:
+            from burpsuite_mcp.tools.intel import _intel_path
+            profile_path = _intel_path(domain) / "profile.json"
+            if profile_path.exists():
+                profile = json.loads(profile_path.read_text())
+                bc = profile.get("business_context") or {}
+                if isinstance(bc, dict):
+                    biz_data = bc
+                    business_context = bc.get("app_type", "") or ""
+        except (json.JSONDecodeError, OSError):
+            pass
+
     biz = business_context.lower() if business_context else ""
     env = environment.lower() if environment else ""
 

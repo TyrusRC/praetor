@@ -9,9 +9,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * POST /api/notes/findings           - save a finding
- * GET  /api/notes/findings?endpoint= - get findings
- * GET  /api/notes/export?format=     - export report (markdown or json)
+ * POST   /api/notes/findings           - save a finding
+ * GET    /api/notes/findings?endpoint= - get findings
+ * DELETE /api/notes/findings/{id}      - hard-delete a finding by in-memory id
+ * GET    /api/notes/export?format=     - export report (markdown or json)
  */
 public class NotesHandler extends BaseHandler {
 
@@ -32,11 +33,23 @@ public class NotesHandler extends BaseHandler {
             handleSave(exchange);
         } else if (path.equals("/api/notes/findings") && "GET".equalsIgnoreCase(method)) {
             handleGet(exchange);
+        } else if (path.startsWith("/api/notes/findings/") && "DELETE".equalsIgnoreCase(method)) {
+            handleDelete(exchange, path);
         } else if (path.equals("/api/notes/export") && "GET".equalsIgnoreCase(method)) {
             handleExport(exchange);
         } else {
             sendError(exchange, 404, "Not found");
         }
+    }
+
+    private void handleDelete(HttpExchange exchange, String path) throws Exception {
+        String id = path.substring("/api/notes/findings/".length());
+        if (id.isEmpty()) {
+            sendError(exchange, 400, "Missing finding id in path");
+            return;
+        }
+        boolean removed = store.removeById(id);
+        sendJson(exchange, JsonUtil.object("removed", removed, "id", id));
     }
 
     private void handleSave(HttpExchange exchange) throws Exception {
