@@ -13,6 +13,7 @@ from . import (
     auth_matrix,
     comparer,
     fuzz,
+    fuzz_feedback,
     hpp,
     race,
 )
@@ -20,6 +21,7 @@ from . import (
 
 def register(mcp: FastMCP) -> None:
     fuzz.register(mcp)
+    fuzz_feedback.register(mcp)
     auth_compare.register(mcp)
     comparer.register(mcp)
     auth_matrix.register(mcp)

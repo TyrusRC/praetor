@@ -250,4 +250,34 @@ def register(mcp: FastMCP) -> None:
         if annotated:
             lines.append(f"Auto-annotated {annotated} proxy-history entries with severity colours (Rule 31).")
 
+        # ── Partial-signal escalation hints ──
+        # When a probe records anomalies (status/length/timing/header deltas)
+        # but no matcher fired (or confidence < 0.30), the canonical payload
+        # likely got filtered. Surface a copy-pasteable fuzz_with_feedback
+        # invocation so the operator can mutate the payload and try again.
+        partial = []
+        for f in findings_sorted:
+            conf = f.get("confidence", 0) or 0
+            anomalies = f.get("anomalies", []) or []
+            matched = f.get("matched_matchers", []) or []
+            if anomalies and conf < 0.30 and not matched:
+                partial.append(f)
+        if partial:
+            lines.append(f"\nPartial-signal escalation candidates ({len(partial)}):")
+            lines.append("Anomaly seen but no matcher fired — payload likely filtered. Try mutation.")
+            for f in partial[:5]:
+                ep = f.get("endpoint", "?")
+                param = f.get("parameter", "?")
+                cat = f.get("category", "?")
+                probe = f.get("probe", "")
+                ans = f.get("anomalies", [])
+                lines.append(
+                    f"  • {cat}: {ep} param={param} anomalies={','.join(ans[:3])}"
+                )
+                if probe:
+                    lines.append(
+                        f"    → fuzz_with_feedback(url='{ep}', parameter='{param}', "
+                        f"seed={probe!r}, signals={{'length_delta_min': 100, 'status_changed': True}})"
+                    )
+
         return "\n".join(lines)

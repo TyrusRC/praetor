@@ -7,7 +7,7 @@ from burpsuite_mcp.tools import (
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
-    prompts, resources_mcp,
+    prompts, resources_mcp, mutate,
 )
 
 mcp = FastMCP(
@@ -96,3 +96,4 @@ burp_tools.register(mcp)       # Burp native: WebSocket send, Organizer, Decoder
 dom_probe.register(mcp)        # DOM-aware probe — closes the client-side gap (DOM XSS, DOM-redirect, CSPP, link-manip, DOM-data-manip)
 prompts.register(mcp)          # MCP Prompts — operator-invokable workflow templates (hunt-target, verify-finding, chain-findings, save-finding-checklist, triage-program)
 resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, skills, knowledge, intel, findings) under burp:// URIs
+mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
