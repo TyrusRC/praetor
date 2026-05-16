@@ -1,0 +1,117 @@
+{
+  "category": "client_side_messaging",
+  "contexts": {
+    "postmessage_no_origin_check": {
+      "description": "WSTG-CLNT-11 -- window.addEventListener('message', handler) handler does not check event.origin, accepts data from any cross-origin frame. Attacker iframes the target and postMessage's payload -> XSS / state injection / auth bypass.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "JS body contains addEventListener('message', ...) without event.origin or e.origin check -- handler trusts any sender. Sink chain: handler reads event.data and assigns to innerHTML/eval/location.",
+          "matchers": [
+            {"type": "regex", "pattern": "addEventListener\\(\\s*['\"]message['\"]"},
+            {"type": "not_word", "words": ["event.origin", "e.origin", "evt.origin", "origin ==", "origin ===", "origin.match", "trustedOrigins"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "postMessage handler with origin === '*' or wildcard match -- explicitly accepts any origin",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)origin\\s*[=!]==?\\s*['\"]\\*['\"]"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Sender uses postMessage(payload, '*') -- broadcast to any embedding parent, leaks data through eavesdropping iframe",
+          "matchers": [
+            {"type": "regex", "pattern": "postMessage\\([^,)]+,\\s*['\"]\\*['\"]"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "postmessage_data_into_sink": {
+      "description": "WSTG-CLNT-11 -- handler reads event.data and writes to a dangerous sink (innerHTML, document.write, eval, Function, location.href, setTimeout-string). Combine with no-origin-check for full XSS chain.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Message handler assigns event.data (or destructured field) into innerHTML / outerHTML / document.write / eval",
+          "matchers": [
+            {"type": "regex", "pattern": "(?s)addEventListener\\(\\s*['\"]message['\"][^}]{0,400}(innerHTML|outerHTML|document\\.write|eval\\s*\\(|\\.write\\(|Function\\s*\\()"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Message handler assigns event.data to location.href / location = / window.location -- open-redirect or XSS via javascript: URL",
+          "matchers": [
+            {"type": "regex", "pattern": "(?s)addEventListener\\(\\s*['\"]message['\"][^}]{0,400}(location\\.href\\s*=|location\\s*=|window\\.location)"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "xssi_json_array_callable": {
+      "description": "WSTG-CLNT-13 -- legacy JSON array endpoint returns top-level array `[{user:1},...]` -- valid JavaScript when loaded via <script src>. Attacker on evil.com overrides Array constructor to read victim's data cross-origin.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Authenticated JSON response starts with top-level array AND lacks Content-Type protection -- cross-origin script-tag include reads it",
+          "matchers": [
+            {"type": "header", "name": "Content-Type", "contains": "json"},
+            {"type": "regex", "pattern": "^\\s*\\[\\s*\\{"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "xssi_jsonp_callback_unfiltered": {
+      "description": "WSTG-CLNT-13 -- JSONP endpoint reflects callback name without alphanumeric filter -- attacker passes callback=alert(1); to inject arbitrary JS into any victim's page",
+      "tech_match": [],
+      "param_match": ["callback", "jsonp", "cb", "fn", "function"],
+      "probes": [
+        {
+          "payload": "{{baseline}}&callback=swktest_xssi_{{marker}}(",
+          "description": "Reflected JSONP callback name accepts non-alphanumeric -- ( in callback is reflected unfiltered",
+          "matchers": [
+            {"type": "header", "name": "Content-Type", "contains": "javascript"},
+            {"type": "word", "words": ["swktest_xssi_"], "condition": "or"},
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "xssi_secrets_in_script_includable": {
+      "description": "WSTG-CLNT-13 -- script-includable response (text/javascript or application/javascript content type) contains user-specific secrets accessible via global side effects (var/window assignment)",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "JS-content-typed response with global var assignment of user-specific token/email/id -- attacker includes script cross-origin to harvest",
+          "matchers": [
+            {"type": "header", "name": "Content-Type", "contains": "javascript"},
+            {"type": "regex", "pattern": "(?i)(var|window\\.|let|const)\\s+(user_email|user_token|csrf_token|api_key|access_token|user_id)\\s*="}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

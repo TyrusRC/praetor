@@ -1,0 +1,107 @@
+{
+  "category": "excessive_data_exposure",
+  "contexts": {
+    "admin_fields_leaked_to_user": {
+      "description": "API returns admin-only fields (is_admin, role, internal_id, audit_log, deleted_at) to non-admin sessions -- response over-fetches DB row instead of projecting allowed fields",
+      "tech_match": ["Rails", "Django", "Express", "Spring", "GraphQL"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect user-context response for admin-only field names -- if present in body for non-admin role, server returns full row without column whitelist",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["is_admin", "is_staff", "is_superuser", "role:\"admin\"", "permissions:[", "internal_id", "audit_log", "deleted_at", "stripe_customer_id", "password_hash", "api_key", "secret"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "pii_overfetch_in_listing": {
+      "description": "List endpoint returns full user objects (email, phone, address, DOB, SSN-tail) when UI only shows name+avatar -- backend serializes full model",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Listing response contains PII fields that the UI never renders -- token-economy violation + GDPR/CCPA exposure",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["email\":", "phone\":", "phone_number", "ssn", "date_of_birth", "dob\":", "address\":", "ip_address", "last_login_ip"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "internal_field_in_public_response": {
+      "description": "Response leaks server-side internal fields (debug, env, db_host, region, internal_user_id, _id mongo, __v) that should never reach the client",
+      "tech_match": ["MongoDB", "Mongoose", "Sequelize"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Mongo `__v`/`_id`, internal env hints, or db_host field present -- ORM serialization without toJSON filter",
+          "matchers": [
+            {"type": "word", "words": ["__v\":", "_id\":", "db_host", "internal_id", "internal_user_id", "shard_key", "tenant_internal", "feature_flags:{"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "field_filter_bypass_via_fields_param": {
+      "description": "API supports `?fields=` projection -- attacker requests fields the UI omits (password_hash, mfa_secret, recovery_codes)",
+      "tech_match": ["GraphQL", "JSON:API", "Stripe-like"],
+      "param_match": ["fields", "include", "expand", "select", "projection"],
+      "probes": [
+        {
+          "payload": "fields=id,email,password_hash,mfa_secret,recovery_codes,api_key",
+          "description": "Request sensitive fields explicitly -- if any returned, server has no field-level authorization",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["password_hash", "mfa_secret", "recovery_code", "api_key\":", "secret_key", "private_key"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "graphql_introspection_full_schema": {
+      "description": "GraphQL introspection exposes admin-only mutations, internal types, deprecated-but-live fields",
+      "tech_match": ["GraphQL", "Apollo", "Relay", "Hasura"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{__schema{types{name fields{name}}}}\"}",
+          "description": "Introspection returns full schema -- mine for `AdminMutation`, `Internal*`, `*Debug`, deleted fields",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["__schema", "AdminMutation", "InternalUser", "deleteAccount", "impersonate", "_debug", "passwordHash"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "response_overshare_after_filter_mismatch": {
+      "description": "Endpoint filters list by tenant in WHERE clause but serializer returns full org tree -- filter applies only to ID list, related entities serialized in full",
+      "tech_match": ["Rails", "Django", "Sequelize"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect related/nested objects in list response -- cross-tenant data may appear inside nested `organization` / `parent` / `owner` blobs",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["organization\":{", "parent\":{", "owner\":{", "company\":{", "tenant\":{", "workspace\":{"], "condition": "or"},
+            {"type": "length_diff", "min_diff": 2000}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

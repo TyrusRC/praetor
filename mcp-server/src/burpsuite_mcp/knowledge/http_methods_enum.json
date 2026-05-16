@@ -1,0 +1,104 @@
+{
+  "category": "http_methods_enum",
+  "contexts": {
+    "trace_method_enabled": {
+      "description": "WSTG-CONF-06 -- TRACE method enabled -- echoes request headers back, classic XST (Cross-Site Tracing) chain for cookie theft when combined with XSS on a non-HttpOnly cookie context",
+      "tech_match": ["Apache", "IIS", "Nginx", "Tomcat"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "TRACE request to root -- 200 with X-Custom-Test: swktest-{{marker}} echoed in body = TRACE enabled. Combine with credential-leak via reflection.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["TRACE /", "TRACE *", "X-Custom-Test:"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "options_reveals_dangerous_verbs": {
+      "description": "WSTG-CONF-06 -- OPTIONS response Allow header reveals PUT/DELETE/PATCH/PROPFIND/MKCOL on a route that should be GET-only (WebDAV residue, dev framework left in prod)",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect OPTIONS response Allow header for PUT/DELETE/PATCH/PROPFIND/MKCOL/COPY/MOVE on resource paths -- presence suggests WebDAV or unintended REST verb",
+          "matchers": [
+            {"type": "header", "name": "Allow", "contains": "PUT"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Allow header advertises DELETE on a non-API resource",
+          "matchers": [
+            {"type": "header", "name": "Allow", "contains": "DELETE"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Allow header advertises WebDAV verbs (PROPFIND, MKCOL, COPY, MOVE) -- WebDAV module enabled, often unintentionally",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)allow:[^\\n]*(propfind|mkcol|copy|move|lock|unlock)"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "put_writes_arbitrary_file": {
+      "description": "WSTG-CONF-06 -- PUT method actually accepts a body and writes to the path (WebDAV write, S3-style mis-config, dev framework debug)",
+      "tech_match": ["IIS", "Apache", "Tomcat"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "swktest-put-{{marker}}",
+          "description": "PUT /swktest-{{marker}}.txt with small body -- 200/201/204 followed by GET returning the same body = write succeeded. Critical: pivot to .jsp/.aspx/.php with executable content.",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 204]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "delete_method_succeeds_anonymously": {
+      "description": "WSTG-CONF-06 -- DELETE method on a resource path succeeds without auth -- DoS / data destruction chain",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Issue DELETE against a discovered resource path (test asset only) -- 200/204 with no auth challenge = unauthenticated delete",
+          "matchers": [
+            {"type": "status", "status": [200, 202, 204]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "verb_tampering_bypass_acl": {
+      "description": "WSTG-INPV-03 -- ACL enforced only on GET/POST. Switching to a verb the deny rule doesn't list (HEAD, PURGE, BREW, custom) returns the protected resource",
+      "tech_match": ["Apache", "Tomcat", "Spring Security"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "HEAD request to a route returning 401/403 on GET -- 200 = ACL only checks GET. Confirm body via OPTIONS then exploit via HEAD (no body) or custom verb.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

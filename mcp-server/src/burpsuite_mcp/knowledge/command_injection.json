@@ -220,6 +220,46 @@
           "variables": {}
         }
       ]
+    },
+    "format_string": {
+      "description": "WSTG-INPV-13 — format string injection. Rare in modern web stacks but present in C wrappers, embedded CGI, syslog forwarders, log4j-pre-formatString templates. %s reads stack, %n writes (DoS / memory disclosure).",
+      "tech_match": ["C", "CGI", "Embedded", "Busybox"],
+      "param_match": ["msg", "message", "log", "format", "fmt", "name", "input", "value"],
+      "probes": [
+        {
+          "payload": "{{baseline}}%s%s%s%s%s%s%s%s",
+          "description": "Format string %s sequence — vulnerable native code reads stack memory and returns garbage / segfault / hex address in response",
+          "matchers": [
+            {"type": "regex", "pattern": "0x[0-9a-f]{6,}"},
+            {"type": "status", "status": [500, 502]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}%x%x%x%x%x%x%x%x",
+          "description": "Format string %x sequence — leaks hex stack values, distinct response = format string interpreted",
+          "matchers": [
+            {"type": "regex", "pattern": "[0-9a-f]{6,}[0-9a-f]{6,}"},
+            {"type": "length_delta", "min_delta": 30}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}%n",
+          "description": "Format string %n — write primitive. Crash / 500 indicates native format string sink (very rare modern web, common in embedded/router admin)",
+          "matchers": [
+            {"type": "status", "status": [500, 502, 503]},
+            {"type": "word", "words": ["segmentation", "fault", "abort", "format", "vsnprintf"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
     }
   }
 }

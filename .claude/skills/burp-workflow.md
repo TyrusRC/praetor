@@ -282,6 +282,18 @@ get_scanner_findings(severity="HIGH") # Get results
 - Scanner: broad coverage on well-behaved endpoints, passive detection
 - Manual (your tools): creative testing, business logic, auth bypass, chained attacks
 
+## Web TLS audit (WSTG-CRYP-01)
+
+TLS version + cipher suite cannot be observed reliably from inside Burp (Burp does its own handshake). Run nmap once per in-scope host and record to intel.
+
+```bash
+nmap --script ssl-enum-ciphers -p 443 <host>
+# FAIL: TLS 1.0, TLS 1.1, SSLv3, RC4, 3DES, NULL, EXPORT, anonymous DH
+# PASS: TLS 1.2+ only, no broken cipher
+```
+
+Then: `save_target_intel(<host>, "fingerprint", {"tls_audit": "<nmap-summary>"})`. Same flow as `playbook-mobile-dynamic.md` Phase 3 MASTG-TEST-0218 — separate finding regardless of other vulns.
+
 ## Anti-Patterns (What NOT to Do)
 
 1. **Don't call detect_tech_stack + smart_analyze + smart_analyze separately** — use `smart_analyze` (one call)

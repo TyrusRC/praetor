@@ -1,0 +1,135 @@
+{
+  "category": "session_security",
+  "contexts": {
+    "credentials_over_cleartext": {
+      "description": "WSTG-ATHN-01 -- login form submits credentials over http:// instead of https:// (form action attribute, mixed content, http-only auth host)",
+      "tech_match": [],
+      "param_match": ["password", "passwd", "pwd", "pass", "login", "username"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect login response for form action -- if action attribute begins with http:// or omits scheme on a non-HTTPS page, credentials transit cleartext",
+          "matchers": [
+            {"type": "regex", "pattern": "<form[^>]*action=[\"']http://"},
+            {"type": "header", "name": "Content-Type", "contains": "html"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Login endpoint reachable on http:// -- TLS not enforced for credential POST",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]},
+            {"type": "not_header", "name": "Strict-Transport-Security", "contains": "max-age"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "auth_response_browser_cacheable": {
+      "description": "WSTG-ATHN-06 -- authentication-protected response lacks Cache-Control: no-store, allowing browser/proxy to cache PII or session state",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Authenticated response cacheable -- missing Cache-Control: no-store on a response that contains user data leaks via shared-cache / browser-back",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_header", "name": "Cache-Control", "contains": "no-store"},
+            {"type": "word", "words": ["email", "username", "logout", "account", "profile"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "session_cookie_missing_secure_flag": {
+      "description": "WSTG-SESS-02 -- session cookie set without Secure / HttpOnly / SameSite. Detect on the cookie-issuing response (login, refresh, session-create)",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Session cookie issued without Secure flag -- transits over http:// if site downgrade is possible",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token|access_token|refresh_token)[^\\n;]+(?!.*;\\s*secure)"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Session cookie issued without HttpOnly -- accessible to document.cookie / XSS exfil",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token|access_token|refresh_token)[^\\n;]+(?!.*;\\s*httponly)"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Session cookie issued without SameSite (or SameSite=None without Secure) -- CSRF + cross-site request leakage",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token)[^\\n;]+(?!.*;\\s*samesite)"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "logout_does_not_invalidate_session": {
+      "description": "WSTG-SESS-06 -- after POST /logout, the old session cookie / bearer token still authenticates requests. Stateless JWT without server-side revocation is the classic case.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Capture session token, POST /logout, replay protected endpoint with same token -- 200 = no server-side revocation. Run with run_flow: login -> action -> logout -> replay-action.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "expired", "invalid", "session", "login required"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "concurrent_sessions_not_invalidated": {
+      "description": "WSTG-SESS-11 -- re-login from a new device does not invalidate prior session tokens (common in stateless JWT, OAuth refresh-token, mobile-app cookie jars)",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Capture session A, login again -> session B, replay protected endpoint with session A -- 200 = old session still alive. Useful chain anchor for stolen-token persistence.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "expired", "invalid"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "session_token_in_url": {
+      "description": "WSTG-SESS-04 -- session ID / auth token transmitted in URL (query string, path segment) -- logged in proxy/server access logs, leaks via Referer, browser history",
+      "tech_match": [],
+      "param_match": ["session_id", "sid", "sessionid", "token", "auth_token", "access_token", "jwt"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Authenticated request carries token in query/path -- if endpoint accepts and processes the request, token is logged in every upstream",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "pattern": "[?&](session_?id|sid|token|access_?token|jwt|auth)="}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

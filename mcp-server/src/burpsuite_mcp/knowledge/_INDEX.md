@@ -69,13 +69,14 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `dangling_markup` | token_theft, csp_bypass_dangling | high | - |
 | `relative_path_overwrite` | css_injection_rpo, css_exfiltration | medium | apache, asp.net, iis, nginx, php |
 
-## Authentication / Auth (10)
+## Authentication / Auth (11)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `auth_bypass` | default_credentials, header_bypass, method_override, path_normalization | critical | - |
 | `access_control` | forced_browsing, method_based_bypass, parameter_based_access, referer_based, multitenancy, insecure_direct_object | critical | - |
 | `authentication` | password_reset_flaws, two_factor_bypass, session_fixation, account_enumeration, insecure_remember_me, default_credentials (+2) | critical | asp.net, java, php, ruby |
+| `session_security` | credentials_over_cleartext, auth_response_browser_cacheable, session_cookie_missing_secure_flag, logout_does_not_invalidate_session, concurrent_sessions_not_invalidated, session_token_in_url | high | - |
 | `jwt` | alg_none, alg_confusion, kid_injection, jku_injection, weak_secret, embedded_jwk (+9) | critical | - |
 | `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, pkce_reuse_after_capture, oidc_nonce_validation (+11) | critical | auth0, backchannel_authentication, ciba, dpop, fapi |
 | `oauth_device_flow` | device_code_phishing, user_code_brute_force | critical | device_grant, oauth |
@@ -84,12 +85,13 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `webauthn_passkey` | attestation_none_acceptance, challenge_replay, rp_id_origin_mismatch, recovery_code_weakness, passkey_to_password_downgrade, conditional_ui_user_enum (+5) | critical | cable, credential_manager, fido2, google_password_manager, hybrid |
 | `session_puzzling` | variable_overwrite, session_race, session_fixation_variant | high | asp.net, django, flask, java, node.js |
 
-## Authorization / IDOR (4)
+## Authorization / IDOR (5)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `idor` | numeric_id, uuid_id, sequential_enum, param_pollution, method_override, composite_key (+2) | critical | - |
 | `mass_assignment` | role_escalation, price_manipulation, hidden_field_tampering, nested_object_assignment, graphql_input_overreach | critical | express, graphql, mongoose, node, rails |
+| `excessive_data_exposure` | admin_fields_leaked_to_user, pii_overfetch_in_listing, internal_field_in_public_response, field_filter_bypass_via_fields_param, graphql_introspection_full_schema, response_overshare_after_filter_mismatch | critical | apollo, django, express, graphql, mongoose, rails |
 | `hpp` | query_duplicate, array_notation, json_body_pollution | high | node.js, php, ruby |
 | `csrf` | missing_token, token_reuse, method_override, content_type_bypass, referer_bypass, token_manipulation (+3) | high | - |
 
@@ -137,13 +139,16 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
 | `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_fileupload_rename_gadget (+2) | critical | angularjs, ejs, express, express-fileupload, fastify |
 
-## API / Protocol (6)
+## API / Protocol (9)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `graphql` | introspection, depth_attack, field_suggestion, injection, mutation_injection, directive_overloading (+9) | critical | apollo, express, federation, graphql, node.js |
 | `grpc_injection` | reflection_enumeration, message_manipulation, auth_bypass, field_type_injection, stream_cancellation_race, transcoding_open_redirect (+1) | high | envoy, go, grpc, grpc-gateway, grpc-web |
 | `api_abuse` | graphql_batching, rest_parameter_pollution, api_rate_limit_bypass, broken_pagination, http2_smuggling | high | apache, apollo, aws alb, cloudflare, graphql |
+| `api_inventory` | old_api_version_still_live, shadow_internal_endpoint, swagger_openapi_leak_on_prod, actuator_management_endpoint, dev_staging_hostname_leak, method_override_reaches_hidden_verb | critical | fastapi, micronaut, openapi, quarkus, spring-boot, swagger |
+| `http_methods_enum` | trace_method_enabled, options_reveals_dangerous_verbs, put_writes_arbitrary_file, delete_method_succeeds_anonymously, verb_tampering_bypass_acl | critical | apache, iis, nginx, spring-security, tomcat |
+| `unsafe_consumption` | open_webhook_url_attacker_controlled, third_party_response_trust_no_validation, oauth_callback_origin_trust, partner_redirect_chain_ssrf, saml_idp_trust_no_signature_check, rss_atom_feed_xxe, webhook_signature_trust_no_origin_check, json_response_field_injection_via_upstream | critical | oauth, oidc, passport, saml, stripe, twilio |
 | `websocket` | cswsh, auth_bypass, injection, message_smuggling, proto_pollution, ws_auth_pre_handshake_send (+5) | high | express, nginx, node.js, permessage-deflate, socket.io |
 | `sse_injection` | event_injection, stream_hijacking | high | django, express, flask, go, java |
 | `webhook_replay` | stripe_replay, signature_strip, alg_downgrade, idempotency_reuse | critical | idempotency, stripe, stripe-signature, webhook |
@@ -161,7 +166,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `payment_flow` | intent_id_cross_account, capture_refund_race, webhook_secret_rotation_race, setup_intent_reuse_no_3ds, idempotency_key_cross_customer, currency_confusion (+6) | critical | 3ds, account_links, apple_pay, apple_wallet, checkout |
 
-## Browser / Web (7)
+## Browser / Web (9)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -172,6 +177,8 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `xs_leak` *(ref-only)* | frame_counting, timing_leak, error_event | medium | javascript |
 | `content_type_confusion` | mime_sniffing, content_type_mismatch, polyglot | medium | apache, express, iis, nginx, node.js |
 | `unicode_normalization` | auth_bypass, filter_bypass, case_mapping | high | django, java, node.js, python, ruby |
+| `error_handling_misuse` | empty_body_default_allow, missing_required_field_default, null_value_bypass, type_coercion_confusion, content_type_parser_fallback, oversized_payload_stacktrace, trailing_nullbyte_identifier_bypass, boolean_coercion, array_vs_string_confusion, charset_mismatch_filter_bypass, fail_open_on_parser_error, default_role_on_register | critical | express, node.js, rails, spring, django, asp.net |
+| `client_side_messaging` | postmessage_no_origin_check, postmessage_data_into_sink, xssi_json_array_callable, xssi_jsonp_callback_unfiltered, xssi_secrets_in_script_includable | high | - |
 
 ## Race / Logic (3)
 
@@ -191,12 +198,14 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `dependency_confusion` *(ref-only)* | npm_confusion, pypi_confusion | critical | django, fastapi, flask, node.js, npm |
 | `captcha_bypass` *(ref-only)* | implementation_flaws, rate_limit_bypass | medium | asp.net, java, node.js, php, python |
 
-## DoS / Misc (2)
+## DoS / Misc (4)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `redos` | catastrophic_backtracking | medium | java, javascript, node.js, php, python |
 | `insecure_randomness` *(ref-only)* | predictable_tokens, weak_session_id, uuid_v1_leak | high | asp.net, custom, java, node.js, php |
+| `resource_exhaustion` | sms_pump_no_ratelimit, email_pump_no_ratelimit, otp_brute_no_lockout, expensive_query_no_limit, graphql_alias_DoS, file_upload_no_size_limit, biometric_or_paid_provider_call, zip_bomb_decompression | critical | apollo, aws-sns, graphql, mailgun, sendgrid, twilio |
+| `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity | critical | asp.net, java, jwt, php, ruby |
 
 ## AI / LLM (2)
 

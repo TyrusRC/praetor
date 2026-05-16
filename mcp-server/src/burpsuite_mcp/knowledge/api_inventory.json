@@ -1,0 +1,202 @@
+{
+  "category": "api_inventory",
+  "contexts": {
+    "old_api_version_still_live": {
+      "description": "Older API version (v1, v0, beta) reachable alongside current (v2, v3) -- old version lacks newer auth/validation patches, classic source of regressions",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1{{baseline_path}}",
+          "description": "Replay current /api/v2/X request against /api/v1/X -- 200 with response = legacy version alive. Test for auth bypass, mass-assignment, IDOR on the legacy version.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["deprecated", "removed", "use v2", "gone"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "/api/v0{{baseline_path}}",
+          "description": "v0 (initial unstable) often left behind -- 200 = critical inventory leak",
+          "matchers": [
+            {"type": "status", "status": [200, 201]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/api/beta{{baseline_path}}",
+          "description": "Beta endpoint kept alive after GA -- often less hardened",
+          "matchers": [
+            {"type": "status", "status": [200, 201]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "shadow_internal_endpoint": {
+      "description": "Internal-only endpoint exposed without auth (commonly /api/internal/, /api/admin/, /api/debug/, /api/test/, /api/sys/) -- intended for service-mesh / oncall but reachable from internet",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/internal/health",
+          "description": "Common internal probe paths -- 200 = direct internal-API surface to attack",
+          "matchers": [
+            {"type": "status", "status": [200, 401, 403]},
+            {"type": "not_word", "words": ["not found", "404"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/api/debug/info",
+          "description": "Debug endpoint left enabled in prod -- env vars, build info, request dump",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["env", "version", "build", "commit", "branch", "debug"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "/api/test",
+          "description": "Test endpoint surfaced in prod",
+          "matchers": [
+            {"type": "status", "status": [200, 201]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/api/admin/_health",
+          "description": "Admin namespace probe -- 401/403 confirms route exists, then test for IDOR/BFLA",
+          "matchers": [
+            {"type": "status", "status": [200, 401, 403]},
+            {"type": "not_word", "words": ["not found", "404"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "swagger_openapi_leak_on_prod": {
+      "description": "API documentation endpoints (swagger.json, openapi.yaml, /api-docs, /docs, /redoc) reachable on production -- complete attack-surface roadmap",
+      "tech_match": ["Swagger", "OpenAPI", "Springdoc", "Drf-yasg", "FastAPI"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/swagger.json",
+          "description": "Swagger spec -- full endpoint+schema map",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["swagger", "openapi", "\"paths\":", "info\":{"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/openapi.json",
+          "description": "OpenAPI 3 spec",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["openapi\":", "\"paths\":"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/api/swagger-ui/index.html",
+          "description": "Swagger UI live -- often exposes Try-it-out form bypassing UI restrictions",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["swagger-ui", "swagger.json", "openapi.json"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "/graphql",
+          "description": "GraphQL endpoint reachable -- pair with introspection check",
+          "matchers": [
+            {"type": "status", "status": [200, 400, 405]},
+            {"type": "word", "words": ["graphql", "GraphQL", "query", "mutation"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "actuator_management_endpoint": {
+      "description": "Spring Boot Actuator / Quarkus / Micronaut management endpoints exposed (/actuator/env, /actuator/heapdump, /actuator/loggers, /actuator/httptrace)",
+      "tech_match": ["Spring Boot", "Quarkus", "Micronaut"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/actuator",
+          "description": "Actuator index -- list of available endpoints",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["_links", "actuator", "/env", "/health"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "/actuator/env",
+          "description": "Spring env dump -- DB URLs, vault paths, env-injected secrets",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["propertySources", "systemEnvironment", "applicationConfig"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "/actuator/heapdump",
+          "description": "JVM heap dump -- credentials, session keys, in-flight tokens",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header", "name": "Content-Type", "contains": "octet-stream"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        }
+      ]
+    },
+    "dev_staging_hostname_leak": {
+      "description": "Production response includes dev/staging hostname (CDN purge, CSP report-uri, internal API URL) -- pivot point to less-hardened environment",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Inspect response (body+headers) for dev/staging/internal hostnames",
+          "matchers": [
+            {"type": "regex", "pattern": "\\b(dev|staging|stg|qa|uat|test|internal|private|admin)[\\.-][a-z0-9.-]+\\.(com|net|io|cloud|app|dev|internal|local)\\b"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "method_override_reaches_hidden_verb": {
+      "description": "HTTP method override (X-HTTP-Method-Override, _method query, _method form) lets POST reach PUT/DELETE routes that were 'protected' by method-only ACL",
+      "tech_match": ["Express", "Rails", "Django", "Spring"],
+      "param_match": ["_method"],
+      "probes": [
+        {
+          "payload": "{{baseline}}&_method=DELETE",
+          "description": "POST with _method=DELETE -- 200/204 = override honored and DELETE bypassed any method-only check",
+          "matchers": [
+            {"type": "status", "status": [200, 202, 204]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}

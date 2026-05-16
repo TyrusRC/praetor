@@ -42,6 +42,8 @@ If proxy unreachable: same Wi-Fi or `adb reverse tcp:8080 tcp:8080` (Android USB
 
 ## Phase 1 — SSL pinning bypass (the gate)
 
+**MASTG anchor:** `MASTG-TEST-0244` (Missing Certificate Pinning in Network Traffic). After bypass success, log "pinning was enforced and bypassed via <method>" in target notes — that's the audit-trail line. App that gives up traffic on FIRST try (no bypass needed) = MASTG-TEST-0244 FAIL (no pinning, report as such).
+
 Without this, Burp sees TLS handshake errors and no app traffic. Try in order; stop at first success.
 
 ### Android — Frida (works on most apps)
@@ -170,6 +172,27 @@ search_history(query="receipt", in_request_body=True)            # IAP
 build_target_header_profile(<api_host>)                          # mobile UA + headers
 save_target_intel(<api_host>, "endpoints", {...})
 ```
+
+### MASTG network checks (run before handoff, while traffic is fresh)
+
+**MASTG-TEST-0236 — Cleartext traffic** — any `http://` URL in mobile proxy history is a reportable misconfig (mobile networks expose users to passive sniffing).
+
+```python
+search_history(query="http://", in_url=True, limit=200)            # cleartext endpoints
+# Filter to mobile-originated hosts (drop CDN/analytics if program excludes 3rd-party):
+# any HTTP URL targeting an in-scope API host = MASTG-0236 FAIL
+```
+
+**MASTG-TEST-0218 — Insecure TLS protocols** — Burp's Logger records the negotiated TLS version per request. Pull the issued TLS-version distribution per host:
+
+```bash
+# From outside Burp — use nmap to probe directly (Burp doesn't downgrade, host might still accept):
+nmap --script ssl-enum-ciphers -p 443 <api_host>
+# FAIL conditions: TLS 1.0, TLS 1.1, SSLv3, NULL/RC4/EXPORT cipher, 3DES, anonymous DH
+# PASS: TLS 1.2+ only, no RC4/NULL/3DES/EXPORT
+```
+
+Record the result with: `save_target_intel(<api_host>, "fingerprint", {"tls_audit": "<nmap-summary>", "cleartext_endpoints": [...]})`. Both checks above are independent findings — file them per MASTG-ID even if no other vuln is found in the backend phase.
 
 **Stop here. Continue in `playbook-mobile-backend.md` §3.** This playbook's job ends when backend traffic is in Burp.
 
