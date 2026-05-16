@@ -1,9 +1,7 @@
 """Encoding chain and auto-decode tools — pure Python, no Burp API needed."""
 
 import base64
-import html
 import re
-import urllib.parse
 
 from mcp.server.fastmcp import FastMCP
 

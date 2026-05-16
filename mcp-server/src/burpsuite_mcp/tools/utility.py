@@ -1,9 +1,7 @@
 """Encoding/decoding utility tools for pentesting - no Burp API needed."""
 
 import base64
-import html
 import json
-import urllib.parse
 from hashlib import md5, sha1, sha256
 
 from mcp.server.fastmcp import FastMCP

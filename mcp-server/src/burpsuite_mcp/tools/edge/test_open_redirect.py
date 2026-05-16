@@ -1,10 +1,6 @@
 """Edge-case test: test_open_redirect."""
 
 import asyncio
-import base64
-import json
-import time
-import uuid
 
 from burpsuite_mcp import client
 

@@ -1,10 +1,5 @@
 """Edge-case test: test_cloud_metadata."""
 
-import asyncio
-import base64
-import json
-import time
-import uuid
 
 from burpsuite_mcp import client
 

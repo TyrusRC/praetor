@@ -1,12 +1,9 @@
 """Edge-case test: test_jwt."""
 
-import asyncio
 import base64
 import json
 import time
-import uuid
 
-from burpsuite_mcp import client
 
 async def test_jwt_impl(
     token: str,
