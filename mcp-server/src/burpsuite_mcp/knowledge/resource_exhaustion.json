@@ -1,0 +1,151 @@
+{
+  "category": "resource_exhaustion",
+  "contexts": {
+    "sms_pump_no_ratelimit": {
+      "description": "SMS-sending endpoint (OTP, magic-link, password-reset, 2FA enroll) has no per-recipient or per-IP rate limit -- attacker forces target to incur per-SMS provider cost (Twilio $0.0075-$0.075 each, $1k-$10k/day burn)",
+      "tech_match": ["Twilio", "AWS SNS", "Vonage", "MessageBird", "Plivo"],
+      "param_match": ["phone", "phone_number", "mobile", "msisdn", "to", "recipient", "destination"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Re-issue SMS-send request 5-10 times in rapid succession -- response 200 each time with no 429/captcha-challenge = no rate limit. Confirm with concurrent_requests(concurrency=10).",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 204]},
+            {"type": "not_word", "words": ["rate limit", "too many", "429", "captcha", "challenge", "cooldown"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "email_pump_no_ratelimit": {
+      "description": "Email-sending endpoint (password reset, magic link, invite, verification) accepts unlimited requests -- target burns transactional-email quota (SendGrid $0.0008/email at 100k/day = $80/day attack cost to victim, but reputation damage + bounce-rate spike disables sending platform-wide)",
+      "tech_match": ["SendGrid", "Mailgun", "AWS SES", "Postmark", "Resend"],
+      "param_match": ["email", "to", "recipient", "address"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Repeatedly submit password-reset or invite for the same email -- 200 each time = email pump. Critical when target user is real (mailbox-flooding attack).",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 202]},
+            {"type": "not_word", "words": ["rate limit", "too many", "429", "already sent", "cooldown", "captcha"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "otp_brute_no_lockout": {
+      "description": "OTP / 2FA verify endpoint has no attempt counter -- 6-digit numeric = 1M tries, parallel 100rps = 167 min to exhaust",
+      "tech_match": [],
+      "param_match": ["otp", "code", "token", "verification_code", "mfa_code", "tfa", "2fa", "pin"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Submit 20 wrong OTPs against the same session -- if 20th still returns 'invalid' instead of 'too many attempts' / lockout, the entire code space is reachable via concurrent_requests",
+          "matchers": [
+            {"type": "status", "status": [400, 401, 422]},
+            {"type": "word", "words": ["invalid", "incorrect", "wrong"], "condition": "or"},
+            {"type": "not_word", "words": ["too many", "lock", "locked", "blocked", "exceeded"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "expensive_query_no_limit": {
+      "description": "Listing / search endpoint accepts unbounded `limit` / `per_page` / `count` causing DB scan + serialization of 100k+ rows (CPU/memory exhaustion, response-size amplification)",
+      "tech_match": [],
+      "param_match": ["limit", "per_page", "page_size", "count", "size", "max_results", "top", "$top", "first"],
+      "probes": [
+        {
+          "payload": "limit=100000",
+          "description": "Request 100k records -- timing > baseline * 50 OR response length > baseline * 1000 = no upper bound enforced",
+          "matchers": [
+            {"type": "differential_timing", "min_delta_ms": 5000},
+            {"type": "length_delta", "min_delta": 100000}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "limit=2147483647",
+          "description": "INT_MAX limit -- if server attempts the query at all (200 with long delay), it has no upper-bound clamp",
+          "matchers": [
+            {"type": "differential_timing", "min_delta_ms": 3000}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "graphql_alias_DoS": {
+      "description": "GraphQL query duplicates the same expensive field via aliases (no depth limit, no query-cost analysis) -- single request burns N× CPU",
+      "tech_match": ["GraphQL", "Apollo", "Relay"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{a0:users{id} a1:users{id} a2:users{id} a3:users{id} a4:users{id} a5:users{id} a6:users{id} a7:users{id} a8:users{id} a9:users{id}}\"}",
+          "description": "10× alias-duplicated query -- if executed (200 with N× length) the server has no alias/cost limit",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["a0", "a9"], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "file_upload_no_size_limit": {
+      "description": "Upload endpoint accepts arbitrarily large body -- attacker fills disk / triggers OOM. Test by streaming size via Content-Length header probe.",
+      "tech_match": [],
+      "param_match": ["file", "upload", "avatar", "image", "attachment", "document", "content"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send upload with Content-Length: 10737418240 (10 GiB) but small actual body -- 200/201 = no streaming size check, 413 expected on healthy server",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["too large", "413", "payload too large", "size limit", "exceeded"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "biometric_or_paid_provider_call": {
+      "description": "Endpoint triggers paid backend service per call (biometric validation, KYC check, payment-card verification, geocoding API) without per-user/per-IP rate limit -- target pays vendor cost per attacker request",
+      "tech_match": ["Onfido", "Jumio", "Veriff", "Stripe Radar", "Google Maps API", "MapBox"],
+      "param_match": ["selfie", "document", "id_document", "address", "kyc", "verify", "biometric", "lookup"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Re-issue paid-provider request 5× rapidly -- 200 each = unmetered fan-out to vendor. Confirm via vendor-specific cost in target docs.",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 202]},
+            {"type": "not_word", "words": ["rate limit", "429", "too many", "cooldown"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "zip_bomb_decompression": {
+      "description": "Upload endpoint accepts compressed input (zip, gzip, brotli) and decompresses server-side without size cap -- 10MB zip bomb expands to 10GB",
+      "tech_match": [],
+      "param_match": ["file", "upload", "archive", "import", "backup"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Upload nested zip with high compression ratio (1:1000+) and Content-Encoding: gzip -- 500/OOM/timeout = server decompresses without limit",
+          "matchers": [
+            {"type": "status", "status": [500, 502, 503, 504]},
+            {"type": "differential_timing", "min_delta_ms": 10000}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}
