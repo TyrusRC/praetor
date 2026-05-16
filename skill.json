@@ -1,24 +1,163 @@
 {
-  "name": "hunt-target",
-  "description": "Run the standard authorized hunt loop on a target — recon, probe, verify, save. Loads Burp Swiss Knife's hunt advisor, populates Burp proxy history via stealth browser, runs knowledge-driven probes, validates each suspected finding through the 7-Question Gate, and chains low-severity items into reportable impact.",
+  "$schema": "https://json.schemastore.org/mcp-skill.json",
+  "name": "burpsuite-swiss-knife",
+  "display_name": "Burp Suite Swiss Knife",
+  "description": "Burp Suite Pro + Claude Code pentesting/bug-bounty toolkit. 166 MCP tools cover recon, browser-driven crawl, auth-matrix, fuzz, race, smuggling, OAuth/FIDO/payment flows, deep mobile dynamic via Frida, 102-file knowledge base for adaptive probing, three-phase save-finding pipeline (replay → 7-question gate → persist), and explicit RCE-precondition detection (no auto-exploit).",
   "version": "0.3.0",
   "license": "Apache-2.0",
   "homepage": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp",
+  "repository": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp",
+  "issues": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/issues",
+  "author": "TyrusRC",
   "category": "security",
-  "tags": ["pentest", "bug-bounty", "burp-suite", "vulnerability-scanning"],
-  "mcp_prompt": "hunt-target",
-  "arguments": [
+  "tags": [
+    "mcp",
+    "burp-suite",
+    "pentest",
+    "bug-bounty",
+    "red-team",
+    "vulnerability-scanning",
+    "owasp",
+    "wstg",
+    "mastg",
+    "graphql",
+    "oauth",
+    "webauthn",
+    "fido",
+    "passkey",
+    "ssrf",
+    "rce-detection"
+  ],
+  "capabilities": {
+    "tools": 165,
+    "prompts": 5,
+    "resources": 7,
+    "knowledge_base_files": 102,
+    "skills": 25,
+    "transport": "stdio",
+    "language": "python>=3.11",
+    "java_extension": "java>=21",
+    "burp_api_host": "127.0.0.1",
+    "burp_api_port": 8111
+  },
+  "burp_edition_support": {
+    "professional": {
+      "status": "full",
+      "notes": "All features supported. Default target environment."
+    },
+    "community": {
+      "status": "supported_with_manual_setup",
+      "notes": "Most tools work unchanged. Pro-only features (active scanner, Collaborator) gracefully degrade — operator supplies a callback URL for OOB tests, uses auto_probe / fuzz_parameter instead of scan_url, and accepts Intruder rate-throttling.",
+      "pro_only_tools_unavailable": [
+        "scan_url",
+        "crawl_target",
+        "get_scan_status",
+        "cancel_scan",
+        "get_scanner_findings",
+        "get_new_findings",
+        "get_issues_dashboard",
+        "generate_collaborator_payload",
+        "generate_collaborator_pool",
+        "auto_collaborator_test",
+        "get_collaborator_interactions",
+        "collaborator_pool_status"
+      ],
+      "community_alternatives": {
+        "active_scanner": "auto_probe (knowledge-driven, runs via HTTP API), fuzz_parameter, fuzz_with_feedback",
+        "collaborator_oob": "Operator supplies a callback URL — interact.sh / webhook.site / requestcatcher.com — passed into payloads explicitly. Rule 9a: never fabricate domains.",
+        "intruder_speed": "concurrent_requests (Python-side concurrency through Burp proxy) bypasses Community throttling for legitimate parallel testing."
+      },
+      "feature_detection": "Call check_pro_features() at session start to confirm which Pro capabilities are available on the operator's instance."
+    }
+  },
+  "mcp_server": {
+    "command": "uvx",
+    "args": [
+      "--from",
+      "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server",
+      "burpsuite-swiss-knife-mcp"
+    ],
+    "alternative_installs": {
+      "pipx": "pipx install 'git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server'",
+      "uv": "uv pip install -e ./mcp-server && uv run python -m burpsuite_mcp"
+    },
+    "env": {
+      "BURP_API_HOST": {
+        "description": "Burp extension API host",
+        "default": "127.0.0.1",
+        "required": false
+      },
+      "BURP_API_PORT": {
+        "description": "Burp extension API port",
+        "default": "8111",
+        "required": false
+      },
+      "BURP_API_TIMEOUT": {
+        "description": "HTTP timeout to extension (seconds)",
+        "default": "30",
+        "required": false
+      }
+    }
+  },
+  "prompts": [
     {
-      "name": "target",
-      "description": "Target URL within authorized scope (e.g. https://example.com)",
-      "required": true,
-      "type": "string"
+      "name": "hunt-target",
+      "description": "Run the standard authorized hunt loop on a target -- recon, probe, verify, save.",
+      "arguments": [
+        {"name": "target", "description": "Target URL within authorized scope (e.g. https://example.com)", "required": true, "type": "string"}
+      ]
+    },
+    {
+      "name": "verify-finding",
+      "description": "Walk a suspected finding through the 7-Question Validation Gate before save.",
+      "arguments": [
+        {"name": "vuln_type", "description": "Vulnerability class (sqli, xss, ssrf, idor, ...)", "required": true, "type": "string"},
+        {"name": "endpoint", "description": "Endpoint that triggered the finding", "required": true, "type": "string"},
+        {"name": "evidence", "description": "What was observed (status, length, marker, error)", "required": true, "type": "string"}
+      ]
+    },
+    {
+      "name": "triage-program",
+      "description": "Set per-program policy (never_submit_remove / add, confidence_floor) + scope + override defaults for an engagement.",
+      "arguments": [
+        {"name": "program", "description": "Program slug (e.g. hackerone-acme)", "required": true, "type": "string"}
+      ]
+    },
+    {
+      "name": "chain-findings",
+      "description": "Walk saved findings and propose A→B→C chains that escalate to reportable impact.",
+      "arguments": [
+        {"name": "domain", "description": "Target domain whose findings should be chained", "required": true, "type": "string"}
+      ]
+    },
+    {
+      "name": "save-finding-checklist",
+      "description": "Pre-save checklist enforcing the three-phase pipeline (replay → assess → save).",
+      "arguments": [
+        {"name": "vuln_type", "description": "Vulnerability class", "required": true, "type": "string"},
+        {"name": "endpoint", "description": "Endpoint that triggered the finding", "required": true, "type": "string"}
+      ]
     }
   ],
-  "rules": [
-    "Never test out-of-scope domains — call check_scope first",
-    "Never send destructive payloads (DROP TABLE, rm -rf, etc.)",
-    "Use Burp Collaborator for OOB testing, never hardcoded callback domains",
-    "Save evidence (logger_index) BEFORE further exploitation"
-  ]
+  "resources": [
+    {"uri_template": "burp://rules/{hunting,engineering}", "description": "Always-active rule files."},
+    {"uri_template": "burp://skills/{name}", "description": "Skill / playbook markdown."},
+    {"uri_template": "burp://knowledge/index", "description": "Index of all knowledge-base categories."},
+    {"uri_template": "burp://knowledge/{category}", "description": "Single knowledge-base file by category."},
+    {"uri_template": "burp://intel/{domain}/{kind}", "description": "Persistent target intel (profile, endpoints, coverage, findings, fingerprint, patterns, notes)."},
+    {"uri_template": "burp://findings/{domain}", "description": "Saved findings for a domain."}
+  ],
+  "safety_rules": [
+    "Never test out-of-scope domains -- call check_scope first (Rule 1).",
+    "Never send destructive payloads (DROP TABLE, rm -rf, shutdown, format). Use benign detection payloads + Collaborator (Rule 5).",
+    "Use Burp Collaborator or operator-supplied callback for OOB tests -- never hardcode attacker domains (Rule 9a).",
+    "Save evidence (logger_index) BEFORE further exploitation -- targets get patched (Rule 12).",
+    "RCE-precondition probes detect only; real exploitation is operator-supervised (Copilot mode)."
+  ],
+  "marketplaces": {
+    "lobehub": "https://lobehub.com/mcp/tyrusrc-burpsuite-swiss-knife-mcp",
+    "mcp.so": "https://mcp.so/server/burpsuite-swiss-knife-mcp",
+    "smithery": "https://smithery.ai/server/burpsuite-swiss-knife-mcp",
+    "mcp-get": "https://mcp-get.com/packages/burpsuite-swiss-knife-mcp"
+  }
 }

@@ -46,6 +46,20 @@ Optional:
 - Go (for `subfinder`, `nuclei`, `katana`)
 - Burp Professional for scanner control and Collaborator
 
+### Burp Edition Compatibility
+
+**Professional** — full support. Default target environment.
+
+**Community** — supported with manual setup. Almost everything works because the extension and MCP server use Burp's Montoya API for HTTP/proxy/scope, not the Pro-only scanner pipeline. Pro-only features degrade gracefully:
+
+| Pro-only feature | Tools that depend on it | Community workaround |
+|---|---|---|
+| Active scanner | `scan_url`, `crawl_target`, `get_scan_status`, `cancel_scan`, `get_scanner_findings`, `get_new_findings`, `get_issues_dashboard` | Use `auto_probe` (knowledge-driven sweep), `fuzz_parameter`, `fuzz_with_feedback`. These run through the extension's HTTP API and do not require Burp's scanner. |
+| Burp Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions`, `collaborator_pool_status` | Operator supplies an OOB callback URL — interact.sh / webhook.site / requestcatcher.com / a self-hosted DNS box — and passes it explicitly into payloads. Rule 9a forbids fabricating domains. |
+| Intruder at full speed | `send_to_intruder_configured` | Community throttles Intruder heavily. Use `concurrent_requests` (Python-side parallelism through Burp proxy) for legitimate parallel testing without the throttle. |
+
+Run `check_pro_features()` at session start to confirm which Pro capabilities the operator's instance exposes — the MCP server detects them at runtime, so Community users get a clear "not available" message instead of a silent hang.
+
 ## Installation
 
 Pick the level of automation you want.

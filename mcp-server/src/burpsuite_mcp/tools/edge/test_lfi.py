@@ -1,10 +1,5 @@
 """Edge-case test: test_lfi."""
 
-import asyncio
-import base64
-import json
-import time
-import uuid
 
 from burpsuite_mcp import client
 

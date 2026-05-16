@@ -1,10 +1,5 @@
 """Edge-case test: discover_common_files."""
 
-import asyncio
-import base64
-import json
-import time
-import uuid
 
 from burpsuite_mcp import client
 
