@@ -65,7 +65,7 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 ## Tool Selection (22–25) — ADVISORY
 
 22. **One smart tool call > five chatty ones.** `smart_analyze`, `auto_probe`, `run_flow`, `discover_attack_surface` over many individual calls. `extract_regex/json_path/css_selector` over `get_request_detail(full_body=True)`.
-23. **For EVIDENCE retrieval, prefer captured-first.** `search_history` / `get_proxy_history` / `get_logger_entries` / `extract_*` against existing indices. Don't re-fetch with `curl_request` what's already captured — captured requests carry real session state.
+23. **For EVIDENCE retrieval, prefer captured-first.** `search_history` / `get_proxy_history` / `extract_*` against existing indices. Don't re-fetch with `curl_request` what's already captured — captured requests carry real session state.
 24. **Match the tool to the work — every Burp surface is on the table.** Pick by intent, not ranking:
     - One-shot tweak of captured request → `resend_with_modification(index, modify_*)` or `probe_with_diff(index, ...)` for auto-diff
     - Iterate visibly in Burp UI → `send_to_repeater(index, tab_name='<f-id>-<vuln>')` + `repeater_resend`
@@ -77,13 +77,15 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
     - Knowledge-driven vuln sweep → `auto_probe`
     - Fresh first-touch / fully-controlled request → `curl_request`/`send_raw_request`/`session_request`
 25. **Default to a realistic header profile when LOOKING like the real client; bare headers when TESTING the server.**
-    - Realistic mode (default for normal traffic): `get_target_headers(domain)` once → pass via `headers=`. Default httpx signatures get WAF-blocked.
-    - Bare/custom mode (intentional): WAF detection, header injection, smuggling, CRLF, malformed-input — bare/hand-crafted is correct. Don't auto-mimic when the test is about NOT looking like a browser.
-    - Build profile once via `build_target_header_profile(domain)` after first browser_crawl.
+    - Realistic mode (default — auto-applied at tool layer): `curl_request`, `curl_request`, `concurrent_requests` auto-inject a Chrome 131 browser fingerprint (User-Agent, Accept, Sec-Ch-Ua, ...) when caller doesn't supply one. If `.burp-intel/<domain>/profile.json -> realistic_headers` exists, those values (including session cookies and auth tokens captured from a real browser session) fill the rest. Caller-supplied headers / cookies / bearer always win. No manual `get_target_headers` call needed.
+    - Build a per-target profile via `build_target_header_profile(domain)` after first browser_crawl — pulls the best real-browser header set from proxy history and saves it. Once built, every fresh curl/send/concurrent automatically mimics the real client without operator intervention.
+    - Bare mode (intentional): WAF fingerprinting / pure raw-wire tests — pass `bare_headers=True` (curl_request / curl_request / concurrent_requests) to skip auto-injection entirely. `send_raw_request` is always bare by definition.
+    - Unsafe-headers mode (keep fingerprint, relax blocklist): pass `unsafe_headers=True` for HTTP request smuggling (TE.CL / CL.TE / TE.0 / CL.0), host-header injection, HTTP parameter pollution, CRLF injection. Browser fingerprint stays; profile's `Host` / `Content-Length` / `Transfer-Encoding` / `Content-Type` flow through. Caller-supplied headers always win regardless.
+    - `session_request` does NOT auto-inject — the session's stored headers are operator-owned; pass realistic headers explicitly into `create_session(headers=...)` if needed.
 
 ## Visibility (26) — ADVISORY
 
-26. **Know which tools hit Proxy history.** `browser_crawl`/`browser_navigate` populate **Proxy → HTTP history**. Burp HTTP-client tools (`send_http_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in **Logger** + MCP store (not Proxy history) unless explicitly proxied. External recon (`run_nuclei`, `run_katana`, `run_subfinder`) routes through Burp proxy (127.0.0.1:8080) → Proxy history. Analysis tools that take an `index` read Proxy history only.
+26. **Know which tools hit Proxy history.** `browser_crawl`/`browser_navigate` populate **Proxy → HTTP history**. Burp HTTP-client tools (`curl_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in **Logger** + MCP store (not Proxy history) unless explicitly proxied. External recon (`run_nuclei`, `run_katana`, `run_subfinder`) routes through Burp proxy (127.0.0.1:8080) → Proxy history. Analysis tools that take an `index` read Proxy history only.
 
 26a. **Volume work is an MCP tool, not a Python script.** When a task needs >1 request, the default is `concurrent_requests`, `send_to_intruder_configured`, `fuzz_parameter`, `auto_probe`, `batch_probe`, `bulk_test`, `test_auth_matrix`, or `test_race_condition` — every one of those routes through Burp and is captured/replayable. **Do NOT write a Python script that calls `requests`/`httpx`/`fetch` directly** — those bypass Burp, leaving no Logger/Proxy entry, no `logger_index` to cite as evidence, no annotation, no replay. If a custom script is genuinely unavoidable (uncommon — usually means the right MCP tool wasn't picked), it MUST proxy through Burp:
    - `export HTTPS_PROXY=http://127.0.0.1:8080 HTTP_PROXY=http://127.0.0.1:8080`

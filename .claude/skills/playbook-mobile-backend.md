@@ -196,7 +196,7 @@ Many mobile apps use GraphQL — often a single `/graphql` endpoint handles all 
 | Attack | Probe |
 |---|---|
 | Introspection enabled | `test_graphql` — mobile backends often leave introspection on since "only the app calls it" |
-| Batch query brute force | `test_graphql_deep` — batch 100 login mutations in one request to bypass rate limits |
+| Batch query brute force | `test_graphql` — batch 100 login mutations in one request to bypass rate limits |
 | Nested query DoS | Deep nesting: `{ user { friends { friends { friends { ... } } } } }` — no depth limit |
 | Field suggestion leakage | Typo a field name — GraphQL helpfully suggests valid field names including admin-only fields |
 | Alias-based auth bypass | Query same field with different aliases to compare authorized vs unauthorized access |
@@ -204,7 +204,7 @@ Many mobile apps use GraphQL — often a single `/graphql` endpoint handles all 
 
 ```
 test_graphql(session, url="/graphql")
-test_graphql_deep(session, url="/graphql")
+test_graphql(session, url="/graphql")
 ```
 
 ## 11. Mobile gRPC-Web / Protobuf backends
@@ -256,7 +256,7 @@ curl_request(url="https://api.target.com/events/stream?user_id=123", headers={"A
 | Device-id swap | `session_request(headers={"X-Device-Id": "..."})` |
 | IDOR / auth matrix | `test_auth_matrix` across roles/devices |
 | WebSocket testing | `websocket_connect`, `websocket_send_message` |
-| GraphQL testing | `test_graphql`, `test_graphql_deep` |
+| GraphQL testing | `test_graphql`, `test_graphql` |
 | gRPC-Web probing | `curl_request` with `application/grpc-web+proto` content-type |
 | SSE stream testing | `curl_request` with `Accept: text/event-stream` |
 | Protobuf decode | `decode_encode(operation="base64_decode")` for gRPC-Web-Text |

@@ -1,0 +1,117 @@
+{
+  "category": "ssti_php",
+  "description": " \u2014 PHP engines (Smarty, Twig)",
+  "contexts": {
+    "smarty": {
+      "description": "Server-Side Template Injection probes for PHP Smarty templates",
+      "tech_match": [
+        "PHP"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{$smarty.version}",
+          "description": "Smarty version variable \u2014 version number in response confirms Smarty template processing",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{system('id')}",
+          "description": "Smarty system() function call \u2014 uid= in response confirms RCE via Smarty template injection",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "uid="
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    },
+    "twig": {
+      "description": "Server-Side Template Injection probes for Twig (PHP/Laravel stacks)",
+      "tech_match": [
+        "PHP",
+        "Laravel"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Twig arithmetic evaluation \u2014 49 confirms SSTI",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{7*'7'}}",
+          "description": "Twig string repetition \u2014 7777777 distinguishes Twig from Jinja2",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "7777777"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

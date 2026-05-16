@@ -146,6 +146,95 @@ Impact: Mass PII extraction
 Impact: Financial loss, unlimited discounts
 ```
 
+### Pattern 6: OAuth redirect_uri → ATO
+```
+1. /redirect?url= accepts external URL (open redirect)
+2. Build OAuth flow: /authorize?redirect_uri=https://target/redirect?url=https://evil
+3. Victim clicks SSO → authorization code lands on attacker
+Impact: Full ATO via OAuth token theft (CRITICAL per Phase 4 floor)
+```
+
+### Pattern 7: Password Reset Email-Change Race
+```
+1. Start password reset for victim email → reset token issued
+2. Race: PATCH /account/email {"email":"attacker"} BEFORE reset completes
+3. Reset email goes to new (attacker) address; attacker completes reset
+Impact: Pre-auth ATO without victim interaction (CRITICAL)
+```
+
+### Pattern 8: Webhook Replay + Signature Strip
+```
+1. Capture a signed webhook (Stripe / GitHub / Slack) from logs or test endpoint
+2. Strip signature header; replay to target's webhook handler
+3. Backend processes event (provisions resource, refunds money, posts as bot)
+Impact: Action-as-third-party (HIGH-CRITICAL by action)
+```
+
+### Pattern 9: Mass Assignment → Role → ATO
+```
+1. POST /signup with extra field {"role":"admin"} or {"is_verified":true}
+2. Login → confirm elevated privilege via compare_auth_states
+3. Use admin endpoints to read all user data / reset arbitrary passwords
+Impact: Pre-auth admin ATO (CRITICAL)
+```
+
+### Pattern 10: Mobile Deep-Link → Backend SSRF
+```
+1. App registers myapp://webview?url=... and forwards `url` to backend image-fetch
+2. Backend fetches without validation → SSRF to cloud metadata
+3. Steal AWS instance role credentials
+Impact: Cloud account takeover via deep-link payload (CRITICAL)
+```
+
+### Pattern 11: GPay/Apple Pay Token Replay + Order Swap
+```
+1. Tokenize cheap $1 payment token on attacker's order
+2. POST /checkout/charge with attacker's token + victim's order_id + amount=$1000
+3. Server doesn't bind token-to-order; charges $1, marks $1000 order paid
+Impact: Pay $1 for $1000 product (CRITICAL — money_flow floor)
+```
+
+### Pattern 12: Subdomain Takeover → Cookie Theft
+```
+1. Identify dangling CNAME on app-old.target.tld (deleted Heroku/Vercel/S3 site)
+2. Claim the dangling resource; serve content from app-old.target.tld
+3. Cookies scoped to .target.tld now reach attacker; or run XSS in parent-domain context
+Impact: Session theft for all .target.tld users (HIGH-CRITICAL)
+```
+
+### Pattern 13: 2FA Recovery → Passkey Delete → Reset → ATO
+```
+1. "Forgot 2FA"; recovery code endpoint has weak rate limit
+2. Brute-force 6-digit code via concurrent_requests; gain partial session
+3. DELETE /webauthn/credentials/<id> succeeds without re-auth — remove victim's passkey
+4. Password reset → attacker email (weak email-change flow)
+Impact: Full ATO bypassing 2FA + passkey (CRITICAL)
+```
+
+### Pattern 14: Cache Poisoning → Stored XSS
+```
+1. Identify cache-key-unaware header: X-Forwarded-Host injects into Location/body
+2. Inject <script> payload via that header; response contains it
+3. CDN caches poisoned response; every subsequent user sees XSS
+Impact: Stored XSS for all users without persistence vector (HIGH-CRITICAL)
+```
+
+### Pattern 15: SSRF → Cloud Metadata → Lateral
+```
+1. SSRF on /api/image-proxy?url= (whitelist BUT redirect-follow)
+2. Host attacker site that 302s to http://169.254.169.254/latest/meta-data/iam/security-credentials/
+3. Server follows redirect; fetches IAM creds
+4. Use creds to access S3 / Lambda / RDS in same account
+Impact: Cloud account compromise (CRITICAL)
+```
+
+## Severity of a chain
+
+A chain's severity = **the highest-impact step's severity**, NOT the sum.
+Rule 14 (no inflation) still applies. LOW + LOW = MEDIUM (chain enables what neither could alone) is fine — but LOW + LOW = CRITICAL is over-claim and triagers downgrade.
+
+The chain's `business_context` multiplier follows the **final impact step**, not the entry point. Reference `hunt.md` Phase 4 rubric for tier rules.
+
 ## Conditionally Valid Findings
 
 These findings are only reportable WITH a chain. Never submit them standalone:

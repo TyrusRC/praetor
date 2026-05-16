@@ -44,14 +44,16 @@ def register(mcp: FastMCP):
     async def test_graphql(
         session: str,
         path: str = "/graphql",
+        depth: str = "quick",
     ) -> str:
-        """Test GraphQL endpoint for introspection, field suggestions, batch queries, and GET CSRF.
+        """Test GraphQL endpoint for introspection, field suggestions, batch, GET CSRF, and (deep) alias-DoS + depth limits.
 
         Args:
             session: Session name
-            path: GraphQL endpoint path
+            path: GraphQL endpoint path (default /graphql)
+            depth: 'quick' (4 tests) or 'deep' (6 tests including alias-DoS + depth limit)
         """
-        return await test_graphql_impl(session=session, path=path)
+        return await test_graphql_impl(session=session, path=path, depth=depth)
 
     @mcp.tool()
     async def test_cloud_metadata(

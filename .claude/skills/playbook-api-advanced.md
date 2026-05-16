@@ -78,7 +78,7 @@ session_request(session, "PATCH", "/api/me",
 
 ```python
 test_graphql(session, url="/graphql")
-test_graphql_deep(session, url="/graphql")
+test_graphql(session, url="/graphql")
 # Probes: introspection, suggestions, batching, aliases, depth
 ```
 
@@ -202,7 +202,7 @@ The undocumented-but-still-routed endpoints are gold:
 
 | Need | Tool |
 |---|---|
-| GraphQL | `test_graphql`, `test_graphql_deep` |
+| GraphQL | `test_graphql`, `test_graphql` |
 | WebSocket | `websocket_connect`, `websocket_send_message`, `get_websocket_history` |
 | API schema | `parse_api_schema`, `extract_api_endpoints` |
 | BOLA matrix | `test_auth_matrix` |

