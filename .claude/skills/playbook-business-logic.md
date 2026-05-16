@@ -130,6 +130,58 @@ Concrete tests:
 - self-vote / self-like for ranking abuse
 - escrow disputes where attacker is both parties
 
+### G. Idempotency-key scope abuse
+
+Stripe + many payment APIs require `Idempotency-Key`. The bug class:
+
+- Same key reused across DIFFERENT customer accounts → response from first leaks to second
+- Key scoped per (api_key) not per (api_key, customer) → cross-tenant data leak
+- Server caches "successful" only — retry a failed key, race the retry, win it
+- Empty / null / fixed key accepted (e.g. always `00000000`) → universal collision
+
+Confirmed: same idempotency-key in two parallel customer contexts returns identical response containing the OTHER customer's resource id.
+
+### H. Tenant / org boundary leak
+
+Multi-tenant SaaS — the highest-paying class in B2B targets.
+
+For each (tenant_a, tenant_b) pair you control:
+1. Swap `tenant_id` / `org_id` / `workspace_id` in path / body / header / JWT claim
+2. Email-domain inference: register `attacker@target.com` to auto-join target's tenant (Auth0 / Okta misconfig)
+3. Invite link replay: tenant_a's invite link works in tenant_b's context
+4. Cross-tenant search: `?q=<other-tenant-name>` reveals foreign-tenant data
+5. Tenant ID enumeration: sequential / predictable id space
+6. Shared resource references: file_id / asset_id without tenant scope check
+
+Confirmed: read or modify another tenant's resource with attacker-tenant creds. CRITICAL per Phase 4 (money + sensitive_data multipliers stack).
+
+### I. Entitlement / subscription state confusion
+
+When `money_flow=subscriptions`:
+
+- Upgrade-without-pay: `PATCH /subscription {"tier":"premium"}` without payment confirmation
+- Downgrade-but-keep-features: downgrade to free; cached entitlement still grants premium
+- Refund-without-revoke: refund issued; entitlement flag never cleared
+- Trial-stacking: new accounts share one payment method, each gets free trial → unlimited
+- Coupon-after-checkout: apply coupon AFTER order completes → refund "discount difference"
+- Subscription pause + use: pause subscription; features active during pause window
+- Lifetime entitlement transfer: gift "lifetime premium" to victim, revoke ownership; both stay entitled
+- Cancel-during-billing-cycle: cancel right after charge; refund issued but billing-cycle features still active
+
+### J. Identity normalization confusion
+
+Same identity represented differently across systems:
+
+- Email case: `Alice@x.tld` vs `alice@x.tld` — login accepts either while registration created only one
+- Unicode normalization: `аdmin@x.tld` (Cyrillic а) vs `admin@x.tld` — IDN check passes, looks identical
+- Plus-addressing: `admin+evil@x.tld` registers separate; normalizes to `admin@x.tld` in some flows
+- Punycode: `аdmin@xn--target-tld` collides with real admin
+- Trailing whitespace / zero-width: `admin​@x.tld` strips in one system, persists in another
+- Phone: `+1-555-1234` vs `15551234` vs `+15551234` — same number, three users
+- Account merge: register with victim's email + OAuth → backend merges accounts because email matches → attacker gets victim's data
+
+Confirmed: attacker-controlled identity grants access intended for victim's identity (or vice versa). HIGH-CRITICAL by what the merged account can do.
+
 ---
 
 ## Phase 3 — Money / quantity / coupon-class manipulation
@@ -215,6 +267,10 @@ The description should answer:
 - [ ] Multi-account collusion tested (self-referral / self-buy-sell / self-vote)
 - [ ] Negative + zero + type-confused values on every quantity/price/qty parameter
 - [ ] Each `kill_switch` rate-limit measured
+- [ ] G — Idempotency-key scope verified per-(account, key)
+- [ ] H — Tenant / org boundary tested across (tenant_a, tenant_b) pairs
+- [ ] I — Subscription / entitlement state confusion (upgrade-without-pay, refund-revoke, trial-stack)
+- [ ] J — Identity normalization tested (email case / Unicode / plus / phone / merge)
 
 If 8/9 boxes are checked and there are no findings, the target is genuinely
 hardened against logic abuse — that itself is unusual and worth a one-line

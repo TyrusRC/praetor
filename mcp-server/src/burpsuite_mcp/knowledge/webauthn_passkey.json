@@ -146,6 +146,99 @@
           "variables": {}
         }
       ]
+    },
+    "rp_id_drift_web_vs_mobile": {
+      "description": "Web origin and mobile-app origin share the same RP-ID but server enforces only one. Backend that issues challenges for https://app.example.com may accept assertions from android:apk-key-hash:... or ios:bundle-id:... without binding. Cross-platform replay: capture mobile passkey assertion, replay on web (or vice versa) — successful auth confirms missing platform binding.",
+      "tech_match": ["webauthn", "passkey", "fido2", "mobile"],
+      "param_match": ["clientDataJSON", "rpId", "origin", "authenticatorData"],
+      "probes": [
+        {
+          "payload": "{\"clientDataJSON\":\"<b64 of {\\\"type\\\":\\\"webauthn.get\\\",\\\"origin\\\":\\\"android:apk-key-hash:<attacker>\\\",...}>\"}",
+          "description": "Submit a mobile-origin clientDataJSON to a web-origin RP-ID assertion endpoint. Web RP that doesn't enforce origin platform receives a valid signature with attacker-claimed mobile origin — successful auth proves missing binding.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["authenticated", "session_token", "access_token", "logged_in"]},
+            {"type": "not_word", "words": ["origin_mismatch", "invalid_origin", "platform_mismatch"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "hybrid_caBLE_cross_device_phishing": {
+      "description": "CTAP2 hybrid transport (caBLE) lets users sign in on device A using a passkey on device B via QR code. The QR-code link can be relayed: attacker shows the victim QR (captured from attacker's failing login attempt); victim scans and approves on their phone, attacker's session is authenticated. Server-side: missing per-session caBLE binding to client IP / device fingerprint.",
+      "tech_match": ["webauthn", "passkey", "caBLE", "hybrid", "qr"],
+      "param_match": ["caBLE", "hybrid", "qrCode", "cable", "linkData"],
+      "probes": [
+        {
+          "payload": "<relayed caBLE QR/link from attacker's session shown to victim>",
+          "description": "If the QR-code or caBLE link doesn't bind to the issuing client (no IP / no UA / no challenge-IP-MAC), relaying succeeds. Test by initiating caBLE flow in browser A, completing in unrelated browser B with the same QR — if B's session becomes authenticated, no binding.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["session_token", "access_token", "authenticated"]},
+            {"type": "not_word", "words": ["device_mismatch", "client_changed"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "passkey_sync_abuse_icloud_google_pm": {
+      "description": "Passkeys synced via iCloud Keychain / Google Password Manager land on every device tied to that cloud account. If attacker compromises the cloud account (weaker than the passkey: SMS reset, security questions, recovery email), they receive the synced passkey on a controlled device. Reportable as the cloud-account-takeover chain into RP authentication.",
+      "tech_match": ["webauthn", "passkey", "icloud", "google_password_manager", "credential_manager"],
+      "param_match": ["passkey", "credential", "synced"],
+      "probes": [
+        {
+          "payload": "<verify RP issues passkeys with backupEligible=true AND backupState=true>",
+          "description": "Inspect the registration response or the authenticatorData. backupEligible/backupState flags indicate the passkey is cloud-synced. If RP accepts these without an additional 'fresh-device-detected' step (e.g. require device re-verification on first-use), the attack chain is open.",
+          "matchers": [
+            {"type": "regex", "pattern": "backupEligible[\":\\s]*true|backupState[\":\\s]*true|BE[=:]1|BS[=:]1"},
+            {"type": "not_word", "words": ["device_verification_required", "trust_new_device"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "authenticator_delete_no_reauth": {
+      "description": "DELETE /webauthn/credentials/<id> succeeds with just a session cookie — no biometric / password / step-up auth required. Attacker with a stolen session can remove the victim's passkey, forcing fallback to password (which they may also have or reset). 2024-2026 reports show this is consistently a CRITICAL bug because it undoes the entire passkey-as-MFA story.",
+      "tech_match": ["webauthn", "passkey"],
+      "param_match": ["credential_id", "credentialId", "id"],
+      "probes": [
+        {
+          "payload": "DELETE /webauthn/credentials/<id> with only session cookie",
+          "description": "Delete a registered passkey without re-authenticating with the same passkey or step-up factor. 200/204 with confirmation = critical. Verify deletion took effect via list endpoint.",
+          "matchers": [
+            {"type": "status", "status": [200, 204]},
+            {"type": "not_word", "words": ["reauth_required", "step_up_required", "verify_identity", "biometric_required"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "passwordless_email_otp_downgrade": {
+      "description": "Passwordless login flow offers passkey but allows fallback to 'email me a code' / 'SMS me a code' without any rate limit or anti-phishing check. Attacker triggers fallback for victim email, brute-forces 6-digit OTP. Bypasses the passkey-strength promise entirely.",
+      "tech_match": ["passwordless", "magic_link", "otp", "webauthn"],
+      "param_match": ["email", "phone", "code", "otp", "magic_link"],
+      "probes": [
+        {
+          "payload": "<send 1000 sequential 6-digit codes>",
+          "description": "Verify rate limit on OTP-verify endpoint. Use concurrent_requests(...) to send 100-1000 codes against a single email. Absence of 429 / lockout = critical. Backend should rate-limit at most 5-10 per minute.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["authenticated", "session_token", "valid"]},
+            {"type": "not_word", "words": ["rate_limit", "too_many_attempts", "locked_out"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"manual_chain": true}
+        }
+      ]
     }
   }
 }

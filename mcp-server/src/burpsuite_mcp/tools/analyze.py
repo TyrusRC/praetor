@@ -58,70 +58,6 @@ def _score_security_headers(present: list[str], missing: list[str]) -> str:
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def extract_parameters(index: int) -> str:
-        """Extract all parameters from a proxy history request, grouped by location.
-
-        Args:
-            index: Proxy history index
-        """
-        data = await client.post("/api/analysis/parameters", json={"index": index})
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        lines = [f"Parameters for [{data.get('method')}] {data.get('url')}"]
-        lines.append(f"Content-Type: {data.get('content_type', 'unknown')}")
-        lines.append(f"Total: {data.get('total_parameters', 0)} parameters\n")
-
-        for section, key in [("Query", "query_parameters"), ("Body", "body_parameters"), ("Cookie", "cookie_parameters")]:
-            params = data.get(key, [])
-            if params:
-                lines.append(f"--- {section} Parameters ({len(params)}) ---")
-                for p in params:
-                    val = p.get("value", "")
-                    display_val = val[:100] + "..." if len(val) > 100 else val
-                    lines.append(f"  {p['name']} = {display_val}")
-                lines.append("")
-
-        json_body = data.get("json_body")
-        if json_body:
-            lines.append("--- JSON Body ---")
-            lines.append(json_body)
-
-        return "\n".join(lines)
-
-    @mcp.tool()
-    async def extract_forms(index: int) -> str:
-        """Extract HTML forms from a proxy history response.
-
-        Args:
-            index: Proxy history index
-        """
-        data = await client.post("/api/analysis/forms", json={"index": index})
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        forms = data.get("forms", [])
-        if not forms:
-            return "No HTML forms found in this response."
-
-        lines = [f"Found {data.get('total_forms', 0)} form(s):\n"]
-        for i, form in enumerate(forms):
-            lines.append(f"--- Form #{i + 1} ---")
-            lines.append(f"  Action: {form.get('action', '(none)')}")
-            lines.append(f"  Method: {form.get('method', 'GET')}")
-            if form.get("enctype"):
-                lines.append(f"  Enctype: {form['enctype']}")
-            lines.append("  Inputs:")
-            for inp in form.get("inputs", []):
-                input_type = inp.get("type", "text")
-                name = inp.get("name", "(unnamed)")
-                value = inp.get("value", "")
-                lines.append(f"    [{input_type}] {name}" + (f" = {value}" if value else ""))
-            lines.append("")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
     async def extract_api_endpoints(index: int) -> str:
         """Extract API endpoints, JS fetch calls, and links from a response.
 
@@ -148,40 +84,6 @@ def register(mcp: FastMCP):
                 if len(items) > 50:
                     lines.append(f"  ... and {len(items) - 50} more")
                 lines.append("")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
-    async def find_injection_points(index: int) -> str:
-        """Analyze a request/response for injection points with risk scoring.
-
-        Args:
-            index: Proxy history index
-        """
-        data = await client.post("/api/analysis/injection-points", json={"index": index})
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        lines = [f"Injection Point Analysis for [{data.get('method')}] {data.get('url')}"]
-        lines.append(f"Total injection points: {data.get('total_injection_points', 0)}\n")
-
-        for point in data.get("injection_points", []):
-            risk = point.get("risk_score", 0)
-            lines.append(f"[Risk: {risk}] {point['name']} ({point['location']})")
-            lines.append(f"  Value: {point.get('value', '')}")
-            for vuln in point.get("potential_vulnerabilities", []):
-                lines.append(f"  ! {vuln}")
-            lines.append("")
-
-        # Response indicators
-        indicators = data.get("response_indicators", {})
-        if indicators:
-            lines.append("--- Response Indicators ---")
-            for key, val in indicators.items():
-                if val and val is not True:
-                    lines.append(f"  {key}: {val}")
-                elif val is True:
-                    lines.append(f"  {key}: YES")
 
         return "\n".join(lines)
 

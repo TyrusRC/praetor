@@ -24,7 +24,7 @@ JavaScript files are the application's source code served to you for free.
 ### Step 1: Inventory all JS files
 
 ```python
-get_static_resources(url_prefix="https://target.com", resource_type="js")
+fetch_page_resources(url="https://target.com")
 # If few results, auto-fetch everything from the page:
 fetch_page_resources(index=ROOT_PAGE_INDEX)
 ```
@@ -262,7 +262,7 @@ Dynamic: map checkout flow -> Test: skip steps, replay, modify values -> Test: r
 
 | I want to... | Use |
 |---|---|
-| List all JS files | `get_static_resources(resource_type="js")` |
+| List all JS files | `fetch_page_resources(url=<page>)` |
 | Fetch a JS file | `fetch_resource(url)` |
 | Fetch all page resources | `fetch_page_resources(index)` |
 | Scan for secrets | `extract_js_secrets(index)` |

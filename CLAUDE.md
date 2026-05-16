@@ -177,7 +177,7 @@ mcp-server/src/burpsuite_mcp/
 ├── client.py                   # Async HTTP client (httpx) to extension
 ├── processing/
 │   └── formatters.py           # Token-efficient output formatting (ASCII tables)
-├── payloads/                   # Curated payload files for get_payloads tool (16 JSON files)
+├── payloads/                   # Curated payload files for get_payloads tool (22 JSON files)
 │   ├── xss.json                # XSS payloads by context (angular, dom, svg, waf bypass, etc.)
 │   ├── sqli.json               # SQLi payloads by DB engine (mysql, postgres, mssql, blind, etc.)
 │   ├── ssti.json               # SSTI payloads by template engine (jinja2, twig, freemarker, etc.)
@@ -193,7 +193,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── open_redirect.json
 │   ├── lfi.json
 │   └── file_upload.json
-├── knowledge/                  # Knowledge base with server-side matchers for auto_probe + craft_guidance for dynamic payload generation
+├── knowledge/                  # Knowledge base — 92 JSON files + _INDEX.md (server-side matchers for auto_probe + craft_guidance for dynamic payload generation). Prefix-matching loader: categories=['ssti'] loads ssti.json AND any ssti_*.json split files.
 │   ├── sqli, xss, dom_xss, ssti, ssrf, command_injection, path_traversal, xxe
 │   ├── auth_bypass, access_control, authentication, cors, csrf, clickjacking
 │   ├── race_condition, hpp, idor, jwt, graphql, oauth, saml
@@ -206,7 +206,7 @@ mcp-server/src/burpsuite_mcp/
 │   ├── insecure_randomness, source_code_exposure, dependency_confusion
 │   ├── cloud_webapp, mobile_api
 │   └── tech_vulns                # Reference only, no probes
-└── tools/                      # 175 MCP tools across 33 registered modules (run `grep -rn "@mcp.tool()" mcp-server/src/burpsuite_mcp/tools/ | wc -l` for exact count)
+└── tools/                      # 165 MCP tools across 33 registered modules (60 submodule files; run `grep -rn "@mcp.tool()" mcp-server/src/burpsuite_mcp/tools/ | wc -l` for exact count)
     ├── read.py                 # Proxy history, sitemap, scanner, scope, cookies, websocket (10 tools)
     ├── analyze.py              # Parameters, forms, endpoints, injection points, tech stack, JS secrets, smart_analyze (8 tools)
     ├── send.py                 # HTTP requests, raw, resend, repeater, intruder, curl, concurrent, probe_with_diff (8 tools)
@@ -316,7 +316,7 @@ Pick by depth, not by name:
 | Tool | When to use |
 |------|------------|
 | `curl_request` | Default for fresh requests (auth, cookies, redirects) |
-| `send_http_request` | Simple one-shot (no auth/cookies needed) |
+| `curl_request` | Simple one-shot (no auth/cookies needed) |
 | `send_raw_request` | Exact byte control (smuggling, malformed requests) |
 | `session_request` | Session-aware (auto cookie jar, token extraction) |
 | `resend_with_modification` | Modify a captured proxy history request |
@@ -454,12 +454,14 @@ Located in `.claude/skills/`:
 
 Advanced playbooks (loaded via `playbook-router.md`):
 
+- `playbook-mobile-dynamic.md` — Mobile dynamic instrumentation (Frida iOS+Android, adb Android-only, objection). SSL pinning bypass, root/JB detection bypass, runtime crypto/HMAC hooks, exported-component abuse via `adb am`, iOS keychain dump, IAP receipt capture. Dynamic-only; no static decompile. Hands off to `playbook-mobile-backend.md` once backend traffic flows.
 - `playbook-mobile-backend.md` — Mobile app backend testing across REST, GraphQL, gRPC-Web, WebSocket, SSE. BOLA, BFLA, excessive data, IAP bypass, deep-link injection, push-token abuse
 - `playbook-api-advanced.md` — OWASP API Top 10+, GraphQL deep, gRPC-Web, JSON-RPC, WebSocket auth, SSE poisoning
 - `playbook-cloud-native.md` — Cloud metadata SSRF, AWS/GCP/Azure token theft, container escape, serverless abuse
 - `playbook-pollution.md` — Prototype pollution, parameter pollution, HTTP parameter override
 - `playbook-cve-research.md` — CVE-driven testing against detected tech stack
 - `playbook-red-team-web.md` — Red team web techniques, persistence, lateral movement
+- `playbook-payment-and-auth.md` — Highest-paying surface ($5k–$50k): OAuth 2.0 / OIDC, WebAuthn / FIDO2 / passkeys, Google/Apple/Samsung Pay, IAP server-side validation, 3DS 2.x bypass, SCA exemption abuse, wallet linking, recovery flow downgrades
 
 ## Always-Active Rules
 
@@ -470,7 +472,7 @@ Located in `.claude/rules/`:
 
 ## Agent Team (AGENTS.md)
 
-Defined in `AGENTS.md` at project root. Six specialized agent roles:
+Defined in `AGENTS.md` at project root. Nine specialized agent roles:
 
 | Agent | Purpose | When to dispatch |
 |---|---|---|
@@ -480,6 +482,9 @@ Defined in `AGENTS.md` at project root. Six specialized agent roles:
 | `finding-verifier` | Re-verify findings, check exploitability | Session resume with stale findings |
 | `payload-crafter` | Craft bypass payloads when standard attacks fail | When vuln-scanner reports filtering |
 | `auth-tester` | IDOR matrix, auth bypass, race conditions, JWT | When multiple auth states available |
+| `browser-agent` | SPA crawl, JS interaction, dynamic-route discovery | JS-heavy SPA (Angular/React/Vue) |
+| `mobile-dynamic-agent` | Frida (iOS+Android) + adb (Android) — bypass pinning/root/JB, hook runtime, capture endpoints, dump iOS keychain | Operator has APK/IPA + device + Frida; BEFORE backend testing |
+| `auth-payment-agent` | OAuth/OIDC, WebAuthn/FIDO, Google/Apple/Samsung Pay, IAP, 3DS, SCA, recovery flows | Router Q7 matched, or SSO/payment/FIDO/IAP signals present |
 
 ### Dispatch rules
 - Never dispatch agents to the same endpoint simultaneously (WAF rate limiting)

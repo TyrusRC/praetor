@@ -17,7 +17,7 @@ Skip Step 1 → wasted tokens drafting reports for findings that fail the 7-Ques
 
 ## Step 0 — Logger Replay (MANDATORY)
 
-1. Identify the suspicious request via `get_logger_entries` (preferred) or `get_proxy_history`. Note its index.
+1. Identify the suspicious request via `get_proxy_history` (with filters) or `search_history`. Note its index.
 2. `resend_with_modification(index)` — confirm the same anomaly (status, body delta, error string).
 3. The Logger index of the **confirming replay** is what goes into `evidence.logger_index`.
 4. **Timing/blind classes** (`sqli_blind`, `sqli_time`, `ssrf_blind`, `race_condition`, `request_smuggling`, `ssti_blind`, `command_injection_blind`, `xxe_blind`): replay 2 more times after the confirmation. Capture `{logger_index, elapsed_ms, status_code}` for each → these become `reproductions[]`.
@@ -241,9 +241,30 @@ save_target_intel(domain, "findings", {
 - `generate_report` still purges any remaining `likely_false_positive`
   entries as a final safety net.
 
+## Severity by business context
+
+The per-class evidence bars above are the GATE (no evidence = no finding). The TIER is set by `hunt.md` Phase 4 rubric:
+
+```
+severity = base_class × business_context_multiplier ± floor/ceiling
+```
+
+Pass `domain` AND ensure `capture_business_context(domain)` ran — `assess_finding` reads both and applies multipliers. Per-class tier hints:
+
+- **RCE / SQLi / SSTI / deserialization / command injection** — Base CRITICAL; floors keep them CRITICAL across most contexts. Downgrade only on truly public read-only data.
+- **IDOR / BOLA / BFLA** — Base HIGH. CRITICAL when (a) mass-enumerable PII, (b) `money_flow != none` and resource is a payment/account, (c) admin function reachable as user.
+- **XSS** — Reflected MEDIUM ceiling unless admin/sensitive context. Stored MEDIUM→HIGH by viewer privilege. Self-XSS INFO (Rule 17).
+- **CSRF** — MEDIUM unless state-change touches a `kill_switch` (delete_account, transfer_funds, role_change) → HIGH/CRITICAL.
+- **JWT / OAuth / FIDO** — `alg:none`, `redirect_uri` to attacker, passkey delete without re-auth = CRITICAL floor. Missing PKCE alone = MEDIUM (chain to code-theft for higher).
+- **Payment flow** — token replay across orders / sandbox-on-prod / amount tampering post-tokenize = CRITICAL floor. 3DS bypass = HIGH unless single-tx-only.
+- **API key leak** — Live AWS root / GCP service-account write = CRITICAL. Scoped 3rd-party (Stripe restricted, SendGrid send-only) = HIGH. Read-only public-data key = LOW-MEDIUM.
+- **Open redirect / clickjacking / verbose errors / missing rate-limit** — INFO/LOW alone (Rule 17 NEVER SUBMIT); reportable only when chained (see `chain-findings.md`).
+- **Mobile pinning / root-JB detection bypass** — INFO alone (hardening, not vuln); reportable only when chained to a backend bug (`playbook-mobile-dynamic.md`).
+
 ## Cross-references
 
 - **7-Question Gate + NEVER SUBMIT:** `.claude/rules/hunting.md` (always loaded)
+- **Severity rubric (full):** `hunt.md` Phase 4
 - **Conditionally Valid + chains:** `chain-findings.md`
 - **Effort vs noise calls:** `noise-budget.md`
 

@@ -14,7 +14,7 @@ You are the orchestrator. Your job is to identify independent work streams and d
 Every dispatched subagent MUST receive these three lines verbatim in addition to its task. Subagents do not see prior conversation, so without this block they hallucinate file paths, line numbers, function names, and findings — observed multiple times in past audits.
 
 ```
-VERIFY before reporting: every file:line you cite must be opened and read in this run; every symbol you name must be grepped in this run; every finding you claim must reference an existing logger_index from get_proxy_history or get_logger_entries. If you cannot verify a claim, mark it UNVERIFIED rather than reporting it as fact.
+VERIFY before reporting: every file:line you cite must be opened and read in this run; every symbol you name must be grepped in this run; every finding you claim must reference an existing logger_index from get_proxy_history. If you cannot verify a claim, mark it UNVERIFIED rather than reporting it as fact.
 
 EVIDENCE FORMAT: report findings as `<severity> | <file>:<line> | <one-line problem> | <one-line fix>`. No prose, no speculation, no recommendations beyond the fix line.
 

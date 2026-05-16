@@ -39,7 +39,7 @@ Save anything found via `save_target_intel(domain, "profile", {"cloud_signals": 
 ### 1. IMDSv1 SSRF → temporary credentials → S3/internal API
 - Run `test_cloud_metadata` against any URL/host param. The probe hits `http://169.254.169.254/latest/meta-data/iam/security-credentials/<role>`.
 - A successful response yields `AccessKeyId`, `SecretAccessKey`, `Token` for the EC2/ECS task role.
-- Web-app exploitation: pipe the credentials into a follow-up SSRF that signs requests via SigV4 to internal AWS APIs reachable from the same VPC. The hunter does this *manually* through `send_http_request` with the Authorization header constructed offline.
+- Web-app exploitation: pipe the credentials into a follow-up SSRF that signs requests via SigV4 to internal AWS APIs reachable from the same VPC. The hunter does this *manually* through `curl_request` with the Authorization header constructed offline.
 
 ### 2. IMDSv2 SSRF — needs PUT-then-GET
 IMDSv2 requires:
@@ -48,7 +48,7 @@ PUT /latest/api/token   Header: X-aws-ec2-metadata-token-ttl-seconds: 21600
 → returns token
 GET /latest/meta-data/  Header: X-aws-ec2-metadata-token: <token>
 ```
-Many SSRF surfaces only support GET — those are immune to IMDSv2. Surfaces vulnerable: any handler that proxies arbitrary methods AND headers (e.g. webhook proxies, fetcher services, image renderers that follow redirects with custom headers, GraphQL resolvers that take URL+method+headers as args). Use `find_injection_points` to locate request bodies that include `method` and `headers` fields.
+Many SSRF surfaces only support GET — those are immune to IMDSv2. Surfaces vulnerable: any handler that proxies arbitrary methods AND headers (e.g. webhook proxies, fetcher services, image renderers that follow redirects with custom headers, GraphQL resolvers that take URL+method+headers as args). Use `smart_analyze` to locate request bodies that include `method` and `headers` fields.
 
 If only GET-SSRF is available, IMDSv2 cannot be reached — STOP that path, pivot.
 
@@ -57,7 +57,7 @@ If only GET-SSRF is available, IMDSv2 cannot be reached — STOP that path, pivo
 - **`alg:none`:** still works on misconfigured custom verifiers. Flip header `alg` to `none`, drop signature, retry.
 - **`kid` injection:** if the verifier loads keys by `kid`, try path traversal (`../../../dev/null`) or SQLi.
 - **Custom claims tampering:** Cognito tokens carry `cognito:groups`, `custom:role`. Flip them, re-sign with weak secret, replay.
-- **ID token vs Access token confusion:** ID tokens are *not* meant for authorization. If the app accepts an ID token where it should require an access token, you can bypass scope/aud checks. Replay both via `send_http_request` and observe.
+- **ID token vs Access token confusion:** ID tokens are *not* meant for authorization. If the app accepts an ID token where it should require an access token, you can bypass scope/aud checks. Replay both via `curl_request` and observe.
 - **Identity Pool unauth credentials:** `cognito-identity.<region>.amazonaws.com/?Operation=GetCredentialsForIdentity` may return creds without auth if the unauth role is misconfigured. Test by replaying the request seen in the JS bundle.
 
 ### 4. S3 bucket misconfigurations
@@ -88,7 +88,7 @@ Probe each bucket using `curl_request` (avoids same-origin) and confirm via `ext
 - Endpoint: `http://metadata.google.internal/computeMetadata/v1/`
 - **Required header:** `Metadata-Flavor: Google` — without it, GCP returns 403. Many SSRF surfaces strip custom headers; if so, GCP IMDS is unreachable.
 - High-value paths: `instance/service-accounts/default/token` (returns OAuth2 access token).
-- The OAuth2 token can then be used against Google APIs over HTTPS via `send_http_request` with `Authorization: Bearer <token>`.
+- The OAuth2 token can then be used against Google APIs over HTTPS via `curl_request` with `Authorization: Bearer <token>`.
 
 ### 2. Firebase Realtime Database / Firestore — public rules
 - Database URL: `https://<project>.firebaseio.com/.json` or `/<path>.json`
@@ -116,7 +116,7 @@ Probe each bucket using `curl_request` (avoids same-origin) and confirm via `ext
 - Endpoint: `http://169.254.169.254/metadata/instance?api-version=2021-02-01`
 - **Required header:** `Metadata: true`. Same constraint as GCP — without header injection, IMDS is unreachable.
 - High-value path: `/metadata/identity/oauth2/token?resource=https://management.azure.com/` — returns a Managed Identity bearer token.
-- Use the token against `management.azure.com` ARM APIs via `send_http_request`.
+- Use the token against `management.azure.com` ARM APIs via `curl_request`.
 
 ### 2. Azure Storage SAS token abuse
 - SAS query string: `?sv=&ss=&srt=&sp=&se=&st=&spr=&sig=`. If discovered in JS, check:
@@ -146,7 +146,7 @@ These work across any cloud:
 1. **Leaked credentials in JS bundles** — `extract_js_secrets` catches AWS/GCP/Azure access keys, SAS tokens, Firebase API keys, service-account JSON. Treat any hit as critical until proven non-functional.
 2. **Open redirects to cloud metadata** — chain `test_open_redirect` with `test_cloud_metadata` — if the redirect parameter is server-fetched (e.g. for OG-image preview), it's an SSRF to IMDS even when SSRF tests on direct params fail.
 3. **CORS + cloud storage** — CORS misconfigs on `s3.amazonaws.com`/`storage.googleapis.com`/`*.blob.core.windows.net` allow cross-origin reads of presigned/public objects. Test with `test_cors`.
-4. **Server-side request inspection** — many image processors / SSR fetchers / OG-tag generators / webhook proxies all qualify as IMDS pivot points. Find them via `find_injection_points` keyed on body params containing `url`/`webhook`/`callback`/`source`.
+4. **Server-side request inspection** — many image processors / SSR fetchers / OG-tag generators / webhook proxies all qualify as IMDS pivot points. Find them via `smart_analyze` keyed on body params containing `url`/`webhook`/`callback`/`source`.
 5. **Subdomain takeover on cloud-fronted assets** — `test_subdomain_takeover` against any `*.s3.amazonaws.com`, `*.azureedge.net`, `*.cloudfront.net`, `*.blob.core.windows.net` CNAME pointing at a deleted bucket.
 
 ## What This Tool Cannot Do (use external tools)

@@ -248,23 +248,108 @@ If `get_websocket_history` shows WebSocket traffic:
 2. Test for injection in WebSocket messages (SQLi, XSS in JSON messages)
 3. Check authentication — does the WebSocket upgrade require auth?
 
-## Phase 4: Severity Assessment
+## Phase 3.6: Deep-Dive (auto-triggered)
 
-For each confirmed finding, classify severity using real-world impact:
+**Trigger:** auto — `playbook-router.md` "Deep-dive auto-trigger" matrix evaluates recon output + intel (`load_target_intel`, `get_business_context`, `get_findings`) at end of Phase 2 AND end of Phase 3. Any signal hit → corresponding round fires automatically. No operator prompt needed. Standard hunt catches ~20% of real bugs; the rest live in the rounds below.
 
-| Severity | Criteria | Examples |
+Five rounds. Each round runs ONLY if its triggering signal matched; each has a stop condition.
+
+### Round 1 — Surface (assumed done in Phase 3)
+
+### Round 2 — Business Logic
+- `get_business_context(domain)` must return data; if empty, run `capture_business_context` FIRST
+- load `playbook-business-logic.md`; walk every `key_workflow` + `kill_switch` + (low, high) `user_role` pair
+- expected yield: 3-8 logic findings on a target with `money_flow` / `kill_switches` set
+
+### Round 3 — Chain Hunting
+- load `chain-findings.md`; inventory every saved finding (status=confirmed AND status=suspected)
+- for each, check the escalation table; prove chains end-to-end with `run_flow`
+- save chains as separate findings; severity = highest-impact step (see chain-findings.md)
+
+### Round 4 — Forgotten Surface
+
+The surface most scanners miss. Run when Rounds 2-3 done:
+
+| Surface | Probe |
+|---|---|
+| Webhooks | replay; strip signature; race-on-delivery; rotate-during-flight |
+| Admin / internal URLs | grep JS + sitemap.xml + robots.txt + swagger.json for `/admin`, `/internal`, `/debug`, `/actuator`, `/api/internal/` |
+| API versioning | `/v1/`, `/v2/`, `/api/internal/`, `/api/private/`, `/api/legacy/` — older versions less hardened |
+| HTTP method tampering | GET↔POST↔PUT↔DELETE↔PATCH↔OPTIONS↔TRACE per endpoint via `resend_with_modification` |
+| Path normalization | `/Admin` vs `/admin`, `/admin/..;/`, `/admin%2f`, trailing dot/slash, double-encoding |
+| Subdomain takeover | `test_subdomain_takeover` on every subdomain from `query_crtsh` |
+| Sourcemaps | fetch `*.js.map` (Network tab of browser_crawl); reconstruct original paths + dev URLs |
+| CI/CD artifacts | `.github/`, `Jenkinsfile`, `.gitlab-ci.yml`, `.npmrc`, `package-lock.json`, `vendor/`, `composer.lock` |
+| Cloud assets | S3 bucket list+read, public Lambda function URLs, exposed Firebase, public GCS / Azure blob |
+| Audit recent | `audit_recent_traffic` for endpoints in proxy history but never tested |
+| Beta / staging | `beta.<domain>`, `stage.<domain>`, `dev.<domain>`, `qa.<domain>`, `*-internal.<domain>` |
+| Mobile-only paths | `/api/mobile/`, `/m/`, `/api/app/`, `X-Platform` headers — load `playbook-mobile-backend.md` |
+
+### Round 5 — Cross-Class Meta-Passes
+
+| Class | Pivot |
+|---|---|
+| Second-order injection | user stores X; admin/back-office processes it later (support-ticket XSS, comment-moderation SSRF) |
+| Deserialization | every binary blob in cookies / params / JSON values (`rO0AB`, `O:`, `gASV`, msgpack header) |
+| OAuth / SAML / OIDC mix-up | 3+ IdPs in flow → cross-IdP code/assertion swap, account-linking confusion (load `playbook-payment-and-auth.md` §1) |
+| Recovery flows | every "forgot X" path — password, 2FA, passkey, email, phone (load `playbook-payment-and-auth.md` §10) |
+| DNS rebinding | SSRF-flagged endpoints with DNS-resolver caching gap; SVCB/HTTPS records |
+| Prototype pollution | every JSON body; recursive `__proto__` / constructor depth |
+| HTTP smuggling | TE.CL / CL.TE / H2.CL / H2.TE / TE.0 / CL.0 via `test_request_smuggling` |
+| Cache poisoning | `test_cache_poisoning` on every CDN-fronted path; X-Forwarded-Host / X-Original-URL |
+| WebSocket smuggling | per-message-deflate compression oracle, frame fragmentation |
+
+### Stop conditions for deep-dive
+- 50 tool calls across Rounds 2-5 with **<2 new findings** → pivot to a different target
+- >2h session time with no new chain identified → diminishing returns; checkpoint and move on
+
+## Phase 4: Severity — Business Impact, Not CVSS
+
+Severity tracks payout. The advisor (`assess_finding`) applies this rubric automatically when `domain` is passed AND `capture_business_context(domain)` has run — pass both.
+
+**Formula:** `severity = base_class × business_context_multiplier ± evidence_floor/ceiling`
+
+### Base by class
+| Class | Base |
+|---|---|
+| Verified RCE / pre-auth data exfil / no-interaction ATO | CRITICAL |
+| 1-click ATO, mass PII IDOR, JWT `alg:none`, sandbox-payment-on-prod, OAuth `redirect_uri` to attacker, password reset → attacker email | CRITICAL |
+| Single-user IDOR, stored XSS admin context, SSRF to cloud creds, leaked live AWS/GCP root key | HIGH |
+| Reflected XSS, CSRF on state-change, open redirect with chain, exploitable info disclosure | MEDIUM |
+| Self-XSS, missing headers, verbose errors, version disclosure | LOW |
+
+### Business-context multipliers (from `get_business_context`)
+| Trait | × |
+|---|---|
+| `money_flow != "none"` AND auth-relevant class | 1.5 |
+| `sensitive_data` contains pci / phi / financial | 1.4 |
+| `app_type` in {banking, fintech, healthcare, gov} | 1.3 |
+| Affects all users vs only attacker | 1.5 |
+| Pre-auth exploitable | 1.3 |
+| Requires admin role to exploit | 0.5 |
+| Requires victim social engineering | 0.7 |
+
+Round up to next tier if combined multiplier ≥1.3; down if ≤0.7.
+
+### Floors (always-MAX, ignore multiplier)
+Sandbox payment token on prod, `alg:none` JWT accepted, password reset → attacker-supplied email, mass PII via no-auth endpoint, ATO without any interaction, leaked AWS/GCP root key with verified write → **CRITICAL minimum**.
+
+### Ceilings (capped, ignore boost)
+- Reflected XSS without admin/sensitive context → MEDIUM max
+- Open redirect alone → MEDIUM max
+- Self-XSS without chain → INFO (NEVER SUBMIT per Rule 17)
+- Missing security headers / verbose errors alone → INFO (Rule 17)
+
+### Expected payouts (BBH-pragmatic)
+| Tier | Public avg | Aim per engagement |
 |---|---|---|
-| **CRITICAL** | Full system compromise, mass data breach, RCE | SQLi with data extraction, RCE via SSTI/deserialization, SSRF to cloud credentials |
-| **HIGH** | Significant data access, account takeover, privilege escalation | IDOR reading other users' data, stored XSS in admin panel, JWT alg:none bypass |
-| **MEDIUM** | Limited data exposure, user-targeted attacks | Reflected XSS, CSRF on state-changing actions, open redirect, information disclosure |
-| **LOW** | Minimal direct impact, requires chaining | Self-XSS, verbose error messages, missing security headers, clickjacking |
-| **INFO** | No direct security impact but noteworthy | Version disclosure, internal path disclosure, debug mode indicators |
+| CRITICAL | $5k–$50k | 0-1 |
+| HIGH | $1k–$5k | 1-3 |
+| MEDIUM | $200–$1k | 2-5 |
+| LOW | $50–$300 | report only if chain-eligible |
+| INFO | $0 | don't submit |
 
-**Impact amplifiers** (bump severity up):
-- Affects all users (not just attacker's own account)
-- No user interaction required (wormable XSS, automatic CSRF)
-- Bypasses existing security controls (WAF bypass, CSP bypass)
-- Chains with another finding for greater impact
+If rubric says HIGH but program-history shows LOW pays for that class, downgrade with `severity=` override on `save_finding` and note `program-pays-low`. Don't inflate — triagers downgrade, reputation hit costs more than the bonus.
 
 ## Phase 5: Summary
 

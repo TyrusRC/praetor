@@ -13,7 +13,7 @@ The MCP gives you the same surfaces a real Burp operator uses. Pick by INTENT, n
 
 | Intent | Tool | Why this and not curl |
 |---|---|---|
-| Find a request already captured (auth, login, target endpoint) | `search_history(query=...)` → `get_proxy_history(filter=...)` → `get_logger_entries(filter_url=...)` | Captured requests carry real cookies, CSRF tokens, browser headers. Curl recreations lose state. |
+| Find a request already captured (auth, login, target endpoint) | `search_history(query=...)` → `get_proxy_history(filter=...)` | Captured requests carry real cookies, CSRF tokens, browser headers. Curl recreations lose state. |
 | Read a specific request/response by index | `get_request_detail(index)` (or `extract_regex/json_path/headers` for token efficiency) | Reading is cheap; re-sending wastes scope traffic. |
 | Test ONE modification on a captured request | `resend_with_modification(index, modify_headers=..., modify_body=..., modify_path=..., modify_method=...)` | Single-call diff vs baseline. |
 | Iterate on a captured request through Burp UI (manual tweaks, re-runs) | `send_to_repeater(index, tab_name="<f-id> <vuln>")` → `repeater_resend(tab_name, modifications)` | Tracked tabs survive across calls; user can also hand-tweak in Burp UI. |
@@ -71,7 +71,7 @@ Rebuild only when the target rotates its expected client signature (rare). `forc
    → bookmarks for the report
 ```
 
-If after step 1 the query returns 0 hits AND the user expects a captured request → don't immediately curl. First retry with broader filters (drop method, drop path-suffix). Then check `get_logger_entries`. Only after both miss should you create new traffic.
+If after step 1 the query returns 0 hits AND the user expects a captured request → don't immediately curl. First retry with broader filters (drop method, drop path-suffix). Only after both miss should you create new traffic.
 
 ## Workflow B — "Modify and re-test a captured request"
 
@@ -115,7 +115,7 @@ For rate-limit testing, use `attack_type='battering_ram'` with 100 copies of the
 1. get_organizer_entries()                          # list bookmarked req/resp pairs
 2. get_repeater_tabs()                              # list all named Repeater tabs
 3. search_history(query="annotation:RED")            # if annotation filter supported
-   OR iterate proxy history filtering by color via get_logger_entries
+   OR iterate proxy history filtering by color via get_proxy_history
 4. For each evidence index:
      get_request_detail(index, full_body=True)
      extract_headers(index, ['Set-Cookie', 'Location'])

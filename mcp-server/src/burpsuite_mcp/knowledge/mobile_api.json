@@ -354,6 +354,74 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "attestation_token_backend_trust": {
+      "description": "Backend treats client-supplied Play Integrity (Android) / DeviceCheck or App Attest (iOS) attestation tokens as authoritative WITHOUT calling Google/Apple's verify endpoint. Attacker submits a token from any account (or a known-good one) and gets gated features (account creation, IAP, sensitive write). Common 2024-2026 finding: backend forwards raw `integrityToken` to internal service that returns 'verdict_ok' regardless.",
+      "tech_match": ["play_integrity", "safetynet", "devicecheck", "app_attest", "mobile"],
+      "param_match": ["integrityToken", "attestationToken", "deviceCheckToken", "attestation", "safetyNetJws", "playIntegrityToken"],
+      "probes": [
+        {
+          "payload": "{\"integrityToken\":\"<known-good token from prior session>\"}",
+          "description": "Replay an attestation token across sessions / devices / accounts. Successful = backend trusts the token without freshness binding (nonce per-request, device-id, account-id). HIGH-CRITICAL when this gates IAP / account creation / fraud rules.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "any": ["verdict_ok", "device_trusted", "verified", "passed", "valid"]},
+            {"type": "not_word", "words": ["token_expired", "nonce_mismatch", "device_mismatch", "replay_detected"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"manual_chain": true}
+        },
+        {
+          "payload": "{\"integrityToken\":\"\"}",
+          "description": "Strip attestation token entirely — does the backend still accept the request? Indicates the token is decorative, not enforced.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "not_word", "words": ["attestation_required", "missing_token", "integrity_check_failed"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "biometric_signature_replay": {
+      "description": "App uses biometric-bound private key (Android KeyStore with setUserAuthenticationRequired / iOS Secure Enclave with kSecAccessControlBiometryCurrentSet) to sign a per-request challenge. The signed blob (signature + challenge) is sent to backend. Bug: backend doesn't validate challenge freshness or doesn't bind challenge to user/session, so the signed blob is replayable across users or sessions.",
+      "tech_match": ["biometric", "keystore", "secure_enclave", "android_keystore", "fido_authenticator"],
+      "param_match": ["signature", "biometric_signature", "challenge_response", "signed_challenge", "auth_blob"],
+      "probes": [
+        {
+          "payload": "<replay captured signature+challenge tuple to a fresh request>",
+          "description": "Capture a biometric-signed auth blob (sign-in or transaction confirm). Replay the same blob 5 minutes later, then 1 hour later. Successful auth on replay = no challenge freshness binding. Replay across accounts (different user_id) = no user binding.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["authenticated", "confirmed", "approved", "session_token"]},
+            {"type": "not_word", "words": ["challenge_expired", "challenge_mismatch", "replay_detected", "user_mismatch"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "passkey_provider_plumbing_mobile": {
+      "description": "Android Credential Manager API / iOS ASCredentialIdentityStore lets third-party password managers act as passkey providers. Backend may accept assertions from any provider regardless of declared origin. Bug: server doesn't validate `clientDataJSON.androidPackageName` vs registered app package, or accepts iOS bundle-ID forgery in WKWebView. Confirm by submitting an assertion forged via a Credential Manager test provider claiming the target app's package.",
+      "tech_match": ["credential_manager", "ascredentialidentitystore", "passkey", "webauthn", "android", "ios"],
+      "param_match": ["clientDataJSON", "androidPackageName", "appId", "bundleId", "origin"],
+      "probes": [
+        {
+          "payload": "{\"clientDataJSON\":\"<b64 with androidPackageName=com.attacker.app>\"}",
+          "description": "Submit an assertion claiming a different androidPackageName / bundleId than the registered passkey's origin. Backend that doesn't enforce app-identity binding accepts it.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "any": ["authenticated", "session_token", "access_token"]},
+            {"type": "not_word", "words": ["package_mismatch", "bundle_mismatch", "invalid_origin", "app_mismatch"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
     }
   }
 }

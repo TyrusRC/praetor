@@ -184,30 +184,6 @@ def register(mcp: FastMCP):
         return f"{url} is {'IN SCOPE' if in_scope else 'OUT OF SCOPE'}"
 
     @mcp.tool()
-    async def add_to_scope(url: str) -> str:
-        """Add a URL or host to Burp's target scope.
-
-        Args:
-            url: URL to include in scope
-        """
-        data = await client.post("/api/scope/add", json={"url": url})
-        if "error" in data:
-            return f"Error: {data['error']}"
-        return data.get("message", f"Added to scope: {url}")
-
-    @mcp.tool()
-    async def remove_from_scope(url: str) -> str:
-        """Remove a URL or host from Burp's target scope.
-
-        Args:
-            url: URL to exclude from scope
-        """
-        data = await client.post("/api/scope/remove", json={"url": url})
-        if "error" in data:
-            return f"Error: {data['error']}"
-        return data.get("message", f"Removed from scope: {url}")
-
-    @mcp.tool()
     async def get_cookies(domain: str = "", full_values: bool = False) -> str:
         """Get cookies from Burp's cookie jar.
 

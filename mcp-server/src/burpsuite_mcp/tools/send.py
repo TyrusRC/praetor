@@ -10,36 +10,10 @@ client and only Logger sees the request.
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools._request_headers import apply_realistic_headers
 
 
 def register(mcp: FastMCP):
-
-    @mcp.tool()
-    async def send_http_request(
-        method: str,
-        url: str,
-        headers: dict | None = None,
-        body: str = "",
-    ) -> str:
-        """Simple HTTP request through Burp. Prefer curl_request for auth, cookies, or redirects.
-
-        Args:
-            method: HTTP method
-            url: Full URL
-            headers: Optional headers dict
-            body: Optional request body
-        """
-        payload = {"method": method, "url": url}
-        if headers:
-            payload["headers"] = headers
-        if body:
-            payload["body"] = body
-
-        data = await client.post("/api/http/send", json=payload)
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        return _format_response(data)
 
     @mcp.tool()
     async def send_raw_request(
@@ -142,8 +116,17 @@ def register(mcp: FastMCP):
         cookies: dict | None = None,
         follow_redirects: bool = False,
         max_redirects: int = 10,
+        bare_headers: bool = False,
+        unsafe_headers: bool = False,
     ) -> str:
         """Flexible HTTP request through Burp with auth, cookies, and optional redirect following.
+
+        Realistic browser headers (User-Agent, Accept, Sec-Ch-Ua, ...) are
+        auto-injected unless already set or bare_headers=True. If a saved
+        profile exists for the URL's domain
+        (.burp-intel/<domain>/profile.json -> realistic_headers), its values
+        override defaults. Caller-supplied headers, auth_*, bearer_token, and
+        cookies always win.
 
         Args:
             url: Target URL
@@ -158,15 +141,24 @@ def register(mcp: FastMCP):
             cookies: Cookies dict
             follow_redirects: Follow redirects (default False to prevent cross-scope leaks)
             max_redirects: Max redirect hops (default 10)
+            bare_headers: Skip realistic-header injection entirely. Use for
+                WAF detection / pure raw wire tests.
+            unsafe_headers: Keep browser fingerprint BUT also pass profile's
+                Host / Content-Length / Transfer-Encoding / Content-Type
+                through. Use for header injection, host-header injection,
+                HTTP parameter pollution, and request smuggling.
         """
+        merged = apply_realistic_headers(
+            url, headers, bare=bare_headers, unsafe_headers=unsafe_headers,
+        )
         payload: dict = {
             "method": method,
             "url": url,
             "follow_redirects": follow_redirects,
             "max_redirects": max_redirects,
         }
-        if headers:
-            payload["headers"] = headers
+        if merged:
+            payload["headers"] = merged
         if body:
             payload["body"] = body
         if data:
@@ -192,13 +184,22 @@ def register(mcp: FastMCP):
         requests: list[dict],
         concurrency: int = 10,
         delay_ms_between_batches: int = 0,
+        bare_headers: bool = False,
+        unsafe_headers: bool = False,
     ) -> str:
         """Fire many requests concurrently through Burp. For rate-limit testing, spam, or custom brute-force.
+
+        Realistic browser headers are auto-injected on every request unless
+        bare_headers=True. Per-request `headers` win; profile fills the rest.
 
         Args:
             requests: List of request dicts (same shape as curl_request args)
             concurrency: Max in-flight at once (default 10)
             delay_ms_between_batches: Sleep between batches in ms (default 0)
+            bare_headers: Skip realistic-header injection on all requests.
+            unsafe_headers: Keep browser fingerprint BUT also pass profile's
+                wire-shape headers (Host / Content-Length / Transfer-Encoding /
+                Content-Type) through. For smuggling / HPP / header injection.
         """
         import asyncio
         import time
@@ -219,6 +220,12 @@ def register(mcp: FastMCP):
                 if "url" not in payload:
                     results[idx] = {"error": "missing url"}
                     return
+                merged = apply_realistic_headers(
+                    payload["url"], payload.get("headers"),
+                    bare=bare_headers, unsafe_headers=unsafe_headers,
+                )
+                if merged:
+                    payload["headers"] = merged
                 try:
                     resp = await client.post("/api/http/curl", json=payload)
                 except Exception as e:

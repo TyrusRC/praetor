@@ -20,12 +20,30 @@ def _load_knowledge(category: str) -> dict | None:
 
 
 def _load_all_knowledge(categories: list[str] | None = None) -> list[dict]:
-    """Load all knowledge base files with probes, optionally filtered by category."""
+    """Load all knowledge base files with probes, optionally filtered by category.
+
+    Supports prefix matching: `categories=["ssti"]` loads `ssti.json` AND any
+    `ssti_*.json` split files. Filenames starting with `_` (index, metadata)
+    are excluded.
+    """
     if not KNOWLEDGE_DIR.exists():
         return []
-    available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
+    available = [
+        f.stem for f in KNOWLEDGE_DIR.glob("*.json")
+        if not f.stem.startswith("_") and f.stem not in _REFERENCE_ONLY
+    ]
     if categories:
-        available = [c for c in available if c in categories]
+        filtered = []
+        cat_set = set(categories)
+        for c in available:
+            if c in cat_set:
+                filtered.append(c)
+                continue
+            for req in categories:
+                if c.startswith(req + "_"):
+                    filtered.append(c)
+                    break
+        available = filtered
     result = []
     for cat in available:
         kb = _load_knowledge(cat)

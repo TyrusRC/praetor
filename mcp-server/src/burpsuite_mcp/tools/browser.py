@@ -294,51 +294,6 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def browser_get_links(same_origin: bool = True) -> str:
-        """Get all links on the current page.
-
-        Args:
-            same_origin: Only return same-origin links (default True)
-        """
-        _, _, page = await _ensure_browser()
-
-        try:
-            from urllib.parse import urlparse
-            current_origin = f"{urlparse(page.url).scheme}://{urlparse(page.url).netloc}"
-        except Exception:
-            current_origin = ""
-
-        try:
-            links = await page.evaluate("""() => {
-                return Array.from(document.querySelectorAll('a[href]')).map(a => ({
-                    href: a.href,
-                    text: a.innerText.trim().substring(0, 60),
-                }));
-            }""")
-
-            if same_origin:
-                links = [l for l in links if l["href"].startswith(current_origin)]
-
-            # Deduplicate
-            seen = set()
-            unique = []
-            for l in links:
-                if l["href"] not in seen:
-                    seen.add(l["href"])
-                    unique.append(l)
-
-            if not unique:
-                return f"No links found on {page.url}"
-
-            lines = [f"Links on {page.url} ({len(unique)}):"]
-            for l in unique:
-                text = l.get("text", "")
-                lines.append(f"  {l['href']}" + (f" [{text}]" if text else ""))
-            return "\n".join(lines)
-        except Exception as e:
-            return f"Error getting links: {e}"
-
-    @mcp.tool()
     async def browser_get_page_info() -> str:
         """Get current page URL, title, cookies, forms, and key elements."""
         _, _, page = await _ensure_browser()

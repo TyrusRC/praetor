@@ -44,9 +44,23 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 ### browser-agent
 **Purpose:** Browser-based crawling and JavaScript interaction for SPA/JS-heavy targets.
 **When to dispatch:** When target has extensive client-side rendering, Angular/React/Vue apps, or auto-loading content that server-side crawling misses.
-**Tools it should use:** `browser_navigate`, `browser_crawl`, `browser_interact_all`, `browser_click`, `browser_fill`, `browser_execute_js`, `browser_get_page_info`, `browser_get_links`
+**Tools it should use:** `browser_navigate`, `browser_crawl`, `browser_interact_all`, `browser_click`, `browser_fill`, `browser_execute_js`, `browser_get_page_info`
 **Returns:** Discovered endpoints from JS rendering, dynamic routes, XHR/API calls captured in proxy history.
 **Constraint:** Only ONE browser agent at a time — single browser instance.
+
+### mobile-dynamic-agent
+**Purpose:** Drive Frida (iOS + Android) and adb (Android only) on the operator's host to bypass SSL pinning / root-JB detection, hook runtime crypto + storage, abuse Android exported components and deep links, dump iOS keychain — so backend traffic reaches Burp. Dynamic-only; no static decompile.
+**When to dispatch:** Operator has the APK/IPA installed on a device + Frida server + adb authorized + Burp CA pushed to device. Triggered by `playbook-mobile-dynamic.md`. Dispatch BEFORE `playbook-mobile-backend.md` testing — this agent unlocks the traffic.
+**Tools it should use:** `Bash` (for `frida -U -l <script>`, `adb shell ...`, `objection -g <pkg>`), `get_proxy_history`, `extract_api_endpoints`, `search_history`, `build_target_header_profile`, `save_target_intel`, `annotate_request`.
+**Returns:** Pinning-bypass status, captured backend endpoints + headers + tokens, hooked HMAC/crypto keys, exported-component list, deep-link parameter sinks, iOS keychain items, IAP receipt structure. Hands off to `playbook-mobile-backend.md` §3.
+**Constraint:** Only ONE mobile-dynamic agent at a time — single device, single Frida session per app. Never dispatch on someone else's device. Don't submit pinning / root detection bypass as standalone findings — they're the means, not the bug.
+
+### auth-payment-agent
+**Purpose:** Deep-dive the highest-paying attack surface — OAuth 2.0 / OIDC, WebAuthn / FIDO2 / passkeys, Google Pay, Apple Pay, Samsung Pay, IAP server-side validation, 3DS 2.x bypass, SCA exemption abuse, wallet linking, recovery flow downgrades. $5k–$50k bug class.
+**When to dispatch:** Router Q7 matched OR explicit user ask for "OAuth / SSO / payment / FIDO / wallet / recovery testing". Often co-dispatched with `mobile-dynamic-agent` when the payment/auth flow originates from a mobile app.
+**Tools it should use:** `session_request`, `run_flow`, `auto_probe(categories=["oauth","oauth_device_flow","webauthn_passkey","payment_flow"])`, `test_jwt`, `auto_collaborator_test`, `compare_auth_states`, `concurrent_requests` (recovery-code brute-force probes), `resend_with_modification`, `search_history`, `extract_regex`, `assess_finding`, `save_finding`.
+**Returns:** Confirmed bypasses with reproductions[], replay-chain evidence, severity-rated findings with PoC steps, suggested chain-with[] anchors for higher-severity reports.
+**Constraint:** Always work the `playbook-payment-and-auth.md` workflow — map the multi-step flow BEFORE mutating any single step. Don't fuzz `redirect_uri` with 1000 payloads when `auto_probe` covers the working bypasses.
 
 ## Dispatch Rules
 
@@ -84,6 +98,19 @@ On session resume, verify multiple findings simultaneously:
 When an anomaly is found:
 - payload-crafter: investigate the anomaly (foreground, need results)
 - vuln-scanner: continue testing next category (background)
+
+### Pattern 5: Mobile Engagement Pipeline
+Sequential, NOT parallel (each stage depends on the previous):
+1. **mobile-dynamic-agent (foreground):** bypass pinning + root/JB detection, hook runtime, capture endpoints. Runs `playbook-mobile-dynamic.md`. Stops when backend traffic flows.
+2. **recon-agent + js-analyst (parallel):** enrich captured endpoints, map JS bundle, find hidden mobile-only routes.
+3. **vuln-scanner + auth-tester + auth-payment-agent (parallel):** non-overlapping vuln categories against discovered mobile endpoints. `auth-payment-agent` covers OAuth/FIDO/IAP/Pay.
+4. **finding-verifier:** confirm and chain.
+
+### Pattern 6: Auth + Payment Sweep
+For targets with SSO + payment integration (e.g., e-commerce, fintech, SaaS):
+- **auth-payment-agent (foreground):** drive `playbook-payment-and-auth.md`, capture OAuth and payment flows, run knowledge-base sweep.
+- **auth-tester (background):** independently test IDOR / BFLA across auth states discovered during the auth flow.
+- **finding-verifier (after both):** chain auth findings with payment findings (e.g., OAuth redirect → ATO → payment-token theft → cross-account charge).
 
 ## Anti-Patterns
 

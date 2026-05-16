@@ -52,7 +52,7 @@ Return value flags vulnerable variant. **If it says "no inconsistency detected" 
 | CL.0 | Back-end ignores `Content-Length` on certain methods | GraphQL/WebSocket upgrade endpoints |
 
 ### Evidence (zero-noise gate)
-- **Required:** Two requests in `get_logger_entries` where request B's body shows up in request A's response, OR a delayed-response oracle confirming queue poisoning.
+- **Required:** Two requests in proxy history (`get_proxy_history`) where request B's body shows up in request A's response, OR a delayed-response oracle confirming queue poisoning.
 - **`evidence.logger_index`** = the response that received the smuggled body
 - **`reproductions[]` ≥ 2** (this vuln_type is in the timing/blind set — server enforces)
 - **NEVER** use a destructive smuggled payload (no `DELETE`, no admin actions). Use a `GET /not-real-path` smuggle to prove queue poisoning safely.
@@ -222,9 +222,9 @@ Then check if main app accepts the tossed cookie. Only relevant if you control a
 
 | Technique | Primary tool | Evidence tool |
 |---|---|---|
-| Smuggling | `test_request_smuggling` | `get_logger_entries`, `extract_headers` |
+| Smuggling | `test_request_smuggling` | `extract_headers` |
 | Cache poisoning | `test_cache_poisoning` | `extract_headers(['X-Cache','Age','CF-Cache-Status'])` |
-| Prototype pollution | `send_http_request` (raw JSON) | `compare_responses`, `analyze_dom` |
+| Prototype pollution | `curl_request` (raw JSON) | `compare_responses`, `analyze_dom` |
 | JSON parser confusion | `send_raw_request` | `compare_responses` |
 | HPP | `test_parameter_pollution` | `fuzz_parameter` |
 | Cookie tossing | `session_request` (cross-subdomain) | `extract_headers(['Set-Cookie'])` |
