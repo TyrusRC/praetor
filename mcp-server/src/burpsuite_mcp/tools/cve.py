@@ -255,25 +255,41 @@ def register(mcp: FastMCP):
     async def lookup_cve(
         cve_id: str = "",
         cpe23: str = "",
+        product: str = "",
+        is_kev: bool = False,
+        sort_by_epss: bool = False,
+        start_date: str = "",
+        end_date: str = "",
         max_results: int = 20,
     ) -> str:
         """Fast CVE intel via Shodan CVEDB (free, no API key, ~200ms).
 
-        Use this instead of `search_cve` when you have a concrete CVE id or
-        CPE 2.3 string. Output includes EPSS exploitability probability and
-        CISA Known-Exploited-Vulnerabilities (KEV) status — both absent from
-        NVD. Pass either `cve_id` (single lookup) OR `cpe23` (list).
+        Output always includes EPSS exploitability % and CISA-KEV status — both
+        absent from NVD. Pick ONE primary filter and combine with the boolean
+        flags / date range:
 
         Args:
-            cve_id: e.g. 'CVE-2021-44228' (Log4Shell). Returns rich detail.
-            cpe23: e.g. 'cpe:2.3:a:libpng:libpng:0.8'. Returns up to `max_results` CVEs.
-            max_results: Cap for CPE lookups (default 20).
-        """
-        if cve_id and cpe23:
-            return "Pass either cve_id OR cpe23, not both."
-        if not cve_id and not cpe23:
-            return "Provide cve_id (e.g. 'CVE-2024-0001') or cpe23 (e.g. 'cpe:2.3:a:vendor:product:version')."
+            cve_id: e.g. 'CVE-2021-44228'. Single rich lookup.
+            cpe23:  e.g. 'cpe:2.3:a:libpng:libpng:0.8'. List CVEs for a CPE.
+            product: e.g. 'php' / 'macos' / 'wordpress'. List CVEs by product
+                name (no CPE needed). Use lookup_cpe(product) first if you
+                want the formal CPE.
+            is_kev: True -> restrict to CISA Known-Exploited Vulnerabilities.
+                Combine with product/cpe23 to find KEVs in YOUR stack.
+            sort_by_epss: True -> sort highest-EPSS first. Combine with
+                product/cpe23 to triage which CVE in a tech to patch first.
+            start_date: ISO date 'YYYY-MM-DD' lower bound (published).
+            end_date:   ISO date 'YYYY-MM-DD' upper bound (published).
+            max_results: Cap for list responses (default 20, max 100).
 
+        With NO filters: returns the newest CVEs (Shodan feed).
+        """
+        if cve_id and (cpe23 or product):
+            return "Pass cve_id alone, or use cpe23/product for list mode."
+        if cpe23 and product:
+            return "Pass either cpe23 OR product, not both."
+
+        # Single CVE rich lookup
         if cve_id:
             res = await _shodan_cve_lookup(cve_id)
             if isinstance(res, str):
@@ -305,22 +321,83 @@ def register(mcp: FastMCP):
                     lines.append(f"  {r}")
             return "\n".join(lines)
 
-        # cpe23 lookup
-        res = await _shodan_cpe_lookup(cpe23, limit=max(1, min(max_results, 100)))
+        # List query — build params from the filter flags
+        params: dict[str, str] = {}
+        if cpe23:
+            if not cpe23.startswith("cpe:2.3:"):
+                return f"Not a CPE 2.3 string: {cpe23}"
+            params["cpe23"] = cpe23
+        if product:
+            params["product"] = product.strip()
+        if is_kev:
+            params["is_kev"] = "true"
+        if sort_by_epss:
+            params["sort_by_epss"] = "true"
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+
+        limit = max(1, min(max_results, 100))
+        res = await _shodan_cves_query(params, limit=limit)
         if isinstance(res, str):
             return f"Shodan CVEDB: {res}"
         if not res:
-            return f"No CVEs returned for {cpe23}"
-        lines = [f"Shodan CVEDB matches for {cpe23} ({len(res)}):"]
+            scope = params or {"feed": "newest"}
+            return f"No CVEs returned for {scope}"
+
+        # Header summarises filter so output is self-describing
+        scope_bits = []
+        if cpe23:
+            scope_bits.append(f"cpe23={cpe23}")
+        if product:
+            scope_bits.append(f"product={product}")
+        if is_kev:
+            scope_bits.append("KEV-only")
+        if sort_by_epss:
+            scope_bits.append("sorted by EPSS desc")
+        if start_date or end_date:
+            scope_bits.append(f"date {start_date or '*'}..{end_date or '*'}")
+        scope = " | ".join(scope_bits) if scope_bits else "newest"
+        lines = [f"Shodan CVEDB ({scope}) — {len(res)} CVEs:"]
         for c in res:
             epss = c.get("epss")
             epss_str = f"  EPSS {epss * 100:5.2f}%" if isinstance(epss, (int, float)) else ""
             kev = " [KEV]" if c.get("kev") else ""
+            ransom = " [RANSOM]" if c.get("ransomware_campaign") else ""
             cvss = c.get("cvss") if c.get("cvss") is not None else "?"
-            lines.append(f"  {c['id']}  CVSS {cvss}{epss_str}{kev}")
+            pub = (c.get("published") or "")[:10]
+            pub_str = f"  {pub}" if pub else ""
+            lines.append(f"  {c['id']}{pub_str}  CVSS {cvss}{epss_str}{kev}{ransom}")
             summary = (c.get("summary") or "").replace("\n", " ").strip()
             if summary:
                 lines.append(f"    {summary[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def lookup_cpe(
+        product: str,
+        max_results: int = 40,
+    ) -> str:
+        """Resolve a product name to its CPE 2.3 strings via Shodan CVEDB.
+
+        Useful when tech-stack detection gives you 'macos' / 'libpng' / 'php'
+        but you need the formal `cpe:2.3:o:apple:macos:14.5` to pivot into a
+        `lookup_cve(cpe23=...)` call. Free, no key.
+
+        Args:
+            product: Product slug (e.g. 'macos', 'php', 'libpng', 'wordpress')
+            max_results: Cap on returned CPEs (default 40, max 200)
+        """
+        limit = max(1, min(max_results, 200))
+        res = await _shodan_cpe_dict(product, limit=limit)
+        if isinstance(res, str):
+            return f"Shodan CVEDB: {res}"
+        if not res:
+            return f"No CPEs returned for product={product}"
+        lines = [f"Shodan CVEDB CPEs for product={product} ({len(res)}):"]
+        for cpe in res:
+            lines.append(f"  {cpe}")
         return "\n".join(lines)
 
     @mcp.tool()
@@ -395,7 +472,10 @@ def register(mcp: FastMCP):
 # ─── Shodan CVEDB (free, no API key, fastest) ───────────────────────────────
 
 _SHODAN_CVE_URL = "https://cvedb.shodan.io/cve/{cve_id}"
-_SHODAN_CPE_URL = "https://cvedb.shodan.io/cves"
+_SHODAN_CVES_URL = "https://cvedb.shodan.io/cves"
+_SHODAN_CPES_URL = "https://cvedb.shodan.io/cpes"
+# Back-compat alias for the prior single-URL constant.
+_SHODAN_CPE_URL = _SHODAN_CVES_URL
 
 
 async def _shodan_cve_lookup(cve_id: str) -> dict | str:
@@ -439,20 +519,17 @@ async def _shodan_cve_lookup(cve_id: str) -> dict | str:
     }
 
 
-async def _shodan_cpe_lookup(cpe23: str, limit: int = 20) -> list[dict] | str:
-    """List CVEs for a CPE 2.3 string via Shodan CVEDB.
-
-    cpe23 format: cpe:2.3:a:vendor:product:version  (e.g. cpe:2.3:a:libpng:libpng:0.8)
+async def _shodan_cves_query(params: dict, limit: int = 20) -> list[dict] | str:
+    """Generic /cves query — accepts cpe23, product, is_kev, sort_by_epss,
+    start_date, end_date. Returns a normalized list of CVE dicts.
     """
     import httpx
-    if not cpe23.startswith("cpe:2.3:"):
-        return f"not a CPE 2.3 string: {cpe23}"
     try:
         async with httpx.AsyncClient(
             timeout=15,
             headers={"User-Agent": _BROWSER_UA},
         ) as http:
-            resp = await http.get(_SHODAN_CPE_URL, params={"cpe23": cpe23})
+            resp = await http.get(_SHODAN_CVES_URL, params=params)
         if resp.status_code != 200:
             return f"HTTP {resp.status_code}"
         data = resp.json()
@@ -469,10 +546,47 @@ async def _shodan_cpe_lookup(cpe23: str, limit: int = 20) -> list[dict] | str:
             "cvss": c.get("cvss"),
             "epss": c.get("epss"),
             "kev": bool(c.get("kev")),
+            "ransomware_campaign": c.get("ransomware_campaign"),
             "summary": (c.get("summary") or "")[:240],
             "published": c.get("published_time", ""),
+            "vendor": c.get("vendor"),
+            "product": c.get("product"),
         })
     return out
+
+
+async def _shodan_cpe_lookup(cpe23: str, limit: int = 20) -> list[dict] | str:
+    """List CVEs for a CPE 2.3 string. Thin wrapper over _shodan_cves_query."""
+    if not cpe23.startswith("cpe:2.3:"):
+        return f"not a CPE 2.3 string: {cpe23}"
+    return await _shodan_cves_query({"cpe23": cpe23}, limit=limit)
+
+
+async def _shodan_cpe_dict(product: str, limit: int = 40) -> list[str] | str:
+    """Resolve a product name to its CPE 2.3 strings via /cpes?product=X.
+
+    Useful when the operator has 'macos' / 'php' / 'libpng' from tech-stack
+    detection but needs the formal CPE for cpe23-based filtering.
+    """
+    import httpx
+    if not product.strip():
+        return "empty product"
+    try:
+        async with httpx.AsyncClient(
+            timeout=15,
+            headers={"User-Agent": _BROWSER_UA},
+        ) as http:
+            resp = await http.get(_SHODAN_CPES_URL, params={"product": product.strip()})
+        if resp.status_code != 200:
+            return f"HTTP {resp.status_code}"
+        data = resp.json()
+    except httpx.TimeoutException:
+        return "timed out after 15s"
+    except Exception as e:  # noqa: BLE001
+        return str(e)[:150]
+
+    cpes = data.get("cpes", []) or []
+    return cpes[:limit]
 
 
 # ─── NVD API lookup ─────────────────────────────────────────────────────────
