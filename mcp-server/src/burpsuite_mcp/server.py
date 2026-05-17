@@ -7,7 +7,7 @@ from burpsuite_mcp.tools import (
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
-    prompts, resources_mcp, mutate,
+    prompts, resources_mcp, mutate, exploit,
 )
 
 mcp = FastMCP(
@@ -97,3 +97,4 @@ dom_probe.register(mcp)        # DOM-aware probe — closes the client-side gap 
 prompts.register(mcp)          # MCP Prompts — operator-invokable workflow templates (hunt-target, verify-finding, chain-findings, save-finding-checklist, triage-program)
 resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, skills, knowledge, intel, findings) under burp:// URIs
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
+exploit.register(mcp)          # confirm_* tools — exploit-to-confirm with tool-layer destructive denylist (rm/DROP/useradd hard-refused; reverse shells / LOLBAS SOC-loud warn-and-allow)
