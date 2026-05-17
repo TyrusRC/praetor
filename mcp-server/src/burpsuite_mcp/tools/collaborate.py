@@ -67,15 +67,25 @@ def register(mcp: FastMCP):
             count: Number of subdomains to pre-generate (default 25, max 200)
         """
         count = max(1, min(200, count))
+        # Fan out the allocations concurrently. Burp's Collaborator endpoint
+        # is per-request idempotent and the extension's 24-thread pool absorbs
+        # the burst easily; sequential allocation was the prior bottleneck
+        # (25 calls × ~100ms ≈ 2.5s). asyncio.gather collapses to one batch.
+        import asyncio as _asyncio
+        results = await _asyncio.gather(
+            *(client.post("/api/collaborator/payload") for _ in range(count)),
+            return_exceptions=True,
+        )
         added = 0
         errors = 0
         new_entries: list[dict] = []
-        for _ in range(count):
-            data = await client.post("/api/collaborator/payload")
-            if "error" in data:
+        for data in results:
+            if isinstance(data, Exception) or (isinstance(data, dict) and "error" in data):
                 errors += 1
-                if errors >= 3:
-                    break  # Burp Pro likely missing; stop wasting calls
+                # Burp Pro likely missing — bail early on a clear failure run
+                # to avoid burning the whole batch on a pre-broken endpoint.
+                if errors >= 3 and added == 0:
+                    break
                 continue
             new_entries.append({
                 "payload": data.get("payload", ""),

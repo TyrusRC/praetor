@@ -316,8 +316,8 @@ def register(mcp: FastMCP):
             refs = res.get("references") or []
             if refs:
                 lines.append("")
-                lines.append("References:")
-                for r in refs[:8]:
+                lines.append(f"References ({len(refs)} total, top 3):")
+                for r in refs[:3]:
                     lines.append(f"  {r}")
             return "\n".join(lines)
 
@@ -492,20 +492,37 @@ def register(mcp: FastMCP):
         if not techs:
             return f"No technologies detected on {target}. Output: {stdout[:300]}"
 
-        # 3. For each tech, derive product slug + look up CVEs
-        per_tech_results: list[tuple[str, list[dict] | str]] = []
+        # 3. For each tech, derive product slug + look up CVEs concurrently.
+        # Shodan CVEDB has no per-source rate limit at the volumes we hit
+        # (5-15 techs per call); fan out and gather collapses the wall clock
+        # from ~1.5s sequential to ~250ms.
+        import asyncio as _asyncio
+        tech_product_pairs: list[tuple[str, str]] = []
         for tech in techs:
             # "Apache:2.4.49" -> product="apache" (Shodan CVEDB doesn't take versions in product=)
             product = tech.split(":")[0].split("/")[0].strip().lower()
             if not product:
                 continue
+            tech_product_pairs.append((tech, product))
+
+        async def _one(product: str) -> list[dict] | str:
             params: dict[str, str] = {"product": product}
             if is_kev_only:
                 params["is_kev"] = "true"
             if sort_by_epss:
                 params["sort_by_epss"] = "true"
-            cves = await _shodan_cves_query(params, limit=max_cves_per_tech)
-            per_tech_results.append((tech, cves))
+            return await _shodan_cves_query(params, limit=max_cves_per_tech)
+
+        cve_results = await _asyncio.gather(
+            *(_one(p) for _t, p in tech_product_pairs),
+            return_exceptions=True,
+        )
+        per_tech_results: list[tuple[str, list[dict] | str]] = []
+        for (tech, _product), result in zip(tech_product_pairs, cve_results):
+            if isinstance(result, Exception):
+                per_tech_results.append((tech, f"lookup raised: {result}"))
+            else:
+                per_tech_results.append((tech, result))
 
         # 4. Render and optionally persist
         lines = [f"map_tech_to_cves for {target}:"]
@@ -612,24 +629,13 @@ def register(mcp: FastMCP):
             lines.append(f"  MITRE: https://cve.mitre.org/cgi-bin/cvename.cgi?name={query}")
             lines.append(f"  NVD Detail: https://nvd.nist.gov/vuln/detail/{query}")
 
-        # Suggest nuclei templates if technology is known
+        # Nuclei tag suggestion — one line, derived from tech keyword.
+        # Full template-suggestion table previously here was static and
+        # already documented in CLAUDE.md / get_payloads coverage; dropping
+        # to save ~150 tokens per call.
         if tech:
-            lines.append("")
-            lines.append("Nuclei template suggestions:")
-            tech_lower = tech.lower()
-            if "apache" in tech_lower:
-                lines.append("  nuclei -t cves/ -tags apache -u TARGET")
-            elif "nginx" in tech_lower:
-                lines.append("  nuclei -t cves/ -tags nginx -u TARGET")
-            elif "spring" in tech_lower or "java" in tech_lower:
-                lines.append("  nuclei -t cves/ -tags spring,java -u TARGET")
-            elif "wordpress" in tech_lower:
-                lines.append("  nuclei -t cves/ -tags wordpress -u TARGET")
-                lines.append("  wpscan --url TARGET --api-token TOKEN")
-            elif "php" in tech_lower:
-                lines.append("  nuclei -t cves/ -tags php -u TARGET")
-            else:
-                lines.append(f"  nuclei -t cves/ -tags {tech_lower.split('/')[0].split(' ')[0]} -u TARGET")
+            tag = tech.lower().split("/")[0].split(" ")[0]
+            lines.append(f"  nuclei: run_nuclei(target=TARGET, tags='{tag}')")
 
         return "\n".join(lines)
 

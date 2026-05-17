@@ -26,6 +26,29 @@ from burpsuite_mcp.tools.advisor_kb import (
 )
 
 
+_profile_cache: dict[str, tuple[int, dict]] = {}
+
+
+def _read_profile_cached(path) -> dict:
+    """mtime-keyed cache for .burp-intel/<domain>/profile.json.
+
+    assess_finding fires before every save and the previous code re-parsed
+    the same JSON on each call. Cache by file mtime_ns so the parse cost is
+    paid once per actual profile update.
+    """
+    try:
+        mtime = path.stat().st_mtime_ns
+    except OSError:
+        return {}
+    key = str(path)
+    cached = _profile_cache.get(key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    data = json.loads(path.read_text())
+    _profile_cache[key] = (mtime, data)
+    return data
+
+
 @lru_cache(maxsize=256)
 def _word_boundary_pattern(key: str) -> re.Pattern:
     """Compile + cache a `(?<![a-z])key(?![a-z])` regex.
@@ -538,13 +561,17 @@ async def assess_finding_impl(
     # We always pull the structured dict (sensitive_data, kill_switches,
     # money_flow) when available — the per-call business_context arg is just
     # a convenient string fallback for the app_type slot.
+    # mtime-cached read: assess_finding runs before every save and was
+    # re-parsing profile.json on each call. Cache by (path, mtime_ns) so
+    # repeated saves in the same engagement only re-parse when the file
+    # actually changes.
     biz_data: dict = {}
     if domain:
         try:
             from burpsuite_mcp.tools.intel import _intel_path
             profile_path = _intel_path(domain) / "profile.json"
             if profile_path.exists():
-                profile = json.loads(profile_path.read_text())
+                profile = _read_profile_cached(profile_path)
                 bc = profile.get("business_context") or {}
                 if isinstance(bc, dict):
                     biz_data = bc
@@ -788,18 +815,30 @@ async def assess_finding_impl(
         impact_str = "\n  Impact context:\n" + "\n".join(f"    + {n}" for n in impact_notes)
 
     if not issues:
-        return (
-            f"VERDICT: {verdict}\n"
-            f"  {program_banner}\n"
-            f"  Type: {vuln_type}\n"
-            f"  Endpoint: {endpoint}\n"
-            f"  Severity (inferred): {inferred_severity} [color={severity_color}]\n"
-            f"  Confidence (separate from color): {suggested_confidence:.2f}\n"
-            f"  All 7 questions PASS. Proceed with save_finding(confidence={suggested_confidence:.2f})."
-            f"{derived_str}"
-            f"{override_audit}"
-            f"{impact_str}"
+        # PASS-case is the common path. Keep the output tight — operator
+        # only needs the verdict, severity, and the save_finding hint.
+        # Verbose context (impact_str / derived_str / overrides) is appended
+        # only when present so empty cases don't burn tokens on noise.
+        compact = (
+            f"VERDICT: {verdict} | {inferred_severity} [{severity_color}] | "
+            f"conf={suggested_confidence:.2f} | All 7 PASS\n"
+            f"  Next: save_finding(vuln_type='{vuln_type}', endpoint='{endpoint}', "
+            f"confidence={suggested_confidence:.2f}, severity='{inferred_severity}')"
         )
+        if program_banner.strip():
+            compact = f"{program_banner}\n{compact}"
+        # Surface impact / derived markers / overrides only when non-empty
+        extras = []
+        if derived_markers:
+            extras.append(f"  Auto-derived: {', '.join(derived_markers[:4])}")
+        if audit_overrides:
+            extras.append(f"  Overrides: {'; '.join(audit_overrides)}")
+        if impact_notes:
+            # Cap to 3 most relevant notes; the gate already applied the deltas.
+            extras.append("  Impact: " + " | ".join(impact_notes[:3]))
+        if extras:
+            compact += "\n" + "\n".join(extras)
+        return compact
 
     lines = [f"VERDICT: {verdict}"]
     lines.append(f"  {program_banner}")

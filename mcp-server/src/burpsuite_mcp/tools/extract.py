@@ -13,8 +13,8 @@ def register(mcp: FastMCP):
         pattern: str,
         group: int = 0,
         find_all: bool = False,
-        max_matches: int = 200,
-        max_match_chars: int = 500,
+        max_matches: int = 50,
+        max_match_chars: int = 200,
     ) -> str:
         """Extract data from a response using regex pattern matching.
 
@@ -23,8 +23,8 @@ def register(mcp: FastMCP):
             pattern: Regex pattern (use capture groups for specific extraction)
             group: Capture group number (0=whole match, 1=first group)
             find_all: Return all matches instead of just the first
-            max_matches: Cap on returned matches when find_all=True (default 200). Prevents 10k+ matches blowing the context window.
-            max_match_chars: Per-match length cap (default 500). Long matches are truncated with a marker.
+            max_matches: Cap on returned matches when find_all=True (default 50; raise to 200+ only for bulk endpoint extraction).
+            max_match_chars: Per-match length cap (default 200; raise to 500+ for paragraph-scale matches).
         """
         data = await client.post("/api/extract-text/regex", json={
             "index": index, "pattern": pattern, "group": group, "all": find_all,

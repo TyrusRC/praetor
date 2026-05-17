@@ -27,7 +27,7 @@ def register(mcp: FastMCP):
         target: str,
         templates: str = "",
         tags: str = "",
-        severity: str = "",
+        severity: str = "medium,high,critical",
         auto_scan: bool = False,
         dast: bool = False,
         use_proxy: bool = True,
@@ -35,11 +35,16 @@ def register(mcp: FastMCP):
     ) -> str:
         """Run nuclei vulnerability scanner against a target through Burp proxy. Requires nuclei installed.
 
+        Default severity is `medium,high,critical` — skips info/low templates
+        which are usually false-positive-heavy and slow the scan. Pass
+        severity='info,low,medium,high,critical' for a full sweep, or
+        severity='critical' for a fast triage pass.
+
         Args:
             target: Target URL
             templates: Template path filter
             tags: Tag filter (comma-separated)
-            severity: Severity filter (comma-separated)
+            severity: Severity filter (default 'medium,high,critical'; pass empty string '' or 'info,low,medium,high,critical' for full sweep)
             auto_scan: Auto-detect tech and run matching templates
             dast: Enable DAST fuzzing mode
             use_proxy: Route through Burp proxy (default True)
@@ -99,21 +104,20 @@ def register(mcp: FastMCP):
                     "type": finding.get("type", ""),
                 })
             except json.JSONDecodeError:
-                if line:
-                    findings.append({"raw": line})
+                # Silently drop non-JSON lines (nuclei progress / banner /
+                # warning chatter). Previously surfaced as raw entries which
+                # padded outputs with 100+ token noise per scan.
+                continue
 
         if not findings:
             return f"No findings from nuclei scan of {target}"
 
         lines = [f"Nuclei findings for {target} ({len(findings)}):", ""]
         for f in findings[:50]:
-            if "raw" in f:
-                lines.append(f"  {f['raw']}")
-            else:
-                sev = f.get("severity", "?").upper()
-                lines.append(f"  [{sev}] {f.get('name', f.get('template', '?'))}")
-                if f.get("matched"):
-                    lines.append(f"       → {f['matched']}")
+            sev = f.get("severity", "?").upper()
+            lines.append(f"  [{sev}] {f.get('name', f.get('template', '?'))}")
+            if f.get("matched"):
+                lines.append(f"       → {f['matched']}")
 
         if len(findings) > 50:
             lines.append(f"  ... and {len(findings) - 50} more")
