@@ -20,6 +20,9 @@ dependencies = [
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
     "cloakbrowser>=0.3.28",
+    # h2: HTTP/2 frame-level control for probe_race_singlepacket / probe_timeless_timing.
+    # No httpx http2 extra — we need raw frame access (multi-stream coalesce, send-all-in-one-packet).
+    "h2>=4.1.0",
 ]
 
 [project.urls]
