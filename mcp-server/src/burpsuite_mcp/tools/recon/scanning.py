@@ -562,7 +562,7 @@ def register(mcp: FastMCP):
         cmd = ["wafw00f", target]
         if find_all:
             cmd.append("-a")
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        stdout, stderr, code = await _run_cmd(cmd, timeout, bypass_proxy=True)
         out = (stdout + "\n" + stderr).strip()
         if not out:
             return f"wafw00f produced no output (exit {code})"
@@ -720,6 +720,9 @@ def register(mcp: FastMCP):
         but more thorough (53+ data sources passive, brute + zone-walk active).
         Use Amass when subfinder's surface is too thin.
 
+        Direct connect — bypasses Burp proxy because Amass queries passive
+        subdomain databases (CT logs, WHOIS, DNS) that don't need archiving.
+
         Args:
             domain: Target apex domain (example.com)
             mode: enum (subdomain discovery) | intel (org/IP intelligence)
@@ -740,7 +743,7 @@ def register(mcp: FastMCP):
         cmd = ["amass", mode, "-d", domain, "-nocolor"]
         if passive:
             cmd.append("-passive")
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        stdout, stderr, code = await _run_cmd(cmd, timeout, bypass_proxy=True)
         out = (stdout + "\n" + stderr).strip()
         if not out:
             return f"amass produced no output (exit {code})"
@@ -889,7 +892,7 @@ def register(mcp: FastMCP):
         cmd = ["gau", domain, "--providers", providers, "--threads", "10"]
         if subdomains:
             cmd.append("--subs")
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        stdout, stderr, code = await _run_cmd(cmd, timeout, bypass_proxy=True)
         out = stdout.strip()
         if not out:
             return f"gau produced no output (exit {code}). Verify providers and connectivity."
