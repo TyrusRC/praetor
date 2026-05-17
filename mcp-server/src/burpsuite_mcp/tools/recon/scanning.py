@@ -3,7 +3,8 @@
 Owned tools (in run order through a typical engagement):
   recon:           amass, httpx, gau, wafw00f
   param discovery: arjun
-  app-class scan:  nuclei, nikto, wpscan, dalfox, ffuf, sqlmap, commix, tplmap
+  app-class scan:  nuclei, nikto, wpscan, dalfox, ffuf, sqlmap, commix
+  ssti detection:  native test_ssti (see tools/vuln/test_ssti.py)
   exploit gen:     ysoserial gadget generator
   jwt:             jwt_tool
 
@@ -337,84 +338,6 @@ def register(mcp: FastMCP):
         lines.append("Next steps:")
         lines.append("  - Confirm with: confirm_rce(endpoint=TARGET, parameter=PARAM, command='id')")
         lines.append("  - For interactive shell (operator-supervised, SOC-loud): re-run with `--os-shell` via curl_request/send_raw_request")
-        if use_proxy:
-            lines.append("All requests routed through Burp proxy — check proxy history.")
-        return "\n".join(lines)
-
-    @mcp.tool()
-    async def run_tplmap(
-        target: str,
-        data: str = "",
-        cookie: str = "",
-        parameter: str = "",
-        engine: str = "",
-        level: int = 1,
-        use_proxy: bool = True,
-        timeout: int = 600,
-    ) -> str:
-        """Run tplmap SSTI scanner against a target. Requires tplmap installed.
-
-        tplmap is the sqlmap-equivalent for server-side template injection —
-        confirms SSTI AND chains to `--os-shell` / `--bind-shell` / `--reverse-shell`
-        on engines that allow OS execution. This wrapper runs DETECTION +
-        confirmation only.
-
-        Args:
-            target: Target URL (with vulnerable parameter)
-            data: POST body
-            cookie: Cookie header
-            parameter: Parameter to test (--parameter PARAM)
-            engine: Force engine (jinja2/twig/freemarker/velocity/smarty/erb/mako/...)
-            level: Test level 0-5 (default 1)
-            use_proxy: Route through Burp proxy (default True)
-            timeout: Max seconds (default 600)
-        """
-        if not _check_tool("tplmap") and not _check_tool("tplmap.py"):
-            return (
-                "Error: tplmap not installed.\n"
-                "  git clone https://github.com/epinna/tplmap (Python 2 fork) OR\n"
-                "  git clone https://github.com/Akamai-APP/tplmap-py3 (Python 3 fork)\n"
-                "  PATH must include `tplmap` or `tplmap.py`."
-            )
-
-        bin_name = "tplmap" if _check_tool("tplmap") else "tplmap.py"
-        cmd = [bin_name, "-u", target, "--level", str(max(0, min(5, level)))]
-        if data:
-            cmd.extend(["-d", data])
-        if cookie:
-            cmd.extend(["-c", cookie])
-        if parameter:
-            cmd.extend(["-p", parameter])
-        if engine:
-            cmd.extend(["-e", engine])
-        if use_proxy:
-            cmd.extend(["--proxy", BURP_PROXY_URL])
-
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
-        out = (stdout + "\n" + stderr).strip()
-        if not out:
-            return f"tplmap produced no output (exit {code})"
-
-        key_lines = []
-        for line in out.split("\n"):
-            if any(k in line for k in (
-                "injectable", "injection", "engine:", "Engine:", "Operating",
-                "Template engine", "Capabilities", "[+]", "[!]", "[CRITICAL]", "[ERROR]",
-                "OS shell available", "Bind shell available", "Reverse shell available",
-            )):
-                key_lines.append(line.strip())
-
-        lines = [f"tplmap findings for {target} ({len(key_lines)}):", ""]
-        if key_lines:
-            for l in key_lines[:80]:
-                lines.append(f"  {l}")
-        else:
-            lines.append(f"  No SSTI found at level={level}. Try higher level or specify engine=jinja2/twig/...")
-
-        lines.append("")
-        lines.append("Next steps:")
-        lines.append("  - Confirm with: confirm_ssti(endpoint=TARGET, parameter=PARAM)")
-        lines.append("  - Engine that allows OS exec: chain into confirm_rce after confirmation")
         if use_proxy:
             lines.append("All requests routed through Burp proxy — check proxy history.")
         return "\n".join(lines)
