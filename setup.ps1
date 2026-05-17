@@ -180,12 +180,13 @@ try {
     if ($toolCount -and [int]$toolCount -gt 0) { Ok "MCP server verified: $toolCount tools loaded" }
     else { Fail "MCP server failed to load" }
 
-    # Browser tools (browser_crawl, browser_navigate, etc.) need Chromium.
-    # Playwright ships an installer that fetches a pinned Chromium build.
-    Info "Installing Playwright Chromium (for browser_* tools)..."
-    & uv run python -m playwright install chromium 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) { Ok "Playwright Chromium installed" }
-    else { Warn "Playwright Chromium install failed - browser_* tools won't work until you run: uv run python -m playwright install chromium" }
+    # Browser tools (browser_crawl, browser_navigate, etc.) need CloakBrowser's
+    # stealth Chromium. First import auto-downloads the patched binary (~200MB,
+    # cached). Pre-warm now so the first MCP call doesn't pay that latency.
+    Info "Warming CloakBrowser stealth Chromium (first run downloads ~200MB)..."
+    & uv run python -c "import cloakbrowser" 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) { Ok "CloakBrowser ready" }
+    else { Warn "CloakBrowser warm-up failed - browser_* tools will trigger the download on first call instead" }
 } finally { Pop-Location }
 
 # ════════════════════════════════════════════════════════════════════
@@ -215,14 +216,22 @@ Install-PdTool 'dalfox'      'github.com/hahwul/dalfox/v2'
 Install-PdTool 'gau'         'github.com/lc/gau/v2/cmd/gau'
 Install-PdTool 'waybackurls' 'github.com/tomnomnom/waybackurls'
 Install-PdTool 'ffuf'        'github.com/ffuf/ffuf/v2'
+Install-PdTool 'amass'       'github.com/owasp-amass/amass/v4/cmd/amass'
 
-# sqlmap - Python tool
-if (Has-Command 'sqlmap') { Ok "sqlmap already installed" }
-else {
-    Info "Installing sqlmap..."
-    if (Install-Via-PackageManager 'SqlmapProject.Sqlmap' 'sqlmap' 'sqlmap') { Ok "sqlmap installed" }
-    else { Warn "sqlmap install failed - try: pip install sqlmap" }
+# Python CLI tools — installed via `uv tool install` (isolated venv per
+# tool, same UX as pipx). Project standardizes on uv; never pip.
+function Install-UvTool([string]$name) {
+    if (Has-Command $name) { Ok "$name already installed"; return }
+    Info "Installing $name..."
+    & uv tool install $name 2>&1 | Out-Null
+    if (Has-Command $name) { Ok "$name installed" }
+    else { Warn "$name install failed - retry: uv tool install $name" }
 }
+
+Install-UvTool 'sqlmap'
+Install-UvTool 'commix'
+Install-UvTool 'wafw00f'
+Install-UvTool 'arjun'
 
 # ════════════════════════════════════════════════════════════════════
 # PHASE 4: Generate .mcp.json

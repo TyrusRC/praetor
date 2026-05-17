@@ -41,7 +41,6 @@ dependencies = [
     { name = "cloakbrowser" },
     { name = "httpx" },
     { name = "mcp" },
-    { name = "playwright" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -51,7 +50,6 @@ requires-dist = [
     { name = "cloakbrowser", specifier = ">=0.3.28" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "mcp", specifier = "==1.27.0" },
-    { name = "playwright", specifier = ">=1.49.0" },
     { name = "pydantic", specifier = "==2.12.5" },
     { name = "pydantic-settings", specifier = "==2.13.1" },
 ]

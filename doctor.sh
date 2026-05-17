@@ -179,27 +179,21 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-head "Browser tools (Playwright)"
+head "Browser tools (CloakBrowser)"
 # ════════════════════════════════════════════════════════════════════
 
-user_name="${USER:-${USERNAME:-$(whoami 2>/dev/null)}}"
-PW_DIRS=(
-    "$HOME/.cache/ms-playwright"
-    "$HOME/AppData/Local/ms-playwright"
-    "$HOME/Library/Caches/ms-playwright"
-    "/c/Users/${user_name}/AppData/Local/ms-playwright"
-)
-pw_found=""
-for d in "${PW_DIRS[@]}"; do
-    if [ -d "$d" ] && ls "$d" 2>/dev/null | grep -qE 'chromium'; then
-        pw_found="$d"
-        break
+# CloakBrowser is the stealth Chromium fork used by browser_* tools. It
+# vendors its patched binary and auto-downloads on first import (~200MB,
+# cached). We check importability via the venv python rather than poking
+# at cache directories — that survives upstream cache-path changes.
+if [ -n "$VENV_PY" ]; then
+    if "$VENV_PY" -c "import cloakbrowser" >/dev/null 2>&1; then
+        pass "CloakBrowser importable"
+    else
+        bad "CloakBrowser" "not installed — cd mcp-server && uv pip install -e ."
     fi
-done
-if [ -n "$pw_found" ]; then
-    pass "Playwright Chromium installed ($pw_found)"
 else
-    skip "Playwright Chromium" "browser_crawl will fail — run: uv run python -m playwright install chromium"
+    skip "CloakBrowser" "venv missing — cannot probe; install with uv pip install -e ."
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -215,13 +209,21 @@ check_recon() {
     fi
 }
 
-check_recon subfinder  "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
-check_recon nuclei     "go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
-check_recon katana     "go install github.com/projectdiscovery/katana/cmd/katana@latest"
-check_recon ffuf       "go install github.com/ffuf/ffuf/v2@latest  (or: scoop install ffuf)"
-check_recon dalfox     "go install github.com/hahwul/dalfox/v2@latest"
-check_recon sqlmap     "pip install sqlmap  (or package manager)"
-check_recon dig        "apt install dnsutils / brew install bind / scoop install dnsutils"
+check_recon subfinder  "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+check_recon httpx      "go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+check_recon nuclei     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+check_recon katana     "go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
+check_recon ffuf       "go install -v github.com/ffuf/ffuf/v2@latest"
+check_recon dalfox     "go install -v github.com/hahwul/dalfox/v2@latest"
+check_recon amass      "go install -v github.com/owasp-amass/amass/v4/cmd/amass@master"
+check_recon gau        "go install -v github.com/lc/gau/v2/cmd/gau@latest"
+check_recon wafw00f    "uv tool install wafw00f"
+check_recon arjun      "uv tool install arjun"
+check_recon sqlmap     "uv tool install sqlmap"
+check_recon commix     "uv tool install commix"
+check_recon nikto      "sudo apt install nikto    # or: brew install nikto"
+check_recon wpscan     "gem install wpscan        # requires Ruby"
+check_recon dig        "sudo apt install dnsutils # or: brew install bind / scoop install dnsutils"
 
 # ════════════════════════════════════════════════════════════════════
 head "Project files"
