@@ -1036,66 +1036,6 @@ def register(mcp: FastMCP):
             lines.append("All requests routed through Burp proxy.")
         return "\n".join(lines)
 
-    @mcp.tool()
-    async def run_jwt_tool(
-        token: str,
-        mode: str = "scan",
-        wordlist: str = "",
-        target_url: str = "",
-        timeout: int = 300,
-    ) -> str:
-        """Test / crack / forge JWTs via jwt_tool. Requires jwt_tool installed.
-
-        Complements our test_jwt detection — jwt_tool does:
-          - scan: full algorithm-confusion / kid / weak-secret battery
-          - crack: dictionary attack on HS256 secret
-          - tamper: interactive forge mode (operator-only, not wrapped)
-          - none/null: alg=none forge with cleared signature
-
-        Args:
-            token: The JWT (header.payload.signature). Single quoted.
-            mode: scan / crack / none / null
-            wordlist: Path to wordlist (for crack mode). Default jwt_tool's built-in.
-            target_url: Optional — replay against URL with forged token (scan mode)
-            timeout: Max seconds (default 300)
-        """
-        if not _check_tool("jwt_tool") and not _check_tool("jwt_tool.py"):
-            return (
-                "Error: jwt_tool not installed.\n"
-                "  git clone https://github.com/ticarpi/jwt_tool && cd jwt_tool && pip install -r requirements.txt\n"
-                "  Symlink or alias jwt_tool=python3 /path/to/jwt_tool.py"
-            )
-        bin_name = "jwt_tool" if _check_tool("jwt_tool") else "jwt_tool.py"
-        if not token.count(".") == 2:
-            return f"Not a JWT (expect 3 segments separated by '.'): {token[:40]}…"
-
-        if mode == "scan":
-            cmd = [bin_name, token, "-M", "at"]  # all attacks
-            if target_url:
-                cmd.extend(["-t", target_url])
-        elif mode == "crack":
-            cmd = [bin_name, token, "-C", "-d", wordlist or "jwt.secrets.list"]
-        elif mode == "none":
-            cmd = [bin_name, token, "-X", "a"]  # alg=none forge
-        elif mode == "null":
-            cmd = [bin_name, token, "-X", "k"]  # kid null
-        else:
-            return f"Unknown mode '{mode}'. Use scan / crack / none / null."
-
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
-        out = (stdout + "\n" + stderr).strip()
-        if not out:
-            return f"jwt_tool produced no output (exit {code})"
-        # jwt_tool output is verbose; surface the interesting lines
-        key = []
-        for line in out.split("\n"):
-            l = line.strip()
-            if any(k in l for k in (
-                "[+]", "[!]", "VULNERABLE", "VALID", "JWT secret =", "CRACKED",
-                "Header", "Payload", "alg", "kid", "Forged JWT:", "exploit",
-            )):
-                key.append(l[:280])
-        lines = [f"jwt_tool ({mode}): {len(key)} significant lines", ""]
-        for l in key[:120]:
-            lines.append(f"  {l}")
-        return "\n".join(lines)
+    # run_jwt_tool removed — superseded by native forge_jwt + crack_jwt_secret
+    # which cover the same attack classes (alg=none, HS confusion, kid inject,
+    # claim swap, jwk embed, HS dictionary crack) with no external install.
