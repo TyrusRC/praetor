@@ -28,15 +28,31 @@ def register(mcp: FastMCP):
         filter_url: str = "",
         filter_method: str = "",
         filter_status: str = "",
+        host: str = "",
+        since_index: int = -1,
     ) -> str:
         """Get HTTP proxy history from Burp Suite with optional filters.
 
+        Performance notes:
+          - `host` (exact domain match) is faster than `filter_url`
+            (substring) — Burp parses the host once.
+          - `since_index` short-circuits iteration: pass the last index you
+            saw to tail new entries only (e.g. since_index=12000 on a
+            50K-entry history skips 12000 iterations).
+          - Both fields are optional; combining them (since_index + host)
+            is the cheapest poll for "new entries on this domain only".
+
         Args:
             limit: Max items to return
-            offset: Pagination offset
-            filter_url: URL substring filter
+            offset: Pagination offset (use since_index instead for polling)
+            filter_url: URL substring filter (slower; use `host` if you only
+                need an exact domain match)
             filter_method: HTTP method filter (GET/POST/etc)
-            filter_status: Status code filter
+            filter_status: Status code filter (exact match)
+            host: Exact-host filter (e.g. 'api.target.tld') — preferred over
+                filter_url for domain-only narrowing
+            since_index: Return only entries with index > since_index
+                (default -1 = no lower bound)
         """
         params = {"limit": limit, "offset": offset}
         if filter_url:
@@ -45,11 +61,28 @@ def register(mcp: FastMCP):
             params["filter_method"] = filter_method
         if filter_status:
             params["filter_status"] = filter_status
+        if host:
+            params["host"] = host
+        if since_index >= 0:
+            params["since_index"] = since_index
 
         data = await client.get("/api/proxy/history", params=params)
         if "error" in data:
             return f"Error: {data['error']}"
         return format_proxy_table(data)
+
+    @mcp.tool()
+    async def get_proxy_count() -> str:
+        """Sub-millisecond proxy-history size check.
+
+        Returns just the total count — useful for orientation before
+        deciding whether to fetch the table, or to confirm new traffic is
+        landing. Cheap enough to call repeatedly in a polling loop.
+        """
+        data = await client.get("/api/proxy/count")
+        if "error" in data:
+            return f"Error: {data['error']}"
+        return f"Proxy history: {data.get('count', 0)} entries"
 
     @mcp.tool()
     async def get_request_detail(index: int, full_body: bool = False) -> str:

@@ -31,25 +31,60 @@ public class ProxyHandler extends BaseHandler {
             handleDetail(exchange, path);
         } else if (path.equals("/api/proxy/history")) {
             handleList(exchange);
+        } else if (path.equals("/api/proxy/count")) {
+            handleCount(exchange);
         } else {
             sendError(exchange, 404, "Not found");
         }
+    }
+
+    /**
+     * Sub-millisecond count-only check. Lets callers ask "is there any
+     * history yet / how big?" without paying for any iteration or
+     * serialization of entries.
+     */
+    private void handleCount(HttpExchange exchange) throws Exception {
+        int size = api.proxy().history().size();
+        sendJson(exchange, JsonUtil.object("count", size));
     }
 
     private void handleList(HttpExchange exchange) throws Exception {
         Map<String, String> params = queryParams(exchange);
         int limit = intParam(params, "limit", 50);
         int offset = intParam(params, "offset", 0);
+        // since_index lets callers tail history incrementally without
+        // re-fetching the prefix. -1 = no lower bound (default behaviour).
+        int sinceIndex = intParam(params, "since_index", -1);
+        // host (exact match) is faster than filter_url for the common
+        // "filter by domain" query — URL.host() is cached in Montoya, no
+        // toLowerCase / contains on the full URL.
+        String hostFilter = params.getOrDefault("host", "").toLowerCase();
         String filterUrl = params.getOrDefault("filter_url", "");
         String filterMethod = params.getOrDefault("filter_method", "");
         String filterStatus = params.getOrDefault("filter_status", "");
 
+        // Pre-compute lowercased filterUrl once (was being recomputed every
+        // iteration in the original code).
+        String filterUrlLower = filterUrl.toLowerCase();
+
+        // Optional: parse filterStatus once.
+        int filterStatusInt = -1;
+        if (!filterStatus.isEmpty()) {
+            try { filterStatusInt = Integer.parseInt(filterStatus); }
+            catch (NumberFormatException nfe) { filterStatusInt = -2; }
+        }
+
         List<ProxyHttpRequestResponse> history = api.proxy().history();
+        int totalSize = history.size();
         List<Map<String, Object>> items = new ArrayList<>();
         int count = 0;
         int skipped = 0;
 
-        for (int i = history.size() - 1; i >= 0 && count < limit; i--) {
+        for (int i = totalSize - 1; i >= 0 && count < limit; i--) {
+            // since_index lower bound — short-circuits cleanly when caller
+            // tails (e.g. since_index=N-1 returns only the newest entry).
+            if (i <= sinceIndex) break;
+
             ProxyHttpRequestResponse item = history.get(i);
             HttpRequest req = item.finalRequest();
             HttpResponse resp = item.originalResponse();
@@ -59,13 +94,18 @@ public class ProxyHandler extends BaseHandler {
             int statusCode = resp != null ? resp.statusCode() : 0;
 
             // Apply filters
-            if (!filterUrl.isEmpty() && !url.toLowerCase().contains(filterUrl.toLowerCase())) continue;
-            if (!filterMethod.isEmpty() && !method.equalsIgnoreCase(filterMethod)) continue;
-            if (!filterStatus.isEmpty()) {
-                try {
-                    if (statusCode != Integer.parseInt(filterStatus)) continue;
-                } catch (NumberFormatException ignored) { continue; }
+            if (!hostFilter.isEmpty()) {
+                // Montoya's HttpRequest.httpService().host() is the parsed
+                // host; cheap exact compare beats substring on full URL.
+                String h = "";
+                try { h = req.httpService().host().toLowerCase(); }
+                catch (Exception ignored) {}
+                if (!h.equals(hostFilter)) continue;
             }
+            if (!filterUrl.isEmpty() && !url.toLowerCase().contains(filterUrlLower)) continue;
+            if (!filterMethod.isEmpty() && !method.equalsIgnoreCase(filterMethod)) continue;
+            if (filterStatusInt == -2) continue;  // malformed status filter -> match nothing
+            if (filterStatusInt >= 0 && statusCode != filterStatusInt) continue;
 
             if (skipped < offset) { skipped++; continue; }
 
@@ -81,9 +121,11 @@ public class ProxyHandler extends BaseHandler {
         }
 
         sendJson(exchange, JsonUtil.object(
-            "total", history.size(),
+            "total", totalSize,
             "offset", offset,
             "limit", limit,
+            "since_index", sinceIndex,
+            "returned", items.size(),
             "items", items
         ));
     }

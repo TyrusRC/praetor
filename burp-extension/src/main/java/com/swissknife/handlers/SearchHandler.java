@@ -59,12 +59,25 @@ public class SearchHandler extends BaseHandler {
         Object statusObj = body.get("status_code");
         int filterStatus = statusObj instanceof Number n ? n.intValue() : 0;
         int limit = body.get("limit") instanceof Number n ? n.intValue() : 50;
+        // since_index lets callers tail without re-scanning the prefix —
+        // matches the get_proxy_history shape.
+        int sinceIndex = body.get("since_index") instanceof Number n ? n.intValue() : -1;
 
         List<ProxyHttpRequestResponse> history = api.proxy().history();
         List<Map<String, Object>> results = new ArrayList<>();
         String queryLower = query.toLowerCase();
+        // ByteArray search avoids bodyToString() materialization. Montoya's
+        // ByteArray.indexOf is in-place over the underlying byte buffer with
+        // a case-insensitive flag — dramatically cheaper than allocating a
+        // full String per response on a 50K-entry history. Only build the
+        // search needle when body search is requested.
+        ByteArray needleCi = (!query.isEmpty() && (inRequestBody || inResponseBody))
+            ? ByteArray.byteArray(query)
+            : null;
 
         for (int i = history.size() - 1; i >= 0 && results.size() < limit; i--) {
+            if (i <= sinceIndex) break;
+
             ProxyHttpRequestResponse item = history.get(i);
             HttpRequest req = item.finalRequest();
             HttpResponse resp = item.originalResponse();
@@ -77,9 +90,20 @@ public class SearchHandler extends BaseHandler {
             // Query search
             if (!query.isEmpty()) {
                 boolean found = false;
+                // URL — already a String, cheap.
                 if (inUrl && req.url().toLowerCase().contains(queryLower)) found = true;
-                if (!found && inRequestBody && req.bodyToString().toLowerCase().contains(queryLower)) found = true;
-                if (!found && inResponseBody && resp != null && resp.bodyToString().toLowerCase().contains(queryLower)) found = true;
+                // Body searches — use ByteArray.indexOf for in-place search
+                // (case-insensitive) instead of materializing full bodies.
+                if (!found && inRequestBody && needleCi != null) {
+                    if (req.body().indexOf(needleCi, false, 0, req.body().length()) >= 0) {
+                        found = true;
+                    }
+                }
+                if (!found && inResponseBody && resp != null && needleCi != null) {
+                    if (resp.body().indexOf(needleCi, false, 0, resp.body().length()) >= 0) {
+                        found = true;
+                    }
+                }
                 if (!found) continue;
             }
 

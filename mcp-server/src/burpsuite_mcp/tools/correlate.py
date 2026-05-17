@@ -16,8 +16,18 @@ def register(mcp: FastMCP):
         method: str = "",
         status_code: int = 0,
         limit: int = 50,
+        since_index: int = -1,
     ) -> str:
         """Search proxy history for requests matching a query string.
+
+        Performance notes:
+          - URL-only search is fast (string compare, no body access).
+          - Body searches use Burp's ByteArray.indexOf (case-insensitive,
+            in-place over the raw byte buffer) — orders of magnitude
+            cheaper than per-entry String materialization on large
+            histories.
+          - Use `since_index` to tail-search since a known index instead
+            of re-scanning the prefix every call.
 
         Args:
             query: Search string (case-insensitive)
@@ -27,6 +37,7 @@ def register(mcp: FastMCP):
             method: Filter by HTTP method
             status_code: Filter by status code
             limit: Max results
+            since_index: Only entries with index > since_index (default -1)
         """
         payload = {
             "query": query,
@@ -39,6 +50,8 @@ def register(mcp: FastMCP):
             payload["method"] = method
         if status_code:
             payload["status_code"] = status_code
+        if since_index >= 0:
+            payload["since_index"] = since_index
 
         data = await client.post("/api/search/history", json=payload)
         if "error" in data:
