@@ -29,8 +29,13 @@ def _check_tool(name: str) -> bool:
     return _find_tool(name) is not None
 
 
-async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
-    """Run a command safely using create_subprocess_exec (no shell) and return (stdout, stderr, returncode)."""
+async def _run_cmd(cmd: list[str], timeout: int = 120, bypass_proxy: bool = False) -> tuple[str, str, int]:
+    """Run a command safely using create_subprocess_exec (no shell) and return (stdout, stderr, returncode).
+
+    Routes HTTPS_PROXY/HTTP_PROXY env vars to Burp by default (Rule 26a).
+    Pass ``bypass_proxy=True`` for tools that intentionally skip Burp
+    (passive DB queries — amass / gau / wafw00f).
+    """
     # Resolve full path so ~/go/bin tools aren't shadowed by system packages
     resolved = _find_tool(cmd[0])
     if resolved:
@@ -40,6 +45,18 @@ async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
     # resolver can't reach DNS servers listed in /etc/resolv.conf
     env = os.environ.copy()
     env["GODEBUG"] = "netdns=cgo"
+
+    # Rule 26a: every subprocess that emits target HTTP must route through Burp.
+    # Per-tool wrappers also set their own --proxy flag (belt-and-braces) so a
+    # future wrapper missing the flag still inherits the contract from env.
+    if bypass_proxy:
+        env.pop("HTTPS_PROXY", None)
+        env.pop("HTTP_PROXY", None)
+        env.pop("https_proxy", None)
+        env.pop("http_proxy", None)
+    else:
+        env.setdefault("HTTPS_PROXY", BURP_PROXY_URL)
+        env.setdefault("HTTP_PROXY", BURP_PROXY_URL)
 
     try:
         proc = await asyncio.create_subprocess_exec(
