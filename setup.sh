@@ -227,12 +227,14 @@ else
     fail "MCP server failed to load"
 fi
 
-# Playwright Chromium for browser_* tools (browser_crawl, browser_navigate, ...)
-info "Installing Playwright Chromium (for browser_* tools)..."
-if uv run python -m playwright install chromium >/dev/null 2>&1; then
-    ok "Playwright Chromium installed"
+# CloakBrowser stealth Chromium for browser_* tools (browser_crawl, browser_navigate, ...)
+# First import auto-downloads the patched binary (~200MB, cached). Pre-warm it
+# now so the first MCP call doesn't pay that latency.
+info "Warming CloakBrowser stealth Chromium (first run downloads ~200MB)..."
+if uv run python -c "import cloakbrowser" >/dev/null 2>&1; then
+    ok "CloakBrowser ready"
 else
-    warn "Playwright Chromium install failed — browser_* tools will error until you run: uv run python -m playwright install chromium"
+    warn "CloakBrowser warm-up failed — browser_* tools will trigger the download on first call instead"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -284,12 +286,41 @@ install_pd_tool "waybackurls" \
 install_pd_tool "ffuf" \
     "go install -v github.com/ffuf/ffuf/v2@latest"
 
-# sqlmap — system package or pip
-if has sqlmap; then
-    ok "sqlmap already installed"
+install_pd_tool "amass" \
+    "go install -v github.com/owasp-amass/amass/v4/cmd/amass@master"
+
+# Python CLI tools — installed via `uv tool install` (isolated venv per tool,
+# same UX as pipx). Project standardizes on uv; never pip.
+install_pd_tool "wafw00f" \
+    "uv tool install wafw00f"
+
+install_pd_tool "arjun" \
+    "uv tool install arjun"
+
+install_pd_tool "sqlmap" \
+    "uv tool install sqlmap"
+
+install_pd_tool "commix" \
+    "uv tool install commix"
+
+# nikto (legacy web scanner — optional)
+if has nikto; then
+    ok "nikto already installed"
 else
-    info "Installing sqlmap..."
-    pkg_install sqlmap || warn "sqlmap install failed — try: pip install sqlmap"
+    info "Installing nikto..."
+    pkg_install nikto || warn "nikto install failed (optional)"
+fi
+
+# wpscan (WordPress — optional, Ruby gem)
+if has wpscan; then
+    ok "wpscan already installed"
+else
+    if has gem; then
+        info "Installing wpscan..."
+        gem install --user-install wpscan 2>&1 | tail -1 || warn "wpscan install failed (optional)"
+    else
+        warn "wpscan not found and no Ruby gem available — install via: gem install wpscan"
+    fi
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -353,7 +384,14 @@ check httpx
 check nuclei
 check katana
 check ffuf
+check dalfox
+check amass
+check wafw00f
+check arjun
 check sqlmap
+check commix
+check nikto
+check wpscan
 
 echo ""
 echo "Project:"

@@ -4,19 +4,17 @@ All browser traffic (pages, XHR, WebSocket, JS) flows through Burp's proxy,
 making it visible in proxy history for analysis, fuzzing, and extraction.
 
 Uses CloakBrowser (https://github.com/CloakHQ/CloakBrowser) — a real Chromium
-binary with 49+ source-level C++ fingerprint patches. Replaces the prior
-playwright + playwright-stealth + init-script stack:
+binary with source-level C++ fingerprint patches:
 
 - `navigator.webdriver`, `HeadlessChrome` UA, missing plugins, CDP detection,
   TLS-fingerprint mismatch — all fixed at the binary level, not via JS shims
   that newer Chrome builds detect.
 - `humanize=True` flips on Bézier-curve mouse movement, per-character typing
   cadence, and realistic scroll patterns. Behavioral detection passes too.
-- Drop-in async API — same `browser.new_context()` / `page.goto()` / etc.
 - First import auto-downloads the stealth Chromium binary (~200MB, cached).
 
-We still own the context settings (ignore_https_errors for Burp's MITM CA,
-JS enabled, viewport) — CloakBrowser handles fingerprint, not session config.
+We own the context settings (ignore_https_errors for Burp's MITM CA, JS
+enabled, viewport) — CloakBrowser handles fingerprint, not session config.
 """
 
 import asyncio
@@ -358,9 +356,6 @@ def register(mcp: FastMCP):
         was_running = _browser is not None
         if _browser:
             try:
-                # CloakBrowser patches browser.close() to also stop the
-                # underlying Playwright instance, so a single close() call
-                # is sufficient — no separate _playwright.stop() needed.
                 await _browser.close()
             except Exception:
                 pass
