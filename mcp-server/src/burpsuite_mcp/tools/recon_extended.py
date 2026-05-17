@@ -38,6 +38,8 @@ async def _dig(domain: str, record_type: str, timeout: int = 10) -> str:
     try:
         proc = await asyncio.create_subprocess_exec(
             "dig", domain, record_type, "+short",
+            # Same rationale as _run_cmd: never inherit the MCP stdio pipe.
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )

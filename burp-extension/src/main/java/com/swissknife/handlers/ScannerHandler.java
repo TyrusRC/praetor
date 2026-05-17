@@ -96,7 +96,16 @@ public class ScannerHandler extends BaseHandler {
                 }
                 HttpService service = HttpService.httpService(url);
                 HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                targets.add(com.swissknife.http.ProxyTunnel.sendOrFallback(api, request));
+                HttpRequestResponse seed = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
+                if (seed == null) {
+                    String why = com.swissknife.http.ProxyTunnel.lastSendError();
+                    sendError(exchange, 502,
+                        "Failed to fetch seed request for scan" + (why.isEmpty() ? "" : " — " + why),
+                        "send_failed",
+                        "Verify the target is reachable and Burp proxy listener is up.");
+                    return;
+                }
+                targets.add(seed);
                 description = "Audit of " + url;
             }
             // Option 3: Scan multiple URLs
@@ -108,7 +117,9 @@ public class ScannerHandler extends BaseHandler {
                     if (!api.scope().isInScope(url)) { oos.add(url); continue; }
                     HttpService service = HttpService.httpService(url);
                     HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                    targets.add(com.swissknife.http.ProxyTunnel.sendOrFallback(api, request));
+                    HttpRequestResponse seed = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
+                    // Skip unreachable seeds — don't NPE inside audit.addRequestResponse.
+                    if (seed != null) targets.add(seed);
                 }
                 if (!oos.isEmpty() && targets.isEmpty()) {
                     sendError(exchange, 403, "All URLs are out of scope: " + oos.size(), "out_of_scope", "");

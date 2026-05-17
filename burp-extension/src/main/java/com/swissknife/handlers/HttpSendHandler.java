@@ -306,6 +306,24 @@ public class HttpSendHandler extends BaseHandler {
         List<Map<String, Object>> redirectChain = new ArrayList<>();
         int preSize = api.proxy().history().size();
         HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
+        if (result == null) {
+            // Both proxy tunnel and direct fallback returned nothing — surface
+            // the real cause (UnknownHost / ConnectException / Read timed out)
+            // captured by ProxyTunnel.LAST_SEND_ERROR instead of an opaque
+            // "No response from target".
+            String why = com.swissknife.http.ProxyTunnel.lastSendError();
+            String hint = why.contains("UnknownHost") || why.contains("UnresolvedAddress")
+                ? "Verify the hostname is reachable and DNS resolves from Burp's host."
+                : why.contains("ConnectException") || why.contains("refused")
+                ? "Target refused the connection — check the port and that the service is up."
+                : why.contains("Read timed out") || why.contains("Socket")
+                ? "Target accepted the connection but stopped responding — check Burp logs."
+                : "Check the Burp proxy listener at 127.0.0.1:8080 and the target URL.";
+            sendError(exchange, 502,
+                "No response from target" + (why.isEmpty() ? "" : " — " + why),
+                "send_failed", hint);
+            return;
+        }
         int redirectCount = 0;
 
         while (followRedirects && redirectCount < maxRedirects && result.response() != null) {
@@ -447,7 +465,14 @@ public class HttpSendHandler extends BaseHandler {
     // ── Helpers ────────────────────────────────────────────────
 
     private void sendResponseJson(HttpExchange exchange, HttpRequestResponse result, int preSendHistorySize) throws Exception {
-        if (result == null) { sendError(exchange, 502, "No response from target"); return; }
+        if (result == null) {
+            String why = com.swissknife.http.ProxyTunnel.lastSendError();
+            sendError(exchange, 502,
+                "No response from target" + (why.isEmpty() ? "" : " — " + why),
+                "send_failed",
+                "Check target reachability and Burp proxy listener at 127.0.0.1:8080.");
+            return;
+        }
         HttpResponse resp = result.response();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status_code", resp != null ? resp.statusCode() : 0);

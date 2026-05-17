@@ -68,7 +68,24 @@ async def get(path: str, params: dict | None = None) -> dict:
     except httpx.HTTPStatusError as e:
         return _http_status_envelope(e)
     except Exception as e:
-        return {"error": str(e), "code": "client_exception", "hint": ""}
+        # str(e) is empty for some httpx exceptions (ReadTimeout('') / ConnectTimeout)
+        # — always include the class name so the operator gets actionable text.
+        detail = str(e) or "(no detail)"
+        cls = type(e).__name__
+        hint = ""
+        if "Timeout" in cls:
+            hint = (
+                f"Burp extension didn't respond within {BURP_API_TIMEOUT}s. "
+                "The Java side may still be waiting on the target — "
+                "raise BURP_API_TIMEOUT or shorten the target's read window."
+            )
+        elif "Connect" in cls:
+            hint = "Verify the Burp extension is loaded and listening on BURP_API_PORT."
+        return {
+            "error": f"{cls}: {detail}",
+            "code": "client_exception",
+            "hint": hint,
+        }
 
 
 async def post(path: str, json: dict | None = None) -> dict:
@@ -83,7 +100,24 @@ async def post(path: str, json: dict | None = None) -> dict:
     except httpx.HTTPStatusError as e:
         return _http_status_envelope(e)
     except Exception as e:
-        return {"error": str(e), "code": "client_exception", "hint": ""}
+        # str(e) is empty for some httpx exceptions (ReadTimeout('') / ConnectTimeout)
+        # — always include the class name so the operator gets actionable text.
+        detail = str(e) or "(no detail)"
+        cls = type(e).__name__
+        hint = ""
+        if "Timeout" in cls:
+            hint = (
+                f"Burp extension didn't respond within {BURP_API_TIMEOUT}s. "
+                "The Java side may still be waiting on the target — "
+                "raise BURP_API_TIMEOUT or shorten the target's read window."
+            )
+        elif "Connect" in cls:
+            hint = "Verify the Burp extension is loaded and listening on BURP_API_PORT."
+        return {
+            "error": f"{cls}: {detail}",
+            "code": "client_exception",
+            "hint": hint,
+        }
 
 
 async def delete(path: str) -> dict:
@@ -98,7 +132,24 @@ async def delete(path: str) -> dict:
     except httpx.HTTPStatusError as e:
         return _http_status_envelope(e)
     except Exception as e:
-        return {"error": str(e), "code": "client_exception", "hint": ""}
+        # str(e) is empty for some httpx exceptions (ReadTimeout('') / ConnectTimeout)
+        # — always include the class name so the operator gets actionable text.
+        detail = str(e) or "(no detail)"
+        cls = type(e).__name__
+        hint = ""
+        if "Timeout" in cls:
+            hint = (
+                f"Burp extension didn't respond within {BURP_API_TIMEOUT}s. "
+                "The Java side may still be waiting on the target — "
+                "raise BURP_API_TIMEOUT or shorten the target's read window."
+            )
+        elif "Connect" in cls:
+            hint = "Verify the Burp extension is loaded and listening on BURP_API_PORT."
+        return {
+            "error": f"{cls}: {detail}",
+            "code": "client_exception",
+            "hint": hint,
+        }
 
 
 async def aclose() -> None:
