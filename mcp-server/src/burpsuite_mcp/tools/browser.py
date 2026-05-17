@@ -480,3 +480,65 @@ def register(mcp: FastMCP):
             return "\n".join(results)
         except Exception as e:
             return f"Error during interaction sweep: {e}"
+
+    @mcp.tool()
+    async def browser_screenshot(
+        url: str = "",
+        full_page: bool = True,
+        out_path: str = "",
+    ) -> str:
+        """Capture a screenshot through the headless browser (Burp-proxied).
+
+        Visual triage tool. Useful for:
+          - Aquatone-style "show me what every host looks like" sweeps
+          - Hidden admin panel hunting (404 pages that render real content)
+          - SPA state capture before / after a destructive button click
+          - Report screenshots without leaving the MCP session
+
+        Args:
+            url: URL to load. Empty = screenshot current page (assumes prior
+                browser_navigate / browser_crawl call).
+            full_page: True = entire scroll height; False = viewport only.
+            out_path: Output file path. Empty = auto-named under
+                .burp-intel/<domain>/screenshots/<timestamp>.png.
+        """
+        from burpsuite_mcp import client as burp_client
+        from pathlib import Path
+        import time
+
+        if url:
+            scope_resp = await burp_client.check_scope(url)
+            if "error" not in scope_resp and not scope_resp.get("in_scope", False):
+                return f"Error: {url} is OUT OF SCOPE."
+
+        _, _, page = await _ensure_browser()
+
+        if url:
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(1500)
+            except Exception as e:
+                return f"Navigation to {url} failed: {e}"
+
+        # Build output path
+        if not out_path:
+            from urllib.parse import urlparse
+            target = url or page.url or "current"
+            host = urlparse(target).hostname or "unknown"
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            out_dir = Path.cwd() / ".burp-intel" / host / "screenshots"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = str(out_dir / f"{ts}.png")
+        else:
+            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            await page.screenshot(path=out_path, full_page=full_page)
+            sz = Path(out_path).stat().st_size
+            return (
+                f"Screenshot captured: {out_path}\n"
+                f"  url: {page.url}\n"
+                f"  size: {sz} bytes  full_page={full_page}"
+            )
+        except Exception as e:
+            return f"Screenshot failed: {e}"

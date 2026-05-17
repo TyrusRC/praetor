@@ -401,6 +401,171 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
+    async def map_tech_to_cves(
+        target: str,
+        save_intel: bool = True,
+        max_cves_per_tech: int = 5,
+        is_kev_only: bool = False,
+        sort_by_epss: bool = True,
+    ) -> str:
+        """Pipeline: httpx tech-detect (wappalyzergo) -> Shodan CVEDB CVE lookup -> save_target_intel(profile).
+
+        One-shot asset mapping + CVE intel. Detects technologies via the
+        wappalyzergo-powered `httpx -tech-detect`, normalises each detected
+        product to a Shodan CVEDB product slug, fetches CVEs (sorted by EPSS
+        by default so the operator sees most-exploited first), and persists
+        the tech stack into `.burp-intel/<domain>/profile.json` for the
+        advisor + assess_finding to use later.
+
+        Args:
+            target: Single URL (https://example.com)
+            save_intel: True (default) -> persist detected tech to profile.json
+            max_cves_per_tech: Per-product CVE cap (default 5)
+            is_kev_only: True -> restrict CVE list to CISA-KEV. Use this on
+                short-engagement triage to focus on actively-exploited bugs.
+            sort_by_epss: True (default) -> highest-EPSS CVEs first.
+        """
+        # 1. Run httpx tech-detect on target
+        from urllib.parse import urlparse
+        host = urlparse(target).hostname or target
+        try:
+            import asyncio
+            # Reuse the run_httpx mcp tool implementation by importing the
+            # internals from recon.scanning. We need a direct CLI invocation
+            # here rather than going through the @mcp.tool registration.
+            from burpsuite_mcp.tools.recon._common import (
+                _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL,
+            )
+            if not _check_tool("httpx"):
+                return (
+                    "Error: httpx (ProjectDiscovery) not installed.\n"
+                    "  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+                )
+            cmd = [
+                "httpx", "-u", target, "-tech-detect", "-silent", "-no-color",
+                "-status-code", "-content-length", "-title",
+                "-follow-redirects",
+                "-H", f"User-Agent: {_USER_AGENT}",
+                "-http-proxy", BURP_PROXY_URL,
+                "-timeout", "10",
+            ]
+            stdout, stderr, code = await _run_cmd(cmd, timeout=90)
+            if not stdout.strip():
+                return f"httpx returned no output for {target} (exit {code}). " \
+                       f"Verify httpx in ~/go/bin and target reachable."
+        except Exception as e:
+            return f"httpx invocation failed: {e}"
+
+        # 2. Parse tech from httpx output. Format:
+        #    https://example.com [200] [1234] [Title] [tech1,tech2,tech3]
+        techs: list[str] = []
+        for line in stdout.splitlines():
+            if "[" not in line:
+                continue
+            brackets = []
+            buf = ""
+            depth = 0
+            for ch in line:
+                if ch == "[":
+                    depth += 1
+                    if depth == 1:
+                        buf = ""
+                        continue
+                if ch == "]":
+                    if depth == 1:
+                        brackets.append(buf)
+                    depth -= 1
+                    continue
+                if depth >= 1:
+                    buf += ch
+            # Last bracket group from httpx -tech-detect is the tech list
+            # when the others (status/length/title) are present. Heuristic:
+            # tech values look like "Apache:2.4.49" / "PHP:8.1.2" / "WordPress"
+            if brackets:
+                candidate = brackets[-1]
+                for t in candidate.split(","):
+                    t = t.strip()
+                    if t and not t.isdigit() and not t.startswith("http"):
+                        techs.append(t)
+
+        techs = sorted(set(techs))
+        if not techs:
+            return f"No technologies detected on {target}. Output: {stdout[:300]}"
+
+        # 3. For each tech, derive product slug + look up CVEs
+        per_tech_results: list[tuple[str, list[dict] | str]] = []
+        for tech in techs:
+            # "Apache:2.4.49" -> product="apache" (Shodan CVEDB doesn't take versions in product=)
+            product = tech.split(":")[0].split("/")[0].strip().lower()
+            if not product:
+                continue
+            params: dict[str, str] = {"product": product}
+            if is_kev_only:
+                params["is_kev"] = "true"
+            if sort_by_epss:
+                params["sort_by_epss"] = "true"
+            cves = await _shodan_cves_query(params, limit=max_cves_per_tech)
+            per_tech_results.append((tech, cves))
+
+        # 4. Render and optionally persist
+        lines = [f"map_tech_to_cves for {target}:"]
+        lines.append(f"  detected: {', '.join(techs)}")
+        lines.append("")
+        critical_total = 0
+        kev_total = 0
+        for tech, cves in per_tech_results:
+            if isinstance(cves, str):
+                lines.append(f"  {tech}: lookup failed ({cves[:80]})")
+                continue
+            if not cves:
+                lines.append(f"  {tech}: no Shodan CVEDB matches")
+                continue
+            lines.append(f"  {tech} ({len(cves)} CVEs):")
+            for c in cves:
+                epss = c.get("epss")
+                epss_str = f"  EPSS {epss * 100:5.2f}%" if isinstance(epss, (int, float)) else ""
+                kev = " [KEV]" if c.get("kev") else ""
+                if c.get("kev"):
+                    kev_total += 1
+                cvss = c.get("cvss") if c.get("cvss") is not None else "?"
+                if isinstance(cvss, (int, float)) and cvss >= 9.0:
+                    critical_total += 1
+                lines.append(f"    {c['id']}  CVSS {cvss}{epss_str}{kev}")
+                summary = (c.get("summary") or "").strip().replace("\n", " ")
+                if summary:
+                    lines.append(f"      {summary[:160]}")
+
+        lines.append("")
+        lines.append(f"  Summary: {critical_total} CVSS>=9, {kev_total} KEV")
+
+        if save_intel:
+            try:
+                from burpsuite_mcp.tools.intel._internals import _intel_path, _ensure_dir, _atomic_write_json
+                import json as _json
+                profile_path = _intel_path(host) / "profile.json"
+                _ensure_dir(host)
+                existing = {}
+                if profile_path.exists():
+                    try:
+                        existing = _json.loads(profile_path.read_text())
+                    except Exception:
+                        existing = {}
+                existing["tech_stack"] = techs
+                existing["cve_summary"] = {
+                    "critical_count": critical_total,
+                    "kev_count": kev_total,
+                    "last_scan": target,
+                }
+                _atomic_write_json(profile_path, existing)
+                lines.append(f"  Intel saved: {profile_path}")
+            except Exception as e:
+                lines.append(f"  Intel save failed: {e}")
+
+        lines.append("")
+        lines.append("Next: lookup_cve(cve_id=<id>) for any high-EPSS / KEV entry above to get full detail + references.")
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def search_cve(
         query: str,
         tech: str = "",

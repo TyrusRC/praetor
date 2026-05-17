@@ -1,4 +1,16 @@
-"""Vulnerability scanning tools: nuclei, dalfox, ffuf, sqlmap."""
+"""Vulnerability scanning + external-tool wrappers.
+
+Owned tools (in run order through a typical engagement):
+  recon:           amass, httpx, gau, wafw00f
+  param discovery: arjun
+  app-class scan:  nuclei, nikto, wpscan, dalfox, ffuf, sqlmap, commix, tplmap
+  exploit gen:     ysoserial gadget generator
+  jwt:             jwt_tool
+
+Every wrapper routes through Burp proxy by default (use_proxy=True). The
+common pattern: _check_tool() gate -> build argv -> _run_cmd() -> filter
+output to operator-relevant lines.
+"""
 
 import json
 import os
@@ -593,4 +605,493 @@ def register(mcp: FastMCP):
 
         if use_proxy:
             lines.append("\nAll requests routed through Burp proxy — check proxy history.")
+        return "\n".join(lines)
+
+    # ─── Phase-1 external-tool wrappers ────────────────────────────────────
+
+    @mcp.tool()
+    async def run_wafw00f(
+        target: str,
+        find_all: bool = False,
+        timeout: int = 120,
+    ) -> str:
+        """Fingerprint WAF / CDN in front of a target. Requires wafw00f installed.
+
+        Knowing the WAF before sending real probes lets the operator pick the
+        right encoding bypass set (see craft-payload.md). Direct connect — does
+        not route through Burp because wafw00f sends a fixed probe set the
+        operator doesn't need archived.
+
+        Args:
+            target: Target URL (https://example.com)
+            find_all: True to keep probing after first match (lists every WAF)
+            timeout: Max seconds (default 120)
+        """
+        if not _check_tool("wafw00f"):
+            return (
+                "Error: wafw00f not installed.\n"
+                "  pip install wafw00f  OR  git clone https://github.com/EnableSecurity/wafw00f"
+            )
+        cmd = ["wafw00f", target]
+        if find_all:
+            cmd.append("-a")
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"wafw00f produced no output (exit {code})"
+        # Extract the interesting lines: "is behind X WAF" / "No WAF detected"
+        key_lines = [
+            line.strip() for line in out.split("\n")
+            if any(k in line for k in ("WAF", "is behind", "No WAF", "Number of requests"))
+        ]
+        lines = [f"wafw00f for {target}:", ""]
+        if key_lines:
+            lines.extend(f"  {l}" for l in key_lines[:30])
+        else:
+            lines.append("  (no detection markers in output)")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_wpscan(
+        target: str,
+        api_token: str = "",
+        enumerate: str = "vp,vt,u1-5",
+        random_user_agent: bool = True,
+        use_proxy: bool = True,
+        timeout: int = 600,
+    ) -> str:
+        """Run WPScan against a WordPress target. Requires wpscan installed.
+
+        WordPress is huge bug-bounty surface; nuclei templates miss
+        plugin-specific bugs. WPScan needs an api_token for the WordPress
+        Vulnerability DB lookup (free 25/day at wpvulndb.com / wpscan.com).
+        Without a token it still enumerates but won't get CVE counts.
+
+        Args:
+            target: Target URL (auto-detects /wp-login.php / wp-content)
+            api_token: WPScan API token (https://wpscan.com — 25 free requests/day)
+            enumerate: vp (vulnerable plugins), vt (vulnerable themes), u (users 1-5),
+                p (all plugins), t (all themes), tt (timthumbs), cb (config backups)
+            random_user_agent: True for SOC-quieter UA rotation
+            use_proxy: Route through Burp proxy (default True)
+            timeout: Max seconds (default 600)
+        """
+        if not _check_tool("wpscan"):
+            return (
+                "Error: wpscan not installed.\n"
+                "  gem install wpscan  OR  apt install wpscan  OR\n"
+                "  docker run -it --rm wpscanteam/wpscan --url TARGET"
+            )
+        cmd = [
+            "wpscan", "--url", target,
+            "--enumerate", enumerate,
+            "--disable-tls-checks",
+            "--no-banner",
+            "--format", "cli-no-color",
+        ]
+        if api_token:
+            cmd.extend(["--api-token", api_token])
+        if random_user_agent:
+            cmd.append("--random-user-agent")
+        if use_proxy:
+            cmd.extend(["--proxy", BURP_PROXY_URL, "--proxy-auth", ""])
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"wpscan produced no output (exit {code})"
+        # Pull out vulns + plugin/theme versions
+        key_lines = []
+        for line in out.split("\n"):
+            l = line.rstrip()
+            if any(k in l for k in (
+                "[!]", "[+]", "vulnerable", "Title:", "Fixed in:", "References:",
+                "Version:", "WordPress version", "found:", "Theme name:",
+                "Plugin", "CVE-", "WPVDB",
+            )):
+                key_lines.append(l)
+        lines = [f"wpscan for {target} ({len(key_lines)} significant lines):", ""]
+        if key_lines:
+            lines.extend(f"  {l[:200]}" for l in key_lines[:120])
+        else:
+            lines.append("  No findings. Re-check enumerate flags or target.")
+        if not api_token:
+            lines.append("")
+            lines.append("Note: no api_token passed; CVE lookups skipped. Free token: https://wpscan.com")
+        if use_proxy:
+            lines.append("\nAll requests routed through Burp proxy.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_arjun(
+        target: str,
+        method: str = "GET",
+        wordlist: str = "",
+        stable: bool = False,
+        delay: int = 0,
+        use_proxy: bool = True,
+        timeout: int = 600,
+    ) -> str:
+        """Discover hidden HTTP parameters with Arjun. Requires arjun installed.
+
+        Arjun is the de-facto parameter discovery tool — finds params that
+        backend code reads but documentation doesn't expose. Bug-bounty
+        gold: hidden `debug=true`, `admin=1`, `internal_id=...` style.
+
+        Args:
+            target: Target URL
+            method: GET / POST / JSON (Arjun-native modes)
+            wordlist: Custom wordlist path. Empty = Arjun's built-in (~25k).
+            stable: True for slower but more reliable detection (-t param)
+            delay: Inter-request delay in seconds (SOC-quiet mode)
+            use_proxy: Route through Burp proxy (default True)
+            timeout: Max seconds (default 600)
+        """
+        if not _check_tool("arjun"):
+            return (
+                "Error: arjun not installed.\n"
+                "  pip install arjun  OR  git clone https://github.com/s0md3v/Arjun"
+            )
+        cmd = ["arjun", "-u", target, "-m", method.upper()]
+        if wordlist:
+            cmd.extend(["-w", wordlist])
+        if stable:
+            cmd.append("--stable")
+        if delay > 0:
+            cmd.extend(["-d", str(delay)])
+        if use_proxy:
+            # Arjun supports raw socks/http proxy via env or --proxy
+            cmd.extend(["--proxy", BURP_PROXY_URL])
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"arjun produced no output (exit {code})"
+        # Arjun output is fairly clean; surface the "parameter found" lines
+        key_lines = [
+            line.strip() for line in out.split("\n")
+            if any(k in line for k in ("parameter", "Parameter", "valid parameter",
+                                        "[+]", "[!]", "anomaly"))
+        ]
+        lines = [f"arjun for {target} ({len(key_lines)} hits):", ""]
+        if key_lines:
+            lines.extend(f"  {l[:200]}" for l in key_lines[:80])
+        else:
+            lines.append("  No hidden parameters found. Try a different wordlist or method=POST/JSON.")
+        if use_proxy:
+            lines.append("\nAll requests routed through Burp proxy.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_amass(
+        domain: str,
+        mode: str = "enum",
+        passive: bool = True,
+        timeout: int = 900,
+    ) -> str:
+        """Deep subdomain enumeration via Amass. Requires amass installed.
+
+        Complements subfinder: subfinder is fast and passive, Amass is slower
+        but more thorough (53+ data sources passive, brute + zone-walk active).
+        Use Amass when subfinder's surface is too thin.
+
+        Args:
+            domain: Target apex domain (example.com)
+            mode: enum (subdomain discovery) | intel (org/IP intelligence)
+            passive: True = sources-only (quiet). False = active probing too.
+            timeout: Max seconds (default 900 — Amass is slow)
+        """
+        if not _check_tool("amass"):
+            return (
+                "Error: amass not installed.\n"
+                "  go install -v github.com/owasp-amass/amass/v4/...@master  OR\n"
+                "  snap install amass  OR  brew install amass"
+            )
+        from ._common import _sanitize_domain
+        try:
+            domain = _sanitize_domain(domain)
+        except ValueError as e:
+            return f"Error: {e}"
+        cmd = ["amass", mode, "-d", domain, "-nocolor"]
+        if passive:
+            cmd.append("-passive")
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"amass produced no output (exit {code})"
+        # Subdomain lines look like `example.com (FQDN) --> a_record --> 1.2.3.4`
+        hosts = set()
+        for line in out.split("\n"):
+            stripped = line.strip()
+            if domain in stripped:
+                # Try to pull the FQDN at start of line
+                first = stripped.split()[0].rstrip(",")
+                if first.endswith(domain) or first == domain:
+                    hosts.add(first)
+        lines = [f"amass {mode} for {domain} ({len(hosts)} hosts):", ""]
+        for h in sorted(hosts)[:200]:
+            lines.append(f"  {h}")
+        if len(hosts) > 200:
+            lines.append(f"  ... +{len(hosts) - 200} more")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_httpx(
+        targets: str,
+        tech_detect: bool = True,
+        status_code: bool = True,
+        content_length: bool = True,
+        title: bool = True,
+        follow_redirects: bool = True,
+        use_proxy: bool = True,
+        threads: int = 50,
+        timeout: int = 300,
+    ) -> str:
+        """Probe a list of URLs with ProjectDiscovery httpx (uses wappalyzergo for tech detect).
+
+        Fast multi-purpose HTTP toolkit. `tech_detect=True` enables the
+        wappalyzergo-based fingerprinter that detects 1500+ technologies with
+        version extraction — feed the output into `lookup_cve(product=...)`
+        or `map_tech_to_cves(target=...)` for CVE intelligence.
+
+        Args:
+            targets: Newline-separated URLs OR single URL OR file path (one per line)
+            tech_detect: Enable wappalyzergo tech detection (default True)
+            status_code: Show status code (default True)
+            content_length: Show response length (default True)
+            title: Show <title> (default True)
+            follow_redirects: Follow 30x (default True)
+            use_proxy: Route through Burp proxy (default True)
+            threads: Concurrency (default 50, max 200)
+            timeout: Max seconds (default 300)
+        """
+        if not _check_tool("httpx"):
+            return (
+                "Error: httpx (ProjectDiscovery) not installed.\n"
+                "  go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest\n"
+                "  NOT the python httpx library — that's a different httpx."
+            )
+
+        # Accept either a literal list or a file path
+        targets = targets.strip()
+        import tempfile
+        if "\n" in targets or "," in targets:
+            tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+            for t in targets.replace(",", "\n").splitlines():
+                t = t.strip()
+                if t:
+                    tmp.write(t + "\n")
+            tmp.close()
+            input_arg = ["-l", tmp.name]
+        elif os.path.isfile(targets):
+            input_arg = ["-l", targets]
+        else:
+            input_arg = ["-u", targets]
+
+        cmd = ["httpx", *input_arg,
+               "-silent", "-no-color",
+               "-threads", str(max(1, min(threads, 200))),
+               "-timeout", "10",
+               "-retries", "1",
+               "-H", f"User-Agent: {_USER_AGENT}"]
+        if tech_detect:
+            cmd.append("-tech-detect")
+        if status_code:
+            cmd.append("-status-code")
+        if content_length:
+            cmd.append("-content-length")
+        if title:
+            cmd.append("-title")
+        if follow_redirects:
+            cmd.append("-follow-redirects")
+        if use_proxy:
+            cmd.extend(["-http-proxy", BURP_PROXY_URL])
+
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = stdout.strip()
+        if not out:
+            return f"httpx produced no output (exit {code}){' — ' + stderr[:200] if stderr else ''}"
+
+        lines = out.splitlines()
+        header = [
+            f"httpx probed ({len(lines)} live hosts):",
+        ]
+        if tech_detect:
+            header.append("  (tech detection via wappalyzergo)")
+        result = header + [""]
+        for line in lines[:300]:
+            result.append(f"  {line}")
+        if len(lines) > 300:
+            result.append(f"  ... +{len(lines) - 300} more")
+        if tech_detect:
+            result.append("")
+            result.append("Pipeline next step: map_tech_to_cves(target=<host>) to chain "
+                          "detected tech into Shodan CVEDB lookups + save to .burp-intel/.")
+        if use_proxy:
+            result.append("\nAll requests routed through Burp proxy.")
+        return "\n".join(result)
+
+    @mcp.tool()
+    async def run_gau(
+        domain: str,
+        providers: str = "wayback,otx,urlscan,commoncrawl",
+        subdomains: bool = True,
+        timeout: int = 300,
+    ) -> str:
+        """Aggregate URLs across Wayback Machine, AlienVault OTX, URLScan, Common Crawl.
+
+        Broader than our `fetch_wayback_urls` (single-source). Useful for
+        finding archived endpoints / parameters that no longer appear in the
+        live app. Direct connect — providers are public archives, no point
+        proxying through Burp.
+
+        Args:
+            domain: Target apex domain (example.com)
+            providers: Comma-separated: wayback / otx / urlscan / commoncrawl
+            subdomains: True to include subdomain URLs in aggregation
+            timeout: Max seconds (default 300)
+        """
+        if not _check_tool("gau"):
+            return (
+                "Error: gau not installed.\n"
+                "  go install github.com/lc/gau/v2/cmd/gau@latest"
+            )
+        from ._common import _sanitize_domain
+        try:
+            domain = _sanitize_domain(domain)
+        except ValueError as e:
+            return f"Error: {e}"
+        cmd = ["gau", domain, "--providers", providers, "--threads", "10"]
+        if subdomains:
+            cmd.append("--subs")
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = stdout.strip()
+        if not out:
+            return f"gau produced no output (exit {code}). Verify providers and connectivity."
+        urls = [u for u in out.split("\n") if u.strip()]
+        # Dedupe and sort for readability
+        urls = sorted(set(urls))
+        lines = [f"gau for {domain} ({len(urls)} unique URLs):", ""]
+        for u in urls[:400]:
+            lines.append(f"  {u}")
+        if len(urls) > 400:
+            lines.append(f"  ... +{len(urls) - 400} more")
+        lines.append("")
+        lines.append("Next: feed into smart_analyze / extract_links / auto_probe for testing.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_nikto(
+        target: str,
+        tuning: str = "",
+        port: int = 0,
+        use_proxy: bool = True,
+        timeout: int = 900,
+    ) -> str:
+        """Classic web-server scanner. Requires nikto installed.
+
+        Catches outdated server software / default files / CGI bugs that
+        nuclei templates often miss. Loud by default — SIEMs will see this.
+        Operator owns the noise call.
+
+        Args:
+            target: Target URL or host
+            tuning: Test tuning string (e.g. '123bde' = files+misconfig+disclosure
+                +shell+default). Empty = all (loudest).
+            port: Override port (default 0 = derive from URL)
+            use_proxy: Route through Burp proxy (default True)
+            timeout: Max seconds (default 900)
+        """
+        if not _check_tool("nikto"):
+            return (
+                "Error: nikto not installed.\n"
+                "  apt install nikto  OR  brew install nikto  OR\n"
+                "  git clone https://github.com/sullo/nikto"
+            )
+        cmd = ["nikto", "-h", target, "-Format", "txt", "-ask", "no", "-nointeractive"]
+        if tuning:
+            cmd.extend(["-Tuning", tuning])
+        if port > 0:
+            cmd.extend(["-port", str(port)])
+        if use_proxy:
+            # nikto uses USEPROXY config; we set via -useproxy + env
+            cmd.extend(["-useproxy", BURP_PROXY_URL])
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"nikto produced no output (exit {code})"
+        # Surface the "+" findings lines (nikto's hit indicator)
+        hits = [line.strip() for line in out.split("\n") if line.strip().startswith("+")]
+        lines = [f"nikto for {target} ({len(hits)} findings):", ""]
+        if hits:
+            for h in hits[:120]:
+                lines.append(f"  {h[:300]}")
+        else:
+            lines.append("  (no '+' findings — server may be hardened or behind WAF)")
+        lines.append("")
+        lines.append("Warning: nikto is loud. Expect SIEM/IDS hits if blue team is watching.")
+        if use_proxy:
+            lines.append("All requests routed through Burp proxy.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_jwt_tool(
+        token: str,
+        mode: str = "scan",
+        wordlist: str = "",
+        target_url: str = "",
+        timeout: int = 300,
+    ) -> str:
+        """Test / crack / forge JWTs via jwt_tool. Requires jwt_tool installed.
+
+        Complements our test_jwt detection — jwt_tool does:
+          - scan: full algorithm-confusion / kid / weak-secret battery
+          - crack: dictionary attack on HS256 secret
+          - tamper: interactive forge mode (operator-only, not wrapped)
+          - none/null: alg=none forge with cleared signature
+
+        Args:
+            token: The JWT (header.payload.signature). Single quoted.
+            mode: scan / crack / none / null
+            wordlist: Path to wordlist (for crack mode). Default jwt_tool's built-in.
+            target_url: Optional — replay against URL with forged token (scan mode)
+            timeout: Max seconds (default 300)
+        """
+        if not _check_tool("jwt_tool") and not _check_tool("jwt_tool.py"):
+            return (
+                "Error: jwt_tool not installed.\n"
+                "  git clone https://github.com/ticarpi/jwt_tool && cd jwt_tool && pip install -r requirements.txt\n"
+                "  Symlink or alias jwt_tool=python3 /path/to/jwt_tool.py"
+            )
+        bin_name = "jwt_tool" if _check_tool("jwt_tool") else "jwt_tool.py"
+        if not token.count(".") == 2:
+            return f"Not a JWT (expect 3 segments separated by '.'): {token[:40]}…"
+
+        if mode == "scan":
+            cmd = [bin_name, token, "-M", "at"]  # all attacks
+            if target_url:
+                cmd.extend(["-t", target_url])
+        elif mode == "crack":
+            cmd = [bin_name, token, "-C", "-d", wordlist or "jwt.secrets.list"]
+        elif mode == "none":
+            cmd = [bin_name, token, "-X", "a"]  # alg=none forge
+        elif mode == "null":
+            cmd = [bin_name, token, "-X", "k"]  # kid null
+        else:
+            return f"Unknown mode '{mode}'. Use scan / crack / none / null."
+
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"jwt_tool produced no output (exit {code})"
+        # jwt_tool output is verbose; surface the interesting lines
+        key = []
+        for line in out.split("\n"):
+            l = line.strip()
+            if any(k in l for k in (
+                "[+]", "[!]", "VULNERABLE", "VALID", "JWT secret =", "CRACKED",
+                "Header", "Payload", "alg", "kid", "Forged JWT:", "exploit",
+            )):
+                key.append(l[:280])
+        lines = [f"jwt_tool ({mode}): {len(key)} significant lines", ""]
+        for l in key[:120]:
+            lines.append(f"  {l}")
         return "\n".join(lines)
