@@ -26,11 +26,15 @@ LLM client  <- stdio MCP -> Python MCP server  <- HTTP -> Java Burp extension  <
 
 ## Features
 
+- 196 MCP tools across recon, scan, exploit, browser, auth, research, and reporting.
 - HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance).
+- Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
+- Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
+- Third-party wrappers proxied through Burp: sqlmap, dalfox, commix, nuclei, ffuf, katana, subfinder, amass, wafw00f, arjun, gau, waybackurls, wpscan, nikto.
 - Save-finding pipeline with a 7-question gate (`assess_finding`) and per-program policy overrides.
-- Stealth headless browser (Playwright Chromium) that proxies through Burp.
-- External recon integrations (subfinder, nuclei, katana) routed via Burp.
+- Stealth headless browser ([CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — patched Chromium binary with source-level fingerprint fixes, not JS shims) that proxies through Burp.
+- Fast history queries: `get_proxy_count` (sub-ms), `since_index` tail polling, `host` exact-match filter, ByteArray in-place body search.
 - Persistent target memory with staleness detection and cross-target pattern reuse.
 - Operator override surfaces for severity, scope filter, NEVER-SUBMIT class, confidence floor.
 
@@ -54,7 +58,7 @@ Optional:
 
 | Pro-only feature | Tools that depend on it | Community workaround |
 |---|---|---|
-| Active scanner | `scan_url`, `crawl_target`, `get_scan_status`, `cancel_scan`, `get_scanner_findings`, `get_new_findings`, `get_issues_dashboard` | Use `auto_probe` (knowledge-driven sweep), `fuzz_parameter`, `fuzz_with_feedback`. These run through the extension's HTTP API and do not require Burp's scanner. |
+| Active scanner | `scan_url`, `crawl_target`, `get_scan_status`, `cancel_scan`, `get_scanner_findings`, `get_new_findings`, `get_issues_dashboard` | Use `auto_probe` (knowledge-driven sweep), `fuzz_parameter`, `fuzz_with_feedback`, and the native `test_*` orchestrators (`test_csrf` / `test_ssrf` / `test_xxe` / `test_websocket` / `test_prototype_pollution` / `test_login_bypass` / `test_mfa_bypass`). These run through the extension's HTTP API and do not require Burp's scanner. |
 | Burp Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions`, `collaborator_pool_status` | Operator supplies an OOB callback URL — interact.sh / webhook.site / requestcatcher.com / a self-hosted DNS box — and passes it explicitly into payloads. Rule 9a forbids fabricating domains. |
 | Intruder at full speed | `send_to_intruder_configured` | Community throttles Intruder heavily. Use `concurrent_requests` (Python-side parallelism through Burp proxy) for legitimate parallel testing without the throttle. |
 
@@ -98,7 +102,7 @@ Or in `.mcp.json`:
 ./setup.bat       # Windows double-click
 ```
 
-The script installs Java 21+, Maven, Python 3.11+, uv, Go, and Playwright Chromium where missing, builds the extension, installs the MCP server, optionally installs ProjectDiscovery tools, and writes `.mcp.json`.
+The script installs Java 21+, Maven, Python 3.11+, uv, Go where missing, builds the extension, installs the MCP server (which pulls CloakBrowser and warms its stealth Chromium download), optionally installs ProjectDiscovery tools, and writes `.mcp.json`.
 
 Run `./doctor.sh` afterwards to verify the install.
 
@@ -173,21 +177,24 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Group | Examples |
 |---|---|
 | Scope & configuration | `configure_scope`, `check_scope`, `get_scope` |
-| Read | `get_proxy_history`, `get_sitemap`, `get_scanner_findings`, `get_websocket_history` |
+| Read | `get_proxy_history`, `get_proxy_count`, `get_sitemap`, `get_scanner_findings`, `get_websocket_history` |
 | Analyze | `smart_analyze`, `find_injection_points`, `extract_js_secrets`, `analyze_dom` |
 | Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater` |
 | Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js` |
 | Session | `create_session`, `session_request`, `extract_token`, `run_flow` |
-| Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `bulk_test`, `full_recon` |
+| Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` |
 | Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
+| Vuln-class natives | `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-style multi-phase), `test_xxe`, `test_websocket` (CSWSH), `test_prototype_pollution` |
+| Auth attack | `forge_jwt`, `crack_jwt_secret`, `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens`, `test_auth_matrix`, `compare_auth_states` |
 | Edge cases | `test_cors`, `test_jwt`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect` |
 | Advanced | `test_host_header`, `test_request_smuggling`, `test_mass_assignment`, `test_business_logic` |
 | Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
-| Recon | `query_crtsh`, `analyze_dns`, `run_subfinder`, `run_nuclei`, `run_katana` |
+| Recon (third-party) | `run_subfinder`, `run_nuclei`, `run_katana`, `run_sqlmap`, `run_dalfox`, `run_ffuf`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls` |
 | Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
+| Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
 
 ## MCP Prompts
@@ -244,6 +251,7 @@ Behavioral skills live in `.claude/skills/`:
 - `burp-workflow.md`, `investigate.md`, `craft-payload.md`, `static-dynamic-analysis.md`
 - `user-override.md` — operator override surfaces when defaults block legitimate findings
 - `operational-discipline.md` — cross-role discipline (pentester / BBH / red team / researcher): read before you send, replay before save, annotate live, stop when impact is proved, honour the noise budget
+- `security-research.md` — deep-dive an interesting anomaly via `research_attack_vector` + WebFetch on disclosed reports / writeups; operationalizes Rule 27's 20% creative-hunting budget
 
 Always-active rules in `.claude/rules/`:
 
@@ -264,7 +272,7 @@ The Java extension and Python server use platform-independent libraries.
 Issues and pull requests welcome. Please:
 
 - Open an issue for non-trivial changes before sending a PR.
-- Run `cd mcp-server && uv run python -m unittest tests.test_assess_finding -v` and `cd burp-extension && mvn package` before submitting.
+- Run the full Python test suite (`cd mcp-server && uv run python -m unittest discover -s tests -v`) and `cd burp-extension && mvn package` before submitting.
 - Match the existing style (Java: camelCase methods, snake_case JSON keys; Python: PEP 8, async tools).
 - Do not add external Java dependencies; the extension uses only the Montoya API and JDK.
 
