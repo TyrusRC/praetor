@@ -10,20 +10,38 @@ from ._format import fmt_size
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def test_auth_matrix(  # cost: medium (N endpoints × M auth states)
+    async def test_auth_matrix(  # cost: medium (N endpoints × M auth states × A actions)
         endpoints: list[dict],
         auth_states: dict,
         base_url: str = "",
+        actions: list[str] | None = None,
     ) -> str:
-        """Test endpoints across multiple auth states to detect IDOR and broken access control.
+        """Test endpoints across multiple auth states to detect IDOR / BFLA / BAC.
 
         Args:
-            endpoints: Endpoints to test
-            auth_states: Auth configs keyed by role name
-            base_url: Override base URL
+            endpoints: Endpoints to test. Each may include a 'method' field — when present, that
+                method is appended to the actions axis for that endpoint.
+            auth_states: Auth configs keyed by role name (subject axis).
+            base_url: Override base URL.
+            actions: Optional method axis (e.g. ['GET','POST','PATCH','DELETE']). Subject × Object ×
+                Action matrix runs each endpoint with each verb across each subject. Defaults
+                to the endpoints' own methods.
+
+        Subject × Object × Action coverage: same authorization concern fans out
+        across verbs — read may be denied while write succeeds, or vice versa.
         """
         if len(auth_states) < 2:
             return "Error: need at least 2 auth_states for matrix comparison"
+
+        if actions:
+            # Expand endpoints across action axis
+            expanded: list[dict] = []
+            for ep in endpoints:
+                for verb in actions:
+                    ep_copy = dict(ep)
+                    ep_copy["method"] = verb
+                    expanded.append(ep_copy)
+            endpoints = expanded
 
         payload: dict = {"endpoints": endpoints, "auth_states": auth_states}
         if base_url:
@@ -33,7 +51,10 @@ def register(mcp: FastMCP):
         if "error" in data:
             return f"Error: {data['error']}"
 
-        lines = [f"Auth Matrix: {data['endpoints_tested']} endpoints x {data['auth_states_tested']} states = {data['total_requests']} requests\n"]
+        lines = [f"Auth Matrix: {data['endpoints_tested']} endpoints x {data['auth_states_tested']} states = {data['total_requests']} requests"]
+        if actions:
+            lines.append(f"Action axis: {actions}")
+        lines.append("")
 
         # Build matrix table from results array
         for row in data.get("matrix", []):

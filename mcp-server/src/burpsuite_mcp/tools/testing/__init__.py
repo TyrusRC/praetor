@@ -12,9 +12,11 @@ from . import (
     auth_compare,
     auth_matrix,
     comparer,
+    cross_transport,
     fuzz,
     fuzz_feedback,
     hpp,
+    id_monotonic,
     race,
 )
 
@@ -27,3 +29,5 @@ def register(mcp: FastMCP) -> None:
     auth_matrix.register(mcp)
     race.register(mcp)
     hpp.register(mcp)
+    id_monotonic.register(mcp)
+    cross_transport.register(mcp)
