@@ -12,16 +12,19 @@ def format_proxy_table(data: dict) -> str:
 
     end_inclusive = offset + len(items) - 1
     lines = [f"Proxy History ({total} total, showing {offset}-{end_inclusive}):\n"]
-    lines.append(f"{'INDEX':<8} {'METHOD':<8} {'STATUS':<8} {'SIZE':<8} {'MIME':<15} URL")
-    lines.append("-" * 100)
+    # Header capped at 80 chars so SSH/mobile pentest terminals don't wrap.
+    # Each row keeps URL trailing — terminals soft-wrap URLs cleanly.
+    lines.append(f"{'IDX':<6} {'METH':<6} {'STAT':<5} {'SIZE':<7} {'MIME':<14} URL")
+    lines.append("-" * 80)
 
     for item in items:
+        mime = (item.get("mime_type", "") or "")[:14]
         lines.append(
-            f"{item.get('index', '?'):<8} "
-            f"{item.get('method', '?'):<8} "
-            f"{item.get('status_code', '-'):<8} "
-            f"{item.get('response_length', 0):<8} "
-            f"{item.get('mime_type', ''):<15} "
+            f"{item.get('index', '?'):<6} "
+            f"{(item.get('method', '?') or '?')[:6]:<6} "
+            f"{item.get('status_code', '-'):<5} "
+            f"{item.get('response_length', 0):<7} "
+            f"{mime:<14} "
             f"{item.get('url', '?')}"
         )
 

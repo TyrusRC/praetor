@@ -74,11 +74,14 @@ public class ApiServer {
             );
         }
         server = HttpServer.create(new InetSocketAddress(host, port), 0);
-        // 12 threads (was 6). Long-running handlers (auto_probe ~30s,
+        // 24 threads (was 12 -> 6). Long-running handlers (auto_probe ~30s,
         // race_condition Thread.sleep, large body decodes) frequently
         // pinned half the pool; concurrent agent dispatch (4 parallel)
-        // would block downstream probes.
-        ExecutorService pool = Executors.newFixedThreadPool(12);
+        // each running auto_probe (~3 threads in flight) leaves enough
+        // for housekeeping (intel reads, scope checks, annotations).
+        // Tasks are mostly Burp-API-bound; the bottleneck is Montoya I/O,
+        // not Java threads, so the wider pool stays cheap.
+        ExecutorService pool = Executors.newFixedThreadPool(24);
         server.setExecutor(pool);
         this.executor = pool;
 
