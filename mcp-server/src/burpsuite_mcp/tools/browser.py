@@ -2,6 +2,21 @@
 
 All browser traffic (pages, XHR, WebSocket, JS) flows through Burp's proxy,
 making it visible in proxy history for analysis, fuzzing, and extraction.
+
+Uses CloakBrowser (https://github.com/CloakHQ/CloakBrowser) — a real Chromium
+binary with 49+ source-level C++ fingerprint patches. Replaces the prior
+playwright + playwright-stealth + init-script stack:
+
+- `navigator.webdriver`, `HeadlessChrome` UA, missing plugins, CDP detection,
+  TLS-fingerprint mismatch — all fixed at the binary level, not via JS shims
+  that newer Chrome builds detect.
+- `humanize=True` flips on Bézier-curve mouse movement, per-character typing
+  cadence, and realistic scroll patterns. Behavioral detection passes too.
+- Drop-in async API — same `browser.new_context()` / `page.goto()` / etc.
+- First import auto-downloads the stealth Chromium binary (~200MB, cached).
+
+We still own the context settings (ignore_https_errors for Burp's MITM CA,
+JS enabled, viewport) — CloakBrowser handles fingerprint, not session config.
 """
 
 import asyncio
@@ -14,7 +29,6 @@ from burpsuite_mcp.config import BURP_PROXY_HOST, BURP_PROXY_PORT
 # Lazy-loaded browser state (survives across tool calls within a session).
 # `_lock` is created lazily inside the running event loop so it doesn't
 # get bound to the import-time loop (FastMCP creates its own loop).
-_playwright = None
 _browser = None
 _context = None
 _page = None
@@ -27,28 +41,15 @@ def _get_lock() -> asyncio.Lock:
         _lock = asyncio.Lock()
     return _lock
 
-# Stealth settings to avoid bot detection
-_STEALTH_ARGS = [
-    "--disable-blink-features=AutomationControlled",
-    "--disable-features=IsolateOrigins,site-per-process",
-    "--disable-infobars",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-background-timer-throttling",
-    "--disable-renderer-backgrounding",
-    "--disable-backgrounding-occluded-windows",
-]
-
-_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
-)
-
 
 async def _ensure_browser():
-    """Launch browser if not already running. Returns (browser, context, page)."""
-    global _playwright, _browser, _context, _page
+    """Launch browser if not already running. Returns (browser, context, page).
+
+    CloakBrowser handles the stealth layer at the binary level — no manual
+    init scripts, no UA spoof, no `--disable-blink-features=AutomationControlled`
+    flag (the binary patches that flag's underlying detection vectors directly).
+    """
+    global _browser, _context, _page
 
     async with _get_lock():
         if _browser and _browser.is_connected():
@@ -65,49 +66,35 @@ async def _ensure_browser():
                 return _browser, _context, _page
 
         try:
-            from playwright.async_api import async_playwright
+            from cloakbrowser import launch_async
         except ImportError:
             raise RuntimeError(
-                "Playwright not installed. Run: uv pip install playwright && playwright install chromium"
+                "CloakBrowser not installed. Run: uv pip install cloakbrowser\n"
+                "First import auto-downloads the stealth Chromium binary (~200MB, cached)."
             )
-
-        _playwright = await async_playwright().start()
 
         proxy_url = f"http://{BURP_PROXY_HOST}:{BURP_PROXY_PORT}"
 
-        _browser = await _playwright.chromium.launch(
+        # humanize=True turns on Bézier-curve mouse, per-character typing,
+        # realistic scroll. Zero downside for our use case (Burp captures
+        # the resulting HTTP traffic, not the input events) and it sidesteps
+        # behavioral-fingerprint detectors that flag instant-coordinate
+        # clicks even when the static fingerprint is clean.
+        _browser = await launch_async(
             headless=True,
-            args=_STEALTH_ARGS,
-            proxy={"server": proxy_url},
+            proxy=proxy_url,
+            humanize=True,
         )
 
+        # Context settings — UA, timezone, locale are baked into the
+        # CloakBrowser binary; we don't override them here (would conflict
+        # with the source-level patches and re-introduce detection vectors).
+        # We DO need ignore_https_errors for Burp's MITM CA.
         _context = await _browser.new_context(
-            user_agent=_USER_AGENT,
             viewport={"width": 1920, "height": 1080},
-            locale="en-US",
-            timezone_id="America/New_York",
-            ignore_https_errors=True,  # Burp's CA cert
+            ignore_https_errors=True,
             java_script_enabled=True,
-            extra_http_headers={
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Sec-Ch-Ua": '"Chromium";v="131", "Not_A Brand";v="24"',
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
-            },
         )
-
-        # Apply playwright-stealth to bypass bot detection
-        try:
-            from playwright_stealth import stealth_async
-            await stealth_async(_context)
-        except ImportError:
-            await _context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                window.chrome = { runtime: {} };
-            """)
 
         _page = await _context.new_page()
         return _browser, _context, _page
@@ -366,21 +353,17 @@ def register(mcp: FastMCP):
     @mcp.tool()
     async def browser_close() -> str:
         """Close the headless browser and free resources. Auto-restarts on next browser_navigate."""
-        global _playwright, _browser, _context, _page
+        global _browser, _context, _page
 
-        was_running = _browser is not None or _playwright is not None
+        was_running = _browser is not None
         if _browser:
             try:
+                # CloakBrowser patches browser.close() to also stop the
+                # underlying Playwright instance, so a single close() call
+                # is sufficient — no separate _playwright.stop() needed.
                 await _browser.close()
             except Exception:
                 pass
-        if _playwright:
-            try:
-                await _playwright.stop()
-            except Exception:
-                pass
-        # Always reset globals to clean state
-        _playwright = None
         _browser = None
         _context = None
         _page = None
