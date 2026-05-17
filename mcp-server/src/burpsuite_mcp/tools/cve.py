@@ -9,6 +9,15 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 
+
+# Same Chrome 131 UA as the rest of the tool surface — keeps CVE lookups
+# indistinguishable from a normal browser. Avoid identifying strings; some
+# intel hosts (NVD especially) throttle or null-route tool UAs.
+_BROWSER_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
 KNOWLEDGE_DIR = Path(__file__).parent.parent / "knowledge"
 
 
@@ -243,6 +252,78 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
+    async def lookup_cve(
+        cve_id: str = "",
+        cpe23: str = "",
+        max_results: int = 20,
+    ) -> str:
+        """Fast CVE intel via Shodan CVEDB (free, no API key, ~200ms).
+
+        Use this instead of `search_cve` when you have a concrete CVE id or
+        CPE 2.3 string. Output includes EPSS exploitability probability and
+        CISA Known-Exploited-Vulnerabilities (KEV) status — both absent from
+        NVD. Pass either `cve_id` (single lookup) OR `cpe23` (list).
+
+        Args:
+            cve_id: e.g. 'CVE-2021-44228' (Log4Shell). Returns rich detail.
+            cpe23: e.g. 'cpe:2.3:a:libpng:libpng:0.8'. Returns up to `max_results` CVEs.
+            max_results: Cap for CPE lookups (default 20).
+        """
+        if cve_id and cpe23:
+            return "Pass either cve_id OR cpe23, not both."
+        if not cve_id and not cpe23:
+            return "Provide cve_id (e.g. 'CVE-2024-0001') or cpe23 (e.g. 'cpe:2.3:a:vendor:product:version')."
+
+        if cve_id:
+            res = await _shodan_cve_lookup(cve_id)
+            if isinstance(res, str):
+                return f"Shodan CVEDB: {res}"
+            lines = [f"{res['id']}  CVSS {res.get('cvss', '?')}  (v{res.get('cvss_version', '?')})"]
+            epss = res.get("epss")
+            if isinstance(epss, (int, float)):
+                lines.append(f"EPSS: {epss * 100:.2f}% likelihood of exploitation in next 30d")
+            flags = []
+            if res.get("kev"):
+                flags.append("CISA-KEV (Known Exploited)")
+            if res.get("ransomware_campaign"):
+                flags.append(f"Ransomware: {res['ransomware_campaign']}")
+            if flags:
+                lines.append("Flags: " + " | ".join(flags))
+            if res.get("published"):
+                lines.append(f"Published: {res['published'][:10]}")
+            if res.get("propose_action"):
+                lines.append(f"Action: {res['propose_action']}")
+            summary = (res.get("summary") or "").replace("\n", " ").strip()
+            if summary:
+                lines.append("")
+                lines.append(summary[:600])
+            refs = res.get("references") or []
+            if refs:
+                lines.append("")
+                lines.append("References:")
+                for r in refs[:8]:
+                    lines.append(f"  {r}")
+            return "\n".join(lines)
+
+        # cpe23 lookup
+        res = await _shodan_cpe_lookup(cpe23, limit=max(1, min(max_results, 100)))
+        if isinstance(res, str):
+            return f"Shodan CVEDB: {res}"
+        if not res:
+            return f"No CVEs returned for {cpe23}"
+        lines = [f"Shodan CVEDB matches for {cpe23} ({len(res)}):"]
+        for c in res:
+            epss = c.get("epss")
+            epss_str = f"  EPSS {epss * 100:5.2f}%" if isinstance(epss, (int, float)) else ""
+            kev = " [KEV]" if c.get("kev") else ""
+            cvss = c.get("cvss") if c.get("cvss") is not None else "?"
+            lines.append(f"  {c['id']}  CVSS {cvss}{epss_str}{kev}")
+            summary = (c.get("summary") or "").replace("\n", " ").strip()
+            if summary:
+                lines.append(f"    {summary[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def search_cve(
         query: str,
         tech: str = "",
@@ -311,6 +392,89 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
 
+# ─── Shodan CVEDB (free, no API key, fastest) ───────────────────────────────
+
+_SHODAN_CVE_URL = "https://cvedb.shodan.io/cve/{cve_id}"
+_SHODAN_CPE_URL = "https://cvedb.shodan.io/cves"
+
+
+async def _shodan_cve_lookup(cve_id: str) -> dict | str:
+    """Look up a single CVE on Shodan CVEDB (free, no key, ~200ms).
+
+    Returns a dict with id, cvss, epss, kev, ransomware_campaign,
+    propose_action, summary, references, published — richer than NVD because
+    EPSS + KEV are baked in. Returns an error string on failure.
+    """
+    import httpx
+    cve = cve_id.upper().strip()
+    if not cve.startswith("CVE-"):
+        return f"not a CVE id: {cve_id}"
+    try:
+        async with httpx.AsyncClient(
+            timeout=10,
+            headers={"User-Agent": _BROWSER_UA},
+        ) as http:
+            resp = await http.get(_SHODAN_CVE_URL.format(cve_id=cve))
+        if resp.status_code == 404:
+            return f"not found in Shodan CVEDB: {cve}"
+        if resp.status_code != 200:
+            return f"HTTP {resp.status_code}"
+        data = resp.json()
+    except httpx.TimeoutException:
+        return "timed out after 10s"
+    except Exception as e:  # noqa: BLE001
+        return str(e)[:150]
+
+    return {
+        "id": data.get("cve_id", cve),
+        "summary": data.get("summary", ""),
+        "cvss": data.get("cvss"),
+        "cvss_version": data.get("cvss_version"),
+        "epss": data.get("epss"),  # 0–1 probability of exploitation
+        "kev": bool(data.get("kev")),  # CISA Known Exploited
+        "ransomware_campaign": data.get("ransomware_campaign"),
+        "propose_action": data.get("propose_action", ""),
+        "references": data.get("references", [])[:10],
+        "published": data.get("published_time", ""),
+    }
+
+
+async def _shodan_cpe_lookup(cpe23: str, limit: int = 20) -> list[dict] | str:
+    """List CVEs for a CPE 2.3 string via Shodan CVEDB.
+
+    cpe23 format: cpe:2.3:a:vendor:product:version  (e.g. cpe:2.3:a:libpng:libpng:0.8)
+    """
+    import httpx
+    if not cpe23.startswith("cpe:2.3:"):
+        return f"not a CPE 2.3 string: {cpe23}"
+    try:
+        async with httpx.AsyncClient(
+            timeout=15,
+            headers={"User-Agent": _BROWSER_UA},
+        ) as http:
+            resp = await http.get(_SHODAN_CPE_URL, params={"cpe23": cpe23})
+        if resp.status_code != 200:
+            return f"HTTP {resp.status_code}"
+        data = resp.json()
+    except httpx.TimeoutException:
+        return "timed out after 15s"
+    except Exception as e:  # noqa: BLE001
+        return str(e)[:150]
+
+    cves = data.get("cves", []) or []
+    out: list[dict] = []
+    for c in cves[:limit]:
+        out.append({
+            "id": c.get("cve_id", "?"),
+            "cvss": c.get("cvss"),
+            "epss": c.get("epss"),
+            "kev": bool(c.get("kev")),
+            "summary": (c.get("summary") or "")[:240],
+            "published": c.get("published_time", ""),
+        })
+    return out
+
+
 # ─── NVD API lookup ─────────────────────────────────────────────────────────
 
 _NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -332,7 +496,7 @@ async def _nvd_lookup(query: str, max_results: int) -> list[dict] | str:
     try:
         async with httpx.AsyncClient(
             timeout=20,
-            headers={"User-Agent": "burpsuite-swiss-knife-mcp/cve-lookup"},
+            headers={"User-Agent": _BROWSER_UA},
         ) as http:
             resp = await http.get(_NVD_API_URL, params=params)
         if resp.status_code == 403:
