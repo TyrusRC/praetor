@@ -117,56 +117,6 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def search_ws_history(
-        query: str,
-        direction: str = "",
-        filter_url: str = "",
-        since_index: int = -1,
-        limit: int = 50,
-    ) -> str:
-        """Search Burp's WebSocket message history for a substring across payloads.
-
-        Use to grep WS traffic for tokens, IDs, error keywords, leaked secrets, or
-        any payload pattern. Mirrors `search_history` for HTTP. Direction filter
-        accepts 'client' (outgoing) or 'server' (incoming).
-
-        Args:
-            query: Substring to find inside the WS message payload (case-insensitive)
-            direction: Limit to one direction ('client' or 'server')
-            filter_url: Substring filter on the upgrade-request URL
-            since_index: Only return messages with index > this value (poll for new)
-            limit: Max results
-        """
-        params: dict = {"limit": limit, "filter_payload": query}
-        if direction:
-            params["direction"] = direction
-        if filter_url:
-            params["filter_url"] = filter_url
-        if since_index >= 0:
-            params["since_index"] = since_index
-
-        data = await client.get("/api/websocket/history", params=params)
-        if "error" in data:
-            return f"Error: {data['error']}"
-
-        messages = data.get("messages", [])
-        if not messages:
-            return f"No WS messages match '{query}'."
-
-        lines = [f"WS search '{query}' ({data.get('matched', 0)} matched, showing {len(messages)}):\n"]
-        for msg in messages:
-            d = msg.get("direction", "?")
-            arrow = ">>" if "CLIENT" in str(d).upper() else "<<"
-            payload = msg.get("payload", "")
-            snippet = payload[:200] + ("..." if len(payload) > 200 else "")
-            url = msg.get("url", "")
-            url_part = f" {url}" if url else ""
-            lines.append(f"[{msg.get('index', '?')}] {arrow} ({d}, {msg.get('length', 0)}B){url_part}")
-            lines.append(f"  {snippet}")
-
-        return "\n".join(lines)
-
-    @mcp.tool()
     async def get_response_diff(index1: int, index2: int) -> str:
         """Diff two proxy history responses to spot differences.
 

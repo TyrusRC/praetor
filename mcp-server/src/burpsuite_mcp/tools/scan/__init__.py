@@ -10,7 +10,10 @@ Submodules:
 - auto_probe    — auto_probe (knowledge-driven)
 - quick_probes  — quick_scan, probe_endpoint, batch_probe
 - recon_full    — full_recon (multi-step pipeline)
-- bulk          — bulk_test (one vuln class × N endpoints)
+
+Removed:
+- bulk_test (formerly in bulk.py) — superseded by `auto_probe` which uses the
+  knowledge-base matchers across the same axes with deeper variant coverage.
 """
 
 from mcp.server.fastmcp import FastMCP
@@ -32,7 +35,6 @@ from ._helpers import (  # noqa: F401
     _matches_param,
 )
 from . import auto_probe as _auto_probe
-from . import bulk as _bulk
 from . import discovery as _discovery
 from . import quick_probes as _quick_probes
 from . import recon_full as _recon_full
@@ -44,4 +46,3 @@ def register(mcp: FastMCP) -> None:
     _auto_probe.register(mcp)
     _quick_probes.register(mcp)
     _recon_full.register(mcp)
-    _bulk.register(mcp)
