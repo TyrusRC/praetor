@@ -44,6 +44,13 @@ async def _run_cmd(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            # ProjectDiscovery tools (httpx, nuclei, katana, subfinder, gau,
+            # waybackurls) auto-detect piped stdin and read URLs from it,
+            # ignoring -u / -list flags. The MCP server's own stdin is the
+            # MCP stdio transport pipe — leaving stdin inherited makes those
+            # tools hang waiting for input that never comes. DEVNULL forces
+            # them to fall through to the explicit -u / -list path.
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,

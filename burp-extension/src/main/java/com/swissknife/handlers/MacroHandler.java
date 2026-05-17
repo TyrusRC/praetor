@@ -280,7 +280,10 @@ public class MacroHandler extends BaseHandler {
 
                 // Send request
                 HttpRequestResponse result = com.swissknife.http.ProxyTunnel.sendOrFallback(api, request);
-                HttpResponse response = result.response();
+                // Null-guard: proxy tunnel + fallback may both fail (DNS,
+                // connection refused, target down). Treat as status=0 step
+                // failure so the macro records the attempt without NPEing.
+                HttpResponse response = result != null ? result.response() : null;
                 int statusCode = response != null ? response.statusCode() : 0;
 
                 ConfigTab.log("Macro " + name + " step " + stepNum + ": "

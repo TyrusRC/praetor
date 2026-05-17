@@ -187,7 +187,11 @@ public class RepeaterHandler extends BaseHandler {
 
     private void sendResponseJson(HttpExchange exchange, HttpRequestResponse result, RepeaterTab tab) throws Exception {
         if (result == null) {
-            sendError(exchange, 502, "No response from target");
+            String why = com.swissknife.http.ProxyTunnel.lastSendError();
+            sendError(exchange, 502,
+                "No response from target" + (why.isEmpty() ? "" : " — " + why),
+                "send_failed",
+                "Check target reachability and Burp proxy listener at 127.0.0.1:8080.");
             return;
         }
 

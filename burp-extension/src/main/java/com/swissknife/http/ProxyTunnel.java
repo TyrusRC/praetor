@@ -133,11 +133,16 @@ public final class ProxyTunnel {
                 rawResponse = tunnelHttp(socket, outgoing, service);
             }
         } catch (IOException e) {
-            api.logging().logToError("ProxyTunnel send failed: " + e.getMessage());
+            String msg = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "(no detail)" : e.getMessage());
+            LAST_SEND_ERROR.set("proxy tunnel — " + msg);
+            api.logging().logToError("ProxyTunnel send failed: " + msg);
             return null;
         }
 
-        if (rawResponse == null || rawResponse.length == 0) return null;
+        if (rawResponse == null || rawResponse.length == 0) {
+            LAST_SEND_ERROR.set("proxy tunnel returned empty response from " + service.host() + ":" + service.port());
+            return null;
+        }
         HttpResponse response = HttpResponse.httpResponse(ByteArray.byteArray(rawResponse));
         return HttpRequestResponse.httpRequestResponse(request, response);
     }
@@ -266,6 +271,14 @@ public final class ProxyTunnel {
     private static final ThreadLocal<Boolean> LAST_FELL_BACK = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /**
+     * Cause-of-failure for the most recent {@link #sendOrFallback} call on this
+     * thread when it returned null. Captured so handlers can surface a real
+     * diagnostic ("Unknown host", "Connection refused", "Read timed out") to
+     * the operator instead of an opaque "No response from target".
+     */
+    private static final ThreadLocal<String> LAST_SEND_ERROR = ThreadLocal.withInitial(() -> "");
+
+    /**
      * Returns whether the most recent {@link #sendOrFallback} call on this thread
      * had to bypass Burp's proxy listener. Handlers can read this and surface
      * a {@code history_index=-1} note so callers know the request did NOT
@@ -275,10 +288,20 @@ public final class ProxyTunnel {
         return LAST_FELL_BACK.get();
     }
 
+    /**
+     * Returns the last underlying send-failure message for this thread, or "" if
+     * the most recent send succeeded. Useful for sendError(..., reason) when
+     * sendOrFallback returns null.
+     */
+    public static String lastSendError() {
+        return LAST_SEND_ERROR.get();
+    }
+
     /** Clears the per-thread fallback flag. Workers reused across unrelated calls
      *  should call this at the start of each new request to avoid stale state. */
     public static void clearLastSendFellBack() {
         LAST_FELL_BACK.remove();
+        LAST_SEND_ERROR.remove();
     }
 
     /**
@@ -287,9 +310,12 @@ public final class ProxyTunnel {
      * visibility should use {@link #send} directly and handle null.
      */
     public static HttpRequestResponse sendOrFallback(MontoyaApi api, HttpRequest request) {
+        // Clear any stale per-thread error state from a previous send.
+        LAST_SEND_ERROR.set("");
         HttpRequestResponse result = send(api, request);
         if (result != null && result.response() != null) {
             LAST_FELL_BACK.set(Boolean.FALSE);
+            LAST_SEND_ERROR.set("");
             return result;
         }
         LAST_FELL_BACK.set(Boolean.TRUE);
@@ -299,9 +325,29 @@ public final class ProxyTunnel {
         // RuntimeException and abort the calling loop (fuzz / macro / probe).
         // Callers already null-handle missing responses.
         try {
-            return api.http().sendRequest(request);
+            HttpRequestResponse fallback = api.http().sendRequest(request);
+            if (fallback != null && fallback.response() != null) {
+                // Direct send worked — clear the tunnel-side error (it succeeded via fallback).
+                LAST_SEND_ERROR.set("");
+                return fallback;
+            }
+            // Fallback returned null/empty — preserve any earlier tunnel error
+            // if we captured one, otherwise note the empty fallback.
+            if (LAST_SEND_ERROR.get().isEmpty()) {
+                LAST_SEND_ERROR.set("direct send returned no response");
+            }
+            return null;
         } catch (RuntimeException e) {
-            api.logging().logToError("ProxyTunnel.sendOrFallback: direct send threw " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            String msg = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "(no detail)" : e.getMessage());
+            // Surface the underlying cause when present (UnknownHostException,
+            // ConnectException nested under RuntimeExceptions).
+            Throwable cause = e.getCause();
+            if (cause != null && cause != e) {
+                msg += " (cause: " + cause.getClass().getSimpleName()
+                    + ": " + (cause.getMessage() == null ? "(no detail)" : cause.getMessage()) + ")";
+            }
+            LAST_SEND_ERROR.set("direct send — " + msg);
+            api.logging().logToError("ProxyTunnel.sendOrFallback: direct send threw " + msg);
             return null;
         }
     }

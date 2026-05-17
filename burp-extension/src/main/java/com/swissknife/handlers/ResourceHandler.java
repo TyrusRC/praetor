@@ -134,7 +134,11 @@ public class ResourceHandler extends BaseHandler {
         // Fetch through Burp
         HttpRequestResponse result = fetchUrl(url);
         if (result == null || result.response() == null) {
-            sendError(exchange, 502, "Failed to fetch resource: " + url);
+            String why = com.swissknife.http.ProxyTunnel.lastSendError();
+            sendError(exchange, 502,
+                "Failed to fetch resource: " + url + (why.isEmpty() ? "" : " — " + why),
+                "send_failed",
+                "Verify the URL is reachable from Burp's host.");
             return;
         }
 
