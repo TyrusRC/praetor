@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from . import (
     business_context,
     cross_target,
+    findings_graph,
     freshness,
     header_profile,
     program_policy,
@@ -54,6 +55,7 @@ def register(mcp: FastMCP) -> None:
     header_profile.register(mcp)
     program_policy.register(mcp)
     business_context.register(mcp)
+    findings_graph.register(mcp)
 
 
 __all__ = [

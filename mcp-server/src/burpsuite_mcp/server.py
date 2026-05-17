@@ -7,7 +7,7 @@ from burpsuite_mcp.tools import (
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
-    prompts, resources_mcp, mutate, exploit, auth, vuln, research,
+    prompts, resources_mcp, mutate, exploit, auth, vuln, research, harvest,
 )
 
 mcp = FastMCP(
@@ -101,3 +101,4 @@ exploit.register(mcp)          # confirm_* tools — exploit-to-confirm with too
 auth.register(mcp)             # advanced auth attacks — forge_jwt / crack_jwt_secret (native, no jwt_tool dep) / test_session_lifecycle / test_login_bypass / test_mfa_bypass / analyze_reset_tokens
 vuln.register(mcp)             # vuln-class orchestrators where no third-party covers the surface — test_csrf / test_ssrf / test_ssti / test_xxe / test_websocket / test_prototype_pollution
 research.register(mcp)         # research_attack_vector — curated bundle of deep-dive prompts + disclosed-report URLs + writeup-hub searches + chain hypotheses for any vuln class (no internet call from server; Claude WebFetches the curated URLs)
+harvest.register(mcp)          # harvest_identifiers — pull IDs/emails/UUIDs/ULIDs/Snowflakes/JWTs out of captured traffic for IDOR pivots (Strix-derived; complements extract_js_secrets which is single-index, API-key focused)
