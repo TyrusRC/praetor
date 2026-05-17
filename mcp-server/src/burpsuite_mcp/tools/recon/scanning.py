@@ -243,6 +243,282 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
+    async def run_commix(
+        target: str,
+        data: str = "",
+        cookie: str = "",
+        parameter: str = "",
+        level: int = 1,
+        technique: str = "",
+        batch: bool = True,
+        use_proxy: bool = True,
+        timeout: int = 600,
+    ) -> str:
+        """Run commix command-injection scanner against a target. Requires commix installed.
+
+        commix is the sqlmap-equivalent for OS-command injection — confirms
+        injection AND offers `--os-shell` interactive mode. This wrapper runs
+        DETECTION + confirmation only (no shell spawn — operator opts in
+        manually). Routes through Burp proxy by default.
+
+        Args:
+            target: Target URL (with vulnerable parameter)
+            data: POST body (auto-switches to POST)
+            cookie: Cookie header
+            parameter: Restrict tests to a single parameter (-p)
+            level: Test level 1-3 (default 1)
+            technique: c=classic, e=eval, t=time, f=file. Empty = all.
+            batch: Non-interactive (default True)
+            use_proxy: Route through Burp proxy (default True)
+            timeout: Max seconds (default 600)
+        """
+        if not _check_tool("commix"):
+            return (
+                "Error: commix not installed.\n"
+                "  pip install commix  OR  git clone https://github.com/commixproject/commix\n"
+                "  https://github.com/commixproject/commix"
+            )
+
+        cmd = [
+            "commix", "--url", target,
+            "--level", str(max(1, min(3, level))),
+            "--skip-waf",
+        ]
+        if data:
+            cmd.extend(["--data", data])
+        if cookie:
+            cmd.extend(["--cookie", cookie])
+        if parameter:
+            cmd.extend(["-p", parameter])
+        if technique:
+            cmd.extend(["--technique", technique])
+        if batch:
+            cmd.append("--batch")
+        if use_proxy:
+            cmd.extend(["--proxy", BURP_PROXY_URL])
+
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"commix produced no output (exit {code})"
+
+        key_lines = []
+        for line in out.split("\n"):
+            if any(k in line for k in (
+                "injectable", "vulnerable", "injection", "Type:", "Technique:",
+                "Payload:", "Parameter:", "[+] ", "[!] ", "[CRITICAL]", "[ERROR]",
+            )):
+                key_lines.append(line.strip())
+
+        lines = [f"commix findings for {target} ({len(key_lines)}):", ""]
+        if key_lines:
+            for l in key_lines[:80]:
+                lines.append(f"  {l}")
+        else:
+            lines.append(f"  No injection found at level={level}. Try higher level or specify technique=eft.")
+
+        lines.append("")
+        lines.append("Next steps:")
+        lines.append("  - Confirm with: confirm_rce(endpoint=TARGET, parameter=PARAM, command='id')")
+        lines.append("  - For interactive shell (operator-supervised, SOC-loud): re-run with `--os-shell` via curl_request/send_raw_request")
+        if use_proxy:
+            lines.append("All requests routed through Burp proxy — check proxy history.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_tplmap(
+        target: str,
+        data: str = "",
+        cookie: str = "",
+        parameter: str = "",
+        engine: str = "",
+        level: int = 1,
+        use_proxy: bool = True,
+        timeout: int = 600,
+    ) -> str:
+        """Run tplmap SSTI scanner against a target. Requires tplmap installed.
+
+        tplmap is the sqlmap-equivalent for server-side template injection —
+        confirms SSTI AND chains to `--os-shell` / `--bind-shell` / `--reverse-shell`
+        on engines that allow OS execution. This wrapper runs DETECTION +
+        confirmation only.
+
+        Args:
+            target: Target URL (with vulnerable parameter)
+            data: POST body
+            cookie: Cookie header
+            parameter: Parameter to test (--parameter PARAM)
+            engine: Force engine (jinja2/twig/freemarker/velocity/smarty/erb/mako/...)
+            level: Test level 0-5 (default 1)
+            use_proxy: Route through Burp proxy (default True)
+            timeout: Max seconds (default 600)
+        """
+        if not _check_tool("tplmap") and not _check_tool("tplmap.py"):
+            return (
+                "Error: tplmap not installed.\n"
+                "  git clone https://github.com/epinna/tplmap (Python 2 fork) OR\n"
+                "  git clone https://github.com/Akamai-APP/tplmap-py3 (Python 3 fork)\n"
+                "  PATH must include `tplmap` or `tplmap.py`."
+            )
+
+        bin_name = "tplmap" if _check_tool("tplmap") else "tplmap.py"
+        cmd = [bin_name, "-u", target, "--level", str(max(0, min(5, level)))]
+        if data:
+            cmd.extend(["-d", data])
+        if cookie:
+            cmd.extend(["-c", cookie])
+        if parameter:
+            cmd.extend(["-p", parameter])
+        if engine:
+            cmd.extend(["-e", engine])
+        if use_proxy:
+            cmd.extend(["--proxy", BURP_PROXY_URL])
+
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"tplmap produced no output (exit {code})"
+
+        key_lines = []
+        for line in out.split("\n"):
+            if any(k in line for k in (
+                "injectable", "injection", "engine:", "Engine:", "Operating",
+                "Template engine", "Capabilities", "[+]", "[!]", "[CRITICAL]", "[ERROR]",
+                "OS shell available", "Bind shell available", "Reverse shell available",
+            )):
+                key_lines.append(line.strip())
+
+        lines = [f"tplmap findings for {target} ({len(key_lines)}):", ""]
+        if key_lines:
+            for l in key_lines[:80]:
+                lines.append(f"  {l}")
+        else:
+            lines.append(f"  No SSTI found at level={level}. Try higher level or specify engine=jinja2/twig/...")
+
+        lines.append("")
+        lines.append("Next steps:")
+        lines.append("  - Confirm with: confirm_ssti(endpoint=TARGET, parameter=PARAM)")
+        lines.append("  - Engine that allows OS exec: chain into confirm_rce after confirmation")
+        if use_proxy:
+            lines.append("All requests routed through Burp proxy — check proxy history.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def generate_deserialization_gadget(
+        language: str,
+        gadget: str = "",
+        command: str = "id",
+        encode: str = "base64",
+        timeout: int = 60,
+    ) -> str:
+        """Generate a deserialization gadget chain via ysoserial / ysoserial.net.
+
+        Payload GENERATOR only — does NOT send. Operator pipes the output into
+        curl_request / send_raw_request / session_request via the vulnerable
+        sink (Java ObjectInputStream, .NET BinaryFormatter, etc.). Per Rule 5
+        and the confirm_* safety contract, `command` is filtered against the
+        HARD_DESTRUCTIVE denylist (rm -rf, useradd, DROP TABLE blocked).
+
+        Args:
+            language: java | dotnet
+            gadget: Java: CommonsCollections1..7, Spring1, Spring2, ROME,
+                Hibernate1..2, etc. .NET: TypeConfuseDelegate,
+                ActivitySurrogateSelector, WindowsIdentity, etc.
+                Empty = print available gadget list.
+            command: Command for the gadget to run on deserialize. Default 'id'.
+                HARD_DESTRUCTIVE patterns refused at tool layer.
+            encode: base64 | raw | hex (default base64)
+            timeout: Max seconds for the generator process (default 60)
+        """
+        from burpsuite_mcp.tools.exploit._safety import (
+            soc_loud_warning,
+            validate_payload,
+        )
+
+        lang = language.lower().strip()
+        if lang not in {"java", "dotnet", ".net"}:
+            return f"Unknown language '{language}'. Use 'java' or 'dotnet'."
+        if lang == ".net":
+            lang = "dotnet"
+
+        ok, why = validate_payload(command, vuln_type="deserialization")
+        if not ok:
+            return f"REFUSED: {why}"
+        warning = soc_loud_warning(command)
+
+        if lang == "java":
+            tool = "ysoserial"
+            jar = "ysoserial.jar"
+            if not _check_tool("ysoserial") and not _check_tool("java"):
+                return (
+                    "Error: ysoserial not installed.\n"
+                    "  Download: https://github.com/frohoff/ysoserial/releases\n"
+                    "  Then alias `ysoserial='java -jar /path/to/ysoserial.jar'`"
+                )
+            if not gadget:
+                cmd = ["ysoserial"] if _check_tool("ysoserial") else ["java", "-jar", jar]
+            else:
+                base = ["ysoserial"] if _check_tool("ysoserial") else ["java", "-jar", jar]
+                cmd = base + [gadget, command]
+        else:  # dotnet
+            if not _check_tool("ysoserial.exe") and not _check_tool("ysoserial.net"):
+                return (
+                    "Error: ysoserial.net not installed.\n"
+                    "  Download: https://github.com/pwntester/ysoserial.net/releases\n"
+                    "  Add to PATH as `ysoserial.exe` (Windows) or `ysoserial.net` (Linux wrapper)."
+                )
+            tool = "ysoserial.exe" if _check_tool("ysoserial.exe") else "ysoserial.net"
+            if not gadget:
+                cmd = [tool]
+            else:
+                cmd = [tool, "-g", gadget, "-c", command, "-f", "BinaryFormatter"]
+
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"{tool} produced no output (exit {code})"
+
+        # If no gadget specified, return the available-gadgets list verbatim
+        if not gadget:
+            lines = [f"{tool} available gadgets:", ""]
+            for line in out.splitlines()[:80]:
+                lines.append(f"  {line}")
+            lines.append("")
+            lines.append(f"Re-run with gadget=<name> command='id' to generate.")
+            return "\n".join(lines)
+
+        # Otherwise the output IS the raw serialized payload. Encode.
+        raw_bytes = stdout.encode("latin-1", errors="ignore") if isinstance(stdout, str) else stdout
+        import base64 as _b64
+        if encode == "base64":
+            payload_str = _b64.b64encode(raw_bytes).decode()
+        elif encode == "hex":
+            payload_str = raw_bytes.hex()
+        else:
+            payload_str = stdout  # raw
+
+        lines = [
+            f"{tool} gadget={gadget} command={command!r} ({len(raw_bytes)} bytes, {encode}):",
+        ]
+        if warning:
+            lines.append(f"  warning: {warning}")
+        lines.append("")
+        lines.append("Payload:")
+        # Wrap at 100 chars/line for readability
+        for i in range(0, len(payload_str), 100):
+            lines.append(payload_str[i:i + 100])
+        lines.append("")
+        lines.append("Delivery:")
+        lines.append("  - Java: POST as body to ObjectInputStream sink, or stuff into a")
+        lines.append("    Cookie / Header value the app deserialises")
+        lines.append("  - .NET: BinaryFormatter / NetDataContractSerializer / LosFormatter sink")
+        lines.append("  - Verify exec via confirm_rce() with use_collaborator=True if response is opaque")
+        if stderr:
+            lines.append("")
+            lines.append(f"stderr (first 400 chars): {stderr[:400]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def run_sqlmap(
         target: str,
         data: str = "",
