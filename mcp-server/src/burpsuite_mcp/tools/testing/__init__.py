@@ -18,6 +18,9 @@ from . import (
     hpp,
     id_monotonic,
     race,
+    race_lastbyte,
+    race_singlepacket,
+    timeless_timing,
 )
 
 
@@ -31,3 +34,6 @@ def register(mcp: FastMCP) -> None:
     hpp.register(mcp)
     id_monotonic.register(mcp)
     cross_transport.register(mcp)
+    race_lastbyte.register(mcp)
+    race_singlepacket.register(mcp)
+    timeless_timing.register(mcp)
