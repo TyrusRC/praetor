@@ -1115,6 +1115,10 @@ public class SessionHandler extends BaseHandler {
                                         // Collaborator allocation failed (Community Edition or
                                         // unreachable). Skip this probe rather than send a
                                         // payload with the literal "{{collaborator}}" marker.
+                                        api.logging().logToOutput(
+                                            "[auto-probe] Collaborator payload allocation failed: "
+                                            + t.getClass().getSimpleName() + ": " + t.getMessage()
+                                            + " — skipping probe (param=" + parameter + ")");
                                         continue;
                                     }
                                 } else {
@@ -1184,7 +1188,15 @@ public class SessionHandler extends BaseHandler {
                                                 mt.put("_interactions", simplified);
                                             }
                                         }
-                                    } catch (Throwable ignored) {}
+                                    } catch (Throwable oobErr) {
+                                        // OOB poll failure: log at debug so operator can
+                                        // see why a Collaborator-class probe didn't get
+                                        // _interactions attached. The matcher will simply
+                                        // fall through to other types.
+                                        api.logging().logToOutput(
+                                            "[auto-probe] Collaborator interaction poll failed: "
+                                            + oobErr.getClass().getSimpleName() + ": " + oobErr.getMessage());
+                                    }
                                 }
                             }
 

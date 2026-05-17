@@ -22,7 +22,7 @@ public class FindingsStore {
         Map.entry("CWE-1336", "Never pass user input directly to template engines. Use sandboxed rendering.")
     );
 
-    /** Vuln types that require reproductions[] with >= 2 verified Logger entries. */
+    /** Vuln types that require reproductions[] with >= 3 verified Logger entries (Rule 10a). */
     public static final Set<String> TIMING_BLIND_TYPES = Set.of(
         "sqli_blind", "sqli_time", "ssrf_blind", "race_condition",
         "request_smuggling", "ssti_blind", "command_injection_blind", "xxe_blind"
@@ -250,7 +250,7 @@ public class FindingsStore {
         return false;
     }
 
-    /** Returns true if vulnType requires reproductions[] with >= 2 entries. */
+    /** Returns true if vulnType requires reproductions[] with >= 3 entries (Rule 10a). */
     public static boolean requiresReproductions(String vulnType) {
         return vulnType != null && TIMING_BLIND_TYPES.contains(vulnType.toLowerCase());
     }

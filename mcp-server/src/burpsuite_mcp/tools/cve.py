@@ -1,6 +1,7 @@
 """CVE intelligence — match detected tech stack against known vulnerabilities."""
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -21,10 +22,12 @@ def _load_tech_vulns() -> dict:
         return json.load(f)
 
 
+_VERSION_RE = re.compile(r"[\d]+(?:\.[\d]+)*")
+
+
 def _extract_version(tech_string: str) -> str:
     """Extract version number from tech string like 'Apache/2.4.49' or 'PHP 8.1.2'."""
-    import re
-    m = re.search(r'[\d]+(?:\.[\d]+)*', tech_string)
+    m = _VERSION_RE.search(tech_string)
     return m.group(0) if m else ""
 
 

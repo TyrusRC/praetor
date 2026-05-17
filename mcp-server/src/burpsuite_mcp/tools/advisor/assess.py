@@ -8,6 +8,7 @@ session boost, program-policy overrides, and confidence/severity inference.
 
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from burpsuite_mcp import client
@@ -23,6 +24,17 @@ from burpsuite_mcp.tools.advisor_kb import (
     SENSITIVE_ENDPOINT_PATTERNS,
     TIMING_VULN_TYPES,
 )
+
+
+@lru_cache(maxsize=256)
+def _word_boundary_pattern(key: str) -> re.Pattern:
+    """Compile + cache a `(?<![a-z])key(?![a-z])` regex.
+
+    assess_finding ran this pattern 20–40 times per call, recompiling each
+    NEVER_SUBMIT entry every time. Cached at module level so subsequent
+    calls reuse the compiled object.
+    """
+    return re.compile(rf"(?<![a-z]){re.escape(key)}(?![a-z])")
 
 
 async def assess_finding_impl(
@@ -331,7 +343,7 @@ async def assess_finding_impl(
     else:
         # Hard NEVER SUBMIT — these never report standalone
         for ns_key, ns_reason in never_submit_types.items():
-            if re.search(rf"(?<![a-z]){re.escape(ns_key)}(?![a-z])", vuln_lower):
+            if _word_boundary_pattern(ns_key).search(vuln_lower):
                 if chain_provided:
                     issues.append(
                         f"Q6 NEVER SUBMIT (chained): {ns_reason}. chain_with={chain_with} — "
@@ -353,7 +365,7 @@ async def assess_finding_impl(
                 "host_header_no_cache", "options_method",
             )
             for ns_key, ns_reason in conditional_never_submit_types.items():
-                if not re.search(rf"(?<![a-z]){re.escape(ns_key)}(?![a-z])", vuln_lower):
+                if not _word_boundary_pattern(ns_key).search(vuln_lower):
                     continue
                 if chain_provided:
                     issues.append(
@@ -379,8 +391,7 @@ async def assess_finding_impl(
         negation_window = 24
         negators = (" not ", " no ", "isn't ", "is not", "without ", "instead of", "ruled out", "not a ", "not just")
         for ns_key, ns_reason in never_submit_keywords.items():
-            pattern = re.compile(rf"(?<![a-z]){re.escape(ns_key)}(?![a-z])")
-            m = pattern.search(evidence_lower)
+            m = _word_boundary_pattern(ns_key).search(evidence_lower)
             if not m:
                 continue
             # Look back up to negation_window chars
