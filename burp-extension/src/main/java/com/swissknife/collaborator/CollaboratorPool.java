@@ -40,6 +40,34 @@ public final class CollaboratorPool {
     }
 
     /**
+     * Returns true if the given interaction id has been observed by the shared
+     * Collaborator client. Used by NotesHandler to cross-validate
+     * evidence.collaborator_interaction_id before accepting a save_finding so
+     * operators can't claim an OOB hit they never received.
+     *
+     * Burp's getAllInteractions() drains the interaction queue, so we poll
+     * once, snapshot the ids, and let the caller decide. When Collaborator is
+     * unavailable (Community Edition), returns null so the caller can pick
+     * between hard-reject and warn-and-allow without conflating "no Pro" with
+     * "id not found".
+     */
+    public static Boolean hasInteraction(MontoyaApi api, String interactionId) {
+        if (interactionId == null || interactionId.isEmpty()) return Boolean.FALSE;
+        CollaboratorClient client = tryGetOrCreate(api);
+        if (client == null) return null;  // Collaborator unavailable -> caller decides
+        try {
+            var interactions = client.getAllInteractions();
+            if (interactions == null) return Boolean.FALSE;
+            for (var i : interactions) {
+                if (interactionId.equals(i.id().toString())) return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
      * Drop the singleton so the next getOrCreate() builds a fresh client.
      * Used when the operator switches engagements via configure_scope —
      * holding interactions for a previous target's payload IDs alongside

@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**92 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**102 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 

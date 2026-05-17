@@ -75,6 +75,7 @@ def register(mcp: FastMCP) -> None:
 
         # ── R13: filter targets against existing coverage ──
         skipped_count = 0
+        kb_drift_hint = ""
         if domain and skip_already_covered:
             try:
                 from burpsuite_mcp.tools.intel import _knowledge_version, _intel_path
@@ -82,7 +83,9 @@ def register(mcp: FastMCP) -> None:
                 if cov_path.exists():
                     cov = json.loads(cov_path.read_text())
                     cur_kv = _knowledge_version()
+                    recorded_kv = cov.get("knowledge_version")
                     covered_keys: set[tuple] = set()
+                    stale_tuples = 0
                     for entry in cov.get("entries", []):
                         if entry.get("knowledge_version") == cur_kv:
                             covered_keys.add((
@@ -90,6 +93,14 @@ def register(mcp: FastMCP) -> None:
                                 entry.get("parameter", ""),
                                 entry.get("category", ""),
                             ))
+                        else:
+                            stale_tuples += 1
+                    if recorded_kv is not None and recorded_kv != cur_kv and stale_tuples:
+                        kb_drift_hint = (
+                            f"  [hint] knowledge_version drift: {stale_tuples} tuple(s) tested at "
+                            f"v{recorded_kv} are eligible for re-test at v{cur_kv}. "
+                            f"Re-run with skip_already_covered=False to pick them up.\n"
+                        )
                     if covered_keys:
                         active_cats = set(categories or [
                             k.get("category") for k in _knowledge
@@ -112,10 +123,13 @@ def register(mcp: FastMCP) -> None:
             available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
             return f"No knowledge base found. Available: {', '.join(sorted(available))}"
         if not targets:
-            return (
+            msg = (
                 f"All requested targets already covered (knowledge_version match). "
                 f"Skipped {skipped_count} tuples. Pass skip_already_covered=False to re-probe."
             )
+            if kb_drift_hint:
+                msg += "\n" + kb_drift_hint
+            return msg
 
         data = await client.post("/api/session/auto-probe", json={
             "session": session,
@@ -127,6 +141,8 @@ def register(mcp: FastMCP) -> None:
             return f"Error: {data['error']}"
 
         lines = [f"Auto-Probe: {data.get('parameters_tested', 0)} params, {data.get('total_probes_sent', 0)} probes\n"]
+        if kb_drift_hint:
+            lines.append(kb_drift_hint)
 
         findings = data.get("findings", [])
         for f in findings:

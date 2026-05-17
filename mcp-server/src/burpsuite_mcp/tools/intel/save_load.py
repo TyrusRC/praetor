@@ -245,6 +245,101 @@ def register(mcp: FastMCP):
         return json.dumps(data, indent=2, default=str)
 
     @mcp.tool()
+    async def coverage_summary(
+        domain: str,
+        vuln_classes: str = "",
+    ) -> str:
+        """Coverage gap dashboard — "N endpoints untested for SQLi" breakdown.
+
+        Cross-references endpoints.json (discovered URLs+params) against
+        coverage.json (tested tuples) and reports per-vuln-class gaps. The
+        default vuln class list is the top 10 reportable web classes; pass
+        a comma-separated list to narrow.
+
+        Args:
+            domain: Target domain
+            vuln_classes: Comma-separated vuln classes to check. Empty = sqli,xss,
+                ssrf,idor,ssti,command_injection,path_traversal,xxe,open_redirect,
+                auth_bypass.
+        """
+        dir_path = _intel_path(domain)
+        endpoints_path = dir_path / "endpoints.json"
+        coverage_path = dir_path / "coverage.json"
+
+        if not endpoints_path.exists():
+            return (
+                f"No endpoints recorded for {domain}. "
+                "Run discover_attack_surface or full_recon first."
+            )
+
+        try:
+            endpoints_data = json.loads(endpoints_path.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            return f"endpoints.json unreadable: {e}"
+
+        endpoints = endpoints_data.get("endpoints", []) or []
+        if not endpoints:
+            return f"endpoints.json present but empty for {domain}."
+
+        coverage_entries: list[dict] = []
+        kv_recorded = None
+        if coverage_path.exists():
+            try:
+                cov = json.loads(coverage_path.read_text())
+                coverage_entries = cov.get("entries", []) or []
+                kv_recorded = cov.get("knowledge_version")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if vuln_classes.strip():
+            classes = [c.strip() for c in vuln_classes.split(",") if c.strip()]
+        else:
+            classes = [
+                "sqli", "xss", "ssrf", "idor", "ssti",
+                "command_injection", "path_traversal", "xxe",
+                "open_redirect", "auth_bypass",
+            ]
+
+        # Build (endpoint, parameter) -> set(tested_classes)
+        tested: dict[tuple[str, str], set[str]] = {}
+        for e in coverage_entries:
+            key = (e.get("endpoint", ""), e.get("parameter", ""))
+            cls = e.get("vuln_class") or e.get("class") or ""
+            if cls:
+                tested.setdefault(key, set()).add(cls)
+
+        # Enumerate (endpoint, parameter) tuples from endpoints.json
+        tuples: list[tuple[str, str]] = []
+        for ep in endpoints:
+            url = ep.get("url") or ep.get("endpoint") or ""
+            params = ep.get("parameters") or ep.get("params") or []
+            if not params:
+                tuples.append((url, ""))
+                continue
+            for p in params:
+                pname = p if isinstance(p, str) else (p.get("name") or "")
+                tuples.append((url, pname))
+
+        total_tuples = len(tuples)
+        lines = [
+            f"Coverage summary for {domain}",
+            f"  total (endpoint, param) tuples: {total_tuples}",
+            f"  tuples with any test recorded: {len(tested)}",
+        ]
+        if kv_recorded is not None:
+            current_kv = _knowledge_version()
+            drift = " (DRIFT — re-run auto_probe(skip_already_covered=False))" if kv_recorded != current_kv else ""
+            lines.append(f"  knowledge_version recorded: {kv_recorded} / current: {current_kv}{drift}")
+        lines.append("")
+        lines.append("Per-class untested counts:")
+        for cls in classes:
+            untested = sum(1 for key in tuples if cls not in tested.get(key, set()))
+            pct = (1 - untested / total_tuples) * 100 if total_tuples else 0
+            lines.append(f"  {cls:20} {untested:4} untested  ({pct:5.1f}% covered)")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def save_target_notes(
         domain: str,
         notes: str,

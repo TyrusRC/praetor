@@ -571,6 +571,29 @@ async def assess_finding_impl(
         impact_boost -= 0.05
         impact_notes.append("Internal environment: reduced external exposure (-5%)")
 
+    # Warn when a high-impact-context vuln is being assessed WITHOUT
+    # business_context captured. IDOR / BFLA / business_logic / mass_assignment
+    # severity scoring depends heavily on what data the affected endpoint
+    # exposes — without sensitive_data / kill_switches captured, the gate
+    # can't apply the +5% / +10% kill-switch boosts and the finding may be
+    # under-scored. Surface a one-line hint so the operator runs
+    # capture_business_context() before save.
+    biz_sensitive_classes = {
+        "idor", "bfla", "business_logic", "mass_assignment",
+        "broken_object_level_auth", "broken_function_level_auth",
+        "excessive_data_exposure",
+    }
+    if (
+        not biz_data
+        and q2_class_root in biz_sensitive_classes
+        and domain
+    ):
+        impact_notes.append(
+            f"WARNING: no business_context captured for {domain}. "
+            f"{q2_class_root} impact scoring missing sensitive_data / kill_switches boost — "
+            f"run capture_business_context(domain='{domain}', ...) before save_finding."
+        )
+
     # ── Structured business_context consumers ─────────────────
     # Operator-captured sensitive_data and kill_switches lift impact when
     # the affected endpoint or vuln class lines up with what the engagement

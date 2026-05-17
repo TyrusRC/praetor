@@ -265,6 +265,29 @@ public class FindingsStore {
         return false;
     }
 
+    /**
+     * Look up an existing finding by (endpoint, vuln_type, title) — the same
+     * key Python uses in _deduplicate_finding minus `parameter` (which the
+     * Java FindingsStore doesn't track). Returns null when none match.
+     * Used by NotesHandler to surface a 409-style duplicate instead of
+     * silently re-appending — saves a few KB of memory + makes the in-memory
+     * dashboard match the persistent .burp-intel/ store.
+     */
+    public Map<String, Object> findExistingByKey(String endpoint, String vulnType, String title) {
+        if (endpoint == null) endpoint = "";
+        if (vulnType == null) vulnType = "";
+        if (title == null) title = "";
+        for (Map<String, Object> f : findings) {
+            String ep = String.valueOf(f.getOrDefault("endpoint", ""));
+            String vt = String.valueOf(f.getOrDefault("vuln_type", ""));
+            String ti = String.valueOf(f.getOrDefault("title", ""));
+            if (ep.equals(endpoint) && vt.equals(vulnType) && ti.equals(title)) {
+                return f;
+            }
+        }
+        return null;
+    }
+
     /** Hard-delete a finding by its in-memory id. Returns true if removed. */
     public boolean removeById(String id) {
         if (id == null || id.isEmpty()) return false;

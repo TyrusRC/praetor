@@ -118,12 +118,15 @@ public class ProxyHandler extends BaseHandler {
             result.put("status_code", resp.statusCode());
             result.put("response_headers", headersToList(resp.headers()));
             String body = resp.bodyToString();
-            // Truncate large response bodies
-            if (body.length() > 50000) {
-                body = body.substring(0, 25000) + "\n\n[... TRUNCATED " + (body.length() - 50000) + " chars ...]\n\n" + body.substring(body.length() - 25000);
+            int fullLength = body.length();
+            boolean truncated = fullLength > 50000;
+            if (truncated) {
+                body = body.substring(0, 25000) + "\n\n[... TRUNCATED " + (fullLength - 50000) + " chars ...]\n\n" + body.substring(fullLength - 25000);
             }
             result.put("response_body", body);
             result.put("response_length", resp.body().length());
+            result.put("body_truncated", truncated);
+            result.put("body_size_full", fullLength);
             result.put("mime_type", resp.statedMimeType().toString());
         }
 
