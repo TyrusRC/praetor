@@ -147,12 +147,12 @@ Pick by depth, not name:
 - **New API endpoint**: handler in `burp-extension/.../handlers/` extending `BaseHandler`, register in `ApiServer.java` via `createContext`
 - **New analysis module**: class in `burp-extension/.../analysis/`, called from a handler
 - **New payload set** (for `get_payloads`): drop JSON in `mcp-server/.../payloads/` — schema: `{category, contexts: {ctx: {description, payloads:[{payload, description, waf_bypass}]}}}`
-- **New KB probes** (for `auto_probe`): drop JSON in `mcp-server/.../knowledge/` with `contexts` + matchers. Files in `_REFERENCE_ONLY` (in `scan.py`) are excluded.
+- **New KB probes** (for `auto_probe`): drop JSON in `mcp-server/.../knowledge/` with `contexts` + matchers. Files in `_REFERENCE_ONLY` (in `tools/scan/_constants.py`) are excluded.
 - **Hidden-path fuzzing**: skill `.claude/skills/fuzz-hidden-paths.md`. Pipeline: `detect_tech_stack` → `generate_smart_wordlist(domain, tier)` → `run_ffuf(url, wordlist=path, ...)` → annotate + organize hits. SecLists detected by `check_recon_tools`.
 
 ### Matcher types (MatcherEngine.java)
 
-`status`, `word`, `not_word`, `regex`, `timing`, `differential_timing`, `length_diff`, `length_delta`, `word_count_diff`, `header`, `not_header`, `header_change`, `header_added`, `header_removed`, `mime_changes`, `reflection`, `literal`, `collaborator`. Plus advanced: `shape_fingerprint`, `valid_vs_invalid_baseline`. Unknown types fail-closed.
+`status`, `not_status`, `word`, `not_word`, `regex`, `timing`, `differential_timing`, `length_diff`, `length_delta`, `word_count_diff`, `header`, `not_header`, `header_change`, `header_added`, `header_removed`, `mime_changes`, `reflection`, `literal`, `collaborator`. Plus advanced: `shape_fingerprint`, `valid_vs_invalid_baseline`. Unknown types fail-closed.
 
 ## Skills + Rules (loaded on-demand)
 
