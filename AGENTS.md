@@ -62,6 +62,13 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 **Returns:** Confirmed bypasses with reproductions[], replay-chain evidence, severity-rated findings with PoC steps, suggested chain-with[] anchors for higher-severity reports.
 **Constraint:** Always work the `playbook-payment-and-auth.md` workflow — map the multi-step flow BEFORE mutating any single step. Don't fuzz `redirect_uri` with 1000 payloads when `auto_probe` covers the working bypasses.
 
+### fuzz-agent
+**Purpose:** Discover hidden directories and files using smart, tech-aware wordlists. Replaces spray fuzzing with surgical SecLists slicing fed by recon intel.
+**When to dispatch:** After `detect_tech_stack` has fingerprinted the target and standard recon endpoints are mapped. Use `shallow` tier for triage, `medium` for primary runs, `deep` only when shallow+medium return empty.
+**Tools it should use:** `detect_tech_stack`, `generate_smart_wordlist`, `run_ffuf` (proxied through Burp; `match_codes=[200,204,301,307,401,403,500]`, `filter_size=<baseline>`), `annotate_request` (color `YELLOW`, comment `hidden-path`), `send_to_organizer`, `save_target_intel`.
+**Returns:** New endpoints written into `.burp-intel/<domain>/endpoints.json`, YELLOW-annotated proxy entries for each hit, organizer entries for follow-up.
+**Constraint:** Never two `fuzz-agent` on the same host simultaneously — WAF tripping. Max 1 concurrent `fuzz-agent` per host across the whole session. See `.claude/skills/fuzz-hidden-paths.md`.
+
 ## Dispatch Rules
 
 1. **Never dispatch agents that make requests to the SAME endpoint simultaneously** — this can trigger WAF rate limiting and corrupt results.
