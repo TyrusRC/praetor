@@ -29,6 +29,17 @@ public class ScopeHandler extends BaseHandler {
     // so a Burp restart doesn't silently downgrade a strict-mode engagement back
     // to operator. Failure here is non-fatal — keep the default and continue.
     static {
+        reloadMode();
+    }
+
+    /**
+     * Re-read the scope-mode state file and refresh {@link #currentMode}.
+     * Package-private hook for tests (the static initializer cannot be re-run
+     * once the class is loaded, so cold-start coverage uses this entry point).
+     * Production callers should not invoke this directly — mode is owned by
+     * {@code handleConfigure}.
+     */
+    static void reloadMode() {
         try {
             java.nio.file.Path stateFile = java.nio.file.Path.of(".burp-intel", "_scope_mode.json");
             if (java.nio.file.Files.isReadable(stateFile)) {

@@ -432,7 +432,7 @@ public final class MatcherEngine {
     }
 
     private static final java.util.Set<String> KNOWN_MATCHER_TYPES = java.util.Set.of(
-        "status", "word", "not_word", "regex", "timing", "differential_timing",
+        "status", "not_status", "word", "not_word", "regex", "timing", "differential_timing",
         "length_diff", "length_delta", "word_count_diff",
         "header", "not_header", "header_change", "header_added", "header_removed",
         "mime_changes", "reflection", "literal", "collaborator",
