@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**102 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**112 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -11,7 +11,7 @@ Split categories:
 - `sqli` → `sqli.json` + `sqli_blind.json`, `sqli_engines.json`
 - `ssrf` → `ssrf.json` + `ssrf_bypass.json`, `ssrf_protocol.json`
 
-**Reference-only (manual tooling, not auto-probed):** captcha_bypass, clickjacking, csv_injection, dependency_confusion, http3_quic, insecure_randomness, race_condition, request_smuggling, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, xs_leak
+**Reference-only (manual tooling, not auto-probed):** captcha_bypass, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http3_quic, insecure_randomness, mcp_server_attacks, race_condition, rag_injection, request_smuggling, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, xs_leak
 
 ## How to query
 
@@ -56,20 +56,21 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `nosql` | mongodb, redis, mongodb_blind, mongodb_auth_bypass, couchdb, cassandra (+1) | critical | cassandra, couchdb, express, java, mean |
 | `orm_leak` | django_filter, rails_arel, sequelize_injection | high | django, express, node.js, python, rails |
 
-## Injection (client-side) (8)
+## Injection (client-side) (9)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `xss` | html, attribute, angular, javascript_context, dom_based, stored_indicator (+4) | critical | angularjs |
 | `dom_xss` | hash_injection, postmessage_sink, url_source, jquery_sink, open_redirect_dom, document_domain (+3) | critical | angular, csp, dompurify, javascript, jquery |
 | `dom_clobbering` | form_clobbering, iframe_srcdoc_clobber | critical | - |
+| `dom_clobbering_2024` | id_name_property_clobber, htmlcollection_clobber | high | - |
 | `cspp` | custom_property_injection, style_attribute_injection | high | - |
 | `client_side_request` | postmessage_origin_bypass, window_opener_attack, wildcard_postmessage_send, broadcast_channel_leak | high | - |
 | `client_side_path_traversal` | fetch_path_injection, router_manipulation, postmessage_cspt | high | angular, next.js, nuxt, react, sveltekit |
 | `dangling_markup` | token_theft, csp_bypass_dangling | high | - |
 | `relative_path_overwrite` | css_injection_rpo, css_exfiltration | medium | apache, asp.net, iis, nginx, php |
 
-## Authentication / Auth (11)
+## Authentication / Auth (13)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -80,9 +81,11 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `jwt` | alg_none, alg_confusion, kid_injection, jku_injection, weak_secret, embedded_jwk (+9) | critical | - |
 | `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, pkce_reuse_after_capture, oidc_nonce_validation (+11) | critical | auth0, backchannel_authentication, ciba, dpop, fapi |
 | `oauth_device_flow` | device_code_phishing, user_code_brute_force | critical | device_grant, oauth |
+| `oauth_dpop_confused_deputy` | rs_audience_missing, jti_replay | high | dpop, oauth, rfc9449 |
 | `saml` | signature_bypass, xxe_in_saml, assertion_replay, attribute_injection, recipient_mismatch, xml_signature_wrapping (+2) | critical | .net, adfs, java, okta, onelogin |
 | `scim_provisioning` | endpoint_discovery, filter_injection, mass_user_create, group_patch_escalation, shadow_admin_username, put_attribute_clear | critical | azure_ad, jumpcloud, okta, onelogin, scim |
 | `webauthn_passkey` | attestation_none_acceptance, challenge_replay, rp_id_origin_mismatch, recovery_code_weakness, passkey_to_password_downgrade, conditional_ui_user_enum (+5) | critical | cable, credential_manager, fido2, google_password_manager, hybrid |
+| `webauthn_passkey_attacks` | origin_validation_weak, cross_device_misbinding | high | fido2, passkey, webauthn |
 | `session_puzzling` | variable_overwrite, session_race, session_fixation_variant | high | asp.net, django, flask, java, node.js |
 
 ## Authorization / IDOR (5)
@@ -106,21 +109,23 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `crlf_injection` | header_injection, log_injection | critical | - |
 | `request_splitting` | response_splitting, http_09_response, header_injection | critical | apache, java, nginx, node.js, php |
 
-## Cache / Proxy (3)
+## Cache / Proxy (4)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `cache_poisoning` | unkeyed_headers, cache_deception, cloudflare_cache_bypass, fastly_normalization, akamai_param_order, head_request_caching (+2) | high | akamai, cf-cache-status, cf-ray, cloudflare, cloudfront |
+| `cache_deception_v2` | semicolon_path_param, encoded_slash_split | high | akamai, cloudflare, fastly |
 | `web_cache_deception` *(ref-only)* | path_confusion, delimiter_confusion, normalization_discrepancy, method_based | high | akamai, apache, cdn, cloudflare, cloudfront |
 | `web_cache_poisoning_dos` *(ref-only)* | header_oversize, cache_key_normalization, vary_header_abuse, large_response_caching | medium | akamai, apache, cloudflare, cloudfront, fastly |
 
-## SSRF / Cloud (4)
+## SSRF / Cloud (5)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `ssrf` | cloud_metadata, internal, url_bypass, redirect_based | critical | aws, azure, gcp |
 | `ssrf_bypass` | localhost_bypass, ipv6_bypass, dns_rebinding, dns_rebinding_advanced | critical | - |
 | `ssrf_protocol` | protocol_smuggling, protocol_variant, k8s_in_cluster_pivot | critical | curl, java, k8s, kubernetes, php |
+| `edge_worker_ssrf` | internal_header_trust, same_zone_metadata | critical | cloudflare-worker, fastly-compute, vercel-edge |
 | `cloud_webapp` | aws_metadata_imdsv1, gcp_metadata, azure_imds, s3_public_bucket, azure_sas_token_leak, firebase_open_db (+3) | ? | - |
 
 ## Path / File (3)
@@ -166,7 +171,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `payment_flow` | intent_id_cross_account, capture_refund_race, webhook_secret_rotation_race, setup_intent_reuse_no_3ds, idempotency_key_cross_customer, currency_confusion (+6) | critical | 3ds, account_links, apple_pay, apple_wallet, checkout |
 
-## Browser / Web (9)
+## Browser / Web (10)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -174,17 +179,19 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `clickjacking` *(ref-only)* | missing_frameguard, frameable_state_change, double_frame_bypass | medium | - |
 | `open_redirect` | url_param | high | - |
 | `browser_storage` | service_worker_hijack, localstorage_xss_persistence, indexeddb_tampering, bfcache_auth_bypass, cache_storage_poisoning, storage_event_cross_tab (+1) | critical | offline, pwa, service_worker, spa |
+| `service_worker_attacks` | offline_cache_poison, scope_hijack | critical | offline, pwa, push, service_worker |
 | `xs_leak` *(ref-only)* | frame_counting, timing_leak, error_event | medium | javascript |
 | `content_type_confusion` | mime_sniffing, content_type_mismatch, polyglot | medium | apache, express, iis, nginx, node.js |
 | `unicode_normalization` | auth_bypass, filter_bypass, case_mapping | high | django, java, node.js, python, ruby |
 | `error_handling_misuse` | empty_body_default_allow, missing_required_field_default, null_value_bypass, type_coercion_confusion, content_type_parser_fallback, oversized_payload_stacktrace, trailing_nullbyte_identifier_bypass, boolean_coercion, array_vs_string_confusion, charset_mismatch_filter_bypass, fail_open_on_parser_error, default_role_on_register | critical | express, node.js, rails, spring, django, asp.net |
 | `client_side_messaging` | postmessage_no_origin_check, postmessage_data_into_sink, xssi_json_array_callable, xssi_jsonp_callback_unfiltered, xssi_secrets_in_script_includable | high | - |
 
-## Race / Logic (3)
+## Race / Logic (4)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `race_condition` *(ref-only)* | double_spend, limit_bypass, signup_race | critical | - |
+| `state_machine_race` | limit_overrun, two_window_edge | high | - |
 | `business_logic` | price_manipulation, coupon_abuse, workflow_bypass, rate_limit_bypass, privilege_escalation, type_juggling (+5) | critical | javascript, node.js, php, ruby |
 | `second_order` | stored_sqli, stored_xss, stored_ssti, stored_header_injection | critical | asp.net, erb, freemarker, handlebars, java |
 
@@ -206,18 +213,25 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 |---|---|---|---|
 | `rce_detection` | sqli_mysql_file_priv_present, sqli_pg_superuser_or_copy_priv, sqli_mssql_xpcmdshell_state, sqli_oracle_dbms_scheduler_priv, sqli_sqlite_load_extension, ssrf_redis_reachable, ssrf_memcached_reachable, ssrf_elasticsearch_dynamic_scripting, ssrf_jolokia_runtime_mbean, spring_actuator_env_mutable, spring4shell_classloader_reachable, spring_cloud_function_routing_expression, spring_cloud_gateway_spel, confluence_ognl_eval, imagemagick_mvg_parser_active, libwebp_version_disclosure, ghostscript_pdf_eval_active, exiftool_djvu_parser_active, jndi_jdbc_h2_console, node_vm2_or_eval_sink_in_js, json_parse_reviver_sink, ofbiz_groovy_eval, joomla_template_php_write_detection, drupal_phpmodule_or_php_filter_enabled, wordpress_theme_editor_writable | critical | apache-ofbiz, confluence, drupal, elasticsearch, h2, imagemagick, jolokia, joomla, mssql, mysql, oracle, postgresql, redis, spring, spring-cloud-function, spring-cloud-gateway, wordpress |
 
-## DoS / Misc (4)
+## DoS / Misc (5)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `redos` | catastrophic_backtracking | medium | java, javascript, node.js, php, python |
 | `insecure_randomness` *(ref-only)* | predictable_tokens, weak_session_id, uuid_v1_leak | high | asp.net, custom, java, node.js, php |
+| `h2_continuation_flood` *(ref-only)* | continuation_unbounded | high | apache, envoy, h2, nginx, node.js |
 | `resource_exhaustion` | sms_pump_no_ratelimit, email_pump_no_ratelimit, otp_brute_no_lockout, expensive_query_no_limit, graphql_alias_DoS, file_upload_no_size_limit, biometric_or_paid_provider_call, zip_bomb_decompression | critical | apollo, aws-sns, graphql, mailgun, sendgrid, twilio |
 | `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity | critical | asp.net, java, jwt, php, ruby |
 
-## AI / LLM (2)
+## AI / LLM (4)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown | critical | anthropic, anthropic-tools, chatbot, claude, function-calling |
 | `web_llm` | prompt_injection_via_web, llm_ssrf, llm_data_exfil, llm_tool_abuse, stored_injection | critical | ai, assistant, chatbot, claude, embedding |
+| `mcp_server_attacks` *(ref-only)* | tool_description_prompt_injection, mcp_rug_pull | critical | claude-desktop, cursor, mcp, model-context-protocol |
+| `rag_injection` *(ref-only)* | stored_content_rag_poison, vector_metadata_injection | high | chromadb, faiss, pinecone, rag, weaviate |
+
+## 2026-05-21 additions
+
+10 novel KB entries added — see categories above. Auto-probe enabled: `state_machine_race`, `oauth_dpop_confused_deputy`, `edge_worker_ssrf`, `webauthn_passkey_attacks`, `cache_deception_v2`, `dom_clobbering_2024`, `service_worker_attacks`. Reference-only: `h2_continuation_flood` (CVE-2024-27316, Rule 5 DoS), `mcp_server_attacks`, `rag_injection`.
