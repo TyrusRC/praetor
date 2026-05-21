@@ -141,3 +141,75 @@ No DB migrations, no state file format changes — pure code refactor.
 - Audit log JSONL schema evolution (separate concern).
 - CWD-coupled state path divergence between Java + Python (architectural, separate spec).
 - KB probe orchestrator wiring beyond placeholder substitution (B3 only verifies substitution, not full execution).
+
+## Findings: recon overlap audit (2026-05-22)
+
+Audit ran post-A2 split. Compared `tools/recon/scanning/` (5 submodules, 13 tools), sibling `tools/recon/` files (subdomain, crawling, pipeline, inventory — 5 tools), and `tools/recon_extended.py` (5 tools).
+
+### Tool inventory
+
+| Tool | File:line | Binary / Backend | Purpose |
+|---|---|---|---|
+| run_subfinder | recon/subdomain.py:11 | subfinder (Go) | Fast passive subdomain enum |
+| run_katana | recon/crawling.py:11 | katana (Go) | Active crawler |
+| run_recon_pipeline | recon/pipeline.py:13 | composite | Multi-phase recon orchestrator |
+| check_recon_tools | recon/inventory.py:15 | shutil.which | Verify external binaries on PATH |
+| probe_hosts | recon/inventory.py:91 | Burp httpx route | Bulk liveness + tech fingerprint |
+| run_amass | recon/scanning/subdomain.py:11 | amass (Go) | Deep subdomain enum (sources + brute + zone walk) |
+| run_ffuf | recon/scanning/dirbust.py:13 | ffuf (Go) | Directory / param fuzzing |
+| run_arjun | recon/scanning/dirbust.py:95 | arjun (Python) | Hidden parameter discovery |
+| run_nuclei | recon/scanning/vuln_scan.py:13 | nuclei (Go) | Template-based vuln scan |
+| run_dalfox | recon/scanning/vuln_scan.py:116 | dalfox (Go) | XSS-focused scanner |
+| run_commix | recon/scanning/vuln_scan.py:168 | commix (Python) | Command-injection exploitation |
+| generate_deserialization_gadget | recon/scanning/vuln_scan.py:251 | ysoserial.jar | Java gadget chain generator |
+| run_sqlmap | recon/scanning/vuln_scan.py:366 | sqlmap (Python) | SQLi exploitation |
+| run_wpscan | recon/scanning/vuln_scan.py:443 | wpscan (Ruby) | WordPress vuln scan |
+| run_nikto | recon/scanning/vuln_scan.py:513 | nikto (Perl) | Legacy web-server scanner |
+| run_wafw00f | recon/scanning/dns_intel.py:14 | wafw00f (Python) | WAF fingerprint |
+| run_httpx | recon/scanning/dns_intel.py:56 | httpx (Go) | Bulk host probing / tech fingerprint |
+| run_gau | recon/scanning/archive.py:11 | gau (Go) | Wayback / OTX / Common-Crawl URL harvest |
+| query_crtsh | recon_extended.py:94 | crt.sh HTTPS | CT-log subdomain harvest |
+| fetch_wayback_urls | recon_extended.py:144 | Wayback CDX HTTPS | Historical URL harvest |
+| analyze_dns | recon_extended.py:250 | socket + dig | DNS record dump + security flags |
+| test_subdomain_takeover | recon_extended.py:348 | dig + Burp curl | CNAME fingerprint vs takeover dict |
+| test_rate_limit | recon_extended.py:444 | Burp session_request | Rapid-fire + header bypass probe |
+
+Total: 23 recon-area tools. No tool double-registered.
+
+### Overlaps
+
+1. **run_subfinder (recon/subdomain.py) vs run_amass (recon/scanning/subdomain.py) vs query_crtsh (recon_extended.py)**
+   - Type: complementary
+   - Evidence: all three produce subdomain lists, but via distinct sources: subfinder = fast aggregated passive (PATH binary), amass = deep multi-source + active probing (PATH binary, ~900s), query_crtsh = pure CT-log fetch via crt.sh API (zero binaries — works on Windows / locked-down hosts).
+   - Recommendation: keep all three. Documented Amass docstring already cites "Complements subfinder". query_crtsh is the fallback path when neither Go binary is installed.
+
+2. **run_gau (recon/scanning/archive.py) vs fetch_wayback_urls (recon_extended.py)**
+   - Type: complementary
+   - Evidence: gau pulls from multiple archives (Wayback + OTX + Common Crawl + URLScan) via Go binary; fetch_wayback_urls hits only Wayback CDX directly via httpx, no binary dependency, and post-processes into API/JS/interesting/pages buckets.
+   - Recommendation: keep both. gau is the breadth tool; fetch_wayback_urls is the binary-free fallback with built-in categorisation.
+
+3. **run_httpx (recon/scanning/dns_intel.py) vs probe_hosts (recon/inventory.py)**
+   - Type: complementary
+   - Evidence: run_httpx shells to ProjectDiscovery httpx (status, title, tech, IP, CDN); probe_hosts routes through the Burp extension's bulk-probe endpoint so results land in Logger / proxy intel.
+   - Recommendation: keep both. httpx is intel-only and direct; probe_hosts feeds Burp's session state.
+
+4. **analyze_dns (recon_extended.py) vs Java DNS analyser**
+   - Type: orthogonal
+   - Evidence: analyze_dns is the only DNS-record dump tool registered in MCP. No duplicate found.
+   - Recommendation: keep.
+
+5. **test_rate_limit (recon_extended.py) co-located with recon tools**
+   - Type: orthogonal (mis-located, not a duplicate)
+   - Evidence: not a recon tool — it's a behaviour probe against a single endpoint via Burp session_request. Sits in recon_extended.py for historical reasons. No duplicate in tools/testing/ confirmed via grep.
+   - Recommendation: no action. Move-only refactor is out of B4 scope (would change import paths without behavioural gain). Note for future cleanup.
+
+### Recommendation
+
+Zero clean duplicates. Five overlapping name/binary pairs, all complementary by design (binary-vs-API fallback paths, different feature surfaces, distinct backends). No code change for B4. No tool count change — stays at 218.
+
+### No-action items
+
+- run_subfinder / run_amass / query_crtsh — three subdomain sources, intentional fallback ladder.
+- run_gau / fetch_wayback_urls — Go binary vs Python httpx; latter survives without PATH binaries.
+- run_httpx / probe_hosts — intel-direct vs Burp-routed liveness.
+- test_rate_limit lives in recon_extended.py but is a behaviour tool; tolerate, do not move within B4.
