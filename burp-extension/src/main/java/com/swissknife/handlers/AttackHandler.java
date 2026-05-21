@@ -24,9 +24,9 @@ import java.util.concurrent.*;
 public class AttackHandler extends BaseHandler {
 
     private final MontoyaApi api;
-    private final Map<String, SessionHandler.Session> sessions;
+    private final Map<String, Session> sessions;
 
-    public AttackHandler(MontoyaApi api, Map<String, SessionHandler.Session> sessions) {
+    public AttackHandler(MontoyaApi api, Map<String, Session> sessions) {
         this.api = api;
         this.sessions = sessions;
     }
@@ -75,7 +75,7 @@ public class AttackHandler extends BaseHandler {
                 Map<String, Object> stateConfig = (Map<String, Object>) stateEntry.getValue();
                 String sessionName = (String) stateConfig.get("session");
                 if (sessionName != null) {
-                    SessionHandler.Session session = sessions.get(sessionName);
+                    Session session = sessions.get(sessionName);
                     if (session != null && !session.baseUrl.isEmpty()) {
                         baseUrl = session.baseUrl;
                         break;
@@ -212,7 +212,7 @@ public class AttackHandler extends BaseHandler {
             return;
         }
 
-        SessionHandler.Session session = sessions.get(sessionName);
+        Session session = sessions.get(sessionName);
         if (session == null) {
             sendError(exchange, 404, "Session not found: " + sessionName);
             return;
@@ -394,7 +394,7 @@ public class AttackHandler extends BaseHandler {
             return;
         }
 
-        SessionHandler.Session session = sessions.get(sessionName);
+        Session session = sessions.get(sessionName);
         if (session == null) {
             sendError(exchange, 404, "Session not found: " + sessionName);
             return;
@@ -546,7 +546,7 @@ public class AttackHandler extends BaseHandler {
                 // Apply session state if referenced
                 String sessionName = (String) stateConfig.get("session");
                 if (sessionName != null) {
-                    SessionHandler.Session session = sessions.get(sessionName);
+                    Session session = sessions.get(sessionName);
                     if (session != null) {
                         // Snapshot session state under synchronization
                         String sessBearerToken;
@@ -608,7 +608,7 @@ public class AttackHandler extends BaseHandler {
 
     // ── Helper: build base request from URI + session ────────────
 
-    private HttpRequest buildBaseRequest(URI uri, String method, SessionHandler.Session session) {
+    private HttpRequest buildBaseRequest(URI uri, String method, Session session) {
         String host = uri.getHost();
         int port = uri.getPort();
         boolean isHttps = "https".equalsIgnoreCase(uri.getScheme());
@@ -682,7 +682,7 @@ public class AttackHandler extends BaseHandler {
 
     private HttpRequest buildHppRequest(String baseUrl, String basePath, String parameter,
                                          String originalValue, String pollutedValue,
-                                         String location, SessionHandler.Session session) throws Exception {
+                                         String location, Session session) throws Exception {
         String url;
         String body = null;
 
