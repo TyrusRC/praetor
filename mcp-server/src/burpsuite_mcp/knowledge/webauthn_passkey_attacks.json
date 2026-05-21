@@ -1,0 +1,42 @@
+{
+  "category": "webauthn_passkey_attacks",
+  "description": "WebAuthn 0-click relay + passkey cross-device misbinding (DEFCON 2024)",
+  "contexts": {
+    "origin_validation_weak": {
+      "description": "Authenticator data origin does not match rpID — relay-able",
+      "tech_match": ["webauthn", "passkey", "fido2"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<send /webauthn/register with origin=evil.example but rpId=target.example>",
+          "description": "Server accepting mismatched origin/rpId → relay viable",
+          "matchers": [
+            {"type": "status", "status": [200, 201], "condition": "and"},
+            {"type": "not_word", "words": ["origin mismatch", "rpId"], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "cross_device_misbinding": {
+      "description": "Passkey created on device-A authenticates on device-B without proper attestation check",
+      "tech_match": ["passkey", "fido2"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<reuse credentialId from device-A in device-B session>",
+          "description": "Server accepts without verifying binding → cross-device account takeover",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["authenticated", "session"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

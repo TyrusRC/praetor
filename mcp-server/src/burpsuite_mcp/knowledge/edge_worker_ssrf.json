@@ -1,0 +1,42 @@
+{
+  "category": "edge_worker_ssrf",
+  "description": "Cloudflare Worker / Vercel Edge / Fastly Compute internal-header trust + same-zone SSRF (2024-2025)",
+  "contexts": {
+    "internal_header_trust": {
+      "description": "Edge worker trusts CF-Connecting-IP / X-Vercel-Forwarded-For / Fastly-Client-IP supplied by caller — origin treats them as edge-injected",
+      "tech_match": ["cloudflare", "vercel", "fastly", "edge"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "X-Forwarded-For: 127.0.0.1\\r\\nCF-Connecting-IP: 127.0.0.1\\r\\nX-Vercel-Forwarded-For: 127.0.0.1",
+          "description": "If origin reflects/honors any of these, edge→origin trust boundary is broken",
+          "matchers": [
+            {"type": "reflection", "in": "body"},
+            {"type": "header_change", "headers": ["X-Forwarded-For"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "same_zone_metadata": {
+      "description": "Cloudflare Worker can fetch() any cf-* domain in same zone — metadata.cloudflare.com / colo internals reachable",
+      "tech_match": ["cloudflare-workers"],
+      "param_match": ["url", "fetch_url", "callback", "webhook"],
+      "probes": [
+        {
+          "payload": "https://metadata.cloudflare.com/",
+          "description": "Reach internal CF metadata via worker fetch",
+          "matchers": [
+            {"type": "word", "words": ["cf-ray", "cf-cache"], "condition": "or"},
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}
