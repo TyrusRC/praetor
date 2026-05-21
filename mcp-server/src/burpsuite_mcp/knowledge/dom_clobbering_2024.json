@@ -1,0 +1,42 @@
+{
+  "category": "dom_clobbering_2024",
+  "description": "DOM clobbering 2024 — id/name → property collision + HTMLCollection clobbering",
+  "contexts": {
+    "id_name_property_clobber": {
+      "description": "Form/anchor element with id matching a JS global property hijacks document.X reference",
+      "tech_match": ["html", "spa"],
+      "param_match": ["html", "content", "body", "description", "bio", "note"],
+      "probes": [
+        {
+          "payload": "<form id=test_global><input id=value name=value value=hijacked></form>",
+          "description": "If document.test_global is read by client JS, the form clobbers it",
+          "matchers": [
+            {"type": "reflection", "in": "body"},
+            {"type": "literal", "needle": "id=test_global", "condition": "and"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
+    },
+    "htmlcollection_clobber": {
+      "description": "Two elements with same name → HTMLCollection — clobbers single-value property reads",
+      "tech_match": ["html", "spa"],
+      "param_match": ["html", "content"],
+      "probes": [
+        {
+          "payload": "<a id=x><a id=x>",
+          "description": "Two id=x → document.x is HTMLCollection, not a single element",
+          "matchers": [
+            {"type": "reflection", "in": "body"},
+            {"type": "literal", "needle": "id=x", "condition": "and"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

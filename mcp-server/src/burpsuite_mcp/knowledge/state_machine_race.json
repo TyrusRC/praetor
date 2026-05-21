@@ -1,0 +1,42 @@
+{
+  "category": "state_machine_race",
+  "description": "Multi-step state-machine desync — limit-overrun via timing-of-checks, two-window edges (Kettle 2024)",
+  "contexts": {
+    "limit_overrun": {
+      "description": "Resource creation / quota / counter increment fires before validation latch closes the window",
+      "tech_match": ["any"],
+      "param_match": ["amount", "qty", "quantity", "count", "limit", "balance", "credit", "points", "coupon"],
+      "probes": [
+        {
+          "payload": "<send same mutating request N=20 in single H2 packet, then read state>",
+          "description": "Single-packet burst hits the state-machine before any validation closes — surplus side effects = overrun",
+          "matchers": [
+            {"type": "differential_timing", "threshold_ms": 50, "condition": "and"},
+            {"type": "word", "words": ["success", "ok", "created", "applied"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"N": 20, "transport": "h2_singlepacket"}
+        }
+      ]
+    },
+    "two_window_edge": {
+      "description": "Operation valid in window-A leaks into window-B if state transition is not atomic (e.g. cancel-during-checkout)",
+      "tech_match": ["any"],
+      "param_match": ["status", "state", "phase", "step", "action"],
+      "probes": [
+        {
+          "payload": "<send forward-transition + cancel/rollback concurrently>",
+          "description": "Concurrent advance + cancel — non-atomic transition leaves entity in invalid state",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["completed", "applied", "fulfilled"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"transport": "h2_singlepacket"}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "category": "cache_deception_v2",
+  "description": "Path-confusion cache deception (Akamai 2024) — semicolon, encoded-slash, fragment reflection variants",
+  "contexts": {
+    "semicolon_path_param": {
+      "description": "URL with ;static.css after dynamic path — CDN caches as static, origin treats as dynamic",
+      "tech_match": ["nginx", "varnish", "akamai", "cloudflare", "fastly"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/profile/me;foo.css",
+          "description": "If origin serves /profile/me content AND CDN caches it as .css → cache deception",
+          "matchers": [
+            {"type": "header_change", "headers": ["Cache-Control", "X-Cache", "Age"], "condition": "or"},
+            {"type": "word", "words": ["profile", "user", "email"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "encoded_slash_split": {
+      "description": "URL-encoded slash splits routing between CDN and origin",
+      "tech_match": ["nginx", "varnish", "akamai", "cloudflare"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/me%2F..%2Fstatic.css",
+          "description": "Encoded slash interpreted differently by CDN vs origin",
+          "matchers": [
+            {"type": "header_added", "headers": ["X-Cache", "Age"], "condition": "or"},
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

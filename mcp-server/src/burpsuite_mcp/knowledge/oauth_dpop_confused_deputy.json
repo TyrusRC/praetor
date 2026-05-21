@@ -1,0 +1,41 @@
+{
+  "category": "oauth_dpop_confused_deputy",
+  "description": "DPoP token replay across resource servers — RFC 9449 + 2024 disclosures",
+  "contexts": {
+    "rs_audience_missing": {
+      "description": "Resource server does not validate DPoP 'htu' (HTTP URI) or 'htm' (HTTP method) — token usable on any RS",
+      "tech_match": ["oauth", "openid", "dpop"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<replay DPoP proof from RS-A to RS-B>",
+          "description": "If RS-B accepts a proof minted for RS-A's htu, audience binding is broken",
+          "matchers": [
+            {"type": "not_status", "status": [401, 403], "condition": "and"},
+            {"type": "word", "words": ["DPoP-Nonce", "dpop"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "jti_replay": {
+      "description": "Server does not cache DPoP jti — same proof reusable",
+      "tech_match": ["oauth"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<replay same DPoP proof twice within iat+60s window>",
+          "description": "Second replay succeeds → no jti cache",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}
