@@ -1,0 +1,23 @@
+{
+  "category": "h2_continuation_flood",
+  "description": "HTTP/2 CONTINUATION-frame DoS (CVE-2024-27316) — endless CONTINUATION frames after HEADERS exhaust memory",
+  "contexts": {
+    "continuation_unbounded": {
+      "description": "Server processes CONTINUATION frames without aggregate size cap → memory blowup",
+      "tech_match": ["h2", "http2"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<HEADERS frame (no END_HEADERS) + N CONTINUATION frames containing junk header field>",
+          "description": "Detection only. Send small-N probe (e.g. N=10) and measure response delay vs baseline. Do NOT escalate against bounty targets — Rule 5.",
+          "matchers": [
+            {"type": "timing", "threshold_ms": 5000, "condition": "and"}
+          ],
+          "severity": "info",
+          "confidence_boost": 30,
+          "variables": {"reference_only": true, "rule5_dos_class": true}
+        }
+      ]
+    }
+  }
+}

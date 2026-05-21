@@ -35,5 +35,20 @@ class KbNewFilesLoadTest(unittest.TestCase):
                     self.assertIn("matchers", probe)
 
 
+class ReferenceOnlySkipsAutoProbeTest(unittest.TestCase):
+    def test_three_new_reference_only_in_set(self):
+        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        for name in ("h2_continuation_flood", "mcp_server_attacks", "rag_injection"):
+            self.assertIn(name, _REFERENCE_ONLY, f"{name} should be reference-only")
+
+    def test_seven_auto_probe_NOT_in_reference_only(self):
+        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        for name in ("state_machine_race", "oauth_dpop_confused_deputy",
+                     "edge_worker_ssrf", "webauthn_passkey_attacks",
+                     "cache_deception_v2", "dom_clobbering_2024",
+                     "service_worker_attacks"):
+            self.assertNotIn(name, _REFERENCE_ONLY, f"{name} must be auto-probe enabled")
+
+
 if __name__ == "__main__":
     unittest.main()
