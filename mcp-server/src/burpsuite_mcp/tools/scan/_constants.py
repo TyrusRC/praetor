@@ -26,6 +26,10 @@ _REFERENCE_ONLY = {
     "web_cache_deception", "insecure_randomness", "source_code_exposure",
     "csv_injection", "dependency_confusion", "xs_leak",
     "web_cache_poisoning_dos", "captcha_bypass", "http3_quic",
+    # Added 2026-05-21:
+    "h2_continuation_flood",   # DoS-class (Rule 5)
+    "mcp_server_attacks",      # situational supply-chain
+    "rag_injection",           # context-heavy, LLM-side verification
 }
 
 # Parameter name → vulnerability classification (used by attack-priority routing)
