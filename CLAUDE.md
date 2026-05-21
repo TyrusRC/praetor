@@ -97,6 +97,7 @@ When defaults reject legitimate findings:
 3. Per-program policy via `set_program_policy`
 4. Scope keep-in-scope on `configure_scope(keep_in_scope=[...])`
 5. Reference-only override: pass explicit `categories=[...]` to load otherwise-skipped KB files
+6. Engagement scope mode: `configure_scope(mode='operator')` (default) — warn-and-log to `.burp-intel/_audit.log`; `mode='strict'` re-enables Rule 1 hard-block for public bounty programs. **Safety Rules 5–9 stay HARD regardless of mode.**
 
 Full guidance: `.claude/skills/user-override.md`. HARD rules (1–10) cannot be overridden.
 
@@ -147,6 +148,7 @@ Pick by depth, not name:
 - **New analysis module**: class in `burp-extension/.../analysis/`, called from a handler
 - **New payload set** (for `get_payloads`): drop JSON in `mcp-server/.../payloads/` — schema: `{category, contexts: {ctx: {description, payloads:[{payload, description, waf_bypass}]}}}`
 - **New KB probes** (for `auto_probe`): drop JSON in `mcp-server/.../knowledge/` with `contexts` + matchers. Files in `_REFERENCE_ONLY` (in `scan.py`) are excluded.
+- **Hidden-path fuzzing**: skill `.claude/skills/fuzz-hidden-paths.md`. Pipeline: `detect_tech_stack` → `generate_smart_wordlist(domain, tier)` → `run_ffuf(url, wordlist=path, ...)` → annotate + organize hits. SecLists detected by `check_recon_tools`.
 
 ### Matcher types (MatcherEngine.java)
 
