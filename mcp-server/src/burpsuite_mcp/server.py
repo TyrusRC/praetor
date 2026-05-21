@@ -8,7 +8,7 @@ from burpsuite_mcp.tools import (
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
     prompts, resources_mcp, mutate, exploit, auth, vuln, research, harvest, dom_xss_executed,
-    bucket_urls, scope_extra,
+    bucket_urls, scope_extra, wordlist,
 )
 
 mcp = FastMCP(
@@ -76,6 +76,7 @@ resources.register(mcp)   # static resources (JS/CSS/source maps)
 dom.register(mcp)         # DOM structure + JS sink/source analysis
 scope.register(mcp)       # smart scope configuration with auto-filtering
 scope_extra.register(mcp)   # import_scope: bulk scope import from recon output
+wordlist.register(mcp)      # generate_smart_wordlist: tech-aware SecLists slicer + recon priors
 session.register(mcp)    # persistent attack sessions, cookie jar, multi-step flows
 payloads.register(mcp)  # context-aware payload lookup from curated knowledge base
 scan.register(mcp)      # adaptive scan: discover attack surface + auto-probe with knowledge base
