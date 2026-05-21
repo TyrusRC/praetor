@@ -6,6 +6,7 @@ import socket
 from mcp.server.fastmcp import FastMCP
 
 from ._common import _check_tool
+from .scanning import detect_seclists
 
 
 def register(mcp: FastMCP):
@@ -62,6 +63,17 @@ def register(mcp: FastMCP):
             lines.extend(missing)
 
         lines.append(f"\nTotal: {len(available)}/{len(tools)} tools available")
+
+        sl = detect_seclists()
+        lines.append("")
+        lines.append("Wordlists:")
+        if sl:
+            lines.append(f"  SecLists: {sl}")
+        else:
+            lines.append("  SecLists: NOT FOUND")
+            lines.append("    Install: git clone --depth 1 https://github.com/danielmiessler/SecLists /opt/SecLists")
+            lines.append("    Then: export SECLISTS_PATH=/opt/SecLists")
+
         if missing:
             lines.append("\nInstall commands:")
             lines.append("  # ProjectDiscovery tools")

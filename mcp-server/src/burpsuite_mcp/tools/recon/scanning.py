@@ -21,6 +21,43 @@ from mcp.server.fastmcp import FastMCP
 from ._common import _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL
 
 
+import os as _os
+from pathlib import Path as _Path
+
+_SECLISTS_CANDIDATES = [
+    "/usr/share/seclists",
+    "/usr/share/SecLists",
+    "/opt/SecLists",
+    _os.path.expanduser("~/SecLists"),
+]
+
+
+def detect_seclists() -> str | None:
+    """Return SecLists root path if found, else None.
+
+    Resolution order:
+        1. $SECLISTS_PATH env var (if it points at a dir containing 'Discovery/')
+        2. Common install paths
+    Result is cached to .burp-intel/_seclists_path.json so subsequent calls are O(1).
+    """
+    env = _os.environ.get("SECLISTS_PATH")
+    if env and (_Path(env) / "Discovery").is_dir():
+        _cache_seclists(env)
+        return env
+    for candidate in _SECLISTS_CANDIDATES:
+        if (_Path(candidate) / "Discovery").is_dir():
+            _cache_seclists(candidate)
+            return candidate
+    return None
+
+
+def _cache_seclists(path: str) -> None:
+    import json
+    intel = _Path.cwd() / ".burp-intel"
+    intel.mkdir(parents=True, exist_ok=True)
+    (intel / "_seclists_path.json").write_text(json.dumps({"path": path}))
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
