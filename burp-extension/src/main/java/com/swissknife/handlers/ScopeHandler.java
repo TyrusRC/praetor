@@ -22,6 +22,9 @@ public class ScopeHandler extends BaseHandler {
     private final List<String> excludeRules = new CopyOnWriteArrayList<>();
     private volatile boolean autoFilterEnabled = false;
 
+    // Volatile so the requireInScope read in BaseHandler sees writes from this handler.
+    public static volatile String currentMode = "operator";
+
     private static final List<String> AUTO_FILTER_DOMAINS = List.of(
         // Trackers
         "google-analytics.com", "analytics.google.com", "mixpanel.com",
@@ -120,6 +123,16 @@ public class ScopeHandler extends BaseHandler {
         Boolean autoFilter = body.get("auto_filter") instanceof Boolean b ? b : true;
         Boolean replace = body.get("replace") instanceof Boolean b ? b : false;
 
+        // Scope-gate mode: "operator" (default, warn-and-log on OOS) or
+        // "strict" (block OOS with 403). Surfaced in BaseHandler.requireInScope.
+        String mode = body.get("mode") instanceof String s ? s : "operator";
+        if (!"operator".equals(mode) && !"strict".equals(mode)) {
+            sendError(exchange, 400, "mode must be operator|strict", "validation_failed",
+                "Pass mode='operator' or mode='strict'.");
+            return;
+        }
+        currentMode = mode;
+
         @SuppressWarnings("unchecked")
         List<String> includeList = body.get("include") instanceof List<?> list
             ? (List<String>) (List<?>) list : List.of();
@@ -207,7 +220,8 @@ public class ScopeHandler extends BaseHandler {
             "kept_in_scope", keptInScope,
             "include_rules", new ArrayList<>(includeRules),
             "exclude_rules", new ArrayList<>(excludeRules),
-            "auto_filter_enabled", autoFilterEnabled
+            "auto_filter_enabled", autoFilterEnabled,
+            "mode", currentMode
         ));
     }
 

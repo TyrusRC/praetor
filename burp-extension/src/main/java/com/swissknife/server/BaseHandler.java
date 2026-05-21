@@ -224,12 +224,20 @@ public abstract class BaseHandler implements HttpHandler {
             return false;
         }
         try {
-            if (!api.scope().isInScope(url)) {
-                sendError(exchange, 403,
-                    "URL is out of scope: " + url,
-                    "out_of_scope",
-                    "Add the URL/host to Burp scope (configure_scope) before sending requests to it.");
-                return false;
+            boolean inScope = api.scope().isInScope(url);
+            if (!inScope) {
+                String mode = com.swissknife.handlers.ScopeHandler.currentMode;
+                if ("strict".equals(mode)) {
+                    sendError(exchange, 403,
+                        "URL is out of scope: " + url,
+                        "out_of_scope",
+                        "Add the URL/host to Burp scope (configure_scope) before sending requests to it, or set mode='operator'.");
+                    return false;
+                }
+                // Operator mode (default): warn-and-log, proceed.
+                com.swissknife.audit.ScopeAuditLog.append(
+                    exchange.getRequestURI().getPath(), url, mode
+                );
             }
         } catch (Exception e) {
             sendError(exchange, 400,
