@@ -67,6 +67,14 @@ public final class MatcherEngine {
                     }
                     if (matched) matchedDescriptions.add("status:" + status);
                 }
+                case "not_status" -> {
+                    @SuppressWarnings("unchecked")
+                    List<Number> statuses = (List<Number>) matcher.get("status");
+                    if (statuses != null) {
+                        matched = statuses.stream().noneMatch(s -> s.intValue() == status);
+                    }
+                    if (matched) matchedDescriptions.add("not_status:" + status);
+                }
                 case "word" -> {
                     @SuppressWarnings("unchecked")
                     List<String> words = (List<String>) matcher.get("words");

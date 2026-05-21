@@ -5,6 +5,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools import _scope_mode
 
 
 def _read_subfinder_txt(p: Path) -> list[str]:
@@ -116,7 +117,7 @@ def register(mcp: FastMCP):
             "auto_filter": True,
             "replace": False,
             "keep_in_scope": [],
-            "mode": "operator",
+            "mode": _scope_mode.get_mode(),
         }
         data = await client.post("/api/scope/configure", json=payload)
         if "error" in data:

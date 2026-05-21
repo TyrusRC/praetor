@@ -250,16 +250,34 @@ public abstract class BaseHandler implements HttpHandler {
     }
 
     /**
-     * Quiet variant: returns true when in-scope, false when out-of-scope or
-     * malformed. Used inside loops where the caller wants to skip individual
+     * Quiet variant: used inside loops where the caller wants to skip individual
      * out-of-scope items without sending an HTTP error response (a 403
-     * envelope mid-loop would abort the whole batch). Caller decides how to
-     * report the skip.
+     * envelope mid-loop would abort the whole batch).
+     *
+     * Mode semantics mirror requireInScope:
+     *   - strict mode: out-of-scope URL returns false (caller skips it)
+     *   - operator mode (default): out-of-scope URL returns true (caller
+     *     proceeds) AFTER appending an entry to ScopeAuditLog. This keeps
+     *     loop-based handlers consistent with single-request gates — operator
+     *     mode is "warn and log, proceed" everywhere.
+     *
+     * Malformed input (null/blank URL or null api) always returns false.
      */
     protected boolean isInScopeQuiet(burp.api.montoya.MontoyaApi api, String url) {
+        return isInScopeQuiet(api, url, "");
+    }
+
+    protected boolean isInScopeQuiet(burp.api.montoya.MontoyaApi api, String url, String tool) {
         if (api == null || url == null || url.isBlank()) return false;
         try {
-            return api.scope().isInScope(url);
+            if (api.scope().isInScope(url)) return true;
+            String mode = com.swissknife.handlers.ScopeHandler.currentMode;
+            if ("strict".equals(mode)) return false;
+            // Operator mode: audit + allow.
+            com.swissknife.audit.ScopeAuditLog.append(
+                tool == null ? "" : tool, url, mode
+            );
+            return true;
         } catch (Exception e) {
             return false;
         }
