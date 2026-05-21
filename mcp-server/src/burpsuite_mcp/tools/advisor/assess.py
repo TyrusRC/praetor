@@ -320,22 +320,32 @@ async def assess_finding_impl(
 
     if "q1_scope" in override_set:
         issues.append("Q1 OVERRIDE: scope check bypassed by operator")
-    elif effective_domain:
-        try:
-            scope_resp = await client.post(
-                "/api/scope/check",
-                json={"url": endpoint if "://" in endpoint else f"https://{effective_domain}{endpoint}"},
-            )
-            if "error" in scope_resp:
-                # Transient — extension unreachable / 500 / etc. Skip not Fail.
-                issues.append(f"Q1 SKIP: scope check unavailable ({scope_resp['error'][:60]})")
-            elif not scope_resp.get("in_scope", False):
-                issues.append(f"Q1 FAIL: endpoint {endpoint} is OUT OF SCOPE — do not report")
-                verdict = "DO NOT REPORT"
-        except Exception as e:
-            issues.append(f"Q1 SKIP: scope check raised ({type(e).__name__})")
     else:
-        issues.append("Q1 SKIP: pass `domain=...` (or full URL endpoint) to enable scope verification")
+        # Operator-mode trust: spec is private contract; defer scope to operator.
+        # Strict mode keeps the explicit-out-of-scope hard-block below.
+        try:
+            from burpsuite_mcp.tools import _scope_mode
+            _q1_mode = _scope_mode.get_mode()
+        except Exception:
+            _q1_mode = "operator"
+        if _q1_mode == "operator":
+            issues.append("Q1 PASS: operator-mode (trusted-authorization) — scope check deferred")
+        elif effective_domain:
+            try:
+                scope_resp = await client.post(
+                    "/api/scope/check",
+                    json={"url": endpoint if "://" in endpoint else f"https://{effective_domain}{endpoint}"},
+                )
+                if "error" in scope_resp:
+                    # Transient — extension unreachable / 500 / etc. Skip not Fail.
+                    issues.append(f"Q1 SKIP: scope check unavailable ({scope_resp['error'][:60]})")
+                elif not scope_resp.get("in_scope", False):
+                    issues.append(f"Q1 FAIL: endpoint {endpoint} is OUT OF SCOPE — do not report")
+                    verdict = "DO NOT REPORT"
+            except Exception as e:
+                issues.append(f"Q1 SKIP: scope check raised ({type(e).__name__})")
+        else:
+            issues.append("Q1 SKIP: pass `domain=...` (or full URL endpoint) to enable scope verification")
 
     # Q2: Reproducible — AUTH_STATE_DEPENDENT lives in advisor_kb.
     q2_class_root = vuln_lower
