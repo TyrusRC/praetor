@@ -18,6 +18,10 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 ## Scope (1–4) — HARD
 
 1. **Never send requests to out-of-scope domains.** Before any request to a new domain call `check_scope(url)`. If not in scope, STOP.
+   **1a. Engagement modes (operator default):**
+   - `configure_scope(mode='operator')` — DEFAULT. Out-of-scope requests append to `.burp-intel/_audit.log` (JSONL) and proceed. Trust model: operator owns scope authorization (private contract / SOW).
+   - `configure_scope(mode='strict')` — Rule 1 hard-block. Use for public bounty programs with published scope.
+   - Safety Rules 5–9 stay HARD regardless of mode. Destructive denylist in `confirm_*` does not relax.
 2. **Never follow redirects to out-of-scope domains.** Note the redirect; don't follow.
 3. **Respect excluded paths** (`/logout`, `/delete-account`, etc. per program policy).
 4. **When in doubt about scope, ASK.** Don't assume a subdomain or API is in scope.
