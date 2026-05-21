@@ -25,6 +25,25 @@ public class ScopeHandler extends BaseHandler {
     // Volatile so the requireInScope read in BaseHandler sees writes from this handler.
     public static volatile String currentMode = "operator";
 
+    // Cold-start: read .burp-intel/_scope_mode.json (the Python source of truth)
+    // so a Burp restart doesn't silently downgrade a strict-mode engagement back
+    // to operator. Failure here is non-fatal — keep the default and continue.
+    static {
+        try {
+            java.nio.file.Path stateFile = java.nio.file.Path.of(".burp-intel", "_scope_mode.json");
+            if (java.nio.file.Files.isReadable(stateFile)) {
+                String raw = java.nio.file.Files.readString(stateFile);
+                Map<String, Object> obj = JsonUtil.parseObject(raw);
+                Object m = obj.get("mode");
+                if (m instanceof String s && ("operator".equals(s) || "strict".equals(s))) {
+                    currentMode = s;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Filesystem / parse / classloader issue — keep operator default.
+        }
+    }
+
     private static final List<String> AUTO_FILTER_DOMAINS = List.of(
         // Trackers
         "google-analytics.com", "analytics.google.com", "mixpanel.com",
