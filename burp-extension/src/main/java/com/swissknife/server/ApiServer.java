@@ -138,7 +138,7 @@ public class ApiServer {
         server.createContext("/api/repeater", new RepeaterHandler(api));
 
         // Attack automation (auth matrix, race condition, HPP)
-        server.createContext("/api/attack", new AttackHandler(api, sessionHandler.getSessions()));
+        server.createContext("/api/attack", new AttackHandler(api));
 
         // Intercept control
         server.createContext("/api/intercept", new InterceptHandler(api));
