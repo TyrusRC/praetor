@@ -24,188 +24,25 @@ Polyglot wrappers are rotated per source kind so the same source/sink
 pair gets multiple chances to trigger framework evaluation, DOM
 injection, or prototype pollution.
 
-Iteration 3: post-navigation in-app click-crawl. After the initial
-navigation we click up to N visible same-origin anchors (skipping
-logout / delete / signout), waiting wait_ms between clicks. SPAs that
-render their content from a fragment-driven router only fire their
-DOM sinks after a navigation event — not just the first goto.
+Split from a single 612-line dom_probe.py:
+  _constants.py — sink map / polyglot wrappers / CSPP keys / fragment shapes
+  _helpers.py    — marker, URL builder, click-crawl, init-script loader
+  __init__.py    — register(mcp) + test_dom_sinks tool
 """
 
-import time
-from pathlib import Path
-from urllib.parse import urlencode, urlparse, parse_qsl
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools.browser import _ensure_browser
 
-
-_INIT_JS_PATH = Path(__file__).parent / "dom_probe_init.js"
-_INIT_JS_CACHE: str | None = None
-
-
-def _load_init_js() -> str:
-    global _INIT_JS_CACHE
-    if _INIT_JS_CACHE is None:
-        _INIT_JS_CACHE = _INIT_JS_PATH.read_text()
-    return _INIT_JS_CACHE
-
-
-_SINK_TO_VULN_CLASS = {
-    "innerHTML": ("dom_xss", "Marker reached innerHTML — DOM-based XSS sink"),
-    "outerHTML": ("dom_xss", "Marker reached outerHTML — DOM-based XSS sink"),
-    "document.write": ("dom_xss", "Marker reached document.write — DOM-based XSS sink"),
-    "document.writeln": ("dom_xss", "Marker reached document.writeln — DOM-based XSS sink"),
-    "eval": ("dom_xss", "Marker reached code-evaluation sink — DOM-based XSS / RCE"),
-    "Function": ("dom_xss", "Marker reached Function() constructor — DOM-based XSS sink"),
-    "setTimeout(string)": ("dom_xss", "Marker reached setTimeout(string) — DOM-based XSS sink"),
-    "setInterval(string)": ("dom_xss", "Marker reached setInterval(string) — DOM-based XSS sink"),
-    "$.fn.html": ("dom_xss", "Marker reached jQuery .html() — DOM-based XSS sink"),
-    "location.assign": ("open_redirect_dom", "Marker controlled location.assign() — DOM open redirect"),
-    "location.replace": ("open_redirect_dom", "Marker controlled location.replace() — DOM open redirect"),
-    "location.href": ("open_redirect_dom", "Marker controlled location.href setter — DOM open redirect"),
-    "window.open": ("open_redirect_dom", "Marker controlled window.open() URL — DOM open redirect"),
-    "setAttribute(href)": ("link_manipulation", "Marker reached href via setAttribute — DOM link manipulation"),
-    "setAttribute(src)": ("link_manipulation", "Marker reached src via setAttribute — DOM link manipulation"),
-    "setAttribute(action)": ("link_manipulation", "Marker reached form action via setAttribute — link manipulation"),
-    "setAttribute(formaction)": ("link_manipulation", "Marker reached formaction via setAttribute — link manipulation"),
-    "script.src": ("dom_xss", "Marker reached HTMLScriptElement.src setter — DOM XSS via dynamic script load"),
-    "appendChild(<script>)": ("dom_xss", "Marker reached <script> appendChild — DOM XSS via dynamic script load"),
-    "insertBefore(<script>)": ("dom_xss", "Marker reached <script> insertBefore — DOM XSS via dynamic script load"),
-    "replaceChild(<script>)": ("dom_xss", "Marker reached <script> replaceChild — DOM XSS via dynamic script load"),
-    "appendChild(<iframe>)": ("link_manipulation", "Marker reached <iframe> appendChild — link manipulation / clickjacking"),
-    "postMessage": ("postmessage_leak", "Marker passed to postMessage — potential cross-frame leak"),
-    "angular_ng_bind": ("client_side_template_injection", "Marker rendered inside ng-bind / ng-include — AngularJS CSTI"),
-}
-
-
-# Polyglot exploit wrappers. Key = name; value = python format string with {marker}.
-_POLYGLOTS: dict[str, str] = {
-    "plain":         "{marker}",
-    "angular_csti":  "{{{{{marker}}}}}",                     # {{<marker>}}
-    "handlebars":    "{{{{= {marker} }}}}",                  # Handlebars triple-stash
-    "proto_pollute": "__proto__[{marker}]=1",                # CSPP merge-gadget marker
-    "proto_constr":  "constructor[prototype][{marker}]=1",   # CSPP via constructor
-    "xss_svg":       "<svg/onload={marker}>",
-    "xss_img":       "<img src=x onerror={marker}>",
-    "url_break":     "\"><{marker}",
-}
-
-
-# CSPP "known-key" gadgets: pollute a real, app-used Object.prototype key
-# (e.g. transport_url for searchLogger.js) with the marker as VALUE, then
-# detect the marker arriving at any sink. Unlike `proto_pollute`, the
-# polluted key is one the application code is expected to read.
-_CSPP_DEFAULT_KEYS = (
-    "transport_url",   # gnj searchLogger.js
-    "src",
-    "url",
-    "html",
-    "redirect_uri",
-    "redirectUri",
-    "next",
-    "callback",
-    "action",
-    "include",
-    "template",
+from ._constants import (
+    _CSPP_DEFAULT_KEYS,
+    _FRAGMENT_SHAPES,
+    _POLYGLOTS,
+    _SINK_TO_VULN_CLASS,
 )
-
-
-# Fragment-shape variants — many SPAs use the URL fragment as a router
-# input. The same payload has very different chances of reaching a sink
-# depending on whether it's bare, after a `?` inside the fragment, after
-# a slash, or shaped like a hash-route.
-_FRAGMENT_SHAPES: dict[str, str] = {
-    "bare":          "{payload}",
-    "param":         "{param}={payload}",
-    "amp_param":     "&{param}={payload}",
-    "qs_in_hash":    "?{param}={payload}",
-    "hash_route":    "/{payload}",
-    "hash_route_kv": "/{param}/{payload}",
-    "hashbang":      "!{payload}",
-    "hashbang_kv":   "!/{param}/{payload}",
-}
-
-
-def _make_marker(suffix: str = "") -> str:
-    seq = int(time.time() * 1000) % 100_000_000
-    return f"swk{seq:x}{suffix}"
-
-
-def _build_target_url(
-    base_url: str,
-    payload: str,
-    source_param: str,
-    source_kind: str,
-    fragment_shape: str = "bare",
-) -> tuple[str, dict]:
-    parsed = urlparse(base_url)
-    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    fragment = parsed.fragment
-    extra_headers: dict = {}
-
-    if source_kind == "query":
-        query[source_param] = payload
-    elif source_kind == "fragment":
-        fragment = payload
-    elif source_kind == "fragment_kv":
-        fragment = f"{source_param}={payload}"
-    elif source_kind == "fragment_shapes":
-        shape = _FRAGMENT_SHAPES.get(fragment_shape, "{payload}")
-        fragment = shape.format(param=source_param, payload=payload)
-    elif source_kind == "referrer":
-        extra_headers["Referer"] = f"https://attacker.example/?{source_param}={payload}"
-    else:
-        raise ValueError(f"Unknown source_kind: {source_kind}")
-
-    new_url = parsed._replace(
-        query=urlencode(query, doseq=True),
-        fragment=fragment,
-    ).geturl()
-    return new_url, extra_headers
-
-
-_DESTRUCTIVE_HREFS = ("/logout", "/signout", "/delete", "/remove", "/cancel")
-
-
-async def _click_crawl(page, max_clicks: int = 4, wait_each_ms: int = 1500) -> None:
-    """Click up to N visible same-origin anchors, waiting between each.
-    Skips destructive links. Best-effort — stays defensive on stale DOM."""
-    try:
-        same_origin = await page.evaluate(
-            """() => {
-                const out = [];
-                const origin = location.origin;
-                document.querySelectorAll('a[href]').forEach(a => {
-                    try {
-                        const href = a.href;
-                        if (!href || !href.startsWith(origin)) return;
-                        const txt = (a.textContent || '').trim().slice(0, 40);
-                        if (a.offsetParent === null) return;  // not visible
-                        out.push(href);
-                    } catch (e) {}
-                });
-                // De-dupe, keep first 10
-                return Array.from(new Set(out)).slice(0, 10);
-            }"""
-        )
-    except Exception:
-        return
-
-    if not same_origin:
-        return
-
-    candidates = [
-        h for h in same_origin
-        if not any(d in h.lower() for d in _DESTRUCTIVE_HREFS)
-    ][:max_clicks]
-
-    for href in candidates:
-        try:
-            await page.goto(href, wait_until="domcontentloaded", timeout=15000)
-            await page.wait_for_timeout(wait_each_ms)
-        except Exception:
-            continue
+from ._helpers import _build_target_url, _click_crawl, _load_init_js, _make_marker
 
 
 def register(mcp: FastMCP) -> None:
@@ -461,7 +298,6 @@ def register(mcp: FastMCP) -> None:
         # Object.prototype[<key>] === marker post-scan.
         for ck in active_cspp_keys:
             marker = _make_marker(suffix=f"c{ck[:4]}")
-            payload_qs = f"__proto__[{ck}]=" + marker
             parsed = urlparse(url)
             sep = "&" if parsed.query else "?"
             target_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}{('?' + parsed.query) if parsed.query else ''}{sep}__proto__[{ck}]={marker}"
