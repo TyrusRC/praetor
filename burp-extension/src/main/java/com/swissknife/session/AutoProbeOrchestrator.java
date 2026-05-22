@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Handles {@code POST /api/session/auto-probe}: knowledge-base-driven
@@ -32,6 +34,12 @@ public final class AutoProbeOrchestrator {
     /** Monotonic counter shared with SessionProbeHelpers so probe markers
      *  stay unique even within the same millisecond. */
     private static final AtomicLong PROBE_MARKER_SEQ = com.swissknife.analysis.SessionProbeHelpers.PROBE_MARKER_SEQ;
+
+    /** Bare {@code COLLABORATOR} placeholder (no braces). Matched as a whole word
+     *  so substrings inside identifiers are untouched. {@code {{collaborator}}}
+     *  is the canonical token; the bare form is kept for KBs authored before the
+     *  canonical form existed. */
+    private static final Pattern BARE_COLLABORATOR = Pattern.compile("(?<!\\{)\\bCOLLABORATOR\\b(?!\\})");
 
     private static final Map<String, String> CWE_MAP = Map.of(
         "sqli", "CWE-89",
@@ -134,7 +142,9 @@ public final class AutoProbeOrchestrator {
                             String oobPayloadId = null;
                             String oobHost = null;
                             List<Map<String, Object>> probeMatchers = (List<Map<String, Object>>) probe.get("matchers");
-                            boolean needsCollaborator = payload.contains("{{collaborator}}");
+                            boolean hasBracedToken = payload.contains("{{collaborator}}");
+                            boolean hasBareToken = BARE_COLLABORATOR.matcher(payload).find();
+                            boolean needsCollaborator = hasBracedToken || hasBareToken;
                             if (!needsCollaborator && probeMatchers != null) {
                                 for (Map<String, Object> mt : probeMatchers) {
                                     if ("collaborator".equals(mt.get("type"))) { needsCollaborator = true; break; }
@@ -148,7 +158,8 @@ public final class AutoProbeOrchestrator {
                                         burp.api.montoya.collaborator.CollaboratorPayload cp = cc.generatePayload();
                                         oobPayloadId = cp.id().toString();
                                         oobHost = cp.toString();
-                                        payload = payload.replace("{{collaborator}}", oobHost);
+                                        if (hasBracedToken) payload = payload.replace("{{collaborator}}", oobHost);
+                                        if (hasBareToken) payload = BARE_COLLABORATOR.matcher(payload).replaceAll(Matcher.quoteReplacement(oobHost));
                                     } catch (Throwable t) {
                                         api.logging().logToOutput(
                                             "[auto-probe] Collaborator payload allocation failed: "
