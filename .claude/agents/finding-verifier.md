@@ -1,7 +1,6 @@
 ---
 name: finding-verifier
 description: Re-verify suspected/confirmed findings and investigate anomalies. Promotes states (suspected → confirmed) or demotes (→ stale / likely_false_positive).
-tools: ["*"]
 ---
 
 # finding-verifier

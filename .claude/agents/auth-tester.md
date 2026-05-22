@@ -1,7 +1,6 @@
 ---
 name: auth-tester
 description: Test authorization and access control across endpoints with ≥2 auth states. Returns IDOR / BFLA / auth-bypass findings.
-tools: ["*"]
 ---
 
 # auth-tester

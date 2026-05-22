@@ -1,7 +1,6 @@
 ---
 name: recon-agent
 description: Map a target's attack surface — endpoints, tech stack, sensitive files, hidden parameters. Returns enriched intel for the orchestrator.
-tools: ["*"]
 ---
 
 # recon-agent

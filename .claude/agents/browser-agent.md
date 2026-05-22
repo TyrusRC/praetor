@@ -1,7 +1,6 @@
 ---
 name: browser-agent
 description: Browser-based crawling and JavaScript interaction for SPA/JS-heavy targets. Populates Burp Proxy history with dynamic routes and XHR/API calls.
-tools: ["*"]
 ---
 
 # browser-agent

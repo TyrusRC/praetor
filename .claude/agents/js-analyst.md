@@ -1,7 +1,6 @@
 ---
 name: js-analyst
 description: Deep JavaScript analysis — secrets, DOM sinks, hidden API endpoints. Returns enriched JS intel for the orchestrator.
-tools: ["*"]
 ---
 
 # js-analyst

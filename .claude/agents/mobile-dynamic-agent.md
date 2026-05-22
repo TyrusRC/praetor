@@ -1,7 +1,6 @@
 ---
 name: mobile-dynamic-agent
 description: Drive Frida (iOS+Android) and adb (Android) on operator's host. Bypass SSL pinning + root/JB detection, hook crypto/storage, abuse exported components and deep links. Dynamic-only; no static decompile.
-tools: ["*"]
 ---
 
 # mobile-dynamic-agent

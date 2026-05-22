@@ -1,7 +1,6 @@
 ---
 name: fuzz-agent
 description: Discover hidden directories and files using tech-aware SecLists slicing. Replaces spray fuzzing with surgical wordlists.
-tools: ["*"]
 ---
 
 # fuzz-agent

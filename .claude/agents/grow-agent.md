@@ -1,7 +1,6 @@
 ---
 name: grow-agent
 description: Session orchestrator for one domain. Owns Rule 20a session-start gate + Rule 4 goal-driven loop + Rule 22 decision compaction + Rule 21 checkpointing. Promotes confirmed cross-target patterns into KB/skill proposals. On-demand only.
-tools: ["*"]
 ---
 
 # grow-agent
