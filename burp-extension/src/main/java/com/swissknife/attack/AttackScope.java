@@ -2,11 +2,9 @@ package com.swissknife.attack;
 
 import burp.api.montoya.MontoyaApi;
 import com.swissknife.http.HttpExchange;
-import com.swissknife.util.JsonUtil;
+import static com.swissknife.http.HttpResponses.sendError;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Standalone scope-check helper for attack collaborator classes that live
@@ -62,18 +60,4 @@ public final class AttackScope {
         return true;
     }
 
-    private static void sendError(HttpExchange exchange, int status, String message,
-                                   String code, String hint) throws IOException {
-        String json = JsonUtil.object(
-            "error", message,
-            "code", code == null ? "" : code,
-            "hint", hint == null ? "" : hint
-        );
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(status, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
-        }
-    }
 }
