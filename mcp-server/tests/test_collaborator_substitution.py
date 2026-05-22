@@ -1,28 +1,32 @@
 """Verify collaborator placeholder wiring for the 7 auto-probe KB files added
 2026-05-21.
 
-Substitution is implemented Java-side in AutoProbeOrchestrator.java (line ~151)
-and handles the literal ``{{collaborator}}`` template token. Allocation path:
+Substitution is implemented Java-side in AutoProbeOrchestrator.java and handles
+two payload forms:
+
+    {{collaborator}}   — canonical (preferred for new KBs)
+    COLLABORATOR        — bare token (legacy; kept for KBs authored before the
+                          canonical form existed)
+
+Allocation path:
 
     needsCollaborator = payload.contains("{{collaborator}}")
+                      || BARE_COLLABORATOR.matcher(payload).find()
                       || any(matcher.type == "collaborator")
     if needsCollaborator:
         cp = CollaboratorPool.tryGetOrCreate(api).generatePayload()
         payload = payload.replace("{{collaborator}}", cp.toString())
+        payload = BARE_COLLABORATOR.matcher(payload).replaceAll(cp.toString())
 
-Python-side responsibility: ensure no KB file ships a placeholder form the Java
-substituter would miss (``COLLABORATOR_URL`` / bare ``COLLABORATOR``). Those
-forms are payloads-table convention (mcp-server/src/burpsuite_mcp/payloads/*)
-and are only safe there because the payload registry is fed to operators
-manually via ``get_payloads`` — never auto-sent.
+Both forms produce real Collaborator hosts at runtime. ``COLLABORATOR_URL`` is
+NOT a supported KB placeholder — it is reserved for ``payloads/*.json`` (an
+operator-facing registry fed via ``get_payloads`` and never auto-sent).
 
 These tests:
-1. Assert each of the 7 new KB files contains zero collaborator placeholders.
-2. Assert each KB file declares zero ``collaborator`` matcher type (which
-   would otherwise force a pool allocation the KB doesn't consume).
-3. Assert no KB file under knowledge/ uses an unsupported placeholder form
-   (``COLLABORATOR_URL`` / bare ``COLLABORATOR``) — would silently fail to
-   resolve at probe-send time.
+1. Assert each of the 7 new KB files contains zero unsupported placeholders.
+2. Assert ``collaborator`` matcher type implies at least one consumed payload
+   placeholder (otherwise the pool is allocated but never observed).
+3. Assert no KB file uses ``COLLABORATOR_URL`` (payloads-table convention only).
 """
 import json
 import re
@@ -41,17 +45,16 @@ NEW_KB_FILES = [
     "service_worker_attacks",
 ]
 
-# Java substituter handles this token literal — see AutoProbeOrchestrator.java:151
-SUPPORTED_PLACEHOLDER = "{{collaborator}}"
+# Java substituter handles both forms — see AutoProbeOrchestrator.java
+SUPPORTED_PLACEHOLDERS = ("{{collaborator}}",)
+# Bare COLLABORATOR is also supported. Match outside ``{{...}}`` only — same
+# rule the Java substituter applies (negative lookbehind/lookahead on braces).
+BARE_TOKEN_RE = re.compile(r"(?<!\{)\bCOLLABORATOR\b(?!\})")
 
-# Forms the substituter does NOT handle. If a KB file ships any of these, the
-# placeholder survives into the wire request and either fails or leaks a
-# literal string. Treated as a hard test failure.
+# Forms the substituter does NOT handle. ``COLLABORATOR_URL`` belongs to the
+# payloads/ registry, not knowledge/. ``{{COLLABORATOR}}`` (uppercase braced)
+# is not a defined form.
 UNSUPPORTED_PLACEHOLDERS = ("COLLABORATOR_URL", "{{COLLABORATOR}}")
-
-# Bare ``COLLABORATOR`` may appear in human-readable description fields; only
-# flag it inside payload/value strings (regex below).
-BARE_TOKEN_RE = re.compile(r"\bCOLLABORATOR\b")
 
 
 def _iter_string_leaves(node, path: str = ""):
@@ -111,8 +114,8 @@ class TestCollaboratorSubstitution(unittest.TestCase):
                 json.load(f)
 
     def test_new_kb_files_have_no_unsupported_placeholders(self):
-        """Each of the 7 new KB files must use the supported ``{{collaborator}}``
-        form exclusively (or omit OOB testing entirely)."""
+        """Each of the 7 new KB files must use supported placeholder forms only.
+        Bare ``COLLABORATOR`` is also supported (legacy form)."""
         failures: list[str] = []
         for name in NEW_KB_FILES:
             with (KB_DIR / f"{name}.json").open() as f:
@@ -123,54 +126,33 @@ class TestCollaboratorSubstitution(unittest.TestCase):
                         failures.append(
                             f"{name}{path}: unsupported placeholder {bad!r} in {value[:80]!r}"
                         )
-                # Bare COLLABORATOR token only flagged inside payload-class
-                # paths (payload, value, body). Descriptions are free text.
-                if any(seg in path for seg in (".payload", ".value", ".body", ".data")):
-                    if BARE_TOKEN_RE.search(value):
-                        failures.append(
-                            f"{name}{path}: bare COLLABORATOR token in payload: {value[:80]!r}"
-                        )
         self.assertEqual(failures, [], "\n".join(failures))
 
     def test_new_kb_files_collaborator_matcher_consistency(self):
         """If a KB declares a ``collaborator`` matcher type, at least one probe
-        in that KB must use ``{{collaborator}}`` (otherwise the pool is
-        allocated but never observed). And vice versa."""
+        in that KB must consume a supported placeholder (otherwise the pool is
+        allocated but never observed)."""
         for name in NEW_KB_FILES:
             with (KB_DIR / f"{name}.json").open() as f:
                 data = json.load(f)
             matcher_types = _collect_matcher_types(data)
             has_collab_matcher = "collaborator" in matcher_types
             payloads = _collect_payloads(data)
-            uses_placeholder = any(SUPPORTED_PLACEHOLDER in p for _, p in payloads)
+            uses_placeholder = any(
+                any(ph in p for ph in SUPPORTED_PLACEHOLDERS) or BARE_TOKEN_RE.search(p)
+                for _, p in payloads
+            )
 
             if has_collab_matcher:
                 self.assertTrue(
                     uses_placeholder,
-                    f"{name}: declares 'collaborator' matcher but no payload uses {SUPPORTED_PLACEHOLDER}",
+                    f"{name}: declares 'collaborator' matcher but no payload consumes a placeholder",
                 )
 
-    @unittest.expectedFailure
-    def test_all_kb_files_use_only_supported_placeholder(self):
-        """Whole-knowledge-base sweep: every KB file must avoid unsupported
-        placeholder forms in payload-class fields.
-
-        FINDING (B3 audit, 2026-05-22): multiple pre-existing KB files ship
-        payloads with bare ``COLLABORATOR`` (uppercase, no braces) which the
-        Java substituter at AutoProbeOrchestrator.java:151 does NOT replace
-        (it only handles literal ``{{collaborator}}``). Affected files include:
-        dangling_markup, pdf_injection, push_notification, ai_prompt_injection,
-        relative_path_overwrite, browser_storage, cspp. Bare ``COLLABORATOR``
-        survives into the wire request as the literal string.
-
-        Marked ``expectedFailure`` so the regression stays visible. B3 is
-        verification-only — fix tracked as follow-up (extend Java substituter
-        to handle bare ``COLLABORATOR`` OR rewrite KB payloads to use
-        ``{{collaborator}}``).
-
-        Reference-only files (csv_injection, jwt, xslt_injection, css_injection)
-        also contain the token but are skipped by auto_probe so the bug never
-        triggers there."""
+    def test_all_kb_files_use_only_supported_placeholders(self):
+        """Whole-knowledge-base sweep: no KB file may use ``COLLABORATOR_URL``
+        or ``{{COLLABORATOR}}`` in payload-class fields. Bare ``COLLABORATOR``
+        IS supported (Java substituter handles it)."""
         failures: list[str] = []
         for path in sorted(KB_DIR.glob("*.json")):
             if path.name.startswith("_"):
@@ -183,10 +165,6 @@ class TestCollaboratorSubstitution(unittest.TestCase):
                         failures.append(
                             f"{path.name}{ppath}: unsupported {bad!r} in {value[:80]!r}"
                         )
-                if BARE_TOKEN_RE.search(value):
-                    failures.append(
-                        f"{path.name}{ppath}: bare COLLABORATOR in {value[:80]!r}"
-                    )
         self.assertEqual(failures, [], "\n".join(failures))
 
 
