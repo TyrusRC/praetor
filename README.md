@@ -26,7 +26,7 @@ LLM client  <- stdio MCP -> Python MCP server  <- HTTP -> Java Burp extension  <
 
 ## Features
 
-- 196 MCP tools across recon, scan, exploit, browser, auth, research, and reporting.
+- MCP tool surface covering recon, scan, exploit, browser, auth, research, and reporting.
 - HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance).
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
@@ -257,6 +257,24 @@ Always-active rules in `.claude/rules/`:
 
 - `engineering.md` — engineering rules (think first, simplicity, surgical changes, goal-driven execution)
 - `hunting.md` — tiered hunting rules (HARD 1-10 tool-enforced, DEFAULT 11-21 overridable, ADVISORY 22-28 on-demand)
+
+## Agents
+
+Project subagents in `.claude/agents/`, auto-loaded by Claude Code at session start. One orchestrator plus specialised workers:
+
+- `grow-agent` — session orchestrator, one domain per run
+- `recon-agent` — attack-surface mapping
+- `js-analyst` — JS secrets and DOM source→sink flows
+- `vuln-scanner` — vulnerability probing, one category per instance
+- `finding-verifier` — re-verification with per-class evidence bars
+- `payload-crafter` — WAF and filter bypass
+- `auth-tester` — authz matrix, IDOR/BFLA, JWT
+- `browser-agent` — SPA and JS-heavy targets
+- `auth-payment-agent` — OAuth, FIDO2/passkeys, Apple/Google/Samsung Pay, IAP, 3DS
+- `fuzz-agent` — tech-aware wordlist generation and ffuf
+- `mobile-dynamic-agent` — Frida and adb (pinning bypass, runtime hooks, deep-link sinks)
+
+Roles and parallelization patterns: [AGENTS.md](AGENTS.md).
 
 ## Supported Platforms
 
