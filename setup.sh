@@ -2,6 +2,15 @@
 # Burp Suite Swiss Knife MCP — Setup Script
 # Installs all required and optional dependencies for Linux and macOS.
 # Usage: chmod +x setup.sh && ./setup.sh
+#
+# Coverage policy (2026-05-22):
+#   The KB ships 122 probe catalogs mapped to OWASP Top 10 (Web/API/LLM/Mobile),
+#   WSTG, PayloadsAllTheThings, HackTricks Web + Cloud. Cloud coverage is
+#   ANONYMOUS-EXTERNAL ONLY (anonymous list / public Function URL / exposed
+#   K8s endpoint) — no provider-credential-based tooling (e.g. Pacu, ScoutSuite,
+#   Prowler) is installed here, by design. Operators who need cred-based cloud
+#   privesc testing install those separately, out-of-band, with their own
+#   engagement-specific credentials.
 
 set -euo pipefail
 

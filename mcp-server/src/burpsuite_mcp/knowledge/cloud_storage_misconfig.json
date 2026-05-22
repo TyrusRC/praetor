@@ -1,0 +1,250 @@
+{
+  "category": "cloud_storage_misconfig",
+  "description": "Anonymous-access detection for cloud object storage across providers (AWS S3, GCS, Azure Blob, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Oracle OCI, MinIO). Operator-anonymous (no provider creds). Covers HackTricks Cloud first-phase storage enumeration: list-bucket, public-read object, public-write authorization, ACL misconfig.",
+  "contexts": {
+    "s3_anonymous_list": {
+      "description": "AWS S3 bucket with anonymous ListBucket permission. ?list-type=2 forces v2 listing; if XML returns <ListBucketResult>, anyone can enumerate object keys.",
+      "tech_match": ["aws", "s3", "amazonaws"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/?list-type=2",
+          "description": "Anonymous bucket-list (v2 API) — succeeds if ACL grants AllUsers ListBucket",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<ListBucketResult", "<Contents>"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/?acl",
+          "description": "Read ACL of bucket — AllUsers grant exposes who can read/write",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["AllUsers", "AuthenticatedUsers"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "/?versioning",
+          "description": "Read versioning config — discloses bucket name + suspended/enabled state",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<VersioningConfiguration", "Status"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "s3_anonymous_write": {
+      "description": "Anonymous PUT against an S3 bucket — common misconfig when developers grant AllUsers FullControl instead of Read.",
+      "tech_match": ["aws", "s3"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/sw-write-test-{{marker}}.txt",
+          "description": "PUT a benign canary file. 200/204 = anonymous write enabled (critical — full account compromise vector via bucket policy / Lambda trigger / CloudFront origin override)",
+          "matchers": [
+            {"type": "status", "status": [200, 204], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "gcs_anonymous_list": {
+      "description": "GCS bucket with allUsers:objectViewer — XML or JSON list endpoint returns object inventory.",
+      "tech_match": ["gcp", "google", "storage.googleapis.com"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/?prefix=&delimiter=/",
+          "description": "XML API list — works if bucket grants allUsers Storage Object Viewer",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<ListBucketResult", "<Contents>", "objectAccessControls"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/storage/v1/b/{{bucket}}/o",
+          "description": "JSON API list — Storage v1 anonymous listing (if IAM allows allUsers)",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"kind\": \"storage#objects\"", "\"items\":"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {"bucket": "TARGET_BUCKET"}
+        },
+        {
+          "payload": "/storage/v1/b/{{bucket}}/iam",
+          "description": "Read IAM policy of bucket — discloses allUsers / allAuthenticatedUsers bindings",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["allUsers", "allAuthenticatedUsers"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {"bucket": "TARGET_BUCKET"}
+        }
+      ]
+    },
+    "azure_blob_anonymous_list": {
+      "description": "Azure Storage Blob container with public anonymous-read access (Blob or Container level). ?restype=container&comp=list returns inventory.",
+      "tech_match": ["azure", "blob.core.windows.net"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/?restype=container&comp=list",
+          "description": "List blobs in container — works if public-access = container",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<EnumerationResults", "<Blob>"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/?restype=container&comp=acl",
+          "description": "Read container ACL — discloses publicAccess setting and any signed-identifier IDs",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<SignedIdentifiers", "publicAccess"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "r2_anonymous_access": {
+      "description": "Cloudflare R2 bucket with public.r2.dev custom domain — same S3 XML protocol, but a separate provider many testers skip.",
+      "tech_match": ["r2", "r2.dev", "cloudflare"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/?list-type=2",
+          "description": "S3-compatible list against R2 public endpoint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<ListBucketResult", "<Contents>"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "do_spaces_anonymous": {
+      "description": "DigitalOcean Spaces (S3-compatible) anonymous list/read on *.digitaloceanspaces.com endpoints.",
+      "tech_match": ["digitaloceanspaces.com", "spaces"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/?list-type=2",
+          "description": "Spaces anonymous list",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<ListBucketResult"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "b2_anonymous_access": {
+      "description": "Backblaze B2 native API — b2_list_file_names anonymously enumerates a bucket if allPublic.",
+      "tech_match": ["backblazeb2.com", "b2", "f000.backblazeb2.com"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/file/{{bucket}}/",
+          "description": "B2 native file download — root listing hint",
+          "matchers": [
+            {"type": "status", "status": [200, 403], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {"bucket": "TARGET_BUCKET"}
+        }
+      ]
+    },
+    "oci_anonymous_access": {
+      "description": "Oracle Cloud Object Storage public PAR (Pre-Authenticated Request) or anonymous bucket. Often left enabled after one-off file shares.",
+      "tech_match": ["objectstorage.oraclecloud.com", "oraclecloud.com"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/p/?",
+          "description": "OCI PAR listing endpoint — anon read",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["objects", "namespace"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "minio_anonymous": {
+      "description": "MinIO (self-hosted S3-compatible) — many deployments expose console at :9000 / :9001 with anonymous read.",
+      "tech_match": ["minio"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/minio/health/live",
+          "description": "MinIO health endpoint — confirms presence",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/?list-type=2",
+          "description": "Anonymous S3-compatible list",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["<ListBucketResult"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "signed_url_leak": {
+      "description": "Long-TTL signed URLs leaked into JS / CSS / response bodies — usable until expiry without auth.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Static-analysis matcher: find pre-signed URLs in response (passive)",
+          "matchers": [
+            {"type": "regex", "pattern": "X-Amz-Signature=[A-Fa-f0-9]{64}", "weight": 80},
+            {"type": "regex", "pattern": "GoogleAccessId=.*?&Expires=\\d+&Signature=", "weight": 80},
+            {"type": "regex", "pattern": "sig=[A-Za-z0-9%2B%2F]+&se=\\d{4}-\\d{2}-\\d{2}T", "weight": 70}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

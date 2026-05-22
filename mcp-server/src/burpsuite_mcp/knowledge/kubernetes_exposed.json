@@ -1,0 +1,323 @@
+{
+  "category": "kubernetes_exposed",
+  "description": "Kubernetes external attack-surface discovery (reference-only; auto_probe SKIPS this). Covers kubelet :10250 read-write API, kube-apiserver anonymous access, etcd :2379, Kubernetes Dashboard, ArgoCD, Tekton, Rancher, Portainer, container registries. Operator-anonymous — no kubeconfig / no service-account tokens required to surface these. Maps to HackTricks Cloud / Kubernetes section first-phase external recon.",
+  "contexts": {
+    "kubelet_read_only_port": {
+      "description": "kubelet read-only port :10255 (deprecated but still enabled on legacy clusters) — anonymous GET on /pods exposes every running pod's spec including env vars + secrets.",
+      "tech_match": ["kubelet", "kubernetes"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": ":10255/pods",
+          "description": "Anonymous pod inventory — env / volume / image / nodeName for every pod",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"kind\":\"PodList\"", "\"apiVersion\":\"v1\""], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "kubelet_secure_port_anon": {
+      "description": "kubelet :10250 secure port — when --anonymous-auth=true and --authorization-mode=AlwaysAllow (insecure defaults), full read-write API anonymously reachable. /run/<ns>/<pod>/<container> + cmd= = exec inside any container.",
+      "tech_match": ["kubelet"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": ":10250/pods",
+          "description": "Anonymous pods endpoint on secure port",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["PodList"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": ":10250/metrics",
+          "description": "Prometheus metrics endpoint — pods/containers/cgroups visible",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["kubelet_", "container_"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "kube_apiserver_anonymous": {
+      "description": "kube-apiserver :6443 (default) or :8443 with anonymous binding. /api/v1/namespaces accessible without token if --anonymous-auth=true + system:anonymous bound to read role.",
+      "tech_match": ["kubernetes", "kube-apiserver"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1/namespaces",
+          "description": "Anonymous namespace listing — confirms missing RBAC on system:anonymous",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"kind\":\"NamespaceList\""], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/version",
+          "description": "Anonymous version disclosure — present on most clusters; harmless alone but valuable fingerprint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"gitVersion\"", "\"buildDate\""], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/openapi/v2",
+          "description": "OpenAPI schema — discloses every API resource available on this cluster (CRDs, custom controllers)",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"swagger\":\"2.0\"", "io.k8s.api"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "etcd_exposed": {
+      "description": "etcd :2379 client port without TLS-client-auth — direct read/write of every Kubernetes object including Secrets (base64). Game-over.",
+      "tech_match": ["etcd"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": ":2379/version",
+          "description": "etcd version endpoint — confirms reachability",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["etcdserver", "etcdcluster"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": ":2379/v2/keys/?recursive=true",
+          "description": "v2 API key listing (old etcd) — full keyspace dump",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"action\":\"get\""], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "kubernetes_dashboard": {
+      "description": "Kubernetes Dashboard left with skip-login enabled (--skip-login + RBAC bound to cluster-admin). Default install at /api/v1/namespace.",
+      "tech_match": ["dashboard", "kubernetes-dashboard"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1/csrftoken/login",
+          "description": "Dashboard CSRF endpoint — present on any kubernetes-dashboard install",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["token", "Jenkins"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "/api/v1/namespace",
+          "description": "Dashboard namespace endpoint — accessible without auth when skip-login enabled",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["namespaces", "kind"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "argocd_anonymous": {
+      "description": "ArgoCD admin UI/API. Default install creates admin/<generated-password>; some teams left at install-time default or anonymous user enabled in config.",
+      "tech_match": ["argocd", "argo"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1/applications",
+          "description": "ArgoCD applications list — anonymous bind on misconfigured install",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"items\"", "argoproj.io", "Application"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "/api/version",
+          "description": "ArgoCD version — fingerprint endpoint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"Version\"", "\"BuildDate\""], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "tekton_dashboard": {
+      "description": "Tekton Pipelines dashboard at /v1/namespaces/<ns>/pipelineruns. Often deployed without auth proxy on dev clusters.",
+      "tech_match": ["tekton"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v1/properties",
+          "description": "Tekton dashboard properties — confirms presence",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["DashboardNamespace", "PipelinesNamespace"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "rancher_unauth": {
+      "description": "Rancher UI + API. Default install at /v3 + /v3-public/localProviders/local?action=login. install-time admin/admin still common.",
+      "tech_match": ["rancher"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v3",
+          "description": "Rancher API root — fingerprint via headers",
+          "matchers": [
+            {"type": "status", "status": [200, 401], "condition": "or"},
+            {"type": "header", "header": "x-api-schemas", "weight": 70}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "/v3-public/localProviders/local?action=login",
+          "description": "Public login endpoint — default creds testable here",
+          "matchers": [
+            {"type": "status", "status": [200, 400], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "portainer_unauth": {
+      "description": "Portainer admin UI — bootstrap flow ('admin not yet created') exploitable for 1st-come-1st-served admin takeover.",
+      "tech_match": ["portainer"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/users/admin/check",
+          "description": "Admin-init check — 404 = no admin exists, anyone can become admin via /api/users/admin/init",
+          "matchers": [
+            {"type": "status", "status": [404], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/api/status",
+          "description": "Portainer status fingerprint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"Version\"", "Portainer"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "container_registry_anonymous": {
+      "description": "Container registries (Docker Registry v2, Harbor, Quay, ECR public, GAR public, GHCR) — anonymous /v2/_catalog often left enabled.",
+      "tech_match": ["docker-registry", "harbor", "quay"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v2/",
+          "description": "Docker Registry v2 root — 401 with Bearer realm OR 200 = anonymous OK",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header", "header": "docker-distribution-api-version", "weight": 80}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "/v2/_catalog?n=1000",
+          "description": "Full image catalog — anonymous list exposes private repo names",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"repositories\""], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/api/v2.0/projects",
+          "description": "Harbor project list",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"project_id\"", "\"name\":"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "service_mesh_metrics": {
+      "description": "Istio / Linkerd telemetry: Prometheus :9090, Grafana :3000, Kiali, Jaeger :16686 left exposed on dev clusters.",
+      "tech_match": ["istio", "linkerd", "prometheus"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": ":9090/api/v1/label/__name__/values",
+          "description": "Prometheus metric-names dump — discloses every series collected",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"data\":[", "\"status\":\"success\""], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": ":16686/api/services",
+          "description": "Jaeger service list — full request graph + service inventory",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"data\":[", "\"total\""], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

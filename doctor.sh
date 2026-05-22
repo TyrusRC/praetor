@@ -226,6 +226,50 @@ check_recon wpscan     "gem install wpscan        # requires Ruby"
 check_recon dig        "sudo apt install dnsutils # or: brew install bind / scoop install dnsutils"
 
 # ════════════════════════════════════════════════════════════════════
+head "Knowledge base"
+# ════════════════════════════════════════════════════════════════════
+
+# Counts the JSON probe catalogs that drive auto_probe and confirms the
+# reference-only set is consistent with the on-disk files. A drift between
+# the constants module and the directory listing means new KBs aren't being
+# routed through the prefix-loader.
+KB_DIR="$SCRIPT_DIR/mcp-server/src/burpsuite_mcp/knowledge"
+if [ -d "$KB_DIR" ]; then
+    # JSON file count (exclude underscore-prefixed meta files)
+    kb_total=$(find "$KB_DIR" -maxdepth 1 -name '*.json' ! -name '_*' 2>/dev/null | wc -l | tr -d ' ')
+    pass "KB files: $kb_total under knowledge/"
+
+    if [ -n "$VENV_PY" ]; then
+        # Use the venv python to ask the scan module how many KBs are
+        # reference-only — this is the same source of truth auto_probe uses.
+        ref_count=$("$VENV_PY" -c "from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY; print(len(_REFERENCE_ONLY))" 2>/dev/null || echo "?")
+        if [ "$ref_count" != "?" ] && [ "$ref_count" -gt 0 ] 2>/dev/null; then
+            auto_count=$((kb_total - ref_count))
+            pass "KB routing: $auto_count auto-probe + $ref_count reference-only"
+        else
+            skip "KB routing" "could not import scan._constants — server may not be installed"
+        fi
+
+        # Verify every reference-only entry corresponds to a real .json
+        orphan=$("$VENV_PY" -c "
+from pathlib import Path
+from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+files = {p.stem for p in Path('$KB_DIR').glob('*.json')}
+print(','.join(sorted(r for r in _REFERENCE_ONLY if r not in files)))
+" 2>/dev/null)
+        if [ -z "$orphan" ]; then
+            pass "Reference-only entries all resolve to files"
+        else
+            bad "Reference-only orphans" "$orphan"
+        fi
+    else
+        skip "KB routing audit" "venv missing"
+    fi
+else
+    bad "Knowledge dir" "$KB_DIR missing — KB-driven probes will fail"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 head "Project files"
 # ════════════════════════════════════════════════════════════════════
 

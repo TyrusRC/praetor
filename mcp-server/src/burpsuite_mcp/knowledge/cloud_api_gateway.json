@@ -1,0 +1,235 @@
+{
+  "category": "cloud_api_gateway",
+  "description": "Managed API-gateway misconfig detection: AWS API Gateway (REST + HTTP), GCP API Gateway, Azure APIM, Kong, KrakenD, Tyk. Common failure modes — stage-name leakage in URLs, AuthorizationType=NONE per-method, default 'test invoke' route exposed, IAM-protected mainline plus anonymous /Prod or /v0 sibling.",
+  "contexts": {
+    "aws_apigw_stage_leak": {
+      "description": "AWS API Gateway execute-api endpoint shape https://<api-id>.execute-api.<region>.amazonaws.com/<stage>/<resource>. Stage names like dev/test/staging often grant looser auth than prod.",
+      "tech_match": ["execute-api", "amazonaws.com", "aws"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Passive: scrape API Gateway URLs from response body (JS bundles, error messages, swagger)",
+          "matchers": [
+            {"type": "regex", "pattern": "https://[a-z0-9]{10}\\.execute-api\\.[a-z0-9-]+\\.amazonaws\\.com/[A-Za-z0-9_-]+", "weight": 80}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/dev/",
+          "description": "Probe parallel 'dev' stage — auth controls usually weaker than prod stage",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "not_status", "status": [403, 404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "/Prod/",
+          "description": "Default SAM/CDK stage name — often left as-is in mature deploys",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "aws_apigw_auth_disabled_method": {
+      "description": "AWS API Gateway methods with AuthorizationType=NONE while sibling methods enforce IAM/Cognito/Lambda authorizer. Look for one method type that returns differently than other methods on the same path.",
+      "tech_match": ["execute-api", "aws"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "OPTIONS",
+          "description": "OPTIONS request reveals which methods exist on a resource (Access-Control-Allow-Methods)",
+          "matchers": [
+            {"type": "status", "status": [200, 204], "condition": "or"},
+            {"type": "header", "header": "access-control-allow-methods", "weight": 70}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "aws_apigw_test_invoke": {
+      "description": "AWS API Gateway test-invoke surfaces exposed via console-leaked URLs of shape /restapis/<id>/stages/<stage>/operations. Should only be reachable with IAM credentials but mis-deployed regularly.",
+      "tech_match": ["restapis", "execute-api"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/restapis",
+          "description": "Console-style API listing endpoint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"items\"", "\"name\"", "\"id\""], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "gcp_api_gateway_endpoints": {
+      "description": "GCP API Gateway managed endpoints at *.gateway.dev. Each config can declare anonymous or API-key paths in OpenAPI spec.",
+      "tech_match": ["gateway.dev", "gcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Fingerprint via x-cloud-trace-context + server header",
+          "matchers": [
+            {"type": "header", "header": "x-cloud-trace-context", "weight": 60},
+            {"type": "header", "header": "server", "weight": 30}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/openapi.json",
+          "description": "Leaked OpenAPI config exposes every route + auth requirement per route",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["x-google-backend", "security", "openapi"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "azure_apim_default_routes": {
+      "description": "Azure API Management at *.azure-api.net. Default subscription-key requirement can be disabled per-product or per-operation; product 'starter' often public.",
+      "tech_match": ["azure-api.net", "apim"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/echo/resource",
+          "description": "APIM Echo API — present on every APIM instance by default, useful as confirmation of misrouted requests",
+          "matchers": [
+            {"type": "status", "status": [200, 401], "condition": "or"},
+            {"type": "header", "header": "x-powered-by", "weight": 40}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/internal/status",
+          "description": "Internal status endpoint sometimes exposed under no-subscription-key product",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "kong_admin_exposed": {
+      "description": "Kong gateway admin API on :8001 / :8444 — should only be on internal interfaces but frequently bound to 0.0.0.0. Full route/service/plugin enumeration; can register new routes.",
+      "tech_match": ["kong"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/",
+          "description": "Kong admin root exposes hostname, version, plugins",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"plugins\"", "\"version\"", "\"hostname\"", "lua_version"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "/services",
+          "description": "List configured backend services",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"data\"", "\"protocol\"", "\"host\""], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "/routes",
+          "description": "List configured routes — full route table disclosure",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"paths\"", "\"protocols\""], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "krakend_anonymous": {
+      "description": "KrakenD aggregator — default endpoints under /__health and /__debug expose runtime stats. Custom routes usually anonymous unless JWT plugin enabled.",
+      "tech_match": ["krakend"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/__health",
+          "description": "KrakenD health endpoint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"status\":\"ok\"", "krakend"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/__debug",
+          "description": "Debug endpoint — reveals internals; should never be exposed in prod",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["debug_endpoint", "krakend"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "tyk_dashboard": {
+      "description": "Tyk gateway + dashboard. Default ports 8080 (gateway) + 3000 (dashboard). Dashboard auth often left at admin/admin in dev installs.",
+      "tech_match": ["tyk"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/hello",
+          "description": "Tyk health endpoint — confirms gateway",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"status\":\"pass\"", "tyk"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/tyk/apis",
+          "description": "API listing endpoint — auth via X-Tyk-Authorization; often defaulted",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"api_definition\"", "use_keyless"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

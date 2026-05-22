@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**112 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**122 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -10,8 +10,10 @@ Split categories:
 - `ssti` → `ssti.json` + `ssti_python.json`, `ssti_java.json`, `ssti_js.json`, `ssti_php.json`
 - `sqli` → `sqli.json` + `sqli_blind.json`, `sqli_engines.json`
 - `ssrf` → `ssrf.json` + `ssrf_bypass.json`, `ssrf_protocol.json`
+- `graphql` → `graphql.json` + `graphql_engines.json`
+- `cloud` → `cloud_webapp.json` + `cloud_storage_misconfig.json`, `cloud_function_url.json`, `cloud_api_gateway.json`
 
-**Reference-only (manual tooling, not auto-probed):** captcha_bypass, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http3_quic, insecure_randomness, mcp_server_attacks, race_condition, rag_injection, request_smuggling, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, xs_leak
+**Reference-only (manual tooling, not auto-probed):** captcha_bypass, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks, mobile_deeplink, race_condition, rag_injection, request_smuggling, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
 
 ## How to query
 
@@ -235,3 +237,45 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 ## 2026-05-21 additions
 
 10 novel KB entries added — see categories above. Auto-probe enabled: `state_machine_race`, `oauth_dpop_confused_deputy`, `edge_worker_ssrf`, `webauthn_passkey_attacks`, `cache_deception_v2`, `dom_clobbering_2024`, `service_worker_attacks`. Reference-only: `h2_continuation_flood` (CVE-2024-27316, Rule 5 DoS), `mcp_server_attacks`, `rag_injection`.
+
+## 2026-05-22 additions — Coverage pass (cloud + mobile + archive + DAV + GraphQL engines)
+
+10 KBs added to close gaps surfaced by mapping current coverage against OWASP Top 10 (Web/API/LLM/Mobile), WSTG, PayloadsAllTheThings, HackTricks Web, and HackTricks Cloud. Operator-anonymous detection only — no provider credentials required.
+
+### Cloud (anonymous detection — HackTricks Cloud first-phase)
+
+| Category | Contexts | Top severity | Tech tags |
+|---|---|---|---|
+| `cloud_storage_misconfig` | s3_anonymous_list, s3_anonymous_write, gcs_anonymous_list, azure_blob_anonymous_list, r2_anonymous_access, do_spaces_anonymous, b2_anonymous_access, oci_anonymous_access, minio_anonymous, signed_url_leak | critical | aws, azure, b2, digitalocean, gcp, minio, oracle, r2, s3 |
+| `cloud_function_url` | lambda_function_url_anon, cloud_run_unauthenticated, cloud_functions_http_anon, azure_functions_anonymous, openfaas_gateway, vercel_netlify_functions, knative_unauth | high | aws, azure, cloud-run, gcp, knative, lambda, netlify, openfaas, vercel |
+| `cloud_api_gateway` | aws_apigw_stage_leak, aws_apigw_auth_disabled_method, aws_apigw_test_invoke, gcp_api_gateway_endpoints, azure_apim_default_routes, kong_admin_exposed, krakend_anonymous, tyk_dashboard | critical | apim, aws, azure, gcp, kong, krakend, tyk |
+| `kubernetes_exposed` *(ref-only)* | kubelet_read_only_port, kubelet_secure_port_anon, kube_apiserver_anonymous, etcd_exposed, kubernetes_dashboard, argocd_anonymous, tekton_dashboard, rancher_unauth, portainer_unauth, container_registry_anonymous, service_mesh_metrics | critical | argocd, dashboard, dgraph, docker-registry, etcd, harbor, kubelet, kubernetes, portainer, prometheus, rancher, tekton |
+
+### Web (gap-fill)
+
+| Category | Contexts | Top severity | Tech tags |
+|---|---|---|---|
+| `zip_slip` *(ref-only)* | zip_traversal_classic, zip_overwrite_critical_files, tar_extraction_traversal, rar_seven_z_traversal, symlink_in_archive, jar_zip_polyglot, post_extract_observability | critical | java, tomcat, jetty, weblogic |
+| `webdav_misconfig` | options_dav_header, propfind_directory_listing, put_arbitrary_file, mkcol_create_collection, copy_move_to_extension, lock_token_exhaustion, sharepoint_webdav_quirks, iis_short_filename_8_3 | critical | apache, dav, iis, lighttpd, nginx, sharepoint, tomcat, webdav, windows |
+| `argv_injection` | curl_upload_file, wget_argv_smuggle, find_exec_smuggle, openssl_config_load, ssh_proxycommand, tar_dash_dash_to_command, rsync_e_flag, git_clone_upload_pack, imagemagick_argv, argv_zero_smuggle | critical | git, imagemagick, ssh |
+| `graphql_engines` | hasura_admin_secret_check, hasura_role_header_escalation, hasura_remote_schema_ssrf, apollo_persisted_query_poisoning, apollo_federation_internals, dgraph_admin_unauth, postgraphile_underscore_bypass, graphql_field_suggestion_oracle, graphql_alias_amplification_dos, strawberry_python_specifics | critical | apollo, dgraph, federation, hasura, postgraphile, strawberry, strawberry-graphql |
+
+### Mobile (gap-fill — OWASP Mobile Top 10 2024 M4)
+
+| Category | Contexts | Top severity | Tech tags |
+|---|---|---|---|
+| `mobile_deeplink` *(ref-only)* | android_implicit_intent_redirect, android_exported_activity_takeover, android_custom_scheme_takeover, ios_universal_link_misconfig, ios_custom_url_scheme, android_app_links_signature_required, rn_flutter_deeplink_router, deeplink_dangerous_intent_actions | critical | android, apple, expo, flutter, ios, react-native |
+| `webview_injection` *(ref-only)* | addjavascriptinterface_rce, webview_file_url_access, wkwebview_message_handler, wkwebview_universal_xss, cordova_ionic_plugin_abuse, capacitor_plugin_default, webview_mixed_content_load, webview_screenshot_token_capture | critical | android, capacitor, cordova, ionic, ios, phonegap, webview, wkwebview |
+
+### Coverage framework mapping
+
+| Framework | KB categories |
+|---|---|
+| OWASP Web Top 10 2021 | All 10 covered — A01 access_control/idor/mass_assignment, A02 crypto_weakness, A03 sqli+xss+command_injection+ssti+nosql+xpath/etc., A04 business_logic/state_machine_race, A05 info_disclosure/http_methods_enum, A06 tech_vulns/dependency_confusion, A07 authentication/jwt/oauth, A08 deserialization/prototype_pollution, A09 crlf_injection (log injection), A10 ssrf+ssrf_bypass+edge_worker_ssrf+cloud_webapp |
+| OWASP API Top 10 2023 | All 10 — API1 idor, API2 authentication+jwt, API3 excessive_data_exposure+mass_assignment, API4 resource_exhaustion, API5 access_control, API6 business_logic+state_machine_race, API7 ssrf*, API8 info_disclosure, API9 api_inventory, API10 unsafe_consumption |
+| OWASP LLM Top 10 2025 | 9/10 — ai_prompt_injection, web_llm, mcp_server_attacks, rag_injection, resource_exhaustion (LLM10). LLM09 misinformation out-of-scope for active testing. |
+| OWASP Mobile Top 10 2024 | mobile_api + mobile_deeplink + webview_injection + push_notification + crypto_weakness. M5 (insecure comm) addressed by mobile-dynamic-agent (tool-side TLS pinning bypass), not KB. M7 (binary protections) out-of-scope. |
+| OWASP WSTG (web) | All sections — 4.1 info_disclosure/source_code_exposure/api_inventory, 4.2 http_methods_enum/webdav_misconfig/error_handling_misuse, 4.3-4.5 authentication/access_control/idor, 4.6 session_security/csrf, 4.7 all injection KBs + zip_slip + argv_injection, 4.8 error_handling_misuse, 4.9 crypto_weakness, 4.10 business_logic, 4.11 dom_xss/cspp/client_side_*, 4.12 graphql/graphql_engines/grpc_injection/websocket |
+| PayloadsAllTheThings | Every named injection class mapped. ZIP Slip, ARGV Injection, GraphQL engines added in 2026-05-22 pass. |
+| HackTricks Web | All major sections (path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, file upload, WebDAV) covered. |
+| HackTricks Cloud (anonymous-only) | First-phase external enum covered: cloud_storage_misconfig + cloud_function_url + cloud_api_gateway + kubernetes_exposed + ssrf cloud_metadata. Credential-based privesc (Pacu-class) out-of-scope per operator constraint. |
