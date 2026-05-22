@@ -30,6 +30,11 @@ _REFERENCE_ONLY = {
     "h2_continuation_flood",   # DoS-class (Rule 5)
     "mcp_server_attacks",      # situational supply-chain
     "rag_injection",           # context-heavy, LLM-side verification
+    # Added 2026-05-22 (cloud + mobile + archive coverage pass):
+    "kubernetes_exposed",      # network-level discovery across non-HTTP ports
+    "zip_slip",                # upload-then-trigger two-step extraction observation
+    "mobile_deeplink",         # needs device + manifest inspection
+    "webview_injection",       # mobile WebView context, multi-step
 }
 
 # Parameter name → vulnerability classification (used by attack-priority routing)

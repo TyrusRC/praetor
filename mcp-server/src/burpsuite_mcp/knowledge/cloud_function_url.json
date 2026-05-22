@@ -1,0 +1,217 @@
+{
+  "category": "cloud_function_url",
+  "description": "Direct-URL function endpoints: AWS Lambda Function URLs, Cloud Run, GCP Cloud Functions HTTP triggers, Azure Functions (auth_level=anonymous), OpenFaaS, Vercel/Netlify serverless functions. Often deployed with default IAM=NONE / no auth, leaving them publicly invocable. Operator-anonymous detection only — no provider creds.",
+  "contexts": {
+    "lambda_function_url_anon": {
+      "description": "AWS Lambda Function URLs of shape <id>.lambda-url.<region>.on.aws — default auth-type NONE invokes function anonymously. Spot the wildcard hostname pattern in CSP / fetch() / postMessage targets.",
+      "tech_match": ["lambda-url", "on.aws", "aws"],
+      "param_match": ["url", "endpoint", "fn", "function", "webhook", "callback"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Passive fingerprint of Function-URL in response body / headers",
+          "matchers": [
+            {"type": "regex", "pattern": "https://[a-z0-9]{32}\\.lambda-url\\.[a-z0-9-]+\\.on\\.aws", "weight": 80},
+            {"type": "header", "header": "x-amzn-RequestId", "weight": 70}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "/",
+          "description": "GET on Function URL root — 200 indicates anonymous-invoke; 403 with x-amzn-errortype indicates IAM-protected but URL leaked",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header", "header": "x-amzn-RequestId", "weight": 60}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "/?cmd=test",
+          "description": "Probe with arbitrary param — many Lambda handlers proxy event.queryStringParameters directly into shell/SQL/SSRF sinks",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header_added", "headers": ["x-amzn-RequestId"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "cloud_run_unauthenticated": {
+      "description": "GCP Cloud Run service with --allow-unauthenticated. Default *.run.app domain. Often exposes admin endpoints under /api/ that team didn't expect to be public.",
+      "tech_match": ["run.app", "cloud-run", "gcp", "google"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Fingerprint x-cloud-trace-context header (GCP load-balancer hint)",
+          "matchers": [
+            {"type": "header", "header": "x-cloud-trace-context", "weight": 70},
+            {"type": "header", "header": "via", "weight": 30}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/_ah/health",
+          "description": "App Engine / Cloud Run health endpoint sometimes accidentally exposed",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/__/auth/handler",
+          "description": "Firebase Auth handler — leaked indicates Firebase project is mounted; admin SDK config may be reachable",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "cloud_functions_http_anon": {
+      "description": "GCP Cloud Functions Gen1/Gen2 HTTP triggers at https://<region>-<project>.cloudfunctions.net/<fn> with --allow-unauthenticated.",
+      "tech_match": ["cloudfunctions.net", "gcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/",
+          "description": "Root invoke — anonymous function executes whatever the handler does on empty event",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header", "header": "x-cloud-trace-context", "weight": 60}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "azure_functions_anonymous": {
+      "description": "Azure Functions HTTP trigger with authLevel=anonymous. Default *.azurewebsites.net hostname. _master_/admin/host endpoints leak when host-key isn't enforced.",
+      "tech_match": ["azurewebsites.net", "azure-functions", "azure"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/",
+          "description": "List of HTTP-trigger functions — accessible via api/ prefix on default route",
+          "matchers": [
+            {"type": "status", "status": [200, 404], "condition": "or"},
+            {"type": "header", "header": "x-functions-host", "weight": 70}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "/admin/host/status",
+          "description": "Admin host endpoint — exposes runtime version + state if x-functions-key isn't required",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["runtimeVersion", "instanceId"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/admin/functions",
+          "description": "List all functions hosted by this host — confirms misconfigured host-key enforcement",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "openfaas_gateway": {
+      "description": "OpenFaaS gateway at /function/<name>/ + /system/* endpoints. Self-hosted serverless; often deployed with anonymous access on dev clusters.",
+      "tech_match": ["openfaas", "faas"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/system/functions",
+          "description": "List of deployed functions",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"name\"", "\"image\"", "invocationCount"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/system/info",
+          "description": "OpenFaaS gateway version + provider info",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["provider", "version"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "vercel_netlify_functions": {
+      "description": "Vercel /api/* and Netlify /.netlify/functions/* — anonymous serverless. Often the only public auth boundary; if handler doesn't validate, full execution available.",
+      "tech_match": ["vercel", "netlify"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/",
+          "description": "Vercel default function namespace",
+          "matchers": [
+            {"type": "header", "header": "x-vercel-id", "weight": 70},
+            {"type": "header", "header": "server", "weight": 30}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        },
+        {
+          "payload": "/.netlify/functions/",
+          "description": "Netlify functions root listing",
+          "matchers": [
+            {"type": "status", "status": [200, 404], "condition": "or"},
+            {"type": "header", "header": "x-nf-request-id", "weight": 70}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "knative_unauth": {
+      "description": "Knative service in cluster with no Istio AuthorizationPolicy — anonymous invocation if Host header points at service.",
+      "tech_match": ["knative", "kn"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Knative fingerprint via response headers",
+          "matchers": [
+            {"type": "header", "header": "x-envoy-upstream-service-time", "weight": 50},
+            {"type": "header", "header": "k-revision", "weight": 80}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

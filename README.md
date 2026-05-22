@@ -28,7 +28,7 @@ LLM client  <- stdio MCP -> Python MCP server  <- HTTP -> Java Burp extension  <
 
 - MCP tool surface covering recon, scan, exploit, browser, auth, research, and reporting.
 - HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
-- Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance).
+- Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10 (Web / API / LLM / Mobile), OWASP WSTG, PayloadsAllTheThings, HackTricks Web + Cloud — see the [Coverage](#coverage) table.
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
 - Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
 - Third-party wrappers proxied through Burp: sqlmap, dalfox, commix, nuclei, ffuf, katana, subfinder, amass, wafw00f, arjun, gau, waybackurls, wpscan, nikto.
@@ -225,7 +225,22 @@ Read-only context the agent can attach without spending tool budget. URIs:
 
 ## Knowledge Base
 
-The adaptive scan engine reads JSON files from `mcp-server/src/burpsuite_mcp/knowledge/`. Each file declares contexts, server-side matchers, and optional craft guidance for dynamic payload generation. Categories cover injection, authentication, authorization, client-side, business logic, infrastructure, file handling, deserialization, and emerging vectors (LLM prompt injection, OAuth device flow, webhook replay, DOM clobbering, CSS prototype pollution, HTTP/3 QUIC). Add a new `.json` file to extend coverage; `auto_probe` picks it up at runtime.
+The adaptive scan engine reads JSON files from `mcp-server/src/burpsuite_mcp/knowledge/`. Each file declares contexts, server-side matchers, and optional craft guidance for dynamic payload generation. Add a new `.json` file to extend coverage; `auto_probe` picks it up at runtime. The full per-category breakdown lives in [`mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md`](mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md).
+
+### Coverage
+
+| Framework | Status |
+|---|---|
+| OWASP Web Top 10 (2021) | All 10 categories |
+| OWASP API Security Top 10 (2023) | All 10 categories |
+| OWASP LLM Top 10 (2025) | 9 / 10 (LLM09 misinformation out-of-scope for active testing) |
+| OWASP Mobile Top 10 (2024) | Application surface covered (deep-link, WebView, mobile API, payments). M5 insecure comms handled by the `mobile-dynamic-agent` Frida pinning bypass; M7 binary protections out-of-scope. |
+| OWASP WSTG (Web Security Testing Guide) | All sections — information gathering, configuration, identity, authentication, authorization, session, input validation, error handling, cryptography, business logic, client-side, API |
+| PayloadsAllTheThings | Every named injection / abuse class mapped, including ZIP Slip, argument injection, GraphQL engine-specific |
+| HackTricks Web | Path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, WebDAV, file upload |
+| HackTricks Cloud | Anonymous external surface covered: object storage misconfig (S3 / GCS / Azure Blob / R2 / B2 / Spaces / OCI / MinIO), function URLs (Lambda / Cloud Run / Cloud Functions / Azure / OpenFaaS), API gateway (AWS / GCP / Azure APIM / Kong / KrakenD / Tyk), Kubernetes (kubelet / kube-apiserver / etcd / dashboard / ArgoCD / Tekton / Rancher / Portainer / registries). Credential-based privesc (Pacu class) out-of-scope per operator policy. |
+
+Latest additions cover the gap surface most bug-bounty and red-team work hits in 2024–2026: cloud storage anonymous enumeration, serverless function URL discovery, K8s external exposure, mobile deep-link and WebView injection, archive extraction (Zip Slip) and argument injection (`curl --upload-file`, `git ext::`, `ssh -oProxyCommand`, …), GraphQL engine-specific attacks (Hasura admin-secret, Apollo APQ poisoning, federation `_entities` abuse, PostGraphile RLS bypass, Dgraph admin, Strawberry SDL leak).
 
 ## Save-Finding Pipeline
 
