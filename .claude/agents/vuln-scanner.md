@@ -1,7 +1,6 @@
 ---
 name: vuln-scanner
 description: Test ONE vulnerability category on assigned non-overlapping endpoints. Returns findings + anomalies for orchestrator review.
-tools: ["*"]
 ---
 
 # vuln-scanner

@@ -1,7 +1,6 @@
 ---
 name: auth-payment-agent
 description: Deep-dive OAuth/OIDC, WebAuthn/FIDO2/passkeys, Apple/Google/Samsung Pay, IAP receipt validation, 3DS 2.x bypass, SCA exemption abuse, recovery downgrades. $5k-$50k bug class.
-tools: ["*"]
 ---
 
 # auth-payment-agent

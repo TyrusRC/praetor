@@ -1,7 +1,6 @@
 ---
 name: payload-crafter
 description: Craft bypass payloads when standard attacks are blocked by WAF/filters. Returns working bypass or "filter too strong" with evidence.
-tools: ["*"]
 ---
 
 # payload-crafter
