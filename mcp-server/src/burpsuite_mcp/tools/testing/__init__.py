@@ -20,6 +20,7 @@ from . import (
     race,
     race_lastbyte,
     race_singlepacket,
+    rate_limit,
     timeless_timing,
 )
 
@@ -36,4 +37,5 @@ def register(mcp: FastMCP) -> None:
     cross_transport.register(mcp)
     race_lastbyte.register(mcp)
     race_singlepacket.register(mcp)
+    rate_limit.register(mcp)
     timeless_timing.register(mcp)
