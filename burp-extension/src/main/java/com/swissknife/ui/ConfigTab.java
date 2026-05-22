@@ -28,8 +28,6 @@ public class ConfigTab {
     public ConfigTab(MontoyaApi api, String currentHost, int currentPort, String version,
                      BiConsumer<String, Integer> restartCallback,
                      Supplier<List<String[]>> sessionSupplier, FindingsStore findingsStore) {
-        instance = this;
-
         this.activityLogPanel = new ActivityLogPanel();
         this.dashboardPanel = new DashboardPanel(
             currentHost, currentPort, version, restartCallback,
@@ -48,6 +46,11 @@ public class ConfigTab {
         // Auto-refresh dashboard every 5 seconds.
         refreshTimer = new javax.swing.Timer(5000, e -> dashboardPanel.refreshStats());
         refreshTimer.start();
+
+        // Publish the singleton LAST so log() callers never observe a
+        // partially-constructed object (activityLogPanel still null, etc.).
+        // instance is volatile, so this write happens-before any later read.
+        instance = this;
     }
 
     public JPanel getPanel() { return panel; }
