@@ -2,12 +2,12 @@ package com.swissknife.session;
 
 import com.swissknife.handlers.Session;
 import com.swissknife.http.HttpExchange;
+import static com.swissknife.http.HttpResponses.sendJson;
+import static com.swissknife.http.HttpResponses.sendError;
 import com.swissknife.store.SessionStore;
 import com.swissknife.util.JsonUtil;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,27 +67,4 @@ public final class SessionExtractHandler {
         }
     }
 
-    private void sendJson(HttpExchange exchange, String json) throws IOException {
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(200, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
-        }
-    }
-
-    private void sendError(HttpExchange exchange, int status, String message) throws IOException {
-        String code = switch (status) {
-            case 400 -> "validation_failed";
-            case 404 -> "not_found";
-            default -> "error";
-        };
-        String json = JsonUtil.object("error", message, "code", code, "hint", "");
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(status, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) {
-            os.write(bytes);
-        }
-    }
 }
