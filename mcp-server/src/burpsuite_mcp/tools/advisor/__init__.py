@@ -94,6 +94,7 @@ def register(mcp: FastMCP):
         chain_with: list[str] | None = None,
         reproductions: list[dict] | None = None,
         session_name: str = "",
+        intensity: str = "normal",
     ) -> str:
         """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
@@ -112,6 +113,7 @@ def register(mcp: FastMCP):
             chain_with: Existing finding IDs this report chains to. Non-empty list (a) allows NEVER-SUBMIT classes through Q6, (b) skips Q7 mass-report downgrade, (c) boosts impact.
             reproductions: For timing/blind classes — list of dicts {logger_index, elapsed_ms, status_code}. Length >= 3 satisfies the timing rule even without keyword text in `evidence`.
             session_name: Active session name. When provided, the gate queries session auth state; authenticated sessions boost IDOR/BFLA/business-logic impact (Rule 28 grey-box mindset).
+            intensity: Engagement mode. 'safe' = production / customer-impact-sensitive (annotates that state-mutating probe variants should be suppressed). 'normal' = default. 'aggressive' = staging / pre-engagement / authorized internal — relaxes the Q7 mass-report downgrade.
         """
         return await assess_finding_impl(
             vuln_type=vuln_type,
@@ -128,6 +130,7 @@ def register(mcp: FastMCP):
             chain_with=chain_with,
             reproductions=reproductions,
             session_name=session_name,
+            intensity=intensity,
         )
 
     @mcp.tool()

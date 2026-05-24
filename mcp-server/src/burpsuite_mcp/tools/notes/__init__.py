@@ -14,7 +14,7 @@ keeps resolving.
 
 from mcp.server.fastmcp import FastMCP
 
-from . import query, save
+from . import export_junit, export_sarif, query, repro_script, save
 from ._helpers import (
     _dedupe_finding,
     _domain_from_endpoint,
@@ -46,3 +46,6 @@ __all__ = [
 def register(mcp: FastMCP):
     save.register(mcp)
     query.register(mcp)
+    export_sarif.register(mcp)
+    export_junit.register(mcp)
+    repro_script.register(mcp)
