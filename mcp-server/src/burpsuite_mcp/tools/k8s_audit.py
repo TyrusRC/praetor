@@ -112,3 +112,118 @@ def register(mcp: FastMCP) -> None:
         if rc != 0 and not vulns:
             lines.append(f"[rc={rc}] {err[:200]}")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_peirates(
+        commands: list[str] | None = None,
+        timeout: int = 300,
+    ) -> str:
+        """Run peirates K8s post-exploit / privesc (interactive menu via stdin).
+
+        Args:
+            commands: peirates menu commands (e.g. ['1', '99']).
+                Empty -> autocheck (option 1) then exit.
+            timeout: seconds.
+        """
+        if not _check_tool("peirates"):
+            return _hint("peirates",
+                         "go install github.com/inguardians/peirates@latest  |  "
+                         "https://github.com/inguardians/peirates")
+        import asyncio, os
+        from burpsuite_mcp.tools.recon._common import _find_tool
+        stdin_input = ("\n".join(commands or ["1", "exit"]) + "\n").encode()
+        env = os.environ.copy()
+        env.pop("HTTPS_PROXY", None); env.pop("HTTP_PROXY", None)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                _find_tool("peirates") or "peirates",
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(input=stdin_input), timeout=timeout,
+            )
+            rc = proc.returncode or 0
+        except asyncio.TimeoutError:
+            try:
+                proc.kill(); await proc.wait()
+            except Exception:
+                pass
+            return f"peirates: timed out after {timeout}s"
+        out_s = stdout.decode(errors="replace")
+        err_s = stderr.decode(errors="replace")
+        tail = "\n".join(out_s.splitlines()[-80:])
+        lines = [f"peirates rc={rc}", tail]
+        if rc != 0:
+            lines.append(f"[stderr] {err_s[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_kdigger(
+        command: str = "all",
+        timeout: int = 180,
+    ) -> str:
+        """Run kdigger pod-context discovery (admission/syscalls/usernsmode/etc.).
+
+        Args:
+            command: all | admission | apiresources | aws | authz | capabilities |
+                     cgroups | gcp | mount | node | pidnamespace | processes |
+                     runtime | services | syscalls | token | userid | usernsmode.
+            timeout: seconds.
+        """
+        if not _check_tool("kdigger"):
+            return _hint("kdigger",
+                         "brew install mtardy/tap/kdigger  |  "
+                         "https://github.com/quarkslab/kdigger/releases")
+        out, err, rc = await _run_cmd(
+            ["kdigger", "dig", command, "--output", "json"],
+            timeout=timeout, bypass_proxy=True,
+        )
+        try:
+            data = json.loads(out) if out.strip() else {}
+        except json.JSONDecodeError:
+            data = {}
+        buckets = data.get("buckets") or data.get("Results") or []
+        lines = [f"kdigger [{command}]: {len(buckets)} buckets"]
+        for b in buckets[:20]:
+            name = b.get("name") or b.get("Name") or "?"
+            result_keys = list((b.get("results") or b.get("Results") or {}).keys())[:6]
+            lines.append(f"  {name}: keys={result_keys}")
+        if rc != 0 and not buckets:
+            tail = "\n".join(out.splitlines()[:40])
+            lines.append(tail)
+            lines.append(f"[rc={rc}] {err[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_kubeletctl(
+        target: str,
+        action: str = "pods",
+        port: int = 10250,
+        timeout: int = 60,
+    ) -> str:
+        """Probe a kubelet API endpoint via kubeletctl.
+
+        Args:
+            target: kubelet host (IP / FQDN).
+            action: pods | scan | runningpods | scanner-pods | metrics | configz |
+                    healthz | stats.
+            port: kubelet port (10250 secure / 10255 read-only).
+            timeout: seconds.
+        """
+        if not _check_tool("kubeletctl"):
+            return _hint("kubeletctl",
+                         "go install github.com/cyberark/kubeletctl/cmd/kubeletctl@latest  |  "
+                         "https://github.com/cyberark/kubeletctl")
+        if action == "scan":
+            cmd = ["kubeletctl", "scan", "rce", "--cidr", target]
+        else:
+            cmd = ["kubeletctl", action, "--server", target, "--port", str(port)]
+        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
+        tail = "\n".join(out.splitlines()[:80])
+        lines = [f"kubeletctl [{action}] target={target}:{port} rc={rc}", tail]
+        if rc != 0:
+            lines.append(f"[stderr] {err[:200]}")
+        return "\n".join(lines)

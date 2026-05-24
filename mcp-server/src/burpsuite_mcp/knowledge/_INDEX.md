@@ -287,4 +287,20 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | OWASP WSTG (web) | All sections — 4.1 info_disclosure/source_code_exposure/api_inventory, 4.2 http_methods_enum/webdav_misconfig/error_handling_misuse, 4.3-4.5 authentication/access_control/idor, 4.6 session_security/csrf, 4.7 all injection KBs + zip_slip + argv_injection, 4.8 error_handling_misuse, 4.9 crypto_weakness, 4.10 business_logic, 4.11 dom_xss/cspp/client_side_*, 4.12 graphql/graphql_engines/grpc_injection/websocket |
 | PayloadsAllTheThings | Every named injection class mapped. ZIP Slip, ARGV Injection, GraphQL engines added in 2026-05-22 pass. |
 | HackTricks Web | All major sections (path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, file upload, WebDAV) covered. |
-| HackTricks Cloud (anonymous-only) | First-phase external enum covered: cloud_storage_misconfig + cloud_function_url + cloud_api_gateway + kubernetes_exposed + anon_cloud_expansion (etcd/kubelet/Docker/Consul/Vault/Nomad/Spinnaker/Firebase/Firestore/Terraform) + ssrf cloud_metadata. Credential-based privesc (Pacu-class) out-of-scope per operator constraint. |
+| HackTricks Cloud (anonymous-only) | First-phase external enum covered: cloud_storage_misconfig + cloud_function_url + cloud_api_gateway + kubernetes_exposed + anon_cloud_expansion (etcd/kubelet/Docker/Consul/Vault/Nomad/Spinnaker/Firebase/Firestore/Terraform) + ssrf cloud_metadata. Credentialed audit and active post-exploit added in W6: `run_prowler` / `run_scout_suite` / `run_cloudsploit` (audit); `run_pacu` (post-exploit, Rule 5 destructive denylist enforced). |
+
+## 2026-05-24 W6 additions — Cloud / IaC / CI / Visual EASM / K8s active
+
+| Category | Contexts | Top severity | Backed by tool |
+|---|---|---|---|
+| `ci_actions_injection` *(ref-only)* | expression_injection, pwn_request, untrusted_checkout, unpinned_third_party_action, self_hosted_runner_takeover, secret_exfil_via_log | critical | `run_poutine`, `run_octoscan` |
+
+Active-only surfaces (probes run via binary tools, no KB matchers):
+
+- Cloud config posture: `run_prowler` (AWS/Azure/GCP/K8s), `run_scout_suite` (AWS/Azure/GCP/Aliyun/OCI), `run_cloudsploit` (Aqua), `run_pacu` (AWS post-exploit, Rule 5 denylist).
+- IaC + Dockerfile: `run_checkov`, `run_tfsec`, `run_terrascan`, `run_hadolint`.
+- SBOM + sign: `run_syft` (CycloneDX/SPDX), `run_cosign_verify` (Sigstore keyless + keyed).
+- K8s active: `run_peirates`, `run_kdigger`, `run_kubeletctl`.
+- CVE prioritisation: `kev_epss_enrich(cve_ids)` — CISA KEV + FIRST EPSS sort.
+- Subdomain perm: `run_chaos`, `run_dnsgen`, `run_shuffledns`.
+- Visual EASM: `visual_easm_diff` — gowitness screenshot + per-host PNG-hash delta.

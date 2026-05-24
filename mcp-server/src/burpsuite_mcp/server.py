@@ -11,6 +11,7 @@ from burpsuite_mcp.tools import (
     bucket_urls, scope_extra, wordlist, secrets, analysis, security,
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
+    cloud_audit, iac_scan, ci_audit, visual_easm,
 )
 
 mcp = FastMCP(
@@ -122,3 +123,7 @@ k8s_audit.register(mcp)        # kubescape / kube-hunter — posture + active K8
 smuggle_cli.register(mcp)      # smuggle CLI — Kettle 2025 0.CL/CL.0/V-H/Expect/RQP/double-desync detector
 vulnwalker.register(mcp)       # vulnwalker_audit — AST call-chain walker (Python) with taint-source matching
 httpql.register(mcp)           # query_history_dsl — small HTTPQL-style DSL over Burp proxy history
+cloud_audit.register(mcp)      # prowler / scout_suite / cloudsploit — multi-cloud config posture
+iac_scan.register(mcp)         # checkov / tfsec / terrascan / hadolint — IaC + Dockerfile policy
+ci_audit.register(mcp)         # poutine / octoscan — GitHub Actions / GitLab CI injection + pwn-request
+visual_easm.register(mcp)      # visual_easm_diff — gowitness screenshot + hash delta vs prior run
