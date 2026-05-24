@@ -63,8 +63,12 @@ def _build_context(
     chain_with: list[str] | None,
     reproductions: list[dict] | None,
     session_name: str,
+    intensity: str = "normal",
 ) -> AssessContext:
     """Allocate + populate the per-call AssessContext."""
+    norm_intensity = (intensity or "normal").strip().lower()
+    if norm_intensity not in {"safe", "normal", "aggressive"}:
+        norm_intensity = "normal"
     ctx = AssessContext(
         vuln_type=vuln_type,
         vuln_lower=vuln_type.lower(),
@@ -80,6 +84,7 @@ def _build_context(
         chain_with=chain_with or [],
         reproductions=reproductions or [],
         session_name=session_name,
+        intensity=norm_intensity,
         evidence_lower=evidence.lower(),
         never_submit_types=dict(NEVER_SUBMIT_TYPES),
     )
@@ -169,6 +174,17 @@ def _render(ctx: AssessContext) -> str:
         lines.append(f"  Parameter: {ctx.parameter}")
     lines.append(f"  Severity (inferred): {ctx.inferred_severity} [color={ctx.severity_color}]")
     lines.append(f"  Confidence (separate from color): {ctx.suggested_confidence:.2f}")
+    if ctx.intensity and ctx.intensity != "normal":
+        if ctx.intensity == "safe":
+            lines.append(
+                "  Intensity: SAFE — suppress state-mutating probe variants "
+                "(POST/PUT/DELETE/PATCH unless idempotent); OOB requires Collaborator."
+            )
+        elif ctx.intensity == "aggressive":
+            lines.append(
+                "  Intensity: AGGRESSIVE — Q7 mass-report downgrade relaxed; "
+                "staging / pre-engagement context assumed."
+            )
     if ctx.derived_markers:
         lines.append(f"  Auto-derived markers: {', '.join(ctx.derived_markers[:8])}")
     if ctx.audit_overrides:
@@ -212,6 +228,7 @@ async def assess_finding_impl(
     chain_with: list[str] | None = None,
     reproductions: list[dict] | None = None,
     session_name: str = "",
+    intensity: str = "normal",
 ) -> str:
     """Run the 7-question validation gate and return a formatted verdict string.
 
@@ -222,6 +239,7 @@ async def assess_finding_impl(
         vuln_type, evidence, endpoint, parameter, response_diff,
         domain, business_context, environment, logger_index,
         human_verified, overrides, chain_with, reproductions, session_name,
+        intensity,
     )
 
     # R1: auto-derive markers from logger_index (mutates ctx.derived_markers

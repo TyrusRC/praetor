@@ -34,6 +34,12 @@ class AssessContext:
     chain_with: list[str] = field(default_factory=list)
     reproductions: list[dict] = field(default_factory=list)
     session_name: str = ""
+    # Per-call mode (Praetor v1.0): 'safe' / 'normal' / 'aggressive'.
+    # safe = production engagement, suppresses state-mutating probe paths,
+    #        downgrades NEVER-SUBMIT inflation, requires Collaborator for OOB.
+    # aggressive = pre-engagement / staging / authorized internal — Q7 mass-report
+    #              downgrade is relaxed.
+    intensity: str = "normal"
 
     # ── Override bookkeeping ──
     override_set: set[str] = field(default_factory=set)
