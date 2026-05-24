@@ -1,0 +1,274 @@
+{
+  "category": "anon_cloud_expansion",
+  "description": "Anonymous cloud-service exposure expansion. Covers etcd, kubelet, Docker daemon, Consul, Vault, Nomad, Spinnaker UIs, Firebase RTDB/Firestore open-rules, Terraform .tfstate exposure, Lambda Function URL auth=NONE detection. Pure HTTP probes — no provider creds.",
+  "contexts": {
+    "etcd_v2_v3_open": {
+      "description": "etcd key/value store on default port 2379. Anonymous read = full cluster-state dump. /v2/keys/?recursive=true (v2) or /v3/kv/range (v3).",
+      "tech_match": ["etcd"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v2/keys/?recursive=true",
+          "description": "etcd v2 anonymous range read — JSON dump of every key",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["createdIndex", "modifiedIndex", "nodes"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/version",
+          "description": "etcd version banner",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "regex", "pattern": "\"etcdserver\":\"[0-9.]+\"", "weight": 90}
+          ],
+          "severity": "medium",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "kubelet_unauth_api": {
+      "description": "kubelet on 10250 (read-write) / 10255 (read-only). Anonymous /pods, /runningpods, /metrics, /healthz exposes cluster pod-spec including secrets/env.",
+      "tech_match": ["kubelet", "k8s", "kubernetes"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/pods",
+          "description": "kubelet pod list — leaks containerised env-vars, mounted secrets",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"kind\":\"PodList\"", "containerStatuses", "spec"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/runningpods/",
+          "description": "Running-pods JSON",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["PodList", "metadata"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/healthz",
+          "description": "Soft fingerprint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["ok"], "condition": "and"}
+          ],
+          "severity": "low",
+          "confidence_boost": 30,
+          "variables": {}
+        }
+      ]
+    },
+    "docker_daemon_remote_api": {
+      "description": "Docker daemon on 2375 (TCP no-TLS) or 2376 (TLS). /info, /containers/json — anonymous = RCE via container create.",
+      "tech_match": ["docker", "moby"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/info",
+          "description": "Daemon info JSON",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["DockerRootDir", "OperatingSystem", "ServerVersion"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/containers/json?all=true",
+          "description": "List all containers — confirms full read on daemon socket",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"Image\":", "\"Status\":"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "consul_open_api": {
+      "description": "HashiCorp Consul on 8500. /v1/catalog/services + /v1/kv/?recurse — anonymous = service catalog + KV dump.",
+      "tech_match": ["consul", "hashicorp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v1/catalog/services",
+          "description": "Service catalog dump",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header", "header": "x-consul-index", "weight": 80}
+          ],
+          "severity": "high",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "/v1/kv/?recurse",
+          "description": "KV recursive read — often hosts secrets",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header", "header": "x-consul-index", "weight": 80}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        }
+      ]
+    },
+    "vault_unsealed_anon": {
+      "description": "HashiCorp Vault — /v1/sys/health, /v1/sys/seal-status. Unsealed + anonymous list = secret-mount enumeration. Defaults: token = root or empty.",
+      "tech_match": ["vault", "hashicorp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v1/sys/health",
+          "description": "Health endpoint — leaks sealed / version / cluster_name",
+          "matchers": [
+            {"type": "status", "status": [200, 472, 473, 501, 503], "condition": "or"},
+            {"type": "word", "words": ["sealed", "cluster_name", "version"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "/v1/sys/mounts",
+          "description": "Mount listing — should require X-Vault-Token, leaks if anonymous accepted",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["secret/", "kv/", "transit/"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "firebase_rtdb_open_rules": {
+      "description": "Firebase Realtime Database with rules {\".read\":true} — entire DB readable by appending .json to any path. Endpoint shape: *.firebaseio.com/<path>.json.",
+      "tech_match": ["firebase", "firebaseio"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.json?shallow=true",
+          "description": "Shallow read of DB root — returns top-level keys if .read=true",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "regex", "pattern": "^\\{[^\"]*\"[a-zA-Z0-9_-]+\"\\s*:\\s*(true|null|\\{)", "weight": 80}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
+        },
+        {
+          "payload": "/users.json",
+          "description": "Common-collection probe — /users, /posts, /orders are typical victim collections",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "not_word", "words": ["Permission denied", "permission_denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "firestore_open_rules": {
+      "description": "Cloud Firestore with permissive rules — anonymous Listen RPC or REST GET on /v1/projects/<project>/databases/(default)/documents/<col>.",
+      "tech_match": ["firestore", "firebase"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v1/projects/PROJECT/databases/(default)/documents/users",
+          "description": "Anonymous REST list — operator substitutes PROJECT",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["documents", "fields"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "terraform_state_exposed": {
+      "description": "Exposed .tfstate / terraform.tfstate / .tfstate.backup — leaks every infrastructure secret stored as resource attribute (AWS keys, DB passwords).",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/terraform.tfstate",
+          "description": "Terraform state at webroot",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"terraform_version\"", "\"resources\":", "\"backend\""], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        },
+        {
+          "payload": "/.terraform/terraform.tfstate",
+          "description": "Workdir state file",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["terraform_version"], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "nomad_open_api": {
+      "description": "Nomad on 4646 — /v1/jobs anonymous = full job spec including environment secrets.",
+      "tech_match": ["nomad", "hashicorp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v1/jobs",
+          "description": "Job list",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"Status\":", "\"Type\":"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "spinnaker_ui_open": {
+      "description": "Spinnaker Deck UI / Gate API anonymous — pipeline list = full deploy config + secret refs.",
+      "tech_match": ["spinnaker", "deck", "gate"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/gate/applications",
+          "description": "App list via Gate proxy",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["applications", "spinnaker"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}
