@@ -1,0 +1,67 @@
+{
+  "category": "ci_actions_injection",
+  "_reference_only": true,
+  "description": "GitHub Actions / GitLab CI injection + pwn-request patterns. Probed via poutine / octoscan binaries (run_poutine / run_octoscan), not HTTP matchers.",
+  "contexts": {
+    "expression_injection": {
+      "description": "Untrusted input interpolated into a shell run: step via ${{ github.event.* }} -> command injection.",
+      "tech_match": [".github/workflows/*.yml", ".gitlab-ci.yml"],
+      "param_match": [],
+      "indicators": [
+        "${{ github.event.pull_request.title }} in run:",
+        "${{ github.event.issue.body }} in run:",
+        "${{ github.event.comment.body }} in run:",
+        "${{ github.head_ref }} in run:"
+      ],
+      "tools": ["poutine", "octoscan"],
+      "severity": "critical"
+    },
+    "pwn_request": {
+      "description": "pull_request_target with checkout of PR head SHA -> RCE on default branch context with write secrets.",
+      "indicators": [
+        "on: pull_request_target",
+        "actions/checkout@v* with ref: ${{ github.event.pull_request.head.sha }}",
+        "actions/checkout@v* with ref: ${{ github.event.pull_request.head.ref }}"
+      ],
+      "tools": ["poutine", "octoscan"],
+      "severity": "critical"
+    },
+    "untrusted_checkout": {
+      "description": "Workflow_run / workflow_dispatch reusing untrusted artifact from triggering workflow.",
+      "indicators": [
+        "on: workflow_run",
+        "download-artifact@v*",
+        "actions/github-script@v* with untrusted body"
+      ],
+      "tools": ["poutine"],
+      "severity": "high"
+    },
+    "unpinned_third_party_action": {
+      "description": "Third-party action referenced by tag (v1) not full SHA -> supply-chain hijack window.",
+      "indicators": [
+        "uses: <org>/<repo>@v1",
+        "uses: <org>/<repo>@main"
+      ],
+      "tools": ["poutine", "octoscan"],
+      "severity": "medium"
+    },
+    "self_hosted_runner_takeover": {
+      "description": "Self-hosted runner accepts public-fork PR -> arbitrary code on org infrastructure.",
+      "indicators": [
+        "runs-on: self-hosted on a public repo",
+        "no `if: github.event.pull_request.head.repo.fork == false` guard"
+      ],
+      "tools": ["poutine"],
+      "severity": "critical"
+    },
+    "secret_exfil_via_log": {
+      "description": "echo of secret to step output / annotation -> visible in build logs.",
+      "indicators": [
+        "echo ${{ secrets.* }}",
+        "set-output ${{ secrets.* }}"
+      ],
+      "tools": ["octoscan"],
+      "severity": "high"
+    }
+  }
+}

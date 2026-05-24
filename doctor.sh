@@ -264,6 +264,27 @@ check_recon kubescape  "curl -s https://raw.githubusercontent.com/kubescape/kube
 check_recon kube-hunter "pipx install kube-hunter"
 check_recon smuggle    "pipx install smuggle                                # or: https://github.com/defparam/smuggler"
 
+# ── Cloud / IaC / CI / SBOM / K8s active / Visual EASM (W6) ──
+check_recon prowler    "pipx install prowler                                # https://github.com/prowler-cloud/prowler"
+check_recon scout      "pipx install scoutsuite                             # https://github.com/nccgroup/ScoutSuite"
+check_recon cloudsploit "npm i -g cloudsploit                                # https://github.com/aquasecurity/cloudsploit"
+check_recon pacu       "pipx install pacu                                   # https://github.com/RhinoSecurityLabs/pacu"
+check_recon checkov    "pipx install checkov                                # https://github.com/bridgecrewio/checkov"
+check_recon tfsec      "brew install tfsec                                  # or: https://github.com/aquasecurity/tfsec/releases"
+check_recon terrascan  "brew install terrascan                              # or: https://github.com/tenable/terrascan/releases"
+check_recon hadolint   "brew install hadolint                               # or: https://github.com/hadolint/hadolint/releases"
+check_recon poutine    "brew install boostsecurityio/tap/poutine            # https://github.com/boostsecurityio/poutine"
+check_recon octoscan   "go install -v github.com/synacktiv/octoscan@latest  # https://github.com/synacktiv/octoscan"
+check_recon syft       "brew install syft                                   # or: https://github.com/anchore/syft#installation"
+check_recon cosign     "brew install cosign                                 # or: https://github.com/sigstore/cosign/releases"
+check_recon peirates   "go install -v github.com/inguardians/peirates@latest"
+check_recon kdigger    "brew install mtardy/tap/kdigger                     # or: https://github.com/quarkslab/kdigger/releases"
+check_recon kubeletctl "go install -v github.com/cyberark/kubeletctl/cmd/kubeletctl@latest"
+check_recon gowitness  "go install -v github.com/sensepost/gowitness@latest"
+check_recon dnsgen     "pipx install dnsgen                                 # https://github.com/AlephNullSK/dnsgen"
+check_recon shuffledns "go install -v github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest"
+check_recon chaos      "go install -v github.com/projectdiscovery/chaos-client/cmd/chaos@latest"
+
 # ════════════════════════════════════════════════════════════════════
 head "Knowledge base"
 # ════════════════════════════════════════════════════════════════════

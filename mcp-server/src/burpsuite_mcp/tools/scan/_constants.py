@@ -36,6 +36,9 @@ _REFERENCE_ONLY = {
     # Praetor v1.0 (2026-05-24) — saml_xsw stays operator-built (binary XML
     # signature work that does not fit auto_probe's payload-token shape).
     "saml_xsw",
+    # W6 (2026-05-24) — CI/CD pipeline attacks probed via binary tools
+    # (poutine / octoscan), not HTTP-shaped matchers.
+    "ci_actions_injection",
     # NOTE: mcp_server_attacks / rag_injection / ai_prompt_injection promoted
     # to active auto_probe in v1.0 (active LLM/MCP probes — Wave 5).
 }

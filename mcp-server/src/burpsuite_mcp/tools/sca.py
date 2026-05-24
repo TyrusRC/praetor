@@ -135,3 +135,84 @@ def register(mcp: FastMCP) -> None:
         if rc != 0 and not rows:
             lines.append(f"[rc={rc}] {err[:200]}")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_syft(
+        target: str,
+        output_format: str = "cyclonedx-json",
+        timeout: int = 600,
+    ) -> str:
+        """Generate SBOM via syft (Anchore).
+
+        Args:
+            target: image:tag | dir:./path | file:./binary.
+            output_format: cyclonedx-json | spdx-json | syft-json | table.
+            timeout: seconds.
+        """
+        if not _check_tool("syft"):
+            return _hint("syft",
+                         "brew install syft  |  https://github.com/anchore/syft#installation")
+        out, err, rc = await _run_cmd(
+            ["syft", target, "-o", output_format, "-q"],
+            timeout=timeout, bypass_proxy=True,
+        )
+        if output_format.endswith("json") and out.strip():
+            try:
+                data = json.loads(out)
+                comps = data.get("components") or data.get("artifacts") or []
+                lines = [f"syft: {len(comps)} components in {target} ({output_format})"]
+                for c in comps[:40]:
+                    name = c.get("name") or "?"
+                    ver = c.get("version") or "?"
+                    typ = c.get("type") or "?"
+                    lines.append(f"  {typ:<12} {name}@{ver}")
+                lines.append("")
+                lines.append("Full SBOM in stdout above; pipe to file with --output-file.")
+                if rc != 0 and not comps:
+                    lines.append(f"[rc={rc}] {err[:200]}")
+                return "\n".join(lines)
+            except json.JSONDecodeError:
+                pass
+        tail = "\n".join(out.splitlines()[:60])
+        lines = [f"syft [{output_format}] rc={rc}", tail]
+        if rc != 0:
+            lines.append(f"[stderr] {err[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_cosign_verify(
+        image: str,
+        public_key: str = "",
+        certificate_identity: str = "",
+        certificate_issuer: str = "",
+        timeout: int = 120,
+    ) -> str:
+        """Verify a container signature via cosign (Sigstore).
+
+        Args:
+            image: image:tag or image@sha256:...
+            public_key: path to public key (--key); empty -> keyless via Fulcio.
+            certificate_identity: required for keyless mode (Fulcio cert SAN).
+            certificate_issuer: required for keyless mode (Fulcio OIDC issuer).
+            timeout: seconds.
+        """
+        if not _check_tool("cosign"):
+            return _hint("cosign",
+                         "brew install cosign  |  https://github.com/sigstore/cosign/releases")
+        cmd = ["cosign", "verify", image]
+        if public_key:
+            cmd += ["--key", public_key]
+        else:
+            if not (certificate_identity and certificate_issuer):
+                return ("Error: keyless mode needs --certificate-identity and "
+                        "--certificate-issuer. Provide both or supply public_key.")
+            cmd += ["--certificate-identity", certificate_identity,
+                    "--certificate-oidc-issuer", certificate_issuer]
+        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
+        status = "VERIFIED" if rc == 0 else "FAILED"
+        lines = [f"cosign verify [{image}]: {status}"]
+        if rc == 0:
+            lines.append(out.strip()[:600])
+        else:
+            lines.append(f"[rc={rc}] {(err or out)[:600]}")
+        return "\n".join(lines)

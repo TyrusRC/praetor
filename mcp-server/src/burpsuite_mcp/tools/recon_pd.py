@@ -355,6 +355,121 @@ def register(mcp: FastMCP) -> None:
         return "\n".join(lines)
 
     @mcp.tool()
+    async def run_chaos(
+        domain: str,
+        timeout: int = 60,
+    ) -> str:
+        """PD Chaos subdomain dataset (requires CHAOS_KEY env var).
+
+        Args:
+            domain: target apex (e.g. example.com).
+            timeout: seconds.
+        """
+        import os
+        if not _check_tool("chaos"):
+            return _not_installed(
+                "chaos",
+                "go install github.com/projectdiscovery/chaos-client/cmd/chaos@latest  |  "
+                "https://github.com/projectdiscovery/chaos-client",
+            )
+        if not os.environ.get("CHAOS_KEY"):
+            return ("Error: CHAOS_KEY env var unset. Get a free key at "
+                    "https://cloud.projectdiscovery.io and `export CHAOS_KEY=...`")
+        out, err, rc = await _run_cmd(
+            ["chaos", "-d", domain, "-silent"],
+            timeout=timeout, bypass_proxy=True,
+        )
+        hosts = sorted({line.strip() for line in out.splitlines() if line.strip()})
+        lines = [f"chaos: {len(hosts)} subdomains for {domain}"]
+        for h in hosts[:60]:
+            lines.append(f"  {h}")
+        if len(hosts) > 60:
+            lines.append(f"  ... +{len(hosts) - 60} more")
+        if rc != 0 and not hosts:
+            lines.append(f"[rc={rc}] {err[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_dnsgen(
+        wordlist_path: str,
+        max_outputs: int = 5000,
+        timeout: int = 120,
+    ) -> str:
+        """Permute subdomain wordlist via dnsgen.
+
+        Args:
+            wordlist_path: path to seed list (one host per line).
+            max_outputs: max permutations returned.
+            timeout: seconds.
+        """
+        if not _check_tool("dnsgen"):
+            return _not_installed(
+                "dnsgen",
+                "pipx install dnsgen  |  https://github.com/AlephNullSK/dnsgen",
+            )
+        out, err, rc = await _run_cmd(
+            ["dnsgen", wordlist_path],
+            timeout=timeout, bypass_proxy=True,
+        )
+        perms = [ln.strip() for ln in out.splitlines() if ln.strip()]
+        perms = perms[:max_outputs]
+        lines = [f"dnsgen: {len(perms)} permutations from {wordlist_path}"]
+        for p in perms[:40]:
+            lines.append(f"  {p}")
+        if len(perms) > 40:
+            lines.append(f"  ... +{len(perms) - 40} more")
+        if rc != 0 and not perms:
+            lines.append(f"[rc={rc}] {err[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_shuffledns(
+        wordlist_path: str,
+        domain: str = "",
+        resolvers_path: str = "",
+        mode: str = "bruteforce",
+        timeout: int = 600,
+    ) -> str:
+        """Mass DNS resolve / bruteforce via shuffledns (PD).
+
+        Args:
+            wordlist_path: file of subdomains (resolve) or wordlist (bruteforce).
+            domain: required for bruteforce mode.
+            resolvers_path: path to resolvers list (one IP per line).
+            mode: bruteforce | resolve.
+            timeout: seconds.
+        """
+        if not _check_tool("shuffledns"):
+            return _not_installed(
+                "shuffledns",
+                "go install github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest  |  "
+                "https://github.com/projectdiscovery/shuffledns",
+            )
+        if not resolvers_path:
+            return ("Error: shuffledns needs an explicit resolvers list "
+                    "(-r). Common: https://github.com/trickest/resolvers")
+        if mode == "bruteforce":
+            if not domain:
+                return "Error: bruteforce mode needs domain."
+            cmd = ["shuffledns", "-d", domain, "-w", wordlist_path,
+                   "-r", resolvers_path, "-mode", "bruteforce", "-silent"]
+        elif mode == "resolve":
+            cmd = ["shuffledns", "-list", wordlist_path,
+                   "-r", resolvers_path, "-mode", "resolve", "-silent"]
+        else:
+            return f"Error: mode must be bruteforce|resolve (got {mode!r})."
+        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
+        hosts = sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
+        lines = [f"shuffledns [{mode}]: {len(hosts)} resolved"]
+        for h in hosts[:60]:
+            lines.append(f"  {h}")
+        if len(hosts) > 60:
+            lines.append(f"  ... +{len(hosts) - 60} more")
+        if rc != 0 and not hosts:
+            lines.append(f"[rc={rc}] {err[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def run_graphw00f(target: str, timeout: int = 60) -> str:
         """Fingerprint a GraphQL endpoint engine via graphw00f.
 
