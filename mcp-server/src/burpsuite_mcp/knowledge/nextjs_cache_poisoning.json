@@ -1,0 +1,62 @@
+{
+  "category": "nextjs_cache_poisoning",
+  "description": "Next.js cache poisoning chains (Allam 2025, PortSwigger). ISR (Incremental Static Regeneration) + RSC cache key manipulation + Server Action body confusion. Affects 13.x-15.x App Router.",
+  "contexts": {
+    "rsc_cache_key_manipulation": {
+      "description": "RSC responses keyed on URL + cookie subset. Inject headers that the cache strips but origin reflects — poisoned response served to subsequent users.",
+      "tech_match": ["next", "next.js", "vercel"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "x-next-data-cache: poisoned\r\nx-invoke-path: /attacker",
+          "description": "Cache-key-confusing header injection",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "header", "header": "x-nextjs-cache", "weight": 80},
+            {"type": "header_change", "header": "x-vercel-cache"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "isr_revalidate_poison": {
+      "description": "On-demand revalidation tokens — if revalidate endpoint is unauthenticated, attacker forces stale-content replacement.",
+      "tech_match": ["next", "next.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/revalidate?path=/&secret=guess",
+          "description": "Revalidation endpoint fingerprint — common Next.js handler pattern",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["revalidated", "now"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "server_action_body_confusion": {
+      "description": "Server Action POST body cached because handler returns 200 + cacheable headers. Subsequent users see attacker action result.",
+      "tech_match": ["next", "next.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Detect Server Action that returns cacheable response (header anomaly)",
+          "matchers": [
+            {"type": "header", "header": "next-action", "weight": 60},
+            {"type": "header", "header": "cache-control", "weight": 60},
+            {"type": "regex", "pattern": "(s-maxage|public,)", "weight": 80}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}
