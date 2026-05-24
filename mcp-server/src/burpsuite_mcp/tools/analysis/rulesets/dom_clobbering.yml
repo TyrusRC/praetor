@@ -1,0 +1,23 @@
+rules:
+  - id: praetor.dom-clobbering.id-property-access
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      DOM clobbering via document.getElementById / document.<id>. Attacker can
+      register a same-named element (eg. <input id="user">) to override this
+      property reference if no nullish-check is present. See PortSwigger 2024.
+    pattern-either:
+      - pattern: document.$ID
+      - pattern: document.getElementById($X).$PROP
+      - pattern: window[$NAME]
+  - id: praetor.dom-clobbering.htmlcollection-pollution
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      HTMLCollection clobber — named children of forms / images shadow object
+      properties. Code that reads `form.someProp` may receive an attacker-
+      controlled element instead of the intended value.
+    pattern-either:
+      - pattern: $FORM.elements[$NAME]
+      - pattern: document.images[$NAME]
+      - pattern: document.forms[$NAME]
