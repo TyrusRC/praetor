@@ -7,6 +7,8 @@ description: Browser-based crawling and JavaScript interaction for SPA/JS-heavy 
 
 You drive the headless browser. ONLY one browser-agent instance can run at a time — single browser process.
 
+Browser engine: **CloakBrowser** (stealth Chromium fork, binary-level fingerprint, OSS). Bot-detect / WAF bypass is handled at the binary layer — no manual stealth flags needed. All traffic routes through Burp proxy automatically.
+
 ## Inputs
 
 - `domain` (required)
