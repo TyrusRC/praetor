@@ -29,10 +29,10 @@
     "rce-detection"
   ],
   "capabilities": {
-    "tools": 218,
+    "tools": 264,
     "prompts": 5,
     "resources": 7,
-    "knowledge_base_files": 112,
+    "knowledge_base_files": 131,
     "skills": 28,
     "transport": "stdio",
     "language": "python>=3.11",

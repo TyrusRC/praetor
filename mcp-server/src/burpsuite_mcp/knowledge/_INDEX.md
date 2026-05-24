@@ -101,23 +101,24 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `hpp` | query_duplicate, array_notation, json_body_pollution | high | node.js, php, ruby |
 | `csrf` | missing_token, token_reuse, method_override, content_type_bypass, referer_bypass, token_manipulation (+3) | high | - |
 
-## Network / Smuggling (6)
+## Network / Smuggling (7)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `request_smuggling` *(ref-only)* | cl_te, te_cl, te_te, te_zero, cl_zero, h2_cl (+2) | critical | apache, envoy, h2, h2c, haproxy |
-| `http_desync` | cl_zero, client_side_desync, pause_based, h2_desync, zero_cl_desync, visible_te_desync, expect_100_desync, rqp_request_queue_poison, double_desync_amplification (+1) | critical | apache, haproxy, envoy, nginx, cloudfront, cloudflare, fastly, aws alb |
+| `http_desync` | cl_zero, client_side_desync, pause_based, h2_desync, zero_cl_desync, visible_te_desync, expect_100_desync, rqp_request_queue_poison, double_desync_amplification, browser_powered_csd_intranet, browser_powered_csd_internal (+1) | critical | apache, haproxy, envoy, nginx, cloudfront, cloudflare, fastly, aws alb |
 | `http3_quic` *(ref-only)* | zero_rtt_replay, stream_reset_poisoning, connection_migration_auth, alt_svc_downgrade | critical | http3, quic |
 | `host_header` | password_reset_poison, routing_abuse, ssrf_via_host, cache_poison_via_host, duplicate_host | high | akamai, apache, cloudflare, cloudfront, fastly |
 | `crlf_injection` | header_injection, log_injection | critical | - |
 | `request_splitting` | response_splitting, http_09_response, header_injection | critical | apache, java, nginx, node.js, php |
+| `waf_bypass_40x` | header_origin_spoof, path_normalisation_tricks, method_override | critical | nginx, apache, haproxy, envoy, cloudflare, akamai, aws alb, f5, imperva |
 
 ## Cache / Proxy (5)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `cache_poisoning` | unkeyed_headers, cache_deception, cloudflare_cache_bypass, fastly_normalization, akamai_param_order, head_request_caching (+2) | high | akamai, cf-cache-status, cf-ray, cloudflare, cloudfront |
-| `cache_deception_v2` | semicolon_path_param, encoded_slash_split | high | akamai, cloudflare, fastly |
+| `cache_deception_v2` | semicolon_path_param, encoded_slash_split, fragment_split_parser_discrepancy, double_extension_parser_split, normalised_path_traversal_split | high | akamai, cloudflare, fastly |
 | `nextjs_cache_poisoning` | rsc_cache_key_manipulation, isr_revalidate_poison, server_action_body_confusion | high | next, next.js, vercel |
 | `web_cache_deception` *(ref-only)* | path_confusion, delimiter_confusion, normalization_discrepancy, method_based | high | akamai, apache, cdn, cloudflare, cloudfront |
 | `web_cache_poisoning_dos` *(ref-only)* | header_oversize, cache_key_normalization, vary_header_abuse, large_response_caching | medium | akamai, apache, cloudflare, cloudfront, fastly |
