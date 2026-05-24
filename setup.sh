@@ -333,6 +333,31 @@ else
     fi
 fi
 
+# ── Praetor v1.0 SAST + secrets layer ──
+echo ""
+info "Praetor v1.0 — installing SAST + secrets layer (optional but recommended)..."
+
+install_pd_tool "opengrep" \
+    "curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
+
+install_pd_tool "gitleaks" \
+    "go install -v github.com/gitleaks/gitleaks/v8@latest"
+
+install_pd_tool "trufflehog" \
+    "go install -v github.com/trufflesecurity/trufflehog/v3@latest"
+
+# git-dumper — Python CLI, install via uv tool
+install_pd_tool "git-dumper" \
+    "uv tool install git-dumper"
+
+# OWASP Noir — Crystal binary. brew tap exists for macOS; Linux build from source.
+# We surface a hint only; binary distribution is platform-specific.
+if has noir; then
+    ok "noir already installed"
+else
+    warn "noir not installed — operator install: https://github.com/owasp-noir/noir (brew tap noir-cr/noir/noir on macOS)"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # PHASE 4: Generate .mcp.json
 # ════════════════════════════════════════════════════════════════════
@@ -350,7 +375,7 @@ if [ ! -f "$MCP_JSON" ]; then
     cat > "$MCP_JSON" << MCPEOF
 {
   "mcpServers": {
-    "burpsuite": {
+    "praetor": {
       "command": "$VENV_PYTHON",
       "args": ["-m", "burpsuite_mcp"]
     }
