@@ -108,6 +108,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `request_smuggling` *(ref-only)* | cl_te, te_cl, te_te, te_zero, cl_zero, h2_cl (+2) | critical | apache, envoy, h2, h2c, haproxy |
 | `http_desync` | cl_zero, client_side_desync, pause_based, h2_desync | high | apache, aws alb, cloudfront, express, haproxy |
+| `http_desync_2025` | zero_cl_desync, cl_zero_desync, visible_te_desync, expect_100_desync, rqp_request_queue_poison, double_desync_amplification | critical | apache, haproxy, envoy, nginx, cloudfront, cloudflare, fastly, aws alb |
 | `http3_quic` *(ref-only)* | zero_rtt_replay, stream_reset_poisoning, connection_migration_auth, alt_svc_downgrade | critical | http3, quic |
 | `host_header` | password_reset_poison, routing_abuse, ssrf_via_host, cache_poison_via_host, duplicate_host | high | akamai, apache, cloudflare, cloudfront, fastly |
 | `crlf_injection` | header_injection, log_injection | critical | - |
@@ -149,6 +150,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell (+6) | critical | .net, asp.net, django, express, fastjson |
 | `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
 | `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_fileupload_rename_gadget (+2) | critical | angularjs, ejs, express, express-fileupload, fastify |
+| `sspp_blackbox` | express_default_property_pollution, constructor_prototype_gadget, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta | critical | express, fastify, hapi, koa, nestjs, node.js |
 | `trpc_sspp` | trpc_form_data_proto, trpc_batch_input_proto, next_app_dir_caller_sniff | high | trpc, @trpc/server, next |
 
 ## API / Protocol (9)
