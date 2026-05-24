@@ -8,7 +8,7 @@ from burpsuite_mcp.tools import (
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
     prompts, resources_mcp, mutate, exploit, auth, vuln, research, harvest, dom_xss_executed,
-    bucket_urls, scope_extra, wordlist, secrets, analysis,
+    bucket_urls, scope_extra, wordlist, secrets, analysis, security,
 )
 
 mcp = FastMCP(
@@ -102,6 +102,7 @@ resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, ski
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
 secrets.register(mcp)          # gitleaks / trufflehog / git-dumper wrappers — secret leakage + .git exposure chain
 analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies) + run_opengrep_source (repo SAST)
+security.register(mcp)         # prompt-injection guardrail + destructive-command tripwire (operator-policy)
 exploit.register(mcp)          # confirm_* tools — exploit-to-confirm with tool-layer destructive denylist (rm/DROP/useradd hard-refused; reverse shells / LOLBAS SOC-loud warn-and-allow)
 auth.register(mcp)             # advanced auth attacks — forge_jwt / crack_jwt_secret (native, no jwt_tool dep) / test_session_lifecycle / test_login_bypass / test_mfa_bypass / analyze_reset_tokens
 vuln.register(mcp)             # vuln-class orchestrators where no third-party covers the surface — test_csrf / test_ssrf / test_ssti / test_xxe / test_websocket / test_prototype_pollution

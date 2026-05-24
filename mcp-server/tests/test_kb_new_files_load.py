@@ -36,17 +36,21 @@ class KbNewFilesLoadTest(unittest.TestCase):
 
 
 class ReferenceOnlySkipsAutoProbeTest(unittest.TestCase):
-    def test_three_new_reference_only_in_set(self):
+    def test_dos_reference_only_in_set(self):
+        # DoS-class KBs stay reference-only per Rule 5.
         from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
-        for name in ("h2_continuation_flood", "mcp_server_attacks", "rag_injection"):
+        for name in ("h2_continuation_flood",):
             self.assertIn(name, _REFERENCE_ONLY, f"{name} should be reference-only")
 
     def test_seven_auto_probe_NOT_in_reference_only(self):
         from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        # As of Praetor v1.0 (Wave 5) mcp_server_attacks + rag_injection were
+        # promoted out of reference-only into active auto_probe. Verify here.
         for name in ("state_machine_race", "oauth_dpop_confused_deputy",
                      "edge_worker_ssrf", "webauthn_passkey_attacks",
                      "cache_deception_v2", "dom_clobbering_2024",
-                     "service_worker_attacks"):
+                     "service_worker_attacks",
+                     "mcp_server_attacks", "rag_injection"):
             self.assertNotIn(name, _REFERENCE_ONLY, f"{name} must be auto-probe enabled")
 
 

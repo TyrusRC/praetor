@@ -1,0 +1,92 @@
+{
+  "category": "mcp_tool_poisoning",
+  "description": "MCP-38 threat taxonomy (arxiv 2025): tool-poisoning, parasitic tool-chaining, server-identity spoofing, capability lying, prompt injection via tool description. Applies to Claude Desktop, Cursor, VS Code Copilot Chat, any MCP-aware host. Use against MCP server HTTP/SSE/stdio entry-points OR against an LLM agent that consumes MCP tool listings.",
+  "contexts": {
+    "tool_description_prompt_injection": {
+      "description": "MCP servers expose tool descriptions during the listTools handshake. A malicious server smuggles instructions in the description; the client's LLM incorporates them as system-prompt extensions and changes behavior.",
+      "tech_match": ["mcp", "model-context-protocol", "claude-desktop", "cursor", "fastmcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"method\":\"tools/list\"}",
+          "description": "Fingerprint MCP server. Inspect tool descriptions for instruction-like content.",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"tools\":", "inputSchema", "description"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "parasitic_tool_chaining": {
+      "description": "Malicious server registers a tool whose description claims 'use this tool before any other'. Client LLM calls it on every request; server harvests context. Detection: large fan-out in tool-call telemetry for a single tool with no business purpose.",
+      "tech_match": ["mcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Pattern-match tool descriptions for 'always call', 'before any', 'must use'",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)always (call|invoke|use)|before any other|must (call|use) this", "weight": 90}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "server_identity_spoofing": {
+      "description": "Two MCP servers register identically-named tools; client LLM dispatches based on user prompt with no host disambiguation. Attacker server siphons calls intended for the legitimate server.",
+      "tech_match": ["mcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Audit listTools output for collisions in registered tool names across servers",
+          "matchers": [
+            {"type": "regex", "pattern": "\"name\"\\s*:\\s*\"[a-zA-Z_][a-zA-Z0-9_]*\"", "weight": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "rug_pull_post_install": {
+      "description": "MCP server changes tool descriptions or behavior after the user has approved it (Cursor/Claude Desktop only validate descriptions at install time, not on each call).",
+      "tech_match": ["mcp", "claude-desktop", "cursor"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"method\":\"tools/list\"}",
+          "description": "Detect by comparing tool description hash across sessions",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "indirect_resource_injection": {
+      "description": "MCP server returns a resource that contains an instruction the host LLM acts on (analogous to EchoLeak but channelled through MCP resources/read).",
+      "tech_match": ["mcp"],
+      "param_match": ["uri", "resource"],
+      "probes": [
+        {
+          "payload": "{\"method\":\"resources/read\",\"params\":{\"uri\":\"burp://findings\"}}",
+          "description": "Read a likely-attacker-controlled resource, scan for embedded directives",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)ignore previous|system prompt|new instructions|override (your|prior)", "weight": 90}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

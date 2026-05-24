@@ -1,0 +1,146 @@
+{
+  "category": "vector_db_injection",
+  "description": "Vector-DB / embedding-store attacks against RAG pipelines: Chroma, Pinecone, Weaviate, Qdrant, pgvector, Redis-vss, Milvus. Covers metadata-filter injection, namespace traversal, embedding extraction, anonymous-listing of indexes, RAG-poisoning via crafted upsert.",
+  "contexts": {
+    "chroma_anonymous_api": {
+      "description": "ChromaDB HTTP server (default 8000) often exposes /api/v1/collections without auth in dev. Anonymous list = full embedding inventory.",
+      "tech_match": ["chroma", "chromadb"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1/collections",
+          "description": "Anonymous collection list",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"name\"", "\"id\"", "metadata"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/api/v1/version",
+          "description": "Chroma fingerprint",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "regex", "pattern": "\\d+\\.\\d+\\.\\d+", "weight": 60}
+          ],
+          "severity": "low",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "pinecone_index_enumeration": {
+      "description": "Pinecone control-plane (api.pinecone.io / regional pods) leaks index list when API key has list-only scope but app uses higher-priv key. Probe checks for hostname patterns that suggest pod URL leakage in app responses.",
+      "tech_match": ["pinecone", "pinecone-io"],
+      "param_match": ["index", "namespace", "vector_id"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Detect Pinecone pod URL leak in response (host pattern: <name>-<id>.svc.<env>.pinecone.io)",
+          "matchers": [
+            {"type": "regex", "pattern": "[a-z0-9-]+\\.svc\\.[a-z0-9-]+\\.pinecone\\.io", "weight": 80}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "weaviate_graphql_unauth": {
+      "description": "Weaviate /v1/graphql often runs without authentication on internal clusters. Anonymous query returns all class names + property schema.",
+      "tech_match": ["weaviate"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/v1/schema",
+          "description": "Schema dump",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"classes\"", "vectorizer"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "/v1/meta",
+          "description": "Weaviate version + modules",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["version", "modules", "hostname"], "condition": "or"}
+          ],
+          "severity": "low",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "qdrant_anonymous_api": {
+      "description": "Qdrant /collections on port 6333 without API-Key when QDRANT__SERVICE__API_KEY env unset.",
+      "tech_match": ["qdrant"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/collections",
+          "description": "List collections",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"result\":", "collections"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "metadata_filter_injection": {
+      "description": "Application passes user input directly into vector-search metadata filter. Injection of $gt / $or / $regex / arbitrary keys bypasses tenant-isolation filter.",
+      "tech_match": ["chroma", "pinecone", "weaviate", "qdrant", "pgvector"],
+      "param_match": ["filter", "where", "metadata_filter", "namespace", "tenant"],
+      "probes": [
+        {
+          "payload": "{\"$or\":[{\"tenant\":\"OTHER\"},{\"tenant\":\"OWN\"}]}",
+          "description": "$or breakout of single-tenant metadata filter",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "regex", "pattern": "\"tenant\":\\s*\"(?!OWN)", "weight": 70}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{\"namespace\":{\"$ne\":\"\"}}",
+          "description": "Negated-empty filter — returns all namespaces if tenant key is namespace",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["\"matches\"", "\"hits\""], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "embedding_extraction_via_query": {
+      "description": "Embedding-extraction attack: send extreme-value queries to deduce stored vectors via top-k similarity scores. Detection-only — operator decides whether to escalate.",
+      "tech_match": ["chroma", "pinecone", "weaviate", "qdrant"],
+      "param_match": ["query", "vector", "embedding"],
+      "probes": [
+        {
+          "payload": "[1e6,1e6,1e6,1e6,1e6,1e6,1e6,1e6]",
+          "description": "Extreme-vector query — extracts most-distant cluster member (often a unique outlier)",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["score", "distance", "match"], "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}
