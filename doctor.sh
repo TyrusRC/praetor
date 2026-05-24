@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Burp Suite Swiss Knife MCP — Doctor
+# Praetor — Doctor
+# (formerly Burp Suite Swiss Knife MCP — renamed to Praetor at v1.0)
 # Checks environment, build artifacts, Burp connection, and optional tools.
 # Non-zero exit only when something critical is missing.
 # Usage: ./doctor.sh
@@ -130,7 +131,11 @@ fi
 head "Build artifacts"
 # ════════════════════════════════════════════════════════════════════
 
-JAR="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar"
+JAR="$SCRIPT_DIR/burp-extension/target/praetor-burp-ext-1.0.0.jar"
+# v0.x backwards-compat
+if [ ! -f "$JAR" ] && [ -f "$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar" ]; then
+    JAR="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar"
+fi
 if [ -f "$JAR" ]; then
     size_kb=$(($(wc -c < "$JAR") / 1024))
     pass "Extension JAR (${size_kb} KB)"

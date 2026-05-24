@@ -34,24 +34,24 @@ Apply on every turn. In-conversation user instructions override per-turn.
 
 ## Project Overview
 
-Burp Suite Swiss Knife MCP — integrates Burp Suite (Pro + Community) with Claude Code via MCP.
+**Praetor** (v1.0+) — agentic DAST orchestrator for Burp Suite. Integrates Burp (Pro + Community) with Claude Code via MCP. Formerly `burpsuite-swiss-knife-mcp`; renamed at v1.0 to remove the PortSwigger trademark prefix.
 
 ```
-Claude Code -> Python MCP server (stdio) -> Java Burp extension (REST on 127.0.0.1:8111) -> Burp (Montoya)
+Claude Code -> praetor-mcp (Python, stdio) -> praetor-burp-ext (Java, REST 127.0.0.1:8111) -> Burp (Montoya)
 ```
 
-- `burp-extension/` — Java 21, Maven, Montoya API, zero external deps
-- `mcp-server/` — Python 3.11+, Hatch, FastMCP
-- 218 MCP tools, 112 knowledge-base JSON files, 28 skill files, 4 always-active rules
+- `burp-extension/` — Java 21, Maven, Montoya API, zero external deps. Output: `praetor-burp-ext-1.0.0.jar`.
+- `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package directory still `burpsuite_mcp/` for v1.x (hard rename deferred to v1.1).
+- ~233 MCP tools, 128+ knowledge-base JSON files, 28 skill files, 4 always-active rules.
 
 Full file map: `skill.json`. Knowledge index: `mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md`.
 
 ## Build / Run
 
 ```
-cd burp-extension && mvn clean package           # -> target/burpsuite-swiss-knife-0.3.0.jar
+cd burp-extension && mvn clean package           # -> target/praetor-burp-ext-1.0.0.jar
 cd mcp-server && uv pip install -e .             # install
-uv run python -m burpsuite_mcp                   # run
+uv run python -m burpsuite_mcp                   # run (package dir unchanged this release)
 uv run python -m unittest tests.test_assess_finding -v   # calibration suite (47 cases)
 ```
 
