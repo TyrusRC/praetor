@@ -1,14 +1,18 @@
-# burpsuite-swiss-knife-mcp
+# Praetor
+
+*Agentic DAST orchestrator for Burp Suite.*
 
 [![MCP Badge](https://lobehub.com/badge/mcp/tyrusrc-burpsuite-swiss-knife-mcp)](https://lobehub.com/mcp/tyrusrc-burpsuite-swiss-knife-mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/releases)
 [![Java](https://img.shields.io/badge/java-21%2B-blue)](https://adoptium.net/temurin/releases/?version=21)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io/)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows%20%7C%20wsl-blue)](#supported-platforms)
 
-A Model Context Protocol (MCP) server that connects an LLM client to Burp Suite. The server exposes Burp's HTTP capabilities, scanner, sitemap, proxy history, Collaborator, and a knowledge-driven scan engine to a coding agent so the agent can run authorized penetration tests through Burp.
+> **Renamed in v1.0** from `burpsuite-swiss-knife-mcp` to **Praetor**. Repo URL and Python package directory unchanged this release; binary names (`praetor-mcp`, `praetor-burp-ext-1.0.0.jar`) are new. Backwards-compatible script aliases retained for one release cycle.
+
+Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into a Burp-native agentic pentester. It exposes Burp's HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), an 11-agent team, and a save-finding pipeline with persistent target memory. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
 
 ## Authorized Use
 
@@ -112,7 +116,7 @@ Run `./doctor.sh` afterwards to verify the install.
 # 1. Build the Burp extension
 cd burp-extension
 mvn package
-# Load target/burpsuite-swiss-knife-0.3.0.jar in Burp: Extensions -> Add -> Java
+# Load target/praetor-burp-ext-1.0.0.jar in Burp: Extensions -> Add -> Java
 
 # 2. Install the MCP server
 cd ../mcp-server

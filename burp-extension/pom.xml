@@ -5,12 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.swissknife</groupId>
-    <artifactId>burpsuite-swiss-knife</artifactId>
-    <version>0.3.0</version>
+    <artifactId>praetor-burp-ext</artifactId>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>Burp Suite Swiss Knife</name>
-    <description>Burp Suite extension exposing REST API for MCP server integration</description>
+    <name>Praetor Burp Extension</name>
+    <description>Praetor — agentic DAST orchestrator. Burp extension exposing REST API for the Praetor MCP server.</description>
 
     <licenses>
         <license>
@@ -64,7 +64,7 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Implementation-Title>Burp Suite Swiss Knife</Implementation-Title>
+                            <Implementation-Title>Praetor Burp Extension</Implementation-Title>
                             <Implementation-Version>${project.version}</Implementation-Version>
                         </manifestEntries>
                     </archive>

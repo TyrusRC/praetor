@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Burp Suite Swiss Knife MCP — Setup Script
+# Praetor — Setup Script
+# (formerly Burp Suite Swiss Knife MCP — renamed to Praetor at v1.0)
 # Installs all required and optional dependencies for Linux and macOS.
 # Usage: chmod +x setup.sh && ./setup.sh
 #
@@ -211,7 +212,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 info "Building Burp extension..."
 cd "$SCRIPT_DIR/burp-extension"
 if mvn package -q; then
-    JAR="target/burpsuite-swiss-knife-0.3.0.jar"
+    JAR="target/praetor-burp-ext-1.0.0.jar"
     if [ -f "$JAR" ]; then
         ok "Extension built: $JAR"
     else
@@ -404,7 +405,11 @@ check wpscan
 
 echo ""
 echo "Project:"
-JAR_PATH="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar"
+JAR_PATH="$SCRIPT_DIR/burp-extension/target/praetor-burp-ext-1.0.0.jar"
+# v0.x backwards-compat: if v1 jar missing but legacy jar exists, fall back.
+if [ ! -f "$JAR_PATH" ] && [ -f "$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar" ]; then
+    JAR_PATH="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar"
+fi
 if [ -f "$JAR_PATH" ]; then
     echo -e "  ${GREEN}✓${NC} Burp extension JAR built"
 else
