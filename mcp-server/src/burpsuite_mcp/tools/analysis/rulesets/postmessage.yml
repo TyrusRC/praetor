@@ -1,0 +1,35 @@
+rules:
+  - id: praetor.postmessage.no-origin-check
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      window.addEventListener('message', handler) without checking
+      event.origin lets any framed origin send messages. Validate
+      event.origin against an allow-list before trusting event.data.
+    pattern-either:
+      - pattern: |
+          window.addEventListener("message", function ($E) {
+            ...
+          })
+      - pattern: |
+          window.addEventListener('message', ($E) => {
+            ...
+          })
+  - id: praetor.postmessage.wildcard-target
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      postMessage(data, "*") leaks data to whichever origin loads the iframe
+      next. Specify the exact target origin instead.
+    pattern: $WIN.postMessage($DATA, "*")
+  - id: praetor.postmessage.data-into-sink
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      event.data flowed into a DOM sink (innerHTML / document.write /
+      eval / setTimeout(str)) without sanitization — DOM XSS via postMessage.
+    pattern-either:
+      - pattern: $E.innerHTML = $EVT.data
+      - pattern: document.write($EVT.data)
+      - pattern: eval($EVT.data)
+      - pattern: setTimeout($EVT.data, ...)

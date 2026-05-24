@@ -1,0 +1,33 @@
+rules:
+  - id: praetor.proto-pollution.object-assign-userdata
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      Object.assign(target, userInput) — if any key in userInput is
+      "__proto__" / "constructor" / "prototype", Object.prototype is polluted
+      across the runtime. Sanitize keys before merging.
+    pattern: Object.assign($TARGET, ...)
+  - id: praetor.proto-pollution.lodash-merge
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      _.merge / _.defaultsDeep are unsafe for untrusted input. Use _.mergeWith
+      with a customizer that blocks __proto__ / constructor / prototype keys.
+    pattern-either:
+      - pattern: _.merge($T, ...)
+      - pattern: _.defaultsDeep($T, ...)
+  - id: praetor.proto-pollution.jquery-extend-deep
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      $.extend(true, target, source) walks prototype chain when source has
+      __proto__ key (CVE-2019-11358).
+    pattern: $.extend(true, $T, ...)
+  - id: praetor.proto-pollution.recursive-merge
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      Recursive merge / clone helpers usually pollute prototypes without
+      explicit key filtering.
+    pattern-either:
+      - pattern: function $F($A, $B) { ... $A[$K] = $B[$K] ... }

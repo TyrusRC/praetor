@@ -27,6 +27,11 @@ def register(mcp: FastMCP):
             "waybackurls": "Wayback Machine URL extraction",
             "amass": "Subdomain enumeration (active + passive)",
             "wpscan": "WordPress vulnerability scanner",
+            "opengrep": "SAST engine (Semgrep fork) — audit_crawled_artifacts / run_opengrep_source",
+            "gitleaks": "Git history secret detection",
+            "trufflehog": "Secret detection + live verification (800+ detectors)",
+            "git-dumper": "Reconstruct .git from exposed dir listing (chains with discover_common_files)",
+            "noir": "Source-tree attack-surface extractor (Crystal binary) — import_scope --noir-json",
         }
 
         # Check DNS resolution off the event loop — getaddrinfo is blocking.
@@ -84,6 +89,13 @@ def register(mcp: FastMCP):
             lines.append("  go install -v github.com/hahwul/dalfox/v2@latest")
             lines.append("  go install -v github.com/lc/gau/v2/cmd/gau@latest")
             lines.append("  go install -v github.com/tomnomnom/waybackurls@latest")
+            lines.append("  # Praetor v1.0 — SAST + secrets layer")
+            lines.append("  brew install opengrep        # or:  curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash")
+            lines.append("  brew install gitleaks        # or:  go install github.com/gitleaks/gitleaks/v8@latest")
+            lines.append("  brew install trufflehog      # or:  go install github.com/trufflesecurity/trufflehog/v3@latest")
+            lines.append("  pip install git-dumper       # or:  pipx install git-dumper")
+            lines.append("  # OWASP Noir (Crystal binary)")
+            lines.append("  brew install noir-cr/noir/noir  # or build from https://github.com/owasp-noir/noir")
 
         return "\n".join(lines)
 
