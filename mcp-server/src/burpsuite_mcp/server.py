@@ -9,7 +9,7 @@ from burpsuite_mcp.tools import (
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
     prompts, resources_mcp, mutate, exploit, auth, vuln, research, harvest, dom_xss_executed,
     bucket_urls, scope_extra, wordlist, secrets, analysis, security,
-    shadow_repeater, easm,
+    shadow_repeater, easm, recon_pd,
 )
 
 mcp = FastMCP(
@@ -113,3 +113,4 @@ dom_xss_executed.register(mcp) # probe_xss_executed — headless dialog-hook XSS
 bucket_urls.register(mcp)      # bucket_urls_by_vuln_class — gf-pattern URL classifier feeding targeted auto_probe (reconftw-derived; 5-10× more token-efficient than spray-fuzz)
 shadow_repeater.register(mcp)  # shadow_repeater — silent mutation pass on a captured request; reports anomalies vs baseline
 easm.register(mcp)             # recorded_login + findings_diff + format_pr_comment + easm_monitor_loop
+recon_pd.register(mcp)         # PD suite: dnsx/naabu/tlsx/asnmap/uncover/cloudlist/notify/mapcves/cdncheck/alterx + graphw00f
