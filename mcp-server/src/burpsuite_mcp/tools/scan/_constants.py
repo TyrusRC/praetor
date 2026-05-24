@@ -28,13 +28,16 @@ _REFERENCE_ONLY = {
     "web_cache_poisoning_dos", "captcha_bypass", "http3_quic",
     # Added 2026-05-21:
     "h2_continuation_flood",   # DoS-class (Rule 5)
-    "mcp_server_attacks",      # situational supply-chain
-    "rag_injection",           # context-heavy, LLM-side verification
     # Added 2026-05-22 (cloud + mobile + archive coverage pass):
     "kubernetes_exposed",      # network-level discovery across non-HTTP ports
     "zip_slip",                # upload-then-trigger two-step extraction observation
     "mobile_deeplink",         # needs device + manifest inspection
     "webview_injection",       # mobile WebView context, multi-step
+    # Praetor v1.0 (2026-05-24) — saml_xsw stays operator-built (binary XML
+    # signature work that does not fit auto_probe's payload-token shape).
+    "saml_xsw",
+    # NOTE: mcp_server_attacks / rag_injection / ai_prompt_injection promoted
+    # to active auto_probe in v1.0 (active LLM/MCP probes — Wave 5).
 }
 
 # Parameter name → vulnerability classification (used by attack-priority routing)

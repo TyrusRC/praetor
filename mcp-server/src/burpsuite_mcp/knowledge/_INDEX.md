@@ -237,8 +237,11 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 |---|---|---|---|
 | `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown | critical | anthropic, anthropic-tools, chatbot, claude, function-calling |
 | `web_llm` | prompt_injection_via_web, llm_ssrf, llm_data_exfil, llm_tool_abuse, stored_injection | critical | ai, assistant, chatbot, claude, embedding |
-| `mcp_server_attacks` *(ref-only)* | tool_description_prompt_injection, mcp_rug_pull | critical | claude-desktop, cursor, mcp, model-context-protocol |
-| `rag_injection` *(ref-only)* | stored_content_rag_poison, vector_metadata_injection | high | chromadb, faiss, pinecone, rag, weaviate |
+| `mcp_server_attacks` | tool_description_prompt_injection, mcp_rug_pull | critical | claude-desktop, cursor, mcp, model-context-protocol |
+| `mcp_tool_poisoning` | tool_description_prompt_injection, parasitic_tool_chaining, server_identity_spoofing, rug_pull_post_install, indirect_resource_injection | high | mcp, claude-desktop, cursor, fastmcp |
+| `rag_injection` | stored_content_rag_poison, vector_metadata_injection | high | chromadb, faiss, pinecone, rag, weaviate |
+| `echoleak` | markdown_image_exfil, css_class_leak, hidden_html_directive, data_uri_smuggling | critical | copilot, m365, rag, llm, anthropic, openai |
+| `vector_db_injection` | chroma_anonymous_api, pinecone_index_enumeration, weaviate_graphql_unauth, qdrant_anonymous_api, metadata_filter_injection, embedding_extraction_via_query | high | chroma, pinecone, weaviate, qdrant, pgvector |
 
 ## 2026-05-21 additions
 
