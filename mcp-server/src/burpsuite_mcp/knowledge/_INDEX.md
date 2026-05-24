@@ -72,7 +72,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `dangling_markup` | token_theft, csp_bypass_dangling | high | - |
 | `relative_path_overwrite` | css_injection_rpo, css_exfiltration | medium | apache, asp.net, iis, nginx, php |
 
-## Authentication / Auth (15)
+## Authentication / Auth (14)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -81,12 +81,11 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `authentication` | password_reset_flaws, two_factor_bypass, session_fixation, account_enumeration, insecure_remember_me, default_credentials (+2) | critical | asp.net, java, php, ruby |
 | `session_security` | credentials_over_cleartext, auth_response_browser_cacheable, session_cookie_missing_secure_flag, logout_does_not_invalidate_session, concurrent_sessions_not_invalidated, session_token_in_url | high | - |
 | `jwt` | alg_none, alg_confusion, kid_injection, jku_injection, weak_secret, embedded_jwk (+9) | critical | - |
-| `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, pkce_reuse_after_capture, oidc_nonce_validation (+11) | critical | auth0, backchannel_authentication, ciba, dpop, fapi |
+| `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, oauth_mixup_attack, oauth_audience_confusion, jwks_kid_swap, redirect_uri_parser_quirks (+13) | critical | auth0, backchannel_authentication, ciba, dpop, fapi, oidc, jwt, pkce |
 | `oauth_device_flow` | device_code_phishing, user_code_brute_force | critical | device_grant, oauth |
 | `oauth_dpop_confused_deputy` | rs_audience_missing, jti_replay | high | dpop, oauth, rfc9449 |
-| `oauth_chain_attacks` | oauth_mixup_attack, oauth_audience_confusion, jwks_kid_swap, pkce_downgrade, redirect_uri_parser_quirks | critical | oauth, oidc, jwt, pkce |
 | `saml` | signature_bypass, xxe_in_saml, assertion_replay, attribute_injection, recipient_mismatch, xml_signature_wrapping (+2) | critical | .net, adfs, java, okta, onelogin |
-| `saml_xsw` | saml_response_endpoint_detect, xsw_signature_wrap, xsw_comment_injection_nameid, saml_signature_exclusion, saml_keyinfo_swap | critical | saml, shibboleth, okta, onelogin, adfs, auth0, ping |
+| `saml_xsw` *(ref-only)* | saml_response_endpoint_detect, xsw_signature_wrap, xsw_comment_injection_nameid, saml_signature_exclusion, saml_keyinfo_swap | critical | saml, shibboleth, okta, onelogin, adfs, auth0, ping |
 | `scim_provisioning` | endpoint_discovery, filter_injection, mass_user_create, group_patch_escalation, shadow_admin_username, put_attribute_clear | critical | azure_ad, jumpcloud, okta, onelogin, scim |
 | `webauthn_passkey` | attestation_none_acceptance, challenge_replay, rp_id_origin_mismatch, recovery_code_weakness, passkey_to_password_downgrade, conditional_ui_user_enum (+5) | critical | cable, credential_manager, fido2, google_password_manager, hybrid |
 | `webauthn_passkey_attacks` | origin_validation_weak, cross_device_misbinding | high | fido2, passkey, webauthn |
@@ -107,8 +106,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `request_smuggling` *(ref-only)* | cl_te, te_cl, te_te, te_zero, cl_zero, h2_cl (+2) | critical | apache, envoy, h2, h2c, haproxy |
-| `http_desync` | cl_zero, client_side_desync, pause_based, h2_desync | high | apache, aws alb, cloudfront, express, haproxy |
-| `http_desync_2025` | zero_cl_desync, cl_zero_desync, visible_te_desync, expect_100_desync, rqp_request_queue_poison, double_desync_amplification | critical | apache, haproxy, envoy, nginx, cloudfront, cloudflare, fastly, aws alb |
+| `http_desync` | cl_zero, client_side_desync, pause_based, h2_desync, zero_cl_desync, visible_te_desync, expect_100_desync, rqp_request_queue_poison, double_desync_amplification (+1) | critical | apache, haproxy, envoy, nginx, cloudfront, cloudflare, fastly, aws alb |
 | `http3_quic` *(ref-only)* | zero_rtt_replay, stream_reset_poisoning, connection_migration_auth, alt_svc_downgrade | critical | http3, quic |
 | `host_header` | password_reset_poison, routing_abuse, ssrf_via_host, cache_poison_via_host, duplicate_host | high | akamai, apache, cloudflare, cloudfront, fastly |
 | `crlf_injection` | header_injection, log_injection | critical | - |
@@ -149,8 +147,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell (+6) | critical | .net, asp.net, django, express, fastjson |
 | `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
-| `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_fileupload_rename_gadget (+2) | critical | angularjs, ejs, express, express-fileupload, fastify |
-| `sspp_blackbox` | express_default_property_pollution, constructor_prototype_gadget, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta | critical | express, fastify, hapi, koa, nestjs, node.js |
+| `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_default_property_pollution, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta (+4) | critical | angularjs, ejs, express, express-fileupload, fastify, hapi, koa, nestjs, node.js |
 | `trpc_sspp` | trpc_form_data_proto, trpc_batch_input_proto, next_app_dir_caller_sniff | high | trpc, @trpc/server, next |
 
 ## API / Protocol (9)

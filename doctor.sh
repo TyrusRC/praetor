@@ -230,6 +230,13 @@ check_recon nikto      "sudo apt install nikto    # or: brew install nikto"
 check_recon wpscan     "gem install wpscan        # requires Ruby"
 check_recon dig        "sudo apt install dnsutils # or: brew install bind / scoop install dnsutils"
 
+# ── Praetor v1.0 SAST + secrets + Noir layer ──
+check_recon opengrep   "brew install opengrep                              # or: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
+check_recon gitleaks   "brew install gitleaks                              # or: go install github.com/gitleaks/gitleaks/v8@latest"
+check_recon trufflehog "brew install trufflehog                            # or: go install github.com/trufflesecurity/trufflehog/v3@latest"
+check_recon git-dumper "pipx install git-dumper                            # or: pip install git-dumper"
+check_recon noir       "build from https://github.com/owasp-noir/noir      # Crystal binary; brew tap noir-cr/noir && brew install noir"
+
 # ════════════════════════════════════════════════════════════════════
 head "Knowledge base"
 # ════════════════════════════════════════════════════════════════════
