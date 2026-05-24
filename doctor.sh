@@ -230,12 +230,39 @@ check_recon nikto      "sudo apt install nikto    # or: brew install nikto"
 check_recon wpscan     "gem install wpscan        # requires Ruby"
 check_recon dig        "sudo apt install dnsutils # or: brew install bind / scoop install dnsutils"
 
-# ── Praetor v1.0 SAST + secrets + Noir layer ──
+# ── SAST + secrets + Noir layer ──
 check_recon opengrep   "brew install opengrep                              # or: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
 check_recon gitleaks   "brew install gitleaks                              # or: go install github.com/gitleaks/gitleaks/v8@latest"
 check_recon trufflehog "brew install trufflehog                            # or: go install github.com/trufflesecurity/trufflehog/v3@latest"
 check_recon git-dumper "pipx install git-dumper                            # or: pip install git-dumper"
 check_recon noir       "build from https://github.com/owasp-noir/noir      # Crystal binary; brew tap noir-cr/noir && brew install noir"
+
+# ── ProjectDiscovery expansion (W3) ──
+check_recon dnsx       "go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+check_recon naabu      "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+check_recon tlsx       "go install -v github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
+check_recon asnmap     "go install -v github.com/projectdiscovery/asnmap/cmd/asnmap@latest"
+check_recon uncover    "go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest"
+check_recon cloudlist  "go install -v github.com/projectdiscovery/cloudlist/cmd/cloudlist@latest"
+check_recon notify     "go install -v github.com/projectdiscovery/notify/cmd/notify@latest"
+check_recon mapcves    "go install -v github.com/projectdiscovery/mapcves@latest"
+check_recon cdncheck   "go install -v github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest"
+check_recon alterx     "go install -v github.com/projectdiscovery/alterx/cmd/alterx@latest"
+check_recon graphw00f  "pipx install graphw00f                              # https://github.com/dolevf/graphw00f"
+
+# ── 40x bypass (W4) ──
+check_recon dontgo403  "go install -v github.com/devploit/dontgo403@latest"
+check_recon byp4xx     "go install -v github.com/lobuhi/byp4xx@latest"
+
+# ── SCA + LLM + K8s + smuggle (W5) ──
+check_recon osv-scanner "go install -v github.com/google/osv-scanner/cmd/osv-scanner@v2"
+check_recon trivy      "brew install aquasecurity/trivy/trivy               # or: https://github.com/aquasecurity/trivy/releases"
+check_recon grype      "brew install grype                                  # or: https://github.com/anchore/grype#installation"
+check_recon garak      "pipx install garak"
+check_recon mcp-scan   "pipx install mcp-scan                               # https://github.com/invariantlabs-ai/mcp-scan"
+check_recon kubescape  "curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash"
+check_recon kube-hunter "pipx install kube-hunter"
+check_recon smuggle    "pipx install smuggle                                # or: https://github.com/defparam/smuggler"
 
 # ════════════════════════════════════════════════════════════════════
 head "Knowledge base"
