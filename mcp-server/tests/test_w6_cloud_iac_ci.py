@@ -264,7 +264,9 @@ class W6KEVEPSSEnrichTest(unittest.TestCase):
                     return _wrap
 
             cve_register_mod.register(_Stub())
-            with mock.patch.object(cve_register_mod, "_shodan_cve_lookup",
+            kev_epss_mod = importlib.import_module(
+                "burpsuite_mcp.tools.cve._register_kev_epss")
+            with mock.patch.object(kev_epss_mod, "_shodan_cve_lookup",
                                    side_effect=fake_lookup):
                 return await holders["kev_epss_enrich"](
                     ["CVE-2024-AAAA", "CVE-2024-BBBB", "CVE-2024-CCCC"],
