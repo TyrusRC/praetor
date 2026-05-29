@@ -675,6 +675,84 @@
           }
         }
       ]
+    },
+    "subscription_protocol_drift_2025": {
+      "description": "GraphQL subscription endpoints commonly support BOTH graphql-ws (modern) and subscriptions-transport-ws (legacy) protocols. Auth gating frequently differs between protocols — legacy protocol may skip auth/origin/CSRF checks the modern protocol enforces. 2025 H2 OWASP API Security research.",
+      "tech_match": [
+        "graphql",
+        "graphql-ws",
+        "apollo",
+        "mercurius"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send WebSocket upgrade with Sec-WebSocket-Protocol: graphql-transport-ws (modern) vs subscriptions-transport-ws (legacy). Compare accepted protocols + whether auth differs. Active in W18.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Sec-WebSocket-Protocol",
+              "contains": "subscriptions-transport-ws"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {
+            "method": "GET",
+            "header_inject": {
+              "Upgrade": "websocket",
+              "Connection": "Upgrade",
+              "Sec-WebSocket-Protocol": "subscriptions-transport-ws"
+            },
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "subscription_auth_skip_legacy_protocol": {
+      "description": "Subscribe to a privileged stream (e.g. !subscription { adminEvents { ... } }) over the legacy protocol. If accepted unauth where modern protocol rejects, auth gating drift confirmed.",
+      "tech_match": [
+        "graphql",
+        "apollo"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "subscription { adminEvents { id type } }",
+          "description": "Send privileged subscription over legacy protocol; modern protocol would 401, legacy may accept.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "data",
+                "adminEvents"
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden",
+                "must be logged in"
+              ],
+              "condition": "and"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
     }
   }
 }

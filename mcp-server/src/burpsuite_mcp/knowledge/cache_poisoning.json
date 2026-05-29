@@ -450,6 +450,66 @@
           }
         }
       ]
+    },
+    "nextjs_15_cache_key_confusion": {
+      "description": "Next.js 15 cache deception via x-now-route-matches header injection. The header is unkeyed at the CDN layer but consumed by Next.js for routing, allowing attacker to poison cached responses for legitimate paths. 2025 H2 research class — chains with reCAPTCHA bypass and route-rewrite gadgets.",
+      "tech_match": [
+        "Next.js",
+        "Vercel",
+        "next-server"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "praetor-nextjs-cache-{{randstr}}",
+          "description": "Inject x-now-route-matches header with canary; observe whether subsequent unauth GET to same URL serves canary in body (cache poisoned per host but not per header).",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "reflection",
+              "marker": "praetor-nextjs-cache-"
+            },
+            {
+              "type": "header",
+              "name": "X-Vercel-Cache",
+              "contains": "HIT"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {
+            "header_inject": {
+              "x-now-route-matches": "1=praetor-nextjs-cache-{{randstr}}"
+            },
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect Next.js 15 cache via X-Nextjs-Cache HIT after second request with same key — strong signal cache layer trusts unkeyed routing.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "name": "X-Nextjs-Cache",
+              "contains": "HIT"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
     }
   }
 }

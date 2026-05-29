@@ -303,3 +303,295 @@ Immunefi tips: remediation REQUIRED; severity by funds at risk (Critical $10M+, 
 - **NEVER SUBMIT list + 7-Question Gate:** `.claude/rules/hunting.md`
 - **Chain low-severity into high-severity:** `chain-findings.md`
 - **CVSS 4.0 calculator:** https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator
+
+## Per-vuln-class report skeletons (W16-W17 deep-dive companions)
+
+The skeletons below pre-fill the canonical layout for each major class, matching the evidence ladders in the corresponding deep-dive playbook. Copy, fill the `<placeholders>`, submit.
+
+### SSRF (per `playbook-ssrf-deep-dive.md`)
+
+```
+Title: SSRF in <component> allows attacker to <reach cloud metadata / internal service / bypass front-end ACL>
+
+Classification:
+  vuln_type: ssrf
+  cwe: CWE-918
+  owasp: A10:2021-Server-Side Request Forgery
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:H/SI:N/SA:N/E:A   # cloud-metadata class
+  severity: Critical                                              # downgrade to High if internal-service only
+
+Context:
+  <Endpoint URL> accepts a user-controlled URL via parameter <name>.
+  The server fetches that URL and reflects the response (or processes it server-side).
+
+Vulnerability:
+  No validation of scheme / host / IP literal allows a fetch to internal-only resources.
+  Specifically, requests to <169.254.169.254 / 127.0.0.1 / RFC1918 / metadata.google.internal> succeed.
+
+Attack Walkthrough:
+  1. Identify the URL parameter <name>.
+  2. Submit `<URL or bypass primitive>` (e.g. nip.io / IPv4-mapped IPv6 / octal).
+  3. Server fetches and reflects `<AccessKeyId / instance-id / SSH banner / Redis -ERR>`.
+  4. Use the leaked credentials / banner to <pivot / read PII / continue chain>.
+
+Impact:
+  <Specific outcome. For cloud metadata: AWS IAM creds → cross-service pivot.
+   For internal: Redis flush / SSH probe / admin-panel reach.>
+
+PoC request: <raw HTTP>
+Reproduction steps: <cold-start 5-min recipe>
+Evidence: logger_index #N, response excerpt with class marker, replay table for blind class
+Remediation:
+  - Allow-list scheme + host + resolved IP.
+  - Block RFC1918 / link-local / loopback at the egress proxy.
+  - IMDSv2 token requirement on AWS.
+References: CWE-918, OWASP A10:2021, <vendor advisory if applicable>
+```
+
+### IDOR / BOLA (per `playbook-idor-bola.md`)
+
+```
+Title: BOLA in <endpoint> allows <role> to <read/modify> other users' <resource>
+
+Classification:
+  vuln_type: idor                                                   # or bola
+  cwe: CWE-639 (IDOR) / CWE-285 (BOLA)
+  owasp: OWASP API Security Top 10 (2023) API1:2023 — Broken Object Level Authorization
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:L/VA:N/SC:N/SI:N/SA:N/E:A
+  severity: <Critical if PII/payment/health; High default; Medium for public-ish metadata>
+
+Context:
+  <GET /api/v1/orders/{id}> returns the order owned by the authenticated user.
+  No server-side check confirms `request.user_id == order.owner_id`.
+
+Vulnerability:
+  Swapping <id> to a foreign value returns 200 with the foreign user's data.
+  ID shape: <sequential / UUIDv1 / ULID / Snowflake / hash> — enumeration <feasible / requires harvest>.
+
+Attack Walkthrough:
+  1. Authenticate as user A; capture A's request.
+  2. Note id parameter shape; harvest foreign IDs (or enumerate if sequential).
+  3. Replay with B's id.
+  4. Cross-principal verification: same response shape as A reading A's record.
+
+Impact:
+  <N foreign records observed in 5-minute window>. PII fields observed: <list redacted classes>.
+
+PoC request: <raw HTTP with foreign id>
+Reproduction steps: <cold-start with 2 accounts>
+Evidence:
+  - cross_principal_verified: True
+  - id_shape: <sequential / uuidv1 / ulid / snowflake>
+  - foreign_records_observed: <N>
+  - logger_index: <foreign-record-read index>
+
+Remediation:
+  - Server-side ownership check on every object access.
+  - Stop trusting the client-supplied id; derive from session principal.
+  - Adopt opaque random IDs (UUIDv4) to disable enumeration as defence-in-depth.
+References: CWE-639, CWE-285, OWASP API1:2023
+```
+
+### JWT (per `playbook-jwt-deep-dive.md`)
+
+```
+Title: JWT <alg confusion / kid traversal / weak HS secret / alg:none> allows ATO
+
+Classification:
+  vuln_type: jwt
+  cwe: CWE-327 (broken crypto) / CWE-345 (insufficient verification)
+  owasp: A2:2021-Cryptographic Failures
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:L/SC:N/SI:N/SA:N/E:A
+  severity: Critical
+
+Context:
+  Target uses JWT for session auth (Bearer header on every authenticated request).
+  Original token: alg=<RS256 | HS256 | ES256>, claims include <sub, role, exp, iss, aud, ...>.
+
+Vulnerability:
+  <Server accepts alg:none and skips signature.
+   OR Server uses RS256 issuer pubkey as HMAC secret when alg=HS256 (alg confusion).
+   OR Server loads HMAC key from kid path without traversal protection.
+   OR HS256 secret is short / dictionary-crackable.>
+
+Attack Walkthrough:
+  1. Capture victim's JWT (or your own to clone the structure).
+  2. Forge with `forge_jwt(attack='<alg_none|rs_to_hs|kid_traversal|claim_swap>', ...)`.
+  3. Replay to `/me` / protected endpoint.
+  4. Server returns victim's data (or grants admin role per swapped claim).
+
+Impact: Full account takeover. Cross-tenant data exposure if multi-tenant.
+
+PoC request: <raw HTTP with forged token>
+Reproduction steps: <cold-start: capture token → forge → replay → assert 200 with victim data>
+Evidence:
+  - original_alg: <...>
+  - forged_alg: <...>
+  - attack: <alg_none | rs_to_hs | kid_traversal | claim_swap>
+  - logger_index: <forge-accepted index>
+
+Remediation:
+  - Pin alg server-side; reject tokens whose alg != server's expected value.
+  - Use library that separates JWS / JWE / JWT validation (e.g. jose, jjwt).
+  - For RS256: never use pubkey as HMAC secret (validate signature algorithm before key lookup).
+  - For kid: allow-list key IDs from a key registry; never use kid as filesystem path or SQL input.
+References: CWE-327, CWE-345, CVE-2018-1000531 (RS-HS confusion class)
+```
+
+### OAuth / OIDC flow attacks (per `playbook-oauth-flow-attacks.md`)
+
+```
+Title: OAuth <redirect_uri bypass / missing state / PKCE downgrade / mix-up / JWKS swap> allows ATO
+
+Classification:
+  vuln_type: oauth
+  cwe: CWE-601 (redirect) / CWE-352 (state CSRF) / CWE-345 (auth-server confusion)
+  owasp: A1:2021-Broken Access Control
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N/E:A
+  severity: Critical
+
+Context:
+  Authorization Server: <issuer>. Client: <client_id>. Flow: <Authorization Code / Code+PKCE / Device>.
+  Reachable from: <web / mobile / SPA>.
+
+Vulnerability:
+  <Authorization server accepts redirect_uri `https://app.target.com.evil.com/callback` (suffix bypass).
+   OR State parameter not validated on callback.
+   OR PKCE code_verifier not enforced — server issues token without verifier match.
+   OR Server fetches JWKS from issuer-controlled URL; attacker controls issuer.>
+
+Attack Walkthrough:
+  1. Lure victim to start OAuth flow with attacker-crafted authorize URL.
+  2. <redirect_uri parser quirk leaks code to attacker / mix-up swaps issuer / PKCE drop / etc.>
+  3. Attacker exchanges code at /token (or forges token via JWKS swap).
+  4. Attacker authenticated as victim.
+
+Impact: Full ATO across federated identity. Cross-tenant if multi-tenant SSO.
+
+PoC: <full flow with curl + attacker-controlled redirect>
+Reproduction steps: <cold-start: spin up Collaborator → craft authorize URL → victim clicks → code arrives>
+Evidence:
+  - flow_type: <authorization_code | pkce | device>
+  - attack: <redirect_uri_suffix_bypass | missing_state | pkce_downgrade | mix_up | jwks_swap>
+  - logger_index: <code-arrival index>
+  - collaborator_interaction_id: <id>
+
+Remediation:
+  - Strict redirect_uri allow-list with exact match (no wildcards, no parser quirks).
+  - State must be cryptographically random AND validated on every callback.
+  - Enforce PKCE for public clients; reject token requests missing verifier.
+  - Use the discovery document's `jwks_uri`, never derive from request-controlled `iss`.
+References: CWE-601, RFC 6749 §10.6, OAuth 2.1 draft, OIDC Core §3.1.2.1
+```
+
+### HTTP Request Smuggling (per `playbook-request-smuggling.md`)
+
+```
+Title: HTTP Request Smuggling (<CL.TE | TE.CL | 0.CL | CL.0 | V-H | Expect | RQP | double-desync>) allows <bypass of front-end ACL / cache poisoning>
+
+Classification:
+  vuln_type: request_smuggling
+  cwe: CWE-444 (HTTP Request/Response Smuggling)
+  owasp: A1:2021-Broken Access Control (when used to bypass front-end ACL)
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:L/SC:H/SI:H/SA:N/E:A
+  severity: Critical
+
+Context:
+  Front-end parser: <Akamai / Cloudflare / Fastly / nginx / haproxy / Envoy>.
+  Origin parser: <nginx / Apache / IIS / Node.js / Spring>.
+  Two-parser pipeline confirmed via <Via / X-Cache / CF-RAY / Server header divergence>.
+
+Vulnerability:
+  Frontend and origin disagree on request boundary due to <CL.TE | TE.CL | 0.CL | CL.0 | V-H | Expect | RQP>.
+  Attacker can prefix bytes to the NEXT request seen by the origin.
+
+Attack Walkthrough:
+  1. Send smuggle payload (raw HTTP — see PoC).
+  2. Frontend forwards N bytes to origin per its parser.
+  3. Origin parses N + M bytes (M from attacker's smuggle prefix).
+  4. Next request through the same connection is interpreted by origin starting at attacker's prefix.
+  5. Demonstrated effect: <Collaborator callback / cache-poisoned URL with attacker payload / internal admin route reached>.
+
+Impact:
+  <Single victim: cache-poisoned URL serves attacker XSS to next visitor.
+   Mass victims: shared front-end cache poisoned for all users of the same key.
+   Internal reach: /admin reachable via smuggled request, bypassing front-end auth.>
+
+PoC request: <raw HTTP with CRLF-exact byte stream>
+Reproduction steps: <cold-start: open raw connection → send payload → observe behavior on second request>
+Evidence:
+  - variant: <CL.TE | TE.CL | 0.CL | CL.0 | V-H | Expect | RQP | double-desync>
+  - front_parser: <vendor>
+  - back_parser: <vendor>
+  - collaborator_interaction_id: <id>
+  - reproductions: 3 minimum (Rule 10a)
+  - logger_index: <smuggle-confirming index>
+
+Remediation:
+  - Front-end and origin MUST agree on Content-Length / Transfer-Encoding parsing.
+  - Reject ambiguous requests (both CL and TE present) at the front-end.
+  - HTTP/2 termination at the front-end is the strategic mitigation (HTTP/1.1 desync endgame).
+References: CWE-444, James Kettle 2025 "HTTP/1.1 Must Die" research, CVE-2025-32094 (Akamai class)
+```
+
+### Prototype Pollution (per `playbook-prototype-pollution.md`)
+
+```
+Title: <CSPP via URL fragment / SSPP via JSON merge> allows <DOM XSS / RCE / ATO>
+
+Classification:
+  vuln_type: <cspp | sspp>
+  cwe: CWE-1321 (Improperly Controlled Modification of Object Prototype Attributes)
+  owasp: A3:2021-Injection
+  cvss4_vector_cspp: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:L/VI:L/VA:N/SC:L/SI:L/SA:N/E:A   # DOM XSS via CSPP gadget
+  cvss4_vector_sspp: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H/E:A   # SSPP → RCE
+  severity: <High for CSPP→XSS, Critical for SSPP→RCE/ATO>
+
+Context:
+  <Client-side: page merges URL fragment into options object via `_.merge` / `$.extend(true, ...)`.
+   OR Server-side: /api/settings merges POST body into user record via `lodash.merge`.>
+
+Vulnerability:
+  No reserved-key filter (`__proto__`, `constructor.prototype`, `prototype`). Attacker pollutes the runtime prototype.
+  Chained gadget: <DOMPurify ALLOWED_TAGS / Angular CSTI / Express isAdmin default / child_process.spawnSync default args / Handlebars compile options>.
+
+Attack Walkthrough:
+  1. Inject pollution payload via <fragment / query / JSON body>.
+  2. Verify pollution propagated (canary check on follow-up request / DOM check via devtools).
+  3. Trigger gadget: <load page that consumes default config / next request that reads default isAdmin / next exec call>.
+  4. Observe exploitation: <script execution / admin response / shell command output / pwned>.
+
+Impact:
+  CSPP: DOM XSS in same-origin context. Account-cookie theft potential.
+  SSPP: RCE in Node.js process, persists until process restart. Cross-user privilege escalation if web tier.
+
+PoC request: <pollution payload + follow-up gadget trigger>
+Reproduction steps: <cold-start: pollute → observe gadget>
+Evidence:
+  - polluted_key: <__proto__.ALLOWED_TAGS | __proto__.isAdmin | constructor.prototype.exec_argv>
+  - gadget: <dompurify_allowed_tags | express_isadmin_default | childprocess_argv | handlebars_compileoptions>
+  - sink: <innerHTML after DOMPurify.sanitize | role-check middleware | spawn call site>
+  - impact_window: <single-page / single-tab / until process restart>
+  - logger_index: <pollute-then-trigger index>
+
+Remediation:
+  - Reject reserved keys (`__proto__`, `constructor`, `prototype`) at the input boundary.
+  - Freeze `Object.prototype` at startup (Node: `--frozen-intrinsics`).
+  - Use `Object.create(null)` for user-derived objects.
+  - For CSPP gadgets: configure DOMPurify with explicit config (not default-merged).
+References: CWE-1321, CVE-2024-21509 (Express-Handlebars SSPP), Doyensec CSPP research
+```
+
+## Quick-pick reference
+
+When in doubt, the deep-dive playbook tells you which skeleton to use:
+
+| Finding class | Skeleton above | Deep-dive |
+|---|---|---|
+| SSRF | "SSRF" | `playbook-ssrf-deep-dive.md` |
+| IDOR / BOLA | "IDOR / BOLA" | `playbook-idor-bola.md` |
+| JWT | "JWT" | `playbook-jwt-deep-dive.md` |
+| OAuth / OIDC | "OAuth / OIDC flow attacks" | `playbook-oauth-flow-attacks.md` |
+| Request smuggling | "HTTP Request Smuggling" | `playbook-request-smuggling.md` |
+| Prototype pollution | "Prototype Pollution" | `playbook-prototype-pollution.md` |
+| Other | Canonical layout above | `hunt.md` / `verify-finding.md` |
