@@ -4,6 +4,8 @@
 from burpsuite_mcp import client
 
 from burpsuite_mcp.tools.edge._helpers import build_multipart
+from burpsuite_mcp.tools.testing._verdict import make_verdict
+
 
 async def test_file_upload_impl(
     session: str,
@@ -11,7 +13,7 @@ async def test_file_upload_impl(
     parameter: str = "file",
     test_types: list[str] | None = None,
     content_type_bypass: bool = True,
-) -> str:
+) -> dict:
     """Test file upload for bypass vulnerabilities with extension and content-type evasion.
 
     Args:
@@ -127,4 +129,21 @@ async def test_file_upload_impl(
     else:
         lines.append("No dangerous file uploads accepted.")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+    php_or_jsp = sum(1 for v in vulns if ".php" in v.lower() or ".jsp" in v.lower() or ".aspx" in v.lower())
+    if php_or_jsp >= 1:
+        verdict, confidence = "CONFIRMED", 0.85
+        ev = f"executable upload accepted: {php_or_jsp} PHP/JSP/ASPX variant(s)"
+    elif vulns:
+        verdict, confidence = "SUSPECTED", 0.55
+        ev = f"{len(vulns)} risky upload(s) accepted — check execution path"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "no dangerous file uploads accepted"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="file_upload",
+        details={"path": path, "parameter": parameter, "vulnerabilities": vulns},
+        summary=human,
+    )

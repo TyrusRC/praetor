@@ -2,13 +2,15 @@
 
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import make_verdict
+
 
 async def test_cloud_metadata_impl(
     session: str,
     parameter: str = "url",
     path: str = "/",
     injection_point: str = "query",
-) -> str:
+) -> dict:
     """Test SSRF to cloud metadata services (AWS, GCP, Azure, DigitalOcean).
 
     Args:
@@ -63,4 +65,17 @@ async def test_cloud_metadata_impl(
     else:
         lines.append(f"\nNo cloud metadata exposure detected.")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+    if vulns:
+        verdict, confidence = "CONFIRMED", 0.9
+        ev = f"cloud metadata SSRF: {len(vulns)} cloud(s) leaked credentials/identity"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "no cloud metadata exposure across AWS / GCP / Azure / DO"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="ssrf",
+        details={"parameter": parameter, "path": path, "vulnerabilities": vulns},
+        summary=human,
+    )

@@ -32,6 +32,7 @@ from urllib.parse import urlparse, urlunparse, urlencode
 from mcp.server.fastmcp import FastMCP
 
 from ._send import send_probe
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _marker() -> str:
@@ -50,8 +51,8 @@ def register(mcp: FastMCP):
         cookies: dict | None = None,
         bearer_token: str = "",
         follow_up_path: str = "",
-    ) -> str:
-        """Test for server-side prototype pollution.
+    ) -> dict:
+        """Test for server-side prototype pollution. Returns VerdictResult (W7 schema).
 
         Args:
             url: Endpoint that accepts JSON / form body (or query)
@@ -72,11 +73,13 @@ def register(mcp: FastMCP):
         base = await send_probe("GET", follow_url, {}, cookies=cookies,
                                 bearer=bearer_token)
         if "error" in base:
-            return f"Error (baseline): {base['error']}"
+            return error_verdict(f"baseline failed: {base['error']}", vuln_type="prototype_pollution")
         base_body = (base.get("response_body", "") or "")
         if marker in base_body:
-            return ("Error: baseline already contains marker — should be "
-                    "impossible (marker is per-call random). Retry.")
+            return error_verdict(
+                "baseline contains marker (impossible; marker is random) — retry",
+                vuln_type="prototype_pollution",
+            )
 
         async def _send_payload(label: str, json_body: dict | None = None,
                                 body: str = "",
@@ -178,4 +181,23 @@ def register(mcp: FastMCP):
                          "object values (config endpoint, render endpoint, "
                          "auth-check endpoint).")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        import re
+        logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:10]
+        if len(bypasses) >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"prototype pollution confirmed via {len(bypasses)} payload(s) — marker {marker} reflected"
+        elif len(bypasses) == 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"single PP signal: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no PP signal — try a follow_up_path that consumes default object values"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="prototype_pollution",
+            logger_indices=logger_indices,
+            details={"url": url, "marker": marker, "bypasses": bypasses},
+            summary=human,
+        )

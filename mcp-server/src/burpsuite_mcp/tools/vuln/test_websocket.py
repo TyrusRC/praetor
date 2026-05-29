@@ -27,6 +27,7 @@ from urllib.parse import urlparse, urlunparse
 from mcp.server.fastmcp import FastMCP
 
 from ._send import send_probe
+from burpsuite_mcp.tools.testing._verdict import make_verdict
 
 
 def _ws_key() -> str:
@@ -51,8 +52,10 @@ def register(mcp: FastMCP):
         cookies: dict | None = None,
         bearer_token: str = "",
         subprotocols: list[str] | None = None,
-    ) -> str:
-        """WebSocket-upgrade attack matrix. All probes sent as HTTP/1.1
+    ) -> dict:
+        """WebSocket-upgrade attack matrix. Returns VerdictResult (W7 schema).
+
+        All probes sent as HTTP/1.1
         upgrade requests through Burp.
 
         Args:
@@ -173,4 +176,23 @@ def register(mcp: FastMCP):
             lines.append("WebSocket upgrade defenses intact across Origin / "
                          "auth / subprotocol axes.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        import re
+        logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:10]
+        if len(bypasses) >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"WebSocket upgrade defenses fail across {len(bypasses)} axes"
+        elif len(bypasses) == 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"single WS upgrade axis broken: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "WS upgrade defenses intact across Origin / auth / subprotocol"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="cswsh",
+            logger_indices=logger_indices,
+            details={"ws_url": ws_url, "bypasses": bypasses},
+            summary=human,
+        )

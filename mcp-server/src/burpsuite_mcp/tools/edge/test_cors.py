@@ -2,12 +2,14 @@
 
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import make_verdict
+
 
 async def test_cors_impl(
     session: str,
     path: str = "/",
     test_origins: list[str] | None = None,
-) -> str:
+) -> dict:
     """Test CORS configuration for origin reflection and credential misconfigs.
 
     Args:
@@ -73,4 +75,21 @@ async def test_cors_impl(
     else:
         lines.append(f"\nNo CORS misconfigurations detected.")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+    critical_hits = sum(1 for v in vulns if v.startswith("CRITICAL"))
+    if critical_hits >= 1:
+        verdict, confidence = "CONFIRMED", 0.85
+        ev = f"CORS misconfig: {critical_hits} CRITICAL hit(s) (wildcard/reflected + credentials)"
+    elif vulns:
+        verdict, confidence = "SUSPECTED", 0.55
+        ev = f"CORS misconfig: {len(vulns)} hit(s) — operator review per item"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "no CORS misconfiguration detected"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="cors",
+        details={"path": path, "vulnerabilities": vulns},
+        summary=human,
+    )
