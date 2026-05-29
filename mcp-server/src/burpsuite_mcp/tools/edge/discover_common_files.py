@@ -18,6 +18,7 @@ async def discover_common_files_impl(
     paths = [
         # VCS exposure
         "/.git/HEAD", "/.git/config", "/.git/index", "/.gitignore",
+        "/.git/logs/HEAD", "/.git/packed-refs", "/.git/refs/heads/master",
         "/.svn/entries", "/.svn/wc.db", "/.hg/store",
         # Environment / secrets
         "/.env", "/.env.bak", "/.env.local", "/.env.production",
@@ -33,7 +34,7 @@ async def discover_common_files_impl(
         "/Cargo.toml", "/Cargo.lock",
         # Cloud creds / CI artefacts
         "/.aws/credentials", "/.aws/config",
-        "/.npmrc", "/.dockercfg", "/.docker/config.json",
+        "/.npmrc", "/.pypirc", "/.dockercfg", "/.docker/config.json",
         "/.gitlab-ci.yml", "/.travis.yml", "/.circleci/config.yml",
         "/Jenkinsfile", "/.github/workflows/", "/buildspec.yml",
         # Server config
@@ -46,9 +47,15 @@ async def discover_common_files_impl(
         "/backup/", "/backups/", "/old/", "/tmp/",
         "/debug/", "/test/", "/dev/", "/staging/",
         # PHP / WordPress
-        "/phpinfo.php", "/info.php", "/test.php",
+        "/phpinfo.php", "/info.php", "/test.php", "/php-info.php",
         "/wp-config.php.bak", "/wp-config.php~", "/wp-config.php.swp",
         "/wp-admin/", "/wp-login.php",
+        # PHPUnit historical RCE (still hits unmaintained installs)
+        "/phpunit/src/Util/PHP/eval-stdin.php",
+        "/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php",
+        # Installer / setup wizards left in prod
+        "/setup.php", "/install.php", "/install/", "/wizard.php", "/configure.php",
+        "/setup-config.php", "/admin/install/",
         # .NET
         "/elmah.axd", "/trace.axd", "/AppPath.config",
         # Spring Actuator
@@ -59,9 +66,17 @@ async def discover_common_files_impl(
         "/console", "/__debug__/", "/h2-console", "/hawtio/",
         "/admin/", "/manager/html", "/manager/status",
         # API docs
-        "/swagger.json", "/swagger.yaml", "/swagger-ui",
+        "/swagger.json", "/swagger.yaml", "/swagger-ui", "/swagger-ui.html",
         "/api-docs", "/openapi.json", "/openapi.yaml",
+        "/v2/api-docs", "/v3/api-docs",
         "/graphql", "/graphiql", "/playground",
+        # SPA / build directory leaks (Next.js / Nuxt / Vite / SvelteKit)
+        "/_next/static/", "/_nuxt/", "/_vite/", "/.svelte-kit/",
+        # K8s direct API exposure
+        "/api/v1/namespaces/default/secrets", "/api/v1/secrets",
+        "/healthz", "/readyz", "/version", "/apis",
+        # Legacy CGI exposure (still hits in 2025 audits)
+        "/cgi-bin/test.cgi", "/cgi-bin/printenv.pl", "/cgi-bin/php-cgi",
         # Crawl seeds
         "/robots.txt", "/sitemap.xml", "/crossdomain.xml",
         "/security.txt", "/.well-known/security.txt",

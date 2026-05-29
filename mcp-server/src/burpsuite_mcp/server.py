@@ -12,7 +12,7 @@ from burpsuite_mcp.tools import (
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
-    source_aware, benchmark,
+    source_aware, benchmark, mobile_payloads,
 )
 
 mcp = FastMCP(
@@ -130,3 +130,4 @@ ci_audit.register(mcp)         # poutine / octoscan — GitHub Actions / GitLab 
 visual_easm.register(mcp)      # visual_easm_diff — gowitness screenshot + hash delta vs prior run
 source_aware.register(mcp)     # xvulnhuntr / vulnhuntr — LLM-chain SAST input→sink (white-box mode)
 benchmark.register(mcp)        # run_autopenbench / run_caibench — publishable AI-pentest benchmarks (W7)
+mobile_payloads.register(mcp)  # mobile_frida_snippet / mobile_adb_pack — payload delivery for mobile-mastg (W8)

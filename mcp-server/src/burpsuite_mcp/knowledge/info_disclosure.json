@@ -2,15 +2,26 @@
   "category": "info_disclosure",
   "contexts": {
     "stack_trace": {
-      "description": "Detects verbose stack traces leaked in responses \u2014 indicates debug mode or unhandled exceptions",
+      "description": "Detects verbose stack traces leaked in responses — indicates debug mode or unhandled exceptions",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request \u2014 checks for stack trace content in normal responses",
+          "description": "Baseline request — checks for stack trace content in normal responses",
           "matchers": [
-            {"type": "word", "words": ["stack trace", "at java.", "at system.", "traceback", "at line", "exception in"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "stack trace",
+                "at java.",
+                "at system.",
+                "traceback",
+                "at line",
+                "exception in"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40,
@@ -20,7 +31,17 @@
           "payload": "{{baseline}}'",
           "description": "Quote injection to trigger stack trace on error path",
           "matchers": [
-            {"type": "word", "words": ["stack trace", "at java.", "traceback", "NullPointerException", "ValueError"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "stack trace",
+                "at java.",
+                "traceback",
+                "NullPointerException",
+                "ValueError"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 45,
@@ -35,9 +56,18 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request \u2014 checks for debug info in normal responses",
+          "description": "Baseline request — checks for debug info in normal responses",
           "matchers": [
-            {"type": "word", "words": ["debug=true", "phpinfo", "server_addr", "document_root"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "debug=true",
+                "phpinfo",
+                "server_addr",
+                "document_root"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 45,
@@ -47,7 +77,16 @@
           "payload": "{{baseline}}?debug=true",
           "description": "Appending debug=true to trigger verbose debug output",
           "matchers": [
-            {"type": "word", "words": ["phpinfo", "server_addr", "document_root", "PATH_INFO"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "phpinfo",
+                "server_addr",
+                "document_root",
+                "PATH_INFO"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
@@ -62,9 +101,12 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request \u2014 checks for server version strings in response body",
+          "description": "Baseline request — checks for server version strings in response body",
           "matchers": [
-            {"type": "regex", "pattern": "(apache|nginx|iis|php|java|python|ruby|node)\\/[0-9]"}
+            {
+              "type": "regex",
+              "pattern": "(apache|nginx|iis|php|java|python|ruby|node)\\/[0-9]"
+            }
           ],
           "severity": "low",
           "confidence_boost": 20,
@@ -72,9 +114,13 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request \u2014 checks Server response header for version disclosure",
+          "description": "Baseline request — checks Server response header for version disclosure",
           "matchers": [
-            {"type": "header", "name": "Server", "contains": "/"}
+            {
+              "type": "header",
+              "name": "Server",
+              "contains": "/"
+            }
           ],
           "severity": "low",
           "confidence_boost": 15,
@@ -82,9 +128,13 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request \u2014 checks X-Powered-By header for framework fingerprinting",
+          "description": "Baseline request — checks X-Powered-By header for framework fingerprinting",
           "matchers": [
-            {"type": "header", "name": "X-Powered-By", "contains": "/"}
+            {
+              "type": "header",
+              "name": "X-Powered-By",
+              "contains": "/"
+            }
           ],
           "severity": "low",
           "confidence_boost": 15,
@@ -93,16 +143,27 @@
       ]
     },
     "sensitive_files": {
-      "description": "Probes for commonly exposed sensitive files \u2014 source control metadata, environment files, config files, and debug endpoints",
+      "description": "Probes for commonly exposed sensitive files — source control metadata, environment files, config files, and debug endpoints",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "/.git/HEAD",
-          "description": "Git HEAD file \u2014 'ref:' prefix confirms exposed .git directory, enabling full source code recovery",
+          "description": "Git HEAD file — 'ref:' prefix confirms exposed .git directory, enabling full source code recovery",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["ref:"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "ref:"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 75,
@@ -110,10 +171,23 @@
         },
         {
           "payload": "/.git/config",
-          "description": "Git config file \u2014 [core] or [remote] sections confirm exposed .git directory with repository metadata",
+          "description": "Git config file — [core] or [remote] sections confirm exposed .git directory with repository metadata",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["[core]", "[remote", "repositoryformatversion"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "[core]",
+                "[remote",
+                "repositoryformatversion"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 75,
@@ -121,11 +195,32 @@
         },
         {
           "payload": "/.env",
-          "description": "Environment file \u2014 DB_, SECRET, KEY, PASSWORD variables confirm exposed secrets in .env file",
+          "description": "Environment file — DB_, SECRET, KEY, PASSWORD variables confirm exposed secrets in .env file",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["DB_", "SECRET", "KEY=", "PASSWORD=", "API_KEY"], "condition": "or"},
-            {"type": "not_word", "words": ["<!DOCTYPE", "<html"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "DB_",
+                "SECRET",
+                "KEY=",
+                "PASSWORD=",
+                "API_KEY"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "<!DOCTYPE",
+                "<html"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -133,10 +228,23 @@
         },
         {
           "payload": "/WEB-INF/web.xml",
-          "description": "Java WEB-INF deployment descriptor \u2014 <web-app reveals servlet mappings, security constraints, and class paths",
+          "description": "Java WEB-INF deployment descriptor — <web-app reveals servlet mappings, security constraints, and class paths",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["<web-app", "<servlet", "web-app>"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "<web-app",
+                "<servlet",
+                "web-app>"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -144,10 +252,18 @@
         },
         {
           "payload": "/.svn/entries",
-          "description": "SVN entries file \u2014 version number or 'dir' keyword confirms exposed Subversion metadata",
+          "description": "SVN entries file — version number or 'dir' keyword confirms exposed Subversion metadata",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "regex", "pattern": "^(10|12|\\d+)\\s*$|^dir\\s*$"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "^(10|12|\\d+)\\s*$|^dir\\s*$"
+            }
           ],
           "severity": "high",
           "confidence_boost": 65,
@@ -155,10 +271,23 @@
         },
         {
           "payload": "/server-status",
-          "description": "Apache mod_status \u2014 'Apache Server Status' or 'Total Accesses' confirms exposed server metrics and active connections",
+          "description": "Apache mod_status — 'Apache Server Status' or 'Total Accesses' confirms exposed server metrics and active connections",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["Apache Server Status", "Total Accesses", "Scoreboard"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "Apache Server Status",
+                "Total Accesses",
+                "Scoreboard"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 60,
@@ -166,14 +295,137 @@
         },
         {
           "payload": "/debug/pprof/",
-          "description": "Go pprof debug endpoint \u2014 'allocs' or 'goroutine' keywords confirm exposed profiling data with heap dumps and goroutine traces",
+          "description": "Go pprof debug endpoint — 'allocs' or 'goroutine' keywords confirm exposed profiling data with heap dumps and goroutine traces",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["allocs", "goroutine", "heap", "threadcreate"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "allocs",
+                "goroutine",
+                "heap",
+                "threadcreate"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
           "variables": {}
+        }
+      ]
+    },
+    "exposed_installer": {
+      "description": "Web app installer / setup wizard left exposed in production. Often allows DB credential reset or admin account creation.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe common installer paths — 200 + setup-wizard markers indicates exposed installer",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "installation",
+                "setup wizard",
+                "database setup",
+                "step 1 of"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "path_override": "/setup.php",
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "db_connstring_in_json": {
+      "description": "JSON API response embeds database connection string with credentials. Senior-engineer match — full creds in plaintext.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Scan JSON response for connection-string field with embedded credentials",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "json"
+            },
+            {
+              "type": "regex",
+              "pattern": "\"(connection|conn|db|database)_?(string|url|uri)\"\\s*:\\s*\"[^\"]*(server=|host=|user=|password=|pwd=|uid=|data source=)"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "exposed_sensitive_config_files": {
+      "description": "Server config files served as static content. nginx.conf / .htaccess / .user.ini / web.config.bak.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe /nginx.conf — config file directly served",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "(?i)server\\s*\\{|location\\s*~"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {
+            "path_override": "/nginx.conf"
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe /.htaccess — Apache config exposed",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "(?i)AuthUserFile|RewriteRule|<Files"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {
+            "path_override": "/.htaccess"
+          }
         }
       ]
     }
