@@ -1,4 +1,31 @@
-"""Subdomain-takeover fingerprints. Source: can-i-take-over-xyz + current hosts."""
+"""Subdomain-takeover fingerprints. Source: can-i-take-over-xyz + current hosts.
+
+Entry schema
+------------
+Each value is a dict:
+
+    {
+      "cname":   "vendor-host.example.com",        # CNAME suffix to match
+      "body":    "vendor-specific 404 marker",     # HTTP response body marker
+      "dns_only": True | False                     # (W9+) optional
+    }
+
+`dns_only=True` signals **CNAME resolves but target has no A record** —
+the takeover marker is the DNS gap, not an HTTP body string. For these
+entries, `test_subdomain_takeover` runs a second `dig A` against the CNAME
+target instead of fetching the HTTP body; absent A record = VULNERABLE.
+
+Used by W9 ElasticBeanstalk regional (us-east-1, us-west-2, eu-west-1, ...)
+and Azure trafficmanager / azureedge / redis.cache.windows.net entries that
+expose dangling subdomain takeover via the DNS layer alone. The vendor never
+serves a 404 body — the resource just doesn't exist.
+
+Operator workflow (DNS-only):
+    1. test_subdomain_takeover(subdomains=[...]) matches the CNAME suffix.
+    2. Detector queries A record on cname target.
+    3. NXDOMAIN / no A → status "VULNERABLE (dns-only — CNAME target has no A record)".
+    4. Resolution → status "cname_match_but_resolves" (active resource — not vulnerable).
+"""
 
 
 TAKEOVER_FINGERPRINTS = {

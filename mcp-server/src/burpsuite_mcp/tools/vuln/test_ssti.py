@@ -35,6 +35,7 @@ from urllib.parse import quote
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import make_verdict
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -206,8 +207,10 @@ def register(mcp: FastMCP):
         blind: bool = False,
         blind_seconds: int = 5,
         engine_hint: str = "",
-    ) -> str:
+    ) -> dict:
         """SSTImap-style native SSTI detection through Burp.
+
+        Returns VerdictResult (W7 schema).
 
         Multi-phase: polyglot → math distinguisher → engine-specific
         read-only capability probes → optional blind time-delta. Every
@@ -418,4 +421,29 @@ def register(mcp: FastMCP):
         else:
             report.append("Verdict: NO SSTI — math/blind all negative.")
 
-        return "\n".join(report)
+        human = "\n".join(report)
+        logger_indices = [evidence_idx] if evidence_idx >= 0 else []
+
+        if confirmed_caps:
+            verdict, conf_score = "CONFIRMED", 0.85
+            ev = f"SSTI confirmed engine={detected}; capabilities={','.join(confirmed_caps)}"
+        elif detected:
+            verdict, conf_score = "SUSPECTED", 0.6
+            ev = f"SSTI reflection-only — engine={detected} (no capability probe confirmed)"
+        else:
+            verdict, conf_score = "FAILED", 0.1
+            ev = "no SSTI — math/blind probes all negative"
+
+        return make_verdict(
+            verdict, conf_score, ev,
+            vuln_type="ssti",
+            logger_indices=logger_indices,
+            details={
+                "endpoint": endpoint,
+                "parameter": parameter,
+                "engine": detected,
+                "confidence_label": confidence,
+                "confirmed_capabilities": confirmed_caps,
+            },
+            summary=human,
+        )

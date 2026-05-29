@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._send import send_probe
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 _INTERNAL_IPS = (
@@ -124,8 +125,10 @@ def register(mcp: FastMCP):
         skip_protocols: bool = False,
         skip_bypass: bool = False,
         use_collaborator: bool = True,
-    ) -> str:
+    ) -> dict:
         """Five-axis SSRF probe sweep across one parameter.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             url: Target URL (without the parameter value)
@@ -249,4 +252,31 @@ def register(mcp: FastMCP):
             lines.append("No inline SSRF indicators surfaced. "
                          "If Collaborator was used, poll interactions for blind.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        import re
+        logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:15]
+        cloud_hit = any("cloud" in b.lower() or "metadata" in b.lower() or "ami-id" in b.lower()
+                        or "instance-id" in b.lower() for b in bypasses)
+        if len(bypasses) >= 2 or cloud_hit:
+            verdict, confidence = "CONFIRMED", 0.9 if cloud_hit else 0.8
+            ev = f"SSRF confirmed via {len(bypasses)} inline hits" + (" (cloud metadata reached)" if cloud_hit else "")
+        elif len(bypasses) == 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"single SSRF surface flagged: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no inline SSRF — Collaborator polling required for blind"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="ssrf",
+            logger_indices=logger_indices,
+            collaborator_interactions=[collab_url] if collab_url else None,
+            details={
+                "url": url, "parameter": parameter,
+                "bypasses": bypasses,
+                "cloud_hit": cloud_hit,
+                "collaborator_url": collab_url,
+            },
+            summary=human,
+        )

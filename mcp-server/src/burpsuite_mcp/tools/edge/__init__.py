@@ -45,7 +45,7 @@ def register(mcp: FastMCP):
         session: str,
         path: str = "/graphql",
         depth: str = "quick",
-    ) -> str:
+    ) -> dict:
         """Test GraphQL endpoint for introspection, field suggestions, batch, GET CSRF, and (deep) alias-DoS + depth limits.
 
         Args:
@@ -92,7 +92,7 @@ def register(mcp: FastMCP):
         parameter: str,
         poll_seconds: int = 5,
         follow_redirects: bool = False,
-    ) -> str:
+    ) -> dict:
         """Test open redirect with Collaborator-verified DNS/HTTP confirmation.
 
         Args:
@@ -112,7 +112,7 @@ def register(mcp: FastMCP):
         os_type: str = "auto",
         test_wrappers: bool = True,
         depth: int = 6,
-    ) -> str:
+    ) -> dict:
         """Test for LFI/path traversal with encoding bypasses and PHP wrappers.
 
         Args:

@@ -3,6 +3,8 @@
 import asyncio
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
+
 
 async def test_open_redirect_impl(
     session: str,
@@ -10,7 +12,7 @@ async def test_open_redirect_impl(
     parameter: str,
     poll_seconds: int = 5,
     follow_redirects: bool = False,
-) -> str:
+) -> dict:
     """Test open redirect with Collaborator-verified DNS/HTTP confirmation.
 
     Args:
@@ -23,12 +25,18 @@ async def test_open_redirect_impl(
     # Step 1: Generate Collaborator payload
     collab = await client.post("/api/collaborator/payload")
     if "error" in collab:
-        return f"Error generating Collaborator payload: {collab['error']}\nRequires Burp Suite Professional."
+        return error_verdict(
+            f"Collaborator payload failed: {collab['error']} (Requires Burp Pro)",
+            vuln_type="open_redirect",
+        )
 
     collab_url = collab.get("payload", "")
     collab_host = collab_url.replace("http://", "").replace("https://", "").split("/")[0]
     if not collab_host:
-        return "Error: Could not extract Collaborator host from payload."
+        return error_verdict(
+            "could not extract Collaborator host from payload",
+            vuln_type="open_redirect",
+        )
 
     # Step 2: Build redirect payloads using the real Collaborator URL
     payloads = [
@@ -124,4 +132,26 @@ async def test_open_redirect_impl(
         else:
             lines.append("No open redirect detected (no redirects to Collaborator, no interactions).")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+    if interactions:
+        verdict, confidence = "CONFIRMED", 0.9
+        ev = f"open redirect server-side confirmed via Collaborator ({len(interactions)} interaction(s))"
+    elif redirect_candidates:
+        verdict, confidence = "SUSPECTED", 0.55
+        ev = f"redirect in Location header for {len(redirect_candidates)} payload(s); no Collaborator hit yet"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "no open redirect detected"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="open_redirect",
+        collaborator_interactions=[collab_host] if interactions else None,
+        details={
+            "path": path, "parameter": parameter,
+            "collaborator_host": collab_host,
+            "redirect_candidates": redirect_candidates,
+            "interaction_count": len(interactions) if interactions else 0,
+        },
+        summary=human,
+    )

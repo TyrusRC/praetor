@@ -34,7 +34,9 @@ _REFERENCE_ONLY = {
     # NOTE: mobile_deeplink promoted to active W8 (2026-05-29) — black-box HTTP
     # matchers fire when the mobile-dynamic-agent triggers the deep link and
     # backend traffic is captured in Burp.
-    "webview_injection",       # mobile WebView context, multi-step
+    # NOTE: webview_injection promoted to active W10 (2026-05-29) — same model:
+    # 3 HTTP-observable contexts (remote URL reach / postMessage reflection /
+    # file-URL exfil) fire on backend traffic after operator drives the WebView.
     # Praetor v1.0 (2026-05-24) — saml_xsw stays operator-built (binary XML
     # signature work that does not fit auto_probe's payload-token shape).
     "saml_xsw",

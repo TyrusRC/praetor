@@ -185,7 +185,7 @@ async def test_graphql_impl(
     session: str,
     path: str = "/graphql",
     depth: str = "quick",
-) -> str:
+) -> dict:
     """Test GraphQL endpoint for introspection, field suggestions, batch, GET CSRF, alias-DoS, depth limits, and introspection-driven field-by-field fuzz.
 
     Args:
@@ -199,7 +199,11 @@ async def test_graphql_impl(
     # Test 1: Introspection
     resp = await _gql(session, path, "{__schema{types{name,fields{name}}}}")
     if "error" in resp:
-        return f"Error reaching GraphQL endpoint: {resp['error']}"
+        from burpsuite_mcp.tools.testing._verdict import error_verdict
+        return error_verdict(
+            f"GraphQL endpoint unreachable: {resp['error']}",
+            vuln_type="graphql",
+        )
     body = resp.get("response_body", "")
     status = resp.get("status", 0)
     has_schema = "__schema" in body and "types" in body
@@ -318,4 +322,23 @@ async def test_graphql_impl(
     else:
         lines.append("No significant risks detected.")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+    from burpsuite_mcp.tools.testing._verdict import make_verdict
+    crit_keywords = ("introspection enabled", "batch", "alias-dos", "no depth limit")
+    crit_hits = sum(1 for r in risks if any(k in r.lower() for k in crit_keywords))
+    if crit_hits >= 2:
+        verdict, confidence = "CONFIRMED", 0.8
+        ev = f"GraphQL: {crit_hits} critical risks of {len(risks)} total ({depth} mode)"
+    elif risks:
+        verdict, confidence = "SUSPECTED", 0.55
+        ev = f"GraphQL: {len(risks)} risk(s) flagged — operator review per item"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "GraphQL hardened — no significant risks across enabled tests"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="graphql",
+        details={"path": path, "depth": depth, "risks": risks},
+        summary=human,
+    )
