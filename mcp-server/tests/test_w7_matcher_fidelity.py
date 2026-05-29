@@ -106,6 +106,15 @@ _FIDELITY_CASES: list[tuple[str, dict, int]] = [
         },
         "body": "<html>Welcome, username=victim! profile loaded.</html>",
     }, 1),
+    # cache_poisoning (W18 nextjs_15): 200 + canary reflection + Vercel cache HIT.
+    ("cache_poisoning", {
+        "status": 200,
+        "headers": {
+            "Content-Type": "text/html",
+            "X-Vercel-Cache": "HIT",
+        },
+        "body": "<html>logged in as praetor-nextjs-cache-abc123</html>",
+    }, 1),
 ]
 
 

@@ -43,6 +43,7 @@ from ._helpers import _intel_dir, _safe_findings_path, _sanitized
 
 
 _VERIFY_HINTS: dict[str, list[str]] = {
+    # Pre-W19 (W7 baseline)
     "sqli": ["sql syntax", "mysql", "postgresql", "pg_query", "sqlite", "ORA-", "ODBC", "syntax error"],
     "rce": ["uid=", "gid=", "groups=", "/etc/passwd:", "root:x:"],
     "ssrf": ["instance-id", "169.254.169.254", "computeMetadata", "iam/security-credentials"],
@@ -51,6 +52,36 @@ _VERIFY_HINTS: dict[str, list[str]] = {
     "lfi": ["root:x:", "[boot loader]", "<?xml", "[fonts]"],
     "open_redirect": ["Location:", "evil.com"],
     "info_disclosure": ["password", "secret", "private", "token"],
+    # W19 — per-class extensions matching deep-dive evidence ladders
+    # SSRF refined per playbook-ssrf-deep-dive.md
+    "ssrf_cloud_metadata": [
+        "AccessKeyId", "SecretAccessKey", "Token", "arn:aws:iam",
+        "ami-id", "instance-id", "computeMetadata", "iam/security-credentials",
+        "subscriptionId", "vmId", "droplet_id", "compartmentId",
+    ],
+    "ssrf_internal_service": [
+        "SSH-2.0", "OpenSSH", "-ERR NOAUTH", "NOAUTH Authentication required",
+        "HTTP/1.0 401", "Apache", "nginx",
+    ],
+    # IDOR/BOLA — cross-principal record markers (operator fills in expected foreign-record signature)
+    "idor": ["@", "email", "id\":", "user_id", "owner_id"],
+    "bola": ["@", "email", "id\":", "user_id", "owner_id"],
+    # JWT — forge-accepted markers
+    "jwt": ["\"role\"", "\"admin\"", "\"sub\"", "\"is_admin\""],
+    # OAuth — code-arrival / token markers
+    "oauth": ["access_token", "code=", "id_token", "refresh_token"],
+    # Request smuggling — backend-reach + Collaborator hints (operator-fills marker)
+    "request_smuggling": ["smuggle-confirmed", "internal", "admin"],
+    # Prototype pollution — gadget-fire markers
+    "sspp": ["is_admin\":true", "\"isAdmin\":true", "permissions", "polluted"],
+    "cspp": ["script", "onerror", "alert", "polluted"],
+    "prototype_pollution": ["is_admin\":true", "\"isAdmin\":true", "polluted"],
+    # Deserialization — RCE marker (Collaborator-resolved DNS/HTTP marker is the real signal)
+    "deserialization": ["uid=", "groups=", "praetor-deserial-marker"],
+    # SAML XSW — attacker NameID in session
+    "saml_xsw": ["NameID", "set-cookie"],
+    # GraphQL — privileged field returned unauth
+    "graphql": ["data", "__schema", "adminEvents"],
 }
 
 
