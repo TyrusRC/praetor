@@ -199,6 +199,24 @@ Also check `lookup_cross_target_patterns(tech_stack=<detected>, vuln_class="*")`
 
 The router exists for *primary-class* selection (mobile / api / cloud / payment-auth / pollution / red-team / cve / business-logic). Deep-dive auto-fires AFTER (or alongside) primary class based on signals.
 
+## Per-vuln-class deep-dives (W16-W17)
+
+The primary-class playbooks above are for **target classification** (mobile / API / cloud / payment / etc.). The per-vuln-class deep-dives below are for **finding-class investigation** — load IN ADDITION to a primary playbook when a specific vuln class is in play.
+
+These are exempt from the "never load more than 2 playbooks" cap because they're targeted single-class references operators consult once and put down, not multi-call workflow drivers.
+
+| Trigger | Deep-dive | Wave |
+|---|---|---|
+| Param accepts URL/hostname; cloud-metadata reachable; image-proxy / link-preview / webhook-tester features | `playbook-ssrf-deep-dive.md` | W16 |
+| Param contains an ID (numeric / UUID / slug / hash) AND ≥2 auth states available | `playbook-idor-bola.md` | W16 |
+| `Authorization: Bearer <jwt>` observed; `harvest_identifiers` flagged a JWT; OAuth/OIDC auth model | `playbook-jwt-deep-dive.md` | W16 |
+| `/oauth/authorize`, `/oauth/token`, `/.well-known/openid-configuration` reachable; federated identity in scope | `playbook-oauth-flow-attacks.md` | W17 |
+| Target behind CDN/WAF + origin (≥2 HTTP parsers); Kettle 2025 endgame variants applicable | `playbook-request-smuggling.md` | W17 |
+| Node.js (Express/Fastify/Hapi/Koa) + JSON body merge; client-side options-merge libraries (jQuery extend, lodash merge); CSPP gadgets in framework | `playbook-prototype-pollution.md` | W17 |
+| Subdomain takeover hunt — wildcard scope or subdomain list harvested | `recon-takeover.md` | W9 |
+
+**Loading rule:** Deep-dives are reference material. Load when investigating a specific finding-class. Unload immediately when the investigation is done.
+
 ## Severity routing
 
 All confirmed findings rate against `hunt.md` Phase 4 rubric (`severity = base_class × business_context_multiplier ± floor/ceiling`). Floors override CVSS instinct: `alg:none`, sandbox-payment-on-prod, password-reset-to-attacker-email, mass PII without auth = CRITICAL minimum regardless of category. Ceilings cap inflation: reflected XSS without admin context = MEDIUM max.
