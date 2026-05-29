@@ -51,6 +51,32 @@ def register(mcp: FastMCP) -> None:
             fingerprint = TAKEOVER_FINGERPRINTS[matched_service]
             body_match = False
             http_error = None
+            dns_only = bool(fingerprint.get("dns_only", False))
+
+            # DNS-only signal: the takeover marker is "CNAME resolves but the
+            # target hostname does not have an A record". Confirmed via second
+            # `dig A` on the CNAME target. HTTP body is not consulted.
+            if dns_only:
+                a_record = await _dig(cname, "A")
+                if not a_record or not a_record.strip():
+                    entry = {
+                        "subdomain": subdomain,
+                        "cname": cname,
+                        "service": matched_service,
+                        "status": "VULNERABLE (dns-only — CNAME target has no A record)",
+                        "dns_only": True,
+                    }
+                    vulnerable.append(entry)
+                    results.append(entry)
+                    continue
+                else:
+                    results.append({
+                        "subdomain": subdomain, "cname": cname,
+                        "service": matched_service,
+                        "status": "cname_match_but_resolves",
+                        "dns_only": True,
+                    })
+                    continue
 
             try:
                 data = await client.post("/api/http/curl", json={

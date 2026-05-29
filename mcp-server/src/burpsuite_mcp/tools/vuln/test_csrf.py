@@ -22,6 +22,7 @@ from urllib.parse import urlparse, urlunparse, urlencode
 from mcp.server.fastmcp import FastMCP
 
 from ._send import send_probe
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 _TOKEN_HEADER_NAMES = (
@@ -94,8 +95,11 @@ def register(mcp: FastMCP):
         cookies: dict | None = None,
         bearer_token: str = "",
         original_headers: dict | None = None,
-    ) -> str:
+    ) -> dict:
         """Check the four CSRF defenses against a state-changing endpoint.
+
+        Returns VerdictResult (W7 schema): {verdict, confidence, evidence_summary,
+        logger_indices, vuln_type='csrf', details, human_summary}.
 
         Probes:
           §1 Drop CSRF token entirely (header or body field)
@@ -118,8 +122,10 @@ def register(mcp: FastMCP):
                 if one is present
         """
         if method.upper() == "GET":
-            return ("Error: GET is not a state-changing method by spec — pass "
-                    "POST/PUT/PATCH/DELETE to make this test meaningful.")
+            return error_verdict(
+                "GET is not a state-changing method — pass POST/PUT/PATCH/DELETE",
+                vuln_type="csrf",
+            )
 
         headers = original_headers or {}
         token_loc, token_val = _find_token_in_request(headers, body)
@@ -131,7 +137,7 @@ def register(mcp: FastMCP):
         baseline = await send_probe(method, url, headers, body=body,
                                     cookies=cookies, bearer=bearer_token)
         if "error" in baseline:
-            return f"Error (baseline): {baseline['error']}"
+            return error_verdict(f"baseline failed: {baseline['error']}", vuln_type="csrf")
         b_status = baseline.get("status_code", 0)
         b_idx = baseline.get("history_index", -1)
         b_len = baseline.get("response_length", 0)
@@ -140,7 +146,10 @@ def register(mcp: FastMCP):
         if b_status not in (200, 201, 202, 204, 302):
             lines.append("  [!] Baseline didn't succeed — supply working "
                          "cookies + token first; re-run.")
-            return "\n".join(lines)
+            return error_verdict(
+                f"baseline status {b_status} — supply working cookies/token first",
+                vuln_type="csrf",
+            ) | {"human_summary": "\n".join(lines)}
 
         if token_loc == "none":
             lines.append("")
@@ -284,4 +293,32 @@ def register(mcp: FastMCP):
         else:
             lines.append("CSRF defenses intact across token / origin / method / SameSite.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        # Logger indices: baseline + each probe response (kept in lines via #N
+        # markers — re-extract from the bypasses list when present).
+        idx_re = re.compile(r"#(-?\d+)")
+        logger_indices = [int(m) for m in idx_re.findall(human)]
+        logger_indices = [i for i in logger_indices if i >= 0][:10]
+
+        if len(bypasses) >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"CSRF defenses fail across {len(bypasses)} axes: {'; '.join(bypasses[:3])}"
+        elif len(bypasses) == 1:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"single CSRF defense axis broken: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.10
+            ev = "CSRF defenses intact across token / origin / method / SameSite"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="csrf",
+            logger_indices=logger_indices,
+            details={
+                "url": url, "method": method,
+                "token_location": token_loc,
+                "bypasses": bypasses,
+                "samesite_verdict": ss_verdict,
+            },
+            summary=human,
+        )

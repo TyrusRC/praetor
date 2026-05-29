@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools._request_headers import apply_realistic_headers
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 # Header-injection bypass set. Each entry is (label, dict_of_headers).
@@ -120,8 +121,10 @@ def register(mcp: FastMCP):
         skip_methods: bool = False,
         skip_paths: bool = False,
         skip_headers: bool = False,
-    ) -> str:
+    ) -> dict:
         """Send the auth-bypass probe matrix against one URL.
+
+        Returns VerdictResult (W7 schema).
 
         Three axes (all parallel through asyncio.gather, all proxied via Burp):
           - headers: X-Forwarded-For / X-Original-URL / X-Rewrite-URL / etc
@@ -141,7 +144,7 @@ def register(mcp: FastMCP):
         """
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
-            return f"Error: invalid URL {url!r}"
+            return error_verdict(f"invalid URL {url!r}", vuln_type="auth_bypass")
 
         path = parsed.path or "/"
         # Baseline — unauthenticated (no cookies/bearer here unless caller passed)
@@ -154,7 +157,10 @@ def register(mcp: FastMCP):
 
         baseline = await _send(url, method, base_headers, body)
         if "error" in baseline:
-            return f"Error (baseline): {baseline['error']}"
+            return error_verdict(
+                f"baseline failed: {baseline['error']}",
+                vuln_type="auth_bypass",
+            )
 
         base_status = baseline.get("status_code", 0)
         base_len = baseline.get("response_length", 0)
@@ -169,7 +175,10 @@ def register(mcp: FastMCP):
         if base_status in (200, 302):
             lines.append("[!] Baseline returned 200/302 — URL is not protected. "
                          "Pick a 401/403 endpoint to make this test meaningful.")
-            return "\n".join(lines)
+            return error_verdict(
+                f"baseline already 200/302 — URL not protected, test invalid",
+                vuln_type="auth_bypass",
+            ) | {"human_summary": "\n".join(lines)}
 
         # ── Header axis ──
         header_tasks: list[asyncio.Task] = []
@@ -270,4 +279,33 @@ def register(mcp: FastMCP):
             lines.append("No bypass detected — auth checks appear consistent across "
                          "header / path / method mutations.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        # Re-extract logger indices from output via regex.
+        import re
+        logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:10]
+
+        if len(bypasses) >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"auth bypass confirmed via {len(bypasses)} axes — {base_status} -> 200/302"
+        elif len(bypasses) == 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"single axis flipped {base_status} -> 200/302: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "auth checks consistent across header / path / method mutations"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="auth_bypass",
+            logger_indices=logger_indices,
+            details={
+                "url": url, "baseline_status": base_status,
+                "bypasses": bypasses,
+                "axes_run": [
+                    a for a, skip in [("headers", skip_headers),
+                                      ("paths", skip_paths),
+                                      ("methods", skip_methods)] if not skip
+                ],
+            },
+            summary=human,
+        )
