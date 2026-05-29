@@ -18,6 +18,7 @@ Submodules:
 
 from mcp.server.fastmcp import FastMCP
 
+from burpsuite_mcp.tools.advisor import _cvss4
 from burpsuite_mcp.tools.advisor.assess import assess_finding_impl
 from burpsuite_mcp.tools.advisor.hunt_plan import get_hunt_plan_impl
 from burpsuite_mcp.tools.advisor.next_action import get_next_action_impl
@@ -132,6 +133,66 @@ def register(mcp: FastMCP):
             session_name=session_name,
             intensity=intensity,
         )
+
+    @mcp.tool()
+    async def compute_cvss(
+        vuln_type: str,
+        requires_auth: bool = False,
+        requires_admin: bool = False,
+        requires_interaction: bool = False,
+        oob_only: bool = False,
+        subsequent_impact: str = "",
+        exploit_maturity: str = "X",
+        env_overrides: dict | None = None,
+    ) -> dict:
+        """Build CVSS 4.0 + CVSS 3.1 vectors for a finding, with categorical severity band.
+
+        Returns {cvss4_vector, cvss4_macrovector, cvss4_band, cvss31_vector,
+        suggested_overrides, note}. Operator-owned: caller passes finding shape
+        flags (requires_auth, requires_interaction, subsequent_impact) and any
+        Threat/Environmental metric overrides via env_overrides (e.g. {"E":"A","CR":"H"}).
+
+        Args:
+            vuln_type: Vulnerability type (sqli, xss, ssrf, idor, ...). Falls
+                back to info_disclosure default if unknown.
+            requires_auth: True → PR:L. requires_admin → PR:H.
+            requires_interaction: True → UI:A (Active victim action).
+            oob_only: True → AT:P + AC:H (Attack Requirements present, complex).
+            subsequent_impact: "high" → SC:H SI:H SA:H (scope change).
+            exploit_maturity: CVSS 4.0 E metric — A (Attacked) / P (PoC) / U
+                (Unreported) / X (Not Defined, default).
+            env_overrides: optional dict of valid 4.0 metric:value (E, CR, IR,
+                AR, MAV, ...). Invalid entries silently dropped.
+        """
+        evidence = {
+            "requires_auth": requires_auth,
+            "requires_admin": requires_admin,
+            "requires_interaction": requires_interaction,
+            "oob_only": oob_only,
+            "subsequent_impact": subsequent_impact,
+        }
+        env = dict(env_overrides or {})
+        if exploit_maturity and exploit_maturity != "X":
+            env["E"] = exploit_maturity
+        try:
+            v4 = _cvss4.build_vector(vuln_type, evidence=evidence, env=env)
+            parsed = _cvss4.parse_vector(v4)
+            mv = _cvss4.macrovector(parsed)
+            band = _cvss4.band_from_macrovector(mv)
+            v31 = _cvss4.to_cvss31_vector(parsed)
+            return {
+                "cvss4_vector": v4,
+                "cvss4_macrovector": mv,
+                "cvss4_band": band,
+                "cvss31_vector": v31,
+                "note": (
+                    "cvss4_band is APPROXIMATE — derived from MacroVector "
+                    "equivalence classes. For exact numeric score, install "
+                    "the `cvss` pip package and call cvss.CVSS4(vector).base_score."
+                ),
+            }
+        except ValueError as exc:
+            return {"error": str(exc), "vuln_type": vuln_type}
 
     @mcp.tool()
     async def pick_tool(task: str) -> str:

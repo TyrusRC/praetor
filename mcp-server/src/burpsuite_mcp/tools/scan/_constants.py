@@ -39,6 +39,12 @@ _REFERENCE_ONLY = {
     # W6 (2026-05-24) — CI/CD pipeline attacks probed via binary tools
     # (poutine / octoscan), not HTTP-shaped matchers.
     "ci_actions_injection",
+    # W7 (2026-05-29) — needs raw H2 transport (CONNECT method);
+    # auto_probe uses standard HTTP client.
+    "http2_connect_portscan",
+    # W7 — RCE primitive needs attacker-hosted WSDL + XSD chain; not
+    # single-request fuzzable. Reference-only until operator-driven flow lands.
+    "soapwn",
     # NOTE: mcp_server_attacks / rag_injection / ai_prompt_injection promoted
     # to active auto_probe in v1.0 (active LLM/MCP probes — Wave 5).
 }

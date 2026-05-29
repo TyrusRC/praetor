@@ -1,0 +1,53 @@
+{
+  "category": "xsleak_redirect",
+  "description": "XSS-Leak via Cross-Origin Redirects (PortSwigger Top 10 / 2025, #8 — Abello). Chrome's network connection-pool exhibits an observable oracle when a cross-origin request triggers a redirect to a same-origin URL. By exhausting the per-host TCP socket pool and timing pool reclaim, attacker infers the redirect target — leaking per-victim state (logged-in user, role, multi-tenant slug, OAuth flow position).",
+  "contexts": {
+    "redirect_target_leak_via_pool": {
+      "description": "Sensitive endpoint that redirects to per-user URL (e.g. /me redirects to /u/<username>, /dashboard redirects to /org/<slug>). Attacker site triggers fetch + measures connection-pool stall to learn redirect target.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Confirm endpoint emits a 3xx with Location pointing to per-user path. Without Cache-Control: no-store / Vary: Cookie this is XS-leakable via connection-pool timing in Chrome.",
+          "matchers": [
+            {"type": "status", "status": [301, 302, 303, 307, 308]},
+            {"type": "header", "name": "Location", "contains": ""}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_chain": true, "note": "Verify Location varies with session — if so, XS-leak via pool exhaustion is possible."}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe redirect chain length — attacker exhausts the connection pool to host X, observes whether victim's redirect resolves through pool stall. Multi-hop redirects amplify the timing signal.",
+          "matchers": [
+            {"type": "status", "status": [301, 302, 303, 307, 308]},
+            {"type": "header", "name": "Location", "regex": "^https?://"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "oauth_state_via_pool": {
+      "description": "OAuth/OIDC implicit/code flow redirects expose per-user state. XS-leak the redirect_uri target via connection-pool oracle to learn whether victim is logged-in to the IdP or which provider was used.",
+      "tech_match": ["oauth", "oidc"],
+      "param_match": ["redirect_uri", "state", "code"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "OAuth start endpoint (/authorize, /oauth/login) — measure cross-origin redirect chain length / target hostname via Chrome pool timing. Discloses whether user is already authenticated.",
+          "matchers": [
+            {"type": "status", "status": [302, 303]},
+            {"type": "header", "name": "Location", "contains": ""}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    }
+  }
+}

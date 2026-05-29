@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**122 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**137 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -13,7 +13,17 @@ Split categories:
 - `graphql` → `graphql.json` + `graphql_engines.json`
 - `cloud` → `cloud_webapp.json` + `cloud_storage_misconfig.json`, `cloud_function_url.json`, `cloud_api_gateway.json`
 
-**Reference-only (manual tooling, not auto-probed):** captcha_bypass, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks, mobile_deeplink, race_condition, rag_injection, request_smuggling, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
+**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks (promoted), mobile_deeplink, race_condition, rag_injection (promoted), request_smuggling, saml_xsw, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
+
+## 2026-05-29 W7 additions (PortSwigger Top 10 of 2025)
+
+| Category | Source | Status | Notes |
+|---|---|---|---|
+| `http2_connect_portscan` | Top10 / 2025 #9 (flomb) | ref-only | Needs raw H2 CONNECT — use `send_raw_request`. |
+| `etag_xsleak` | Top10 / 2025 #6 (Kaneko) | active | Length / hash / If-None-Match oracles. |
+| `xsleak_redirect` | Top10 / 2025 #8 (Abello) | active | Connection-pool oracle on cross-origin redirects. |
+| `parser_differential` | Top10 / 2025 #10 (joernchen) | active | URL/header/JSON parser disagreement → ACL bypass + privesc. |
+| `soapwn` | Top10 / 2025 #5 (Bazydlo) | ref-only | .NET SOAP client + hostile WSDL → RCE; needs attacker-hosted WSDL. |
 
 ## How to query
 

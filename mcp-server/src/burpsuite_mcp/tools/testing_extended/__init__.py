@@ -27,6 +27,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools.testing_extended import (
     api_schema,
+    business_invariants,
     business_logic,
     cache_poisoning,
     content_type_switch,
@@ -47,6 +48,7 @@ from burpsuite_mcp.tools.testing_extended import (
 
 def register(mcp: FastMCP):
     api_schema.register(mcp)
+    business_invariants.register(mcp)
     business_logic.register(mcp)
     host_header.register(mcp)
     crlf.register(mcp)

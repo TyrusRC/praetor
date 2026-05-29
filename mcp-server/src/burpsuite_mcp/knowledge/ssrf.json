@@ -46,11 +46,18 @@
         },
         {
           "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-          "description": "AWS IAM credentials endpoint \u2014 role name in response reveals attached IAM role",
+          "description": "AWS IAM credentials endpoint \u2014 role name in response reveals attached IAM role. Follow-up GET reveals AccessKeyId / SecretAccessKey / Token.",
           "matchers": [
             {
-              "type": "regex",
-              "pattern": "[A-Za-z0-9_-]{1,64}"
+              "type": "word",
+              "words": [
+                "AccessKeyId",
+                "SecretAccessKey",
+                "Token",
+                "arn:aws:iam",
+                "iam-role-name"
+              ],
+              "condition": "or"
             }
           ],
           "severity": "critical",
@@ -239,7 +246,7 @@
           "matchers": [
             {
               "type": "length_diff",
-              "min_diff": 0
+              "min_diff": 100
             }
           ],
           "severity": "high",
@@ -361,7 +368,7 @@
           "matchers": [
             {
               "type": "length_diff",
-              "min_diff": 0
+              "min_diff": 100
             }
           ],
           "severity": "high",

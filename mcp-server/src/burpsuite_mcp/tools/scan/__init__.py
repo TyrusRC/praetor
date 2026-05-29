@@ -38,6 +38,7 @@ from . import auto_probe as _auto_probe
 from . import bsearch_params as _bsearch_params
 from . import discovery as _discovery
 from . import quick_probes as _quick_probes
+from . import rank_targets as _rank_targets
 from . import recon_full as _recon_full
 
 
@@ -48,3 +49,4 @@ def register(mcp: FastMCP) -> None:
     _quick_probes.register(mcp)
     _recon_full.register(mcp)
     _bsearch_params.register(mcp)
+    _rank_targets.register(mcp)
