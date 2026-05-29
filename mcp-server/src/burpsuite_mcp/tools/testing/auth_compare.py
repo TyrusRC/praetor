@@ -5,6 +5,7 @@ import asyncio
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from ._verdict import error_verdict, make_verdict
 
 
 def register(mcp: FastMCP):
@@ -17,8 +18,10 @@ def register(mcp: FastMCP):
         original_token: str = "",
         alt_token: str = "",
         remove_auth: bool = False,
-    ) -> str:
+    ) -> dict:
         """Compare responses between auth states to detect IDOR/auth bypass.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             index: Proxy history index of the request to test
@@ -61,9 +64,9 @@ def register(mcp: FastMCP):
         )
 
         if "error" in data1:
-            return f"Error (request 1): {data1['error']}"
+            return error_verdict(f"request 1 failed: {data1['error']}", vuln_type="idor")
         if "error" in data2:
-            return f"Error (request 2): {data2['error']}"
+            return error_verdict(f"request 2 failed: {data2['error']}", vuln_type="idor")
 
         status1 = data1.get("status_code", 0)
         status2 = data2.get("status_code", 0)
@@ -98,4 +101,28 @@ def register(mcp: FastMCP):
         lines.append(body1[:500] if body1 else "(empty)")
         lines.append(f"\n--- Response 2 (first 500 chars) ---")
         lines.append(body2[:500] if body2 else "(empty)")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        identical = body1 == body2 and status1 == status2
+        similar = status1 == status2 and abs(length1 - length2) < 50
+        if identical:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = "auth states yield identical response — missing auth check (IDOR/BAC)"
+        elif similar:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"both states yield status {status1} with similar length (delta {abs(length1-length2)}B)"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = f"auth states differ correctly ({status1} vs {status2})"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="idor",
+            details={
+                "index": index,
+                "status_1": status1, "status_2": status2,
+                "length_1": length1, "length_2": length2,
+                "bodies_identical": body1 == body2,
+            },
+            summary=human,
+        )

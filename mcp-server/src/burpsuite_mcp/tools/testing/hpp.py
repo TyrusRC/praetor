@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._format import fmt_size
+from ._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 def register(mcp: FastMCP):
@@ -17,8 +18,10 @@ def register(mcp: FastMCP):
         original_value: str,
         polluted_values: list[str],
         locations: list[str] | None = None,
-    ) -> str:
+    ) -> dict:
         """Test HTTP Parameter Pollution across query, body, and mixed positions.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Session name
@@ -38,7 +41,7 @@ def register(mcp: FastMCP):
         }
         data = await client.post("/api/attack/hpp", json=payload)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return error_verdict(str(data["error"]), vuln_type="hpp")
 
         lines = [f"HPP Test: {data['variants_tested']} variants"]
         lines.append(f"Baseline: {data['baseline_status']} ({fmt_size(data['baseline_length'])})\n")
@@ -57,4 +60,19 @@ def register(mcp: FastMCP):
         if anomalies:
             lines.append(f"\n{anomalies} anomalies found — backend may parse polluted parameters differently")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        verdict, confidence = verdict_from_tally(int(anomalies))
+        ev = (f"HPP anomalies across {anomalies} polluted variant(s) — backend parses differently"
+              if anomalies else "no HPP anomalies — backend parsing consistent across locations")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="hpp",
+            details={
+                "base_path": base_path,
+                "parameter": parameter,
+                "variants_tested": data.get("variants_tested"),
+                "anomalies_found": anomalies,
+            },
+            summary=human,
+        )
