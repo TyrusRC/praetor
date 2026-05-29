@@ -27,6 +27,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools.testing import _h2_lowlevel
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def register(mcp: FastMCP):
@@ -38,8 +39,10 @@ def register(mcp: FastMCP):
         suspect_request: dict,
         pairs: int = 5,
         threshold_ms: int = 100,
-    ) -> str:
+    ) -> dict:
         """Compare two requests' relative completion time across N pairs in single H2 connections.
+
+        Returns VerdictResult (W7 schema).
 
         baseline_request and suspect_request differ only in the payload bit being tested.
         Each "pair" is fired as two H2 streams in one connection — jitter affects both
@@ -55,19 +58,22 @@ def register(mcp: FastMCP):
             threshold_ms: Minimum suspect-minus-baseline delta to count as anomaly.
         """
         if pairs < 1:
-            return "Error: pairs must be ≥ 1"
+            return error_verdict("pairs must be >= 1", vuln_type="timing")
         pairs = min(pairs, 20)
 
         # Scope
         scope = await client.check_scope(target_url)
         if "error" in scope:
-            return f"Error: scope check failed: {scope['error']}"
+            return error_verdict(f"scope check failed: {scope['error']}", vuln_type="timing")
         if not scope.get("in_scope", False):
-            return f"Error: {target_url} not in scope"
+            return error_verdict(f"{target_url} not in scope", vuln_type="timing")
 
         parsed = urlparse(target_url)
         if parsed.scheme != "https":
-            return "Error: timeless timing requires HTTPS (HTTP/2 ALPN)."
+            return error_verdict(
+                "timeless timing requires HTTPS (HTTP/2 ALPN)",
+                vuln_type="timing",
+            )
         host = parsed.hostname or ""
         port = parsed.port or 443
 
@@ -103,7 +109,10 @@ def register(mcp: FastMCP):
                 base_t, susp_t = await asyncio.to_thread(_pair_run)
                 results.append((base_t, susp_t))
             except Exception as e:
-                return f"Error on pair #{i}: {type(e).__name__}: {e}"
+                return error_verdict(
+                    f"pair #{i} failed: {type(e).__name__}: {e}",
+                    vuln_type="timing",
+                )
 
         lines = [
             f"probe_timeless_timing {target_url}",
@@ -136,4 +145,27 @@ def register(mcp: FastMCP):
             lines.append("This is jitter-immune evidence. Strong candidate for time-based SQLi / SSTI / XXE / RCE.")
         else:
             lines.append("\nNo confirmed timing differential. Either no vuln OR the payload didn't trigger differential processing on this endpoint.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        if hits >= confirm_floor:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"timeless timing anomaly: {hits}/{pairs} pairs above {threshold_ms}ms (jitter-immune)"
+        elif hits > 0:
+            verdict, confidence = "SUSPECTED", 0.5
+            ev = f"timing anomaly in {hits}/{pairs} pairs (below confirm threshold {confirm_floor})"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no timing differential — payload did not trigger differential processing"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="timing",
+            details={
+                "target_url": target_url,
+                "pairs": pairs,
+                "threshold_ms": threshold_ms,
+                "hits": hits,
+                "confirm_floor": confirm_floor,
+            },
+            summary=human,
+        )

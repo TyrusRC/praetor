@@ -16,6 +16,7 @@ from copy import deepcopy
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 def _get_path(obj, path: list[str]):
@@ -56,8 +57,10 @@ def register(mcp: FastMCP):
         place_request: dict,
         items_json_path: str,
         mutation_strategy: str = "all",
-    ) -> str:
+    ) -> dict:
         """Mutate line items between cart-quote and order-place to find microservice trust mismatch.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session.
@@ -79,7 +82,7 @@ def register(mcp: FastMCP):
             "body": q_body,
         })
         if "error" in quote:
-            return f"Error on quote step: {quote['error']}"
+            return error_verdict(f"quote step failed: {quote['error']}", vuln_type="business_logic")
         q_status = quote.get("status", 0)
         try:
             q_json = json.loads(quote.get("response_body", "{}"))
@@ -99,14 +102,23 @@ def register(mcp: FastMCP):
             try:
                 place_body = json.loads(place_body)
             except Exception:
-                return "Error: place_request.body must be JSON-parseable"
+                return error_verdict(
+                    "place_request.body must be JSON-parseable",
+                    vuln_type="business_logic",
+                )
         if not isinstance(place_body, dict):
-            return "Error: place_request.body must be a JSON object"
+            return error_verdict(
+                "place_request.body must be a JSON object",
+                vuln_type="business_logic",
+            )
 
         path_parts = items_json_path.split(".")
         items = _get_path(place_body, path_parts)
         if items is None or not isinstance(items, list):
-            return f"Error: items not found at path '{items_json_path}' or not a list. body keys: {list(place_body.keys())}"
+            return error_verdict(
+                f"items not found at path {items_json_path!r} or not a list (body keys: {list(place_body.keys())})",
+                vuln_type="business_logic",
+            )
 
         canonical_place = await client.post("/api/session/request", json={
             "session": session,
@@ -116,7 +128,10 @@ def register(mcp: FastMCP):
             "body": json.dumps(place_body),
         })
         if "error" in canonical_place:
-            return f"Error on canonical place step: {canonical_place['error']}"
+            return error_verdict(
+                f"canonical place step failed: {canonical_place['error']}",
+                vuln_type="business_logic",
+            )
         cp_status = canonical_place.get("status", 0)
         cp_body = canonical_place.get("response_body", "")
         cp_len = len(cp_body)
@@ -124,7 +139,10 @@ def register(mcp: FastMCP):
 
         if not (200 <= cp_status < 300):
             lines.append("\nCanonical place step did not return 2xx. Workflow may be misconfigured.")
-            return "\n".join(lines)
+            return error_verdict(
+                f"canonical place returned {cp_status}; workflow misconfigured",
+                vuln_type="business_logic",
+            ) | {"human_summary": "\n".join(lines)}
 
         # Mutations
         mutations: list[tuple[str, list]] = []
@@ -220,4 +238,22 @@ def register(mcp: FastMCP):
             lines.append("\nVerify by inspecting the persistent order record vs the charged amount.")
         else:
             lines.append("No line-item mutation accepted.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        trust_split = sum(1 for f in findings if "TRUST_SPLIT" in f.upper())
+        if trust_split:
+            verdict, confidence = "CONFIRMED", 0.9
+            ev = f"microservice trust split: {trust_split} mutation(s) accepted with stale quote total"
+        elif findings:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"{len(findings)} line-item mutation(s) accepted — verify charged amount vs persisted order"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no line-item mutation accepted — quote-to-place trust intact"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="business_logic",
+            details={"findings": findings, "trust_split_count": trust_split},
+            summary=human,
+        )

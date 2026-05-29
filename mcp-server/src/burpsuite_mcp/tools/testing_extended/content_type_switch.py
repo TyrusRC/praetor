@@ -14,6 +14,7 @@ import uuid as _uuid
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 def _to_form(d: dict) -> str:
@@ -56,8 +57,10 @@ def register(mcp: FastMCP):
         body: dict,
         method: str = "POST",
         xml_root: str = "request",
-    ) -> str:
+    ) -> dict:
         """Replay the same body across JSON / form / multipart / XML / plain to find parser-trust mismatch.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session.
@@ -74,7 +77,10 @@ def register(mcp: FastMCP):
             "body": json_body,
         })
         if "error" in baseline:
-            return f"Error on JSON baseline: {baseline['error']}"
+            return error_verdict(
+                f"JSON baseline failed: {baseline['error']}",
+                vuln_type="content_type_confusion",
+            )
         b_status = baseline.get("status", 0)
         b_len = len(baseline.get("response_body", ""))
         b_body = baseline.get("response_body", "")
@@ -142,4 +148,18 @@ def register(mcp: FastMCP):
             lines.append("\nRisk: server uses different parsers per content-type and validators may not cover all of them. Verify with parameter-pollution / mass-assignment payloads in the accepted variant.")
         else:
             lines.append("No content-type parser divergence detected.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        verdict, confidence = verdict_from_tally(len(findings))
+        ev = (f"content-type parser divergence: {len(findings)} variant(s) accepted differently"
+              if findings else "no parser divergence across JSON / form / multipart / XML / plain")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="content_type_confusion",
+            details={
+                "endpoint": endpoint, "method": method,
+                "findings": [(label, ct) for label, ct, _ in findings],
+            },
+            summary=human,
+        )
