@@ -15,6 +15,7 @@ from . import (
     login_bypass as _login_bypass,
     mfa_bypass as _mfa_bypass,
     reset_tokens as _reset_tokens,
+    oauth_flow as _oauth_flow,
 )
 
 
@@ -25,3 +26,4 @@ def register(mcp: FastMCP):
     _login_bypass.register(mcp)
     _mfa_bypass.register(mcp)
     _reset_tokens.register(mcp)
+    _oauth_flow.register(mcp)
