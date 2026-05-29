@@ -108,3 +108,31 @@ def error_verdict(message: str, *, vuln_type: str | None = None) -> dict[str, An
         details={"error": message},
         summary=message,
     )
+
+
+def verdict_from_tally(
+    hits: int,
+    *,
+    confirmed_threshold: int = 2,
+    confirmed_confidence: float = 0.85,
+    suspected_confidence: float = 0.55,
+    failed_confidence: float = 0.10,
+) -> tuple[str, float]:
+    """Common pattern: derive (verdict, confidence) from a count of positive hits.
+
+    Used across ~20 testing tools where the canonical mapping is:
+        hits >= 2 → CONFIRMED (0.85)
+        hits == 1 → SUSPECTED (0.55)
+        hits == 0 → FAILED    (0.10)
+
+    Tools needing custom thresholds pass their own values; tools needing
+    custom verdict logic (e.g. CONFIRMED only when a CRITICAL subset is hit)
+    keep using make_verdict directly.
+
+    Returns: (verdict_string, confidence_float).
+    """
+    if hits >= confirmed_threshold:
+        return ("CONFIRMED", confirmed_confidence)
+    if hits >= 1:
+        return ("SUSPECTED", suspected_confidence)
+    return ("FAILED", failed_confidence)

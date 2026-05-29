@@ -5,6 +5,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.testing_extended._helpers import (
     confirm_timing_anomaly,
     resolve_host_from,
@@ -15,7 +16,7 @@ from burpsuite_mcp.tools.testing_extended._helpers import (
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def test_request_smuggling(session: str, path: str = "/") -> str:
+    async def test_request_smuggling(session: str, path: str = "/") -> dict:
         """Test for HTTP request smuggling (CL.TE, TE.CL, TE.TE) using safe timing-based detection.
 
         Args:
@@ -26,7 +27,7 @@ def register(mcp: FastMCP):
             "session": session, "method": "GET", "path": path,
         })
         if "error" in baseline:
-            return f"Error: {baseline['error']}"
+            return error_verdict(f"baseline failed: {baseline['error']}", vuln_type="request_smuggling")
 
         target_url = baseline.get("url", "")
         baseline_time = baseline.get("response_time", 0)
@@ -37,7 +38,7 @@ def register(mcp: FastMCP):
 
         host, port, is_https, err = await resolve_host_from(target_url, session)
         if err:
-            return f"Error: {err}"
+            return error_verdict(str(err), vuln_type="request_smuggling")
 
         scope_err = await scope_or_error(host, is_https, port)
         if scope_err:
@@ -179,4 +180,17 @@ def register(mcp: FastMCP):
         else:
             lines.append("No request smuggling indicators detected.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        if findings:
+            verdict, confidence = "SUSPECTED", 0.65
+            ev = f"potential smuggling: {', '.join(findings)} — verify with Collaborator + repeated timing"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no request smuggling indicators across CL.TE / TE.CL / TE.TE"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="request_smuggling",
+            details={"path": path, "findings": findings},
+            summary=human,
+        )

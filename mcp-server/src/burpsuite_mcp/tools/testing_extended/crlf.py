@@ -3,13 +3,14 @@
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.testing_extended._helpers import scope_or_error
 
 
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def test_crlf_injection(session: str, path: str, parameter: str = "") -> str:
+    async def test_crlf_injection(session: str, path: str, parameter: str = "") -> dict:
         """Test for CRLF injection and HTTP response splitting in URL path or parameters.
 
         Args:
@@ -27,10 +28,10 @@ def register(mcp: FastMCP):
 
         host_info = await client.get_session_last_host(session)
         if "error" in host_info:
-            return f"Error: {host_info['error']}"
+            return error_verdict(f"host lookup failed: {host_info['error']}", vuln_type="crlf_injection")
         scope_err = await scope_or_error(host_info["host"], host_info.get("https", True), host_info.get("port", 443))
         if scope_err:
-            return scope_err
+            return error_verdict(str(scope_err), vuln_type="crlf_injection")
 
         lines = [f"CRLF Injection Tests: {path}"]
         if parameter:
@@ -87,4 +88,18 @@ def register(mcp: FastMCP):
         else:
             lines.append("No CRLF injection detected.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        if findings:
+            verdict, confidence = "CONFIRMED", 0.8
+            ev = f"CRLF injection: {len(findings)}/{len(payloads)} payloads injected header or body"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no CRLF injection detected across encoding variants"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="crlf_injection",
+            details={"path": path, "parameter": parameter,
+                     "payloads_succeeded": [p for p, _ in findings]},
+            summary=human,
+        )

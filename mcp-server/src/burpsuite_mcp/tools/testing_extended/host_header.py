@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.testing_extended._helpers import (
     resolve_host_from,
     scope_or_error,
@@ -12,7 +13,7 @@ from burpsuite_mcp.tools.testing_extended._helpers import (
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def test_host_header(session: str, path: str = "/") -> str:
+    async def test_host_header(session: str, path: str = "/") -> dict:
         """Test Host header injection via alternate host, X-Forwarded-Host, X-Original-URL, and variants.
 
         Args:
@@ -26,13 +27,13 @@ def register(mcp: FastMCP):
             "session": session, "method": "GET", "path": path,
         })
         if "error" in baseline:
-            return f"Error getting baseline: {baseline['error']}"
+            return error_verdict(f"baseline failed: {baseline['error']}", vuln_type="host_header")
         baseline_body = baseline.get("response_body", "")
         baseline_status = baseline.get("status", 0)
 
         host, port, is_https, err = await resolve_host_from(baseline.get("url", ""), session)
         if err:
-            return f"Error: {err}"
+            return error_verdict(str(err), vuln_type="host_header")
         scope_err = await scope_or_error(host, is_https, port)
         if scope_err:
             return scope_err
@@ -101,4 +102,20 @@ def register(mcp: FastMCP):
         else:
             lines.append("No host header injection detected.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        if len(findings) >= 2:
+            verdict, confidence = "CONFIRMED", 0.8
+            ev = f"host header injection across {len(findings)} variant(s)"
+        elif findings:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"single host-header variant: {findings[0][0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no host header injection detected"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="host_header",
+            details={"path": path, "findings": [n for n, _ in findings]},
+            summary=human,
+        )
