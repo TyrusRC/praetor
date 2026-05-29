@@ -21,6 +21,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools.mutate import generate_variants
+from ._verdict import error_verdict, make_verdict
 
 
 def _inject(
@@ -199,8 +200,10 @@ def register(mcp: FastMCP) -> None:
         max_iters: int = 30,
         early_stop: bool = True,
         concurrency: int = 5,
-    ) -> str:
+    ) -> dict:
         """Feedback-driven mutation loop for WAF/filter bypass discovery.
+
+        Returns VerdictResult (W7 schema).
 
         Sends one clean baseline, then up to `max_iters` mutated variants of
         `seed`, scoring each against `signals`. Returns ranked hits with
@@ -230,18 +233,27 @@ def register(mcp: FastMCP) -> None:
             concurrency: Parallel in-flight requests (default 5).
         """
         if not seed:
-            return "Error: seed payload is required."
+            return error_verdict("seed payload is required", vuln_type="fuzz_feedback")
         if not signals or not isinstance(signals, dict):
-            return "Error: signals dict is required (status_in / regex / length_delta_min / etc.)."
+            return error_verdict(
+                "signals dict is required (status_in / regex / length_delta_min / ...)",
+                vuln_type="fuzz_feedback",
+            )
 
         baseline_resp = await _send(method, url, headers, body, cookies)
         baseline = _normalize(baseline_resp)
         if baseline.get("error"):
-            return f"Error sending baseline: {baseline['error']}"
+            return error_verdict(
+                f"baseline failed: {baseline['error']}",
+                vuln_type="fuzz_feedback",
+            )
 
         variants = generate_variants(seed, classes=mutation_classes, count=max_iters)
         if not variants:
-            return "Error: no variants generated. Pass a non-empty seed and valid mutation classes."
+            return error_verdict(
+                "no variants generated — pass a non-empty seed and valid mutation classes",
+                vuln_type="fuzz_feedback",
+            )
 
         sem = asyncio.Semaphore(max(1, concurrency))
         results: list[dict] = []
@@ -301,7 +313,13 @@ def register(mcp: FastMCP) -> None:
                 lines.append("\nTop-3 non-hit responses (for triage):")
                 for r in top:
                     lines.append(f"  [{r['mutation_class']}/{r['mutator']}] status={r.get('status', '?')} len={r.get('length', '?')} delta={r.get('length', 0) - baseline['length']:+d}")
-            return "\n".join(lines)
+            return make_verdict(
+                "FAILED", 0.1,
+                "no variants matched any signal — try different mutation_classes or escalate to manual craft",
+                vuln_type="fuzz_feedback",
+                details={"variants_sent": sent, "best_score": 0},
+                summary="\n".join(lines),
+            )
 
         lines.append(f"Hits: {len(hits)}\n")
         for r in hits[:20]:
@@ -313,4 +331,35 @@ def register(mcp: FastMCP) -> None:
             lines.append(f"           variant: {r['variant']}")
             lines.append(f"           matched: {', '.join(r['matched'])}")
         lines.append("\nReplay the top variant via resend_with_modification(history_index) or save with save_finding(evidence={...}).")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        best_score = hits[0]["score"] if hits else 0
+        logger_indices = [
+            int(h["history_index"]) for h in hits[:5]
+            if isinstance(h.get("history_index"), int) and h["history_index"] >= 0
+        ]
+        # Score-based verdict mapping — fuzz_feedback signals are tunable so
+        # the actual semantic depends on operator-chosen thresholds. Treat
+        # >= 50 score as CONFIRMED (multiple strong signals); 1-49 SUSPECTED.
+        if best_score >= 50:
+            verdict, confidence = "CONFIRMED", min(0.9, 0.65 + best_score / 200)
+            ev = f"fuzz feedback: best variant scored {best_score} ({len(hits)} hits) — strong bypass candidate"
+        elif best_score > 0:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"fuzz feedback: best variant scored {best_score} ({len(hits)} hits) — partial signal, manual escalate"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "fuzz feedback: no signals matched"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="fuzz_feedback",
+            logger_indices=logger_indices,
+            details={
+                "url": url, "parameter": parameter, "seed": seed[:60],
+                "variants_sent": sent, "hits": len(hits),
+                "best_score": best_score,
+                "top_variant": hits[0]["variant"] if hits else None,
+            },
+            summary=human,
+        )

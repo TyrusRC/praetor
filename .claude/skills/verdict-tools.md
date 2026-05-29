@@ -95,9 +95,35 @@ The pretty text still flows to the operator via `result["human_summary"]`.
 
 When in doubt: if the tool's contract is "did vuln class X manifest on target Y", it should return a VerdictResult. Otherwise string is fine.
 
-## Coverage as of W13
+## Coverage as of W15
 
-31 testing tools refactored. Remaining string-return tools are mostly utility, aggregator, or wrapper families. See `MEMORY.md` `Praetor — W{N}` entries for the rolling count.
+**43 testing tools** return VerdictResult dict. All assessment-class tools converted. Remaining string-return tools fall into three intentional categories (see "When NOT to return a verdict"). See `MEMORY.md` `Praetor — W{N}` entries for the rolling count.
+
+## Ref-only KB policy (W15 audit)
+
+The following KBs are intentionally `_REFERENCE_ONLY` and will not be promoted to active auto_probe. Operator-driven payload guidance only.
+
+| KB | Why ref-only |
+|---|---|
+| `captcha_bypass` | Human-driven; can't auto-probe |
+| `ci_actions_injection` | Probed via poutine / octoscan binaries (W6 CI/CD wave) |
+| `dependency_confusion` | Registry side-channel, not target HTTP |
+| `desktop_electron` | Binary inspection via static-grep (W8) |
+| `h2_continuation_flood` | DoS class — Rule 5 hard block |
+| `http2_connect_portscan` | Needs raw H2 CONNECT transport |
+| `http3_quic` | Needs raw QUIC transport |
+| `kubernetes_exposed` | Network-level discovery; covered by W6 K8s tooling (kubescape / kube-hunter) |
+| `race_condition` | Covered by dedicated `test_race_condition` / `probe_race_*` tools |
+| `request_smuggling` | Covered by dedicated `test_request_smuggling` tool |
+| `saml_xsw` | Operator-built XML signature payloads |
+| `soapwn` | Needs attacker-hosted WSDL + XSD chain |
+| `source_code_exposure` | Covered by `discover_common_files` |
+| `tech_vulns` | CVE knowledge / W6 KEV-EPSS — not a probe set |
+| `web_cache_poisoning_dos` | DoS class — Rule 5 hard block |
+| `xs_leak` | Needs browser-side timing |
+| `zip_slip` | Upload-then-trigger two-step extraction observation |
+
+If a future operator asks "can we promote X?", consult this table first. Don't re-audit.
 
 ## Related
 

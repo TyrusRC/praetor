@@ -18,6 +18,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 _PATH_PATTERNS = [
@@ -75,8 +76,10 @@ def register(mcp: FastMCP):
         session: str = "",
         custom_paths: list[str] | None = None,
         trigger_methods: list[str] | None = None,
-    ) -> str:
+    ) -> dict:
         """Probe common scheduled-job / webhook / backfill paths for auth-less exposure.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             base_url: Target base URL (e.g. https://api.example.com).
@@ -98,9 +101,9 @@ def register(mcp: FastMCP):
         # Scope check
         scope_res = await client.check_scope(base_url + "/")
         if "error" in scope_res:
-            return f"Error: scope check failed: {scope_res['error']}"
+            return error_verdict(f"scope check failed: {scope_res['error']}", vuln_type="cron_backfill")
         if not scope_res.get("in_scope", False):
-            return f"Error: {base_url} not in scope"
+            return error_verdict(f"{base_url} not in scope", vuln_type="cron_backfill")
 
         lines = [f"probe_cron_backfill base_url={base_url}", f"Testing {len(paths)} paths × {len(trigger_methods)} methods", ""]
         findings: list[dict] = []
@@ -169,4 +172,19 @@ def register(mcp: FastMCP):
             lines.append("\nRisk: scheduled-job / webhook / queue endpoints exposed. Verify side effects (job triggered? queue popped?). Many of these are MEDIUM severity standalone, HIGH when chained with mass-mail / privilege actions.")
         else:
             lines.append("No auth-less scheduled-job endpoints detected.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        verdict, confidence = verdict_from_tally(len(findings))
+        ev = (f"cron / backfill: {len(findings)} auth-less scheduled-job paths reachable"
+              if findings else "no exposed scheduled-job / webhook / backfill paths")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="cron_backfill",
+            details={
+                "base_url": base_url,
+                "findings_count": len(findings),
+                "first_findings": [f.get("path") for f in findings[:5]],
+            },
+            summary=human,
+        )

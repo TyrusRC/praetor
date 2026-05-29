@@ -14,6 +14,7 @@ Strix-derived. Pure black-box.
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 _HEADERS_AND_VALUES = [
@@ -53,8 +54,10 @@ def register(mcp: FastMCP):
         method: str = "GET",
         body: str = "",
         pivot_value: str = "",
-    ) -> str:
+    ) -> dict:
         """Inject identity headers to detect edge-vs-internal trust split.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session (use an unprivileged user for max signal).
@@ -69,7 +72,10 @@ def register(mcp: FastMCP):
             "body": body,
         })
         if "error" in baseline:
-            return f"Error getting baseline: {baseline['error']}"
+            return error_verdict(
+                f"baseline failed: {baseline['error']}",
+                vuln_type="edge_internal_trust_split",
+            )
         b_status = baseline.get("status", 0)
         b_body = baseline.get("response_body", "")
         b_len = len(b_body)
@@ -131,4 +137,22 @@ def register(mcp: FastMCP):
                 lines.append("\nWeaker signals only (status/length/reflection). Worth manual review but not direct AuthZ bypass.")
         else:
             lines.append("No internal-header trust split detected.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        if flagged_strong:
+            verdict, confidence = "CONFIRMED", 0.8
+            ev = f"edge/internal trust split: {len(flagged_strong)} strong-signal header injections"
+        elif 'flagged_weak' in dir() and flagged_weak:
+            verdict, confidence = "SUSPECTED", 0.5
+            ev = "weak signals only (status/length/reflection) — manual review"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no internal-header trust split detected"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="edge_internal_trust_split",
+            details={"path": path, "method": method,
+                     "strong_hits": len(flagged_strong)},
+            summary=human,
+        )
