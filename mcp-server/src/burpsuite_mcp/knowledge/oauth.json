@@ -1249,6 +1249,65 @@
           }
         }
       ]
+    },
+    "par_request_uri_attacker_controlled_2025": {
+      "description": "PAR (Pushed Authorization Requests, RFC 9126) when supported but server allows fetch of request_uri from an attacker-controlled origin. Attacker submits /par to attacker server, then redirects victim to /authorize?request_uri=https://attacker/par-result — server fetches attacker-supplied parameters, overriding user intent. 2025 H2 PortSwigger research class.",
+      "tech_match": [
+        "oauth",
+        "oidc"
+      ],
+      "param_match": [
+        "request_uri"
+      ],
+      "probes": [
+        {
+          "payload": "http://{{collaborator}}/par-request.json",
+          "description": "Submit attacker request_uri to /authorize — auth server fetches it; Collaborator hit confirms server-side fetch of attacker URI.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction": "any"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "dpop_nonce_binding_skipped_2025": {
+      "description": "DPoP (RFC 9449) when server accepts proofs without enforcing nonce binding. Attacker captures victim DPoP proof, replays it at a different endpoint or after the iat window. 2025 H2 IETF OAuth WG erratum class.",
+      "tech_match": [
+        "oauth",
+        "oidc",
+        "dpop"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Replay a captured DPoP-bearing request after stripping the DPoP header — server should reject; if 200, DPoP not enforced. Alternative: replay across endpoint / after iat window.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_header",
+              "name": "DPoP-Nonce"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
     }
   },
   "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics)."
