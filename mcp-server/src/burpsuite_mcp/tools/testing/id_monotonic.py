@@ -18,6 +18,7 @@ import uuid as _uuid
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from ._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 # ULID alphabet — Crockford base32
@@ -107,8 +108,10 @@ def register(mcp: FastMCP):
         id_type: str = "auto",
         method: str = "GET",
         snowflake_epoch_ms: int = _SNOWFLAKE_EPOCH_MS,
-    ) -> str:
+    ) -> dict:
         """Enumerate IDs in a time-window around a known UUIDv1 / ULID / Snowflake.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session.
@@ -121,11 +124,14 @@ def register(mcp: FastMCP):
             snowflake_epoch_ms: Custom epoch for Snowflake decoder (default Twitter 2010-11-04).
         """
         if "{ID}" not in path_template:
-            return "Error: path_template must contain literal {ID}"
+            return error_verdict("path_template must contain literal {ID}", vuln_type="idor")
 
         kind = id_type if id_type != "auto" else _detect(seed_id)
         if kind == "unknown":
-            return f"Error: cannot detect ID type from '{seed_id}'. Pass id_type explicitly."
+            return error_verdict(
+                f"cannot detect ID type from {seed_id!r}; pass id_type explicitly",
+                vuln_type="idor",
+            )
 
         # Generate candidate IDs
         candidates: list[tuple[int, str]] = []  # (time_delta, id)
@@ -163,7 +169,7 @@ def register(mcp: FastMCP):
             "session": session, "method": method, "path": seed_path,
         })
         if "error" in baseline:
-            return f"Error on seed probe: {baseline['error']}"
+            return error_verdict(f"seed probe failed: {baseline['error']}", vuln_type="idor")
         b_status = baseline.get("status", 0)
         b_len = len(baseline.get("response_body", ""))
 
@@ -200,4 +206,19 @@ def register(mcp: FastMCP):
         else:
             lines.append("No additional valid IDs found in window.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        verdict, confidence = verdict_from_tally(len(hits))
+        ev = (f"monotonic-ID IDOR: {len(hits)} foreign records reachable in window of {len(candidates)} "
+              f"(kind={kind})" if hits else "no IDOR — monotonic-ID window probed clean")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="idor",
+            details={
+                "path_template": path_template,
+                "id_type": kind,
+                "hits": len(hits),
+                "window_probed": len(candidates),
+            },
+            summary=human,
+        )

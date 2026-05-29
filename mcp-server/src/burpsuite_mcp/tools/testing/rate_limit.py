@@ -10,6 +10,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from ._verdict import make_verdict
 
 
 def register(mcp: FastMCP):
@@ -21,8 +22,10 @@ def register(mcp: FastMCP):
         path: str,
         requests_count: int = 30,
         delay_ms: int = 0,
-    ) -> str:
+    ) -> dict:
         """Test rate limiting on an endpoint with rapid requests, then try bypass headers if limited.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Session name
@@ -127,4 +130,26 @@ def register(mcp: FastMCP):
         else:
             lines.append(f"  Result: No rate limiting after {requests_count} requests.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        # "rate_limit" finding is itself a low/medium standalone (NEVER_SUBMIT
+        # on non-sensitive endpoints per Rule 17). CONFIRMED when no rate
+        # limiting on a state-changing endpoint; SUSPECTED on bypass via
+        # forged headers.
+        if not rate_limited:
+            verdict, confidence = "CONFIRMED", 0.7
+            ev = f"no rate limiting after {requests_count} requests — submit only if endpoint is sensitive (login/reset/MFA)"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = f"rate limited after {rate_limit_at} requests"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="rate_limit",
+            details={
+                "path": path, "method": method,
+                "requests_count": requests_count,
+                "rate_limited": rate_limited,
+                "rate_limit_at": rate_limit_at,
+            },
+            summary=human,
+        )

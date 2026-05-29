@@ -17,6 +17,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from ._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 def _path_variants(path: str) -> list[str]:
@@ -67,8 +68,10 @@ def register(mcp: FastMCP):
         graphql_endpoints: list[str] | None = None,
         ws_endpoints: list[str] | None = None,
         graphql_resource_name: str = "",
-    ) -> str:
+    ) -> dict:
         """Replay a known REST IDOR across alternate transports / paths.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session (attacker — should NOT own victim_id).
@@ -86,7 +89,7 @@ def register(mcp: FastMCP):
             "session": session, "method": rest_method, "path": target_path,
         })
         if "error" in rest:
-            return f"Error confirming REST baseline: {rest['error']}"
+            return error_verdict(f"REST baseline failed: {rest['error']}", vuln_type="idor")
         rest_status = rest.get("status", 0)
         rest_body = rest.get("response_body", "")
 
@@ -98,7 +101,10 @@ def register(mcp: FastMCP):
         ]
         if not rest_ok:
             lines.append("REST baseline does not confirm IDOR. Verify the finding before testing other transports.")
-            return "\n".join(lines)
+            return error_verdict(
+                f"REST baseline status {rest_status} — IDOR not confirmed; verify first",
+                vuln_type="idor",
+            ) | {"human_summary": "\n".join(lines)}
 
         confirmed_transports = 1  # REST
         transport_details: list[str] = ["REST"]
@@ -198,4 +204,26 @@ def register(mcp: FastMCP):
             lines.append("\nEvidence bar: PASSED (≥2 transports). Finding is cross-channel — triagers cannot dismiss as 'only REST'.")
         else:
             lines.append("\nEvidence bar: REST-only. Try harder: search proxy history for GraphQL/WS endpoints with `search_history`.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        if confirmed_transports >= 2:
+            verdict, confidence = "CONFIRMED", 0.9
+            ev = f"cross-transport IDOR confirmed across {confirmed_transports} transports: {', '.join(transport_details)}"
+        elif rest_ok:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = "REST-only IDOR — search proxy for GraphQL/WS endpoints to upgrade evidence"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "REST baseline failed; IDOR not confirmed on any transport"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="idor",
+            details={
+                "victim_id": victim_id,
+                "rest_path": rest_path,
+                "confirmed_transports": confirmed_transports,
+                "transport_details": transport_details,
+            },
+            summary=human,
+        )

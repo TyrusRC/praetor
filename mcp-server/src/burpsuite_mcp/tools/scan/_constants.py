@@ -26,12 +26,16 @@ _REFERENCE_ONLY = {
     # NOTE: clickjacking promoted to active W11 (2026-05-29) — header-absence
     # matchers (not_header X-Frame-Options + not_word frame-ancestors) paired
     # with state-change keyword positives suppress FP on baseline pages.
-    "web_cache_deception", "source_code_exposure",
+    "source_code_exposure",
     # NOTE: csv_injection promoted to active W12 (2026-05-29) — new
     # csv_export_formula_reflection context fires on csv/xlsx Content-Type +
     # explicit canary marker reflection. Existing reference-only contexts
     # (formula_injection) remain as operator-driven payload guidance.
     # NOTE: insecure_randomness promoted to active W12 — token shape regex.
+    # NOTE: web_cache_deception promoted to active W13 — new
+    # static_suffix_cache_poisoning context (status 200 + user-data word +
+    # cache header). Existing path_confusion ctx schema normalised (plural
+    # headers -> per-header probes).
     "dependency_confusion", "xs_leak",
     "web_cache_poisoning_dos", "captcha_bypass", "http3_quic",
     # Added 2026-05-21:

@@ -96,6 +96,16 @@ _FIDELITY_CASES: list[tuple[str, dict, int]] = [
         "headers": {"Content-Type": "application/json"},
         "body": '{"user_id":"550e8400-e29b-11d4-a716-446655440000"}',
     }, 1),
+    # web_cache_deception (W13): 200 + cache header + user-data word in body.
+    ("web_cache_deception", {
+        "status": 200,
+        "headers": {
+            "Content-Type": "text/html",
+            "Cache-Control": "public, max-age=3600",
+            "X-Cache": "HIT",
+        },
+        "body": "<html>Welcome, username=victim! profile loaded.</html>",
+    }, 1),
 ]
 
 
