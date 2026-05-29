@@ -22,7 +22,10 @@ KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
 #   web_cache_poisoning_dos — DoS-class; out of safety scope per Rule 5
 # NOTE: file_upload was previously here; removed in v0.5.
 _REFERENCE_ONLY = {
-    "tech_vulns", "race_condition", "request_smuggling", "clickjacking",
+    "tech_vulns", "race_condition", "request_smuggling",
+    # NOTE: clickjacking promoted to active W11 (2026-05-29) — header-absence
+    # matchers (not_header X-Frame-Options + not_word frame-ancestors) paired
+    # with state-change keyword positives suppress FP on baseline pages.
     "web_cache_deception", "insecure_randomness", "source_code_exposure",
     "csv_injection", "dependency_confusion", "xs_leak",
     "web_cache_poisoning_dos", "captcha_bypass", "http3_quic",

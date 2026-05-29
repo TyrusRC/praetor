@@ -26,11 +26,12 @@ Follow `.claude/skills/playbook-mobile-dynamic.md`. Standard cadence:
 2. SSL pinning bypass: `frida -U -l ssl-pinning-bypass.js -f <package>` (or objection equivalent)
 3. Root/JB detection bypass: hook detection routines
 4. Runtime crypto hooks: dump HMAC keys, token-signing keys
-5. Exported components (Android only): `adb shell am start ... -d <deeplink>` for deep-link sinks
-6. Storage: dump `WebView` cookies, shared prefs, keychain items (iOS)
-7. Trigger app flows; observe traffic in Burp Proxy history
-8. `build_target_header_profile(domain)` — saves real-client fingerprint
-9. `save_target_intel(domain, "mobile", <intel>)`
+5. Exported components (Android only): `adb shell am start ... -d <deeplink>` for deep-link sinks. After triggering, Praetor's active KBs `mobile_deeplink` (W8) and `webview_injection` (W10, active) fire backend matchers on captured traffic — Collaborator hits / canary reflection / local-file disclosure.
+6. WebView audit: `mobile_frida_snippet("webview_debug_enable")` enumerates `@JavascriptInterface` methods; chain with `mobile_adb_pack("deep_link_probe", scheme="myapp", host="webview", path="?url=http://COLLABORATOR")` to drive WebView load. Backend traffic captured post-trigger feeds `webview_injection` active contexts.
+7. Storage: dump `WebView` cookies, shared prefs, keychain items (iOS)
+8. Trigger app flows; observe traffic in Burp Proxy history
+9. `build_target_header_profile(domain)` — saves real-client fingerprint
+10. `save_target_intel(domain, "mobile", <intel>)`
 
 ## Returns
 

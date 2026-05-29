@@ -198,6 +198,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
 | Recon (third-party) | `run_subfinder`, `run_nuclei`, `run_katana`, `run_sqlmap`, `run_dalfox`, `run_ffuf`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls` |
+| Subdomain takeover | `test_subdomain_takeover` — 129 vendor fingerprints (W8 nuclei merge) + DNS-only signal mode (W9: ElasticBeanstalk regional, Azure trafficmanager / azureedge / redis.cache.windows.net). DNS-only entries flag takeover when CNAME resolves but target hostname has no A record (skip body fingerprint match). See `.claude/skills/recon-takeover.md`. |
 | Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |

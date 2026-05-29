@@ -19,7 +19,7 @@ def register(mcp: FastMCP):
         session: str,
         path: str = "/",
         test_origins: list[str] | None = None,
-    ) -> str:
+    ) -> dict:
         """Test CORS configuration for origin reflection and credential misconfigs.
 
         Args:
@@ -61,7 +61,7 @@ def register(mcp: FastMCP):
         parameter: str = "url",
         path: str = "/",
         injection_point: str = "query",
-    ) -> str:
+    ) -> dict:
         """Test SSRF to cloud metadata services (AWS, GCP, Azure, DigitalOcean).
 
         Args:
@@ -132,7 +132,7 @@ def register(mcp: FastMCP):
         parameter: str = "file",
         test_types: list[str] | None = None,
         content_type_bypass: bool = True,
-    ) -> str:
+    ) -> dict:
         """Test file upload for bypass vulnerabilities with extension and content-type evasion.
 
         Args:

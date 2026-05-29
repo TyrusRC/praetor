@@ -5,6 +5,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.testing_extended._helpers import fmt_val
 
 
@@ -47,8 +48,10 @@ def register(mcp: FastMCP):
         path: str,
         known_params: dict,
         extra_params: dict | None = None,
-    ) -> str:
+    ) -> dict:
         """Test for mass assignment by injecting extra parameters (role, is_admin, price, etc.).
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Session name for auth state
@@ -66,7 +69,10 @@ def register(mcp: FastMCP):
             "body": json.dumps(known_params),
         })
         if "error" in baseline_resp:
-            return f"Error getting baseline: {baseline_resp['error']}"
+            return error_verdict(
+                f"baseline failed: {baseline_resp['error']}",
+                vuln_type="mass_assignment",
+            )
 
         baseline_status = baseline_resp.get("status", 0)
         baseline_body = baseline_resp.get("response_body", "")
@@ -193,4 +199,27 @@ def register(mcp: FastMCP):
         if not accepted and not nested_accepted:
             lines.append("No mass assignment indicators detected.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        admin_kw = ("admin", "role", "is_admin", "is_superuser", "privilege")
+        admin_hit = any(any(kw in a.lower() for kw in admin_kw)
+                        for a in accepted + nested_accepted)
+        if admin_hit:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"mass assignment of admin-class key accepted: {accepted + nested_accepted}"
+        elif accepted or nested_accepted:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"mass assignment of non-admin keys: {accepted + nested_accepted}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no mass assignment — extra parameters rejected or ignored"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="mass_assignment",
+            details={
+                "path": path, "method": method,
+                "accepted_top_level": accepted,
+                "accepted_nested": nested_accepted,
+            },
+            summary=human,
+        )

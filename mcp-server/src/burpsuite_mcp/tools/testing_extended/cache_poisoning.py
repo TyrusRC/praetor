@@ -6,13 +6,14 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.testing_extended._helpers import scope_or_error
 
 
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def test_cache_poisoning(session: str, path: str = "/") -> str:
+    async def test_cache_poisoning(session: str, path: str = "/") -> dict:
         """Test for web cache poisoning and cache deception via unkeyed headers and parameter cloaking.
 
         Args:
@@ -24,10 +25,13 @@ def register(mcp: FastMCP):
 
         host_info = await client.get_session_last_host(session)
         if "error" in host_info:
-            return f"Error: {host_info['error']}"
+            return error_verdict(
+                f"session host lookup failed: {host_info['error']}",
+                vuln_type="cache_poisoning",
+            )
         scope_err = await scope_or_error(host_info["host"], host_info.get("https", True), host_info.get("port", 443))
         if scope_err:
-            return scope_err
+            return error_verdict(str(scope_err), vuln_type="cache_poisoning")
 
         cb = hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
 
@@ -176,4 +180,20 @@ def register(mcp: FastMCP):
         else:
             lines.append("No cache poisoning vulnerabilities detected.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        if len(findings) >= 2:
+            verdict, confidence = "CONFIRMED", 0.8
+            ev = f"cache poisoning across {len(findings)} vector(s): {'; '.join(findings[:3])}"
+        elif findings:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"single cache vector flagged: {findings[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no cache poisoning across unkeyed headers / parameter cloaking"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="cache_poisoning",
+            details={"path": path, "findings": findings},
+            summary=human,
+        )

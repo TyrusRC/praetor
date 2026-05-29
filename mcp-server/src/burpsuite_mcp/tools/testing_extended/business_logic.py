@@ -5,6 +5,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.testing_extended._helpers import fmt_val
 
 
@@ -16,8 +17,10 @@ def register(mcp: FastMCP):
         endpoint: str,
         parameter: str,
         test_type: str = "all",
-    ) -> str:
+    ) -> dict:
         """Test business logic flaws with negative values, zero, large numbers, type confusion, and boundary inputs.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Session name for auth state
@@ -76,7 +79,10 @@ def register(mcp: FastMCP):
             ]
 
         if not test_cases:
-            return f"Error: Invalid test_type '{test_type}'. Use: all, negative_values, zero_values, large_values, type_confusion, boundary"
+            return error_verdict(
+                f"invalid test_type {test_type!r}; use one of all/negative_values/zero_values/large_values/type_confusion/boundary",
+                vuln_type="business_logic",
+            )
 
         baseline_resp = await client.post("/api/session/request", json={
             "session": session, "method": "POST", "path": endpoint,
@@ -84,7 +90,10 @@ def register(mcp: FastMCP):
             "body": json.dumps({parameter: 1}),
         })
         if "error" in baseline_resp:
-            return f"Error getting baseline: {baseline_resp['error']}"
+            return error_verdict(
+                f"baseline failed: {baseline_resp['error']}",
+                vuln_type="business_logic",
+            )
 
         baseline_status = baseline_resp.get("status", 0)
         baseline_length = len(baseline_resp.get("response_body", ""))
@@ -133,10 +142,31 @@ def register(mcp: FastMCP):
                     lines.append(f"    > {body[:150]}")
 
         lines.append(f"\n--- Summary ---")
-        lines.append(f"Anomalies: {len(anomalies)}/{sum(len(v) for v in test_cases.values())} tests")
+        total_tests = sum(len(v) for v in test_cases.values())
+        lines.append(f"Anomalies: {len(anomalies)}/{total_tests} tests")
         if anomalies:
             lines.append("Flagged:")
             for desc, val, flags, _ in anomalies:
                 lines.append(f"  {desc} ({fmt_val(val)}): {', '.join(flags)}")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        if len(anomalies) >= 3:
+            verdict, confidence = "CONFIRMED", 0.75
+            ev = f"business-logic anomalies across {len(anomalies)} test cases of {total_tests}"
+        elif anomalies:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"{len(anomalies)} business-logic anomalies — operator review per item"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no business-logic anomalies across boundary / negative / type-confusion inputs"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="business_logic",
+            details={
+                "endpoint": endpoint, "parameter": parameter,
+                "test_type": test_type, "anomalies": len(anomalies),
+                "total_tests": total_tests,
+            },
+            summary=human,
+        )

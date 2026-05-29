@@ -71,6 +71,19 @@ _FIDELITY_CASES: list[tuple[str, dict, int]] = [
         "headers": {"Location": "https://app.example.com/u/john", "Content-Type": "text/html"},
         "body": "",
     }, 1),
+    # webview_injection (W10): backend response reflects the canary marker
+    # that was passed through postMessage from the on-device WebView.
+    ("webview_injection", {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": '{"log":"praetor-canary-webview-abc123"}',
+    }, 1),
+    # clickjacking (W11): state-change page lacking X-Frame-Options + CSP.
+    ("clickjacking", {
+        "status": 200,
+        "headers": {"Content-Type": "text/html"},
+        "body": "<html><body><form method='post' action='/settings'>...</form></body></html>",
+    }, 1),
 ]
 
 
