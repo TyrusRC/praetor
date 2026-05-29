@@ -4,148 +4,927 @@
   "technologies": {
     "IIS": {
       "versions": {
-        "6.0": {"cves": ["CVE-2017-7269"], "tests": ["WebDAV buffer overflow - PROPFIND with crafted If header"], "severity": "critical"},
-        "7.0-7.5": {"cves": ["CVE-2010-3972"], "tests": ["FTP service buffer overflow"], "severity": "high"},
-        "8.5": {"cves": ["CVE-2015-1635"], "tests": ["HTTP.sys request smuggling via Range header", "MS15-034 integer overflow"], "severity": "critical"},
-        "10.0": {"cves": ["CVE-2021-31166"], "tests": ["HTTP Protocol Stack RCE via Accept-Encoding"], "severity": "critical"}
+        "6.0": {
+          "cves": [
+            "CVE-2017-7269"
+          ],
+          "tests": [
+            "WebDAV buffer overflow - PROPFIND with crafted If header"
+          ],
+          "severity": "critical"
+        },
+        "7.0-7.5": {
+          "cves": [
+            "CVE-2010-3972"
+          ],
+          "tests": [
+            "FTP service buffer overflow"
+          ],
+          "severity": "high"
+        },
+        "8.5": {
+          "cves": [
+            "CVE-2015-1635"
+          ],
+          "tests": [
+            "HTTP.sys request smuggling via Range header",
+            "MS15-034 integer overflow"
+          ],
+          "severity": "critical"
+        },
+        "10.0": {
+          "cves": [
+            "CVE-2021-31166"
+          ],
+          "tests": [
+            "HTTP Protocol Stack RCE via Accept-Encoding"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["Short filename disclosure (~1 brute force)", "ASP.NET debugging enabled", "Directory listing via web.config misconfiguration", "Tilde enumeration for short filenames"],
-      "default_paths": ["/web.config", "/Global.asax", "/elmah.axd", "/trace.axd", "/aspnet_client/"]
+      "common_issues": [
+        "Short filename disclosure (~1 brute force)",
+        "ASP.NET debugging enabled",
+        "Directory listing via web.config misconfiguration",
+        "Tilde enumeration for short filenames"
+      ],
+      "default_paths": [
+        "/web.config",
+        "/Global.asax",
+        "/elmah.axd",
+        "/trace.axd",
+        "/aspnet_client/"
+      ]
     },
     "Apache": {
       "versions": {
-        "2.4.49": {"cves": ["CVE-2021-41773"], "tests": ["Path traversal via /cgi-bin/.%2e/%2e%2e/etc/passwd"], "severity": "critical"},
-        "2.4.50": {"cves": ["CVE-2021-42013"], "tests": ["Double URL-encoded path traversal bypass"], "severity": "critical"},
-        "2.4.0-2.4.29": {"cves": ["CVE-2017-15715"], "tests": ["Filename bypass via trailing newline in uploads"], "severity": "high"}
+        "2.4.49": {
+          "cves": [
+            "CVE-2021-41773"
+          ],
+          "tests": [
+            "Path traversal via /cgi-bin/.%2e/%2e%2e/etc/passwd"
+          ],
+          "severity": "critical"
+        },
+        "2.4.50": {
+          "cves": [
+            "CVE-2021-42013"
+          ],
+          "tests": [
+            "Double URL-encoded path traversal bypass"
+          ],
+          "severity": "critical"
+        },
+        "2.4.0-2.4.29": {
+          "cves": [
+            "CVE-2017-15715"
+          ],
+          "tests": [
+            "Filename bypass via trailing newline in uploads"
+          ],
+          "severity": "high"
+        }
       },
-      "common_issues": ["mod_status information disclosure (/server-status)", "mod_info exposure (/server-info)", "Directory listing enabled", ".htaccess bypass via filename tricks"],
-      "default_paths": ["/server-status", "/server-info", "/.htaccess", "/.htpasswd", "/cgi-bin/"]
+      "common_issues": [
+        "mod_status information disclosure (/server-status)",
+        "mod_info exposure (/server-info)",
+        "Directory listing enabled",
+        ".htaccess bypass via filename tricks"
+      ],
+      "default_paths": [
+        "/server-status",
+        "/server-info",
+        "/.htaccess",
+        "/.htpasswd",
+        "/cgi-bin/"
+      ]
     },
     "Nginx": {
       "versions": {
-        "0.6.18-1.13.2": {"cves": ["CVE-2017-7529"], "tests": ["Integer overflow in range filter - information leak"], "severity": "medium"}
+        "0.6.18-1.13.2": {
+          "cves": [
+            "CVE-2017-7529"
+          ],
+          "tests": [
+            "Integer overflow in range filter - information leak"
+          ],
+          "severity": "medium"
+        }
       },
-      "common_issues": ["Off-by-slash alias traversal (/files../)", "Merge slashes bypass", "CRLF injection in headers", "Proxy_pass SSRF via @ in URL"],
-      "default_paths": ["/nginx_status", "/stub_status"]
+      "common_issues": [
+        "Off-by-slash alias traversal (/files../)",
+        "Merge slashes bypass",
+        "CRLF injection in headers",
+        "Proxy_pass SSRF via @ in URL"
+      ],
+      "default_paths": [
+        "/nginx_status",
+        "/stub_status"
+      ]
     },
     "PHP": {
       "versions": {
-        "5.x": {"cves": ["CVE-2019-11043"], "tests": ["Arbitrary code execution via fastcgi"], "severity": "critical"},
-        "7.0-7.2": {"cves": ["CVE-2019-11043"], "tests": ["Path_info underflow to RCE (php-fpm + nginx)"], "severity": "critical"},
-        "8.1.0-8.1.28": {"cves": ["CVE-2024-4577"], "tests": ["CGI argument injection on Windows (Best-Fit mapping)"], "severity": "critical"}
+        "5.x": {
+          "cves": [
+            "CVE-2019-11043"
+          ],
+          "tests": [
+            "Arbitrary code execution via fastcgi"
+          ],
+          "severity": "critical"
+        },
+        "7.0-7.2": {
+          "cves": [
+            "CVE-2019-11043"
+          ],
+          "tests": [
+            "Path_info underflow to RCE (php-fpm + nginx)"
+          ],
+          "severity": "critical"
+        },
+        "8.1.0-8.1.28": {
+          "cves": [
+            "CVE-2024-4577"
+          ],
+          "tests": [
+            "CGI argument injection on Windows (Best-Fit mapping)"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["phpinfo() exposed", "Type juggling in loose comparisons", "Deserialization via unserialize()", "Phar deserialization", "File upload bypass via double extension"],
-      "default_paths": ["/phpinfo.php", "/info.php", "/php_info.php", "/test.php", "/debug.php"]
+      "common_issues": [
+        "phpinfo() exposed",
+        "Type juggling in loose comparisons",
+        "Deserialization via unserialize()",
+        "Phar deserialization",
+        "File upload bypass via double extension"
+      ],
+      "default_paths": [
+        "/phpinfo.php",
+        "/info.php",
+        "/php_info.php",
+        "/test.php",
+        "/debug.php"
+      ]
     },
     "ASP.NET": {
       "versions": {
-        "any": {"cves": ["CVE-2020-1472"], "tests": ["ViewState deserialization if MAC validation disabled"], "severity": "critical"}
+        "any": {
+          "cves": [
+            "CVE-2020-1472"
+          ],
+          "tests": [
+            "ViewState deserialization if MAC validation disabled"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["Padding oracle on ViewState", "Verbose error messages with stack traces", "Debug mode enabled (customErrors=Off)", "Request validation bypass"],
-      "default_paths": ["/web.config", "/elmah.axd", "/trace.axd", "/aspnet_client/system_web/"]
+      "common_issues": [
+        "Padding oracle on ViewState",
+        "Verbose error messages with stack traces",
+        "Debug mode enabled (customErrors=Off)",
+        "Request validation bypass"
+      ],
+      "default_paths": [
+        "/web.config",
+        "/elmah.axd",
+        "/trace.axd",
+        "/aspnet_client/system_web/"
+      ]
     },
     "WordPress": {
       "versions": {
-        "any": {"cves": [], "tests": ["xmlrpc.php brute force and SSRF", "REST API user enumeration /wp-json/wp/v2/users", "Plugin/theme file inclusion"], "severity": "high"}
+        "any": {
+          "cves": [],
+          "tests": [
+            "xmlrpc.php brute force and SSRF",
+            "REST API user enumeration /wp-json/wp/v2/users",
+            "Plugin/theme file inclusion"
+          ],
+          "severity": "high"
+        }
       },
-      "common_issues": ["User enumeration via /?author=1", "Exposed wp-config.php.bak", "Debug log at /wp-content/debug.log", "Plugin vulnerabilities (most common entry point)"],
-      "default_paths": ["/wp-login.php", "/wp-admin/", "/wp-json/wp/v2/users", "/xmlrpc.php", "/wp-content/debug.log", "/wp-config.php.bak", "/.wp-config.php.swp"]
+      "common_issues": [
+        "User enumeration via /?author=1",
+        "Exposed wp-config.php.bak",
+        "Debug log at /wp-content/debug.log",
+        "Plugin vulnerabilities (most common entry point)"
+      ],
+      "default_paths": [
+        "/wp-login.php",
+        "/wp-admin/",
+        "/wp-json/wp/v2/users",
+        "/xmlrpc.php",
+        "/wp-content/debug.log",
+        "/wp-config.php.bak",
+        "/.wp-config.php.swp"
+      ]
     },
     "Tomcat": {
       "versions": {
-        "8.5.0-8.5.80": {"cves": ["CVE-2020-1938"], "tests": ["GhostCat - AJP file read/inclusion on port 8009"], "severity": "critical"},
-        "9.0.0-9.0.30": {"cves": ["CVE-2020-1938"], "tests": ["GhostCat AJP exploitation"], "severity": "critical"},
-        "any": {"cves": [], "tests": ["Manager app default credentials (tomcat:tomcat, admin:admin)"], "severity": "high"}
+        "8.5.0-8.5.80": {
+          "cves": [
+            "CVE-2020-1938"
+          ],
+          "tests": [
+            "GhostCat - AJP file read/inclusion on port 8009"
+          ],
+          "severity": "critical"
+        },
+        "9.0.0-9.0.30": {
+          "cves": [
+            "CVE-2020-1938"
+          ],
+          "tests": [
+            "GhostCat AJP exploitation"
+          ],
+          "severity": "critical"
+        },
+        "any": {
+          "cves": [],
+          "tests": [
+            "Manager app default credentials (tomcat:tomcat, admin:admin)"
+          ],
+          "severity": "high"
+        }
       },
-      "common_issues": ["Default manager credentials", "WAR deployment for RCE", "AJP connector exposed", "Status page information disclosure"],
-      "default_paths": ["/manager/html", "/manager/status", "/host-manager/html", "/examples/", "/docs/"]
+      "common_issues": [
+        "Default manager credentials",
+        "WAR deployment for RCE",
+        "AJP connector exposed",
+        "Status page information disclosure"
+      ],
+      "default_paths": [
+        "/manager/html",
+        "/manager/status",
+        "/host-manager/html",
+        "/examples/",
+        "/docs/"
+      ]
     },
     "Spring": {
       "versions": {
-        "any": {"cves": ["CVE-2022-22965"], "tests": ["Spring4Shell - class.module.classLoader manipulation via POST params"], "severity": "critical"}
+        "any": {
+          "cves": [
+            "CVE-2022-22965"
+          ],
+          "tests": [
+            "Spring4Shell - class.module.classLoader manipulation via POST params"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["Actuator endpoints exposed (/actuator/env, /actuator/heapdump)", "SpEL injection in error messages", "Mass assignment via data binding"],
-      "default_paths": ["/actuator", "/actuator/env", "/actuator/heapdump", "/actuator/mappings", "/actuator/beans", "/env", "/health", "/info", "/metrics"]
+      "common_issues": [
+        "Actuator endpoints exposed (/actuator/env, /actuator/heapdump)",
+        "SpEL injection in error messages",
+        "Mass assignment via data binding"
+      ],
+      "default_paths": [
+        "/actuator",
+        "/actuator/env",
+        "/actuator/heapdump",
+        "/actuator/mappings",
+        "/actuator/beans",
+        "/env",
+        "/health",
+        "/info",
+        "/metrics"
+      ]
     },
     "Django": {
       "versions": {
-        "any": {"cves": [], "tests": ["Debug mode detection (detailed error page with settings)"], "severity": "medium"}
+        "any": {
+          "cves": [],
+          "tests": [
+            "Debug mode detection (detailed error page with settings)"
+          ],
+          "severity": "medium"
+        }
       },
-      "common_issues": ["Debug mode exposes SECRET_KEY and settings", "ALLOWED_HOSTS bypass", "ORM injection via __contains lookup", "Admin panel at /admin/"],
-      "default_paths": ["/admin/", "/admin/login/", "/static/", "/__debug__/"]
+      "common_issues": [
+        "Debug mode exposes SECRET_KEY and settings",
+        "ALLOWED_HOSTS bypass",
+        "ORM injection via __contains lookup",
+        "Admin panel at /admin/"
+      ],
+      "default_paths": [
+        "/admin/",
+        "/admin/login/",
+        "/static/",
+        "/__debug__/"
+      ]
     },
     "Flask": {
       "versions": {
-        "any": {"cves": [], "tests": ["Debug console RCE if WERKZEUG_DEBUG_PIN not set", "SSTI via Jinja2 template injection"], "severity": "critical"}
+        "any": {
+          "cves": [],
+          "tests": [
+            "Debug console RCE if WERKZEUG_DEBUG_PIN not set",
+            "SSTI via Jinja2 template injection"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["Werkzeug debugger exposed (/console)", "Secret key in source code", "SSTI in user-controlled template rendering"],
-      "default_paths": ["/console", "/static/"]
+      "common_issues": [
+        "Werkzeug debugger exposed (/console)",
+        "Secret key in source code",
+        "SSTI in user-controlled template rendering"
+      ],
+      "default_paths": [
+        "/console",
+        "/static/"
+      ]
     },
     "Express": {
       "versions": {
-        "any": {"cves": [], "tests": ["Prototype pollution via JSON body", "SSRF via request library"], "severity": "medium"}
+        "any": {
+          "cves": [],
+          "tests": [
+            "Prototype pollution via JSON body",
+            "SSRF via request library"
+          ],
+          "severity": "medium"
+        }
       },
-      "common_issues": ["Stack traces in error responses", "Directory traversal via path normalization", "NoSQL injection in MongoDB queries"],
-      "default_paths": ["/package.json", "/.env", "/node_modules/"]
+      "common_issues": [
+        "Stack traces in error responses",
+        "Directory traversal via path normalization",
+        "NoSQL injection in MongoDB queries"
+      ],
+      "default_paths": [
+        "/package.json",
+        "/.env",
+        "/node_modules/"
+      ]
     },
     "jQuery": {
       "versions": {
-        "1.x": {"cves": ["CVE-2020-11022"], "tests": ["XSS via htmlPrefilter - pass HTML with event handlers to jQuery methods"], "severity": "medium"},
-        "2.x": {"cves": ["CVE-2020-11022"], "tests": ["Same XSS via htmlPrefilter"], "severity": "medium"},
-        "3.0-3.4": {"cves": ["CVE-2020-11023"], "tests": ["XSS via option element injection"], "severity": "medium"}
+        "1.x": {
+          "cves": [
+            "CVE-2020-11022"
+          ],
+          "tests": [
+            "XSS via htmlPrefilter - pass HTML with event handlers to jQuery methods"
+          ],
+          "severity": "medium"
+        },
+        "2.x": {
+          "cves": [
+            "CVE-2020-11022"
+          ],
+          "tests": [
+            "Same XSS via htmlPrefilter"
+          ],
+          "severity": "medium"
+        },
+        "3.0-3.4": {
+          "cves": [
+            "CVE-2020-11023"
+          ],
+          "tests": [
+            "XSS via option element injection"
+          ],
+          "severity": "medium"
+        }
       },
-      "common_issues": ["Prototype pollution via $.extend(true, {}, ...)", "DOM-based XSS via jQuery selector injection"],
+      "common_issues": [
+        "Prototype pollution via $.extend(true, {}, ...)",
+        "DOM-based XSS via jQuery selector injection"
+      ],
       "default_paths": []
     },
     "AngularJS": {
       "versions": {
-        "1.x": {"cves": [], "tests": ["Template injection via {{constructor.constructor('alert(1)')()}}", "Sandbox escape payloads"], "severity": "high"}
+        "1.x": {
+          "cves": [],
+          "tests": [
+            "Template injection via {{constructor.constructor('alert(1)')()}}",
+            "Sandbox escape payloads"
+          ],
+          "severity": "high"
+        }
       },
-      "common_issues": ["Client-side template injection", "Sandbox bypass (versions < 1.6)", "Prototype pollution via merge/extend"],
+      "common_issues": [
+        "Client-side template injection",
+        "Sandbox bypass (versions < 1.6)",
+        "Prototype pollution via merge/extend"
+      ],
       "default_paths": []
     },
     "Redis": {
       "versions": {
-        "any": {"cves": [], "tests": ["Unauthenticated access on port 6379", "CONFIG SET dir + BGSAVE for file write RCE"], "severity": "critical"}
+        "any": {
+          "cves": [],
+          "tests": [
+            "Unauthenticated access on port 6379",
+            "CONFIG SET dir + BGSAVE for file write RCE"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["No authentication by default", "SLAVEOF replication attack", "Lua script execution", "CONFIG SET for file write"],
+      "common_issues": [
+        "No authentication by default",
+        "SLAVEOF replication attack",
+        "Lua script execution",
+        "CONFIG SET for file write"
+      ],
       "default_paths": []
     },
     "Jenkins": {
       "versions": {
-        "any": {"cves": ["CVE-2024-23897"], "tests": ["Arbitrary file read via CLI args-file parser", "Groovy script console at /script"], "severity": "critical"}
+        "any": {
+          "cves": [
+            "CVE-2024-23897"
+          ],
+          "tests": [
+            "Arbitrary file read via CLI args-file parser",
+            "Groovy script console at /script"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["Unauthenticated /script console access", "User enumeration via /asynchPeople/", "Build log information disclosure", "CSRF on job triggers"],
-      "default_paths": ["/script", "/asynchPeople/", "/systemInfo", "/manage", "/configureSecurity/", "/credentials/"]
+      "common_issues": [
+        "Unauthenticated /script console access",
+        "User enumeration via /asynchPeople/",
+        "Build log information disclosure",
+        "CSRF on job triggers"
+      ],
+      "default_paths": [
+        "/script",
+        "/asynchPeople/",
+        "/systemInfo",
+        "/manage",
+        "/configureSecurity/",
+        "/credentials/"
+      ]
     },
     "Laravel": {
       "versions": {
-        "any": {"cves": ["CVE-2021-3129"], "tests": ["Ignition RCE via debug mode file write", ".env file exposure with APP_KEY"], "severity": "critical"}
+        "any": {
+          "cves": [
+            "CVE-2021-3129"
+          ],
+          "tests": [
+            "Ignition RCE via debug mode file write",
+            ".env file exposure with APP_KEY"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": [".env file exposure", "Debug mode stack traces with APP_KEY", "Mass assignment via $fillable bypass", "Deserialization via APP_KEY"],
-      "default_paths": ["/.env", "/storage/logs/laravel.log", "/_ignition/health-check", "/_ignition/execute-solution"]
+      "common_issues": [
+        ".env file exposure",
+        "Debug mode stack traces with APP_KEY",
+        "Mass assignment via $fillable bypass",
+        "Deserialization via APP_KEY"
+      ],
+      "default_paths": [
+        "/.env",
+        "/storage/logs/laravel.log",
+        "/_ignition/health-check",
+        "/_ignition/execute-solution"
+      ]
     },
     "Rails": {
       "versions": {
-        "any": {"cves": ["CVE-2019-5420"], "tests": ["Development mode file disclosure via /rails/info/properties"], "severity": "high"}
+        "any": {
+          "cves": [
+            "CVE-2019-5420"
+          ],
+          "tests": [
+            "Development mode file disclosure via /rails/info/properties"
+          ],
+          "severity": "high"
+        }
       },
-      "common_issues": ["Mass assignment via permit!", "Sequential ID IDOR", "CSRF token bypass via API mode", "Debug console in development"],
-      "default_paths": ["/rails/info/properties", "/rails/info/routes", "/rails/mailers"]
+      "common_issues": [
+        "Mass assignment via permit!",
+        "Sequential ID IDOR",
+        "CSRF token bypass via API mode",
+        "Debug console in development"
+      ],
+      "default_paths": [
+        "/rails/info/properties",
+        "/rails/info/routes",
+        "/rails/mailers"
+      ]
     },
     "Drupal": {
       "versions": {
-        "7.x": {"cves": ["CVE-2018-7600"], "tests": ["Drupalgeddon2 RCE via Form API rendering"], "severity": "critical"},
-        "8.x": {"cves": ["CVE-2019-6340"], "tests": ["REST module deserialization RCE"], "severity": "critical"}
+        "7.x": {
+          "cves": [
+            "CVE-2018-7600"
+          ],
+          "tests": [
+            "Drupalgeddon2 RCE via Form API rendering"
+          ],
+          "severity": "critical"
+        },
+        "8.x": {
+          "cves": [
+            "CVE-2019-6340"
+          ],
+          "tests": [
+            "REST module deserialization RCE"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["CHANGELOG.txt version disclosure", "User enumeration via /user/1", "Views module information disclosure"],
-      "default_paths": ["/CHANGELOG.txt", "/user/1", "/user/register", "/admin/", "/core/CHANGELOG.txt"]
+      "common_issues": [
+        "CHANGELOG.txt version disclosure",
+        "User enumeration via /user/1",
+        "Views module information disclosure"
+      ],
+      "default_paths": [
+        "/CHANGELOG.txt",
+        "/user/1",
+        "/user/register",
+        "/admin/",
+        "/core/CHANGELOG.txt"
+      ]
     },
     "Kubernetes": {
       "versions": {
-        "any": {"cves": [], "tests": ["Exposed API server without auth", "etcd on port 2379", "Service account token abuse"], "severity": "critical"}
+        "any": {
+          "cves": [],
+          "tests": [
+            "Exposed API server without auth",
+            "etcd on port 2379",
+            "Service account token abuse"
+          ],
+          "severity": "critical"
+        }
       },
-      "common_issues": ["RBAC misconfiguration", "Exposed dashboard without auth", "Service account token at /var/run/secrets/kubernetes.io/serviceaccount/token", "etcd accessible without TLS"],
+      "common_issues": [
+        "RBAC misconfiguration",
+        "Exposed dashboard without auth",
+        "Service account token at /var/run/secrets/kubernetes.io/serviceaccount/token",
+        "etcd accessible without TLS"
+      ],
       "default_paths": []
+    }
+  },
+  "contexts": {
+    "oracle_ebs_xxe_rce_2025": {
+      "description": "Oracle E-Business Suite SyncServlet XXE → RCE (CVE-2025-61882). AWVS v25.11.3.",
+      "tech_match": [
+        "oracle ebs",
+        "OA_HTML"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY % rce SYSTEM \"http://{{collaborator}}/xxe.dtd\"> %rce;]><r/>",
+          "description": "Submit XXE payload to /OA_HTML/SyncServlet — confirms parser fetches external entity",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction": "dns"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {
+            "path_override": "/OA_HTML/SyncServlet",
+            "method": "POST",
+            "content_type": "text/xml",
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "aem_hopgoblin_2025": {
+      "description": "Adobe Experience Manager 7 CVEs (CVE-2025-54246..54252). AWVS v25.11.3 detection family.",
+      "tech_match": [
+        "AEM",
+        "Day-Servlet-Engine"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "GET /etc/clientlibs/granite/utils.js?wcmmode=disabled — confirms AEM fingerprint via Server header + 200",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Server",
+              "contains": "Day"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {
+            "path_override": "/etc/clientlibs/granite/utils.js?wcmmode=disabled"
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe AEM /libs/granite/core/ unauth — AEM-Hopgoblin family exploitation surface",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "granite",
+                "cq:",
+                "jcr:"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {
+            "path_override": "/libs/granite/core/",
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "panos_xss_2025": {
+      "description": "PAN-OS GlobalProtect reflected XSS (CVE-2025-0133). AWVS v25.8.x.",
+      "tech_match": [
+        "GlobalProtect",
+        "PAN-OS"
+      ],
+      "param_match": [
+        "inputStr"
+      ],
+      "probes": [
+        {
+          "payload": "<svg onload=alert(1)>",
+          "description": "Inject payload into inputStr parameter — XSS reflects in <title> block",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "<svg onload=alert(1)>"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {
+            "path_override": "/global-protect/login.esp?inputStr=<svg onload=alert(1)>"
+          }
+        }
+      ]
+    },
+    "citrix_netscaler_memdisc_2025": {
+      "description": "Citrix NetScaler memory disclosure (CVE-2025-5777). AWVS v25.8.x. Triggered via empty login= POST.",
+      "tech_match": [
+        "NetScaler"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "login=",
+          "description": "POST /nf/auth/doAuthentication.do with empty login= triggers uninitialised heap read",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "length_delta",
+              "min_delta": 1024
+            },
+            {
+              "type": "regex",
+              "pattern": "[\\x00-\\x08\\x0b-\\x1f]{8,}"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "path_override": "/nf/auth/doAuthentication.do",
+            "method": "POST",
+            "content_type": "application/x-www-form-urlencoded",
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "torchserve_ssrf_2024": {
+      "description": "PyTorch TorchServe Management API SSRF (CVE-2023-43654). AWVS v24.5.0. Exposes :8081.",
+      "tech_match": [
+        "TorchServe"
+      ],
+      "param_match": [
+        "url"
+      ],
+      "probes": [
+        {
+          "payload": "http://{{collaborator}}/m.mar",
+          "description": "POST /models?url=<attacker> to TorchServe Management API — confirms SSRF via Collaborator hit",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction": "any"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {
+            "port_override": 8081,
+            "path_override": "/models",
+            "method": "POST",
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "servicenow_jelly_ssti_2024": {
+      "description": "ServiceNow Jelly SSTI (CVE-2024-4879, CVE-2024-5217). Reflects evaluated expression.",
+      "tech_match": [
+        "ServiceNow",
+        "ServiceNow.com"
+      ],
+      "param_match": [
+        "sysparm_query"
+      ],
+      "probes": [
+        {
+          "payload": "<g:evaluate>\"acu\"+1</g:evaluate>",
+          "description": "Jelly template injection — server evaluates expression and reflects 'acu1'",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "acu1"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "jboss_jmx_console_unauth": {
+      "description": "JBoss JMX Console / Web Console / Invoker exposed without auth. Classic pre-auth RCE surface.",
+      "tech_match": [
+        "JBoss"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe /jmx-console/ unauth — JBoss management interface exposed",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "JBoss Management",
+                "JMX Console",
+                "MBean View"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {
+            "path_override": "/jmx-console/"
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe /invoker/JMXInvokerServlet — RMI-over-HTTP invoker, gateway to BSHDeployer chain",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "application/x-java-serialized-object"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "path_override": "/invoker/JMXInvokerServlet"
+          }
+        }
+      ]
+    },
+    "tomcat_manager_default_cred": {
+      "description": "Tomcat Manager / Host-Manager with default or weak credentials. War-deploy → RCE.",
+      "tech_match": [
+        "Apache-Coyote",
+        "Tomcat"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe /manager/text/list with default tomcat:tomcat — server returns 'OK - Listed' on success",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "OK - Listed",
+                "Tomcat Web Application Manager"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {
+            "path_override": "/manager/text/list",
+            "header_inject": {
+              "Authorization": "Basic dG9tY2F0OnRvbWNhdA=="
+            },
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "weak_viewstate_known_key_2025": {
+      "description": "ASP.NET ViewState forged with known/default MachineKey. ysoserial.net TextFormattingRunProperties gadget → RCE.",
+      "tech_match": [
+        "ASP.NET",
+        "X-AspNet-Version"
+      ],
+      "param_match": [
+        "__VIEWSTATE"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe __VIEWSTATE with forged MAC vs valid baseline — MAC validation differential confirms known-key vulnerability",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "MAC validation",
+                "ViewState",
+                "__VIEWSTATE"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {
+            "manual_chain": true,
+            "note": "ysoserial.net -g TextFormattingRunProperties + known key from MachineKey leak"
+          }
+        }
+      ]
     }
   }
 }

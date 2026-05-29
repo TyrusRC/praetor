@@ -1,0 +1,68 @@
+{
+  "schema": "praetor.mobile.adb.v1",
+  "description": "Top adb command patterns for mobile surface enumeration. Operator runs these on their authorized device; Praetor does not exec adb.",
+  "commands": [
+    {
+      "id": "list_packages",
+      "purpose": "List third-party packages on device",
+      "command": "adb shell pm list packages -3",
+      "filter": "| grep {target}"
+    },
+    {
+      "id": "pull_apk",
+      "purpose": "Extract APK by package name",
+      "command": "adb shell pm path {pkg}",
+      "follow_up": "adb pull <apk_path>"
+    },
+    {
+      "id": "dumpsys_package",
+      "purpose": "Exports, permissions, intent filters, signature for one package",
+      "command": "adb shell dumpsys package {pkg}"
+    },
+    {
+      "id": "dumpsys_activities",
+      "purpose": "Running activities + recent task stack",
+      "command": "adb shell dumpsys activity activities | grep {pkg}"
+    },
+    {
+      "id": "dumpsys_content",
+      "purpose": "Content provider permissions and URIs",
+      "command": "adb shell dumpsys content {auth}"
+    },
+    {
+      "id": "exported_activities",
+      "purpose": "Exported activities with intent filters",
+      "command": "adb shell pm dump {pkg} | grep -A2 'Activity Resolver'"
+    },
+    {
+      "id": "dangerous_permissions",
+      "purpose": "Dangerous permissions catalogue (system-wide)",
+      "command": "adb shell pm list permissions -g -d"
+    },
+    {
+      "id": "deep_link_probe",
+      "purpose": "Probe a deep link / URL scheme with wait + result code",
+      "command": "adb shell am start -W -a android.intent.action.VIEW -d \"{scheme}://{host}{path}\" {pkg}"
+    },
+    {
+      "id": "logcat_app_only",
+      "purpose": "Stream app-tagged log only",
+      "command": "adb logcat -v time {pkg}:V *:S"
+    },
+    {
+      "id": "sandbox_enum",
+      "purpose": "Sandbox file enumeration (debuggable APKs)",
+      "command": "adb shell run-as {pkg} sh -c 'find . -type f'"
+    },
+    {
+      "id": "sqlite_dump",
+      "purpose": "In-place DB dump without pull",
+      "command": "adb shell run-as {pkg} sqlite3 databases/{db_file}.db .dump"
+    },
+    {
+      "id": "service_list",
+      "purpose": "Exported services across all packages",
+      "command": "adb shell service list"
+    }
+  ]
+}

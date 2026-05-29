@@ -24,7 +24,7 @@
       "probes": [
         {
           "payload": "Upload .php.jpg double extension with PHP content (<?php echo 'PROBE_OK'; ?>)",
-          "description": "Double extension bypass \u2014 Apache may execute .php.jpg as PHP with AddHandler",
+          "description": "Double extension bypass — Apache may execute .php.jpg as PHP with AddHandler",
           "matchers": [
             {
               "type": "status",
@@ -50,7 +50,7 @@
         },
         {
           "payload": "Upload .phtml extension with PHP content",
-          "description": "Alternative PHP extension \u2014 often missing from blacklists",
+          "description": "Alternative PHP extension — often missing from blacklists",
           "matchers": [
             {
               "type": "status",
@@ -74,7 +74,7 @@
         },
         {
           "payload": "Upload with GIF89a magic bytes + PHP code as .gif",
-          "description": "Magic byte bypass \u2014 passes file signature validation, content is PHP",
+          "description": "Magic byte bypass — passes file signature validation, content is PHP",
           "matchers": [
             {
               "type": "status",
@@ -98,7 +98,7 @@
         },
         {
           "payload": "Upload .php with Content-Type: image/jpeg",
-          "description": "Content-Type mismatch \u2014 server-side check uses MIME, filesystem uses extension",
+          "description": "Content-Type mismatch — server-side check uses MIME, filesystem uses extension",
           "matchers": [
             {
               "type": "status",
@@ -166,7 +166,7 @@
         },
         {
           "payload": "Upload .jspx extension with JSP XML content",
-          "description": "JSPX alternative extension \u2014 JSP in XML format, often not blacklisted",
+          "description": "JSPX alternative extension — JSP in XML format, often not blacklisted",
           "matchers": [
             {
               "type": "status",
@@ -190,7 +190,7 @@
         },
         {
           "payload": "Upload .war archive containing web shell",
-          "description": "WAR deployment \u2014 if upload dir is auto-deploy, shell becomes accessible",
+          "description": "WAR deployment — if upload dir is auto-deploy, shell becomes accessible",
           "matchers": [
             {
               "type": "status",
@@ -231,7 +231,7 @@
       "probes": [
         {
           "payload": "Upload .aspx;.jpg with ASPX content",
-          "description": "Semicolon extension bypass \u2014 IIS processes as .aspx, ignores after semicolon",
+          "description": "Semicolon extension bypass — IIS processes as .aspx, ignores after semicolon",
           "matchers": [
             {
               "type": "status",
@@ -278,7 +278,7 @@
         },
         {
           "payload": "Upload .config with web.config content containing handlers",
-          "description": "web.config upload \u2014 can reconfigure IIS to execute arbitrary extensions as ASP.NET",
+          "description": "web.config upload — can reconfigure IIS to execute arbitrary extensions as ASP.NET",
           "matchers": [
             {
               "type": "status",
@@ -319,7 +319,7 @@
       "probes": [
         {
           "payload": "Upload .svg with onload=alert(1) XSS payload",
-          "description": "SVG XSS \u2014 if served with image/svg+xml, browser executes JavaScript",
+          "description": "SVG XSS — if served with image/svg+xml, browser executes JavaScript",
           "matchers": [
             {
               "type": "status",
@@ -344,7 +344,7 @@
         },
         {
           "payload": "Upload .html with JavaScript content",
-          "description": "HTML upload \u2014 stored XSS if served from same origin",
+          "description": "HTML upload — stored XSS if served from same origin",
           "matchers": [
             {
               "type": "status",
@@ -368,7 +368,7 @@
         },
         {
           "payload": "Upload .htaccess to enable PHP execution in upload directory",
-          "description": ".htaccess upload \u2014 can reconfigure Apache to execute uploads as PHP",
+          "description": ".htaccess upload — can reconfigure Apache to execute uploads as PHP",
           "matchers": [
             {
               "type": "status",
@@ -391,7 +391,7 @@
         },
         {
           "payload": "Upload oversized file (10MB+) to test size limits",
-          "description": "Large file upload \u2014 tests for DoS via storage exhaustion or missing size limits",
+          "description": "Large file upload — tests for DoS via storage exhaustion or missing size limits",
           "matchers": [
             {
               "type": "status",
@@ -415,13 +415,13 @@
       ]
     },
     "polyglot_files": {
-      "description": "Polyglot files satisfy multiple format parsers simultaneously. PNG+PHP, JPEG+ZIP, PDF+HTML, GIF+JS \u2014 bypass MIME sniffing, file-type allowlists, and content-disposition checks. Combined with image-parser CVE chains (ImageMagick, libheif, libwebp 2024) for RCE.",
+      "description": "Polyglot files satisfy multiple format parsers simultaneously. PNG+PHP, JPEG+ZIP, PDF+HTML, GIF+JS — bypass MIME sniffing, file-type allowlists, and content-disposition checks. Combined with image-parser CVE chains (ImageMagick, libheif, libwebp 2024) for RCE.",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "[crafted PNG with PHP appended after IEND chunk]",
-          "description": "PNG+PHP polyglot \u2014 file passes image_type check, but if served via .php extension or via include(), PHP block runs. Verify by uploading then accessing as /uploads/x.php.",
+          "description": "PNG+PHP polyglot — file passes image_type check, but if served via .php extension or via include(), PHP block runs. Verify by uploading then accessing as /uploads/x.php.",
           "matchers": [
             {
               "type": "status",
@@ -447,7 +447,7 @@
         },
         {
           "payload": "[JPEG with phar archive appended]",
-          "description": "JPEG+phar polyglot \u2014 phar:// stream wrapper triggers unserialize. If app uses file_exists() / getimagesize() with phar:// path, RCE via gadget chain.",
+          "description": "JPEG+phar polyglot — phar:// stream wrapper triggers unserialize. If app uses file_exists() / getimagesize() with phar:// path, RCE via gadget chain.",
           "matchers": [
             {
               "type": "word",
@@ -465,7 +465,7 @@
         },
         {
           "payload": "[PDF polyglot with embedded JS / HTML]",
-          "description": "PDF+HTML polyglot \u2014 opens as PDF in PDF reader, as HTML in browser when served with text/html. Stored XSS via attachment-served-inline.",
+          "description": "PDF+HTML polyglot — opens as PDF in PDF reader, as HTML in browser when served with text/html. Stored XSS via attachment-served-inline.",
           "matchers": [
             {
               "type": "word",
@@ -485,7 +485,7 @@
         },
         {
           "payload": "[SVG with foreignObject + script]",
-          "description": "SVG XSS \u2014 <foreignObject><iframe srcdoc=\"<script>...\"/></foreignObject>. Served as image/svg+xml = browser executes script in same-origin context.",
+          "description": "SVG XSS — <foreignObject><iframe srcdoc=\"<script>...\"/></foreignObject>. Served as image/svg+xml = browser executes script in same-origin context.",
           "matchers": [
             {
               "type": "word",
@@ -501,7 +501,7 @@
         },
         {
           "payload": "[ImageMagick MVG/MSL exploit payload]",
-          "description": "ImageMagick CVE chain \u2014 MVG/MSL/PS delegates run during conversion. CVE-2016-3714 still hits unpatched libs in 2024.",
+          "description": "ImageMagick CVE chain — MVG/MSL/PS delegates run during conversion. CVE-2016-3714 still hits unpatched libs in 2024.",
           "matchers": [
             {
               "type": "word",
@@ -519,7 +519,7 @@
           }
         },
         {
-          "payload": "[libwebp/libheif crafted image \u2014 CVE-2023-4863, CVE-2023-5217]",
+          "payload": "[libwebp/libheif crafted image — CVE-2023-4863, CVE-2023-5217]",
           "description": "libwebp / libheif heap overflow when decoding. Patched 2023-2024 but unpatched servers still vulnerable. Crashes worker process at minimum, RCE in older builds.",
           "matchers": [
             {
@@ -543,7 +543,7 @@
         },
         {
           "payload": "[ZIP polyglot with traversal entries (Zip Slip)]",
-          "description": "Zip Slip \u2014 ZIP entries with `../../etc/cron.d/x` paths. If server unpacks without sanitizing entry names, files land outside upload dir.",
+          "description": "Zip Slip — ZIP entries with `../../etc/cron.d/x` paths. If server unpacks without sanitizing entry names, files land outside upload dir.",
           "matchers": [
             {
               "type": "status",
@@ -564,7 +564,7 @@
         },
         {
           "payload": "[XLSX with embedded DDE / formula injection]",
-          "description": "XLSX file with =cmd|'/c calc'!A1 cell \u2014 Excel-side RCE (CSV-injection class). Reportable when uploaded files are sent to admin emails.",
+          "description": "XLSX file with =cmd|'/c calc'!A1 cell — Excel-side RCE (CSV-injection class). Reportable when uploaded files are sent to admin emails.",
           "matchers": [
             {
               "type": "word",
@@ -702,6 +702,72 @@
           "variables": {
             "requires_post_extraction_fetch": true,
             "manual_build": true
+          }
+        }
+      ]
+    },
+    "backup_extension_disclosure": {
+      "description": "Backup file extensions left on web root. Source / archive / temp suffixes appended to known routes.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe ROUTE.bak — backup source served",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "text/plain"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {
+            "path_suffix": ".bak",
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe ROUTE~ — editor temp file (vim/sed)",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 45,
+          "variables": {
+            "path_suffix": "~",
+            "manual_chain": true
+          }
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Probe ROUTE.swp — vim swap file (uncommitted edits)",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {
+            "path_suffix": ".swp",
+            "manual_chain": true
           }
         }
       ]
