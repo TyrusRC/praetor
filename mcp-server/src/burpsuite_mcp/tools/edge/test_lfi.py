@@ -2,6 +2,8 @@
 
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import make_verdict
+
 
 async def test_lfi_impl(
     session: str,
@@ -10,7 +12,7 @@ async def test_lfi_impl(
     os_type: str = "auto",
     test_wrappers: bool = True,
     depth: int = 6,
-) -> str:
+) -> dict:
     """Test for LFI/path traversal with encoding bypasses and PHP wrappers.
 
     Args:
@@ -149,4 +151,21 @@ async def test_lfi_impl(
     else:
         lines.append("No LFI/path traversal detected.")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+    if vulns:
+        verdict, confidence = "CONFIRMED", 0.85
+        ev = f"LFI/path traversal confirmed: {len(vulns)} payload(s); first: {vulns[0]}"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "no LFI / path traversal detected across encoding bypasses + wrappers"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="lfi",
+        details={
+            "path": path, "parameter": parameter,
+            "os_type": os_type, "depth": depth,
+            "vulnerabilities": vulns,
+        },
+        summary=human,
+    )

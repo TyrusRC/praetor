@@ -17,6 +17,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._send import send_probe
+from burpsuite_mcp.tools.testing._verdict import make_verdict
 
 
 _FILE_READ_PAYLOADS = (
@@ -107,8 +108,10 @@ def register(mcp: FastMCP):
         skip_file_read: bool = False,
         skip_xinclude: bool = False,
         skip_entity_expansion: bool = False,
-    ) -> str:
+    ) -> dict:
         """Fire XXE payloads against an XML-accepting endpoint.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             url: Endpoint that accepts XML (POST /api/v1/upload, /soap, etc.)
@@ -212,4 +215,28 @@ def register(mcp: FastMCP):
                          "does process entities — try a different payload "
                          "(stateful entity, SOAP envelope, SVG upload).")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        import re
+        logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:10]
+        file_read_hit = any("root:" in b or "/etc/" in b or "file:" in b for b in bypasses)
+        if file_read_hit:
+            verdict, confidence = "CONFIRMED", 0.9
+            ev = f"XXE file-read confirmed via {len(bypasses)} payload(s)"
+        elif len(bypasses) >= 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"XXE indicators: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no inline XXE — try parameter-entity / blind OOB"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="xxe",
+            logger_indices=logger_indices,
+            details={
+                "url": url, "content_type": content_type,
+                "bypasses": bypasses,
+                "file_read_hit": file_read_hit,
+            },
+            summary=human,
+        )
