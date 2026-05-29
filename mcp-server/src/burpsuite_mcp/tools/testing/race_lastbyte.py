@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.config import BURP_PROXY_HOST, BURP_PROXY_PORT
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _build_request_bytes(method: str, path: str, host: str, headers: dict, body: bytes) -> bytes:
@@ -123,8 +124,10 @@ def register(mcp: FastMCP):
         headers: dict | None = None,
         concurrent: int = 20,
         warmup_ms: int = 50,
-    ) -> str:
+    ) -> dict:
         """HTTP/1.1 last-byte synchronisation race attack via raw sockets through Burp.
+
+        Returns VerdictResult (W7 schema).
 
         N TCP connections opened in parallel, each receives request bytes minus the
         final byte. Final bytes flushed across all sockets in a tight loop to minimise
@@ -140,15 +143,15 @@ def register(mcp: FastMCP):
             warmup_ms: How long to wait between priming all sockets and the final-byte burst.
         """
         if concurrent < 2:
-            return "Error: concurrent must be ≥ 2"
+            return error_verdict("concurrent must be >= 2", vuln_type="race_condition")
         concurrent = min(concurrent, 50)
 
         # Scope check
         scope = await client.check_scope(target_url)
         if "error" in scope:
-            return f"Error: scope check failed: {scope['error']}"
+            return error_verdict(f"scope check failed: {scope['error']}", vuln_type="race_condition")
         if not scope.get("in_scope", False):
-            return f"Error: {target_url} not in scope"
+            return error_verdict(f"{target_url} not in scope", vuln_type="race_condition")
 
         parsed = urlparse(target_url)
         host = parsed.hostname or ""
@@ -161,7 +164,10 @@ def register(mcp: FastMCP):
         body_bytes = body.encode("utf-8") if body else b""
         req_bytes = _build_request_bytes(method, path, host, headers or {}, body_bytes)
         if len(req_bytes) < 2:
-            return "Error: request must be at least 2 bytes to withhold a final byte"
+            return error_verdict(
+                "request must be at least 2 bytes to withhold a final byte",
+                vuln_type="race_condition",
+            )
 
         # ── Prime sockets ──
         loop = asyncio.get_running_loop()
@@ -173,7 +179,10 @@ def register(mcp: FastMCP):
                     sock.setblocking(False)
                     primed.append(await _prime_one(sock, req_bytes))
                 except Exception as e:
-                    return f"Error: failed to prime socket #{i}: {type(e).__name__}: {e}"
+                    return error_verdict(
+                        f"failed to prime socket #{i}: {type(e).__name__}: {e}",
+                        vuln_type="race_condition",
+                    )
 
             # ── Brief warmup ──
             if warmup_ms > 0:
@@ -223,4 +232,22 @@ def register(mcp: FastMCP):
             lines.append("\n*** RACE: more than one 2xx — potential limit-overrun / TOCTOU. Verify side effect in persistent state. ***")
         elif success_count == 1:
             lines.append("\nSingle 2xx — race not observed at this concurrency. Try increasing concurrent or run probe_race_singlepacket (HTTP/2).")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        if success_count > 1:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"HTTP/1.1 last-byte race: {success_count} 2xx successes from {concurrent} primed sockets"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = f"no race at concurrency {concurrent} — single or zero 2xx; try H2 single-packet"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="race_condition",
+            details={
+                "target_url": target_url,
+                "concurrent": concurrent,
+                "success_count": success_count,
+            },
+            summary=human,
+        )

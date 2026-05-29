@@ -17,6 +17,7 @@ pre-downgrade session.
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 def register(mcp: FastMCP):
@@ -27,8 +28,10 @@ def register(mcp: FastMCP):
         session_post: str,
         privileged_endpoints: list[dict],
         wait_seconds: int = 0,
-    ) -> str:
+    ) -> dict:
         """Verify privileged endpoints reject the post-downgrade session.
+
+        Returns VerdictResult (W7 schema).
 
         Operator workflow:
           1. Create session_pre with full privileges.
@@ -44,7 +47,7 @@ def register(mcp: FastMCP):
             wait_seconds: Optional sleep before testing post-session (lets caches age past TTL).
         """
         if not privileged_endpoints:
-            return "Error: privileged_endpoints is empty"
+            return error_verdict("privileged_endpoints is empty", vuln_type="stale_privilege")
 
         lines = [
             f"probe_role_state_cleanup",
@@ -77,7 +80,10 @@ def register(mcp: FastMCP):
             lines.append("\nWARNING: pre-downgrade session does not have access to any listed endpoint. Verify the capture is correct.")
             lines.append("\n--- Summary ---")
             lines.append("No pre-downgrade access — cannot evaluate cleanup. Re-run after re-capturing privileged endpoints.")
-            return "\n".join(lines)
+            return error_verdict(
+                "pre-downgrade session has no access to listed endpoints; cannot evaluate cleanup",
+                vuln_type="stale_privilege",
+            ) | {"human_summary": "\n".join(lines)}
 
         if wait_seconds > 0:
             import asyncio
@@ -119,4 +125,19 @@ def register(mcp: FastMCP):
             lines.append("\nRisk: role/permission revocation incomplete — downstream cache or JWT not invalidated. Verify TTL, cache layer (Redis/memcached), and JWT exp logic.")
         else:
             lines.append("All privileged endpoints properly deny the post-downgrade session.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        verdict, confidence = verdict_from_tally(len(retained))
+        ev = (f"stale privileges retained on {len(retained)}/{len(privileged_endpoints)} endpoints after downgrade"
+              if retained else "all privileged endpoints properly deny post-downgrade session")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="stale_privilege",
+            details={
+                "endpoints_tested": len(privileged_endpoints),
+                "pre_downgrade_ok": pre_ok,
+                "retained_endpoints": [r["endpoint"] for r in retained],
+            },
+            summary=human,
+        )

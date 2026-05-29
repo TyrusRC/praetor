@@ -26,6 +26,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools.testing import _h2_lowlevel
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def register(mcp: FastMCP):
@@ -38,8 +39,10 @@ def register(mcp: FastMCP):
         headers: dict | None = None,
         concurrent: int = 20,
         expect_once: bool = True,
-    ) -> str:
+    ) -> dict:
         """HTTP/2 single-packet attack — N stream frames coalesced into one TCP packet.
+
+        Returns VerdictResult (W7 schema).
 
         Most effective race-condition primitive available — the standard
         thread-pool approach (test_race_condition) still has TCP-level jitter
@@ -60,19 +63,22 @@ def register(mcp: FastMCP):
             expect_once: Flag if more than one 2xx response = race.
         """
         if concurrent < 2:
-            return "Error: concurrent must be ≥ 2"
+            return error_verdict("concurrent must be >= 2", vuln_type="race_condition")
         concurrent = min(concurrent, 100)
 
         # Scope check
         scope = await client.check_scope(target_url)
         if "error" in scope:
-            return f"Error: scope check failed: {scope['error']}"
+            return error_verdict(f"scope check failed: {scope['error']}", vuln_type="race_condition")
         if not scope.get("in_scope", False):
-            return f"Error: {target_url} not in scope"
+            return error_verdict(f"{target_url} not in scope", vuln_type="race_condition")
 
         parsed = urlparse(target_url)
         if parsed.scheme != "https":
-            return "Error: HTTP/2 single-packet requires HTTPS. Use probe_race_lastbyte for HTTP."
+            return error_verdict(
+                "HTTP/2 single-packet requires HTTPS; use probe_race_lastbyte for HTTP",
+                vuln_type="race_condition",
+            )
         host = parsed.hostname or ""
         port = parsed.port or 443
         path = parsed.path or "/"
@@ -92,7 +98,10 @@ def register(mcp: FastMCP):
         try:
             ssock, conn = await asyncio.to_thread(_h2_lowlevel.open_h2_tunnel, host, port)
         except Exception as e:
-            return f"Error opening H2 tunnel via Burp: {type(e).__name__}: {e}"
+            return error_verdict(
+                f"H2 tunnel open failed via Burp: {type(e).__name__}: {e}",
+                vuln_type="race_condition",
+            )
 
         try:
             buf, stream_ids = await asyncio.to_thread(
@@ -156,4 +165,26 @@ def register(mcp: FastMCP):
             lines.append("\nSingle 2xx — race not observed at this concurrency.")
         elif success_count == 0:
             lines.append("\nNo 2xx responses — endpoint may not be reachable as configured; check status distribution.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        if expect_once and success_count > 1:
+            verdict, confidence = "CONFIRMED", 0.9
+            ev = f"H2 single-packet race confirmed: {success_count} successes from {concurrent} streams"
+        elif success_count == 1:
+            verdict, confidence = "FAILED", 0.1
+            ev = "single 2xx — race not observed at this concurrency"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no 2xx responses — endpoint may not be reachable as configured"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="race_condition",
+            details={
+                "target_url": target_url,
+                "concurrent": concurrent,
+                "success_count": success_count,
+                "expect_once": expect_once,
+            },
+            summary=human,
+        )
