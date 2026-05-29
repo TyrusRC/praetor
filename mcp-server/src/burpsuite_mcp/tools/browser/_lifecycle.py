@@ -3,6 +3,18 @@
 State is module-global so a navigate -> click -> screenshot sequence reuses
 the same browser/context/page. The lock is created lazily inside the event
 loop because FastMCP creates its own loop on first tool call.
+
+Transport / backend
+-------------------
+CloakBrowser uses Playwright (or its `patchright` fork) as the WebDriver
+control protocol. CloakBrowser's value is the **stealth-patched Chromium
+binary** it ships — binary-level fingerprint patches that defeat the
+detection vectors plain Playwright triggers. Praetor never imports
+`playwright` directly; we only call `cloakbrowser.launch_async()` and pass
+its returned Browser/Context/Page objects around. Functionally they are
+Playwright objects, but the stealth layer below them is the differentiator.
+
+Dependency chain: `cloakbrowser>=0.3.28` → `playwright` (transitive).
 """
 
 import asyncio
