@@ -21,6 +21,7 @@ from copy import deepcopy
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _send_step(session: str, step: dict) -> dict:
@@ -60,8 +61,10 @@ def register(mcp: FastMCP):
         session: str,
         steps: list[dict],
         modes: list[str] | None = None,
-    ) -> str:
+    ) -> dict:
         """Permute a multi-step workflow to find reorder/skip/replay flaws.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session.
@@ -73,7 +76,10 @@ def register(mcp: FastMCP):
         returns 2xx (success) is flagged as a workflow violation candidate.
         """
         if len(steps) < 2:
-            return "Error: need at least 2 steps to permute"
+            return error_verdict(
+                "need at least 2 steps to permute",
+                vuln_type="business_logic",
+            )
         if modes is None:
             modes = ["skip", "reorder_reverse", "reorder_swap", "replay", "double_finalize"]
 
@@ -163,4 +169,21 @@ def register(mcp: FastMCP):
             lines.append("\nVerify each by re-running and checking persistent side effects (DB rows, account balance, order state).")
         else:
             lines.append("No workflow-reorder violations detected.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        if len(findings) >= 2:
+            verdict, confidence = "CONFIRMED", 0.8
+            ev = f"workflow reorder violations: {len(findings)} permutations succeeded"
+        elif findings:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"single workflow violation: {findings[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "workflow defended across reorder/skip/replay/double-finalize"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="business_logic",
+            details={"step_count": len(steps), "modes": modes, "findings": findings},
+            summary=human,
+        )

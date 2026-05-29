@@ -3,15 +3,46 @@
   "contexts": {
     "predictable_tokens": {
       "description": "Predictable token/secret generation -- timestamp-based, sequential, weak PRNG, or insufficient entropy in security-sensitive tokens",
-      "tech_match": ["PHP", "Java", "Python", "Node.js", "Ruby"],
-      "param_match": ["token", "reset_token", "session_id", "csrf_token", "api_key", "secret", "nonce", "code", "otp"],
+      "tech_match": [
+        "PHP",
+        "Java",
+        "Python",
+        "Node.js",
+        "Ruby"
+      ],
+      "param_match": [
+        "token",
+        "reset_token",
+        "session_id",
+        "csrf_token",
+        "api_key",
+        "secret",
+        "nonce",
+        "code",
+        "otp"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Request two tokens in rapid succession and compare -- sequential (token2 = token1 + 1) or timestamp-correlated (similar epoch prefix) indicates weak generation. Manual analysis required.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "words": ["token", "code", "key", "secret", "session"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "token",
+                "code",
+                "key",
+                "secret",
+                "session"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 30
@@ -20,14 +51,23 @@
     },
     "weak_session_id": {
       "description": "Weak session ID generation -- short length, limited charset, predictable pattern in Set-Cookie session values",
-      "tech_match": ["PHP", "Java", "ASP.NET", "Custom"],
+      "tech_match": [
+        "PHP",
+        "Java",
+        "ASP.NET",
+        "Custom"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Collect 10+ session IDs and analyze entropy -- short IDs (<32 chars), hex-only, or sequential patterns indicate weak generation. Check if session ID changes after login (session fixation prevention).",
           "matchers": [
-            {"type": "header", "name": "Set-Cookie", "contains": "session"}
+            {
+              "type": "header",
+              "name": "Set-Cookie",
+              "contains": "session"
+            }
           ],
           "severity": "high",
           "confidence_boost": 25
@@ -37,18 +77,83 @@
     "uuid_v1_leak": {
       "description": "UUID v1 information leak -- UUIDv1 contains MAC address and timestamp, allowing user tracking and time correlation",
       "tech_match": [],
-      "param_match": ["id", "uuid", "guid", "ref", "token", "resource_id"],
+      "param_match": [
+        "id",
+        "uuid",
+        "guid",
+        "ref",
+        "token",
+        "resource_id"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Check if UUIDs follow v1 format (time-based) -- 8-4-4-4-12 hex with version nibble = 1 (xxxxxxxx-xxxx-1xxx-xxxx-xxxxxxxxxxxx). Extract MAC from last 12 chars and timestamp from first segments.",
           "matchers": [
-            {"type": "word", "words": ["-1"], "condition": "or"}
+            {
+              "type": "regex",
+              "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-1[0-9a-fA-F]{3}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30
         }
       ]
+    },
+    "low_entropy_session_cookie": {
+      "description": "Set-Cookie session value is short (<24 chars) and hex-only — entropy too low for cryptographic session ID. Production sessionId is typically 32+ chars base64.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Set-Cookie session cookie matches short-hex pattern — strong signal of insecure_randomness if session_id 16 bytes or shorter.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Set-Cookie",
+              "contains": "session"
+            },
+            {
+              "type": "regex",
+              "pattern": "(?i)(?:JSESSIONID|PHPSESSID|session(?:id|_id|Id)?)=[0-9a-fA-F]{1,23}(?:[^a-zA-Z0-9])"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "reset_token_short_url": {
+      "description": "Password-reset URL contains a token under 16 chars or hex-only ≤24 chars — likely brute-forceable.",
+      "tech_match": [],
+      "param_match": [
+        "token",
+        "reset_token",
+        "reset_code",
+        "verification_code"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Reset URL with short / low-entropy token shape. Worth a brute-force calculation per program policy.",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "(?:token|reset_token|code)=[0-9a-zA-Z]{1,15}(?:[^0-9a-zA-Z]|$)"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
     }
-  }
+  },
+  "description": "Insecure randomness — UUIDv1 leak / short session ID / short reset token in URL. Promoted to active W12."
 }

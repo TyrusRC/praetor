@@ -84,6 +84,18 @@ _FIDELITY_CASES: list[tuple[str, dict, int]] = [
         "headers": {"Content-Type": "text/html"},
         "body": "<html><body><form method='post' action='/settings'>...</form></body></html>",
     }, 1),
+    # csv_injection (W12): backend export endpoint reflects formula canary.
+    ("csv_injection", {
+        "status": 200,
+        "headers": {"Content-Type": "text/csv"},
+        "body": "name,email\n=praetor-csv-abc123,x@x\n",
+    }, 1),
+    # insecure_randomness (W12): UUIDv1 regex in body.
+    ("insecure_randomness", {
+        "status": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": '{"user_id":"550e8400-e29b-11d4-a716-446655440000"}',
+    }, 1),
 ]
 
 

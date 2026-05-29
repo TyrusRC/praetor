@@ -20,6 +20,7 @@ from copy import deepcopy
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import make_verdict
 
 
 _DEFAULT_HEADER = "Idempotency-Key"
@@ -63,8 +64,8 @@ def register(mcp: FastMCP):
         session_secondary: str = "",
         mutate_fields: list[str] | None = None,
         replay_count: int = 3,
-    ) -> str:
-        """Idempotency-key scope/principal abuse battery.
+    ) -> dict:
+        """Idempotency-key scope/principal abuse battery. Returns VerdictResult (W7 schema).
 
         Args:
             session_primary: Auth session that owns the original transaction.
@@ -211,4 +212,23 @@ def register(mcp: FastMCP):
             lines.append("\nVerify each finding manually — idempotency violations need transaction confirmation (e.g. duplicate charge in a real ledger).")
         else:
             lines.append("No idempotency-key violations detected.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        critical_keywords = ("MUTATE", "DIFFERENT_PRINCIPAL", "CLONE")
+        critical_hits = sum(1 for f in findings if any(k in f.upper() for k in critical_keywords))
+        if critical_hits:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"idempotency-key violation: {critical_hits} critical (cross-principal / mutate) hit(s)"
+        elif findings:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"{len(findings)} idempotency anomaly(s) — operator must verify against transaction ledger"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "idempotency key correctly scoped — no replay / mutate / cross-principal accepted"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="business_logic",
+            details={"endpoint": endpoint, "method": method, "findings": findings},
+            summary=human,
+        )

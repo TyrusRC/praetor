@@ -17,6 +17,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools.recon._common import _check_tool, _run_cmd
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 _HEADER_BYPASSES = [
@@ -86,8 +87,10 @@ def register(mcp: FastMCP) -> None:
         baseline_status: int = 0,
         max_variants: int = 60,
         concurrency: int = 8,
-    ) -> str:
+    ) -> dict:
         """Try canonical 40x bypass tricks (header / path / method) against a URL.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             url: target URL returning 401/403 you want to bypass.
@@ -104,7 +107,10 @@ def register(mcp: FastMCP) -> None:
                 "url": url, "method": method, "follow_redirects": False,
             })
             if "error" in baseline:
-                return f"Error: baseline request failed: {baseline['error']}"
+                return error_verdict(
+                    f"baseline failed: {baseline['error']}",
+                    vuln_type="auth_bypass",
+                )
             baseline_status = baseline.get("status_code", 0)
         baseline_url = url
 
@@ -171,7 +177,32 @@ def register(mcp: FastMCP) -> None:
         if hits:
             lines.append("")
             lines.append("Next: send_to_repeater_tracked(history_index) for the strongest hit.")
-        return "\n".join(lines)
+        human = "\n".join(lines)
+        logger_indices = [
+            int(r["history_index"]) for r in hits
+            if isinstance(r.get("history_index"), int) and r["history_index"] >= 0
+        ][:10]
+        if len(hits) >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"40x bypass via {len(hits)} variant(s): {baseline_status}->2xx/3xx"
+        elif len(hits) == 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"single 40x bypass variant: {hits[0]['label']!r}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no 40x bypass — header/path/method tricks all rejected"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="auth_bypass",
+            logger_indices=logger_indices,
+            details={
+                "url": url, "baseline_status": baseline_status,
+                "variants_tested": len(variants),
+                "hits": [{"label": r["label"], "kind": r["kind"], "status": r["status"]} for r in hits[:10]],
+            },
+            summary=human,
+        )
 
     @mcp.tool()
     async def run_dontgo403(url: str, timeout: int = 300) -> str:
