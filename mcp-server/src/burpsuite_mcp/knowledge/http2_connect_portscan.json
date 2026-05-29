@@ -1,0 +1,71 @@
+{
+  "category": "http2_connect_portscan",
+  "description": "HTTP/2 CONNECT internal port scan (PortSwigger Top 10 / 2025, #9 — flomb). HTTP/2 :method CONNECT with :authority targeting internal hosts/ports can establish raw tunnels through the front-end proxy. When the upstream allows arbitrary CONNECT, an attacker maps the internal network. Behaviour-based: TCP-open hosts respond differently from TCP-closed (timing or status), exposing the topology.",
+  "contexts": {
+    "h2_connect_localhost": {
+      "description": "Front-end H2 server allows :method=CONNECT with :authority=127.0.0.1:<port> — direct internal port probe.",
+      "tech_match": ["http2", "h2", "envoy", "nginx", "haproxy", "cloudflare", "akamai"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "H2 CONNECT to 127.0.0.1:22 — observe whether tunnel established (status 200 + persistent TCP) or rejected. Compare timing vs unreachable port (e.g. 127.0.0.1:1).",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "differential_timing", "delta_ms": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"method": "CONNECT", "authority": "127.0.0.1:22", "manual_chain": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "H2 CONNECT to internal RFC1918 host (10.0.0.1:80 / 172.16.0.1:80 / 192.168.0.1:80) — port-scan internal network from the front-end's vantage.",
+          "matchers": [
+            {"type": "status", "status": [200, 502, 504]},
+            {"type": "differential_timing", "delta_ms": 200}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"method": "CONNECT", "authority": "10.0.0.1:80", "manual_chain": true}
+        }
+      ]
+    },
+    "h2_connect_cloud_metadata": {
+      "description": "H2 CONNECT to cloud metadata endpoints (169.254.169.254 AWS/Azure, metadata.google.internal GCP). When the front-end is hosted in a managed cloud, CONNECT may grant raw access to IMDSv1.",
+      "tech_match": ["http2", "envoy", "nginx", "haproxy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "H2 CONNECT to 169.254.169.254:80 — IMDS reach test. Pair with subsequent GET /latest/meta-data/iam/security-credentials/ over the tunnel.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "differential_timing", "delta_ms": 100}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"method": "CONNECT", "authority": "169.254.169.254:80", "manual_chain": true}
+        }
+      ]
+    },
+    "h2_connect_admin_iface": {
+      "description": "H2 CONNECT to internal admin interfaces (Consul 8500, Vault 8200, etcd 2379, Kubelet 10250). Front-end ACL bypass when CONNECT bypasses path-based routing.",
+      "tech_match": ["http2", "envoy", "haproxy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "H2 CONNECT to 127.0.0.1:8500 (Consul) / 8200 (Vault) / 2379 (etcd) / 10250 (Kubelet). Status delta vs closed port confirms reachability.",
+          "matchers": [
+            {"type": "status", "status": [200, 502]},
+            {"type": "differential_timing", "delta_ms": 150}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"method": "CONNECT", "authority": "127.0.0.1:8500", "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

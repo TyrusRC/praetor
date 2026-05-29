@@ -42,7 +42,7 @@ Claude Code -> praetor-mcp (Python, stdio) -> praetor-burp-ext (Java, REST 127.0
 
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external deps. Output: `praetor-burp-ext-1.0.0.jar`.
 - `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package directory still `burpsuite_mcp/` for v1.x (hard rename deferred to v1.1).
-- ~284 MCP tools, 132+ knowledge-base JSON files, 28 skill files, 4 always-active rules.
+- ~296 MCP tools, 137+ knowledge-base JSON files, 28 skill files, 4 always-active rules.
 - Headless browser engine: **CloakBrowser** (stealth Chromium fork, OSS). Binary-level fingerprint + bot-detect bypass. All `browser_*` tools route through Burp proxy automatically. No Playwright dependency.
 
 Full file map: `skill.json`. Knowledge index: `mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md`.

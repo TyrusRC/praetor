@@ -27,6 +27,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._format import fmt_size
+from ._verdict import error_verdict, make_verdict
 
 
 async def _pre_load_burst(session: str, request: dict, count: int) -> None:
@@ -57,8 +58,11 @@ def register(mcp: FastMCP):
         transport_mode: str = "h1_concurrent",
         pre_load: int = 0,
         cross_channel_endpoints: list[dict] | None = None,
-    ) -> str:
+    ) -> dict:
         """Fire N identical requests simultaneously to detect race conditions.
+
+        Returns a structured VerdictResult (W7): {verdict, confidence,
+        evidence_summary, logger_indices, reproductions, details, human_summary}.
 
         Args:
             session: Session name
@@ -74,7 +78,10 @@ def register(mcp: FastMCP):
             notes.append("transport_mode=h2_last_byte not yet implemented — falling back to h1_concurrent. Track Java AttackHandler for h2 frame control.")
             transport_mode = "h1_concurrent"
         elif transport_mode != "h1_concurrent":
-            return f"Error: invalid transport_mode '{transport_mode}' — use h1_concurrent or h2_last_byte"
+            return error_verdict(
+                f"invalid transport_mode '{transport_mode}' — use h1_concurrent or h2_last_byte",
+                vuln_type="race_condition",
+            )
 
         if pre_load > 0:
             await _pre_load_burst(session, request, min(pre_load, 50))
@@ -125,7 +132,7 @@ def register(mcp: FastMCP):
             cross_results = []
 
         if "error" in data:
-            return f"Error: {data['error']}"
+            return error_verdict(str(data["error"]), vuln_type="race_condition")
 
         lines = []
         for n in notes:
@@ -174,4 +181,50 @@ def register(mcp: FastMCP):
             if data.get("vulnerable") and success_x_channel >= 1:
                 lines.append("\n*** CROSS-CHANNEL RACE CONFIRMED *** — race exploitable from ≥2 transports simultaneously.")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+
+        success_count = int(data.get("success_count", 0))
+        vulnerable = bool(data.get("vulnerable"))
+        cross_confirmed = bool(cross_results) and vulnerable and any(
+            (not isinstance(cr, Exception)) and "error" not in cr
+            and 200 <= cr.get("status", 0) < 300 for cr in cross_results
+        )
+        logger_indices = [
+            int(r["logger_index"]) for r in data.get("results", [])
+            if isinstance(r.get("logger_index"), int) and r["logger_index"] >= 0
+        ]
+        reproductions = [
+            {"logger_index": r.get("logger_index", -1),
+             "status_code": r.get("status"),
+             "elapsed_ms": r.get("time_ms")}
+            for r in data.get("results", [])
+        ][:5]
+
+        if vulnerable and success_count >= 2:
+            verdict, confidence = "CONFIRMED", 0.85 if cross_confirmed else 0.75
+            ev = f"race confirmed: {success_count} successes from {data.get('concurrent', concurrent)} concurrent requests"
+        elif vulnerable:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"single success in burst — possible race or non-deterministic baseline (success={success_count})"
+        else:
+            verdict, confidence = "FAILED", 0.10
+            ev = "no race anomaly — backend serialises correctly"
+        if cross_confirmed:
+            ev += "; cross-channel exploitable"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="race_condition",
+            logger_indices=logger_indices,
+            reproductions=reproductions,
+            details={
+                "concurrent": data.get("concurrent", concurrent),
+                "total_time_ms": data.get("total_time_ms"),
+                "success_count": success_count,
+                "status_distribution": data.get("status_distribution", {}),
+                "race_synchronised": data.get("race_synchronised", True),
+                "cross_channel_confirmed": cross_confirmed,
+                "notes": notes,
+            },
+            summary=human,
+        )

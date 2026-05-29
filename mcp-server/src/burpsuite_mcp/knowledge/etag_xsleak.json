@@ -1,0 +1,51 @@
+{
+  "category": "etag_xsleak",
+  "description": "Cross-Site ETag Length Leak (PortSwigger Top 10 / 2025, #6 — Kaneko). The ETag header is a strong validator whose length / format encodes response size or content hash. When ETag is exposed to cross-origin requests (no-cors fetch, img/audio/video request), an attacker measures ETag bytes via cache or oracle to leak per-victim response size — yielding XS-leak of state (logged-in vs out, search-result count, message-count, account-balance bucket).",
+  "contexts": {
+    "etag_length_oracle": {
+      "description": "Strong ETag whose length varies with response size or contains state-bearing hash. Cross-origin fetch with `no-cors` reads ETag from the cached entry indirectly via 304 round-trip timing.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Fetch the endpoint with no Authorization, capture ETag length. Fetch with valid session, capture ETag length. Length delta = state leak; format change (W/ prefix vs strong) = state oracle.",
+          "matchers": [
+            {"type": "header", "name": "ETag", "contains": ""},
+            {"type": "length_delta", "min_delta": 8}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"manual_chain": true, "note": "Compare authenticated vs anonymous ETag for the same URL."}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Cross-origin XS-leak — issue If-None-Match with attacker-chosen ETag. 304 response means ETag matched (state confirmed); 200 means it changed. Pair across N candidates to bisect leaked state.",
+          "matchers": [
+            {"type": "status", "status": [304]},
+            {"type": "header", "name": "ETag", "contains": ""}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"header_override": {"If-None-Match": "\"probe-state-1\""}, "manual_chain": true}
+        }
+      ]
+    },
+    "etag_hash_disclosure": {
+      "description": "ETag computed as hash of response body. When the body contains per-user secrets (token, balance, role), the ETag becomes a side-channel for those values via hash collision tables or chosen-prefix attacks.",
+      "tech_match": ["nginx", "apache", "iis", "node.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Endpoint that returns per-user JSON with stable ETag — ETag value differs per user. Combined with weak hash (CRC32, MD5 truncated), ETag enables enumeration.",
+          "matchers": [
+            {"type": "header", "name": "ETag", "regex": "^(W/)?\"[0-9a-fA-F]{8,}\""}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

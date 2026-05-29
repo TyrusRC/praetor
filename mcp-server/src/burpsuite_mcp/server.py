@@ -12,6 +12,7 @@ from burpsuite_mcp.tools import (
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
+    source_aware, benchmark,
 )
 
 mcp = FastMCP(
@@ -127,3 +128,5 @@ cloud_audit.register(mcp)      # prowler / scout_suite / cloudsploit — multi-c
 iac_scan.register(mcp)         # checkov / tfsec / terrascan / hadolint — IaC + Dockerfile policy
 ci_audit.register(mcp)         # poutine / octoscan — GitHub Actions / GitLab CI injection + pwn-request
 visual_easm.register(mcp)      # visual_easm_diff — gowitness screenshot + hash delta vs prior run
+source_aware.register(mcp)     # xvulnhuntr / vulnhuntr — LLM-chain SAST input→sink (white-box mode)
+benchmark.register(mcp)        # run_autopenbench / run_caibench — publishable AI-pentest benchmarks (W7)
