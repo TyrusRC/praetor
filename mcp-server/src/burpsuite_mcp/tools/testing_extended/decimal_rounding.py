@@ -17,6 +17,7 @@ from copy import deepcopy
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 _VARIANTS = [
@@ -68,8 +69,10 @@ def register(mcp: FastMCP):
         body: dict,
         amount_json_path: str,
         method: str = "POST",
-    ) -> str:
+    ) -> dict:
         """Inject IEEE-754 edge cases into a currency / quantity field and watch behavior.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session.
@@ -85,7 +88,10 @@ def register(mcp: FastMCP):
             "body": json.dumps(body),
         })
         if "error" in canonical:
-            return f"Error on canonical send: {canonical['error']}"
+            return error_verdict(
+                f"canonical send failed: {canonical['error']}",
+                vuln_type="float_rounding",
+            )
         c_status = canonical.get("status", 0)
         c_len = len(canonical.get("response_body", ""))
         lines = [
@@ -143,4 +149,19 @@ def register(mcp: FastMCP):
             lines.append("\nRisk: amount field accepts edge-case numerics. Verify the stored/charged amount in a real ledger before claiming finding.")
         else:
             lines.append("No numeric-edge anomalies detected.")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        verdict, confidence = verdict_from_tally(len(findings))
+        ev = (f"float/decimal rounding: {len(findings)}/{len(_VARIANTS)} variants accepted edge-case numerics"
+              if findings else "amount field rejects edge-case numerics — float rounding intact")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="float_rounding",
+            details={
+                "endpoint": endpoint,
+                "amount_json_path": amount_json_path,
+                "findings": [(repr(v), intent) for v, intent, _ in findings],
+            },
+            summary=human,
+        )

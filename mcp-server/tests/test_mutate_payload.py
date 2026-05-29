@@ -108,8 +108,11 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
                 early_stop=True,
                 concurrency=1,
             )
-        self.assertIn("Hits:", out)
-        self.assertIn("SQL syntax", out)
+        # W15: VerdictResult; legacy pretty text in human_summary.
+        text = out.get("human_summary", "") if isinstance(out, dict) else out
+        self.assertIn("Hits:", text)
+        self.assertIn("SQL syntax", text)
+        self.assertIn(out.get("verdict"), ("CONFIRMED", "SUSPECTED"))
 
     async def test_no_hits_reports_top3(self):
         async def fake_post(path, json=None):
@@ -125,8 +128,12 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
                 early_stop=False,
                 concurrency=1,
             )
-        self.assertIn("No variants matched", out)
-        self.assertIn("Top-3", out)
+        # W15: fuzz_with_feedback returns VerdictResult dict; the legacy
+        # text is preserved in human_summary.
+        text = out.get("human_summary", "") if isinstance(out, dict) else out
+        self.assertIn("No variants matched", text)
+        self.assertIn("Top-3", text)
+        self.assertEqual(out.get("verdict"), "FAILED")
 
     async def test_baseline_error_returns_error(self):
         async def fake_post(path, json=None):
@@ -140,7 +147,9 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
                 signals={"regex": "x"},
                 max_iters=5,
             )
-        self.assertIn("Error sending baseline", out)
+        # W15: returns VerdictResult ERROR dict.
+        self.assertEqual(out.get("verdict"), "ERROR")
+        self.assertIn("baseline failed", out.get("evidence_summary", ""))
 
     async def test_empty_seed_rejected(self):
         out = await self.tool(
@@ -149,7 +158,8 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
             seed="",
             signals={"regex": "x"},
         )
-        self.assertIn("seed payload is required", out)
+        self.assertEqual(out.get("verdict"), "ERROR")
+        self.assertIn("seed payload is required", out.get("evidence_summary", ""))
 
     async def test_missing_signals_rejected(self):
         out = await self.tool(
@@ -158,7 +168,8 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
             seed="payload",
             signals={},
         )
-        self.assertIn("signals dict is required", out)
+        self.assertEqual(out.get("verdict"), "ERROR")
+        self.assertIn("signals dict is required", out.get("evidence_summary", ""))
 
 
 if __name__ == "__main__":

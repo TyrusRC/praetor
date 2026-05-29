@@ -6,6 +6,7 @@ from burpsuite_mcp import client
 
 from ._format import format_fuzz_results
 from ._smart import get_smart_payloads
+from ._verdict import error_verdict, make_verdict, verdict_from_tally
 
 
 def register(mcp: FastMCP):
@@ -22,8 +23,10 @@ def register(mcp: FastMCP):
         grep_extract: str = "",
         delay_ms: int = 0,
         smart_payloads: bool = False,
-    ) -> str:
+    ) -> dict:
         """Fuzz parameters with payloads and detect response anomalies.
+
+        Returns VerdictResult (W7 schema).
 
         Args:
             index: Proxy history index of the base request
@@ -52,7 +55,10 @@ def register(mcp: FastMCP):
         elif parameter and payloads:
             payload["parameters"] = [{"name": parameter, "position": injection_point, "payloads": payloads}]
         else:
-            return "Error: Provide 'parameters' list or 'parameter' + 'payloads'"
+            return error_verdict(
+                "provide 'parameters' list or 'parameter' + 'payloads'",
+                vuln_type="fuzz",
+            )
 
         if grep_match:
             payload["grep_match"] = grep_match
@@ -63,6 +69,24 @@ def register(mcp: FastMCP):
 
         data = await client.post("/api/fuzz", json=payload)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return error_verdict(str(data["error"]), vuln_type="fuzz")
 
-        return format_fuzz_results(data)
+        human = format_fuzz_results(data)
+        # Count anomalies — fuzz reports them in anomaly_summary or per-row flags.
+        summary = data.get("anomaly_summary", {}) or {}
+        anomaly_count = sum(int(v or 0) for v in summary.values())
+        verdict, confidence = verdict_from_tally(anomaly_count)
+        ev = (f"fuzz: {anomaly_count} anomalies across {data.get('total_requests', 0)} requests"
+              if anomaly_count else "no anomalies across fuzz payloads")
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="fuzz",
+            details={
+                "total_requests": data.get("total_requests"),
+                "anomaly_summary": summary,
+                "baseline_status": data.get("baseline_status"),
+                "baseline_length": data.get("baseline_length"),
+            },
+            summary=human,
+        )

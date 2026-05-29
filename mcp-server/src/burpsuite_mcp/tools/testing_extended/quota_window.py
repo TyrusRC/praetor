@@ -17,6 +17,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _extract_reset_seconds(headers: list[dict]) -> int | None:
@@ -55,8 +56,8 @@ def register(mcp: FastMCP):
         body: str = "",
         reset_at_ts: int = 0,
         max_wait_seconds: int = 60,
-    ) -> str:
-        """Off-by-one quota-reset double-consume probe.
+    ) -> dict:
+        """Off-by-one quota-reset double-consume probe. Returns VerdictResult (W7 schema).
 
         Args:
             session: Auth session.
@@ -74,7 +75,7 @@ def register(mcp: FastMCP):
             "headers": headers, "body": body,
         })
         if "error" in first:
-            return f"Error on initial probe: {first['error']}"
+            return error_verdict(f"initial probe failed: {first['error']}", vuln_type="rate_limit")
         first_status = first.get("status", 0)
         first_headers = first.get("response_headers", first.get("headers", []))
         discovered_reset = _extract_reset_seconds(first_headers) if not reset_at_ts else reset_at_ts
@@ -84,13 +85,19 @@ def register(mcp: FastMCP):
             f"[probe-1] status={first_status} (initial state)",
         ]
         if not discovered_reset:
-            return "\n".join(lines) + "\n\nNo X-RateLimit-Reset / Retry-After header found and no reset_at_ts provided. Cannot detect window edge — pass reset_at_ts explicitly."
+            return error_verdict(
+                "no X-RateLimit-Reset / Retry-After header and no reset_at_ts — cannot detect window edge",
+                vuln_type="rate_limit",
+            ) | {"human_summary": "\n".join(lines)}
 
         now = int(time.time())
         wait = discovered_reset - now - 1  # Pre-warm 1s BEFORE reset
         lines.append(f"Reset at unix-ts {discovered_reset} (~{discovered_reset - now}s from now)")
         if wait > max_wait_seconds:
-            return "\n".join(lines) + f"\n\nReset is {wait}s away — exceeds max_wait_seconds={max_wait_seconds}. Increase max_wait_seconds or schedule manually."
+            return error_verdict(
+                f"reset is {wait}s away — exceeds max_wait_seconds={max_wait_seconds}",
+                vuln_type="rate_limit",
+            ) | {"human_summary": "\n".join(lines)}
 
         # 2) Burn through the quota until we get 429 / 403 / 5xx
         lines.append("\n[burn-quota]")
@@ -116,7 +123,10 @@ def register(mcp: FastMCP):
         now = int(time.time())
         sleep_until = max(0, discovered_reset - now - 1)
         if sleep_until > max_wait_seconds:
-            return "\n".join(lines) + f"\n\nSleep-until-reset is {sleep_until}s — exceeds max_wait_seconds={max_wait_seconds}."
+            return error_verdict(
+                f"sleep-until-reset is {sleep_until}s — exceeds max_wait_seconds={max_wait_seconds}",
+                vuln_type="rate_limit",
+            ) | {"human_summary": "\n".join(lines)}
         if sleep_until > 0:
             lines.append(f"\nSleeping {sleep_until}s until ~1s before reset...")
             await asyncio.sleep(sleep_until)
@@ -158,4 +168,24 @@ def register(mcp: FastMCP):
             findings.append("Both denied — quota not yet reset or reset disabled. Re-run with adjusted timing.")
         for f in findings:
             lines.append(f"  {f}")
-        return "\n".join(lines)
+
+        human = "\n".join(lines)
+        # CONFIRMED when off-by-one detected (both T-1s and T+1s succeed).
+        off_by_one = any("OFF-BY-ONE" in f.upper() or "BOTH SUCCESS" in f.upper() or
+                        "DOUBLE CONSUME" in f.upper() for f in findings)
+        if off_by_one:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = "quota-window off-by-one — double-consume across reset boundary"
+        elif findings:
+            verdict, confidence = "SUSPECTED", 0.45
+            ev = "quota window timing observed — review per finding"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "no quota off-by-one detected"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="rate_limit",
+            details={"endpoint": endpoint, "findings": findings},
+            summary=human,
+        )
