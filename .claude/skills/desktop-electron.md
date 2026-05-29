@@ -42,6 +42,12 @@ CloakBrowser does not apply — desktop testing is **out-of-process binary inspe
    - `OnlyLoadAppFromAsar = Disabled` or `EmbeddedAsarIntegrityValidation = Disabled` → ASAR swap.
 6. **Tauri path**: read `tauri.conf.json` + `src-tauri/capabilities/*.json`. Flag `fs:allow-*` without scope, `shell:allow-execute` without args allowlist, `http:default` without origin allowlist.
 7. **WebView2 path**: grep C#/C++ host for `AddHostObjectToScript`, `WebMessageReceived`, `AddWebResourceRequestedFilter`. Each is an attack surface if remote URL is navigable.
+7a. **Tauri auto-update audit** (W9):
+   - Read `tauri.conf.json` → `updater.endpoints` (list of update servers) and `updater.pubkey` (Ed25519 pubkey for manifest verification).
+   - If `updater.pubkey` is empty / placeholder, the updater installs unsigned binaries (`tauri_autoupdate_unsigned`).
+   - For each endpoint, MITM the manifest fetch via Burp `match_replace`. Swap the `signature` field — the updater MUST reject. If it accepts, signature verification is broken (`cosign_signature_missing` if Sigstore path).
+   - Probe `<endpoint>/<binary>.sig` and `<endpoint>/<binary>.pem` — 404 means no Sigstore bundle is published.
+   - For TUF-style update channels (Rust `tuf` crate): fetch `timestamp.json`, check `signed.expires` — older than 7 days = stale rotation (`tauri_autoupdate_tuf_metadata`) → freeze-attack surface.
 8. **Dynamic phase** — launch app with `--proxy-server=http://127.0.0.1:8080` + Burp CA in OS trust store. SSL-pin bypass via Frida script if app pins. Common findings:
    - Update channel over HTTP → `match_replace` the manifest `url` field to attacker host → trojan update
    - `shell.openExternal` accepts attacker-controlled link from server response → swap link via `match_replace` to `javascript:` / `file:` / `smb://`

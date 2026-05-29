@@ -4,18 +4,25 @@ import base64
 import json
 import time
 
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
+
 
 async def test_jwt_impl(
     token: str,
-) -> str:
+) -> dict:
     """Analyze a JWT token for vulnerabilities and attack vectors.
+
+    Returns VerdictResult (W7 schema).
 
     Args:
         token: JWT token string
     """
     parts = token.split(".")
     if len(parts) != 3:
-        return f"Error: Invalid JWT format (expected 3 parts, got {len(parts)})"
+        return error_verdict(
+            f"invalid JWT format (expected 3 parts, got {len(parts)})",
+            vuln_type="jwt",
+        )
 
     # Decode header and payload
     try:
@@ -24,7 +31,7 @@ async def test_jwt_impl(
         header = json.loads(base64.urlsafe_b64decode(header_b64))
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
     except Exception as e:
-        return f"Error decoding JWT: {e}"
+        return error_verdict(f"decode failed: {e}", vuln_type="jwt")
 
     lines = ["JWT Analysis:\n"]
     lines.append(f"Header: {json.dumps(header, indent=2)}")
@@ -102,4 +109,32 @@ async def test_jwt_impl(
         for n in notes:
             lines.append(f"  {n}")
 
-    return "\n".join(lines)
+    human = "\n".join(lines)
+
+    critical_hits = sum(1 for v in vulns if v.startswith("CRITICAL"))
+    if critical_hits:
+        verdict, confidence = "CONFIRMED", 0.85
+        ev = f"jwt static analysis flagged {critical_hits} critical issue(s); first: {vulns[0]}"
+    elif vulns:
+        verdict, confidence = "SUSPECTED", 0.6
+        ev = f"jwt static analysis flagged {len(vulns)} issue(s); first: {vulns[0]}"
+    elif tests:
+        verdict, confidence = "SUSPECTED", 0.4
+        ev = f"jwt has {len(tests)} follow-up attack candidate(s); structure clean but operator must probe"
+    else:
+        verdict, confidence = "FAILED", 0.1
+        ev = "jwt structure clean — no obvious algorithm / claim / header vulnerabilities"
+
+    return make_verdict(
+        verdict, confidence, ev,
+        vuln_type="jwt",
+        details={
+            "algorithm": alg,
+            "header_claims": list(header.keys()),
+            "payload_claims": list(payload.keys()),
+            "vulnerabilities": vulns,
+            "tests": tests,
+            "notes": notes,
+        },
+        summary=human,
+    )

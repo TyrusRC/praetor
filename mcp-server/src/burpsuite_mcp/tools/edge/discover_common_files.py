@@ -102,16 +102,41 @@ async def discover_common_files_impl(
                 "/META-INF/MANIFEST.MF", "/WEB-INF/web.xml",
                 "/WEB-INF/classes/application.properties",
                 "/error", "/trace", "/dump", "/jolokia",
+                # W9 extensions
+                "/actuator/jolokia", "/actuator/logfile",
+                "/actuator/auditevents", "/actuator/metrics",
+                "/h2-console/", "/META-INF/maven/",
+                "/WEB-INF/classes/log4j.properties",
+                "/WEB-INF/classes/log4j2.xml",
+                "/WEB-INF/classes/application.yml",
+                "/WEB-INF/classes/application-dev.properties",
+                "/.springBeans",
             ]
         if any(t in stack for t in ("django", "flask", "python")):
             extras += [
                 "/__debug__/", "/django_debug/", "/admin/login/",
                 "/static/admin/", "/media/",
+                # W9 extensions
+                "/manage.py", "/local_settings.py", "/settings.py",
+                "/db.sqlite3", "/celerybeat-schedule",
+                "/.flask_session/", "/instance/config.py",
             ]
         if any(t in stack for t in ("rails", "ruby")):
             extras += [
                 "/rails/info/properties", "/rails/info/routes",
                 "/rails/db", "/_specs/",
+                # W9 extensions
+                "/config/database.yml", "/config/secrets.yml",
+                "/config/master.key", "/config/credentials.yml.enc",
+                "/db/schema.rb", "/db/seeds.rb",
+                "/log/development.log", "/log/production.log",
+                "/tmp/cache/", "/storage/",
+            ]
+        if any(t in stack for t in ("go", "golang", "gin", "echo", "fiber")):
+            extras += [
+                "/debug/pprof/", "/debug/pprof/heap", "/debug/pprof/goroutine",
+                "/debug/pprof/cmdline", "/debug/pprof/profile",
+                "/debug/vars", "/metrics",
             ]
         if any(t in stack for t in ("aspnet", ".net", "iis")):
             extras += [
@@ -122,6 +147,11 @@ async def discover_common_files_impl(
             extras += [
                 "/server.js", "/index.js", "/app.js",
                 "/.next/static/", "/_next/static/",
+                # W9 extensions
+                "/.next/server/", "/.next/server/pages-manifest.json",
+                "/.next/server/middleware-manifest.json",
+                "/.nuxt/", "/.nuxt/dist/", "/dist/", "/build/",
+                "/ecosystem.config.js", "/pm2.json",
             ]
         # Dedup while preserving order.
         seen = set(paths)

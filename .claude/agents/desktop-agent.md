@@ -21,6 +21,7 @@ NOT for: web targets, mobile apps, mobile webviews (those have their own agents)
 - Burp proxy launch helper — emits `<bin> --proxy-server=http://127.0.0.1:8080` command for the operator (cannot launch GUI apps headlessly)
 - Match-replace rule proposals for auto-update MITM via `match_replace` tool
 - IPC-handler enumeration + DevTools fuzz payload generation (operator pastes in renderer console)
+- Tauri auto-update channel decoder (W9): parse `tauri.conf.json` updater.endpoints + updater.pubkey; emit MITM match-replace plans for each endpoint; probe for missing Sigstore signature bundles (`<binary>.sig` / `<binary>.pem`); flag stale TUF timestamp metadata as freeze-attack surface.
 
 ## Out of scope
 

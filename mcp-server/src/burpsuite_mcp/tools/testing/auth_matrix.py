@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._format import fmt_size
+from ._verdict import error_verdict, make_verdict
 
 
 def register(mcp: FastMCP):
@@ -15,8 +16,11 @@ def register(mcp: FastMCP):
         auth_states: dict,
         base_url: str = "",
         actions: list[str] | None = None,
-    ) -> str:
+    ) -> dict:
         """Test endpoints across multiple auth states to detect IDOR / BFLA / BAC.
+
+        Returns a structured VerdictResult (W7 schema): {verdict, confidence,
+        evidence_summary, logger_indices, vuln_type, details, human_summary}.
 
         Args:
             endpoints: Endpoints to test. Each may include a 'method' field — when present, that
@@ -31,7 +35,10 @@ def register(mcp: FastMCP):
         across verbs — read may be denied while write succeeds, or vice versa.
         """
         if len(auth_states) < 2:
-            return "Error: need at least 2 auth_states for matrix comparison"
+            return error_verdict(
+                "need at least 2 auth_states for matrix comparison",
+                vuln_type="idor",
+            )
 
         if actions:
             # Expand endpoints across action axis
@@ -49,7 +56,7 @@ def register(mcp: FastMCP):
 
         data = await client.post("/api/attack/auth-matrix", json=payload)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return error_verdict(str(data["error"]), vuln_type="idor")
 
         lines = [f"Auth Matrix: {data['endpoints_tested']} endpoints x {data['auth_states_tested']} states = {data['total_requests']} requests"]
         if actions:
@@ -77,4 +84,40 @@ def register(mcp: FastMCP):
         if issues:
             lines.append(f"Potential IDOR issues: {issues}")
 
-        return "\n".join(lines)
+        human = "\n".join(lines)
+
+        # Collect logger indices + auth_state breach signal.
+        logger_indices: list[int] = []
+        high_similarity_cross_state = False
+        for row in data.get("matrix", []):
+            for cell in row.get("results", []) or []:
+                idx = cell.get("logger_index")
+                if isinstance(idx, int) and idx >= 0:
+                    logger_indices.append(idx)
+                sim = cell.get("similarity_to_baseline")
+                if sim is not None and not cell.get("baseline") and sim >= 0.85:
+                    high_similarity_cross_state = True
+
+        if issues >= 1:
+            verdict, confidence = "CONFIRMED", min(0.85, 0.65 + 0.05 * issues)
+            ev = f"auth matrix: {issues} potential IDOR/BFLA cell(s) — different principals get same data"
+        elif high_similarity_cross_state:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = "cross-state similarity >=85% — auth state may not gate response"
+        else:
+            verdict, confidence = "FAILED", 0.10
+            ev = "auth matrix differentiates principals correctly"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="idor",
+            logger_indices=logger_indices[:10],
+            details={
+                "endpoints_tested": data.get("endpoints_tested"),
+                "auth_states_tested": data.get("auth_states_tested"),
+                "total_requests": data.get("total_requests"),
+                "potential_issues": issues,
+                "high_similarity_cross_state": high_similarity_cross_state,
+            },
+            summary=human,
+        )

@@ -118,4 +118,77 @@ TAKEOVER_FINGERPRINTS = {
     "surveysparrow.com": {"cname": "surveysparrow.com", "body": "Account not found"},
     "wasabisys.com": {"cname": "s3.wasabisys.com", "body": "NoSuchBucket"},
     "worksites.net": {"cname": "worksites.net", "body": "Hello! Sorry, but the website you're looking for doesn't exist"},
+    # W9 (2026-05-29) — DNS-only signal entries. `body` ignored when
+    # dns_only=True: the takeover signal is CNAME-resolves-but-target-NXDOMAIN.
+    # test_subdomain_takeover treats `dns_only` as bypass for HTTP body match.
+    "elasticbeanstalk-us-east-1": {
+        "cname": "us-east-1.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-us-east-2": {
+        "cname": "us-east-2.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-us-west-1": {
+        "cname": "us-west-1.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-us-west-2": {
+        "cname": "us-west-2.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-eu-west-1": {
+        "cname": "eu-west-1.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-eu-central-1": {
+        "cname": "eu-central-1.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-ap-southeast-1": {
+        "cname": "ap-southeast-1.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "elasticbeanstalk-ap-northeast-1": {
+        "cname": "ap-northeast-1.elasticbeanstalk.com",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "s3-us-west-2": {
+        "cname": "s3.us-west-2.amazonaws.com",
+        "body": "NoSuchBucket",
+        "dns_only": False,
+    },
+    "s3-eu-west-1": {
+        "cname": "s3.eu-west-1.amazonaws.com",
+        "body": "NoSuchBucket",
+        "dns_only": False,
+    },
+    "s3-ap-southeast-1": {
+        "cname": "s3.ap-southeast-1.amazonaws.com",
+        "body": "NoSuchBucket",
+        "dns_only": False,
+    },
+    "azure-tts-net": {
+        "cname": "trafficmanager.net",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "azure-cdn-net": {
+        "cname": "azureedge.net",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
+    "azure-redis-cache": {
+        "cname": "redis.cache.windows.net",
+        "body": "(dns-only)",
+        "dns_only": True,
+    },
 }

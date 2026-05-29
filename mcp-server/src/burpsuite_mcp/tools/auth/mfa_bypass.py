@@ -24,6 +24,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools._request_headers import apply_realistic_headers
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 # 100 most common OTP guesses. Ordered roughly by frequency in public dumps;
@@ -88,8 +89,8 @@ def register(mcp: FastMCP):
         otp_length: int = 6,
         full_brute: bool = False,
         max_brute_attempts: int = 500,
-    ) -> str:
-        """Four-prong MFA bypass test. Documents what does and doesn't bypass.
+    ) -> dict:
+        """Four-prong MFA bypass test. Returns VerdictResult (W7 schema).
 
         Args:
             mfa_verify_url: The /verify-mfa / /2fa/check / /otp endpoint
@@ -107,9 +108,11 @@ def register(mcp: FastMCP):
             max_brute_attempts: Hard cap on brute step (default 500)
         """
         if not partial_session_cookies and not partial_session_bearer:
-            return ("Error: provide partial_session_cookies or "
-                    "partial_session_bearer — these are the half-authenticated "
-                    "credentials the bypass should promote.")
+            return error_verdict(
+                "provide partial_session_cookies or partial_session_bearer — "
+                "these are the half-authenticated credentials to promote.",
+                vuln_type="mfa_bypass",
+            )
 
         report: list[str] = ["test_mfa_bypass:\n"]
         bypasses: list[str] = []
@@ -321,4 +324,28 @@ def register(mcp: FastMCP):
             report.append("MFA layer appears solid across direct-resource, "
                           "step-skip, brute, and reuse axes.")
 
-        return "\n".join(report)
+        human = "\n".join(report)
+        import re
+        logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:10]
+
+        if len(bypasses) >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            ev = f"MFA bypassed via {len(bypasses)} axes: {'; '.join(bypasses[:3])}"
+        elif len(bypasses) == 1:
+            verdict, confidence = "SUSPECTED", 0.6
+            ev = f"single MFA axis broken: {bypasses[0]}"
+        else:
+            verdict, confidence = "FAILED", 0.1
+            ev = "MFA solid across direct-resource / step-skip / brute / reuse"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="mfa_bypass",
+            logger_indices=logger_indices,
+            details={
+                "mfa_verify_url": mfa_verify_url,
+                "protected_url": protected_url,
+                "bypasses": bypasses,
+            },
+            summary=human,
+        )

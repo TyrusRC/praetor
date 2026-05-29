@@ -35,6 +35,7 @@ from urllib.parse import urlparse
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools.browser import _ensure_browser
+from burpsuite_mcp.tools.testing._verdict import make_verdict
 
 from ._constants import (
     _CSPP_DEFAULT_KEYS,
@@ -58,10 +59,12 @@ def register(mcp: FastMCP) -> None:
         wait_ms: int = 2500,
         click_crawl: bool = True,
         max_clicks: int = 3,
-    ) -> str:
+    ) -> dict:
         """Inject a unique marker (optionally wrapped in a polyglot exploit
         payload) through query / fragment / referrer and capture which DOM
-        sinks it reaches. Detects DOM-based XSS, DOM open-redirect, link
+        sinks it reaches. Returns VerdictResult (W7 schema).
+
+        Detects DOM-based XSS, DOM open-redirect, link
         manipulation, DOM data manipulation, CSPP, AngularJS CSTI.
 
         Args:
@@ -414,7 +417,13 @@ def register(mcp: FastMCP) -> None:
         lines.append("")
         if not all_findings:
             lines.append("No DOM sink reflections detected.")
-            return "\n".join(lines)
+            return make_verdict(
+                "FAILED", 0.1,
+                "no DOM sink reflections found across query / fragment / referrer / CSPP probes",
+                vuln_type="dom_xss",
+                details={"url": url, "kinds_tried": list(kinds)},
+                summary="\n".join(lines),
+            )
 
         lines.append(f"FINDINGS ({len(all_findings)}):")
         grouped: dict[str, list[dict]] = {}
@@ -445,4 +454,27 @@ def register(mcp: FastMCP) -> None:
             "attacker-controllable (cross-origin / link-shared / fragment-craftable) and "
             "the sink isn't sanitised (Trusted Types / DOMPurify / framework escaping)."
         )
-        return "\n".join(lines)
+        human = "\n".join(lines)
+
+        # Severity-class signal: presence of dom_xss / open_redirect classes
+        # in findings = stronger verdict; only CSPP / data-manip = SUSPECTED.
+        classes = {f["vuln_class"] for f in all_findings}
+        critical_classes = classes & {"dom_xss", "csti", "code_eval", "open_redirect"}
+        if critical_classes:
+            verdict, confidence = "CONFIRMED", 0.8
+            ev = f"DOM sink reflection in {len(all_findings)} probe(s) across {', '.join(sorted(critical_classes))}"
+        else:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = f"DOM marker reflected in {len(all_findings)} probe(s); no critical-class sink hit yet"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="dom_xss",
+            details={
+                "url": url,
+                "findings_count": len(all_findings),
+                "vuln_classes": sorted(classes),
+                "findings_preview": all_findings[:10],
+            },
+            summary=human,
+        )

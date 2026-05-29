@@ -1,7 +1,11 @@
 {
   "category": "desktop_electron",
   "description": "Electron / Tauri / WebView2 desktop application security patterns. Mostly static-analysis-driven (binary inspection by desktop-agent); only autoupdate_http_mitm participates in auto_probe via HTTP. Reference contexts emit grep/probe instructions in their `detect` field for operator + desktop-agent.",
-  "applies_to": ["desktop_electron", "desktop_tauri", "desktop_webview2"],
+  "applies_to": [
+    "desktop_electron",
+    "desktop_tauri",
+    "desktop_webview2"
+  ],
   "contexts": {
     "node_integration_enabled": {
       "reference_only": true,
@@ -86,13 +90,22 @@
     },
     "autoupdate_http_mitm": {
       "matchers": [
-        {"type": "regex", "pattern": "(?i)\"url\"\\s*:\\s*\"http://"},
-        {"type": "header", "name": "Content-Type", "contains": "application/json"}
+        {
+          "type": "regex",
+          "pattern": "(?i)\"url\"\\s*:\\s*\"http://"
+        },
+        {
+          "type": "header",
+          "name": "Content-Type",
+          "contains": "application/json"
+        }
       ],
       "description": "Update manifest fetched over plaintext HTTP — MITM via match_replace to swap binary URL / hash. Squirrel.Mac / electron-updater pattern.",
       "severity": "critical",
       "confidence_boost": 75,
-      "variables": {"manual_chain": true},
+      "variables": {
+        "manual_chain": true
+      },
       "explanation": "Captured update-channel HTTP request → match_replace the manifest 'url' field to attacker host → trojan update installs on next launch."
     },
     "tauri_capability_overbroad": {
@@ -112,6 +125,25 @@
       "detect": "WebMessageReceived handler with no e.Source / e.Origin allowlist",
       "severity_hint": "high",
       "explanation": "WebView2 host's WebMessageReceived trusts message regardless of source origin. Foreign-origin XSS in WebView reaches host."
+    },
+    "tauri_autoupdate_unsigned": {
+      "reference_only": true,
+      "detect": "Tauri auto-update flow: read tauri.conf.json -> updater.endpoints. For each endpoint: (a) verify pubkey field is set + tauri.conf.json updater.pubkey is the runtime verification key, (b) MITM the endpoint via Burp match_replace to swap signature -> updater must reject (Ed25519 verification). (c) Inspect manifest signature field: should be Ed25519 over the binary URL+hash, NOT a self-signed JWT.",
+      "severity_hint": "critical",
+      "cve": "GHSA-pwjp-jx5r-grxq (Tauri updater pubkey class)",
+      "explanation": "Tauri v2 ships a TUF-like updater with Ed25519 manifest signing. If pubkey is empty / wildcard / served from same origin as the manifest, attacker MITM serves a trojan binary URL with a self-signed signature and the updater installs it."
+    },
+    "tauri_autoupdate_tuf_metadata": {
+      "reference_only": true,
+      "detect": "TUF-style update channels (Sigstore-cosign-verified or Rust tuf crate): probe the metadata endpoint for stale timestamp.json (older than 7 days) — proves no live rotation. Probe targets.json for trusted-roles delegations.",
+      "severity_hint": "high",
+      "explanation": "Stale TUF timestamp metadata allows freeze attacks: attacker pins victim to an old (vulnerable) version forever. Some Tauri deployments use TUF without rotation."
+    },
+    "cosign_signature_missing": {
+      "reference_only": true,
+      "detect": "For Tauri / Sigstore-signed updates: verify update binary has accompanying .sig + .pem (or bundled signature). Probe https://<update-host>/<binary>.sig — 404 means no Sigstore verification path. Use .",
+      "severity_hint": "high",
+      "explanation": "When Tauri / electron-updater claims Sigstore-cosign verification but the signature blob is absent or unreachable, verification silently falls open to unsigned download."
     }
   }
 }
