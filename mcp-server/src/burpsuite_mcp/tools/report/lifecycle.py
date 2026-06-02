@@ -44,6 +44,8 @@ def purge_false_positives(domain: str) -> tuple[list[dict], int]:
     deleted = len(all_findings) - len(keep)
 
     if deleted > 0:
+        from burpsuite_mcp.tools.notes._helpers import _compact_and_remap_findings
+        keep, _id_map = _compact_and_remap_findings(keep)
         data["findings"] = keep
         data["last_modified"] = datetime.now(timezone.utc).isoformat()
         path.write_text(json.dumps(data, indent=2))

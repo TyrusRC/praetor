@@ -2,63 +2,113 @@
   "category": "websocket",
   "contexts": {
     "cswsh": {
-      "description": "Cross-Site WebSocket Hijacking — no Origin validation",
+      "description": "Cross-Site WebSocket Hijacking \u2014 no Origin validation",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "WebSocket handshake with Origin: https://evil.com — check if 101 returned",
-          "matchers": [{"type": "status", "status": [101]}, {"type": "header", "name": "Upgrade", "contains": "websocket"}],
+          "description": "WebSocket handshake with Origin: https://evil.com \u2014 check if 101 returned",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Upgrade",
+              "contains": "websocket"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 45
         }
       ]
     },
     "auth_bypass": {
-      "description": "WebSocket authentication bypass — missing auth on upgrade",
+      "description": "WebSocket authentication bypass \u2014 missing auth on upgrade",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "WebSocket upgrade without cookies/auth — check if connection accepted",
-          "matchers": [{"type": "status", "status": [101]}],
+          "description": "WebSocket upgrade without cookies/auth \u2014 check if connection accepted",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
       ]
     },
     "injection": {
-      "description": "WebSocket message injection — SQLi/XSS in WS messages",
+      "description": "WebSocket message injection \u2014 SQLi/XSS in WS messages",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"message\":\"test' OR '1'='1\"}",
           "description": "SQLi via WebSocket JSON message",
-          "matchers": [{"type": "word", "words": ["sql", "syntax", "error", "unclosed"], "condition": "or"}],
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "sql",
+                "syntax",
+                "error",
+                "unclosed"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 45
         },
         {
           "payload": "{\"message\":\"<img src=x onerror=alert(1)>\"}",
           "description": "XSS via WebSocket message reflection",
-          "matchers": [{"type": "reflection", "check_variants": true}],
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
       ]
     },
     "message_smuggling": {
-      "description": "WebSocket-to-HTTP request tunneling — send HTTP requests inside WS frames to reach internal backends",
-      "tech_match": ["WebSocket", "Node.js", "Express", "Nginx"],
+      "description": "WebSocket-to-HTTP request tunneling \u2014 send HTTP requests inside WS frames to reach internal backends",
+      "tech_match": [
+        "WebSocket",
+        "Node.js",
+        "Express",
+        "Nginx"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "GET /admin HTTP/1.1\r\nHost: internal-api\r\n\r\n",
-          "description": "HTTP request inside WebSocket frame — test if backend processes raw HTTP sent via WS",
-          "matchers": [{"type": "word", "words": ["admin", "dashboard", "settings"], "condition": "or"}],
+          "description": "HTTP request inside WebSocket frame \u2014 test if backend processes raw HTTP sent via WS",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "dashboard",
+                "settings"
+              ],
+              "condition": "or"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 30
         }
@@ -66,104 +116,201 @@
     },
     "proto_pollution": {
       "description": "Prototype pollution via WebSocket JSON messages in Node.js applications",
-      "tech_match": ["WebSocket", "Node.js", "Express", "Socket.io"],
+      "tech_match": [
+        "WebSocket",
+        "Node.js",
+        "Express",
+        "Socket.io"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"polluted\":\"ws_canary\"}}",
-          "description": "Prototype pollution via WS JSON message — check if canary appears in subsequent responses",
-          "matchers": [{"type": "word", "words": ["ws_canary"]}],
+          "description": "Prototype pollution via WS JSON message \u2014 check if canary appears in subsequent responses",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ws_canary"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         }
       ]
     },
     "ws_auth_pre_handshake_send": {
-      "description": "WebSocket authentication race — server registers connection before validating auth, allowing first-message attack window. Common in custom WS servers, less common in Apollo / standard frameworks.",
-      "tech_match": ["WebSocket", "Socket.io"],
+      "description": "WebSocket authentication race \u2014 server registers connection before validating auth, allowing first-message attack window. Common in custom WS servers, less common in Apollo / standard frameworks.",
+      "tech_match": [
+        "WebSocket",
+        "Socket.io"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Send authenticated message immediately after handshake without waiting for ACK. If processed before auth check completes, partial response leaks.",
-          "matchers": [{"type": "word", "any": ["data", "result", "payload"]}],
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "data",
+                "result",
+                "payload"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40,
-          "variables": {"manual_only": true}
+          "variables": {
+            "manual_only": true
+          }
         }
       ]
     },
     "ws_session_replay": {
-      "description": "Session-ID replay on WebSocket upgrade — server trusts session cookie / token from a previous session, allowing attacker who captured a session ID to upgrade as that user.",
-      "tech_match": ["WebSocket"],
+      "description": "Session-ID replay on WebSocket upgrade \u2014 server trusts session cookie / token from a previous session, allowing attacker who captured a session ID to upgrade as that user.",
+      "tech_match": [
+        "WebSocket"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Replay captured session cookie on WS upgrade after the underlying HTTP session has logged out. If 101 returned, session-bound auth is broken on WS path.",
-          "matchers": [{"type": "status", "status": [101]}, {"type": "header", "name": "Upgrade", "contains": "websocket"}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Upgrade",
+              "contains": "websocket"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 45,
-          "variables": {"manual_only": true}
+          "variables": {
+            "manual_only": true
+          }
         }
       ]
     },
     "ws_origin_strip": {
       "description": "WebSocket upgrade with Origin header REMOVED (vs evil.com). Some servers default-allow when Origin is missing, treating the request as same-origin/non-browser. Browsers always send Origin on WS upgrades.",
-      "tech_match": ["WebSocket"],
+      "tech_match": [
+        "WebSocket"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "WS upgrade WITHOUT Origin header. If 101 returned, attacker non-browser client (curl, Python websockets) gains full access — useful for credential stuffing or rate-limit bypass.",
-          "matchers": [{"type": "status", "status": [101]}],
+          "description": "WS upgrade WITHOUT Origin header. If 101 returned, attacker non-browser client (curl, Python websockets) gains full access \u2014 useful for credential stuffing or rate-limit bypass.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30,
-          "variables": {"strip_origin": true}
+          "variables": {
+            "strip_origin": true
+          }
         }
       ]
     },
     "subprotocol_confusion": {
-      "description": "WS subprotocol confusion — server accepts unrecognized Sec-WebSocket-Protocol value and switches to a less-validated path.",
-      "tech_match": ["WebSocket"],
+      "description": "WS subprotocol confusion \u2014 server accepts unrecognized Sec-WebSocket-Protocol value and switches to a less-validated path.",
+      "tech_match": [
+        "WebSocket"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Upgrade with Sec-WebSocket-Protocol: admin / debug / internal. Some implementations have hidden subprotocols with reduced auth.",
-          "matchers": [{"type": "status", "status": [101]}, {"type": "header", "name": "Sec-WebSocket-Protocol", "contains": ""}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Sec-WebSocket-Protocol",
+              "contains": ""
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 25,
-          "variables": {"subprotocols": ["admin", "debug", "internal", "v2"]}
+          "variables": {
+            "subprotocols": [
+              "admin",
+              "debug",
+              "internal",
+              "v2"
+            ]
+          }
         }
       ]
     },
     "ws_frame_smuggling": {
-      "description": "WebSocket frame smuggling — server reassembles WebSocket frames differently from intermediate proxy. Combined with HTTP/1.1 smuggling, can hijack connection.",
-      "tech_match": ["WebSocket"],
+      "description": "WebSocket frame smuggling \u2014 server reassembles WebSocket frames differently from intermediate proxy. Combined with HTTP/1.1 smuggling, can hijack connection.",
+      "tech_match": [
+        "WebSocket"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "[Manual] Send fragmented WS frames with conflicting FIN bits. If proxy and origin disagree, frame-smuggling primitive established. Test with browser_navigate or burp_websocket_send.",
-          "matchers": [{"type": "status", "status": [101]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 35,
-          "variables": {"manual_only": true}
+          "variables": {
+            "manual_only": true
+          }
         }
       ]
     },
     "permessage_deflate_compression_oracle": {
-      "description": "WebSocket per-message-deflate compression (RFC 7692) leaks plaintext via compressed-size deltas — a CRIME-class side channel. If attacker can submit chosen plaintext that gets concatenated with secret tokens (e.g. echo-server, debug-broadcast), they recover token bytes one at a time.",
-      "tech_match": ["WebSocket", "permessage-deflate"],
+      "description": "WebSocket per-message-deflate compression (RFC 7692) leaks plaintext via compressed-size deltas \u2014 a CRIME-class side channel. If attacker can submit chosen plaintext that gets concatenated with secret tokens (e.g. echo-server, debug-broadcast), they recover token bytes one at a time.",
+      "tech_match": [
+        "WebSocket",
+        "permessage-deflate"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Detect per-message-deflate via Sec-WebSocket-Extensions response header. Presence = compression oracle prerequisite met.",
           "matchers": [
-            {"type": "header", "name": "Sec-WebSocket-Extensions", "contains": "permessage-deflate"},
-            {"type": "status", "status": [101]}
+            {
+              "type": "header",
+              "name": "Sec-WebSocket-Extensions",
+              "contains": "permessage-deflate"
+            },
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            }
           ],
           "severity": "low",
           "confidence_boost": 25
@@ -172,21 +319,96 @@
           "payload": "{{baseline}}",
           "description": "[Manual] If echo-server with chosen-plaintext primitive: send messages with prefix matching guess of token (`token=0`, `token=1`, ...). Compressed frame size drops by 1+ byte when prefix matches actual token bytes (deflate back-reference). Recover token byte-by-byte.",
           "matchers": [
-            {"type": "length_diff", "min_diff": 1}
+            {
+              "type": "length_diff",
+              "min_diff": 1
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         },
         {
           "payload": "{{baseline}}",
-          "description": "Strip Sec-WebSocket-Extensions: permessage-deflate from handshake — if server insists on compressing anyway (config-forced), oracle persists for ALL clients. Most servers downgrade gracefully; check both behaviors.",
+          "description": "Strip Sec-WebSocket-Extensions: permessage-deflate from handshake \u2014 if server insists on compressing anyway (config-forced), oracle persists for ALL clients. Most servers downgrade gracefully; check both behaviors.",
           "matchers": [
-            {"type": "header", "name": "Sec-WebSocket-Extensions", "contains": "permessage-deflate"}
+            {
+              "type": "header",
+              "name": "Sec-WebSocket-Extensions",
+              "contains": "permessage-deflate"
+            }
           ],
           "severity": "low",
           "confidence_boost": 20,
-          "variables": {"strip_compression": true}
+          "variables": {
+            "strip_compression": true
+          }
+        }
+      ]
+    },
+    "per_message_authz_drift_2025": {
+      "description": "WebSocket per-message BOLA \u2014 connection auth'd as user A but each frame carries a target identifier (target_user_id / chat_id / room_id) that is NOT re-checked against the session identity. Distinct from cswsh (handshake) and auth_bypass (no auth at all): the handshake IS authenticated, the drift is in per-frame authz. Common in chat / collaboration / notification servers that scale frame-handlers stateless. 2025 wave of bug-bounty findings on Slack / Discord-clone / collab tools.",
+      "tech_match": [
+        "websocket",
+        "socket.io",
+        "graphql-ws",
+        "ws"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"action\":\"read_message\",\"target_user_id\":\"<victim_id>\"}",
+          "description": "Per-frame target swap \u2014 send legit-shape frame with victim's ID in the target field while the session belongs to attacker. Server should reject (frame-level authz); accepting + returning victim data confirms per-message BOLA.",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "email",
+                "phone",
+                "address",
+                "balance",
+                "ssn"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized",
+                "denied"
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "\"id\"\\s*:\\s*\"?<victim_id>",
+              "weight": 70
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "{\"op\":\"subscribe\",\"channel\":\"user.<victim_id>.notifications\"}",
+          "description": "Subscribe to victim-scoped channel from attacker's session. Server must verify channel ownership; broadcasting victim's notifications to attacker confirms per-channel authz miss.",
+          "matchers": [
+            {
+              "type": "word",
+              "any": [
+                "notification",
+                "message",
+                "event"
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "\"to\"\\s*:\\s*\"?<victim_id>",
+              "weight": 60
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
         }
       ]
     }

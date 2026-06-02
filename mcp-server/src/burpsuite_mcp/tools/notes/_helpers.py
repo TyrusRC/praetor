@@ -111,9 +111,34 @@ def _format_proof_for_review(f: dict) -> str:
     return "\n".join(lines)
 
 
+def _compact_and_remap_findings(findings: list[dict]) -> tuple[list[dict], dict[str, str]]:
+    """Renumber survivors to contiguous f001..f00N and rewrite chain_with[]
+    references in-place. Returns (compacted_list, old_to_new_id_map).
+
+    Survivors are renumbered in their current list order. chain_with entries
+    pointing at IDs no longer present (deleted) are dropped — they would
+    otherwise become orphan anchors that bypass the dead-anchor gate in
+    save_finding (anchor is gone, not 'likely_false_positive'/'stale')."""
+    id_map: dict[str, str] = {}
+    for i, f in enumerate(findings, start=1):
+        old_id = f.get("id", "")
+        new_id = f"f{i:03d}"
+        if old_id:
+            id_map[old_id] = new_id
+        f["id"] = new_id
+    for f in findings:
+        chain = f.get("chain_with") or []
+        if chain:
+            remapped = [id_map[c] for c in chain if c in id_map]
+            f["chain_with"] = remapped
+    return findings, id_map
+
+
 async def _hard_delete_finding(domain: str, finding: dict) -> tuple[bool, str]:
     """Remove a finding from .burp-intel/<domain>/findings.json AND from Burp's
-    in-memory store. Returns (deleted_locally, burp_msg)."""
+    in-memory store. Remaining findings are compacted (IDs renumbered
+    contiguously, chain_with[] rewritten / dead refs dropped).
+    Returns (deleted_locally, burp_msg)."""
     findings_path = _safe_findings_path(domain)
     deleted_locally = False
     if findings_path.exists():
@@ -122,6 +147,7 @@ async def _hard_delete_finding(domain: str, finding: dict) -> tuple[bool, str]:
         target_id = finding.get("id")
         keep = [f for f in all_findings if f.get("id") != target_id]
         if len(keep) != len(all_findings):
+            keep, _id_map = _compact_and_remap_findings(keep)
             store["findings"] = keep
             store["last_modified"] = datetime.now(timezone.utc).isoformat()
             _write_findings_file(findings_path, store)
