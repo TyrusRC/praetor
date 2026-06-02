@@ -1,20 +1,42 @@
 {
   "category": "react_server_components",
-  "description": "React Server Components (RSC) Flight protocol attacks. Covers CVE-2025-55182 React2Shell (Wiz) and CVE-2025-66478 (Praetorian) — Next.js boundary-deserialization RCE via crafted x-rsc-form-state / Server Action bodies. Affects ~39% of cloud Next.js apps (App Router 13.x-15.x with Server Actions enabled). Markers: text/x-component, Next-Action header, $1@/$2@ RSC chunk syntax.",
+  "description": "React Server Components (RSC) Flight protocol attacks. Covers CVE-2025-55182 React2Shell (Wiz) and CVE-2025-66478 (Praetorian) \u2014 Next.js boundary-deserialization RCE via crafted x-rsc-form-state / Server Action bodies. Affects ~39% of cloud Next.js apps (App Router 13.x-15.x with Server Actions enabled). Markers: text/x-component, Next-Action header, $1@/$2@ RSC chunk syntax.",
   "contexts": {
     "rsc_flight_fingerprint": {
-      "description": "Passive detection of RSC Flight responses. Confirms target uses Server Components — prerequisite for the React2Shell / boundary-deserialization chain.",
-      "tech_match": ["next", "next.js", "react-server", "rsc", "vercel"],
+      "description": "Passive detection of RSC Flight responses. Confirms target uses Server Components \u2014 prerequisite for the React2Shell / boundary-deserialization chain.",
+      "tech_match": [
+        "next",
+        "next.js",
+        "react-server",
+        "rsc",
+        "vercel"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "",
           "description": "RSC content-type + Flight payload markers",
           "matchers": [
-            {"type": "header", "header": "content-type", "weight": 60},
-            {"type": "regex", "pattern": "text/x-component", "weight": 80},
-            {"type": "regex", "pattern": "\\d+:\\[\"\\$\",\"", "weight": 70},
-            {"type": "header", "header": "x-nextjs-stale-time", "weight": 50}
+            {
+              "type": "header",
+              "header": "content-type",
+              "weight": 60
+            },
+            {
+              "type": "regex",
+              "pattern": "text/x-component",
+              "weight": 80
+            },
+            {
+              "type": "regex",
+              "pattern": "\\d+:\\[\"\\$\",\"",
+              "weight": 70
+            },
+            {
+              "type": "header",
+              "header": "x-nextjs-stale-time",
+              "weight": 50
+            }
           ],
           "severity": "low",
           "confidence_boost": 40,
@@ -24,15 +46,33 @@
     },
     "server_action_invocation_anomaly": {
       "description": "Server Actions invoked via Next-Action header. Probe checks whether arbitrary action IDs accept attacker-controlled args via x-www-form-urlencoded body or multipart FormData (CVE-2025-66478 boundary).",
-      "tech_match": ["next", "next.js", "vercel"],
-      "param_match": ["action", "_action", "$ACTION_ID"],
+      "tech_match": [
+        "next",
+        "next.js",
+        "vercel"
+      ],
+      "param_match": [
+        "action",
+        "_action",
+        "$ACTION_ID"
+      ],
       "probes": [
         {
           "payload": "",
-          "description": "Detect Next-Action handshake — server echoes action ID in response",
+          "description": "Detect Next-Action handshake \u2014 server echoes action ID in response",
           "matchers": [
-            {"type": "header_added", "headers": ["next-action", "x-action-id"]},
-            {"type": "regex", "pattern": "[0-9a-f]{40,64}", "weight": 60}
+            {
+              "type": "header_added",
+              "headers": [
+                "next-action",
+                "x-action-id"
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "[0-9a-f]{40,64}",
+              "weight": 60
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -40,51 +80,154 @@
         },
         {
           "payload": "0:[\"$\",\"$L1\",null,{\"children\":\"COLLABORATOR\"}]\n",
-          "description": "RSC Flight body with bogus serialized child — CVE-2025-55182 React2Shell parser entry. 500 with React parser error or 200 with attacker payload reflected indicates parser executes attacker-supplied Flight chunks.",
+          "description": "RSC Flight body with bogus serialized child \u2014 CVE-2025-55182 React2Shell parser entry. 500 with React parser error or 200 with attacker payload reflected indicates parser executes attacker-supplied Flight chunks.",
           "matchers": [
-            {"type": "status", "status": [200, 500], "condition": "or"},
-            {"type": "word", "words": ["React", "Flight", "decodeChunk", "createServerReference"], "condition": "or"},
-            {"type": "collaborator", "weight": 100}
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "word",
+              "words": [
+                "React",
+                "Flight",
+                "decodeChunk",
+                "createServerReference"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "collaborator",
+              "weight": 100
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
-          "variables": {"collaborator": "{{collaborator}}"}
+          "variables": {
+            "collaborator": "{{collaborator}}"
+          }
         }
       ]
     },
     "rsc_form_state_pollution": {
-      "description": "x-rsc-form-state form-state-restoration channel — accepts pickled form state from client. CVE-2025-66478 abuses this for boundary deserialization. Probe submits crafted state to verify server-side replay.",
-      "tech_match": ["next", "next.js"],
-      "param_match": ["formState", "x-rsc-form-state", "$ACTION_FORM_STATE"],
+      "description": "x-rsc-form-state form-state-restoration channel \u2014 accepts pickled form state from client. CVE-2025-66478 abuses this for boundary deserialization. Probe submits crafted state to verify server-side replay.",
+      "tech_match": [
+        "next",
+        "next.js"
+      ],
+      "param_match": [
+        "formState",
+        "x-rsc-form-state",
+        "$ACTION_FORM_STATE"
+      ],
       "probes": [
         {
           "payload": "{\"__proto__\":{\"polluted\":\"COLLABORATOR\"}}",
-          "description": "Prototype-polluting form-state replay — server unpickles into Object.prototype",
+          "description": "Prototype-polluting form-state replay \u2014 server unpickles into Object.prototype",
           "matchers": [
-            {"type": "status", "status": [200, 500], "condition": "or"},
-            {"type": "header_added", "headers": ["x-nextjs-rsc"]},
-            {"type": "collaborator", "weight": 100}
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header_added",
+              "headers": [
+                "x-nextjs-rsc"
+              ]
+            },
+            {
+              "type": "collaborator",
+              "weight": 100
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
-          "variables": {"collaborator": "{{collaborator}}"}
+          "variables": {
+            "collaborator": "{{collaborator}}"
+          }
         }
       ]
     },
     "rsc_action_id_enumeration": {
       "description": "Server Action IDs are content-hashed but enumerable from JS bundles. Probe greps build artefacts for action IDs and confirms unauthenticated invocation.",
-      "tech_match": ["next", "next.js"],
+      "tech_match": [
+        "next",
+        "next.js"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/_next/static/chunks/app/",
-          "description": "Build chunk listing — leaks action IDs that should require auth",
+          "description": "Build chunk listing \u2014 leaks action IDs that should require auth",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "regex", "pattern": "createServerReference\\(\"[0-9a-f]{40,64}\"", "weight": 80}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "regex",
+              "pattern": "createServerReference\\(\"[0-9a-f]{40,64}\"",
+              "weight": 80
+            }
           ],
           "severity": "medium",
           "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "server_action_route_unbound_2025": {
+      "description": "CVE-2025-55182 class \u2014 Server Action ID is route-independent (pre-Next.js 15.0.3). Action defined in /admin/page.tsx can be invoked via POST to ANY page with Next-Action: <admin_id>. Authz that lived only at /admin route is bypassed. Distinct from server_action_invocation_anomaly (which probes generic handshake): this probe specifically tests route-unbound invocation by POSTing the SAME action ID to a known-public route. Patched in Next.js >= 15.0.3 by binding action ID to route pattern.",
+      "tech_match": [
+        "next",
+        "next.js",
+        "vercel"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "0:{}\n",
+          "description": "POST to a public page with Next-Action header carrying a known admin action ID (operator harvests from bundle). 200 + state change OR 200 + admin-only data in body confirms route-unbound invocation. Operator must set Next-Action header in caller-supplied headers.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "header": "content-type",
+              "value": "text/x-component"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden",
+                "401",
+                "403"
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "\\$\\d+@",
+              "weight": 50
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
           "variables": {}
         }
       ]

@@ -582,6 +582,338 @@ Remediation:
 References: CWE-1321, CVE-2024-21509 (Express-Handlebars SSPP), Doyensec CSPP research
 ```
 
+## Per-vuln-class report skeletons (W19-W20 deep-dive companions)
+
+### Insecure Deserialization (per `playbook-deserialization.md`)
+
+```
+Title: <Java/.NET/Python/Ruby/PHP> insecure deserialization at <endpoint> allows RCE via <gadget chain>
+
+Classification:
+  vuln_type: deserialization
+  cwe: CWE-502 (Deserialization of Untrusted Data)
+  owasp: A8:2021-Software and Data Integrity Failures
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H/E:A
+  severity: Critical (unauth RCE) | High (post-auth RCE) | Medium (limited gadget)
+
+Context:
+  <Endpoint accepts a serialized object (cookie / form field / Base64 body / WebSocket frame).
+   Stack: <Java + commons-collections | .NET + Json.NET TypeNameHandling=Auto | Python + pickle.loads |
+   Ruby + Marshal.load | PHP + unserialize() | Node + node-serialize>.>
+
+Vulnerability:
+  Server deserializes attacker-controlled bytes into language-native objects without a
+  type-allowlist. Combined with a gadget present in the dependency tree, this yields
+  arbitrary code execution at the server tier.
+
+Attack Walkthrough:
+  1. Identify serialized format (magic bytes: Java `\xac\xed`, .NET `AAEAAAD/`, pickle `\x80`,
+     PHP `O:N:` / `a:N:`, Ruby `\x04\x08`, Node-serialize `_$$ND_FUNC$$_`).
+  2. Generate gadget — ysoserial / ysoserial.net / php-ggc / marshalsec / nodejsshell.py / pickle payload.
+  3. Replace original blob with gadget; preserve encoding/wrapper (Base64 + URL-encode if applicable).
+  4. Send to endpoint; observe OOB callback (Collaborator DNS / HTTP).
+  5. Demonstrate RCE — `id` output via OS-command gadget or runtime-exec gadget.
+
+Impact:
+  Unauthenticated/authenticated RCE on the server (depending on endpoint reachability).
+  Full pivot into internal network, cloud-metadata access, secret material exfil.
+
+PoC request: <serialized gadget delivered in original parameter>
+Reproduction steps: <cold-start: capture original request → swap blob → resend → observe callback>
+Evidence:
+  - serialization_format: <java-binary | dotnet-binaryformatter | python-pickle | php-serialize | ruby-marshal | node-serialize>
+  - gadget_chain: <CommonsCollections6 | ObjectDataProvider | __reduce__ pickle | system gadget | _$$ND_FUNC$$_>
+  - injection_point: <cookie name / form field / header / WebSocket frame index>
+  - exec_marker: <Collaborator DNS hit / uid stdout from `id` / file-write at path>
+  - logger_index: <RCE-confirming request>
+
+Remediation:
+  - Never deserialize untrusted input with native language deserializers; use JSON / Protobuf with strict schema.
+  - If native deserialization is required: type-allowlist (`ObjectInputFilter` in Java, `JsonSerializerSettings.TypeNameHandling=None` in .NET, signed-only via HMAC, etc.).
+  - Remove vulnerable gadget libraries when possible (commons-collections-safe builds, etc.).
+References: CWE-502, ysoserial (frohoff), marshalsec (mbechler), `playbook-deserialization.md`
+```
+
+### SAML XSW (per `playbook-saml-xsw.md`)
+
+```
+Title: SAML XSW (XML Signature Wrapping) at <SP /acs endpoint> permits assertion swap → ATO as <user>
+
+Classification:
+  vuln_type: saml_xsw
+  cwe: CWE-347 (Improper Verification of Cryptographic Signature)
+  owasp: A2:2021-Cryptographic Failures
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:L/SC:H/SI:H/SA:N/E:A
+  severity: Critical (auth-as-arbitrary-user) | High (auth-as-self-with-privileged-attrs)
+
+Context:
+  <SP /acs (Assertion Consumer Service) accepts SAML responses signed by the IdP.
+   Library: <python-saml | OneLogin Ruby | passport-saml | OpenSAML | spring-security-saml | etc.>.
+   Operator capture: a valid SAML Response from a normal login.>
+
+Vulnerability:
+  Signature verification anchored on a different XML node than the one the application reads
+  attributes from. Attacker wraps the signed assertion and adds a sibling/child with new attributes;
+  signature verifies on original, but app consumes the unsigned wrapper.
+
+XSW Variants (per Hackmanit research):
+  - XSW-1: clone signed assertion; modify clone's NameID; keep original to satisfy signature.
+  - XSW-2/3: insert sibling assertion under Response root with attacker NameID.
+  - XSW-7/8: wrap assertion inside Extensions or Object element to confuse XPath.
+
+Attack Walkthrough:
+  1. Capture a valid signed SAML Response from a real login (Burp → /acs POST body).
+  2. Decode Base64; pretty-print XML; identify <ds:Signature> Reference URI.
+  3. Apply XSW-N transform — duplicate or wrap the assertion; place attacker NameID in the
+     unsigned copy; preserve signature on original copy.
+  4. Re-encode; replay POST to /acs.
+  5. SP returns session as the attacker-NameID user.
+
+Impact:
+  ATO as any SP-known user (including admins) — full identity assumption,
+  bypass MFA enrolled at the IdP since SP trusts the (wrongly-located) assertion.
+
+PoC request: <POST /acs with the wrapped SAMLResponse>
+Reproduction steps: <cold-start: capture legit → transform via XSW tool → replay → observe session as victim>
+Evidence:
+  - xsw_variant: <XSW-1 | XSW-2 | ... | XSW-8>
+  - signed_node_path: <XPath of node Reference URI points at>
+  - consumed_node_path: <XPath of node application reads NameID from>
+  - victim_nameid: <NameID swapped in>
+  - resulting_session_user: <observed via /me or similar>
+  - logger_index: <wrapped request that produced victim session>
+
+Remediation:
+  - Use a SAML library that pins signature verification to the SAME node attributes are read from.
+  - Reject SAML Responses containing more than one assertion.
+  - Anchor signature verification via `getElementById` lookups on the SIGNED ID, not XPath.
+  - Validate `<saml:Conditions>` AudienceRestriction + NotBefore/NotOnOrAfter strictly.
+References: CWE-347, Hackmanit "On Breaking SAML" 2012 / 2025 update, `playbook-saml-xsw.md`
+```
+
+### GraphQL (per `playbook-graphql-deep-dive.md`)
+
+```
+Title: GraphQL <introspection-disclosure | batched-bypass | _entities-cross-subgraph | subscription-auth-skip | depth-DoS> at <endpoint>
+
+Classification:
+  vuln_type: graphql
+  cwe: <CWE-200 introspection | CWE-285 batched-bypass / federation | CWE-770 depth-DoS>
+  owasp: A1:2021-Broken Access Control | A5:2021-Security Misconfiguration | A4:2021-Insecure Design
+  cvss4_vector_authz: CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:L/VA:N/SC:H/SI:N/SA:N/E:A   # cross-subgraph IDOR
+  cvss4_vector_dos:   CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N/E:A   # depth/alias DoS
+  severity: <Critical for cross-tenant IDOR via _entities; High for unauth introspection; Medium for batched-rate-bypass>
+
+Context:
+  <GraphQL endpoint at /graphql or /api/graphql. Server: <Apollo Federation v1/v2 | Hasura | graphql-php | graphene | strawberry | etc.>.
+   Operator capture: real auth'd query from the app's browser session.>
+
+Vulnerability:
+  <One or more of:>
+  - Introspection enabled in prod — schema fully revealed to anonymous clients.
+  - Batched queries / aliases bypass per-request rate-limits and per-field authz.
+  - Apollo Federation `_entities(representations:[...])` exposes types from other subgraphs
+    without per-resolver authz — cross-tenant IDOR.
+  - GraphQL subscription protocol drift: graphql-ws auth-checked vs subscriptions-transport-ws not.
+  - Unbounded query depth → DoS via deeply-nested `friends { friends { friends ... } }`.
+
+Attack Walkthrough:
+  1. Probe introspection: `query { __schema { types { name } } }` against /graphql.
+  2. If federated: send `query { _entities(representations:[{__typename:"User",id:"<victim>"}]) { ... on User { email } } }`.
+  3. Batch BOLA: 100 aliased queries each fetching `user(id: $i)` with sequential IDs.
+  4. Subscription auth: open ws://... with graphql-transport-ws (legacy) subprotocol; no auth handshake.
+  5. Depth DoS: send query nested 50+ levels deep; observe timeout / 5xx.
+
+Impact:
+  - Cross-tenant data leak via _entities (highest impact).
+  - Mass enumeration via batched alias (medium-high).
+  - Schema leak enables targeted attacks downstream (medium).
+  - DoS for unbounded depth (medium, often NEVER_SUBMIT alone).
+
+PoC request: <single query reproducing the issue>
+Reproduction steps: <cold-start: send query → observe cross-tenant data / DoS / leaked schema>
+Evidence:
+  - subclass: <introspection_enabled | batched_authz_bypass | apollo_entities_cross_subgraph | ws_subprotocol_authskip | depth_dos>
+  - victim_tenant_id: <if cross-tenant>
+  - cross_data_field_leaked: <email / address / token / internal_id>
+  - subprotocol_observed: <graphql-ws | graphql-transport-ws | subscriptions-transport-ws>
+  - logger_index: <query/response showing the cross-tenant data>
+
+Remediation:
+  - Disable introspection in production (Apollo: `introspection: false`; graphene: `IntrospectionSchema`).
+  - Enforce per-resolver authz (don't rely on route-level checks).
+  - Apollo Federation: per-subgraph authz directives + `__resolveReference` checks.
+  - Subscription: enforce identical auth handshake on BOTH ws subprotocols, or disable the legacy one.
+  - Depth / cost-limit via `graphql-depth-limit` / `graphql-cost-analysis`.
+References: CWE-200/285/770, Apollo Federation Security Best Practices, `playbook-graphql-deep-dive.md`
+```
+
+### WebSocket attacks (per `playbook-websocket-attacks.md`)
+
+```
+Title: WebSocket <CSWSH | per-message BOLA | subprotocol-bypass | JWT-via-WS-frame> at <ws://target/...>
+
+Classification:
+  vuln_type: <cswsh | websocket_bola | websocket_subprotocol | websocket_jwt_replay>
+  cwe: <CWE-352 CSWSH | CWE-285 BOLA | CWE-345 frame-trust>
+  owasp: A1:2021-Broken Access Control | A2:2021-Cryptographic Failures
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:R/VC:H/VI:H/VA:N/SC:H/SI:H/SA:N/E:A
+  severity: <Critical for CSWSH that triggers state-change | High for per-message BOLA | Medium for subprotocol downgrade>
+
+Context:
+  <WS endpoint at ws(s)://target/<path>. Subprotocols offered: <list>.
+   Authentication model: <Cookie + Origin check | JWT in connect query | JWT per-frame | none>.>
+
+Vulnerability:
+  <One or more of:>
+  - CSWSH: server does not validate Origin on the upgrade handshake; cookie-auth means
+    attacker page can open WS to target, perform state-changing ops as victim.
+  - Per-message BOLA: connection established with user A's session, but each frame carries
+    `target_user_id` which is not re-checked against the session.
+  - Subprotocol fallback to a legacy protocol that skips auth (W18 graphql-ws vs subscriptions-transport-ws).
+  - JWT carried per-frame; server caches first valid JWT and trusts all subsequent frames.
+
+Attack Walkthrough:
+  1. Establish baseline: legitimate WS handshake via Burp `websocket_connect`.
+  2. CSWSH: replay handshake from attacker-Origin; observe 101 Switching Protocols.
+  3. Per-frame BOLA: send legitimate frame with `target_user_id` swapped to victim ID.
+  4. Subprotocol downgrade: connect with `Sec-WebSocket-Protocol: subscriptions-transport-ws`
+     (legacy) and replay frames; observe missing auth check.
+
+Impact:
+  CSWSH → CSRF-equivalent via WebSocket for any state-changing op.
+  Per-message BOLA → cross-user data read/write at the message layer (often unlogged).
+  Subprotocol bypass → identical to BOLA + may bypass WAF that only inspects HTTP.
+
+PoC request: <upgrade handshake + first malicious frame>
+Reproduction steps: <cold-start: open WS → send malicious frame → observe cross-user effect>
+Evidence:
+  - ws_class: <cswsh | bola | subprotocol | jwt_replay>
+  - origin_sent: <attacker.tld>
+  - subprotocol_negotiated: <observed Sec-WebSocket-Protocol response>
+  - victim_id_in_frame: <body of frame showing swapped ID>
+  - frame_response: <cross-user data / state-change ack>
+  - logger_index: <handshake + frame indices>
+
+Remediation:
+  - Enforce strict Origin allowlist on the upgrade handshake (return 403 otherwise).
+  - Re-authorise EVERY frame against the session identity, not first-frame.
+  - Disable legacy subprotocols (`subscriptions-transport-ws` etc.) once clients are migrated.
+  - Bind WS session to a CSRF-style nonce that the page must inject into the first frame.
+References: CWE-352/285/345, OWASP WebSocket Security Cheat Sheet, `playbook-websocket-attacks.md`
+```
+
+### Web Cache Deception (per `playbook-cache-deception.md`)
+
+```
+Title: Web Cache Deception via <static-suffix .css | path-normalisation .json | vendor-specific Cloudflare .json> caches victim PII at attacker-readable URL
+
+Classification:
+  vuln_type: web_cache_deception
+  cwe: CWE-525 (Information Exposure Through Browser Caching) / CWE-200
+  owasp: A1:2021-Broken Access Control
+  cvss4_vector: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:H/SI:N/SA:N/E:A
+  severity: Critical (PII/PCI/tokens leaked) | High (session metadata) | Medium (path-normalisation w/o observed leak)
+
+Context:
+  <Target behind CDN: <Cloudflare | Akamai | Fastly | Varnish | CloudFront>.
+   Authenticated endpoint: <e.g. /profile, /api/me, /dashboard> returns user-specific
+   content with Cache-Control: private.>
+
+Vulnerability:
+  CDN treats `<dynamic-path>/<static-suffix>` as cacheable (file extension rule); origin
+  normalises the path back to the dynamic endpoint and returns the authenticated content.
+  Cached response is served to anyone who fetches the same suffix-URL.
+
+Attack Walkthrough:
+  1. Auth as victim (operator's own test account).
+  2. Fetch `<auth-endpoint>/x.css` (or `.json`, `.png`, `.svg`, vendor-specific suffix).
+  3. Origin returns 200 + victim's data; CDN caches.
+  4. From an unauthenticated context (different IP / browser / curl with no cookies):
+     fetch the same URL.
+  5. Receive victim's data + `X-Cache: HIT` / `Age: > 0`.
+
+Impact:
+  Authenticated PII (email, address), payment metadata, session tokens, internal IDs
+  exposed to any attacker who can guess (or have the victim visit) the suffix-URL.
+
+PoC request: <victim-cookied fetch of /<auth-endpoint>/x.css then unauth fetch of same URL>
+Reproduction steps: <cold-start: auth → fetch suffix → wait → unauth re-fetch → observe leak + X-Cache: HIT>
+Evidence:
+  - cdn: <Cloudflare | Akamai | Fastly | Varnish | CloudFront>
+  - suffix_variant: <.css | .js | .json | .png | .svg | .woff | path-traversal>
+  - cache_control_observed: <max-age=N | public | no-cache>
+  - x_cache_header: <HIT | cf-cache-status: HIT | X-Served-By cache hit>
+  - leaked_field_classes: <PII (email, name) / payment / session token / internal ID>
+  - victim_indicators: <victim user_id observed in cached response>
+  - logger_index: <unauth-fetch index that returned victim data>
+
+Remediation:
+  - Add `Cache-Control: no-store, private` to ALL authenticated dynamic responses.
+  - Configure CDN to honour origin Cache-Control (no rule-override on extension).
+  - Strip / 404 unrecognised path segments before cache key computation.
+  - Use `Vary: Cookie` strictly + ensure cache key includes session cookie.
+References: CWE-525, Omer Gil "Web Cache Deception" (2017), Kettle 2025 updates, `playbook-cache-deception.md`
+```
+
+### Server Action / RSC (per `playbook-server-action-rsc.md`)
+
+```
+Title: Next.js Server Action ID exposure → <admin action invocation | RSC payload PII leak> (CVE-2025-55182 / CVE-2025-66478 class)
+
+Classification:
+  vuln_type: <server_action_authz_bypass | rsc_payload_leak | server_action_arg_tampering>
+  cwe: <CWE-285 missing-per-action-authz | CWE-200 prop-disclosure | CWE-639 arg-tampering>
+  owasp: A1:2021-Broken Access Control
+  cvss4_vector_authz: CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H/E:A   # admin action via leaked ID
+  cvss4_vector_leak:  CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:H/SI:N/SA:N/E:A   # RSC prop leak
+  severity: Critical (admin action invocable) | High (RSC PII leak / arg tampering)
+
+Context:
+  <Next.js 13+ (App Router) / 14 / 15. Server Actions invoked via `Next-Action: <id>` POST.
+   Vulnerable surface: Action ID embedded in bundled JS or `data-action-id`.>
+
+Vulnerability:
+  <One or more of:>
+  - Server Action ID leaked in bundled chunks / HTML; ID is route-independent so POST to
+    any page + `Next-Action: <admin_id>` invokes the admin action without route authz.
+  - RSC payload (Content-Type: text/x-component) serialises every prop including PII
+    that the rendered HTML wouldn't show.
+  - Server Action arguments deserialised and trusted — IDOR via swapped `user_id` / `role`.
+  - GET coercion: `?_rsc=1` triggers action invocation, bypassing POST-only CSRF.
+
+Attack Walkthrough:
+  1. Fingerprint Next.js version (`Server:`, `X-Powered-By`, `_next/static/`).
+  2. Grep bundles for `data-action-id=` or `Next-Action:` references → harvest IDs.
+  3. POST to any page with `Next-Action: <leaked_admin_action_id>` and serialised arg list.
+  4. Server executes the admin action regardless of route — observe state change /
+     admin-only data in response.
+  5. (Or) Fetch `<page>?_rsc=1` with `Accept: text/x-component`; parse for leaked props.
+
+Impact:
+  Privilege escalation via admin action invocation from non-admin page.
+  Cross-user PII leak via RSC payload.
+  Arg-tampering allows role / amount / target-ID mutation in trusted server actions.
+
+PoC request: <POST /<any-page> with `Next-Action: <admin_id>` + serialised args>
+Reproduction steps: <cold-start: harvest action ID from bundles → invoke from non-admin route → observe admin effect>
+Evidence:
+  - next_version: <observed Next.js version>
+  - action_id: <leaked Server Action ID>
+  - action_purpose: <delete_user | promote_role | etc.>
+  - invoked_from_route: <non-admin page used as POST target>
+  - effect_observed: <state change / admin response / cross-user data>
+  - cve: <CVE-2025-55182 | CVE-2025-66478 | per-app class>
+  - logger_index: <bypass-confirming request>
+
+Remediation:
+  - Enforce per-action authz INSIDE every Server Action body, not via route protection.
+  - Treat Server Action arguments as untrusted; re-validate `user_id` / `role` against session.
+  - Upgrade to Next.js ≥ 15.0.3 (Action ID now bound to route pattern).
+  - Audit RSC payloads — never pass secret props into server components.
+References: CWE-285/200/639, CVE-2025-55182, CVE-2025-66478, `playbook-server-action-rsc.md`
+```
+
 ## Quick-pick reference
 
 When in doubt, the deep-dive playbook tells you which skeleton to use:
@@ -594,4 +926,10 @@ When in doubt, the deep-dive playbook tells you which skeleton to use:
 | OAuth / OIDC | "OAuth / OIDC flow attacks" | `playbook-oauth-flow-attacks.md` |
 | Request smuggling | "HTTP Request Smuggling" | `playbook-request-smuggling.md` |
 | Prototype pollution | "Prototype Pollution" | `playbook-prototype-pollution.md` |
+| Deserialization | "Insecure Deserialization" | `playbook-deserialization.md` |
+| SAML XSW | "SAML XSW" | `playbook-saml-xsw.md` |
+| GraphQL | "GraphQL" | `playbook-graphql-deep-dive.md` |
+| WebSocket | "WebSocket attacks" | `playbook-websocket-attacks.md` |
+| Web Cache Deception | "Web Cache Deception" | `playbook-cache-deception.md` |
+| Server Action / RSC | "Server Action / RSC" | `playbook-server-action-rsc.md` |
 | Other | Canonical layout above | `hunt.md` / `verify-finding.md` |

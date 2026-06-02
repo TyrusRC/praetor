@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._helpers import (
+    _compact_and_remap_findings,
     _dedupe_finding,
     _domain_from_endpoint,
     _find_by_id,
@@ -263,11 +264,17 @@ def register(mcp: FastMCP):
             existing_list = store.get("findings", [])
             updated_list, dedup_action, idx = _dedupe_finding(existing_list, new_entry)
             if dedup_action == "created":
-                existing_ids = {f.get("id", "") for f in updated_list if f.get("id")}
-                next_num = 1
-                while f"f{next_num:03d}" in existing_ids:
-                    next_num += 1
-                updated_list[idx]["id"] = f"f{next_num:03d}"
+                # Assign IDs monotonically (max-existing + 1), NEVER refilling
+                # gaps. Refilling a gap left by a deleted finding would silently
+                # alias old chain_with[] references to the new finding. Hard
+                # delete normally compacts IDs via _compact_and_remap_findings;
+                # this max+1 rule is defense if a delete bypassed that path.
+                max_num = 0
+                for f in updated_list:
+                    fid = f.get("id", "")
+                    if len(fid) == 4 and fid.startswith("f") and fid[1:].isdigit():
+                        max_num = max(max_num, int(fid[1:]))
+                updated_list[idx]["id"] = f"f{max_num + 1:03d}"
                 updated_list[idx]["created"] = now
             saved_id = updated_list[idx].get("id", "")
             store["findings"] = updated_list
@@ -469,3 +476,83 @@ def register(mcp: FastMCP):
         elif confirmed_by_user:
             audit.append(f"  Operator-confirmed reason: {reason or '(none given)'}")
         return "\n".join(audit)
+
+    @mcp.tool()
+    async def prune_findings(
+        domain: str,
+        keep_statuses: list[str] | None = None,
+        confirm: bool = False,
+    ) -> str:
+        """Drop non-value findings from .burp-intel/<domain>/findings.json and
+        compact surviving IDs.
+
+        Defaults to keeping only `confirmed` findings — same status set the
+        reporting pipeline uses. Pass `keep_statuses` to widen (e.g.
+        ['confirmed','suspected']).
+
+        Survivors are renumbered contiguously (f001..f00N) and chain_with[]
+        references are rewritten; refs pointing at pruned IDs are dropped.
+
+        Burp's in-memory store is NOT touched — call hydrate_burp_findings()
+        after pruning if you want the Burp Findings tab to match.
+
+        Args:
+            domain:        Target domain.
+            keep_statuses: Status values to retain. Default ['confirmed'].
+            confirm:       Must be True to actually mutate. Dry-run otherwise.
+        """
+        if not domain:
+            return "Error: domain is required."
+        keep_set = {s.lower().strip() for s in (keep_statuses or ["confirmed"])}
+        try:
+            findings_path = _safe_findings_path(domain)
+        except ValueError as e:
+            return f"Error: {e}"
+        if not findings_path.exists():
+            return f"No findings.json for {domain!r} — nothing to prune."
+        store = _load_findings_file(findings_path)
+        all_findings = store.get("findings", [])
+        if not all_findings:
+            return f"{domain}: findings.json empty — nothing to prune."
+
+        keep = [f for f in all_findings if (f.get("status") or "").lower() in keep_set]
+        dropped = [f for f in all_findings if (f.get("status") or "").lower() not in keep_set]
+
+        if not dropped:
+            return (
+                f"{domain}: no findings to prune (all {len(all_findings)} match "
+                f"keep_statuses={sorted(keep_set)})."
+            )
+
+        if not confirm:
+            preview = [
+                f"  {f.get('id', '?'):5} [{f.get('status', '?'):20}] "
+                f"{f.get('severity', 'INFO'):8} {f.get('title', '')[:80]}"
+                for f in dropped[:20]
+            ]
+            extra = "" if len(dropped) <= 20 else f"\n  ... and {len(dropped) - 20} more"
+            return (
+                f"DRY-RUN: would prune {len(dropped)} of {len(all_findings)} "
+                f"findings from {domain} (keep_statuses={sorted(keep_set)}).\n"
+                + "\n".join(preview) + extra +
+                f"\n\nRe-call with confirm=True to apply. Survivors will be "
+                f"renumbered f001..f{len(keep):03d} and chain_with[] refs rewritten."
+            )
+
+        kept, id_map = _compact_and_remap_findings(keep)
+        store["findings"] = kept
+        store["last_modified"] = datetime.now(timezone.utc).isoformat()
+        _write_findings_file(findings_path, store)
+
+        remap_summary = ", ".join(
+            f"{old}->{new}" for old, new in list(id_map.items())[:10] if old != new
+        )
+        if not remap_summary:
+            remap_summary = "(no remap needed — IDs already contiguous)"
+        return (
+            f"Pruned {len(dropped)} of {len(all_findings)} findings from {domain}.\n"
+            f"  Kept: {len(kept)} (statuses: {sorted(keep_set)})\n"
+            f"  Remap (first 10): {remap_summary}\n"
+            f"  Burp in-memory store NOT touched — run "
+            f"hydrate_burp_findings(domain='{domain}') to sync."
+        )
