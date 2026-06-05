@@ -6,6 +6,24 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W24-b: confirm_* exploit-confirmation tools (VerdictResult) -----
+    # Anchor to verbs "confirm" / "prove" / "verify ... exploit" so Claude
+    # reaches for these AFTER a suspected finding instead of crafting fresh
+    # payloads. Each returns a VerdictResult — pipe to assess_finding directly.
+    (["confirm sqli", "prove sqli", "verify sqli", "confirm sql injection",
+      "sqli proof", "extract version", "extract dbms"], "confirm_sqli",
+     "confirm_sqli(endpoint='https://t/x?id=1', parameter='id', dbms='mysql', strategy='union')"),
+    (["confirm ssti", "prove ssti", "verify ssti", "template injection proof",
+      "engine math reflection", "jinja2 confirm"], "confirm_ssti",
+     "confirm_ssti(endpoint='https://t/render?q=x', parameter='q')  # tries all engines"),
+    (["confirm ssrf", "prove ssrf", "verify ssrf", "ssrf callback proof"],
+     "confirm_ssrf",
+     "confirm_ssrf(endpoint='https://t/fetch?url=x', parameter='url', poll_seconds=5)"),
+    (["confirm xxe", "prove xxe", "verify xxe", "xxe file read"], "confirm_xxe",
+     "confirm_xxe(endpoint='https://t/xml', mode='inband', file_path='/etc/hostname')"),
+    (["confirm rce", "prove rce", "verify rce", "confirm command injection",
+      "prove command injection", "marker execution proof"], "confirm_rce",
+     "confirm_rce(endpoint='https://t/x?cmd=foo', parameter='cmd', command='id', os='linux')"),
     # ----- W23-b: Metasploit Framework — operator quick-win for known CVEs -----
     # Anchor to "msf" / "metasploit" / "cve exploit" so it wins before generic vuln keywords.
     (["msf", "metasploit", "msfconsole", "msfvenom"], "msf_search",

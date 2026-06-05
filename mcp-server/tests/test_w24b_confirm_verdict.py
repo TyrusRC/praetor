@@ -271,5 +271,40 @@ class RegistrationTest(unittest.TestCase):
             self.assertIn(required, names)
 
 
+class PickToolRoutesConfirmStarTest(unittest.IsolatedAsyncioTestCase):
+    """Verb-led 'confirm X' queries must route to confirm_X (and beat the
+    bare-noun routes like 'sqli' → auto_probe). Without explicit routing,
+    Claude reaches for auto_probe or crafts fresh payloads, defeating the
+    point of these audited exploit-confirmation tools."""
+
+    async def _route(self, query):
+        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        return await pick_tool_impl(query)
+
+    async def test_routes_confirm_sqli(self):
+        out = await self._route("confirm sqli on /login")
+        self.assertIn("confirm_sqli", out)
+
+    async def test_routes_confirm_ssrf(self):
+        out = await self._route("prove ssrf via collaborator")
+        self.assertIn("confirm_ssrf", out)
+
+    async def test_routes_confirm_rce(self):
+        out = await self._route("prove rce via cmd parameter")
+        self.assertIn("confirm_rce", out)
+
+    async def test_routes_confirm_xxe(self):
+        out = await self._route("confirm xxe file read")
+        self.assertIn("confirm_xxe", out)
+
+    async def test_routes_confirm_ssti(self):
+        out = await self._route("confirm ssti math reflection")
+        self.assertIn("confirm_ssti", out)
+
+    async def test_bare_sqli_still_hits_auto_probe(self):
+        out = await self._route("scan target for sqli")
+        self.assertIn("auto_probe", out)
+
+
 if __name__ == "__main__":
     unittest.main()
