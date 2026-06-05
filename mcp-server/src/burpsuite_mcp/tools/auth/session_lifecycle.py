@@ -16,6 +16,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools._request_headers import apply_realistic_headers
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _build_headers(
@@ -54,7 +55,7 @@ def register(mcp: FastMCP):
         logout_method: str = "POST",
         protected_method: str = "GET",
         protected_body: str = "",
-    ) -> str:
+    ) -> dict:
         """Verify a token is revoked after logout.
 
         Three-step flow:
@@ -76,14 +77,17 @@ def register(mcp: FastMCP):
             protected_body: Body for the protected request if non-GET
         """
         if not bearer_token and not cookies:
-            return "Error: provide bearer_token or cookies — need auth to test revocation"
+            return error_verdict(
+                "provide bearer_token or cookies — need auth to test revocation",
+                vuln_type="session_not_invalidated")
 
         # Step 1: baseline
         headers = _build_headers(None, cookies, bearer_token, protected_url)
         baseline = await _send(protected_method, protected_url, headers,
                                protected_body)
         if "error" in baseline:
-            return f"Error (baseline): {baseline['error']}"
+            return error_verdict(f"baseline failed: {baseline['error']}",
+                                 vuln_type="session_not_invalidated")
 
         baseline_status = baseline.get("status_code", 0)
         baseline_len = baseline.get("response_length", 0)
@@ -93,7 +97,8 @@ def register(mcp: FastMCP):
         logout_headers = _build_headers(None, cookies, bearer_token, logout_url)
         logout = await _send(logout_method, logout_url, logout_headers)
         if "error" in logout:
-            return f"Error (logout): {logout['error']}"
+            return error_verdict(f"logout failed: {logout['error']}",
+                                 vuln_type="session_not_invalidated")
 
         logout_status = logout.get("status_code", 0)
         logout_idx = logout.get("history_index", -1)
@@ -102,7 +107,8 @@ def register(mcp: FastMCP):
         replay = await _send(protected_method, protected_url, headers,
                              protected_body)
         if "error" in replay:
-            return f"Error (replay): {replay['error']}"
+            return error_verdict(f"replay failed: {replay['error']}",
+                                 vuln_type="session_not_invalidated")
 
         replay_status = replay.get("status_code", 0)
         replay_len = replay.get("response_length", 0)
@@ -118,20 +124,43 @@ def register(mcp: FastMCP):
         lines.append("")
 
         # Verdict.
+        same_status = (replay_status == baseline_status)
+        len_delta = abs(replay_len - baseline_len)
+        details = {
+            "baseline_status": baseline_status,
+            "baseline_length": baseline_len,
+            "baseline_logger_index": baseline_idx,
+            "logout_status": logout_status,
+            "logout_logger_index": logout_idx,
+            "replay_status": replay_status,
+            "replay_length": replay_len,
+            "replay_logger_index": replay_idx,
+            "length_delta": len_delta,
+        }
+        logger_indices = [i for i in (baseline_idx, logout_idx, replay_idx) if i >= 0]
+
         if baseline_status not in (200, 302) and replay_status not in (200, 302):
             lines.append("INDETERMINATE: baseline didn't authenticate (not 200/302).")
             lines.append("Check that bearer_token / cookies are valid before re-running.")
-            return "\n".join(lines)
+            return make_verdict(
+                "ERROR", 0.0,
+                f"baseline did not authenticate (status={baseline_status})",
+                vuln_type="session_not_invalidated",
+                details=details, logger_indices=logger_indices,
+                summary="\n".join(lines),
+            )
 
         # Strong revocation signal: replay flips to 401/403.
         if replay_status in (401, 403, 419, 440):
             lines.append(f"REVOKED: replay returned {replay_status}.")
             lines.append("Server invalidates session on logout. No finding.")
-            return "\n".join(lines)
-
-        # Weak revocation: status same but body changed materially.
-        same_status = (replay_status == baseline_status)
-        len_delta = abs(replay_len - baseline_len)
+            return make_verdict(
+                "FAILED", 0.10,
+                f"server revokes session on logout (replay status={replay_status})",
+                vuln_type="session_not_invalidated",
+                details=details, logger_indices=logger_indices,
+                summary="\n".join(lines),
+            )
 
         if same_status and len_delta < 50:
             lines.append("[!!] NOT REVOKED — token still authenticates after logout.")
@@ -145,17 +174,37 @@ def register(mcp: FastMCP):
             lines.append(f"               endpoint='{protected_url}',")
             lines.append(f"               evidence={{'logger_index': {replay_idx}, "
                          f"'reproductions': []}})")
-        elif same_status:
+            return make_verdict(
+                "CONFIRMED", 0.85,
+                f"token still authenticates after logout (replay={replay_status} "
+                f"matches baseline={baseline_status}, len delta={len_delta}b)",
+                vuln_type="session_not_invalidated",
+                details=details, logger_indices=logger_indices,
+                summary="\n".join(lines),
+            )
+        if same_status:
             lines.append("[?] PARTIAL — status unchanged but response body differs "
                          f"by {len_delta}b.")
             lines.append("    Inspect both responses; logout may have reduced "
                          "scope without revoking.")
             lines.append("    Use compare_responses or get_request_detail on the "
                          "two logger indices.")
-        else:
-            lines.append(f"[?] AMBIGUOUS — replay returned {replay_status} "
-                         f"(baseline was {baseline_status}).")
-            lines.append("    Not a clear revoke and not a clear pass. "
-                         "Re-run after a clean re-login.")
-
-        return "\n".join(lines)
+            return make_verdict(
+                "SUSPECTED", 0.55,
+                f"status unchanged after logout but body differs by {len_delta}b — "
+                f"possible partial revoke",
+                vuln_type="session_not_invalidated",
+                details=details, logger_indices=logger_indices,
+                summary="\n".join(lines),
+            )
+        lines.append(f"[?] AMBIGUOUS — replay returned {replay_status} "
+                     f"(baseline was {baseline_status}).")
+        lines.append("    Not a clear revoke and not a clear pass. "
+                     "Re-run after a clean re-login.")
+        return make_verdict(
+            "SUSPECTED", 0.45,
+            f"ambiguous: replay {replay_status} vs baseline {baseline_status}",
+            vuln_type="session_not_invalidated",
+            details=details, logger_indices=logger_indices,
+            summary="\n".join(lines),
+        )

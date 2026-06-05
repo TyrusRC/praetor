@@ -1,11 +1,11 @@
 ---
-description: How to consume Praetor's VerdictResult schema returned by 31+ testing tools, and how to wire new tools into the schema. Load when refactoring tool output, building agent loops, or reading a testing-tool response.
+description: How to consume Praetor's VerdictResult schema returned by 47+ assessment tools, and how to wire new tools into the schema. Load when refactoring tool output, building agent loops, or reading a testing-tool response.
 globs:
 ---
 
 # VerdictResult Schema (W7 → W13)
 
-31+ testing tools now return a structured `dict` instead of a prose string, so the orchestrator can pipe results into `assess_finding` without re-parsing. The schema is stable and operator-readable; raw text is preserved as `human_summary` for legacy consumers.
+47+ assessment tools now return a structured `dict` instead of a prose string, so the orchestrator can pipe results into `assess_finding` without re-parsing. The schema is stable and operator-readable; raw text is preserved as `human_summary` for legacy consumers.
 
 ## Shape
 
