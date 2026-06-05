@@ -60,6 +60,67 @@ class ConfirmSqliVerdictTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "FAILED")
         self.assertFalse(is_actionable(out))
 
+    async def test_timing_strategy_fires_three_replays_and_populates_reproductions(self):
+        """Rule 10a: sqli_time needs ≥3 reproductions in reproductions[].
+        confirm_sqli strategy='time' must fire 3 sends, capture elapsed_ms
+        per send, and only CONFIRM when ALL 3 clear the 4.5s floor."""
+        # Force three slow sends — patch time.monotonic to fake 5s elapsed
+        responses = iter([
+            {"response_body": "", "status_code": 200, "proxy_index": 100},
+            {"response_body": "", "status_code": 200, "proxy_index": 101},
+            {"response_body": "", "status_code": 200, "proxy_index": 102},
+        ])
+        # Patch monotonic to return alternating values producing ~5s each
+        ticks = iter([0.0, 5.1, 5.1, 10.2, 10.2, 15.3])
+
+        def fake_monotonic():
+            return next(ticks)
+
+        async def fake_post(path, json=None):
+            return next(responses)
+
+        with patch("burpsuite_mcp.tools.exploit.confirm_sqli.client.post",
+                   new=AsyncMock(side_effect=fake_post)), \
+             patch("burpsuite_mcp.tools.exploit.confirm_sqli.time.monotonic",
+                   side_effect=fake_monotonic):
+            fn = _tool("confirm_sqli")
+            out = await fn(endpoint="https://t/x", parameter="id",
+                           dbms="mysql", strategy="time")
+        self.assertEqual(out["verdict"], "CONFIRMED")
+        self.assertEqual(out["vuln_type"], "sqli_time")
+        self.assertEqual(len(out["reproductions"]), 3)
+        for r in out["reproductions"]:
+            self.assertGreaterEqual(r["elapsed_ms"], 4500)
+        # all three logger indices captured
+        self.assertEqual(sorted(out["logger_indices"]), [100, 101, 102])
+
+    async def test_timing_inconsistent_fails(self):
+        """If only some samples clear 4.5s, verdict is FAILED — operator
+        re-tries rather than reporting a flaky timing finding."""
+        responses = iter([
+            {"response_body": "", "status_code": 200, "proxy_index": 200},
+            {"response_body": "", "status_code": 200, "proxy_index": 201},
+            {"response_body": "", "status_code": 200, "proxy_index": 202},
+        ])
+        # 5s, 0.5s, 5s — one fast, two slow → inconsistent → FAILED
+        ticks = iter([0.0, 5.1, 5.1, 5.6, 5.6, 10.7])
+
+        def fake_monotonic():
+            return next(ticks)
+
+        async def fake_post(path, json=None):
+            return next(responses)
+
+        with patch("burpsuite_mcp.tools.exploit.confirm_sqli.client.post",
+                   new=AsyncMock(side_effect=fake_post)), \
+             patch("burpsuite_mcp.tools.exploit.confirm_sqli.time.monotonic",
+                   side_effect=fake_monotonic):
+            fn = _tool("confirm_sqli")
+            out = await fn(endpoint="https://t/x", parameter="id",
+                           strategy="time")
+        self.assertEqual(out["verdict"], "FAILED")
+        self.assertEqual(len(out["reproductions"]), 3)
+
 
 # ────────────────────────────────────────────────────────────────────
 # confirm_ssti
