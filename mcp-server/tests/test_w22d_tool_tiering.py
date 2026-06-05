@@ -64,6 +64,22 @@ class PickToolRoutingW22Test(unittest.IsolatedAsyncioTestCase):
         out = await pick_tool_impl("run xbow benchmark XBEN-001")
         self.assertIn("run_xbow_bench", out)
 
+    async def test_routes_msf_query(self):
+        out = await pick_tool_impl("metasploit module for log4shell")
+        self.assertIn("msf_search", out)
+
+    async def test_routes_cve_query(self):
+        out = await pick_tool_impl("exploit CVE-2024-XXXXX")
+        self.assertIn("msf_search", out)
+
+    async def test_routes_msf_exploit_query(self):
+        out = await pick_tool_impl("fire metasploit module against target")
+        self.assertIn("msf_exploit", out)
+
+    async def test_routes_pyexploit_query(self):
+        out = await pick_tool_impl("custom poc python exploit sandbox")
+        self.assertIn("run_pyexploit", out)
+
     async def test_fallback_lists_tier1(self):
         """When no keyword matches, fallback must surface Tier-1 entry points."""
         out = await pick_tool_impl("something completely unrelated zzzz")
