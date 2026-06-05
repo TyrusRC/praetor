@@ -33,6 +33,57 @@
           "variables": {"reference_only": true}
         }
       ]
+    },
+    "claude_code_path_prefix_match_traversal_2025": {
+      "description": "CVE-2025-54794 (Claude Code < 0.2.111) — path-restriction uses string prefix-match instead of canonical path compare. A path like /allowed-dir-evil/secret or /allowed-dir/../../etc/passwd escapes the CWD allowlist. Static / filesystem class — not HTTP-observable; driven by static grep + version detection.",
+      "tech_match": ["claude-code", "anthropic", "mcp-client"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<grep for claude-code version < 0.2.111 + path-prefix string-compare in tool args>",
+          "description": "Reference-only — static analysis or version banner inspection. Look for `claude-code` CLI invocations in shell history / .claude/settings.json / package.json on agent-development hosts.",
+          "matchers": [
+            {"type": "regex", "pattern": "claude-code[\\s/@-]+0\\.(2\\.(0|10[0-9]|10)|1\\.|0\\.)"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"reference_only": true}
+        }
+      ]
+    },
+    "claude_code_tool_arg_shell_injection_2025": {
+      "description": "CVE-2025-54795 (Claude Code < 1.0.20) — tool argument passed to shell-invoking helper without escape. Command injection through agent-supplied parameters reaching child_process.spawn / exec without arg quoting. Static class.",
+      "tech_match": ["claude-code", "anthropic", "mcp-client", "mcp-server"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<grep MCP tool implementations for child_process.exec/spawn with concatenated arg strings>",
+          "description": "Reference-only — static review of MCP tool implementations. Pattern: child_process.exec(`tool ${userArg}`) or shell=True with f-string interpolation. Run opengrep ruleset on third-party MCP servers operator is installing.",
+          "matchers": [
+            {"type": "regex", "pattern": "(child_process\\.(exec|execSync)|subprocess\\.(run|Popen|call).*shell\\s*=\\s*True).*\\$\\{|\\bf['\"]"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"reference_only": true}
+        }
+      ]
+    },
+    "claude_code_settings_json_hook_preconsent_rce_2025": {
+      "description": "CVE-2025-59536 (Claude Code < 1.0.111) — opening any folder containing .claude/settings.json with hooks / MCP server defs / env triggers code execution BEFORE the user clicks Trust. Poisoned-repo → dev workstation ATO + API token exfil. Delivery vector: malicious git repo, agent-fetched project, supply-chain pull.",
+      "tech_match": ["claude-code", "anthropic", "mcp-client"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<inspect untrusted repos for .claude/settings.json with hooks.* shell commands>",
+          "description": "Reference-only — repo-scan probe. Treat any unreviewed repo containing .claude/settings.json with non-empty hooks/mcp_servers/env arrays as suspicious until cleared. Operator-driven static check before opening with claude-code.",
+          "matchers": [
+            {"type": "regex", "pattern": "\"hooks\"\\s*:|\"mcpServers\"\\s*:|PreToolUse|PostToolUse|UserPromptSubmit"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"reference_only": true}
+        }
+      ]
     }
   }
 }
