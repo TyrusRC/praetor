@@ -91,7 +91,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `authentication` | password_reset_flaws, two_factor_bypass, session_fixation, account_enumeration, insecure_remember_me, default_credentials (+2) | critical | asp.net, java, php, ruby |
 | `session_security` | credentials_over_cleartext, auth_response_browser_cacheable, session_cookie_missing_secure_flag, logout_does_not_invalidate_session, concurrent_sessions_not_invalidated, session_token_in_url | high | - |
 | `jwt` | alg_none, alg_confusion, kid_injection, jku_injection, weak_secret, embedded_jwk (+9) | critical | - |
-| `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, oauth_mixup_attack, oauth_audience_confusion, jwks_kid_swap, redirect_uri_parser_quirks (+13) | critical | auth0, backchannel_authentication, ciba, dpop, fapi, oidc, jwt, pkce |
+| `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, oauth_mixup_attack, oauth_audience_confusion, jwks_kid_swap, redirect_uri_parser_quirks, par_request_uri_attacker_controlled_2025, dpop_nonce_binding_skipped_2025, passkey_stepup_no_assertion_2026 (CVE-2026-32879), webauthn_api_hijack_jsinjection_2026 (DEF CON 33) (+13) | critical | auth0, backchannel_authentication, ciba, dpop, fapi, oidc, jwt, passkey, pkce, webauthn |
 | `oauth_device_flow` | device_code_phishing, user_code_brute_force | critical | device_grant, oauth |
 | `oauth_dpop_confused_deputy` | rs_audience_missing, jti_replay | high | dpop, oauth, rfc9449 |
 | `saml` | signature_bypass, xxe_in_saml, assertion_replay, attribute_injection, recipient_mismatch, xml_signature_wrapping (+2) | critical | .net, adfs, java, okta, onelogin |
@@ -140,7 +140,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `ssrf` | cloud_metadata, internal, url_bypass, redirect_based | critical | aws, azure, gcp |
 | `ssrf_bypass` | localhost_bypass, ipv6_bypass, dns_rebinding, dns_rebinding_advanced | critical | - |
 | `ssrf_protocol` | protocol_smuggling, protocol_variant, k8s_in_cluster_pivot | critical | curl, java, k8s, kubernetes, php |
-| `edge_worker_ssrf` | internal_header_trust, same_zone_metadata | critical | cloudflare-worker, fastly-compute, vercel-edge |
+| `edge_worker_ssrf` | internal_header_trust, same_zone_metadata, opennext_cloudflare_cdn_cgi_backslash_norm_2026 (CVE-2026-3125) | critical | cloudflare-worker, fastly-compute, opennext, vercel-edge |
 | `cloud_webapp` | aws_metadata_imdsv1, gcp_metadata, azure_imds, s3_public_bucket, azure_sas_token_leak, firebase_open_db (+3) | ? | - |
 | `anon_cloud_expansion` | etcd_v2_v3_open, kubelet_unauth_api, docker_daemon_remote_api, consul_open_api, vault_unsealed_anon, firebase_rtdb_open_rules, firestore_open_rules, terraform_state_exposed, nomad_open_api, spinnaker_ui_open | critical | etcd, kubelet, docker, consul, vault, nomad, spinnaker, firebase, firestore, terraform |
 
@@ -158,7 +158,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell (+6) | critical | .net, asp.net, django, express, fastjson |
 | `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
-| `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_default_property_pollution, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta (+4) | critical | angularjs, ejs, express, express-fileupload, fastify, hapi, koa, nestjs, node.js |
+| `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_default_property_pollution, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta, axios_rce_gadget_2026 (CVE-2026-40175), n8n_node_pp_rce_2026 (CVE-2026-44789/90/91) (+4) | critical | angularjs, axios, ejs, express, express-fileupload, fastify, hapi, koa, n8n, nestjs, node.js |
 | `trpc_sspp` | trpc_form_data_proto, trpc_batch_input_proto, next_app_dir_caller_sniff | high | trpc, @trpc/server, next |
 
 ## API / Protocol (9)
@@ -245,9 +245,9 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown | critical | anthropic, anthropic-tools, chatbot, claude, function-calling |
+| `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown, langchain_lc_marker_injection_2025 (CVE-2025-68664), cua_dom_hidden_instruction_2026, cua_multistep_persistence_2026, cua_data_attribute_pii_2026, mcp_resource_theft_hidden_directive_2026 (Unit 42), mcp_conversation_hijack_persistent_2026 (Unit 42), mcp_covert_tool_invocation_2026 (Unit 42), idpi_visual_concealment_2026 (Unit 42), idpi_invisible_unicode_jailbreak_2026 (Unit 42), idpi_payload_splitting_2026 (Unit 42) | critical | anthropic, anthropic-tools, chatbot, claude, cua, function-calling, langchain, mcp-server, model-context-protocol |
 | `web_llm` | prompt_injection_via_web, llm_ssrf, llm_data_exfil, llm_tool_abuse, stored_injection | critical | ai, assistant, chatbot, claude, embedding |
-| `mcp_server_attacks` | tool_description_prompt_injection, mcp_rug_pull | critical | claude-desktop, cursor, mcp, model-context-protocol |
+| `mcp_server_attacks` | tool_description_prompt_injection, mcp_rug_pull, claude_code_path_prefix_match_traversal_2025 (CVE-2025-54794), claude_code_tool_arg_shell_injection_2025 (CVE-2025-54795), claude_code_settings_json_hook_preconsent_rce_2025 (CVE-2025-59536), mcp_atlassian_path_traversal_rce_2026 (CVE-2026-27825), mcp_atlassian_header_ssrf_2026 (CVE-2026-27826) | critical | claude-code, claude-desktop, cursor, mcp, mcp-atlassian, model-context-protocol |
 | `mcp_tool_poisoning` | tool_description_prompt_injection, parasitic_tool_chaining, server_identity_spoofing, rug_pull_post_install, indirect_resource_injection | high | mcp, claude-desktop, cursor, fastmcp |
 | `rag_injection` | stored_content_rag_poison, vector_metadata_injection | high | chromadb, faiss, pinecone, rag, weaviate |
 | `echoleak` | markdown_image_exfil, css_class_leak, hidden_html_directive, data_uri_smuggling | critical | copilot, m365, rag, llm, anthropic, openai |
