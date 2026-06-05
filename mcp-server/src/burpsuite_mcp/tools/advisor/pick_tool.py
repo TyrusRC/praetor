@@ -6,6 +6,29 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W22 additions (placed first so specific keywords win over generic ones) -----
+    # W22-b: Computer-Use Agent (CUA) injection surface
+    (["cua", "computer-use", "computer use", "claude cua", "operator agent", "atlas browser",
+      "browser agent injection", "accessibility tree injection",
+      "aria-label inject", "screenshot ocr injection"], "probe_cua_injection_surface",
+     "probe_cua_injection_surface(url='https://target/profile', mode='passive')"),
+    # W22-a: LangChain LangGrinch
+    (["langgrinch", "langchain-core", "lc marker", "langchain deserial",
+      "prompt template ssti", "langchain"], "auto_probe",
+     "auto_probe(session='hunt', categories=['ai_prompt_injection'])  # langchain_lc_marker_injection_2025 ctx"),
+    # W22-a: OpenNext / Cloudflare SSRF
+    (["opennext", "cdn-cgi", "cdn cgi", "cloudflare worker image",
+      "edge backslash ssrf", "cdn-cgi backslash"], "auto_probe",
+     "auto_probe(session='hunt', categories=['edge_worker_ssrf'])  # opennext_cloudflare_cdn_cgi_backslash_norm_2026"),
+    # W22-c: XBOW benchmark — anchor to xbow / xben so "benchmark" alone doesn't hijack
+    (["xbow", "xben", "xbow benchmark", "validation benchmark"], "run_xbow_bench",
+     "xbow_pull_benchmarks() then run_xbow_bench(challenge_id='XBEN-001-24', target_url='http://localhost:8080')"),
+    (["autopenbench", "auto-pen-bench"], "run_autopenbench",
+     "run_autopenbench(challenge_id='in-vitro-rce-1')"),
+    (["caibench", "cai bench", "cybench", "nyu ctf"], "run_caibench",
+     "run_caibench(suite='cybench', challenge_id='<name>')"),
+    (["summarize benchmarks", "benchmark summary", "score so far", "publish score"],
+     "summarize_benchmarks", "summarize_benchmarks()"),
     # Evidence-first: SEARCH proxy history before sending new traffic (Rule 29)
     (["find evidence", "find request", "find response", "search history", "look in history",
       "captured request", "evidence for finding", "where is the request", "did we capture",
@@ -85,15 +108,55 @@ _MAPPINGS = [
 ]
 
 
+# ----------------------------------------------------------------------
+# Tier-1 hunt-loop entry points — these are the tools an operator should
+# reach for first on any new target. Surfaced via `list_tier1_tools` so the
+# model can default to them when no specific keyword matches.
+# ----------------------------------------------------------------------
+TIER1_HUNT_LOOP = [
+    # Recon entry
+    ("check_scope", "scope validation — call once per new domain (Rule 1)"),
+    ("load_target_intel", "persistent target memory — call session-start (Rule 20a)"),
+    ("discover_attack_surface", "crawl + map endpoints + risk-score params"),
+    ("browser_crawl", "SPA / JS-heavy site mapping"),
+    ("full_recon", "deep recon: discover + tech + secrets + headers"),
+    # Probing
+    ("auto_probe", "KB-driven probes across vuln categories"),
+    ("quick_scan", "one-shot send + auto-analyze"),
+    ("smart_analyze", "auto attack-surface analysis on a captured index"),
+    # HTTP send
+    ("curl_request", "default fresh request — auto Chrome 131 fingerprint"),
+    ("session_request", "session-aware (cookie jar, token extraction)"),
+    # Captured-first retrieval (token-efficient)
+    ("get_proxy_history", "browse captured traffic"),
+    ("search_history", "find captured req/resp by query"),
+    ("get_request_detail", "view a single captured exchange"),
+    ("extract_regex", "pull data from captured response (regex)"),
+    ("extract_json_path", "pull data from JSON response"),
+    ("extract_headers", "pull specific headers"),
+    # Evidence + reporting
+    ("annotate_request", "color + comment on a captured index (Rule 18)"),
+    ("send_to_organizer", "bookmark evidence for report (Rule 18)"),
+    ("send_to_repeater", "iterate visibly in Burp UI"),
+    ("assess_finding", "7-question validation gate (Rule 10b)"),
+    ("save_finding", "persist finding (Rule 10c)"),
+    ("smart_decode", "encoding detection"),
+]
+
+
+
 async def pick_tool_impl(task: str) -> str:
     task_lower = task.lower()
     for keywords, tool, example in _MAPPINGS:
         if any(kw in task_lower for kw in keywords):
             return f"Use: {tool}\nExample: {example}"
 
+    # Tier-1 fallback — list the core hunt-loop tools so the model can pick
+    # one rather than blindly searching the 300+ tool surface.
+    tier1_list = "\n".join(f"  - {name}: {desc}" for name, desc in TIER1_HUNT_LOOP[:12])
     return (
-        f"No direct match for '{task}'. Try:\n"
-        f"  - get_hunt_plan() for full strategy\n"
-        f"  - smart_analyze(index) for attack surface analysis\n"
-        f"  - auto_probe(session, categories=[...]) for vulnerability testing"
+        f"No direct match for '{task}'. Tier-1 hunt-loop entry points:\n"
+        f"{tier1_list}\n"
+        f"  ... ({len(TIER1_HUNT_LOOP)} total — see list_tier1_tools())\n\n"
+        f"Default chain: load_target_intel → discover_attack_surface → auto_probe."
     )
