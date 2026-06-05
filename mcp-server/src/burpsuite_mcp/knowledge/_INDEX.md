@@ -140,7 +140,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `ssrf` | cloud_metadata, internal, url_bypass, redirect_based | critical | aws, azure, gcp |
 | `ssrf_bypass` | localhost_bypass, ipv6_bypass, dns_rebinding, dns_rebinding_advanced | critical | - |
 | `ssrf_protocol` | protocol_smuggling, protocol_variant, k8s_in_cluster_pivot | critical | curl, java, k8s, kubernetes, php |
-| `edge_worker_ssrf` | internal_header_trust, same_zone_metadata, opennext_cloudflare_cdn_cgi_backslash_norm_2026 (CVE-2026-3125) | critical | cloudflare-worker, fastly-compute, opennext, vercel-edge |
+| `edge_worker_ssrf` | internal_header_trust, same_zone_metadata, opennext_cloudflare_cdn_cgi_backslash_norm_2026 (CVE-2026-3125), nextjs_websocket_upgrade_ssrf_2026 (CVE-2026-44578) | critical | cloudflare-worker, fastly-compute, next.js, nextjs, opennext, vercel-edge, vercel-self-hosted |
 | `cloud_webapp` | aws_metadata_imdsv1, gcp_metadata, azure_imds, s3_public_bucket, azure_sas_token_leak, firebase_open_db (+3) | ? | - |
 | `anon_cloud_expansion` | etcd_v2_v3_open, kubelet_unauth_api, docker_daemon_remote_api, consul_open_api, vault_unsealed_anon, firebase_rtdb_open_rules, firestore_open_rules, terraform_state_exposed, nomad_open_api, spinnaker_ui_open | critical | etcd, kubelet, docker, consul, vault, nomad, spinnaker, firebase, firestore, terraform |
 
@@ -150,13 +150,13 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `path_traversal` | linux, windows, encoding_bypass, null_byte, windows_specific | critical | apache, asp.net, django, flask, iis |
 | `file_upload` | php_upload, jsp_upload, asp_upload, general, polyglot_files | critical | apache, asp.net, drupal, iis, java |
-| `source_code_exposure` *(ref-only)* | git_exposure, svn_exposure, env_file_exposure, debug_endpoints | critical | apache, django, laravel, php, rails |
+| `source_code_exposure` *(ref-only)* | git_exposure, svn_exposure, env_file_exposure, debug_endpoints, vite_devserver_optimized_deps_path_traversal_2026 (CVE-2026-39365) | critical | apache, astro, django, laravel, php, qwik, rails, svelte-kit, vite, vue-cli |
 
 ## Deserialization (4)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell (+6) | critical | .net, asp.net, django, express, fastjson |
+| `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell, magento_mirasvit_php_unserialize_rce_2026 (CVE-2026-45247 KEV) (+6) | critical | .net, adobe-commerce, asp.net, django, express, fastjson, magento, magento2, mirasvit |
 | `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
 | `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_default_property_pollution, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta, axios_rce_gadget_2026 (CVE-2026-40175), n8n_node_pp_rce_2026 (CVE-2026-44789/90/91) (+4) | critical | angularjs, axios, ejs, express, express-fileupload, fastify, hapi, koa, n8n, nestjs, node.js |
 | `trpc_sspp` | trpc_form_data_proto, trpc_batch_input_proto, next_app_dir_caller_sniff | high | trpc, @trpc/server, next |
@@ -165,13 +165,13 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `graphql` | introspection, depth_attack, field_suggestion, injection, mutation_injection, directive_overloading (+9) | critical | apollo, express, federation, graphql, node.js |
+| `graphql` | introspection, depth_attack, field_suggestion, injection, mutation_injection, directive_overloading, graphql_mutation_aliasing_account_recovery_dos_2026 (+9) | critical | absinthe, apollo, express, federation, graphene, graphql, hasura, node.js |
 | `grpc_injection` | reflection_enumeration, message_manipulation, auth_bypass, field_type_injection, stream_cancellation_race, transcoding_open_redirect (+1) | high | envoy, go, grpc, grpc-gateway, grpc-web |
 | `api_abuse` | graphql_batching, rest_parameter_pollution, api_rate_limit_bypass, broken_pagination, http2_smuggling | high | apache, apollo, aws alb, cloudflare, graphql |
 | `api_inventory` | old_api_version_still_live, shadow_internal_endpoint, swagger_openapi_leak_on_prod, actuator_management_endpoint, dev_staging_hostname_leak, method_override_reaches_hidden_verb | critical | fastapi, micronaut, openapi, quarkus, spring-boot, swagger |
 | `http_methods_enum` | trace_method_enabled, options_reveals_dangerous_verbs, put_writes_arbitrary_file, delete_method_succeeds_anonymously, verb_tampering_bypass_acl | critical | apache, iis, nginx, spring-security, tomcat |
 | `unsafe_consumption` | open_webhook_url_attacker_controlled, third_party_response_trust_no_validation, oauth_callback_origin_trust, partner_redirect_chain_ssrf, saml_idp_trust_no_signature_check, rss_atom_feed_xxe, webhook_signature_trust_no_origin_check, json_response_field_injection_via_upstream | critical | oauth, oidc, passport, saml, stripe, twilio |
-| `websocket` | cswsh, auth_bypass, injection, message_smuggling, proto_pollution, ws_auth_pre_handshake_send (+5) | high | express, nginx, node.js, permessage-deflate, socket.io |
+| `websocket` | cswsh, auth_bypass, injection, message_smuggling, proto_pollution, ws_auth_pre_handshake_send, marimo_websocket_terminal_rce_2026 (CVE-2026-39987) (+5) | high | express, marimo, nginx, node.js, permessage-deflate, python-notebook, socket.io |
 | `sse_injection` | event_injection, stream_hijacking | high | django, express, flask, go, java |
 | `webhook_replay` | stripe_replay, signature_strip, alg_downgrade, idempotency_reuse | critical | idempotency, stripe, stripe-signature, webhook |
 
@@ -245,7 +245,7 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown, langchain_lc_marker_injection_2025 (CVE-2025-68664), cua_dom_hidden_instruction_2026, cua_multistep_persistence_2026, cua_data_attribute_pii_2026, mcp_resource_theft_hidden_directive_2026 (Unit 42), mcp_conversation_hijack_persistent_2026 (Unit 42), mcp_covert_tool_invocation_2026 (Unit 42), idpi_visual_concealment_2026 (Unit 42), idpi_invisible_unicode_jailbreak_2026 (Unit 42), idpi_payload_splitting_2026 (Unit 42) | critical | anthropic, anthropic-tools, chatbot, claude, cua, function-calling, langchain, mcp-server, model-context-protocol |
+| `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown, langchain_lc_marker_injection_2025 (CVE-2025-68664), cua_dom_hidden_instruction_2026, cua_multistep_persistence_2026, cua_data_attribute_pii_2026, mcp_resource_theft_hidden_directive_2026 (Unit 42), mcp_conversation_hijack_persistent_2026 (Unit 42), mcp_covert_tool_invocation_2026 (Unit 42), idpi_visual_concealment_2026 (Unit 42), idpi_invisible_unicode_jailbreak_2026 (Unit 42), idpi_payload_splitting_2026 (Unit 42), idpi_illegal_utf8_normalization_2026 (Black Hat USA 2026) | critical | anthropic, anthropic-tools, chatbot, claude, cua, function-calling, langchain, mcp-server, model-context-protocol |
 | `web_llm` | prompt_injection_via_web, llm_ssrf, llm_data_exfil, llm_tool_abuse, stored_injection | critical | ai, assistant, chatbot, claude, embedding |
 | `mcp_server_attacks` | tool_description_prompt_injection, mcp_rug_pull, claude_code_path_prefix_match_traversal_2025 (CVE-2025-54794), claude_code_tool_arg_shell_injection_2025 (CVE-2025-54795), claude_code_settings_json_hook_preconsent_rce_2025 (CVE-2025-59536), mcp_atlassian_path_traversal_rce_2026 (CVE-2026-27825), mcp_atlassian_header_ssrf_2026 (CVE-2026-27826) | critical | claude-code, claude-desktop, cursor, mcp, mcp-atlassian, model-context-protocol |
 | `mcp_tool_poisoning` | tool_description_prompt_injection, parasitic_tool_chaining, server_identity_spoofing, rug_pull_post_install, indirect_resource_injection | high | mcp, claude-desktop, cursor, fastmcp |

