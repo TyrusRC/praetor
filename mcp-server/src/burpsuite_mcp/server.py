@@ -13,6 +13,7 @@ from burpsuite_mcp.tools import (
     sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
     source_aware, benchmark, mobile_payloads, cua_probe, sast_handoff, pyexploit,
+    http3_probe,
 )
 
 mcp = FastMCP(
@@ -134,3 +135,4 @@ mobile_payloads.register(mcp)  # mobile_frida_snippet / mobile_adb_pack — payl
 cua_probe.register(mcp)        # probe_cua_injection_surface — detects CUA-hijack vectors (W22-b)
 sast_handoff.register(mcp)     # sast_to_endpoint_risk / risk_rank_endpoints — SAST → DAST handoff (W22-e)
 pyexploit.register(mcp)        # run_pyexploit — Python exploit-dev sandbox (W23-a / Strix-parity)
+http3_probe.register(mcp)      # probe_http3_downgrade — HTTP/3 reachability + H2/H3 fingerprint differential (W27-a)
