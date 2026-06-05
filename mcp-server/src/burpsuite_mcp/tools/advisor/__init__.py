@@ -22,7 +22,7 @@ from burpsuite_mcp.tools.advisor import _cvss4
 from burpsuite_mcp.tools.advisor.assess import assess_finding_impl
 from burpsuite_mcp.tools.advisor.hunt_plan import get_hunt_plan_impl
 from burpsuite_mcp.tools.advisor.next_action import get_next_action_impl
-from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+from burpsuite_mcp.tools.advisor.pick_tool import TIER1_HUNT_LOOP, pick_tool_impl
 from burpsuite_mcp.tools.advisor.recon_phase import run_recon_phase_impl
 
 
@@ -202,3 +202,31 @@ def register(mcp: FastMCP):
             task: What you want to accomplish
         """
         return await pick_tool_impl(task)
+
+    @mcp.tool()
+    async def list_tier1_tools() -> dict:
+        """Return the Tier-1 hunt-loop entry points (W22-d).
+
+        Praetor exposes 300+ MCP tools; Tier-1 is the ~22 tools an operator
+        should reach for first on any new target. Use this when uncertain
+        which tool to pick. The full surface remains available via direct
+        invocation or ToolSearch — Tier-1 is a hint, not a restriction.
+
+        Returns:
+            {"tier": 1, "count": N, "tools": [{"name": ..., "purpose": ...}, ...]}
+        """
+        return {
+            "tier": 1,
+            "count": len(TIER1_HUNT_LOOP),
+            "tools": [{"name": n, "purpose": d} for n, d in TIER1_HUNT_LOOP],
+            "default_chain": [
+                "load_target_intel(domain)",
+                "discover_attack_surface(url)",
+                "auto_probe(session, categories=[...])",
+                "save_finding(...) -> assess_finding(...) gate",
+            ],
+            "note": (
+                "Full surface (300+ tools) accessible via direct call or ToolSearch. "
+                "Tier-1 is a HINT — defer to specialised tools when the task matches."
+            ),
+        }
