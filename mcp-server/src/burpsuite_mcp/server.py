@@ -12,7 +12,7 @@ from burpsuite_mcp.tools import (
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
-    source_aware, benchmark, mobile_payloads, cua_probe,
+    source_aware, benchmark, mobile_payloads, cua_probe, sast_handoff,
 )
 
 mcp = FastMCP(
@@ -132,3 +132,4 @@ source_aware.register(mcp)     # xvulnhuntr / vulnhuntr — LLM-chain SAST input
 benchmark.register(mcp)        # run_autopenbench / run_caibench — publishable AI-pentest benchmarks (W7)
 mobile_payloads.register(mcp)  # mobile_frida_snippet / mobile_adb_pack — payload delivery for mobile-mastg (W8)
 cua_probe.register(mcp)        # probe_cua_injection_surface — detects CUA-hijack vectors (W22-b)
+sast_handoff.register(mcp)     # sast_to_endpoint_risk / risk_rank_endpoints — SAST → DAST handoff (W22-e)
