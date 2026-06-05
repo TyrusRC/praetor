@@ -6,6 +6,18 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W25-b/c: 2026 H2 fresh-CVE active probes -----
+    # CVE-2026-32879 passkey step-up bypass — verb-led so it wins before
+    # generic "passkey" / "webauthn" routes
+    (["passkey stepup", "passkey step-up", "passkey step up", "stepup bypass",
+      "step-up bypass", "cve-2026-32879", "secure verification bypass",
+      "passkey method bypass"], "probe_passkey_stepup_bypass",
+     "probe_passkey_stepup_bypass(stepup_url='https://t/api/stepup', protected_url='https://t/api/keys', bearer_token='...')"),
+    # CVE-2026-27825/27826 mcp-atlassian path traversal + header SSRF
+    (["mcp-atlassian", "mcp atlassian", "cve-2026-27825", "cve-2026-27826",
+      "atlassian-jira-url", "atlassian-confluence-url", "mcp server cve",
+      "attachment path traversal", "atlassian mcp ssrf"], "probe_mcp_server_attacks",
+     "probe_mcp_server_attacks(base_url='https://mcp-target.tld/', collaborator_url='...')"),
     # ----- W24-b: confirm_* exploit-confirmation tools (VerdictResult) -----
     # Anchor to verbs "confirm" / "prove" / "verify ... exploit" so Claude
     # reaches for these AFTER a suspected finding instead of crafting fresh

