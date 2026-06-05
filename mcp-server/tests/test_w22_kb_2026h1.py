@@ -15,6 +15,10 @@ _W22_CONTEXTS = [
     ("mcp_server_attacks", "claude_code_path_prefix_match_traversal_2025"),
     ("mcp_server_attacks", "claude_code_tool_arg_shell_injection_2025"),
     ("mcp_server_attacks", "claude_code_settings_json_hook_preconsent_rce_2025"),
+    # W22-b CUA injection surface contexts
+    ("ai_prompt_injection", "cua_dom_hidden_instruction_2026"),
+    ("ai_prompt_injection", "cua_multistep_persistence_2026"),
+    ("ai_prompt_injection", "cua_data_attribute_pii_2026"),
 ]
 
 
