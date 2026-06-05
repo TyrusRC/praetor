@@ -162,6 +162,55 @@ class W28bGraphqlAddition(unittest.TestCase):
         self.assertIn("graphql_mutation_aliasing_account_recovery_dos_2026", _index())
 
 
+class W28cPickToolRoutingTest(unittest.IsolatedAsyncioTestCase):
+    """W28-c — verb-led queries for the new vuln vocabulary must route to
+    auto_probe with the right KB category. Existing bare-noun routes
+    (sqli / xss / etc) must NOT regress."""
+
+    async def _route(self, q: str) -> str:
+        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        return await pick_tool_impl(q)
+
+    async def test_marimo_routes_to_websocket(self):
+        out = await self._route("marimo rce probe check")
+        self.assertIn("auto_probe", out)
+        self.assertIn("websocket", out)
+
+    async def test_magento_mirasvit_routes_to_deserialization(self):
+        out = await self._route("magento mirasvit deserialization")
+        self.assertIn("auto_probe", out)
+        self.assertIn("deserialization", out)
+
+    async def test_vite_devserver_routes_to_source_exposure(self):
+        out = await self._route("vite dev path traversal")
+        self.assertIn("auto_probe", out)
+        self.assertIn("source_code_exposure", out)
+
+    async def test_nextjs_ws_ssrf_routes_to_edge_ssrf(self):
+        out = await self._route("nextjs websocket ssrf canary")
+        self.assertIn("auto_probe", out)
+        self.assertIn("edge_worker_ssrf", out)
+
+    async def test_illegal_utf8_routes_to_ai_pi(self):
+        out = await self._route("illegal utf8 jailbreak filter bypass")
+        self.assertIn("auto_probe", out)
+        self.assertIn("ai_prompt_injection", out)
+
+    async def test_graphql_aliasing_routes_to_graphql(self):
+        out = await self._route("graphql mutation aliasing rate limit bypass")
+        self.assertIn("auto_probe", out)
+        self.assertIn("graphql", out)
+
+    async def test_bare_sqli_still_routes_to_auto_probe(self):
+        """Sanity: existing bare-noun route preserved."""
+        out = await self._route("scan target for sqli")
+        self.assertIn("auto_probe", out)
+
+    async def test_send_to_repeater_still_routes(self):
+        out = await self._route("send to repeater")
+        self.assertIn("send_to_repeater", out)
+
+
 class W28bKbOrgComplianceTest(unittest.TestCase):
     """Per KB-org rule: no new dated/v2 sibling files for any of the 6 additions."""
 
