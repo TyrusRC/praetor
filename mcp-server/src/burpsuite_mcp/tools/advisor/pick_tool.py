@@ -6,6 +6,36 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W28-b: 2026 H2 mid-year CVE intake — verb-led routing -----
+    # Anchored to specific keywords so they win before generic routes
+    # ("sqli" → auto_probe sqli, etc).
+    (["marimo", "marimo rce", "marimo terminal", "cve-2026-39987",
+      "marimo notebook rce", "marimo websocket"], "auto_probe",
+     "auto_probe(session='hunt', categories=['websocket'])  "
+     "# marimo_websocket_terminal_rce_2026 context; then websocket_connect + "
+     "websocket_send_message('id\\n') to extract uid="),
+    (["magento mirasvit", "mirasvit", "cve-2026-45247", "magento rce",
+      "magento deserialization", "php unserialize gadget"], "auto_probe",
+     "auto_probe(session='hunt', categories=['deserialization'])  "
+     "# magento_mirasvit_php_unserialize_rce_2026 (CISA KEV active)"),
+    (["vite dev", "vite devserver", "cve-2026-39365", "vite path traversal",
+      "node_modules/.vite", "optimized deps map"], "auto_probe",
+     "auto_probe(session='hunt', categories=['source_code_exposure'])  "
+     "# vite_devserver_optimized_deps_path_traversal_2026"),
+    (["nextjs websocket ssrf", "next.js websocket ssrf", "cve-2026-44578",
+      "next.js ws upgrade ssrf", "websocket upgrade ssrf"], "auto_probe",
+     "auto_probe(session='hunt', categories=['edge_worker_ssrf'])  "
+     "# nextjs_websocket_upgrade_ssrf_2026"),
+    (["illegal utf8", "illegal utf-8", "overlong utf8", "surrogate jailbreak",
+      "beyond normalization", "unicode bypass waf", "unicode jailbreak llm"],
+     "auto_probe",
+     "auto_probe(session='hunt', categories=['ai_prompt_injection'])  "
+     "# idpi_illegal_utf8_normalization_2026 (Black Hat USA 2026)"),
+    (["graphql mutation aliasing", "graphql aliased mutation", "graphql rate limit bypass",
+      "graphql otp brute", "graphql sms bomb", "aliased mutation account recovery"],
+     "auto_probe",
+     "auto_probe(session='hunt', categories=['graphql'])  "
+     "# graphql_mutation_aliasing_account_recovery_dos_2026"),
     # ----- W25-b/c: 2026 H2 fresh-CVE active probes -----
     # CVE-2026-32879 passkey step-up bypass — verb-led so it wins before
     # generic "passkey" / "webauthn" routes
