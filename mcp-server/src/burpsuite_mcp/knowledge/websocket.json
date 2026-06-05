@@ -411,6 +411,23 @@
           "confidence_boost": 60
         }
       ]
+    },
+    "marimo_websocket_terminal_rce_2026": {
+      "description": "CVE-2026-39987 — Marimo Python notebook ≤0.20.4 exposes a Terminal WebSocket endpoint without authentication. Unauth attacker opens the WS, sends shell commands, gets PTY output. Class: AI/ML notebook → host RCE. Increasingly common as Marimo (Jupyter-alternative for reactive notebooks) sees enterprise adoption; instances exposed to LAN or accidentally to internet.",
+      "tech_match": ["marimo", "python-notebook"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "ws://TARGET/terminal/ws",
+          "description": "Open the Marimo terminal WebSocket (default path /terminal/ws or /api/terminal). Vulnerable instance accepts without auth; send `id\\n` and expect uid= shell output. Use websocket_connect + websocket_send_message via Praetor's WS tools.",
+          "matchers": [
+            {"type": "regex", "pattern": "uid=\\d+\\([a-z_][a-z0-9_-]*\\)"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {"manual_chain": true, "websocket_endpoint": true}
+        }
+      ]
     }
   }
 }
