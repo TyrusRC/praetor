@@ -59,6 +59,27 @@ Use specialised tools, not full responses:
 - `get_response_hash(index)` — compare hashes for consistency
 - `extract_headers(index, ['Set-Cookie', 'Location'])` — headers only
 
+## Shortcut: `confirm_*` exploit-confirmation tools (W24-b)
+
+For 5 high-frequency classes there is an audited one-shot tool that runs the
+canonical proof, returns a VerdictResult dict, and gives you a `logger_index`
+ready for `save_finding`. Use these BEFORE crafting payloads manually — they
+share the same destructive-payload denylist as `confirm_*` family and never
+exfil real data.
+
+| Class | Tool | Confirms via |
+|---|---|---|
+| SQLi | `confirm_sqli(endpoint, parameter, dbms, strategy)` | Marker reflection (union/error) or 5s timing (time strategy) |
+| SSTI | `confirm_ssti(endpoint, parameter, engine='')` | Engine math expression reflected (jinja2/freemarker/twig/...) |
+| SSRF | `confirm_ssrf(endpoint, parameter)` | Collaborator HTTP/DNS callback within poll window |
+| XXE | `confirm_xxe(endpoint, mode='inband')` | `/etc/hostname` content extracted (inband) or Collaborator callback (oob) |
+| RCE | `confirm_rce(endpoint, parameter, command='id')` | `M-<token>-START`/`-END` bracket extracted, output between |
+
+Returns `{verdict, confidence, evidence_summary, logger_indices[], collaborator_interactions[], details, human_summary}`. Pipe directly:
+`save_finding(..., evidence=to_assess_evidence(verdict_dict))`.
+
+The verdict is the canonical evidence — no manual `resend_with_modification` cycle needed when these CONFIRM. Step 0's reproductions still apply for timing/blind variants.
+
 ## Evidence Requirements (per vuln class)
 
 Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
