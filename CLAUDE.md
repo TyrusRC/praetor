@@ -42,7 +42,7 @@ Claude Code -> praetor-mcp (Python, stdio) -> praetor-burp-ext (Java, REST 127.0
 
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external deps. Output: `praetor-burp-ext-1.0.0.jar`.
 - `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package directory still `burpsuite_mcp/` for v1.x (hard rename deferred to v1.1).
-- ~304 MCP tools (W22 added probe_cua_injection_surface), 138+ knowledge-base JSON files, 45 skill files, 4 always-active rules. 31 testing tools return structured VerdictResult dict per W7 schema (post-W13). `verdict_from_tally(hits)` helper available for the canonical 0/1/2+ → FAILED/SUSPECTED/CONFIRMED mapping (tools/testing/_verdict.py). See `.claude/skills/verdict-tools.md` for the consumer + author guide.
+- ~306 MCP tools (W22 added probe_cua_injection_surface + xbow_pull_benchmarks + run_xbow_bench), 138+ knowledge-base JSON files, 45 skill files, 4 always-active rules. 31 testing tools return structured VerdictResult dict per W7 schema (post-W13). `verdict_from_tally(hits)` helper available for the canonical 0/1/2+ → FAILED/SUSPECTED/CONFIRMED mapping (tools/testing/_verdict.py). See `.claude/skills/verdict-tools.md` for the consumer + author guide.
 - Headless browser engine: **CloakBrowser** (stealth-patched Chromium binary, OSS). Binary-level fingerprint + bot-detect bypass. All `browser_*` tools route through Burp proxy automatically. CloakBrowser uses Playwright (or its `patchright` fork) as the control protocol — the differentiator is the patched Chromium binary it ships, not the absence of Playwright. Praetor never imports `playwright` directly.
 
 Full file map: `skill.json`. Knowledge index: `mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md`.
