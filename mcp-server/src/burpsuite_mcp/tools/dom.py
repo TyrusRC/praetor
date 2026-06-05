@@ -3,12 +3,13 @@
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def analyze_dom(index: int) -> str:
+    async def analyze_dom(index: int) -> dict:
         """Analyze HTML structure and JavaScript for security issues (sinks, sources, hidden fields, event handlers).
 
         Args:
@@ -16,7 +17,7 @@ def register(mcp: FastMCP):
         """
         data = await client.post("/api/analysis/dom", json={"index": index})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return error_verdict(data["error"], vuln_type="dom_security_signals")
 
         lines = ["DOM & JavaScript Analysis:\n"]
 
@@ -126,7 +127,54 @@ def register(mcp: FastMCP):
                     lines.append(f"    {f.get('description', '')}")
                 lines.append("")
 
-        if len(lines) <= 2:
-            return "No significant HTML/JS security findings in this response."
+        # Build a structured verdict from the signal counts.
+        sinks = js.get("sinks", []) if js else []
+        sources = js.get("sources", []) if js else []
+        proto = js.get("prototype_pollution", []) if js else []
+        dangerous = js.get("dangerous_patterns", []) if js else []
+        flows = js.get("potential_flows", []) if js else []
 
-        return "\n".join(lines)
+        def _risk_count(items, level):
+            return sum(1 for it in items if str(it.get("risk", "")).lower() == level)
+
+        high_sinks = _risk_count(sinks, "high") + _risk_count(dangerous, "high")
+        med_sinks = _risk_count(sinks, "medium") + _risk_count(dangerous, "medium")
+        flow_count = len(flows)
+        proto_count = len(proto)
+
+        details = {
+            "high_sinks": high_sinks,
+            "medium_sinks": med_sinks,
+            "source_count": len(sources),
+            "sink_count": len(sinks),
+            "dangerous_count": len(dangerous),
+            "prototype_pollution_count": proto_count,
+            "potential_flows": flow_count,
+        }
+
+        # SUSPECTED if any source→sink flow OR any high-risk sink/dangerous pattern.
+        # Confirmation requires live PoC (probe_xss_executed); this tool is static.
+        if flow_count >= 1 or high_sinks >= 1 or proto_count >= 1:
+            verdict, confidence = "SUSPECTED", 0.55
+            ev = (f"DOM static signal: flows={flow_count}, high_sinks={high_sinks}, "
+                  f"proto_pollution={proto_count} — confirm with probe_xss_executed")
+        elif med_sinks >= 1 or len(sources) >= 1:
+            verdict, confidence = "SUSPECTED", 0.45
+            ev = (f"DOM static signal: med_sinks={med_sinks}, sources={len(sources)} — "
+                  f"weak; needs flow tracing")
+        else:
+            verdict, confidence = "FAILED", 0.10
+            ev = "no significant DOM sink/source/flow detected"
+
+        if len(lines) <= 2:
+            summary = "No significant HTML/JS security findings in this response."
+        else:
+            summary = "\n".join(lines)
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="dom_security_signals",
+            proxy_indices=[index] if index >= 0 else [],
+            details=details,
+            summary=summary,
+        )

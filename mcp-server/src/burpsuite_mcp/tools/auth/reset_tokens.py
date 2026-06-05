@@ -22,6 +22,8 @@ from collections import Counter
 
 from mcp.server.fastmcp import FastMCP
 
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
+
 
 def _shannon_entropy(s: str) -> float:
     """Per-character Shannon entropy in bits. A 32-hex token of true random
@@ -131,7 +133,7 @@ def register(mcp: FastMCP):
     async def analyze_reset_tokens(  # cost: zero (pure compute)
         tokens: list[str],
         capture_times: list[float] | None = None,
-    ) -> str:
+    ) -> dict:
         """Analyze N captured reset/OTP tokens for predictability.
 
         Operator triggers N password resets out-of-band (for accounts the
@@ -144,10 +146,12 @@ def register(mcp: FastMCP):
                 same order as tokens). Enables timestamp-correlation check.
         """
         if not tokens or len(tokens) < 2:
-            return "Error: provide >=2 tokens for comparison."
+            return error_verdict("provide >=2 tokens for comparison",
+                                 vuln_type="weak_token_generation")
         if capture_times and len(capture_times) != len(tokens):
-            return ("Error: capture_times length must match tokens length "
-                    "(one timestamp per token).")
+            return error_verdict(
+                "capture_times length must match tokens length (one timestamp per token)",
+                vuln_type="weak_token_generation")
 
         lines = [f"analyze_reset_tokens ({len(tokens)} samples):\n"]
 
@@ -218,14 +222,40 @@ def register(mcp: FastMCP):
         signals = sum([is_seq, is_ts, mean_ent < 60])
         lines.append("")
         if signals >= 2:
+            verdict, confidence = "CONFIRMED", 0.85
+            evidence = (f"weak token generation — {signals} signals hit "
+                        f"(sequential={is_seq}, timestamp={is_ts}, "
+                        f"low_entropy={mean_ent < 60}, mean_ent={mean_ent:.1f})")
             lines.append("VERDICT: weak token generation — multi-signal hit. "
                          "Worth a full PoC: predict the next-issued token for "
                          "an account you don't control.")
         elif signals == 1:
+            verdict, confidence = "SUSPECTED", 0.55
+            evidence = (f"one weak signal — sequential={is_seq}, "
+                        f"timestamp={is_ts}, low_entropy={mean_ent < 60}")
             lines.append("VERDICT: one weak signal — collect more samples "
                          "(target 10-20) to confirm.")
         else:
+            verdict, confidence = "FAILED", 0.10
+            evidence = (f"no weakness across {len(tokens)} samples "
+                        f"(mean_ent={mean_ent:.1f} bits, no sequential, "
+                        f"no timestamp correlation)")
             lines.append("VERDICT: no weakness detected. Token generation "
                          "appears cryptographically sound at this sample size.")
 
-        return "\n".join(lines)
+        return make_verdict(
+            verdict, confidence, evidence,
+            vuln_type="weak_token_generation",
+            details={
+                "samples": len(tokens),
+                "shape": shape,
+                "mean_entropy_bits": round(mean_ent, 2),
+                "sequential": is_seq,
+                "sequential_reason": seq_reason,
+                "timestamp_correlation": is_ts,
+                "timestamp_reason": ts_reason,
+                "common_prefix_len": prefix_len,
+                "signals": signals,
+            },
+            summary="\n".join(lines),
+        )

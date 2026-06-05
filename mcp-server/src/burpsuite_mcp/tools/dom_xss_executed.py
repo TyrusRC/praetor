@@ -20,6 +20,7 @@ from urllib.parse import urlencode, urlparse, parse_qsl
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools.browser import _ensure_browser
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 # Payload variants: each calls a dialog with the marker. Wrapped for different contexts.
@@ -77,7 +78,7 @@ def register(mcp: FastMCP):
         in_kinds: list[str] | None = None,
         variants: list[str] | None = None,
         wait_after_ms: int = 1500,
-    ) -> str:
+    ) -> dict:
         """Headless-browser XSS execution proof via dialog event capture.
 
         Injects payloads that call alert()/confirm()/prompt() with a unique marker.
@@ -104,9 +105,11 @@ def register(mcp: FastMCP):
         from burpsuite_mcp import client as _client
         scope = await _client.check_scope(url)
         if "error" in scope:
-            return f"Error: scope check failed: {scope['error']}"
+            return error_verdict(f"scope check failed: {scope['error']}",
+                                 vuln_type="xss_executed")
         if not scope.get("in_scope", False):
-            return f"Error: {url} not in scope"
+            return error_verdict(f"{url} not in scope",
+                                 vuln_type="xss_executed")
 
         _b, _ctx, page = await _ensure_browser()
 
@@ -183,6 +186,23 @@ def register(mcp: FastMCP):
                 lines.append(f"    target: {c['target']}")
                 lines.append(f"    dialog: {c['dialog_text'][:120]!r}")
             lines.append("\nThis is binary execution proof. assess_finding should treat as q5_evidence: CERTAIN.")
+            verdict, confidence = "CONFIRMED", 0.95
+            ev = (f"XSS executed: {len(confirmed)} variant(s) fired dialog "
+                  f"(binary proof via page.on('dialog') hook)")
         else:
             lines.append("No execution confirmed across tested variants. Reflection alone is NOT proof — re-try with different param or in_kind.")
-        return "\n".join(lines)
+            verdict, confidence = "FAILED", 0.10
+            ev = f"no dialog fired across {len(all_variants)} variants × {len(in_kinds)} injection sites"
+
+        return make_verdict(
+            verdict, confidence, ev,
+            vuln_type="xss_executed",
+            details={
+                "url": url,
+                "param": param,
+                "variants_tested": len(all_variants),
+                "in_kinds": in_kinds,
+                "confirmed": confirmed,
+            },
+            summary="\n".join(lines),
+        )
