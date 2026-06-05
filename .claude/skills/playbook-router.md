@@ -82,8 +82,9 @@ Often co-load `playbook-api-advanced.md` since mobile backends are API-first.
 - Java/.NET/Python/Ruby with serialized data in cookies/params
 - npm/PyPI/Maven dependency files exposed (`.npmrc`, `requirements.txt`, `package-lock.json` reachable)
 - LLM features in product (chat, summarization, "AI assistant")
+- **MCP server exposed**: `mcp-atlassian` / `mcp-postgres` / `mcp-filesystem` / `/.well-known/mcp.json` / `Server: mcp-*` headers / agentic-platform integrations (Claude / Cursor / Continue / Cline) wired to remote MCP
 
-**Match → load `playbook-red-team-web.md`** (PRIMARY).
+**Match → load `playbook-red-team-web.md`** (PRIMARY). §5a (MCP server attacks) is the 2026 H2 entry point.
 
 > Note: OAuth / OIDC / SAML / FIDO / payment signals previously routed here now route to **Q7** (`playbook-payment-and-auth.md`), which is deeper on those specific surfaces.
 

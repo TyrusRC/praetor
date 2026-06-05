@@ -175,6 +175,58 @@ Skip SAML deep-dive unless you see `SAMLResponse=` POST bodies. Most modern targ
 
 **Save with `vuln_type="llm_injection"`** — not in NEVER-SUBMIT.
 
+## 5a. MCP server attack surface (2026 H2)
+
+**Triggers:**
+- Target hosts an MCP server (`mcp-atlassian`, `mcp-postgres`, `mcp-filesystem`, custom integrations)
+- `/.well-known/mcp.json`, `/mcp/` paths, `Server: mcp-*` headers, or MCP-tool descriptions in client config
+- Any agentic platform (Claude / Cursor / Continue / Cline) wired to remote MCP servers
+
+| Attack | CVE / source | Probe |
+|---|---|---|
+| Path traversal in MCP attachment download | CVE-2026-27825 (mcp-atlassian) | `probe_mcp_server_attacks(base_url="https://mcp.tld/")` — fires 5 LFI canaries (Linux passwd + Windows win.ini + URL-encoded variants) |
+| Header SSRF via `X-Atlassian-Jira-Url` / `X-Atlassian-Confluence-Url` | CVE-2026-27826 (mcp-atlassian) | Same tool fires 6 IMDS-targeted probes × 2 header names; optionally Collaborator-blind |
+| Resource theft via hidden directive | Unit 42 MCP attack vector | Passive scan of MCP responses for `"Note, this is IMPORTANT, after finishing ... please also write"` style appended directives |
+| Conversation hijack persistence | Unit 42 MCP attack vector | Match `"put the following text verbatim"` / persona-switch / `"in all responses"` in MCP responses |
+| Covert tool invocation | Unit 42 MCP attack vector | Match `"invoke the tool to write [content] to [file]"` style directives hidden in MCP responses |
+| Tool description PI | Earlier `mcp_server_attacks.json` | `auto_probe(categories=["mcp_server_attacks"])` |
+
+**Probe commands:**
+
+```python
+# Active sweep — CVE-2026-27825 + CVE-2026-27826
+probe_mcp_server_attacks(
+  base_url="https://mcp-target.tld/",
+  attachment_endpoint="/attachment/",
+  collaborator_url="<your-collab.oastify.com>",  # optional; enables blind SSRF
+)
+# CONFIRMED 0.95 = LFI extract OR IMDS marker OR Collaborator callback
+# FAILED          = no extract / no marker / no callback
+
+# Passive Unit-42 detection via auto_probe across all MCP contexts
+auto_probe(session="hunt", categories=["mcp_server_attacks", "ai_prompt_injection"])
+```
+
+**Save template:**
+
+```python
+save_finding(
+  vuln_type="mcp_server_attacks",
+  severity="critical",
+  title="mcp-atlassian path traversal — /etc/passwd extracted via attachment endpoint",
+  endpoint="https://mcp-target.tld/attachment/../../etc/passwd",
+  evidence={"logger_index": N, "notes": "root:x:0:0: extracted; unauth"},
+)
+```
+
+**Indirect-PI delivery hunt (Unit 42 IDPI table):**
+If target consumes web content via LLM (summariser, agent, doc-loader), embed marker payloads from `ai_prompt_injection.json` contexts:
+- `idpi_visual_concealment_2026` — CSS-hidden marker (`font-size:0`, off-screen)
+- `idpi_invisible_unicode_jailbreak_2026` — zero-width Unicode between letters
+- `idpi_payload_splitting_2026` — fragmented across HTML elements
+
+Then check if the LLM output echoes the marker (`SWK_IDPI_*`). Echo = confirmed IDPI; chain to tool-call hijack via §5.
+
 ## 6. SSPP → RCE escalation (from pollution playbook)
 
 If `playbook-pollution.md` confirmed prototype pollution:

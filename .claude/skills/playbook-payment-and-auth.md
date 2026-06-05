@@ -134,6 +134,8 @@ Recovery:        usually weaker — email/SMS code, security questions, backup c
 | 12 | PRF extension cross-RP reuse | Server-derived secret via PRF reused across services | MEDIUM-HIGH |
 | 13 | Authenticator delete without re-auth | DELETE /webauthn/credentials/<id> succeeds with only session cookie, no re-auth | CRITICAL — attacker removes victim's 2FA |
 | 14 | Token-binding skip | Steal session cookie → use without passkey assertion | CRITICAL |
+| 15 | **Step-up bypass via `{"method":"passkey"}`** (CVE-2026-32879) | POST step-up endpoint with `{"method":"passkey"}` — vuln server marks session verified without ANY WebAuthn assertion roundtrip | HIGH — opens any gate protected by step-up (key issuance, settings, payment confirm) |
+| 16 | **WebAuthn API hijack via JS injection** (DEF CON 33 'Passkeys Pwned') | XSS sink → override `navigator.credentials.get/.create` to exfil challenges or forge assertions. Same path via malicious extension using `chrome.webAuthenticationProxy` | CRITICAL — cloud-synced passkeys (Apple/Google/Microsoft) NOT 100% phishing-resistant |
 
 ### Probe commands
 
@@ -141,6 +143,22 @@ Recovery:        usually weaker — email/SMS code, security questions, backup c
 # Drive the existing matchers
 auto_probe(url="https://target.tld/webauthn/register/finish", categories=["webauthn_passkey"])
 auto_probe(url="https://target.tld/webauthn/authenticate/finish", categories=["webauthn_passkey"])
+
+# Attack #15 — CVE-2026-32879 step-up bypass (one-shot VerdictResult tool)
+probe_passkey_stepup_bypass(
+  stepup_url="https://target.tld/api/secure_verification",
+  protected_url="https://target.tld/api/channel/1/key",  # gated by step-up
+  bearer_token="<authenticated session token; test account MUST have a passkey registered>",
+)
+# CONFIRMED 0.95 = bogus body cleared step-up AND protected endpoint returned 200
+# CONFIRMED 0.80 = bogus body cleared step-up; protected_url not supplied
+# SUSPECTED 0.55 = marker hit but protected still gated (decorative marker)
+# FAILED          = server correctly required assertion (invalid_credential / assertion_required)
+
+# Attack #16 — WebAuthn API hijack confirmation requires an XSS sink first.
+# Chain: confirm_xss / probe_xss_executed on the passkey-protected origin,
+# then inject the navigator.credentials.get override payload from
+# webauthn_api_hijack_jsinjection_2026 (oauth.json) with a Collaborator host.
 
 # Test recovery-code rate-limit
 concurrent_requests(
