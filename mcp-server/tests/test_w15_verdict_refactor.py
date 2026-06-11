@@ -85,7 +85,9 @@ class RefOnlyKBStabilityTest(unittest.TestCase):
         "kubernetes_exposed",
         "race_condition",
         "request_smuggling",
-        "saml_xsw",
+        # W29-i (2026-06-11): saml_xsw contexts merged INTO saml.json per KB-org
+        # rule — parent saml.json is auto-probe active. Entry dropped from
+        # expected ref-only set; replaced by no-op (saml parent is not ref-only).
         "soapwn",
         "source_code_exposure",
         "tech_vulns",
@@ -113,7 +115,7 @@ class VerdictToolsSkillW15Test(unittest.TestCase):
             path = Path(".claude/skills/verdict-tools.md")
         content = path.read_text(encoding="utf-8")
         for marker in ("Ref-only KB policy", "captcha_bypass", "h2_continuation_flood",
-                       "saml_xsw", "Coverage as of W15", "43 testing tools"):
+                       "Coverage as of W15", "43 testing tools"):
             self.assertIn(marker, content, f"missing W15 skill marker: {marker}")
 
 

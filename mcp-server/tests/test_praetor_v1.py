@@ -277,7 +277,9 @@ class V1KbFilesTest(unittest.TestCase):
         "react_server_components",
         "trpc_sspp",
         "nextjs_cache_poisoning",
-        "saml_xsw",
+        # W29-i (2026-06-11): saml_xsw contexts merged INTO saml.json per
+        # KB-org rule; saml parent now carries the XSW contexts.
+        "saml",
         "anon_cloud_expansion",
         "echoleak",
         "vector_db_injection",

@@ -13,7 +13,7 @@ Split categories:
 - `graphql` → `graphql.json` + `graphql_engines.json`
 - `cloud` → `cloud_webapp.json` + `cloud_storage_misconfig.json`, `cloud_function_url.json`, `cloud_api_gateway.json`
 
-**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks (promoted), mobile_deeplink, race_condition, rag_injection (promoted), request_smuggling, saml_xsw, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
+**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks (promoted), mobile_deeplink, race_condition, rag_injection (promoted), request_smuggling, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
 
 ## 2026-05-29 W7 additions (PortSwigger Top 10 of 2025)
 
@@ -94,11 +94,9 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `oauth` | redirect_uri_bypass, state_bypass, scope_escalation, pkce_downgrade, oauth_mixup_attack, oauth_audience_confusion, jwks_kid_swap, redirect_uri_parser_quirks, par_request_uri_attacker_controlled_2025, dpop_nonce_binding_skipped_2025, passkey_stepup_no_assertion_2026 (CVE-2026-32879), webauthn_api_hijack_jsinjection_2026 (DEF CON 33) (+13) | critical | auth0, backchannel_authentication, ciba, dpop, fapi, oidc, jwt, passkey, pkce, webauthn |
 | `oauth_device_flow` | device_code_phishing, user_code_brute_force | critical | device_grant, oauth |
 | `oauth_dpop_confused_deputy` | rs_audience_missing, jti_replay | high | dpop, oauth, rfc9449 |
-| `saml` | signature_bypass, xxe_in_saml, assertion_replay, attribute_injection, recipient_mismatch, xml_signature_wrapping (+2) | critical | .net, adfs, java, okta, onelogin |
-| `saml_xsw` *(ref-only)* | saml_response_endpoint_detect, xsw_signature_wrap, xsw_comment_injection_nameid, saml_signature_exclusion, saml_keyinfo_swap | critical | saml, shibboleth, okta, onelogin, adfs, auth0, ping |
+| `saml` | signature_bypass, xxe_in_saml, assertion_replay, attribute_injection, recipient_mismatch, xml_signature_wrapping, saml_response_endpoint_detect, xsw_signature_wrap, xsw_comment_injection_nameid, saml_signature_exclusion, saml_keyinfo_swap (+2) | critical | .net, adfs, java, okta, onelogin, shibboleth, auth0, ping |
 | `scim_provisioning` | endpoint_discovery, filter_injection, mass_user_create, group_patch_escalation, shadow_admin_username, put_attribute_clear | critical | azure_ad, jumpcloud, okta, onelogin, scim |
-| `webauthn_passkey` | attestation_none_acceptance, challenge_replay, rp_id_origin_mismatch, recovery_code_weakness, passkey_to_password_downgrade, conditional_ui_user_enum (+5) | critical | cable, credential_manager, fido2, google_password_manager, hybrid |
-| `webauthn_passkey_attacks` | origin_validation_weak, cross_device_misbinding | high | fido2, passkey, webauthn |
+| `webauthn_passkey` | attestation_none_acceptance, challenge_replay, rp_id_origin_mismatch, recovery_code_weakness, passkey_to_password_downgrade, conditional_ui_user_enum, origin_validation_weak, cross_device_misbinding (+5) | critical | cable, credential_manager, fido2, google_password_manager, hybrid, passkey, webauthn |
 | `session_puzzling` | variable_overwrite, session_race, session_fixation_variant | high | asp.net, django, flask, java, node.js |
 
 ## Authorization / IDOR (5)
@@ -128,9 +126,8 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `cache_poisoning` | unkeyed_headers, cache_deception, cloudflare_cache_bypass, fastly_normalization, akamai_param_order, head_request_caching (+2) | high | akamai, cf-cache-status, cf-ray, cloudflare, cloudfront |
-| `cache_deception_v2` | semicolon_path_param, encoded_slash_split, fragment_split_parser_discrepancy, double_extension_parser_split, normalised_path_traversal_split | high | akamai, cloudflare, fastly |
 | `nextjs_cache_poisoning` | rsc_cache_key_manipulation, isr_revalidate_poison, server_action_body_confusion | high | next, next.js, vercel |
-| `web_cache_deception` *(ref-only)* | path_confusion, delimiter_confusion, normalization_discrepancy, method_based | high | akamai, apache, cdn, cloudflare, cloudfront |
+| `web_cache_deception` *(ref-only)* | path_confusion, delimiter_confusion, normalization_discrepancy, method_based, static_suffix_cache_poisoning, semicolon_path_param, encoded_slash_split, fragment_split_parser_discrepancy, double_extension_parser_split, normalised_path_traversal_split | high | akamai, apache, cdn, cloudflare, cloudfront, fastly, varnish, nginx, aws cloudfront |
 | `web_cache_poisoning_dos` *(ref-only)* | header_oversize, cache_key_normalization, vary_header_abuse, large_response_caching | medium | akamai, apache, cloudflare, cloudfront, fastly |
 
 ## SSRF / Cloud (6)
@@ -255,7 +252,7 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 
 ## 2026-05-21 additions
 
-10 novel KB entries added — see categories above. Auto-probe enabled: `state_machine_race`, `oauth_dpop_confused_deputy`, `edge_worker_ssrf`, `webauthn_passkey_attacks`, `cache_deception_v2`, `dom_clobbering_2024`, `service_worker_attacks`. Reference-only: `h2_continuation_flood` (CVE-2024-27316, Rule 5 DoS), `mcp_server_attacks`, `rag_injection`.
+10 novel KB entries added — see categories above. Auto-probe enabled: `state_machine_race`, `oauth_dpop_confused_deputy`, `edge_worker_ssrf`, `webauthn_passkey` (contexts merged from former webauthn_passkey_attacks), `web_cache_deception` (contexts merged from former cache_deception_v2), `dom_clobbering_2024`, `service_worker_attacks`. Reference-only: `h2_continuation_flood` (CVE-2024-27316, Rule 5 DoS), `mcp_server_attacks`, `rag_injection`.
 
 ## 2026-05-22 additions — Coverage pass (cloud + mobile + archive + DAV + GraphQL engines)
 

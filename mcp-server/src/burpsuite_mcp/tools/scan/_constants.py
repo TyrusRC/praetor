@@ -49,9 +49,9 @@ _REFERENCE_ONLY = {
     # NOTE: webview_injection promoted to active W10 (2026-05-29) — same model:
     # 3 HTTP-observable contexts (remote URL reach / postMessage reflection /
     # file-URL exfil) fire on backend traffic after operator drives the WebView.
-    # Praetor v1.0 (2026-05-24) — saml_xsw stays operator-built (binary XML
-    # signature work that does not fit auto_probe's payload-token shape).
-    "saml_xsw",
+    # NOTE (W29-i, 2026-06-11): saml_xsw sibling KB MERGED into saml.json per
+    # KB-org rule. The signature-wrapping contexts live inside saml.json now;
+    # no separate entry needed.
     # W6 (2026-05-24) — CI/CD pipeline attacks probed via binary tools
     # (poutine / octoscan), not HTTP-shaped matchers.
     "ci_actions_injection",
