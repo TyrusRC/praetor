@@ -19,6 +19,7 @@ from burpsuite_mcp.tools import (
     auth_negotiate, mcp_jsonrpc_probe,
     cve_variant_probe,
     smart_js_analyze,
+    smart_request_triage,
 )
 
 mcp = FastMCP(
@@ -155,3 +156,4 @@ auth_negotiate.register(mcp)   # probe_kerberos_spnego_auth — enterprise auth 
 mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimate-detect parity (W29-k)
 cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware PoC sweep (W30-a)
 smart_js_analyze.register(mcp)   # smart_js_analyze — JS → fire-ready attack plan (W30-b)
+smart_request_triage.register(mcp)  # smart_request_triage — proxy entry → attack plan (W30-c)
