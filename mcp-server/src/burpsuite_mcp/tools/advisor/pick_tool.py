@@ -6,6 +6,21 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W30-a: CVE-aware variant sweep — wins on CVE-id keywords -----
+    # Operator gap (2026-06-11): known CVE on target, public PoC needs payload
+    # tweak. probe_cve_with_variants ships a bounded curated variant pack +
+    # canary-echo scoring + first-CONFIRMED short-circuit.
+    (["cve variant", "cve variants", "cve poc variants", "try cve poc",
+      "known cve poc", "known cve payload", "poc variations",
+      "poc didn't work", "poc not working", "cve poc tweak",
+      "react2shell", "react 2 shell", "next-action header poc",
+      "cve-2025-55182", "cve-2025-66478", "cve-2025-68130",
+      "cve-2026-40175", "cve-2026-44789", "cve-2026-44790", "cve-2026-44791",
+      "bounded cve sweep", "rsc poc variants", "trpc sspp poc"],
+     "probe_cve_with_variants",
+     "probe_cve_with_variants(cve_id='CVE-2025-55182', "
+     "target_url='https://app/api/action', baseline_payload='<public PoC>', "
+     "action_id='<bundle-harvested-id>', max_variants=12)"),
     # ----- W29: commercial-tool gap closures — verb-led routing FIRST -----
     # W29-a: LLM endpoint discovery + OWASP LLM Top-10 (Invicti BLOCKER closure)
     (["discover llm endpoint", "find llm endpoint", "find chat api",
