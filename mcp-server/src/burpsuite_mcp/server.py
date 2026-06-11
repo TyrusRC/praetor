@@ -18,6 +18,7 @@ from burpsuite_mcp.tools import (
     postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
     auth_negotiate, mcp_jsonrpc_probe,
     cve_variant_probe,
+    smart_js_analyze,
 )
 
 mcp = FastMCP(
@@ -153,3 +154,4 @@ nuclei_llm_infra.register(mcp) # run_nuclei_llm_infra — LLM/AI/MCP template sw
 auth_negotiate.register(mcp)   # probe_kerberos_spnego_auth — enterprise auth gateway detection (W29-j)
 mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimate-detect parity (W29-k)
 cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware PoC sweep (W30-a)
+smart_js_analyze.register(mcp)   # smart_js_analyze — JS → fire-ready attack plan (W30-b)
