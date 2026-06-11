@@ -6,6 +6,18 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W30-c: smart request triage — proxy entry → attack plan -----
+    # Collapses get_request_detail -> extract_* -> smart_analyze -> reason
+    # -> pick LLM loop into ONE call. Operator hands an index, gets a
+    # priority-ordered attack_plan with concrete suggested_call lines.
+    (["triage request", "triage proxy entry", "analyze proxy index",
+      "analyze captured request", "what to do with this request",
+      "next step for index", "next action for index",
+      "what to do next", "captured request next step",
+      "proxy entry attack plan", "request to attack plan",
+      "analyze request smart", "what does this response mean"],
+     "smart_request_triage",
+     "smart_request_triage(index=12345)"),
     # ----- W30-b: smart JS analysis → attack plan synthesis -----
     # Operator gap: extract_js_secrets / extract_api_endpoints dump raw data,
     # operator burns tokens reasoning about payloads. smart_js_analyze ships
