@@ -17,6 +17,7 @@ from burpsuite_mcp.tools import (
     web_llm_sweep, grpc_probe, saml_xsw_probe, dns_rebind_probe,
     postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
     auth_negotiate, mcp_jsonrpc_probe,
+    cve_variant_probe,
 )
 
 mcp = FastMCP(
@@ -151,3 +152,4 @@ sse_probe.register(mcp)        # probe_sse_injection — SSE newline injection (
 nuclei_llm_infra.register(mcp) # run_nuclei_llm_infra — LLM/AI/MCP template sweep (W29-h)
 auth_negotiate.register(mcp)   # probe_kerberos_spnego_auth — enterprise auth gateway detection (W29-j)
 mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimate-detect parity (W29-k)
+cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware PoC sweep (W30-a)
