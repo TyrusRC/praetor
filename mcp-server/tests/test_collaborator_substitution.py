@@ -39,8 +39,10 @@ NEW_KB_FILES = [
     "state_machine_race",
     "oauth_dpop_confused_deputy",
     "edge_worker_ssrf",
-    "webauthn_passkey_attacks",
-    "cache_deception_v2",
+    # W29-i (2026-06-11): webauthn_passkey_attacks merged into webauthn_passkey
+    # and cache_deception_v2 merged into web_cache_deception per KB-org rule
+    "webauthn_passkey",
+    "web_cache_deception",
     "dom_clobbering_2024",
     "service_worker_attacks",
 ]

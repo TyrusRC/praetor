@@ -6,6 +6,61 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W29: commercial-tool gap closures — verb-led routing FIRST -----
+    # W29-a: LLM endpoint discovery + OWASP LLM Top-10 (Invicti BLOCKER closure)
+    (["discover llm endpoint", "find llm endpoint", "find chat api",
+      "llm api discovery", "find chat completion endpoint"],
+     "discover_llm_endpoint",
+     "discover_llm_endpoint(base_url='https://app.example.com/')"),
+    (["owasp llm top 10", "owasp llm top-10", "llm top 10 sweep",
+      "prompt injection sweep", "llm web sweep", "llm01 llm02 llm04 llm06",
+      "test llm web app", "scan llm endpoint"], "run_web_llm_owasp_top10",
+     "run_web_llm_owasp_top10(endpoint_url='https://app/api/chat', body_shape='openai_chat')"),
+    # W29-b: gRPC active probing
+    (["grpc reflection", "grpc server reflection", "list grpc services",
+      "enumerate grpc methods", "grpc.reflection.v1alpha"], "probe_grpc_reflection",
+     "probe_grpc_reflection(base_url='https://api.example.com')"),
+    (["grpc idor", "grpc bola", "grpc id enum", "mutate grpc request",
+      "grpc unauthorised access"], "probe_grpc_idor",
+     "probe_grpc_idor(method_url='https://api/svc/UserService/GetUser', request_body_b64='...')"),
+    # W29-c: SAML XSW
+    (["saml xsw", "xml signature wrapping", "saml wrap assertion",
+      "saml signature exclusion", "saml comment injection",
+      "saml keyinfo swap", "samlresponse xsw"], "probe_saml_xsw",
+     "probe_saml_xsw(acs_url='https://sp/saml/acs', saml_response_b64='...', attacker_nameid='admin')"),
+    # W29-d: DNS rebinding
+    (["dns rebind", "dns rebinding", "rbndr.us", "toctou ssrf",
+      "rebind ssrf", "169.254 rebind"], "probe_dns_rebind",
+     "probe_dns_rebind(target_url='https://api/fetch', url_param_name='url')"),
+    # W29-e: postMessage
+    (["postmessage listeners", "postmessage handler enum", "postmessage origin",
+      "window.addeventlistener message", "postmessage xss",
+      "cross origin message handler"], "probe_postmessage_listeners",
+     "probe_postmessage_listeners(target_url='https://app.example.com/')"),
+    # W29-f: CSP analyzer
+    (["analyze csp", "csp bypass", "csp misconfig", "csp wildcard",
+      "csp unsafe-inline", "csp jsonp escape", "csp risky cdn",
+      "csp evaluator", "content security policy analysis"], "analyze_csp",
+     "analyze_csp(target_url='https://app.example.com')  # or header_blob='...'"),
+    # W29-g: SSE injection
+    (["sse injection", "server-sent events injection", "event stream injection",
+      "text/event-stream injection", "newline sse"], "probe_sse_injection",
+     "probe_sse_injection(target_url='https://app/api/stream', param_name='message')"),
+    # W29-h: nuclei LLM infra sweep
+    (["nuclei llm", "nuclei ai templates", "nuclei mcp templates",
+      "scan llm infra", "llm framework sweep", "marimo flowise langflow nuclei",
+      "nuclei ollama anythingllm"], "run_nuclei_llm_infra",
+     "run_nuclei_llm_infra(target='https://app.example.com', severity='medium,high,critical')"),
+    # W29-j: SPNEGO / Kerberos / NTLM detection
+    (["kerberos auth", "spnego auth", "ntlm auth", "ntlmv2 auth",
+      "negotiate www-authenticate", "enterprise auth gateway",
+      "windows integrated auth"], "probe_kerberos_spnego_auth",
+     "probe_kerberos_spnego_auth(target_url='https://intranet.corp.tld/')"),
+    # W29-k: MCP JSON-RPC method enumeration
+    (["mcp jsonrpc methods", "mcp method enum", "wallarm mcp ultimate detect",
+      "tools/list mcp", "resources/list mcp", "prompts/list mcp",
+      "mcp jsonrpc enumerate"], "probe_mcp_jsonrpc_methods",
+     "probe_mcp_jsonrpc_methods(endpoint_url='https://mcp.example.com/mcp')"),
     # ----- W28-b: 2026 H2 mid-year CVE intake — verb-led routing -----
     # Anchored to specific keywords so they win before generic routes
     # ("sqli" → auto_probe sqli, etc).

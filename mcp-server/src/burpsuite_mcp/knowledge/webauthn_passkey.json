@@ -1,6 +1,6 @@
 {
   "category": "webauthn_passkey",
-  "description": "WebAuthn / passkey bypass — most checks happen client-side or via untrusted attestation; recovery flows often weaker than the passkey itself. Bug-bounty payouts in 2024-2026 commonly exploit attestation-none acceptance, recovery-code reuse, PRF extension confusion, and fallback-to-password downgrades.",
+  "description": "WebAuthn / passkey bypass \u2014 most checks happen client-side or via untrusted attestation; recovery flows often weaker than the passkey itself. Bug-bounty payouts in 2024-2026 commonly exploit attestation-none acceptance, recovery-code reuse, PRF extension confusion, and fallback-to-password downgrades.",
   "craft_guidance": [
     "1. ENUMERATE THE FLOW: registration (POST /webauthn/register/begin + /finish), authentication (assertion), recovery (codes / email link), management (list / delete authenticators).",
     "2. ATTESTATION TIER: the client sends an attestationObject; many servers accept attestation=none (no signing key). Test by replacing attestationObject with a self-generated 'none' fmt blob; if server accepts, attacker controls credentialPublicKey.",
@@ -9,118 +9,259 @@
     "5. PRF EXTENSION ABUSE: WebAuthn PRF (pseudorandom function) outputs are bound to RP. Some libs leak PRF output across RPs; confirm server-derived secrets aren't reused across services.",
     "6. RECOVERY CODE WEAKNESS: passkey itself is strong; recovery codes are usually 6-10 digits. Test rate limit, codespace size, reuse after success, code-per-account vs global.",
     "7. FALLBACK DOWNGRADE: 'forgot passkey' often falls back to password+SMS. Confirm fallback isn't trivially triggered by attacker (no email confirmation, no rate limit).",
-    "8. CONDITIONAL UI: navigator.credentials.get({mediation:'conditional'}) reveals which usernames have passkeys — username enumeration class.",
+    "8. CONDITIONAL UI: navigator.credentials.get({mediation:'conditional'}) reveals which usernames have passkeys \u2014 username enumeration class.",
     "9. AUTHENTICATOR LIST DISCLOSURE: GET /webauthn/credentials may leak credential IDs that confirm account existence even when the rest of the API doesn't.",
     "10. TOKEN BINDING: assertion sometimes piggybacks on session cookie. Verify the cookie+assertion combination is bound; otherwise stolen cookie + valid passkey = ATO."
   ],
   "contexts": {
     "attestation_none_acceptance": {
-      "description": "Server accepts attestation format 'none' — meaning the public key is unattested. Attacker registers their own keypair, uses it to authenticate. Affects WebAuthn libs that prioritize 'attestation: preferred' over 'direct'.",
-      "tech_match": ["webauthn", "passkey", "fido2"],
-      "param_match": ["attestationObject", "publicKey", "credential"],
+      "description": "Server accepts attestation format 'none' \u2014 meaning the public key is unattested. Attacker registers their own keypair, uses it to authenticate. Affects WebAuthn libs that prioritize 'attestation: preferred' over 'direct'.",
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "fido2"
+      ],
+      "param_match": [
+        "attestationObject",
+        "publicKey",
+        "credential"
+      ],
       "probes": [
         {
           "payload": "{\"fmt\":\"none\",\"attStmt\":{},\"authData\":\"<attacker_pubkey_blob>\"}",
           "description": "Register a passkey with fmt='none' and an attacker-controlled public key. If server accepts and stores, attacker can later authenticate.",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "any": ["credentialId", "credential_id", "registered"]},
-            {"type": "not_word", "words": ["attestation_required", "untrusted_attestation"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "credentialId",
+                "credential_id",
+                "registered"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "attestation_required",
+                "untrusted_attestation"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "challenge_replay": {
       "description": "Server's WebAuthn challenge is meant to be single-use. Some implementations cache challenges in DB without invalidation, allowing replay.",
-      "tech_match": ["webauthn", "passkey"],
-      "param_match": ["challenge", "clientDataJSON"],
+      "tech_match": [
+        "webauthn",
+        "passkey"
+      ],
+      "param_match": [
+        "challenge",
+        "clientDataJSON"
+      ],
       "probes": [
         {
           "payload": "{{captured_assertion}}",
           "description": "Replay a captured WebAuthn assertion (clientDataJSON + authenticatorData + signature) with same challenge. Server must reject; if accepted, replay is possible.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["challenge_used", "replay", "invalid_challenge", "expired"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "challenge_used",
+                "replay",
+                "invalid_challenge",
+                "expired"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65,
-          "variables": {"manual_capture": true}
+          "variables": {
+            "manual_capture": true
+          }
         },
         {
           "payload": "{{captured_assertion_with_modified_signCount}}",
           "description": "Modify authenticatorData.signCount to LOWER value than recorded. Spec requires reject; lazy implementations don't track signCount.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["signCount", "counter", "rollback"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "signCount",
+                "counter",
+                "rollback"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"manual_capture": true}
+          "variables": {
+            "manual_capture": true
+          }
         }
       ]
     },
     "rp_id_origin_mismatch": {
       "description": "rpId in clientDataJSON should match the request Origin. Misconfigurations on subdomain-hosted apps allow attacker-controlled subdomain to authenticate on parent.",
-      "tech_match": ["webauthn", "passkey"],
-      "param_match": ["rpId", "origin", "clientDataJSON"],
+      "tech_match": [
+        "webauthn",
+        "passkey"
+      ],
+      "param_match": [
+        "rpId",
+        "origin",
+        "clientDataJSON"
+      ],
       "probes": [
         {
           "payload": "{\"type\":\"webauthn.get\",\"challenge\":\"<base64>\",\"origin\":\"https://attacker.example.com\"}",
           "description": "clientDataJSON with attacker-origin while authenticating on legit.example.com. Server must validate rpId matches the registered RP, not just eTLD+1.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["origin_mismatch", "rp_id_invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "origin_mismatch",
+                "rp_id_invalid"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "recovery_code_weakness": {
       "description": "Recovery codes circumvent the passkey. Common bugs: short codespace, no rate limit, reuse after success, server-side codespace exhaustion.",
-      "tech_match": ["webauthn", "passkey"],
-      "param_match": ["recovery_code", "backup_code", "code", "token"],
+      "tech_match": [
+        "webauthn",
+        "passkey"
+      ],
+      "param_match": [
+        "recovery_code",
+        "backup_code",
+        "code",
+        "token"
+      ],
       "probes": [
         {
           "payload": "000000",
           "description": "Submit weak recovery code. Track rate-limit response across N attempts. If no rate limit at /recovery/verify, codespace is brute-forceable.",
           "matchers": [
-            {"type": "status", "status": [200, 401, 403]},
-            {"type": "not_word", "words": ["rate limit", "throttle", "too many"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                401,
+                403
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "rate limit",
+                "throttle",
+                "too many"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"rate_limit_test": true}
+          "variables": {
+            "rate_limit_test": true
+          }
         },
         {
           "payload": "{{previously_used_recovery_code}}",
           "description": "Replay a recovery code that was already consumed. Server should mark used; some implementations only invalidate on successful login, allowing pre-success replay.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["already_used", "consumed", "expired"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "already_used",
+                "consumed",
+                "expired"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 55,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "passkey_to_password_downgrade": {
       "description": "Account has passkey registered but password is still active server-side. Attacker phishes / brute-forces password and bypasses passkey entirely. Common when 'add passkey' is offered without 'remove password'.",
-      "tech_match": ["webauthn", "passkey"],
+      "tech_match": [
+        "webauthn",
+        "passkey"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{\"username\":\"target\",\"password\":\"known_or_brute\"}",
           "description": "Attempt password login on an account that has a registered passkey. If password login succeeds without forcing passkey, downgrade is possible.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "header", "name": "Set-Cookie", "contains": ""},
-            {"type": "not_word", "words": ["passkey_required", "webauthn_required", "must_use_passkey"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Set-Cookie",
+              "contains": ""
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "passkey_required",
+                "webauthn_required",
+                "must_use_passkey"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
@@ -130,16 +271,38 @@
     },
     "conditional_ui_user_enum": {
       "description": "navigator.credentials.get({mediation:'conditional'}) shows usernames that have a registered credential. Server-side: GET /webauthn/credentials/exists?username=X often leaks via response shape.",
-      "tech_match": ["webauthn", "passkey"],
-      "param_match": ["username", "email", "credential_id"],
+      "tech_match": [
+        "webauthn",
+        "passkey"
+      ],
+      "param_match": [
+        "username",
+        "email",
+        "credential_id"
+      ],
       "probes": [
         {
           "payload": "{\"username\":\"admin\"}",
           "description": "Probe username via /webauthn/login/begin. Server response typically contains allowCredentials list. If list is empty for invalid users vs populated for valid, enumeration confirmed.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["allowCredentials", "credentials", "credentialId"]},
-            {"type": "length_diff", "min_diff": 50}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "allowCredentials",
+                "credentials",
+                "credentialId"
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 50
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -148,72 +311,178 @@
       ]
     },
     "rp_id_drift_web_vs_mobile": {
-      "description": "Web origin and mobile-app origin share the same RP-ID but server enforces only one. Backend that issues challenges for https://app.example.com may accept assertions from android:apk-key-hash:... or ios:bundle-id:... without binding. Cross-platform replay: capture mobile passkey assertion, replay on web (or vice versa) — successful auth confirms missing platform binding.",
-      "tech_match": ["webauthn", "passkey", "fido2", "mobile"],
-      "param_match": ["clientDataJSON", "rpId", "origin", "authenticatorData"],
+      "description": "Web origin and mobile-app origin share the same RP-ID but server enforces only one. Backend that issues challenges for https://app.example.com may accept assertions from android:apk-key-hash:... or ios:bundle-id:... without binding. Cross-platform replay: capture mobile passkey assertion, replay on web (or vice versa) \u2014 successful auth confirms missing platform binding.",
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "fido2",
+        "mobile"
+      ],
+      "param_match": [
+        "clientDataJSON",
+        "rpId",
+        "origin",
+        "authenticatorData"
+      ],
       "probes": [
         {
           "payload": "{\"clientDataJSON\":\"<b64 of {\\\"type\\\":\\\"webauthn.get\\\",\\\"origin\\\":\\\"android:apk-key-hash:<attacker>\\\",...}>\"}",
-          "description": "Submit a mobile-origin clientDataJSON to a web-origin RP-ID assertion endpoint. Web RP that doesn't enforce origin platform receives a valid signature with attacker-claimed mobile origin — successful auth proves missing binding.",
+          "description": "Submit a mobile-origin clientDataJSON to a web-origin RP-ID assertion endpoint. Web RP that doesn't enforce origin platform receives a valid signature with attacker-claimed mobile origin \u2014 successful auth proves missing binding.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["authenticated", "session_token", "access_token", "logged_in"]},
-            {"type": "not_word", "words": ["origin_mismatch", "invalid_origin", "platform_mismatch"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "authenticated",
+                "session_token",
+                "access_token",
+                "logged_in"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "origin_mismatch",
+                "invalid_origin",
+                "platform_mismatch"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "hybrid_caBLE_cross_device_phishing": {
       "description": "CTAP2 hybrid transport (caBLE) lets users sign in on device A using a passkey on device B via QR code. The QR-code link can be relayed: attacker shows the victim QR (captured from attacker's failing login attempt); victim scans and approves on their phone, attacker's session is authenticated. Server-side: missing per-session caBLE binding to client IP / device fingerprint.",
-      "tech_match": ["webauthn", "passkey", "caBLE", "hybrid", "qr"],
-      "param_match": ["caBLE", "hybrid", "qrCode", "cable", "linkData"],
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "caBLE",
+        "hybrid",
+        "qr"
+      ],
+      "param_match": [
+        "caBLE",
+        "hybrid",
+        "qrCode",
+        "cable",
+        "linkData"
+      ],
       "probes": [
         {
           "payload": "<relayed caBLE QR/link from attacker's session shown to victim>",
-          "description": "If the QR-code or caBLE link doesn't bind to the issuing client (no IP / no UA / no challenge-IP-MAC), relaying succeeds. Test by initiating caBLE flow in browser A, completing in unrelated browser B with the same QR — if B's session becomes authenticated, no binding.",
+          "description": "If the QR-code or caBLE link doesn't bind to the issuing client (no IP / no UA / no challenge-IP-MAC), relaying succeeds. Test by initiating caBLE flow in browser A, completing in unrelated browser B with the same QR \u2014 if B's session becomes authenticated, no binding.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["session_token", "access_token", "authenticated"]},
-            {"type": "not_word", "words": ["device_mismatch", "client_changed"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "session_token",
+                "access_token",
+                "authenticated"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "device_mismatch",
+                "client_changed"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "passkey_sync_abuse_icloud_google_pm": {
       "description": "Passkeys synced via iCloud Keychain / Google Password Manager land on every device tied to that cloud account. If attacker compromises the cloud account (weaker than the passkey: SMS reset, security questions, recovery email), they receive the synced passkey on a controlled device. Reportable as the cloud-account-takeover chain into RP authentication.",
-      "tech_match": ["webauthn", "passkey", "icloud", "google_password_manager", "credential_manager"],
-      "param_match": ["passkey", "credential", "synced"],
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "icloud",
+        "google_password_manager",
+        "credential_manager"
+      ],
+      "param_match": [
+        "passkey",
+        "credential",
+        "synced"
+      ],
       "probes": [
         {
           "payload": "<verify RP issues passkeys with backupEligible=true AND backupState=true>",
           "description": "Inspect the registration response or the authenticatorData. backupEligible/backupState flags indicate the passkey is cloud-synced. If RP accepts these without an additional 'fresh-device-detected' step (e.g. require device re-verification on first-use), the attack chain is open.",
           "matchers": [
-            {"type": "regex", "pattern": "backupEligible[\":\\s]*true|backupState[\":\\s]*true|BE[=:]1|BS[=:]1"},
-            {"type": "not_word", "words": ["device_verification_required", "trust_new_device"]}
+            {
+              "type": "regex",
+              "pattern": "backupEligible[\":\\s]*true|backupState[\":\\s]*true|BE[=:]1|BS[=:]1"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "device_verification_required",
+                "trust_new_device"
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     },
     "authenticator_delete_no_reauth": {
-      "description": "DELETE /webauthn/credentials/<id> succeeds with just a session cookie — no biometric / password / step-up auth required. Attacker with a stolen session can remove the victim's passkey, forcing fallback to password (which they may also have or reset). 2024-2026 reports show this is consistently a CRITICAL bug because it undoes the entire passkey-as-MFA story.",
-      "tech_match": ["webauthn", "passkey"],
-      "param_match": ["credential_id", "credentialId", "id"],
+      "description": "DELETE /webauthn/credentials/<id> succeeds with just a session cookie \u2014 no biometric / password / step-up auth required. Attacker with a stolen session can remove the victim's passkey, forcing fallback to password (which they may also have or reset). 2024-2026 reports show this is consistently a CRITICAL bug because it undoes the entire passkey-as-MFA story.",
+      "tech_match": [
+        "webauthn",
+        "passkey"
+      ],
+      "param_match": [
+        "credential_id",
+        "credentialId",
+        "id"
+      ],
       "probes": [
         {
           "payload": "DELETE /webauthn/credentials/<id> with only session cookie",
           "description": "Delete a registered passkey without re-authenticating with the same passkey or step-up factor. 200/204 with confirmation = critical. Verify deletion took effect via list endpoint.",
           "matchers": [
-            {"type": "status", "status": [200, 204]},
-            {"type": "not_word", "words": ["reauth_required", "step_up_required", "verify_identity", "biometric_required"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                204
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "reauth_required",
+                "step_up_required",
+                "verify_identity",
+                "biometric_required"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 70,
@@ -223,20 +492,122 @@
     },
     "passwordless_email_otp_downgrade": {
       "description": "Passwordless login flow offers passkey but allows fallback to 'email me a code' / 'SMS me a code' without any rate limit or anti-phishing check. Attacker triggers fallback for victim email, brute-forces 6-digit OTP. Bypasses the passkey-strength promise entirely.",
-      "tech_match": ["passwordless", "magic_link", "otp", "webauthn"],
-      "param_match": ["email", "phone", "code", "otp", "magic_link"],
+      "tech_match": [
+        "passwordless",
+        "magic_link",
+        "otp",
+        "webauthn"
+      ],
+      "param_match": [
+        "email",
+        "phone",
+        "code",
+        "otp",
+        "magic_link"
+      ],
       "probes": [
         {
           "payload": "<send 1000 sequential 6-digit codes>",
           "description": "Verify rate limit on OTP-verify endpoint. Use concurrent_requests(...) to send 100-1000 codes against a single email. Absence of 429 / lockout = critical. Backend should rate-limit at most 5-10 per minute.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "word", "any": ["authenticated", "session_token", "valid"]},
-            {"type": "not_word", "words": ["rate_limit", "too_many_attempts", "locked_out"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "any": [
+                "authenticated",
+                "session_token",
+                "valid"
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "rate_limit",
+                "too_many_attempts",
+                "locked_out"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65,
-          "variables": {"manual_chain": true}
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "origin_validation_weak": {
+      "description": "Authenticator data origin does not match rpID \u2014 relay-able",
+      "tech_match": [
+        "webauthn",
+        "passkey",
+        "fido2"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<send /webauthn/register with origin=evil.example but rpId=target.example>",
+          "description": "Server accepting mismatched origin/rpId \u2192 relay viable",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "origin mismatch",
+                "rpId"
+              ],
+              "condition": "and"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "cross_device_misbinding": {
+      "description": "Passkey created on device-A authenticates on device-B without proper attestation check",
+      "tech_match": [
+        "passkey",
+        "fido2"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "<reuse credentialId from device-A in device-B session>",
+          "description": "Server accepts without verifying binding \u2192 cross-device account takeover",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "authenticated",
+                "session"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
         }
       ]
     }

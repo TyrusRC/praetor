@@ -25,7 +25,8 @@ class W1KbAugmentTest(unittest.TestCase):
                 self.assertTrue(p.get("matchers"))
 
     def test_cache_deception_v2_parser_variants_present(self):
-        d = json.loads((KB / "cache_deception_v2.json").read_text())
+        # W29-i (2026-06-11): merged into web_cache_deception.json per KB-org rule.
+        d = json.loads((KB / "web_cache_deception.json").read_text())
         for k in ("fragment_split_parser_discrepancy",
                   "double_extension_parser_split",
                   "normalised_path_traversal_split"):

@@ -9,8 +9,10 @@ NEW_FILES = [
     "state_machine_race.json",
     "oauth_dpop_confused_deputy.json",
     "edge_worker_ssrf.json",
-    "webauthn_passkey_attacks.json",
-    "cache_deception_v2.json",
+    # W29-i (2026-06-11): webauthn_passkey_attacks merged into webauthn_passkey
+    # and cache_deception_v2 merged into web_cache_deception per KB-org rule
+    "webauthn_passkey.json",
+    "web_cache_deception.json",
     "dom_clobbering_2024.json",
     "service_worker_attacks.json",
     "h2_continuation_flood.json",
@@ -46,9 +48,12 @@ class ReferenceOnlySkipsAutoProbeTest(unittest.TestCase):
         from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
         # As of Praetor v1.0 (Wave 5) mcp_server_attacks + rag_injection were
         # promoted out of reference-only into active auto_probe. Verify here.
+        # W29-i (2026-06-11): webauthn_passkey_attacks contexts merged INTO
+        # webauthn_passkey parent; cache_deception_v2 contexts merged INTO
+        # web_cache_deception parent. The merged-into parents take their place.
         for name in ("state_machine_race", "oauth_dpop_confused_deputy",
-                     "edge_worker_ssrf", "webauthn_passkey_attacks",
-                     "cache_deception_v2", "dom_clobbering_2024",
+                     "edge_worker_ssrf", "webauthn_passkey",
+                     "dom_clobbering_2024",
                      "service_worker_attacks",
                      "mcp_server_attacks", "rag_injection"):
             self.assertNotIn(name, _REFERENCE_ONLY, f"{name} must be auto-probe enabled")
