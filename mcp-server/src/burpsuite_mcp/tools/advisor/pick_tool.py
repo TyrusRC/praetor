@@ -6,6 +6,22 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W30-b: smart JS analysis → attack plan synthesis -----
+    # Operator gap: extract_js_secrets / extract_api_endpoints dump raw data,
+    # operator burns tokens reasoning about payloads. smart_js_analyze ships
+    # the synthesised attack plan in one call.
+    (["analyze js", "analyse js", "smart js", "js file analyze",
+      "js bundle analyze", "javascript bundle analyze",
+      "extract js plan", "js attack plan", "js to payload",
+      "harvest js", "harvest action ids", "harvest rsc actions",
+      "js sinks", "dom sinks in js", "js secrets and endpoints",
+      "next bundle harvest", "chunk analyze", "webpack chunk analyze",
+      "rsc action id harvest", "find server action ids",
+      "synthesise attack plan", "synthesize attack plan",
+      "js bundle to attack plan"],
+     "smart_js_analyze",
+     "smart_js_analyze(url='https://app/_next/static/chunks/main.js', "
+     "target_base_url='https://app.example.com', max_targets=10)"),
     # ----- W30-a: CVE-aware variant sweep — wins on CVE-id keywords -----
     # Operator gap (2026-06-11): known CVE on target, public PoC needs payload
     # tweak. probe_cve_with_variants ships a bounded curated variant pack +
