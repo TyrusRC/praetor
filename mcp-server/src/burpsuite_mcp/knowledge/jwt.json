@@ -1,5 +1,6 @@
 {
   "category": "jwt",
+  "chain_with": ["idor", "bfla", "oauth", "account_takeover", "info_disclosure"],
   "auto_probe_note": "JWT attacks require manual token manipulation. Use test_jwt tool or decode_encode + send_http_request for JWT testing. auto_probe probes serve as checklists only.",
   "contexts": {
     "alg_none": {

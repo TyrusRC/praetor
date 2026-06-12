@@ -1,5 +1,6 @@
 {
   "category": "info_disclosure",
+  "chain_with": ["jwt", "ssrf", "idor", "cve", "auth_bypass"],
   "contexts": {
     "stack_trace": {
       "description": "Detects verbose stack traces leaked in responses — indicates debug mode or unhandled exceptions",

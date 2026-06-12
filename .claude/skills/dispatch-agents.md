@@ -7,6 +7,24 @@ description: Orchestrate parallel pentesting agents — dispatch specialists for
 
 You are the orchestrator. Your job is to identify independent work streams and dispatch specialized agents to run in parallel, dramatically reducing total testing time. A full hunt that takes 50 sequential tool calls can finish in 15 with proper parallelism.
 
+## SMART MOVE — agent routing by input shape
+
+| Input you have | Single agent to dispatch |
+|---|---|
+| Fresh domain, no intel | `recon-agent` — runs smart-move-fresh-target.md |
+| Captured proxy entries (≥5) | `vuln-scanner` or `grow-agent` w/ smart_request_triage per entry |
+| Pile of `.js` URLs / chunks | `js-analyst` — wraps smart_js_analyze (batch ≤25) |
+| Known CVE-id, PoC fails | `grow-agent` w/ probe_cve_with_variants (smart-move-known-cve-poc-fails.md) |
+| Suspected finding needing replay | `finding-verifier` — confirm_* + assess_finding |
+| Bypass payload need | `payload-crafter` — get_payloads + mutate_payload chains |
+| OAuth/SAML/passkey flow | `auth-payment-agent` — oauth_flow_simulator + probe_passkey_stepup_bypass |
+| Hidden-path / 40x bypass | `fuzz-agent` — run_ffuf + run_dontgo403 |
+| Mobile app dynamic | `mobile-dynamic-agent` — Frida + adb (1-per-device) |
+| Electron/Tauri binary | `desktop-agent` — IPC fuzz + auto-update MITM (1-per-binary) |
+
+Pick agent first, THEN brief — the agent owns the playbook for its shape.
+
+
 **Concurrency cap: up to 6 simultaneous agents.** The Java extension's HTTP server uses a fixed thread pool of 6 (see `ApiServer.java`), so 6 in-flight MCP requests run truly in parallel. Beyond 6, requests queue. Earlier guidance capped this at 3-4 — that was wrong; correct it whenever you see it.
 
 ## Mandatory Briefing Block

@@ -1,5 +1,6 @@
 {
   "category": "cors",
+  "chain_with": ["csrf", "account_takeover", "idor", "info_disclosure"],
   "contexts": {
     "origin_reflect": {
       "description": "CORS origin reflection — server reflects any Origin header",

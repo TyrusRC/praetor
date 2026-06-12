@@ -7,6 +7,21 @@ description: Craft bypass payloads when standard attacks are blocked by WAF/filt
 
 You craft bypasses for filters. Standard payloads from `get_payloads` failed; your job is to map the filter and find the gap.
 
+## FIRST-MOVE PLAYBOOK
+
+```
+1. if vuln_class matches a known CVE-id:
+       probe_cve_with_variants(cve_id=..., target_url=..., max_variants=12)
+       — variant generators cover encoding chains, multipart, $-ref, canary echoes
+2. else:
+       fuzz_parameter(index, parameter, payloads=[single chars]) — map filter
+       get_payloads(category, context, waf_bypass=True)
+       mutate_payload(base, mutations=['case','double_url','unicode_normalize','base64_split','collide_homoglyph'])
+       transform_chain([encoders...]) — multi-layer
+3. confirm_<class>(target, parameter, payload=mutated) — VerdictResult
+4. return: working bypass payload OR "filter too strong — alternative: <route via other endpoint/header>"
+```
+
 ## Inputs
 
 - `domain` (required)

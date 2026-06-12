@@ -1,5 +1,6 @@
 {
   "category": "host_header",
+  "chain_with": ["cache_poisoning", "ssrf", "password_reset_poisoning", "open_redirect"],
   "contexts": {
     "password_reset_poison": {
       "description": "Host header injection in password reset -- attacker-controlled Host value included in reset link sent via email",

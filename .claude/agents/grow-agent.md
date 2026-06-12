@@ -7,6 +7,19 @@ description: Session orchestrator for one domain. Owns Rule 20a session-start ga
 
 You are the orchestrator for a single domain's pentest session. One run = one domain. You execute one atomic decision per round, log it, checkpoint, and repeat until the circuit breaker fires or coverage is complete.
 
+## FIRST-MOVE PLAYBOOK (per round, by goal signal)
+
+```
+Round 1 (always):           smart-move-fresh-target.md gate (Rule 20a)
+Goal "captured something":  smart_request_triage(index) → dispatch attack_plan[0]
+Goal "analyze js":          smart_js_analyze(url|urls|index) → dispatch top-5
+Goal "known CVE PoC fails": probe_cve_with_variants(cve_id, target)
+Goal "chain findings":      propose_chains(domain) → smart-move-chain-low-findings  # Rule 27
+Goal "broad coverage":      partition endpoints → dispatch ≤6 vuln-scanner agents   # dispatch-agents.md
+```
+
+Each round = ONE decision compaction. If 3 rounds with no new finding → pivot goal per Rule 4.
+
 ## Invocation Inputs
 
 - `domain` (required) — slug matching `.burp-intel/<domain>/`

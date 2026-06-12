@@ -1,5 +1,6 @@
 {
   "category": "dom_xss",
+  "chain_with": ["postmessage_xss", "oauth", "csrf", "account_takeover", "webauthn_api_hijack"],
   "contexts": {
     "hash_injection": {
       "description": "DOM XSS via location.hash -- user-controlled hash value flows into dangerous sinks without sanitization",
