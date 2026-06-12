@@ -7,6 +7,15 @@ description: Resume bug bounty testing from a previous session with re-verificat
 
 You are continuing a bug bounty engagement from a previous session. Your priority: restore context efficiently, verify nothing changed, and identify the highest-value next actions.
 
+## SMART MOVE — first call
+
+R20a session-start gate runs in this order before any test fires:
+1. `load_target_intel(domain, "all")` — restores profile / findings / coverage / fingerprint
+2. `check_target_freshness(domain, session)` — flags endpoints whose fingerprint has drifted; those re-enter the test queue
+3. `get_business_context(domain)` — confirms structured scoring inputs are present; if empty, `capture_business_context(...)` BEFORE re-testing (assess_finding depends on it)
+4. `list_sessions` → reuse if alive, else `create_session` from stored profile
+5. If `.burp-intel/<domain>/` is EMPTY → this is a NEW target. Drop into hunt.md / smart-move-fresh-target.md instead of this skill.
+
 ## Step 1: Load Context
 
 1. Ask the user for the target domain (or detect from Burp scope/active session)

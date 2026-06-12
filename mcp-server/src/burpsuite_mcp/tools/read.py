@@ -337,18 +337,25 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def check_scope(url: str) -> str:
+    async def check_scope(url: str) -> dict:
         """Check if a specific URL is within the target scope.
+
+        Returns structured dict: {url, in_scope: bool, human_summary} or {error}.
+        Pre-flight gate for Rule 1 — runs on every fresh domain.
 
         Args:
             url: URL to check
         """
         data = await client.post("/api/scope/check", json={"url": url})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return {"error": data["error"]}
 
         in_scope = data.get("in_scope", False)
-        return f"{url} is {'IN SCOPE' if in_scope else 'OUT OF SCOPE'}"
+        return {
+            "url": url,
+            "in_scope": in_scope,
+            "human_summary": f"{url} is {'IN SCOPE' if in_scope else 'OUT OF SCOPE'}",
+        }
 
     @mcp.tool()
     async def get_cookies(domain: str = "", full_values: bool = False) -> str:

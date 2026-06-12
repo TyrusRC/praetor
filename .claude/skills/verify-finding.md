@@ -15,6 +15,15 @@ prove reproducible        prove reportable          persist
 Skip Step 0 → server rejects with 400 (no resolvable evidence index).
 Skip Step 1 → wasted tokens drafting reports for findings that fail the 7-Question Gate downstream.
 
+## SMART MOVE — first call
+
+Route by what you have in hand:
+- logger_index of the suspicious request → `resend_with_modification(index)` (Step 0 immediately)
+- finding_id from a prior session → `load_target_intel(domain, "findings")` then resend the baseline indexed there
+- raw curl output, no Logger entry → re-fire through Burp via `curl_request` (R26a) FIRST so a logger_index exists, then Step 0
+- timing/blind class (sqli_blind / sqli_time / ssrf_blind / race / smuggling / xxe_blind) → 3 replays with `{logger_index, elapsed_ms, status_code}` captured before Step 1
+- no anomaly delta vs baseline (R11) → STOP, mark `likely_false_positive`; do NOT call `save_finding`
+
 ## Step 0 — Logger Replay (MANDATORY)
 
 1. Identify the suspicious request via `get_proxy_history` (with filters) or `search_history`. Note its index.
@@ -59,7 +68,7 @@ Use specialised tools, not full responses:
 - `get_response_hash(index)` — compare hashes for consistency
 - `extract_headers(index, ['Set-Cookie', 'Location'])` — headers only
 
-## Shortcut: `confirm_*` exploit-confirmation tools (W24-b)
+## Shortcut: `confirm_*` exploit-confirmation tools
 
 For 5 high-frequency classes there is an audited one-shot tool that runs the
 canonical proof, returns a VerdictResult dict, and gives you a `logger_index`

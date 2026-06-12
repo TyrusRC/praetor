@@ -1,5 +1,10 @@
 {
   "category": "web_cache_deception",
+  "chain_with": [
+    "idor",
+    "info_disclosure",
+    "auth_bypass"
+  ],
   "contexts": {
     "path_confusion": {
       "description": "Web cache deception via path confusion -- append static extension to dynamic URL so cache stores authenticated response",
@@ -298,7 +303,7 @@
       ]
     },
     "static_suffix_cache_poisoning": {
-      "description": "Web cache deception via static-suffix append. /endpoint/profile.css fetched as auth user \u2014 backend serves dynamic profile, cache stores under .css key. Subsequent unauth GET to /endpoint/profile.css serves cached PII. Active in W13.",
+      "description": "Web cache deception via static-suffix append. /endpoint/profile.css fetched as auth user — backend serves dynamic profile, cache stores under .css key. Subsequent unauth GET to /endpoint/profile.css serves cached PII. Active in W13.",
       "tech_match": [
         "Varnish",
         "Cloudflare",
@@ -347,7 +352,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "CDN cache-status header explicitly indicates cacheable hit + body has user data \u2192 deception confirmed.",
+          "description": "CDN cache-status header explicitly indicates cacheable hit + body has user data → deception confirmed.",
           "matchers": [
             {
               "type": "status",
@@ -380,7 +385,7 @@
       ]
     },
     "semicolon_path_param": {
-      "description": "URL with ;static.css after dynamic path \u2014 CDN caches as static, origin treats as dynamic",
+      "description": "URL with ;static.css after dynamic path — CDN caches as static, origin treats as dynamic",
       "tech_match": [
         "nginx",
         "varnish",
@@ -392,7 +397,7 @@
       "probes": [
         {
           "payload": "/profile/me;foo.css",
-          "description": "If origin serves /profile/me content AND CDN caches it as .css \u2192 cache deception",
+          "description": "If origin serves /profile/me content AND CDN caches it as .css → cache deception",
           "matchers": [
             {
               "type": "header_change",
@@ -456,7 +461,7 @@
       ]
     },
     "fragment_split_parser_discrepancy": {
-      "description": "Fragment-handling parser discrepancy \u2014 CDN strips '#static.css' to cache as static, origin treats fragment literally and serves dynamic content. (Gotta Cache 'Em All research)",
+      "description": "Fragment-handling parser discrepancy — CDN strips '#static.css' to cache as static, origin treats fragment literally and serves dynamic content. (Gotta Cache 'Em All research)",
       "tech_match": [
         "nginx",
         "varnish",

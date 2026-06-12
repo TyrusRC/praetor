@@ -7,6 +7,15 @@ globs:
 
 Load when: a parameter accepts a URL / hostname / file path AND the server fetches it, OR `auto_probe` flags an `ssrf` class hit, OR you're hunting in scope categories that pay for SSRF chains (cloud / fintech / SaaS APIs).
 
+## SMART MOVE — first call
+
+- target runs on AWS / GCP / Azure → `test_cloud_metadata(url, parameter)` first (CRITICAL severity ceiling — direct IMDS hit ends the engagement on this finding)
+- inline filter blocks `127.0.0.1` / `169.254.x` literal but accepts arbitrary hostname → `probe_dns_rebind(url, parameter)` (rbndr.us TOCTOU with IMDS markers)
+- blind class (body shape unchanged regardless of target) → `auto_collaborator_test(url, parameter)` — generates real Collaborator subdomain, no fabricated callbacks (R9a)
+- protocol smuggling suspected (URL parser accepts arbitrary scheme) → manual `gopher://` / `dict://` / `file://` / `jar://` / `phar://` + Collaborator
+- generic 5-axis survey → `test_ssrf(url, parameter, use_collaborator=True)`
+- edge-worker class (Cloudflare Worker / Lambda@Edge / Fastly) → KB `edge_worker_ssrf.json` matchers via `auto_probe`
+
 ## SSRF classification matrix
 
 Identify the class first — payload + evidence bar + severity all change.
