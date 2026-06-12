@@ -27,6 +27,14 @@ from burpsuite_mcp.tools import (
     struts2_ognl_probe,
     mcp_enumerate,
     predict_paths,
+    grpc_path_canonicalization_probe,
+    fastmcp_openapi_ssrf_probe,
+    apollo_federation_probe,
+    graphql_entities_injection_probe,
+    spring_grpc_thread_leak_probe,
+    claude_code_hook_scanner,
+    mcp_stdio_shell_meta_probe,
+    mcp_schema_drift,
 )
 
 mcp = FastMCP(
@@ -171,3 +179,11 @@ graphql_csrf_probe.register(mcp)    # probe_graphql_csrf — Burp 2026.6 parity 
 struts2_ognl_probe.register(mcp)    # probe_struts2_ognl — Rapid7 May 2026 parity, S2-057/059/061 family (W31-d)
 mcp_enumerate.register(mcp)         # enumerate_mcp_server — ZAP May 2026 parity, MCP handshake + tools/resources/prompts inventory (W31-d)
 predict_paths.register(mcp)         # predict_paths_from_crawl — Invicti AI crawler parity, OSS heuristic from existing intel (W31-d)
+grpc_path_canonicalization_probe.register(mcp)  # probe_grpc_path_canonicalization — CVE-2026-33186 gRPC-Go authz bypass
+fastmcp_openapi_ssrf_probe.register(mcp)        # probe_fastmcp_openapi_ssrf — CVE-2026-32871 OpenAPIProvider path-param SSRF
+apollo_federation_probe.register(mcp)           # probe_apollo_interface_authz_bypass + probe_apollo_sdl_leak — Apollo Federation gaps
+graphql_entities_injection_probe.register(mcp)  # probe_graphql_entities_injection — Federation _entities cross-subgraph blind exfil
+spring_grpc_thread_leak_probe.register(mcp)     # probe_spring_grpc_thread_leak — CVE-2026-40968 SecurityContext thread carry
+claude_code_hook_scanner.register(mcp)          # scan_claude_code_project_hooks — CVE-2026-21852 class .claude/settings.json hook audit
+mcp_stdio_shell_meta_probe.register(mcp)        # probe_mcp_stdio_shell_meta — STDIO argv concat metachar injection (by-design class)
+mcp_schema_drift.register(mcp)                  # detect_mcp_schema_drift — CVE-2025-54136 rug-pull schema diff
