@@ -1,0 +1,66 @@
+{
+  "category": "sveltekit",
+  "chain_with": ["dom_xss", "ssrf", "csrf", "info_disclosure"],
+  "contexts": {
+    "devalue_cyclic_dos": {
+      "description": "SvelteKit devalue cyclic-reference DoS — crafted devalue-encoded payload with self-reference loop causes O(n^2) parser growth or stack exhaustion on +server.ts endpoints (CVE-2026-22774/22775/22803 class). Detects via elapsed_ms > 10x baseline OR 5xx.",
+      "tech_match": ["SvelteKit", "Svelte", "Vite"],
+      "param_match": ["body", "data", "form"],
+      "probes": [
+        {
+          "payload": "[[1,1],[\"$\",0]]",
+          "description": "Devalue self-reference cycle — array element 0 points to itself; parser must detect or loop",
+          "matchers": [
+            {"type": "differential_timing", "min_delta_ms": 1500, "min_ratio": 5.0}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "[[1,2],[\"$\",1],[\"$\",0]]",
+          "description": "Two-element devalue cycle — A → B → A — mutual self-reference; some parsers don't detect this pattern",
+          "matchers": [
+            {"type": "status", "status": [500, 502, 504]},
+            {"type": "differential_timing", "min_delta_ms": 1500, "min_ratio": 5.0}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "form_action_authz_drift": {
+      "description": "+server.ts named-action authz drift — SvelteKit form-action endpoints (POST ?/action=delete) sometimes skip session checks that the page-component load() function enforced. Tests by replaying authenticated form-action POST without cookies/auth header.",
+      "tech_match": ["SvelteKit"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Replay form action without session cookie — if 200 with state-change marker, authz drift confirmed",
+          "matchers": [
+            {"type": "status", "status": [200, 201, 204]},
+            {"type": "word", "words": ["deleted", "updated", "created", "success"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "load_function_data_leak": {
+      "description": "+page.server.ts load() returns sensitive data even on unauthenticated GET — error-page render or HTML hydration JSON leaks user data. Tests by hitting protected page with no session and grepping hydration JSON for user data markers.",
+      "tech_match": ["SvelteKit"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "GET protected page without auth — Svelte hydration JSON inline in HTML may leak user data",
+          "matchers": [
+            {"type": "regex", "pattern": "data-sveltekit-hydrate", "scope": "body"},
+            {"type": "regex", "pattern": "\"email\":\\s*\"[^\"]+@", "scope": "body"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        }
+      ]
+    }
+  }
+}
