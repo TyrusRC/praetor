@@ -1,0 +1,118 @@
+{
+  "category": "a2a_protocol",
+  "description": "Agent-to-Agent (A2A) protocol attack surface (Linux Foundation v1.0, 2026). Covers agent card forgery, capability over-claim, recursive delegation abuse, missing caller allowlist, internal-URL exfil, tool description injection at the card layer. Distinct from MCP attacks (MCP is host↔server JSON-RPC; A2A is agent↔agent peering).",
+  "chain_with": ["mcp_server_attacks", "ai_prompt_injection", "ssrf", "info_disclosure"],
+  "contexts": {
+    "agent_card_missing_signature": {
+      "description": "A2A agent card served at /.well-known/agent.json with no signature / JWS / sig field. Peers cannot verify authenticity — any attacker can forge a card that overstates capability and trick downstream agents into routing to it.",
+      "tech_match": ["a2a", "agent2agent", "linux-foundation-a2a"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.well-known/agent.json",
+          "description": "Fetch canonical agent card path",
+          "matchers": [
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["capabilities", "delegation", "agent_id"], "condition": "or"},
+            {"type": "not_word", "words": ["signature", "jws", "sig"], "condition": "and"}
+          ],
+          "severity": "high",
+          "confidence_boost": 75,
+          "variables": {}
+        }
+      ],
+      "operator_note": "Use probe_a2a_agent_card for full 7-defect audit. Severity climbs to CRITICAL when combined with capability over-claim or recursive delegation.",
+      "severity": "high"
+    },
+    "agent_card_capability_overclaim": {
+      "description": "A2A card declares wildcard capability (`*`, `any`, `any:any`, `all`) — peer agents accept any tool call without scope check. Combined with missing signature = trivial cross-agent privilege escalation.",
+      "tech_match": ["a2a", "linux-foundation-a2a"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.well-known/agent.json",
+          "description": "Card with wildcard capability",
+          "matchers": [
+            {"type": "regex", "pattern": "\"capabilities\"\\s*:\\s*\\[[^\\]]*\"(\\*|any|any:any|all)\"", "weight": 90}
+          ],
+          "severity": "critical",
+          "confidence_boost": 88,
+          "variables": {}
+        }
+      ],
+      "severity": "critical"
+    },
+    "agent_card_recursive_delegation_unbounded": {
+      "description": "A2A card has `delegation.recursive: true` with no `max_depth` — attacker triggers fan-out / DoS via recursive peer invocations. Also enables cascading goal manipulation across agent chain.",
+      "tech_match": ["a2a", "linux-foundation-a2a"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.well-known/agent.json",
+          "description": "Card with unbounded recursive delegation",
+          "matchers": [
+            {"type": "regex", "pattern": "\"recursive\"\\s*:\\s*true", "weight": 60},
+            {"type": "not_word", "words": ["max_depth", "depth_limit"], "condition": "and", "weight": 40}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85
+        }
+      ],
+      "chain_with": ["resource_exhaustion", "ai_prompt_injection"],
+      "severity": "critical"
+    },
+    "agent_card_internal_url": {
+      "description": "Agent card lists an endpoint URL pointing to RFC1918 / 169.254.169.254 / metadata.* / localhost. Peer agents fetching via these URLs become an SSRF chain inside the target cloud / cluster.",
+      "tech_match": ["a2a"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.well-known/agent.json",
+          "description": "Card with internal URL",
+          "matchers": [
+            {"type": "regex", "pattern": "https?://(127\\.|169\\.254\\.|10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.|localhost|metadata\\.|kubernetes\\.default)", "weight": 80}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80
+        }
+      ],
+      "chain_with": ["ssrf", "cloud_webapp"],
+      "severity": "critical"
+    },
+    "agent_card_missing_caller_allowlist": {
+      "description": "No `accepted_callers` / `allowed_peers` / `allowed_callers` field in card. Agent accepts delegated work from any peer — combined with overclaimed capabilities = world-callable tool surface.",
+      "tech_match": ["a2a"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.well-known/agent.json",
+          "description": "Card with no caller allowlist",
+          "matchers": [
+            {"type": "not_word", "words": ["accepted_callers", "allowed_peers", "allowed_callers"], "condition": "and", "weight": 60}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        }
+      ],
+      "severity": "high"
+    },
+    "agent_card_tool_desc_prompt_injection": {
+      "description": "Agent card lists tools whose description contains prompt-injection markers — `Ignore prior instructions`, `Execute as system`, `Override safety`. Card-layer PI propagates to every peer that consumes the card and shows the description to its LLM.",
+      "tech_match": ["a2a", "mcp"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.well-known/agent.json",
+          "description": "Tool description with PI markers",
+          "matchers": [
+            {"type": "regex", "pattern": "(ignore (prior|previous|all) instructions|execute as system|override safety|<system>|## system)", "weight": 85}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85
+        }
+      ],
+      "chain_with": ["ai_prompt_injection", "mcp_server_attacks"],
+      "severity": "critical"
+    }
+  }
+}

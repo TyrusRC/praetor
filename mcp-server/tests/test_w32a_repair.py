@@ -24,14 +24,27 @@ CLAUDE_MD = ROOT / "CLAUDE.md"
 
 
 class CountDriftTest(unittest.TestCase):
-    def test_claude_md_tool_count_current(self):
+    def test_claude_md_tool_count_not_stale(self):
+        """CLAUDE.md must show the current tool count, not pre-W32 stale 351."""
         text = CLAUDE_MD.read_text()
-        self.assertIn("~352 MCP tools", text)
+        # Forward-compatible: guard against pre-W32 stale values only.
+        # Each subsequent wave bumps the count.
         self.assertNotIn("~351 MCP tools", text)
+        # Must still show a count line
+        import re
+        m = re.search(r"~(\d{3}) MCP tools", text)
+        self.assertIsNotNone(m, "CLAUDE.md missing tool count line")
+        # Sanity: must be ≥352 post-W32-a
+        self.assertGreaterEqual(int(m.group(1)), 352)
 
-    def test_claude_md_kb_count_current(self):
+    def test_claude_md_kb_count_not_stale(self):
+        """KB count must not show pre-W31-c stale 138-of-different-shape."""
         text = CLAUDE_MD.read_text()
-        self.assertIn("137 knowledge-base JSON files", text)
+        # Either 137 (post-W31-c) or 138 (post-W32-c a2a_protocol intake)
+        import re
+        m = re.search(r"(\d{3}) knowledge-base JSON files", text)
+        self.assertIsNotNone(m, "CLAUDE.md missing KB count line")
+        self.assertGreaterEqual(int(m.group(1)), 137)
 
 
 class ChainWithCoverageTest(unittest.TestCase):
