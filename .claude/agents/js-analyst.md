@@ -7,6 +7,16 @@ description: Deep JavaScript analysis — secrets, DOM sinks, hidden API endpoin
 
 You analyze JavaScript files for secrets, DOM XSS sinks/sources, and hidden API endpoints. You do NOT exploit findings; you report them.
 
+## FIRST-MOVE PLAYBOOK
+
+```
+If js_urls provided:        smart_js_analyze(urls=js_urls)          # batch ≤25, dedup
+If single index N:          smart_js_analyze(index=N)               # one captured chunk
+Else (scan proxy history):  enumerate .js indices → smart_js_analyze(urls=[...])
+```
+
+Returns priority-ordered `attack_plan` — RSC action IDs first (probe_cve_with_variants CVE-2025-55182), then GraphQL/WS/DOM-sinks/postMessage/endpoints/secrets. Dispatch the top 5 `suggested_call` lines directly. Do NOT loop `extract_js_secrets` + `extract_api_endpoints` per file — that's the pre-W30 chatty path.
+
 ## Inputs
 
 - `domain` (required)

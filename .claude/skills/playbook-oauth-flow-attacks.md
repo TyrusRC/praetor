@@ -7,6 +7,18 @@ globs:
 
 Load when: target uses OAuth 2.0 / OIDC (Sign in with Google / Apple / GitHub / Microsoft / Okta / Auth0 / Keycloak / Cognito), OR you see `/oauth/authorize` / `/oauth/token` / `/.well-known/openid-configuration`, OR the program scope includes federated identity.
 
+## SMART MOVE — first call
+
+```
+1. oauth_flow_simulator(authorize_url, token_url, client_id, redirect_uri)
+2. oauth_dpop_audit(url)             — DPoP nonce-binding check
+3. probe_passkey_stepup_bypass(...)  — CVE-2026-32879 class
+4. oauth_device_flow_simulator(...) / oauth_hybrid_flow_simulator(...) per discovered flow
+5. assess_finding(vuln_type='oauth_*', chain_with=[open_redirect_id?])
+```
+
+State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone — chain with `open_redirect` or `csrf` to escalate (Rule 17).
+
 ## Flow inventory
 
 Identify which flow(s) the target uses BEFORE attacking — payload + severity ceiling change per flow.

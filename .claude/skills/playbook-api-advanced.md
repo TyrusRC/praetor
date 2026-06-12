@@ -7,6 +7,17 @@ stop_condition: 12 calls, no auth bypass, no BFLA, no GraphQL anomaly, no WS hij
 
 # Advanced API Playbook
 
+## SMART MOVE — first call
+
+```
+1. parse_api_schema(url|openapi_url) — endpoints + auth model
+2. for each high-value endpoint:
+       smart_request_triage(index_of_baseline_request)
+3. if GraphQL: test_graphql(test_introspection=True, test_batching=True)
+4. if gRPC: probe_grpc_reflection(url) + probe_grpc_idor(...)
+5. if JSON-RPC/MCP: probe_mcp_jsonrpc_methods(url) + enumerate_mcp_server (W31-d)
+```
+
 ## Decision tree
 
 ```

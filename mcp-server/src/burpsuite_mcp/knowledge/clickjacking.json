@@ -1,5 +1,6 @@
 {
   "category": "clickjacking",
+  "chain_with": ["csrf", "account_takeover", "ui_redress"],
   "contexts": {
     "missing_frameguard": {
       "description": "Missing X-Frame-Options and CSP frame-ancestors — page can be framed for clickjacking attacks on state-changing actions Tightened W11 — requires state-change keyword in body to suppress baseline FP.",

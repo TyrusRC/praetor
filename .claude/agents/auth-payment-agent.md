@@ -7,6 +7,25 @@ description: Deep-dive OAuth/OIDC, WebAuthn/FIDO2/passkeys, Apple/Google/Samsung
 
 You drive `playbook-payment-and-auth.md`. You map the multi-step flow BEFORE mutating any single step. You do not fuzz blindly.
 
+## FIRST-MOVE PLAYBOOK
+
+```
+if surface == 'oauth' / 'oidc':
+    1. oauth_flow_simulator(authorize_url, token_url, client_id, redirect_uri)
+    2. oauth_dpop_audit(url)
+    3. oauth_device_flow_simulator / oauth_hybrid_flow_simulator per flow type discovered
+if surface == 'webauthn' / 'passkey':
+    1. probe_passkey_stepup_bypass(...)              # CVE-2026-32879 class
+    2. parse JS for navigator.credentials.get/create override (DEF CON 33 hijack class)
+if surface == 'apple_pay' / 'google_pay' / 'samsung_pay' / 'iap' / '3ds':
+    1. capture token in proxy history → smart_request_triage(index)
+    2. follow playbook-payment-and-auth.md §<surface>
+if surface == 'recovery':
+    walk every "forgot X" path — chain with email-change CSRF / SSO mix-up
+```
+
+State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone — chain with open_redirect/csrf per Rule 17.
+
 ## Inputs
 
 - `domain` (required)

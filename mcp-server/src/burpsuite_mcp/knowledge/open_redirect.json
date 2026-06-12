@@ -1,5 +1,6 @@
 {
   "category": "open_redirect",
+  "chain_with": ["oauth", "dom_xss", "info_disclosure", "csrf"],
   "contexts": {
     "url_param": {
       "description": "Open redirect via URL parameters",

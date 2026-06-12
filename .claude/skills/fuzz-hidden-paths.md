@@ -2,6 +2,16 @@
 
 Use when discovering hidden directories / files on a known target. Replaces spray fuzzing with tech-aware SecLists slicing fed by recon intel.
 
+## SMART MOVE — first call
+
+```
+1. detect_tech_stack(url)             — slice wordlist to stack
+2. wl = generate_smart_wordlist(domain, tier='small')
+3. run_ffuf(url, wordlist=wl, status_codes='200,301,302,401,403')
+4. for hit in hits[:10]: smart_request_triage(index_of_hit)
+5. annotate_request + send_to_organizer per Rule 18
+```
+
 ## Preconditions
 
 - Target intel populated: `.burp-intel/<domain>/fingerprint.json` (tech stack) + `endpoints.json` (recon-derived paths). Run `full_recon` or `discover_attack_surface` first if missing.

@@ -1,5 +1,6 @@
 {
   "category": "oauth",
+  "chain_with": ["open_redirect", "csrf", "passkey_stepup_bypass", "account_takeover", "saml_xsw"],
   "contexts": {
     "redirect_uri_bypass": {
       "description": "OAuth redirect_uri manipulation — tests whether the authorization server validates redirect_uri strictly or allows attacker-controlled destinations",

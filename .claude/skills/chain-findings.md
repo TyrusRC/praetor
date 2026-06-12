@@ -9,6 +9,18 @@ description: Escalate low-severity findings into reportable vulnerabilities by b
 
 Take low/medium findings that aren't worth reporting alone and chain them into high-impact bugs.
 
+## SMART MOVE — first call
+
+```
+1. findings = get_findings(domain, status='confirmed')
+2. graph = build_findings_graph(domain)
+3. chains = propose_chains(domain)
+4. for chain in chains: assess_finding(chain_with=[ids], ...) → save_finding
+5. format_finding_for_platform(id, platform='hackerone')
+```
+
+Full version: `smart-move-chain-low-findings.md`.
+
 ## Chain Building Process
 
 ### Step 1: Inventory Available Primitives

@@ -9,6 +9,18 @@ description: Adaptive payload crafting when standard attacks fail — probe filt
 
 Standard payloads blocked. Understand WHAT is filtered and craft a bypass.
 
+## SMART MOVE — first call
+
+```
+1. pick_tool(<vuln_class>) → confirms canonical tool for the class
+2. get_payloads(category, context, waf_bypass=True) — context-specific set
+3. mutate_payload(base_payload, mutations=[...]) — encoding chains
+4. transform_chain([encoders...]) — multi-layer obfuscation
+5. confirm_<class>(target, parameter, payload=mutated) — proves bypass works
+```
+
+If a KNOWN CVE PoC fails: switch to `smart-move-known-cve-poc-fails.md` (variant sweep beats manual mutation).
+
 ## Phase 1: Reconnaissance the Filter (3-5 calls max)
 
 ### Step 1: Character-level probing

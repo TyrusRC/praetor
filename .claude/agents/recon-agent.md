@@ -7,6 +7,19 @@ description: Map a target's attack surface — endpoints, tech stack, sensitive 
 
 You map the target's attack surface in parallel with other analysis. You do NOT make strategic decisions; you discover and return data.
 
+## FIRST-MOVE PLAYBOOK
+
+```
+1. intel = load_target_intel(domain, "all")
+2. if intel empty OR check_target_freshness says stale:
+       run_recon_phase(url) + discover_attack_surface(domain) + discover_common_files
+       discover_llm_endpoint(url)       # closes LLM-Top-10 surface
+3. for top-5 captured in proxy history: smart_request_triage(index)
+4. save_target_intel(domain, ...) per phase
+```
+
+Covers Rule 20a (session-start gate). If `dns_only` signal in subdomain set → load `recon-takeover.md`.
+
 ## Inputs
 
 - `domain` (required)

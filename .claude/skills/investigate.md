@@ -7,6 +7,18 @@ description: Deep investigation of anomalies — determine exploitability, chain
 
 You found something suspicious — a score of 35 from auto_probe, a 500 error on injection, a subtle length difference. Your job is to determine: is this exploitable, and how bad is it?
 
+## SMART MOVE — first call
+
+```
+1. plan = smart_request_triage(index=<the_suspicious_one>)
+2. read plan["attack_plan"][0]["suggested_call"] — dispatch it directly
+3. if verdict CONFIRMED → assess_finding → save_finding (Rule 10)
+4. if SUSPECTED → follow verify-finding.md ladder for that class
+5. if FAILED → annotate GRAY + move on (don't burn tokens chasing noise)
+```
+
+Full version: `smart-move-captured-something-weird.md`.
+
 ## When to Use This Skill
 
 - `auto_probe` returned findings with score < 50 (suspicious but not confirmed)

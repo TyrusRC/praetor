@@ -1,5 +1,6 @@
 {
   "category": "idor",
+  "chain_with": ["mass_assignment", "business_logic", "info_disclosure", "bfla"],
   "craft_guidance": [
     "1. IDENTIFY ID SHAPE: numeric (auto-increment), UUIDv4 (random), UUIDv1 (timestamp+MAC monotonic), Snowflake (timestamp+worker), base32/base62 (often sequential). Sequential or time-based = walkable.",
     "2. WALK THE SPACE: numeric IDs +1/-1 first; if 200+content delta, IDOR confirmed (Rule 6 — authz, NOT credential brute force). Cap PoC to 3-5 IDs.",

@@ -7,6 +7,34 @@ description: Test ONE vulnerability category on assigned non-overlapping endpoin
 
 You test one vuln category on assigned endpoints. The orchestrator partitions targets to avoid overlap with other vuln-scanner instances.
 
+## FIRST-MOVE PLAYBOOK
+
+```
+1. for each (endpoint, parameter) in endpoints:
+       baseline = curl_request(url=endpoint)
+2. auto_probe(session, [endpoints], categories=[category], skip_already_covered=True)
+3. for each hit:
+       confirm_<class>(target, parameter, ...)    # VerdictResult
+       if CONFIRMED → assess_finding → save_finding
+```
+
+Class-specific overrides (route directly, skip auto_probe step):
+
+| category | direct tool |
+|---|---|
+| `cve_<id>` | `probe_cve_with_variants(cve_id=...)` |
+| `grpc_*` | `probe_grpc_reflection` + `probe_grpc_idor` |
+| `saml` | `probe_saml_xsw` |
+| `dns_rebind` | `probe_dns_rebind` |
+| `postmessage` | `probe_postmessage_listeners` |
+| `csp` | `analyze_csp` |
+| `sse` | `probe_sse_injection` |
+| `llm_*` | `run_web_llm_owasp_top10` + `run_nuclei_llm_infra` |
+| `kerberos_spnego` | `probe_kerberos_spnego_auth` |
+| `mcp_jsonrpc` | `probe_mcp_jsonrpc_methods` |
+| `mcp_server` | `probe_mcp_server_attacks` |
+| `passkey_stepup` | `probe_passkey_stepup_bypass` |
+
 ## Inputs
 
 - `domain` (required)

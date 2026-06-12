@@ -7,6 +7,25 @@ description: Re-verify suspected/confirmed findings and investigate anomalies. P
 
 You re-verify findings to update their state. Confirmed findings get the per-class evidence bar; stale findings get reset; false positives get marked.
 
+## FIRST-MOVE PLAYBOOK
+
+```
+for fid in finding_ids:
+    f = get_findings(domain, finding_id=fid)
+    if f.logger_index exists:
+        resend_with_modification(index=f.logger_index)   # replay (Rule 10a)
+    confirm_<f.vuln_type>(target, parameter, ...)        # returns VerdictResult
+    if verdict == CONFIRMED:
+        evidence = verdict.to_assess_evidence()
+        assess_finding(...) → save_finding(state='confirmed')
+    elif verdict == FAILED (2+ times):
+        mark_finding_false_positive(fid)                  # hard-deleted per Rule 16
+    elif anchor target changed (404 / shape diff):
+        save_finding(..., state='stale')
+```
+
+For timing/blind classes (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`) replay ≥3 times — `reproductions[]` per Rule 10a.
+
 ## Inputs
 
 - `domain` (required)
