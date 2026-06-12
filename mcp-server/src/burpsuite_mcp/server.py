@@ -23,6 +23,10 @@ from burpsuite_mcp.tools import (
     extract_batch,
     sveltekit_probe,
     nuxt_island_probe,
+    graphql_csrf_probe,
+    struts2_ognl_probe,
+    mcp_enumerate,
+    predict_paths,
 )
 
 mcp = FastMCP(
@@ -163,3 +167,7 @@ smart_request_triage.register(mcp)  # smart_request_triage — proxy entry → a
 extract_batch.register(mcp)         # extract_js_secrets_batch / extract_api_endpoints_batch / extract_links_batch — dedup across N indices in one call (W31-b)
 sveltekit_probe.register(mcp)       # probe_sveltekit_devalue_dos — CVE-2026-22774/22775/22803 class (W31-c)
 nuxt_island_probe.register(mcp)     # probe_nuxt_island_authz — CVE-2026-47200/46342 class (W31-c)
+graphql_csrf_probe.register(mcp)    # probe_graphql_csrf — Burp 2026.6 parity (W31-d)
+struts2_ognl_probe.register(mcp)    # probe_struts2_ognl — Rapid7 May 2026 parity, S2-057/059/061 family (W31-d)
+mcp_enumerate.register(mcp)         # enumerate_mcp_server — ZAP May 2026 parity, MCP handshake + tools/resources/prompts inventory (W31-d)
+predict_paths.register(mcp)         # predict_paths_from_crawl — Invicti AI crawler parity, OSS heuristic from existing intel (W31-d)
