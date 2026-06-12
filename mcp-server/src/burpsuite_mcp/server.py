@@ -21,6 +21,8 @@ from burpsuite_mcp.tools import (
     smart_js_analyze,
     smart_request_triage,
     extract_batch,
+    sveltekit_probe,
+    nuxt_island_probe,
 )
 
 mcp = FastMCP(
@@ -159,3 +161,5 @@ cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware
 smart_js_analyze.register(mcp)   # smart_js_analyze — JS → fire-ready attack plan (W30-b)
 smart_request_triage.register(mcp)  # smart_request_triage — proxy entry → attack plan (W30-c)
 extract_batch.register(mcp)         # extract_js_secrets_batch / extract_api_endpoints_batch / extract_links_batch — dedup across N indices in one call (W31-b)
+sveltekit_probe.register(mcp)       # probe_sveltekit_devalue_dos — CVE-2026-22774/22775/22803 class (W31-c)
+nuxt_island_probe.register(mcp)     # probe_nuxt_island_authz — CVE-2026-47200/46342 class (W31-c)

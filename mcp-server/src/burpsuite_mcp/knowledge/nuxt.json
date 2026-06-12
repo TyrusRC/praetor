@@ -1,0 +1,68 @@
+{
+  "category": "nuxt",
+  "chain_with": ["ssrf", "idor", "info_disclosure", "dom_xss"],
+  "contexts": {
+    "island_endpoint_authz": {
+      "description": "Nuxt 3 island endpoint authz bypass (CVE-2026-47200/46342 class) — /__nuxt_island/<Component>/<hash> server-renders an island component reachable without the auth middleware that protects the parent page. Tests known island URLs without session.",
+      "tech_match": ["Nuxt", "Nuxt 3", "Nuxt 4", "Vue"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "GET /__nuxt_island/<Component>/<hash> without auth — if 200 with rendered HTML, island authz bypass confirmed",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "pattern": "/__nuxt_island/", "scope": "url"},
+            {"type": "word", "words": ["<div", "<span", "<section"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "",
+          "description": "Island endpoint with sensitive payload — grep for user_id, email, role markers in island HTML",
+          "matchers": [
+            {"type": "regex", "pattern": "/__nuxt_island/", "scope": "url"},
+            {"type": "regex", "pattern": "(?:email|user_id|role|tenant|account_id)[^a-z]", "scope": "body"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "og_image_renderer_dos": {
+      "description": "Nuxt OG Image renderer DoS (CVE-2026-34404 class) — /__og-image__/ endpoint with large query string forces server-side rendering of expensive PNG generation. Detect via elapsed_ms spike OR 5xx.",
+      "tech_match": ["Nuxt", "@nuxt/og-image"],
+      "param_match": ["title", "description", "text"],
+      "probes": [
+        {
+          "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "description": "/__og-image__/ with long text param — OG renderer must rasterise; latency spike confirms DoS surface",
+          "matchers": [
+            {"type": "differential_timing", "min_delta_ms": 2000, "min_ratio": 4.0},
+            {"type": "status", "status": [500, 502, 504]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "server_routes_middleware_bypass": {
+      "description": "Nuxt /server/routes/ middleware bypass — middleware registered with route-prefix matcher can be bypassed via path-traversal (/api/protected/../public/<resource>) or trailing-slash mismatch. Tests common bypass shapes.",
+      "tech_match": ["Nuxt", "h3"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Path-traversal middleware bypass — /api/protected/../public/whoami should 401 not 200",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["unauthorized", "forbidden", "login"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

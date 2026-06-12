@@ -1,9 +1,15 @@
 {
   "category": "oauth",
-  "chain_with": ["open_redirect", "csrf", "passkey_stepup_bypass", "account_takeover", "saml_xsw"],
+  "chain_with": [
+    "open_redirect",
+    "csrf",
+    "passkey_stepup_bypass",
+    "account_takeover",
+    "saml_xsw"
+  ],
   "contexts": {
     "redirect_uri_bypass": {
-      "description": "OAuth redirect_uri manipulation — tests whether the authorization server validates redirect_uri strictly or allows attacker-controlled destinations",
+      "description": "OAuth redirect_uri manipulation \u2014 tests whether the authorization server validates redirect_uri strictly or allows attacker-controlled destinations",
       "tech_match": [
         "OAuth",
         "OpenID",
@@ -23,7 +29,7 @@
       "probes": [
         {
           "payload": "https://evil.com",
-          "description": "Redirect URI to external domain — 302 with Location containing evil.com confirms open redirect in OAuth flow, enabling authorization code theft",
+          "description": "Redirect URI to external domain \u2014 302 with Location containing evil.com confirms open redirect in OAuth flow, enabling authorization code theft",
           "matchers": [
             {
               "type": "status",
@@ -45,7 +51,7 @@
         },
         {
           "payload": "https://legitimate.com@evil.com",
-          "description": "Redirect URI with at-sign trick — URL parsing ambiguity may cause server to validate legitimate.com but redirect to evil.com",
+          "description": "Redirect URI with at-sign trick \u2014 URL parsing ambiguity may cause server to validate legitimate.com but redirect to evil.com",
           "matchers": [
             {
               "type": "status",
@@ -67,7 +73,7 @@
         },
         {
           "payload": "https://legitimate.com.evil.com",
-          "description": "Redirect URI subdomain bypass — tests if server only checks prefix/suffix of allowed domain",
+          "description": "Redirect URI subdomain bypass \u2014 tests if server only checks prefix/suffix of allowed domain",
           "matchers": [
             {
               "type": "status",
@@ -89,7 +95,7 @@
         },
         {
           "payload": "{{baseline}}/../redirect?url=https://evil.com",
-          "description": "Redirect URI path traversal — appends path traversal to registered redirect_uri to reach an open redirect on the legitimate domain",
+          "description": "Redirect URI path traversal \u2014 appends path traversal to registered redirect_uri to reach an open redirect on the legitimate domain",
           "matchers": [
             {
               "type": "status",
@@ -111,7 +117,7 @@
         },
         {
           "payload": "{{baseline}}%23@evil.com",
-          "description": "Redirect URI fragment injection — URL-encoded # may cause server to ignore everything after it during validation while browser follows full URL",
+          "description": "Redirect URI fragment injection \u2014 URL-encoded # may cause server to ignore everything after it during validation while browser follows full URL",
           "matchers": [
             {
               "type": "status",
@@ -136,7 +142,7 @@
       ]
     },
     "state_bypass": {
-      "description": "OAuth state parameter validation — tests whether the server enforces the state parameter to prevent CSRF on the OAuth callback",
+      "description": "OAuth state parameter validation \u2014 tests whether the server enforces the state parameter to prevent CSRF on the OAuth callback",
       "tech_match": [
         "OAuth",
         "OpenID",
@@ -148,7 +154,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "Empty state parameter — if server accepts authorization without state, the OAuth flow is vulnerable to CSRF (attacker can force victim to link attacker's account)",
+          "description": "Empty state parameter \u2014 if server accepts authorization without state, the OAuth flow is vulnerable to CSRF (attacker can force victim to link attacker's account)",
           "matchers": [
             {
               "type": "status",
@@ -172,7 +178,7 @@
         },
         {
           "payload": "arbitrary_value_12345",
-          "description": "Arbitrary state value — if server accepts any state value without server-side validation, CSRF protection is ineffective",
+          "description": "Arbitrary state value \u2014 if server accepts any state value without server-side validation, CSRF protection is ineffective",
           "matchers": [
             {
               "type": "status",
@@ -197,7 +203,7 @@
       ]
     },
     "scope_escalation": {
-      "description": "OAuth scope escalation — tests whether the authorization server allows requesting scopes beyond what the client is registered for",
+      "description": "OAuth scope escalation \u2014 tests whether the authorization server allows requesting scopes beyond what the client is registered for",
       "tech_match": [
         "OAuth",
         "OpenID",
@@ -209,7 +215,7 @@
       "probes": [
         {
           "payload": "openid profile email admin",
-          "description": "Scope escalation with admin — if server grants 'admin' scope not registered for the client, privilege escalation is possible",
+          "description": "Scope escalation with admin \u2014 if server grants 'admin' scope not registered for the client, privilege escalation is possible",
           "matchers": [
             {
               "type": "status",
@@ -233,7 +239,7 @@
         },
         {
           "payload": "openid profile email write:all read:all",
-          "description": "Scope escalation with broad permissions — requesting write:all/read:all tests if server enforces registered scope limits",
+          "description": "Scope escalation with broad permissions \u2014 requesting write:all/read:all tests if server enforces registered scope limits",
           "matchers": [
             {
               "type": "status",
@@ -258,7 +264,7 @@
       ]
     },
     "pkce_downgrade": {
-      "description": "OAuth PKCE downgrade — tests whether the server allows authorization code flow without PKCE when it should be required, enabling code interception attacks",
+      "description": "OAuth PKCE downgrade \u2014 tests whether the server allows authorization code flow without PKCE when it should be required, enabling code interception attacks",
       "tech_match": [
         "OAuth",
         "OpenID",
@@ -271,7 +277,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "PKCE removal — omitting code_challenge and code_challenge_method; if server still issues authorization code, PKCE enforcement is missing",
+          "description": "PKCE removal \u2014 omitting code_challenge and code_challenge_method; if server still issues authorization code, PKCE enforcement is missing",
           "matchers": [
             {
               "type": "status",
@@ -295,7 +301,7 @@
         },
         {
           "payload": "plain",
-          "description": "PKCE method downgrade to plain — if server accepts 'plain' instead of 'S256', code_verifier can be trivially derived from intercepted challenge",
+          "description": "PKCE method downgrade to plain \u2014 if server accepts 'plain' instead of 'S256', code_verifier can be trivially derived from intercepted challenge",
           "matchers": [
             {
               "type": "status",
@@ -319,7 +325,7 @@
       ]
     },
     "pkce_reuse_after_capture": {
-      "description": "OAuth 2.1 PKCE chain attack — attacker captures authorization code (via redirect_uri / referer / log leak), then exchanges it without code_verifier. Some implementations only require code_verifier when code_challenge is present in the original request, allowing post-hoc removal.",
+      "description": "OAuth 2.1 PKCE chain attack \u2014 attacker captures authorization code (via redirect_uri / referer / log leak), then exchanges it without code_verifier. Some implementations only require code_verifier when code_challenge is present in the original request, allowing post-hoc removal.",
       "tech_match": [
         "OAuth",
         "OpenID",
@@ -332,7 +338,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "Token exchange with code present but code_verifier omitted — if server returns access_token, PKCE binding to authorization code is missing.",
+          "description": "Token exchange with code present but code_verifier omitted \u2014 if server returns access_token, PKCE binding to authorization code is missing.",
           "matchers": [
             {
               "type": "status",
@@ -362,7 +368,7 @@
         },
         {
           "payload": "{{captured_verifier_from_other_session}}",
-          "description": "Cross-session code_verifier reuse — if server accepts a verifier from a DIFFERENT authorization code, the binding is broken.",
+          "description": "Cross-session code_verifier reuse \u2014 if server accepts a verifier from a DIFFERENT authorization code, the binding is broken.",
           "matchers": [
             {
               "type": "status",
@@ -387,7 +393,7 @@
       ]
     },
     "oidc_nonce_validation": {
-      "description": "OIDC nonce — ID token must contain the nonce sent in the authorization request. If server doesn't validate nonce on ID token, attacker can replay an old ID token to authenticate as the original user.",
+      "description": "OIDC nonce \u2014 ID token must contain the nonce sent in the authorization request. If server doesn't validate nonce on ID token, attacker can replay an old ID token to authenticate as the original user.",
       "tech_match": [
         "OpenID",
         "OIDC"
@@ -399,7 +405,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "Empty nonce — if authorization endpoint accepts empty nonce and issues ID token, downstream replay protection depends entirely on state.",
+          "description": "Empty nonce \u2014 if authorization endpoint accepts empty nonce and issues ID token, downstream replay protection depends entirely on state.",
           "matchers": [
             {
               "type": "status",
@@ -422,7 +428,7 @@
         },
         {
           "payload": "fixed_nonce_attacker_chosen_12345",
-          "description": "Cross-session nonce reuse — same nonce in two flows; if both ID tokens are accepted, nonce is not bound to session.",
+          "description": "Cross-session nonce reuse \u2014 same nonce in two flows; if both ID tokens are accepted, nonce is not bound to session.",
           "matchers": [
             {
               "type": "status",
@@ -447,7 +453,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "ID token replay — reuse same ID token in subsequent token exchange (or RP login) without nonce check. Confirms with 200 + new session cookie issued.",
+          "description": "ID token replay \u2014 reuse same ID token in subsequent token exchange (or RP login) without nonce check. Confirms with 200 + new session cookie issued.",
           "matchers": [
             {
               "type": "status",
@@ -470,7 +476,7 @@
       ]
     },
     "id_token_alg_confusion": {
-      "description": "ID token alg confusion — OIDC spec mandates alg validation against discovery doc. Some libs accept alg=none or RS256→HS256 swap on ID tokens just like JWTs.",
+      "description": "ID token alg confusion \u2014 OIDC spec mandates alg validation against discovery doc. Some libs accept alg=none or RS256\u2192HS256 swap on ID tokens just like JWTs.",
       "tech_match": [
         "OpenID",
         "OIDC"
@@ -552,7 +558,7 @@
       ]
     },
     "jwe_alg_none_inside_jws": {
-      "description": "Nested JWS-inside-JWE — server decrypts JWE, then trusts the JWS without validating its alg. Attacker forges inner JWS with alg=none; outer JWE is encrypted with attacker key the server doesn't actually verify.",
+      "description": "Nested JWS-inside-JWE \u2014 server decrypts JWE, then trusts the JWS without validating its alg. Attacker forges inner JWS with alg=none; outer JWE is encrypted with attacker key the server doesn't actually verify.",
       "tech_match": [
         "jwe",
         "jws",
@@ -646,7 +652,7 @@
       ]
     },
     "dpop_missing_or_reusable": {
-      "description": "OAuth 2.0 DPoP (RFC 9449) binds access tokens to a client-held public key. Backend may issue DPoP-bound tokens but NOT validate the DPoP proof on resource requests — token becomes bearer-equivalent. Or backend accepts replayed DPoP proofs (no jti tracking / no iat freshness). Common 2024-2026 finding: gateway forwards DPoP header without validation; only auth-server checks.",
+      "description": "OAuth 2.0 DPoP (RFC 9449) binds access tokens to a client-held public key. Backend may issue DPoP-bound tokens but NOT validate the DPoP proof on resource requests \u2014 token becomes bearer-equivalent. Or backend accepts replayed DPoP proofs (no jti tracking / no iat freshness). Common 2024-2026 finding: gateway forwards DPoP header without validation; only auth-server checks.",
       "tech_match": [
         "dpop",
         "oauth",
@@ -834,7 +840,7 @@
         },
         {
           "payload": "<send /backchannel-auth without binding_message on a high-value transaction>",
-          "description": "FAPI-CIBA mandates binding_message for transactions ('Approve transfer $1000 to X'). If backend issues auth_req_id without binding_message on transaction CIBA, user can't see what they're approving — push-fatigue attack.",
+          "description": "FAPI-CIBA mandates binding_message for transactions ('Approve transfer $1000 to X'). If backend issues auth_req_id without binding_message on transaction CIBA, user can't see what they're approving \u2014 push-fatigue attack.",
           "matchers": [
             {
               "type": "status",
@@ -864,7 +870,7 @@
       ]
     },
     "mtls_sender_binding_skip": {
-      "description": "FAPI 2.0 / RFC 8705 OAuth Mutual-TLS sender-constrained access tokens. Backend may issue mTLS-bound tokens (cnf.x5t#S256 claim set to client cert thumbprint) but skip mTLS validation on resource requests. Token becomes bearer-equivalent — anyone with the token can use it without the client cert.",
+      "description": "FAPI 2.0 / RFC 8705 OAuth Mutual-TLS sender-constrained access tokens. Backend may issue mTLS-bound tokens (cnf.x5t#S256 claim set to client cert thumbprint) but skip mTLS validation on resource requests. Token becomes bearer-equivalent \u2014 anyone with the token can use it without the client cert.",
       "tech_match": [
         "mtls",
         "mutual_tls",
@@ -1076,7 +1082,7 @@
       ]
     },
     "jwks_kid_swap": {
-      "description": "JWT signature verification via JWKS — kid header tells verifier which key to use. If verifier fetches JWKS from URL in kid, attacker hosts own JWKS with matching kid.",
+      "description": "JWT signature verification via JWKS \u2014 kid header tells verifier which key to use. If verifier fetches JWKS from URL in kid, attacker hosts own JWKS with matching kid.",
       "tech_match": [
         "jwt",
         "oidc",
@@ -1089,7 +1095,7 @@
       "probes": [
         {
           "payload": "Bearer <jwt with kid=https://COLLABORATOR/.well-known/jwks.json>",
-          "description": "Kid header injection — verifier fetches JWKS from attacker URL",
+          "description": "Kid header injection \u2014 verifier fetches JWKS from attacker URL",
           "matchers": [
             {
               "type": "collaborator",
@@ -1111,7 +1117,7 @@
         },
         {
           "payload": "Bearer <jwt with kid='../../../jwks.json'>",
-          "description": "Kid path-traversal — read alternative JWKS from disk / unintended endpoint",
+          "description": "Kid path-traversal \u2014 read alternative JWKS from disk / unintended endpoint",
           "matchers": [
             {
               "type": "status",
@@ -1128,7 +1134,7 @@
       ]
     },
     "redirect_uri_parser_quirks": {
-      "description": "redirect_uri parser bypass — fragment, userinfo, path-segment confusion, fake-port, urlencoded path. Many AS implementations are looser than RFC requires.",
+      "description": "redirect_uri parser bypass \u2014 fragment, userinfo, path-segment confusion, fake-port, urlencoded path. Many AS implementations are looser than RFC requires.",
       "tech_match": [
         "oauth",
         "oidc"
@@ -1139,7 +1145,7 @@
       "probes": [
         {
           "payload": "?redirect_uri=https://legit.example.com@attacker.tld/",
-          "description": "Userinfo trick — many parsers see authority=legit.example.com but actual host=attacker.tld",
+          "description": "Userinfo trick \u2014 many parsers see authority=legit.example.com but actual host=attacker.tld",
           "matchers": [
             {
               "type": "status",
@@ -1160,7 +1166,7 @@
         },
         {
           "payload": "?redirect_uri=https://legit.example.com.attacker.tld/",
-          "description": "Substring-match bypass — redirect_uri startsWith / contains check",
+          "description": "Substring-match bypass \u2014 redirect_uri startsWith / contains check",
           "matchers": [
             {
               "type": "status",
@@ -1181,7 +1187,7 @@
         },
         {
           "payload": "?redirect_uri=https://legit.example.com/cb#@attacker.tld/",
-          "description": "Fragment-confusion — parser splits at # but UA sends whole string",
+          "description": "Fragment-confusion \u2014 parser splits at # but UA sends whole string",
           "matchers": [
             {
               "type": "status",
@@ -1202,7 +1208,7 @@
         },
         {
           "payload": "?redirect_uri=https://legit.example.com%2F.attacker.tld%2F",
-          "description": "Double-decode bypass — server decodes %2F twice, attacker tail wins",
+          "description": "Double-decode bypass \u2014 server decodes %2F twice, attacker tail wins",
           "matchers": [
             {
               "type": "status",
@@ -1224,7 +1230,7 @@
       ]
     },
     "jwks_url_external_swap": {
-      "description": "OAuth/OIDC server takes JWKS endpoint URL from request (Kafka SASL OAuthBearer pattern; some IdPs). Swap to attacker-controlled JWKS → forge any token.",
+      "description": "OAuth/OIDC server takes JWKS endpoint URL from request (Kafka SASL OAuthBearer pattern; some IdPs). Swap to attacker-controlled JWKS \u2192 forge any token.",
       "tech_match": [
         "oauth",
         "oidc"
@@ -1236,7 +1242,7 @@
       "probes": [
         {
           "payload": "http://{{collaborator}}/.well-known/jwks.json",
-          "description": "Submit attacker JWKS URL — server fetches attacker keys → Collaborator hit confirms",
+          "description": "Submit attacker JWKS URL \u2014 server fetches attacker keys \u2192 Collaborator hit confirms",
           "matchers": [
             {
               "type": "collaborator",
@@ -1252,7 +1258,7 @@
       ]
     },
     "par_request_uri_attacker_controlled_2025": {
-      "description": "PAR (Pushed Authorization Requests, RFC 9126) when supported but server allows fetch of request_uri from an attacker-controlled origin. Attacker submits /par to attacker server, then redirects victim to /authorize?request_uri=https://attacker/par-result — server fetches attacker-supplied parameters, overriding user intent. 2025 H2 PortSwigger research class.",
+      "description": "PAR (Pushed Authorization Requests, RFC 9126) when supported but server allows fetch of request_uri from an attacker-controlled origin. Attacker submits /par to attacker server, then redirects victim to /authorize?request_uri=https://attacker/par-result \u2014 server fetches attacker-supplied parameters, overriding user intent. 2025 H2 PortSwigger research class.",
       "tech_match": [
         "oauth",
         "oidc"
@@ -1263,7 +1269,7 @@
       "probes": [
         {
           "payload": "http://{{collaborator}}/par-request.json",
-          "description": "Submit attacker request_uri to /authorize — auth server fetches it; Collaborator hit confirms server-side fetch of attacker URI.",
+          "description": "Submit attacker request_uri to /authorize \u2014 auth server fetches it; Collaborator hit confirms server-side fetch of attacker URI.",
           "matchers": [
             {
               "type": "collaborator",
@@ -1289,7 +1295,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Replay a captured DPoP-bearing request after stripping the DPoP header — server should reject; if 200, DPoP not enforced. Alternative: replay across endpoint / after iat window.",
+          "description": "Replay a captured DPoP-bearing request after stripping the DPoP header \u2014 server should reject; if 200, DPoP not enforced. Alternative: replay across endpoint / after iat window.",
           "matchers": [
             {
               "type": "status",
@@ -1311,7 +1317,7 @@
       ]
     },
     "passkey_stepup_no_assertion_2026": {
-      "description": "CVE-2026-32879 — universal-secure-verification step-up bypass. Server-side flow accepts POST {\"method\":\"passkey\"} as proof-of-presence on the basis that the account *has* a passkey record on file, without enforcing a fresh WebAuthn assertion roundtrip. Effective on step-up gates that protect high-impact endpoints (key issuance, settings, payment confirmation). Confirmed upstream: New API channel-secret endpoint /api/channel/:id/key returns stored secrets after the bogus step-up succeeds.",
+      "description": "CVE-2026-32879 \u2014 universal-secure-verification step-up bypass. Server-side flow accepts POST {\"method\":\"passkey\"} as proof-of-presence on the basis that the account *has* a passkey record on file, without enforcing a fresh WebAuthn assertion roundtrip. Effective on step-up gates that protect high-impact endpoints (key issuance, settings, payment confirmation). Confirmed upstream: New API channel-secret endpoint /api/channel/:id/key returns stored secrets after the bogus step-up succeeds.",
       "tech_match": [
         "webauthn",
         "passkey",
@@ -1382,7 +1388,7 @@
         },
         {
           "payload": "{\"method\":\"passkey\",\"assertion\":null}",
-          "description": "Null-assertion variant — surfaces servers that check for presence of the assertion field but not its content.",
+          "description": "Null-assertion variant \u2014 surfaces servers that check for presence of the assertion field but not its content.",
           "matchers": [
             {
               "type": "status",
@@ -1407,7 +1413,7 @@
       ]
     },
     "webauthn_api_hijack_jsinjection_2026": {
-      "description": "DEF CON 33 'Passkeys Pwned' (Allthenticate) — WebAuthn API hijacking via JavaScript injection. Attacker XSSes the target (or installs a malicious browser extension using Chrome's webAuthenticationProxy API) and overrides navigator.credentials.create / navigator.credentials.get to forge registration + login. Real-time prompt spoofing means cloud-synced passkeys (Apple/Google/Microsoft) are NOT 100% phishing-resistant. Detection is XSS-prerequisite — any XSS on a passkey-protected origin is a path to full WebAuthn bypass.",
+      "description": "DEF CON 33 'Passkeys Pwned' (Allthenticate) \u2014 WebAuthn API hijacking via JavaScript injection. Attacker XSSes the target (or installs a malicious browser extension using Chrome's webAuthenticationProxy API) and overrides navigator.credentials.create / navigator.credentials.get to forge registration + login. Real-time prompt spoofing means cloud-synced passkeys (Apple/Google/Microsoft) are NOT 100% phishing-resistant. Detection is XSS-prerequisite \u2014 any XSS on a passkey-protected origin is a path to full WebAuthn bypass.",
       "tech_match": [
         "webauthn",
         "passkey",
@@ -1438,7 +1444,7 @@
         },
         {
           "payload": "<inspect rendered JS for navigator.credentials.create / .get overrides, references to chrome.webAuthenticationProxy, or extension content-script injection points>",
-          "description": "Passive defensive-check — grep client JS for signs the WebAuthn API has been redefined, extended, or proxied. Legitimate apps DO NOT override these. Reference-only; no payload sent.",
+          "description": "Passive defensive-check \u2014 grep client JS for signs the WebAuthn API has been redefined, extended, or proxied. Legitimate apps DO NOT override these. Reference-only; no payload sent.",
           "matchers": [
             {
               "type": "regex",
@@ -1451,6 +1457,104 @@
             "reference_only": true,
             "manual_chain": true
           }
+        }
+      ]
+    },
+    "oidc_iss_validation_bypass_2026": {
+      "description": "Supabase Auth-style OIDC iss-claim validation bypass (CVE-2026-31813 class) \u2014 server accepts ID token issued by attacker-controlled IdP if iss claim is checked against a regex that allows substring match. Cross-IdP confusion \u2192 session for arbitrary sub.",
+      "tech_match": [
+        "Supabase",
+        "OIDC"
+      ],
+      "param_match": [
+        "id_token",
+        "code",
+        "iss"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "[Manual] Submit ID token with iss='https://attacker.tld/well-known-google-com' \u2014 substring check accepts; sub becomes attacker-controlled",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Set-Cookie"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 65
+        }
+      ]
+    },
+    "user_agent_auth_bypass_2026": {
+      "description": "OAuth2 Proxy User-Agent / healthcheck auth bypass (CVE-2026-34457 class) \u2014 operator-allowed UA strings (GoogleHC/1.0, kube-probe/, AmazonELB-HealthChecker) skip auth on protected resources.",
+      "tech_match": [
+        "oauth2-proxy"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "GET protected resource with User-Agent: GoogleHC/1.0 \u2014 if 200, healthcheck bypass confirmed",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "login"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "User-Agent": "GoogleHC/1.0"
+          }
+        }
+      ]
+    },
+    "state_omission_account_linking_2026": {
+      "description": "Generic OAuth state-verification missing (CVE-2026-48612 class) \u2014 callback accepts code without verifying state binding to current session. Enables account-linking ATO: attacker initiates OAuth flow, victim clicks callback URL with attacker's code, links attacker's IdP to victim account.",
+      "tech_match": [
+        "OAuth",
+        "OAuth2"
+      ],
+      "param_match": [
+        "code",
+        "state"
+      ],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Replay OAuth callback with code but no state param \u2014 should 4xx; 200 + session-cookie means binding missing",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Set-Cookie"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55
         }
       ]
     }

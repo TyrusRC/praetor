@@ -3,17 +3,34 @@
   "description": "Next.js cache poisoning chains (Allam 2025, PortSwigger). ISR (Incremental Static Regeneration) + RSC cache key manipulation + Server Action body confusion. Affects 13.x-15.x App Router.",
   "contexts": {
     "rsc_cache_key_manipulation": {
-      "description": "RSC responses keyed on URL + cookie subset. Inject headers that the cache strips but origin reflects — poisoned response served to subsequent users.",
-      "tech_match": ["next", "next.js", "vercel"],
+      "description": "RSC responses keyed on URL + cookie subset. Inject headers that the cache strips but origin reflects \u2014 poisoned response served to subsequent users.",
+      "tech_match": [
+        "next",
+        "next.js",
+        "vercel"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "x-next-data-cache: poisoned\r\nx-invoke-path: /attacker",
           "description": "Cache-key-confusing header injection",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "header", "header": "x-nextjs-cache", "weight": 80},
-            {"type": "header_change", "header": "x-vercel-cache"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "header",
+              "header": "x-nextjs-cache",
+              "weight": 80
+            },
+            {
+              "type": "header_change",
+              "header": "x-vercel-cache"
+            }
           ],
           "severity": "high",
           "confidence_boost": 60,
@@ -22,16 +39,32 @@
       ]
     },
     "isr_revalidate_poison": {
-      "description": "On-demand revalidation tokens — if revalidate endpoint is unauthenticated, attacker forces stale-content replacement.",
-      "tech_match": ["next", "next.js"],
+      "description": "On-demand revalidation tokens \u2014 if revalidate endpoint is unauthenticated, attacker forces stale-content replacement.",
+      "tech_match": [
+        "next",
+        "next.js"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/api/revalidate?path=/&secret=guess",
-          "description": "Revalidation endpoint fingerprint — common Next.js handler pattern",
+          "description": "Revalidation endpoint fingerprint \u2014 common Next.js handler pattern",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["revalidated", "now"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "revalidated",
+                "now"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -41,20 +74,114 @@
     },
     "server_action_body_confusion": {
       "description": "Server Action POST body cached because handler returns 200 + cacheable headers. Subsequent users see attacker action result.",
-      "tech_match": ["next", "next.js"],
+      "tech_match": [
+        "next",
+        "next.js"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "",
           "description": "Detect Server Action that returns cacheable response (header anomaly)",
           "matchers": [
-            {"type": "header", "header": "next-action", "weight": 60},
-            {"type": "header", "header": "cache-control", "weight": 60},
-            {"type": "regex", "pattern": "(s-maxage|public,)", "weight": 80}
+            {
+              "type": "header",
+              "header": "next-action",
+              "weight": 60
+            },
+            {
+              "type": "header",
+              "header": "cache-control",
+              "weight": 60
+            },
+            {
+              "type": "regex",
+              "pattern": "(s-maxage|public,)",
+              "weight": 80
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
           "variables": {}
+        }
+      ]
+    },
+    "i18n_middleware_strip_bypass_2026": {
+      "description": "Next.js 15 i18n middleware bypass May 2026 wave (CVE-2026-23864/23869/23870 class) \u2014 stripping locale prefix /en/ in middleware-rewrite rules causes protected route to render without auth check.",
+      "tech_match": [
+        "Next.js"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "GET /en/admin then GET /admin without /en \u2014 both should redirect to login; if /admin 200, i18n strip bypassed middleware",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "login",
+                "unauthorized"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    },
+    "ws_upgrade_ssrf_2026": {
+      "description": "Next.js WebSocket Upgrade SSRF (CVE-2026-44578 class) \u2014 server-side fetch for proxy upgrade does not filter loopback or cloud-metadata Host headers. Confirm via canary echo in response or Collaborator DNS hit.",
+      "tech_match": [
+        "Next.js"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Send WebSocket upgrade with Host: 169.254.169.254 \u2014 if upgrade succeeds or IMDS marker echoes, SSRF confirmed",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "(?i)(iam/security-credentials|AccessKeyId|hostname:)"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "Host": "169.254.169.254",
+            "Upgrade": "websocket",
+            "Connection": "upgrade"
+          }
+        }
+      ]
+    },
+    "next_image_unbounded_cache_dos_2026": {
+      "description": "Next.js /_next/image unbounded cache DoS (CVE-2026-27980 class) \u2014 repeated requests with q=1..100 generate uncached variants; resource exhaustion.",
+      "tech_match": [
+        "Next.js"
+      ],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Hit /_next/image?url=/<asset>&w=128&q=N for N in 1..10 sequentially \u2014 if no 429/cache header, unbounded variant generation",
+          "matchers": [
+            {
+              "type": "differential_timing",
+              "min_delta_ms": 1000,
+              "min_ratio": 3.0
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
         }
       ]
     }
