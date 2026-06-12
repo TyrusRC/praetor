@@ -186,3 +186,194 @@ def register(mcp: FastMCP) -> None:
                 f"{chosen[0]['score'] if chosen else 0}, threshold {min_score}."
             ),
         }
+
+    @mcp.tool()
+    async def find_targets_for_class(
+        vuln_class: str,
+        domain: str = "",
+        host: str = "",
+        limit: int = 20,
+        min_score: int = 12,
+    ) -> dict:
+        """Find ranked (endpoint, parameter) candidates for ONE vuln class. Pure read — no crawl.
+
+        Joins `.burp-intel/<domain>/endpoints.json` with the parameter risk
+        map and endpoint-keyword scorer (same engine as rank_attack_targets).
+        Filters tuples whose parameter risk classes match vuln_class.
+
+        Operator workflow replaced:
+            search_history → manually filter for matching params → guess top-K.
+
+        Args:
+            vuln_class: vuln-class token, e.g. "sqli", "ssrf", "open_redirect",
+                "idor", "xss", "ssti", "lfi", "rce", "xxe", "jwt", "oauth",
+                "mass_assignment", "graphql", "prototype_pollution",
+                "deserialization", "web_llm", "host_header", "saml", "nosql",
+                "business_logic", "ldap", "xpath", "second_order".
+            domain: target domain to read endpoints.json from (preferred).
+            host: optional URL/host filter — substring match against endpoint path/url.
+            limit: max candidates to return (default 20).
+            min_score: drop below this rank threshold (default 12).
+        """
+        if not vuln_class:
+            return {"error": "vuln_class required"}
+
+        cls = vuln_class.lower().strip()
+        if not domain:
+            return {
+                "vuln_class": cls,
+                "targets": [],
+                "note": "domain required (reads .burp-intel/<domain>/endpoints.json)",
+            }
+
+        eps = _load_endpoints(domain)
+        if not eps:
+            return {
+                "vuln_class": cls,
+                "domain": domain,
+                "targets": [],
+                "note": "no endpoints.json — run discover_attack_surface + save_target_intel(category='endpoints')",
+            }
+
+        match_token = _vuln_class_to_risk_token(cls)
+        host_filter = host.lower().strip() if host else ""
+
+        scored: list[dict[str, Any]] = []
+        for ep in eps:
+            method = (ep.get("method") or "GET").upper()
+            path = ep.get("path") or ep.get("url") or ""
+            if host_filter and host_filter not in path.lower():
+                continue
+            ep_s, ep_hits = _endpoint_score(path)
+            m_s = _METHOD_WEIGHT.get(method, 5)
+
+            params = ep.get("parameters") or []
+            body_keys = ep.get("body_keys") or []
+            cookie_keys = ep.get("cookie_keys") or []
+            header_keys = ep.get("header_keys") or []
+            path_params = ep.get("path_params") or []
+            baseline_index = ep.get("baseline_index") or ep.get("logger_index")
+
+            tuples: list[tuple[str, str, int, list[str]]] = []
+            for p in params:
+                pname = p if isinstance(p, str) else p.get("name") or p.get("parameter")
+                if not pname:
+                    continue
+                p_s, p_risks = _param_score(pname)
+                tuples.append((pname, "query", p_s, p_risks))
+            for k in body_keys:
+                p_s, p_risks = _param_score(k)
+                tuples.append((k, "body_json", p_s, p_risks))
+            for k in cookie_keys:
+                p_s, p_risks = _param_score(k)
+                tuples.append((k, "cookie", p_s, p_risks))
+            for k in header_keys:
+                p_s, p_risks = _param_score(k)
+                tuples.append((k, "header", p_s, p_risks))
+            for k in path_params:
+                p_s, p_risks = _param_score(k)
+                tuples.append((k, "path", p_s, p_risks))
+
+            for pname, loc, p_s, p_risks in tuples:
+                if not _matches_vuln_class(p_risks, match_token):
+                    continue
+                loc_s = _LOCATION_WEIGHT.get(loc, 5)
+                total = ep_s + p_s + m_s + loc_s
+                if total < min_score:
+                    continue
+                why: list[str] = []
+                if p_risks:
+                    why.append(f"param:{pname} risks={'+'.join(p_risks)}")
+                if ep_hits:
+                    why.append(f"endpoint kw={'+'.join(ep_hits)}")
+                if m_s >= 12:
+                    why.append(f"method={method}")
+                if loc_s >= 12:
+                    why.append(f"loc={loc}")
+                scored.append({
+                    "method": method,
+                    "path": path,
+                    "parameter": pname,
+                    "location": loc,
+                    "score": total,
+                    "why": why,
+                    "baseline_index": baseline_index,
+                })
+
+        scored.sort(key=lambda t: t["score"], reverse=True)
+        chosen = scored[:limit]
+
+        return {
+            "vuln_class": cls,
+            "domain": domain,
+            "host_filter": host_filter or None,
+            "endpoints_seen": len(eps),
+            "total_matching": len(scored),
+            "targets": chosen,
+            "note": (
+                f"Dispatch top-K to auto_probe(categories=['{cls}'], targets=[...]) or"
+                f" the class-specific probe tool. Top score {chosen[0]['score'] if chosen else 0}."
+            ),
+        }
+
+
+# vuln_class user token → uppercase substring that should appear in _classify_param_risk output
+_VULN_CLASS_TOKEN_MAP = {
+    "sqli": "SQLI",
+    "xss": "XSS",
+    "idor": "IDOR",
+    "ssrf": "SSRF",
+    "open_redirect": "REDIRECT",
+    "redirect": "REDIRECT",
+    "lfi": "LFI",
+    "rce": "CMDI",
+    "cmdi": "CMDI",
+    "command_injection": "CMDI",
+    "ssti": "SSTI",
+    "xxe": "XXE",
+    "upload": "UPLOAD",
+    "file_upload": "UPLOAD",
+    "deserialization": "DESERIALIZATION",
+    "nosql": "NOSQL",
+    "jwt": "JWT",
+    "auth": "AUTH",
+    "authentication": "AUTHENTICATION",
+    "mass_assignment": "MASS",
+    "bfla": "MASS",
+    "graphql": "GRAPHQL",
+    "prototype_pollution": "PROTOTYPE",
+    "pp": "PROTOTYPE",
+    "oauth": "OAUTH",
+    "oidc": "OAUTH",
+    "cache_key": "CACHE",
+    "saml": "SAML",
+    "business_logic": "BUSINESS",
+    "web_llm": "WEB/LLM",
+    "llm": "WEB/LLM",
+    "host_header": "HOST",
+    "second_order": "SECOND",
+    "ldap": "LDAP",
+    "ldap_injection": "LDAP",
+    "xpath": "XPATH",
+    "xpath_injection": "XPATH",
+    "ssi": "SSI",
+    "ssi_injection": "SSI",
+    "xslt": "XSLT",
+    "xslt_injection": "XSLT",
+    "css_injection": "CSS",
+    "idor_uuid": "UUID",
+}
+
+
+def _vuln_class_to_risk_token(cls: str) -> str:
+    """Map a user vuln_class token to the substring that should appear in classify output."""
+    if cls in _VULN_CLASS_TOKEN_MAP:
+        return _VULN_CLASS_TOKEN_MAP[cls]
+    return cls.upper().replace("_", "/")
+
+
+def _matches_vuln_class(risks: list[str], token: str) -> bool:
+    """True if any risk label contains the target token (substring, uppercase)."""
+    if not risks or risks == ["BASELINE_PROBE"]:
+        return False
+    return any(token in r for r in risks)

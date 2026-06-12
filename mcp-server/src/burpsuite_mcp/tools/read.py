@@ -1,9 +1,126 @@
 """Tools for reading data from Burp Suite - proxy history, sitemap, scanner findings, scope."""
 
+import re
+from urllib.parse import urlsplit, parse_qsl
+
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.processing.formatters import format_proxy_table, format_findings
+
+
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+
+_DETAIL_FIELDS = frozenset({
+    "method", "url", "host", "path", "query_params",
+    "status_code", "mime_type", "content_type", "response_length",
+    "request_headers", "response_headers",
+    "request_body", "response_body",
+    "has_form", "has_redirect", "location_header", "set_cookie",
+    "error_markers",
+})
+
+_DETAIL_MARKER_RE = (
+    ("sqli", re.compile(r"(you have an error in your sql syntax|pg_query|SQLSTATE\[|ORA-\d{5}|unclosed quotation|psycopg2|MySQLSyntaxError)", re.I)),
+    ("ssti", re.compile(r"(jinja2\.exceptions|TemplateSyntaxError|freemarker\.core|velocity\.exception|twig\.error)", re.I)),
+    ("rce",  re.compile(r"(uid=\d+\(.+?\)\s+gid=\d+|(?:root|nobody|www-data|apache).+?(?:bash|sh|nologin))")),
+    ("stack_trace", re.compile(r"(Traceback \(most recent call last\)|at\s+[\w.$]+\.[\w$]+\([\w.]+\.java:\d+\)|Whitelabel Error Page|ServletException|NoMethodError|NameError|ReferenceError)")),
+)
+
+
+def _header_lookup(headers: list, name: str) -> str | None:
+    """First-match header lookup, case-insensitive. Supports list-of-dict and list-of-[k,v]."""
+    if not headers:
+        return None
+    target = name.lower()
+    for h in headers:
+        if isinstance(h, dict):
+            k = h.get("name", "")
+            if k.lower() == target:
+                return h.get("value")
+        elif isinstance(h, (list, tuple)) and len(h) >= 2:
+            if str(h[0]).lower() == target:
+                return str(h[1])
+    return None
+
+
+def _set_cookie_values(headers: list) -> list:
+    """All Set-Cookie header values."""
+    if not headers:
+        return []
+    out = []
+    for h in headers:
+        if isinstance(h, dict) and h.get("name", "").lower() == "set-cookie":
+            out.append(h.get("value", ""))
+        elif isinstance(h, (list, tuple)) and len(h) >= 2 and str(h[0]).lower() == "set-cookie":
+            out.append(str(h[1]))
+    return out
+
+
+def _trim_body(body: str, body_first: int, body_last: int) -> str:
+    """Slice body to head+tail; signal truncation when both are non-zero and body exceeds head+tail."""
+    if not body:
+        return ""
+    total = len(body)
+    if body_first <= 0 and body_last <= 0:
+        return ""
+    head = body[: body_first] if body_first > 0 else ""
+    tail = body[-body_last:] if body_last > 0 else ""
+    cut = body_first + body_last
+    if cut >= total:
+        return body
+    return f"{head}\n…[TRUNCATED {total - cut} of {total} chars]…\n{tail}" if tail else head + f"\n…[TRUNCATED {total - body_first} of {total} chars]"
+
+
+def _detect_error_markers(body: str) -> list[str]:
+    """Return marker labels found in body. Cheap regex sweep, capped at 2k tail to bound cost."""
+    if not body:
+        return []
+    sample = body[:8192]
+    hits = []
+    for label, rx in _DETAIL_MARKER_RE:
+        if rx.search(sample):
+            hits.append(label)
+    return hits
+
+
+def _slice_request_detail(
+    data: dict, fields: list[str], body_first: int, body_last: int
+) -> dict:
+    """Return a dict containing only the requested fields. Unknown fields are skipped silently."""
+    requested = [f for f in fields if f in _DETAIL_FIELDS]
+    if not requested:
+        return {"error": "no recognised fields", "allowed": sorted(_DETAIL_FIELDS)}
+
+    url = data.get("url", "") or ""
+    parsed = urlsplit(url) if url else None
+    resp_headers = data.get("response_headers", []) or []
+    req_headers = data.get("request_headers", []) or []
+    resp_body = data.get("response_body", "") or ""
+    status = data.get("status_code")
+
+    out: dict = {}
+    for f in requested:
+        if f == "method":            out[f] = data.get("method")
+        elif f == "url":             out[f] = url
+        elif f == "status_code":     out[f] = status
+        elif f == "mime_type":       out[f] = data.get("mime_type")
+        elif f == "response_length": out[f] = data.get("response_length")
+        elif f == "host":            out[f] = parsed.netloc if parsed else None
+        elif f == "path":            out[f] = parsed.path if parsed else None
+        elif f == "query_params":    out[f] = dict(parse_qsl(parsed.query)) if parsed and parsed.query else {}
+        elif f == "request_headers":  out[f] = req_headers
+        elif f == "response_headers": out[f] = resp_headers
+        elif f == "request_body":  out[f] = _trim_body(data.get("request_body", "") or "", body_first, body_last)
+        elif f == "response_body": out[f] = _trim_body(resp_body, body_first, body_last)
+        elif f == "content_type":  out[f] = _header_lookup(resp_headers, "Content-Type")
+        elif f == "location_header": out[f] = _header_lookup(resp_headers, "Location")
+        elif f == "set_cookie":    out[f] = _set_cookie_values(resp_headers)
+        elif f == "has_form":      out[f] = bool(resp_body and "<form" in resp_body.lower())
+        elif f == "has_redirect":  out[f] = status in _REDIRECT_STATUSES
+        elif f == "error_markers": out[f] = _detect_error_markers(resp_body)
+
+    return out
 
 
 def _format_raw_findings(data: dict) -> str:
@@ -85,22 +202,40 @@ def register(mcp: FastMCP):
         return f"Proxy history: {data.get('count', 0)} entries"
 
     @mcp.tool()
-    async def get_request_detail(index: int, full_body: bool = False) -> str:
-        """Get full request/response details for a proxy history item.
+    async def get_request_detail(
+        index: int,
+        full_body: bool = False,
+        fields: list[str] | None = None,
+        body_first: int = 1024,
+        body_last: int = 0,
+    ) -> str | dict:
+        """Get request/response details for a proxy history item.
 
         Args:
             index: Proxy history index
-            full_body: Return complete response body without truncation
+            full_body: Return complete response body without truncation (str mode only)
+            fields: When provided, return a dict containing only these fields.
+                Whitelist: method, url, host, path, query_params, status_code,
+                mime_type, content_type, response_length, request_headers,
+                response_headers, request_body, response_body, has_form,
+                has_redirect, location_header, set_cookie, error_markers.
+                Common triage slice: ['status_code', 'content_type', 'has_form',
+                'has_redirect', 'location_header'] — ~99% token reduction vs str.
+            body_first: Head bytes to keep when fields= slice includes bodies (default 1024)
+            body_last: Tail bytes to keep when fields= slice includes bodies (default 0)
         """
         data = await client.get(f"/api/proxy/history/{index}")
         if "error" in data:
-            return f"Error: {data['error']}"
+            return {"error": data["error"]} if fields else f"Error: {data['error']}"
 
+        if fields:
+            return _slice_request_detail(data, fields, body_first, body_last)
+
+        # Legacy str format — preserve existing behavior for backwards compat
         lines = []
         lines.append(f"=== Request [{data.get('method')}] {data.get('url')} ===")
         lines.append("")
 
-        # Request headers
         for h in data.get("request_headers", []):
             lines.append(f"  {h['name']}: {h['value']}")
         req_body = data.get("request_body", "")
@@ -108,7 +243,6 @@ def register(mcp: FastMCP):
             lines.append(f"\n--- Request Body ({len(req_body)} chars) ---")
             lines.append(req_body[:5000])
 
-        # Response
         lines.append(f"\n=== Response [{data.get('status_code')}] ({data.get('response_length', 0)} bytes, {data.get('mime_type', '')}) ===")
         for h in data.get("response_headers", []):
             lines.append(f"  {h['name']}: {h['value']}")
@@ -127,7 +261,7 @@ def register(mcp: FastMCP):
     async def get_scanner_findings(
         severity: str = "",
         confidence: str = "",
-        limit: int = 100,
+        limit: int = 20,
         actionable_only: bool = True,
     ) -> str:
         """Get scanner/audit findings from Burp Suite Professional with noise filtering.
@@ -135,7 +269,7 @@ def register(mcp: FastMCP):
         Args:
             severity: Filter by severity (HIGH, MEDIUM, LOW, INFORMATION)
             confidence: Filter by confidence (CERTAIN, FIRM, TENTATIVE)
-            limit: Max findings to return
+            limit: Max findings to return (default 20 — pass higher when iterating)
             actionable_only: Filter out noise/informational findings (default True). Set False to see everything.
         """
         params = {"limit": limit}
@@ -155,12 +289,12 @@ def register(mcp: FastMCP):
         return format_findings(data)
 
     @mcp.tool()
-    async def get_sitemap(url_prefix: str = "", limit: int = 200) -> str:
+    async def get_sitemap(url_prefix: str = "", limit: int = 30) -> str:
         """Get Burp's site map showing all discovered URLs/endpoints.
 
         Args:
             url_prefix: Filter by URL prefix
-            limit: Max entries to return
+            limit: Max entries to return (default 30 — pass higher explicitly when you need more)
         """
         params = {"limit": limit}
         if url_prefix:

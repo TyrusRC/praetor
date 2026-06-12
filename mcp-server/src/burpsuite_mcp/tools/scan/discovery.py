@@ -14,18 +14,50 @@ def register(mcp: FastMCP) -> None:
     async def discover_attack_surface(  # cost: medium
         session: str,
         max_pages: int = 20,
-    ) -> str:
+        summary_only: bool = False,
+    ) -> str | dict:
         """Crawl target and map the entire attack surface in ONE call.
 
         Args:
             session: Session name with base_url configured
             max_pages: Max pages to crawl
+            summary_only: Return compact dict (counts + top-10 risk-ranked
+                endpoints) instead of the full multi-section listing.
         """
         data = await client.post("/api/session/discover", json={
             "session": session, "max_pages": max_pages,
         })
         if "error" in data:
-            return f"Error: {data['error']}"
+            return {"error": data["error"]} if summary_only else f"Error: {data['error']}"
+
+        if summary_only:
+            endpoints_sorted = sorted(
+                data.get("endpoints", []),
+                key=lambda e: e.get("risk_score", 0),
+                reverse=True,
+            )
+            top_endpoints = [
+                {
+                    "method": ep.get("method"),
+                    "path": ep.get("path"),
+                    "risk_score": ep.get("risk_score", 0),
+                    "priority": ep.get("priority"),
+                    "params": [p.get("name") for p in (ep.get("parameters") or [])][:8],
+                }
+                for ep in endpoints_sorted[:10]
+            ]
+            return {
+                "pages_crawled": data.get("pages_crawled", 0),
+                "tech_stack": data.get("detected_tech", []),
+                "counts": {
+                    "endpoints": len(data.get("endpoints", []) or []),
+                    "params":    data.get("total_parameters", 0),
+                    "high_risk_params": data.get("high_risk_parameters", 0),
+                    "forms":     len(data.get("forms", []) or []),
+                    "targets":   len(data.get("targets", []) or []),
+                },
+                "top_endpoints": top_endpoints,
+            }
 
         lines = [f"Attack Surface: {data.get('pages_crawled', 0)} pages crawled\n"]
 
