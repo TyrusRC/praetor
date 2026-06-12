@@ -4,15 +4,31 @@
   "contexts": {
     "kubelet_read_only_port": {
       "description": "kubelet read-only port :10255 (deprecated but still enabled on legacy clusters) — anonymous GET on /pods exposes every running pod's spec including env vars + secrets.",
-      "tech_match": ["kubelet", "kubernetes"],
+      "tech_match": [
+        "kubelet",
+        "kubernetes"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": ":10255/pods",
           "description": "Anonymous pod inventory — env / volume / image / nodeName for every pod",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"kind\":\"PodList\"", "\"apiVersion\":\"v1\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"kind\":\"PodList\"",
+                "\"apiVersion\":\"v1\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -22,15 +38,29 @@
     },
     "kubelet_secure_port_anon": {
       "description": "kubelet :10250 secure port — when --anonymous-auth=true and --authorization-mode=AlwaysAllow (insecure defaults), full read-write API anonymously reachable. /run/<ns>/<pod>/<container> + cmd= = exec inside any container.",
-      "tech_match": ["kubelet"],
+      "tech_match": [
+        "kubelet"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": ":10250/pods",
           "description": "Anonymous pods endpoint on secure port",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["PodList"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "PodList"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -40,8 +70,21 @@
           "payload": ":10250/metrics",
           "description": "Prometheus metrics endpoint — pods/containers/cgroups visible",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["kubelet_", "container_"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "kubelet_",
+                "container_"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -51,15 +94,30 @@
     },
     "kube_apiserver_anonymous": {
       "description": "kube-apiserver :6443 (default) or :8443 with anonymous binding. /api/v1/namespaces accessible without token if --anonymous-auth=true + system:anonymous bound to read role.",
-      "tech_match": ["kubernetes", "kube-apiserver"],
+      "tech_match": [
+        "kubernetes",
+        "kube-apiserver"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/api/v1/namespaces",
           "description": "Anonymous namespace listing — confirms missing RBAC on system:anonymous",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"kind\":\"NamespaceList\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"kind\":\"NamespaceList\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -69,8 +127,21 @@
           "payload": "/version",
           "description": "Anonymous version disclosure — present on most clusters; harmless alone but valuable fingerprint",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"gitVersion\"", "\"buildDate\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"gitVersion\"",
+                "\"buildDate\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -80,8 +151,21 @@
           "payload": "/openapi/v2",
           "description": "OpenAPI schema — discloses every API resource available on this cluster (CRDs, custom controllers)",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"swagger\":\"2.0\"", "io.k8s.api"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"swagger\":\"2.0\"",
+                "io.k8s.api"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -91,15 +175,30 @@
     },
     "etcd_exposed": {
       "description": "etcd :2379 client port without TLS-client-auth — direct read/write of every Kubernetes object including Secrets (base64). Game-over.",
-      "tech_match": ["etcd"],
+      "tech_match": [
+        "etcd"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": ":2379/version",
           "description": "etcd version endpoint — confirms reachability",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["etcdserver", "etcdcluster"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "etcdserver",
+                "etcdcluster"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
@@ -109,8 +208,20 @@
           "payload": ":2379/v2/keys/?recursive=true",
           "description": "v2 API key listing (old etcd) — full keyspace dump",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"action\":\"get\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"action\":\"get\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -120,15 +231,31 @@
     },
     "kubernetes_dashboard": {
       "description": "Kubernetes Dashboard left with skip-login enabled (--skip-login + RBAC bound to cluster-admin). Default install at /api/v1/namespace.",
-      "tech_match": ["dashboard", "kubernetes-dashboard"],
+      "tech_match": [
+        "dashboard",
+        "kubernetes-dashboard"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/api/v1/csrftoken/login",
           "description": "Dashboard CSRF endpoint — present on any kubernetes-dashboard install",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["token", "Jenkins"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "token",
+                "Jenkins"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -138,8 +265,21 @@
           "payload": "/api/v1/namespace",
           "description": "Dashboard namespace endpoint — accessible without auth when skip-login enabled",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["namespaces", "kind"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "namespaces",
+                "kind"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
@@ -149,15 +289,32 @@
     },
     "argocd_anonymous": {
       "description": "ArgoCD admin UI/API. Default install creates admin/<generated-password>; some teams left at install-time default or anonymous user enabled in config.",
-      "tech_match": ["argocd", "argo"],
+      "tech_match": [
+        "argocd",
+        "argo"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/api/v1/applications",
           "description": "ArgoCD applications list — anonymous bind on misconfigured install",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"items\"", "argoproj.io", "Application"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"items\"",
+                "argoproj.io",
+                "Application"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 80,
@@ -167,8 +324,21 @@
           "payload": "/api/version",
           "description": "ArgoCD version — fingerprint endpoint",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"Version\"", "\"BuildDate\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"Version\"",
+                "\"BuildDate\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -178,15 +348,30 @@
     },
     "tekton_dashboard": {
       "description": "Tekton Pipelines dashboard at /v1/namespaces/<ns>/pipelineruns. Often deployed without auth proxy on dev clusters.",
-      "tech_match": ["tekton"],
+      "tech_match": [
+        "tekton"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/v1/properties",
           "description": "Tekton dashboard properties — confirms presence",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["DashboardNamespace", "PipelinesNamespace"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "DashboardNamespace",
+                "PipelinesNamespace"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -196,15 +381,28 @@
     },
     "rancher_unauth": {
       "description": "Rancher UI + API. Default install at /v3 + /v3-public/localProviders/local?action=login. install-time admin/admin still common.",
-      "tech_match": ["rancher"],
+      "tech_match": [
+        "rancher"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/v3",
           "description": "Rancher API root — fingerprint via headers",
           "matchers": [
-            {"type": "status", "status": [200, 401], "condition": "or"},
-            {"type": "header", "header": "x-api-schemas", "weight": 70}
+            {
+              "type": "status",
+              "status": [
+                200,
+                401
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "header",
+              "header": "x-api-schemas",
+              "weight": 70
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -214,7 +412,14 @@
           "payload": "/v3-public/localProviders/local?action=login",
           "description": "Public login endpoint — default creds testable here",
           "matchers": [
-            {"type": "status", "status": [200, 400], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                400
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40,
@@ -224,14 +429,22 @@
     },
     "portainer_unauth": {
       "description": "Portainer admin UI — bootstrap flow ('admin not yet created') exploitable for 1st-come-1st-served admin takeover.",
-      "tech_match": ["portainer"],
+      "tech_match": [
+        "portainer"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/api/users/admin/check",
           "description": "Admin-init check — 404 = no admin exists, anyone can become admin via /api/users/admin/init",
           "matchers": [
-            {"type": "status", "status": [404], "condition": "and"}
+            {
+              "type": "status",
+              "status": [
+                404
+              ],
+              "condition": "and"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 90,
@@ -241,8 +454,21 @@
           "payload": "/api/status",
           "description": "Portainer status fingerprint",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"Version\"", "Portainer"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"Version\"",
+                "Portainer"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "low",
           "confidence_boost": 30,
@@ -252,15 +478,29 @@
     },
     "container_registry_anonymous": {
       "description": "Container registries (Docker Registry v2, Harbor, Quay, ECR public, GAR public, GHCR) — anonymous /v2/_catalog often left enabled.",
-      "tech_match": ["docker-registry", "harbor", "quay"],
+      "tech_match": [
+        "docker-registry",
+        "harbor",
+        "quay"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "/v2/",
           "description": "Docker Registry v2 root — 401 with Bearer realm OR 200 = anonymous OK",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "header", "header": "docker-distribution-api-version", "weight": 80}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "header",
+              "header": "docker-distribution-api-version",
+              "weight": 80
+            }
           ],
           "severity": "medium",
           "confidence_boost": 50,
@@ -270,8 +510,20 @@
           "payload": "/v2/_catalog?n=1000",
           "description": "Full image catalog — anonymous list exposes private repo names",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"repositories\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"repositories\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -281,8 +533,21 @@
           "payload": "/api/v2.0/projects",
           "description": "Harbor project list",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"project_id\"", "\"name\":"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"project_id\"",
+                "\"name\":"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -292,15 +557,32 @@
     },
     "service_mesh_metrics": {
       "description": "Istio / Linkerd telemetry: Prometheus :9090, Grafana :3000, Kiali, Jaeger :16686 left exposed on dev clusters.",
-      "tech_match": ["istio", "linkerd", "prometheus"],
+      "tech_match": [
+        "istio",
+        "linkerd",
+        "prometheus"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": ":9090/api/v1/label/__name__/values",
           "description": "Prometheus metric-names dump — discloses every series collected",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"data\":[", "\"status\":\"success\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"data\":[",
+                "\"status\":\"success\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
@@ -310,13 +592,84 @@
           "payload": ":16686/api/services",
           "description": "Jaeger service list — full request graph + service inventory",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"},
-            {"type": "word", "words": ["\"data\":[", "\"total\""], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ],
+              "condition": "and"
+            },
+            {
+              "type": "word",
+              "words": [
+                "\"data\":[",
+                "\"total\""
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 60,
           "variables": {}
         }
+      ]
+    },
+    "runc_masked_path_symlink_race_2025": {
+      "description": "CVE-2025-31133 — runc masked-path symlink race. /proc/self/maskedPath behaviour bypassed via TOCTOU between path-check and bind-mount; container can escape to host root. Affects runc <1.2.x patched build. Detection: requires kdigger/peirates-style in-container probing.",
+      "tech_match": [
+        "runc",
+        "containerd",
+        "docker"
+      ],
+      "param_match": [],
+      "reference_only": true,
+      "operator_note": "Not testable from external HTTP surface. Use peirates/kdigger after establishing exec inside a container. CVE chains with CVE-2025-52565 (console_race) and CVE-2025-52881 (proc_redirect) for a complete escape set published 2025 H2.",
+      "severity": "critical",
+      "chain_with": [
+        "kubernetes_exposed",
+        "cloud_webapp"
+      ]
+    },
+    "runc_console_dev_toctou_2025": {
+      "description": "CVE-2025-52565 — runc /dev/console TOCTOU. Container can race the console-setup path so the bind-mount lands on a host path. Partial of the 2025 runc trio.",
+      "tech_match": [
+        "runc",
+        "containerd"
+      ],
+      "param_match": [],
+      "reference_only": true,
+      "severity": "critical",
+      "chain_with": [
+        "kubernetes_exposed"
+      ]
+    },
+    "runc_proc_write_redirect_2025": {
+      "description": "CVE-2025-52881 — runc /proc write redirect. Container writes redirected to attacker-chosen host file via /proc/self/fd race. Trio with CVE-2025-31133 + 52565.",
+      "tech_match": [
+        "runc",
+        "containerd"
+      ],
+      "param_match": [],
+      "reference_only": true,
+      "severity": "critical",
+      "chain_with": [
+        "kubernetes_exposed"
+      ]
+    },
+    "eks_pod_identity_169_254_170_23_mitm_2026": {
+      "description": "EKS Pod Identity agent listens at 169.254.170.23 on every node. When a pod has CAP_NET_ADMIN (or runs as root with host network), it can ARP/route hijack the link-local IP and intercept every co-tenant pod's Pod Identity token request — cross-tenant token harvest. Detection: use pacu/kube-hunter from a pod with the capability. Confirmation: snapshot tokens harvested vs current STS credentials.",
+      "tech_match": [
+        "aws",
+        "eks",
+        "pod-identity"
+      ],
+      "param_match": [],
+      "reference_only": true,
+      "operator_note": "Requires pod compute. Not pure HTTP probe.",
+      "severity": "critical",
+      "chain_with": [
+        "cloud_webapp",
+        "kubernetes_exposed"
       ]
     }
   }

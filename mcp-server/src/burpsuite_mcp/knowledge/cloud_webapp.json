@@ -3,7 +3,7 @@
   "description": "Cloud-native web app misconfigurations and SDK error matchers (AWS, GCP, Azure, Firebase). Detects leaked credentials, public buckets, exposed metadata services, SAS-token misuse, and cloud-SDK error fingerprints in HTTP responses.",
   "contexts": {
     "aws_metadata_imdsv1": {
-      "description": "AWS EC2 IMDSv1 SSRF \u2014 token-less metadata service. Hits cleartext credentials.",
+      "description": "AWS EC2 IMDSv1 SSRF — token-less metadata service. Hits cleartext credentials.",
       "probes": [
         {
           "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
@@ -15,7 +15,7 @@
         },
         {
           "payload": "http://169.254.169.254/latest/user-data",
-          "description": "User-data script \u2014 often contains plaintext secrets"
+          "description": "User-data script — often contains plaintext secrets"
         }
       ],
       "matchers": [
@@ -122,11 +122,11 @@
       "probes": [
         {
           "payload": "?list-type=2",
-          "description": "S3 v2 list-objects \u2014 public bucket dump"
+          "description": "S3 v2 list-objects — public bucket dump"
         },
         {
           "payload": "?acl",
-          "description": "S3 ACL inspection \u2014 exposes grants"
+          "description": "S3 ACL inspection — exposes grants"
         }
       ],
       "matchers": [
@@ -140,7 +140,7 @@
           "type": "regex",
           "pattern": "<URI>http://acs\\.amazonaws\\.com/groups/global/AllUsers</URI>",
           "weight": 100,
-          "description": "S3 grant to AllUsers \u2014 fully public bucket"
+          "description": "S3 grant to AllUsers — fully public bucket"
         }
       ]
     },
@@ -158,7 +158,7 @@
           "type": "regex",
           "pattern": "[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/[A-Za-z0-9_\\-/\\.]+\\?sv=",
           "weight": 95,
-          "description": "Full SAS URL \u2014 replay to test scope"
+          "description": "Full SAS URL — replay to test scope"
         }
       ]
     },
@@ -167,7 +167,7 @@
       "probes": [
         {
           "payload": "/.json",
-          "description": "Root dump \u2014 works on default-allow rules"
+          "description": "Root dump — works on default-allow rules"
         }
       ],
       "matchers": [
@@ -175,13 +175,13 @@
           "type": "regex",
           "pattern": "Permission denied",
           "weight": -50,
-          "description": "Negative \u2014 DB is rule-protected"
+          "description": "Negative — DB is rule-protected"
         },
         {
           "type": "regex",
           "pattern": "^\\s*\\{[^}]*\"\\w+\"\\s*:",
           "weight": 75,
-          "description": "JSON document root \u2014 likely DB dump"
+          "description": "JSON document root — likely DB dump"
         }
       ]
     },
@@ -193,19 +193,19 @@
           "type": "regex",
           "pattern": "cognito-idp\\.[a-z0-9\\-]+\\.amazonaws\\.com/[a-z0-9_\\-]+",
           "weight": 70,
-          "description": "Cognito User Pool issuer URL \u2014 extract User Pool ID"
+          "description": "Cognito User Pool issuer URL — extract User Pool ID"
         },
         {
           "type": "regex",
           "pattern": "cognito-identity\\.[a-z0-9\\-]+\\.amazonaws\\.com",
           "weight": 70,
-          "description": "Cognito Identity Pool \u2014 test GetCredentialsForIdentity"
+          "description": "Cognito Identity Pool — test GetCredentialsForIdentity"
         },
         {
           "type": "literal",
           "pattern": "cognito:groups",
           "weight": 60,
-          "description": "Cognito group claim \u2014 tamper for privilege escalation"
+          "description": "Cognito group claim — tamper for privilege escalation"
         }
       ]
     },
@@ -252,20 +252,20 @@
       ]
     },
     "cloud_sdk_errors": {
-      "description": "Cloud SDK error fingerprints disclosed in error pages \u2014 confirms backend cloud usage.",
+      "description": "Cloud SDK error fingerprints disclosed in error pages — confirms backend cloud usage.",
       "probes": [],
       "matchers": [
         {
           "type": "literal",
           "pattern": "AccessDenied",
           "weight": 30,
-          "description": "AWS access denied \u2014 endpoint touches AWS"
+          "description": "AWS access denied — endpoint touches AWS"
         },
         {
           "type": "literal",
           "pattern": "InvalidAccessKeyId",
           "weight": 50,
-          "description": "AWS error \u2014 backend auth failure leak"
+          "description": "AWS error — backend auth failure leak"
         },
         {
           "type": "literal",
@@ -423,6 +423,78 @@
           "confidence_boost": 65
         }
       ]
+    },
+    "irsa_projected_token_persistent_harvest_2026": {
+      "description": "IRSA (IAM Roles for Service Accounts) tokens delivered via projected service-account token mounted at /var/run/secrets/eks.amazonaws.com/serviceaccount/token. The kubelet rotates the token in-place; an attacker who reads the file in a loop captures every refreshed token and retains foothold across rotations. Mitigation: short audience/expirationSeconds, file-integrity monitoring.",
+      "tech_match": [
+        "aws",
+        "eks",
+        "irsa"
+      ],
+      "param_match": [],
+      "reference_only": true,
+      "operator_note": "Requires pod-internal access. Not pure HTTP probe. Chain with EKS Pod Identity hijack or container escape for cross-tenant impact.",
+      "severity": "high",
+      "chain_with": [
+        "cloud_webapp",
+        "kubernetes_exposed"
+      ]
+    },
+    "azure_imds_keyvault_chain_storm2949_2026": {
+      "description": "Storm-2949 disclosure (Microsoft 2026-05-18). Azure IMDS at 169.254.169.254 with managed identity → token for Key Vault → secret download chain. Conditional Access policies skip workload identity flows, so an SSRF into a workload's IMDS bypasses MFA to reach Key Vault. Detection markers: Metadata-Identity-Endpoint header in proxy log, ManagedIdentityCredential in response body, vault.azure.net subsequent fetch.",
+      "tech_match": [
+        "azure",
+        "imds",
+        "managed-identity",
+        "keyvault"
+      ],
+      "param_match": [
+        "url",
+        "endpoint",
+        "callback",
+        "next",
+        "src",
+        "image",
+        "preview",
+        "redirect",
+        "target",
+        "resource"
+      ],
+      "probes": [
+        {
+          "payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net",
+          "description": "Managed-identity token request scoped to Key Vault",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "\"access_token\"\\s*:\\s*\"[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.",
+              "weight": 95,
+              "description": "Managed Identity JWT echoed in response"
+            },
+            {
+              "type": "word",
+              "words": [
+                "ManagedIdentityCredential",
+                "vault.azure.net"
+              ],
+              "condition": "or",
+              "weight": 70
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {
+            "Metadata": "true"
+          }
+        }
+      ],
+      "chain_with": [
+        "cloud_webapp",
+        "cloud_storage_misconfig",
+        "ssrf"
+      ],
+      "operator_note": "Pair with test_cloud_metadata + probe_dns_rebind. Conditional Access does NOT cover this path — flag CRITICAL even on Azure-regulated targets.",
+      "severity": "critical"
     }
   }
 }
