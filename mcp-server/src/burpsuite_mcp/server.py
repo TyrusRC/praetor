@@ -20,6 +20,7 @@ from burpsuite_mcp.tools import (
     cve_variant_probe,
     smart_js_analyze,
     smart_request_triage,
+    extract_batch,
 )
 
 mcp = FastMCP(
@@ -157,3 +158,4 @@ mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimat
 cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware PoC sweep (W30-a)
 smart_js_analyze.register(mcp)   # smart_js_analyze — JS → fire-ready attack plan (W30-b)
 smart_request_triage.register(mcp)  # smart_request_triage — proxy entry → attack plan (W30-c)
+extract_batch.register(mcp)         # extract_js_secrets_batch / extract_api_endpoints_batch / extract_links_batch — dedup across N indices in one call (W31-b)

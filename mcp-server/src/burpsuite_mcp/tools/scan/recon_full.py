@@ -70,24 +70,32 @@ def register(mcp: FastMCP) -> None:
     async def full_recon(  # cost: expensive
         session: str,
         depth: str = "standard",
-    ) -> str:
+        summary_only: bool = False,
+    ) -> str | dict:
         """Full recon pipeline: tech detection, endpoints, headers, secrets, robots.txt, sensitive files.
 
         Args:
             session: Session name with base_url configured
             depth: 'quick', 'standard', or 'deep'
+            summary_only: Return compact dict (counts + top-3 per category)
+                instead of full multi-section listing. ≤1000 tokens.
         """
         lines = [f"FULL RECON (depth: {depth})\n"]
+        summary: dict = {"depth": depth, "tech_stack": [], "endpoint_count": 0,
+                          "js_secrets_count": 0, "top_secrets": [],
+                          "robots_disallowed_count": 0, "sensitive_files": [],
+                          "top_attack_priorities": []}
 
         root_req: dict = {"session": session, "method": "GET", "path": "/", "analyze": True}
         root_resp = await client.post("/api/session/request", json=root_req)
         if "error" in root_resp:
-            return f"Error: {root_resp['error']}"
+            return {"error": root_resp["error"]} if summary_only else f"Error: {root_resp['error']}"
 
         root_index = root_resp.get("proxy_index", -1)
         analysis = root_resp.get("analysis", {})
 
         techs = analysis.get("tech_stack", {}).get("technologies", [])
+        summary["tech_stack"] = techs
         if techs:
             lines.append(f"TECH STACK: {', '.join(techs)}")
 
@@ -101,6 +109,7 @@ def register(mcp: FastMCP) -> None:
 
         ep_data = await client.get("/api/analysis/unique-endpoints", params={"limit": "100"})
         endpoints = ep_data.get("endpoints", []) if "error" not in ep_data else []
+        summary["endpoint_count"] = len(endpoints)
         lines.append(f"\nENDPOINTS: {len(endpoints)} unique")
         for ep in endpoints[:15]:
             params = ep.get("parameters", [])
@@ -128,6 +137,11 @@ def register(mcp: FastMCP) -> None:
                                     js_secrets.append(s)
 
                     if js_secrets:
+                        summary["js_secrets_count"] = len(js_secrets)
+                        summary["top_secrets"] = [
+                            {"type": s.get("type"), "severity": s.get("severity"), "match": (s.get("match") or "")[:60]}
+                            for s in js_secrets[:3]
+                        ]
                         lines.append(f"\nJS SECRETS: {len(js_secrets)} found")
                         for s in js_secrets[:10]:
                             lines.append(f"  [{s.get('severity', '?')}] {s.get('type', '?')}: {s.get('match', '?')[:60]}")
@@ -140,6 +154,7 @@ def register(mcp: FastMCP) -> None:
                 disallowed = [l.split(":", 1)[1].strip() for l in body.split("\n")
                               if l.lower().startswith("disallow:") and l.split(":", 1)[1].strip()]
                 if disallowed:
+                    summary["robots_disallowed_count"] = len(disallowed)
                     lines.append(f"\nROBOTS.TXT: {len(disallowed)} disallowed")
                     for d in disallowed[:10]:
                         lines.append(f"  {d}")
@@ -173,6 +188,7 @@ def register(mcp: FastMCP) -> None:
                         found_files.append(f"{sp} (403 - exists but blocked)")
 
             if found_files:
+                summary["sensitive_files"] = found_files[:10]
                 lines.append(f"\nSENSITIVE FILES: {len(found_files)} found")
                 for f in found_files:
                     lines.append(f"  {f}")
@@ -188,6 +204,10 @@ def register(mcp: FastMCP) -> None:
                 priorities.append((ep, sorted(ep_risks)))
 
         if priorities:
+            summary["top_attack_priorities"] = [
+                {"endpoint": ep.get("endpoint"), "risks": risks}
+                for ep, risks in priorities[:5]
+            ]
             lines.append("\nATTACK PRIORITIES:")
             for i, (ep, risks) in enumerate(priorities[:10], 1):
                 lines.append(f"  {i}. {ep.get('endpoint', '?')} -> {', '.join(risks)}")
@@ -197,4 +217,6 @@ def register(mcp: FastMCP) -> None:
                     f"call again or use load_target_intel(domain, 'endpoints', limit=N, offset=10)]"
                 )
 
+        if summary_only:
+            return summary
         return "\n".join(lines)

@@ -11,14 +11,14 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def fetch_wayback_urls(
         domain: str,
-        limit: int = 200,
+        limit: int = 30,
         filter_status: str = "200",
     ) -> str:
         """Get historical URLs from the Wayback Machine CDX API.
 
         Args:
             domain: Target domain
-            limit: Max URLs to return (default 200)
+            limit: Max URLs to return (default 30 — pass higher explicitly when you need full archive)
             filter_status: HTTP status filter (default '200', '' for all)
         """
         domain = _sanitize_domain(domain)

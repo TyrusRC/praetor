@@ -160,7 +160,7 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def get_unique_endpoints(url_prefix: str = "", limit: int = 200) -> str:
+    async def get_unique_endpoints(url_prefix: str = "", limit: int = 30) -> str:
         """Get deduplicated endpoints from proxy history with parameter names.
 
         Args:
@@ -190,15 +190,57 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def smart_analyze(index: int) -> str:  # cost: cheap (single index, batched analysis)
+    async def smart_analyze(index: int, summary_only: bool = False) -> str | dict:  # cost: cheap (single index, batched analysis)
         """Full attack surface analysis in ONE call: tech stack, injection points, params, forms, endpoints, secrets.
 
         Args:
             index: Proxy history index
+            summary_only: Return compact dict (tech_stack, top-5 injection points,
+                param counts, form count) — ≤1000 tokens. Use for triage; pass
+                False to get the full multi-section narrative.
         """
         data = await client.post("/api/analysis/smart", json={"index": index})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return {"error": data["error"]} if summary_only else f"Error: {data['error']}"
+
+        if summary_only:
+            tech = data.get("tech_stack", {})
+            params = data.get("parameters", {})
+            injection_block = data.get("injection_points", {})
+            injection_list = (
+                injection_block.get("injection_points", [])
+                if isinstance(injection_block, dict) else []
+            )
+            forms = data.get("forms", {})
+            endpoints = data.get("endpoints", {})
+            secrets = data.get("secrets", {})
+            return {
+                "method": data.get("method"),
+                "url": data.get("url"),
+                "tech_stack": tech.get("technologies", []),
+                "missing_security_headers": tech.get("security_headers_missing", []),
+                "param_counts": {
+                    "query":  len(params.get("query_parameters", []) or []),
+                    "body":   len(params.get("body_parameters", []) or []),
+                    "cookie": len(params.get("cookie_parameters", []) or []),
+                },
+                "top_injection_points": [
+                    {
+                        "name": ip.get("name"),
+                        "location": ip.get("location") or ip.get("type"),
+                        "vulns": ip.get("potential_vulnerabilities") or ip.get("types") or [],
+                        "risk_score": ip.get("risk_score", 0),
+                    }
+                    for ip in sorted(injection_list, key=lambda x: -x.get("risk_score", 0))[:5]
+                ],
+                "form_count": len(forms.get("forms", []) or []),
+                "api_endpoint_count": len(endpoints.get("api_endpoints", []) or []),
+                "secret_count": len(secrets.get("secrets", []) or []),
+                "top_secrets": [
+                    {"type": s.get("type"), "severity": s.get("severity"), "match": (s.get("match") or "")[:80]}
+                    for s in (secrets.get("secrets") or [])[:3]
+                ],
+            }
 
         lines = [f"Smart Analysis: [{data.get('method')}] {data.get('url')}\n"]
 
