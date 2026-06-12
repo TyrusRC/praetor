@@ -9,6 +9,14 @@ You are connected to Burp Suite via MCP. You have 160+ tools. Knowing WHICH tool
 
 **ADVISOR SHORTCUT:** Call `pick_tool('your task')` to instantly get the right tool + example. Call `get_hunt_plan(target)` for a full phased testing plan.
 
+## SMART MOVE — first call
+
+- "what tool for X?" → `pick_tool('X')`
+- "what's the plan for this target?" → `get_hunt_plan(domain)`
+- "captured request looks weird" → `smart_request_triage(index)` (one call replaces the get_request_detail → extract_* → smart_analyze → reason → pick four-step loop)
+- "found a JS bundle" → `smart_js_analyze(index | url | urls=[])` — emits priority-ordered (target, vuln_class, suggested_call, canary) tuples
+- "known CVE / public PoC needs payload tweak" → `probe_cve_with_variants(cve_id, target_url)` — bounded variant sweep with first-CONFIRMED short-circuit
+
 ## DEFAULTS (Rules 29 / 30 / 31 / 32) — preferences, not handcuffs
 
 Two modes operate side by side. Pick by INTENT:

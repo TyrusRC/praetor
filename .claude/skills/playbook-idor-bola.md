@@ -14,6 +14,15 @@ Load when: a parameter contains a record identifier (numeric / UUID / slug / has
 
 Same vulnerability class — pick the term your program uses in scope language.
 
+## SMART MOVE — first call
+
+- have ≥2 auth states already → `test_auth_matrix(endpoints=[...], sessions=[...])` is the single highest-ROI call here (R28 grey-box mindset)
+- IDs are sequential / numeric / monotonic → `probe_id_monotonic` + `harvest_identifiers` (Rule 6 scope clarification: ID enumeration is authorization testing, NOT credential brute force)
+- IDs are UUIDv4 / random / opaque slug → single-pivot mode only — find a leaked/harvested ID via `extract_js_secrets`, `extract_api_endpoints`, recon, or another user's response body
+- have a JS bundle → `smart_js_analyze(index | url)` — harvests `/api/{id}` route patterns and `me` self-resource hints
+- multi-transport surface (REST + gRPC + WS + GraphQL) → `probe_cross_transport_idor` (auth may enforce only on REST)
+- captured a request with an ID parameter and don't know where to start → `smart_request_triage(index)` routes to this playbook automatically
+
 ## Decision gate
 
 - Does the endpoint accept an ID and return per-user data? → candidate.

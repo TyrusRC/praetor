@@ -1,5 +1,9 @@
 {
   "category": "csv_injection",
+  "chain_with": [
+    "file_upload",
+    "command_injection"
+  ],
   "contexts": {
     "formula_injection": {
       "description": "CSV/spreadsheet formula injection -- inject formulas into exported CSV/XLSX data that execute when opened in Excel/Google Sheets",

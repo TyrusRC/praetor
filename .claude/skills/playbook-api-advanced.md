@@ -15,7 +15,7 @@ stop_condition: 12 calls, no auth bypass, no BFLA, no GraphQL anomaly, no WS hij
        smart_request_triage(index_of_baseline_request)
 3. if GraphQL: test_graphql(test_introspection=True, test_batching=True)
 4. if gRPC: probe_grpc_reflection(url) + probe_grpc_idor(...)
-5. if JSON-RPC/MCP: probe_mcp_jsonrpc_methods(url) + enumerate_mcp_server (W31-d)
+5. if JSON-RPC/MCP: probe_mcp_jsonrpc_methods(url) + enumerate_mcp_server
 ```
 
 ## Decision tree

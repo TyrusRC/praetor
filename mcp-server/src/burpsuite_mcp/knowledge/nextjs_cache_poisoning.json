@@ -1,9 +1,14 @@
 {
   "category": "nextjs_cache_poisoning",
   "description": "Next.js cache poisoning chains (Allam 2025, PortSwigger). ISR (Incremental Static Regeneration) + RSC cache key manipulation + Server Action body confusion. Affects 13.x-15.x App Router.",
+  "chain_with": [
+    "cache_poisoning",
+    "info_disclosure",
+    "open_redirect"
+  ],
   "contexts": {
     "rsc_cache_key_manipulation": {
-      "description": "RSC responses keyed on URL + cookie subset. Inject headers that the cache strips but origin reflects \u2014 poisoned response served to subsequent users.",
+      "description": "RSC responses keyed on URL + cookie subset. Inject headers that the cache strips but origin reflects — poisoned response served to subsequent users.",
       "tech_match": [
         "next",
         "next.js",
@@ -39,7 +44,7 @@
       ]
     },
     "isr_revalidate_poison": {
-      "description": "On-demand revalidation tokens \u2014 if revalidate endpoint is unauthenticated, attacker forces stale-content replacement.",
+      "description": "On-demand revalidation tokens — if revalidate endpoint is unauthenticated, attacker forces stale-content replacement.",
       "tech_match": [
         "next",
         "next.js"
@@ -48,7 +53,7 @@
       "probes": [
         {
           "payload": "/api/revalidate?path=/&secret=guess",
-          "description": "Revalidation endpoint fingerprint \u2014 common Next.js handler pattern",
+          "description": "Revalidation endpoint fingerprint — common Next.js handler pattern",
           "matchers": [
             {
               "type": "status",
@@ -107,7 +112,7 @@
       ]
     },
     "i18n_middleware_strip_bypass_2026": {
-      "description": "Next.js 15 i18n middleware bypass May 2026 wave (CVE-2026-23864/23869/23870 class) \u2014 stripping locale prefix /en/ in middleware-rewrite rules causes protected route to render without auth check.",
+      "description": "Next.js 15 i18n middleware bypass May 2026 wave (CVE-2026-23864/23869/23870 class) — stripping locale prefix /en/ in middleware-rewrite rules causes protected route to render without auth check.",
       "tech_match": [
         "Next.js"
       ],
@@ -115,7 +120,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "GET /en/admin then GET /admin without /en \u2014 both should redirect to login; if /admin 200, i18n strip bypassed middleware",
+          "description": "GET /en/admin then GET /admin without /en — both should redirect to login; if /admin 200, i18n strip bypassed middleware",
           "matchers": [
             {
               "type": "status",
@@ -138,7 +143,7 @@
       ]
     },
     "ws_upgrade_ssrf_2026": {
-      "description": "Next.js WebSocket Upgrade SSRF (CVE-2026-44578 class) \u2014 server-side fetch for proxy upgrade does not filter loopback or cloud-metadata Host headers. Confirm via canary echo in response or Collaborator DNS hit.",
+      "description": "Next.js WebSocket Upgrade SSRF (CVE-2026-44578 class) — server-side fetch for proxy upgrade does not filter loopback or cloud-metadata Host headers. Confirm via canary echo in response or Collaborator DNS hit.",
       "tech_match": [
         "Next.js"
       ],
@@ -146,7 +151,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "Send WebSocket upgrade with Host: 169.254.169.254 \u2014 if upgrade succeeds or IMDS marker echoes, SSRF confirmed",
+          "description": "Send WebSocket upgrade with Host: 169.254.169.254 — if upgrade succeeds or IMDS marker echoes, SSRF confirmed",
           "matchers": [
             {
               "type": "regex",
@@ -164,7 +169,7 @@
       ]
     },
     "next_image_unbounded_cache_dos_2026": {
-      "description": "Next.js /_next/image unbounded cache DoS (CVE-2026-27980 class) \u2014 repeated requests with q=1..100 generate uncached variants; resource exhaustion.",
+      "description": "Next.js /_next/image unbounded cache DoS (CVE-2026-27980 class) — repeated requests with q=1..100 generate uncached variants; resource exhaustion.",
       "tech_match": [
         "Next.js"
       ],
@@ -172,7 +177,7 @@
       "probes": [
         {
           "payload": "",
-          "description": "Hit /_next/image?url=/<asset>&w=128&q=N for N in 1..10 sequentially \u2014 if no 429/cache header, unbounded variant generation",
+          "description": "Hit /_next/image?url=/<asset>&w=128&q=N for N in 1..10 sequentially — if no 429/cache header, unbounded variant generation",
           "matchers": [
             {
               "type": "differential_timing",

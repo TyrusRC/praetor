@@ -58,17 +58,22 @@ def _score_security_headers(present: list[str], missing: list[str]) -> str:
 def register(mcp: FastMCP):
 
     @mcp.tool()
-    async def extract_api_endpoints(index: int) -> str:
+    async def extract_api_endpoints(index: int) -> dict:
         """Extract API endpoints, JS fetch calls, and links from a response.
+
+        Returns structured dict: {total_found, api_endpoints, js_endpoints, links,
+        external_urls, human_summary} or {error}. Each list capped at 50.
 
         Args:
             index: Proxy history index
         """
         data = await client.post("/api/analysis/endpoints", json={"index": index})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return {"error": data["error"]}
 
-        lines = [f"Endpoint extraction (total: {data.get('total_found', 0)}):\n"]
+        total = data.get("total_found", 0)
+        lines = [f"Endpoint extraction (total: {total}):\n"]
+        out: dict = {"total_found": total}
 
         for section, key in [
             ("API Endpoints", "api_endpoints"),
@@ -77,15 +82,17 @@ def register(mcp: FastMCP):
             ("External URLs", "external_urls"),
         ]:
             items = data.get(key, [])
+            out[key] = items[:50]
             if items:
                 lines.append(f"--- {section} ({len(items)}) ---")
-                for item in items[:50]:  # cap at 50 per section
+                for item in items[:50]:
                     lines.append(f"  {item}")
                 if len(items) > 50:
                     lines.append(f"  ... and {len(items) - 50} more")
                 lines.append("")
 
-        return "\n".join(lines)
+        out["human_summary"] = "\n".join(lines)
+        return out
 
     @mcp.tool()
     async def detect_tech_stack(index: int) -> str:
@@ -127,21 +134,27 @@ def register(mcp: FastMCP):
         return result
 
     @mcp.tool()
-    async def extract_js_secrets(index: int) -> str:
+    async def extract_js_secrets(index: int) -> dict:
         """Extract secrets, API keys, tokens, and sensitive data from a response.
+
+        Returns structured dict: {total_secrets, secrets: [...], human_summary} or {error}.
 
         Args:
             index: Proxy history index
         """
         data = await client.post("/api/analysis/js-secrets", json={"index": index})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return {"error": data["error"]}
 
         secrets = data.get("secrets", [])
         total = data.get("total_secrets", 0)
 
         if not secrets:
-            return "No secrets or sensitive data found in this response."
+            return {
+                "total_secrets": 0,
+                "secrets": [],
+                "human_summary": "No secrets or sensitive data found in this response.",
+            }
 
         lines = [f"Secrets Found: {total}\n"]
 
@@ -157,7 +170,11 @@ def register(mcp: FastMCP):
                 lines.append(f"  Context: ...{context}...")
             lines.append("")
 
-        return "\n".join(lines)
+        return {
+            "total_secrets": total,
+            "secrets": secrets,
+            "human_summary": "\n".join(lines),
+        }
 
     @mcp.tool()
     async def get_unique_endpoints(url_prefix: str = "", limit: int = 30) -> str:

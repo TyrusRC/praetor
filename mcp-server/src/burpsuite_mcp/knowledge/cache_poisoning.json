@@ -1,5 +1,10 @@
 {
   "category": "cache_poisoning",
+  "chain_with": [
+    "host_header",
+    "request_smuggling",
+    "info_disclosure"
+  ],
   "contexts": {
     "unkeyed_headers": {
       "description": "Web cache poisoning via unkeyed headers — inject values into cached responses by abusing headers the cache ignores when computing the cache key",

@@ -1,17 +1,53 @@
 {
   "category": "crypto_weakness",
+  "chain_with": [
+    "jwt",
+    "oauth",
+    "info_disclosure"
+  ],
   "contexts": {
     "padding_oracle_cbc": {
       "description": "WSTG-CRYP-02 -- CBC-mode ciphertext (cookie, view-state, encrypted-token) reveals padding validity via differential response (200 vs 500, or distinct error text). Vaudenay attack: byte-level plaintext recovery + arbitrary ciphertext forging.",
-      "tech_match": ["ASP.NET", "Java", "PHP", "Ruby"],
-      "param_match": ["token", "session", "ticket", "auth", "data", "state", "encrypted", "iv", "ct", "cookie"],
+      "tech_match": [
+        "ASP.NET",
+        "Java",
+        "PHP",
+        "Ruby"
+      ],
+      "param_match": [
+        "token",
+        "session",
+        "ticket",
+        "auth",
+        "data",
+        "state",
+        "encrypted",
+        "iv",
+        "ct",
+        "cookie"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Flip the last byte of a base64/hex ciphertext-looking value -- distinct response between 'padding invalid' (500) and 'mac/decrypt OK but business-logic fail' (400/200) reveals oracle. Confirm with 3 flipped variants.",
           "matchers": [
-            {"type": "status", "status": [500, 502]},
-            {"type": "word", "words": ["padding", "BadPaddingException", "cryptographicexception", "decrypt"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                500,
+                502
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "padding",
+                "BadPaddingException",
+                "cryptographicexception",
+                "decrypt"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
@@ -20,8 +56,19 @@
           "payload": "{{baseline}}",
           "description": "Detect ASP.NET view-state padding oracle (CVE-2010-3332 lineage) -- ViewState parameter present + behaviour delta on flipped last byte",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)__VIEWSTATE=[A-Za-z0-9+/=%]"},
-            {"type": "word", "words": ["padding", "CryptographicException", "ViewStateException"], "condition": "or"}
+            {
+              "type": "regex",
+              "pattern": "(?i)__VIEWSTATE=[A-Za-z0-9+/=%]"
+            },
+            {
+              "type": "word",
+              "words": [
+                "padding",
+                "CryptographicException",
+                "ViewStateException"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65
@@ -31,13 +78,26 @@
     "weak_hash_in_token": {
       "description": "WSTG-CRYP-04 -- MD5/SHA-1 fingerprint visible in session token, CSRF token, reset-link signature. MD5 length=32 hex, SHA-1 length=40 hex -- collidable/preimage-attackable depending on use",
       "tech_match": [],
-      "param_match": ["token", "csrf", "sig", "signature", "hmac", "hash", "checksum", "reset_token", "verify"],
+      "param_match": [
+        "token",
+        "csrf",
+        "sig",
+        "signature",
+        "hmac",
+        "hash",
+        "checksum",
+        "reset_token",
+        "verify"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Response or cookie contains 32-hex-char value used as auth/CSRF token -- likely MD5 (collision-attackable for forgery)",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)(token|csrf|sig|signature)[\"':=]\\s*[\"']?[a-f0-9]{32}[\"'&;\\s]"}
+            {
+              "type": "regex",
+              "pattern": "(?i)(token|csrf|sig|signature)[\"':=]\\s*[\"']?[a-f0-9]{32}[\"'&;\\s]"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -46,7 +106,10 @@
           "payload": "{{baseline}}",
           "description": "Response or cookie contains 40-hex-char value used as auth/CSRF token -- likely SHA-1 (chosen-prefix collision practical since 2020)",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)(token|csrf|sig|signature)[\"':=]\\s*[\"']?[a-f0-9]{40}[\"'&;\\s]"}
+            {
+              "type": "regex",
+              "pattern": "(?i)(token|csrf|sig|signature)[\"':=]\\s*[\"']?[a-f0-9]{40}[\"'&;\\s]"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -62,8 +125,14 @@
           "payload": "{{baseline}}",
           "description": "JWT detected with HS256 -- pull token, attempt hashcat -m 16500 with rockyou + service-name-based wordlist offline. Tool layer flags presence; cracking is offline.",
           "matchers": [
-            {"type": "regex", "pattern": "eyJ[A-Za-z0-9_\\-]{6,}\\.eyJ[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{20,}"},
-            {"type": "regex", "pattern": "(?i)\"alg\"\\s*:\\s*\"HS256\""}
+            {
+              "type": "regex",
+              "pattern": "eyJ[A-Za-z0-9_\\-]{6,}\\.eyJ[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{20,}"
+            },
+            {
+              "type": "regex",
+              "pattern": "(?i)\"alg\"\\s*:\\s*\"HS256\""
+            }
           ],
           "severity": "low",
           "confidence_boost": 20
@@ -79,7 +148,10 @@
           "payload": "{{baseline}}",
           "description": "Response mentions DES/3DES/RC4/EXPORT/NULL cipher in debug header or body",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)(rc4|3des|des-cbc|export|null-md5|null-sha)"}
+            {
+              "type": "regex",
+              "pattern": "(?i)(rc4|3des|des-cbc|export|null-md5|null-sha)"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -89,14 +161,35 @@
     "encrypted_blob_without_integrity": {
       "description": "Token looks encrypted (base64 long + high entropy) but client can modify and submit -- no HMAC over ciphertext. Reveals via padding-oracle or bit-flip giving 200 instead of 500.",
       "tech_match": [],
-      "param_match": ["data", "state", "token", "session", "auth", "blob"],
+      "param_match": [
+        "data",
+        "state",
+        "token",
+        "session",
+        "auth",
+        "blob"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Flip a byte mid-ciphertext -- if server returns 200 (or distinct non-padding error) the blob is unauthenticated (no HMAC wrapper)",
           "matchers": [
-            {"type": "status", "status": [200, 400]},
-            {"type": "not_word", "words": ["mac", "signature", "tamper", "integrity"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                400
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "mac",
+                "signature",
+                "tamper",
+                "integrity"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45

@@ -1,17 +1,55 @@
 {
   "category": "error_handling_misuse",
+  "chain_with": [
+    "info_disclosure",
+    "idor",
+    "auth_bypass"
+  ],
   "contexts": {
     "empty_body_default_allow": {
       "description": "Empty / null / {} body on state-changing POST treated as default-allow -- server fills missing fields with defaults that grant access",
-      "tech_match": ["Node.js", "Express", "Spring", "Django", "Rails", "ASP.NET"],
-      "param_match": ["role", "admin", "is_admin", "permission", "scope", "tier", "plan", "enabled", "verified", "approved"],
+      "tech_match": [
+        "Node.js",
+        "Express",
+        "Spring",
+        "Django",
+        "Rails",
+        "ASP.NET"
+      ],
+      "param_match": [
+        "role",
+        "admin",
+        "is_admin",
+        "permission",
+        "scope",
+        "tier",
+        "plan",
+        "enabled",
+        "verified",
+        "approved"
+      ],
       "probes": [
         {
           "payload": "{}",
           "description": "Empty JSON body -- if server processes request and returns 200 with elevated state, defaults grant unintended access",
           "matchers": [
-            {"type": "status", "status": [200, 201, 204]},
-            {"type": "not_word", "words": ["required", "missing", "invalid", "bad request"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201,
+                204
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "required",
+                "missing",
+                "invalid",
+                "bad request"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -20,8 +58,22 @@
           "payload": "null",
           "description": "Literal null body -- some parsers (Jackson, Gson) coerce null to default object",
           "matchers": [
-            {"type": "status", "status": [200, 201, 204]},
-            {"type": "not_word", "words": ["required", "null", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201,
+                204
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "required",
+                "null",
+                "invalid"
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -30,15 +82,41 @@
     },
     "missing_required_field_default": {
       "description": "Required auth/role field omitted -- server falls back to default value (often admin=false but sometimes admin=true on misconfigured ORMs)",
-      "tech_match": ["Rails", "Django", "Express", "Spring"],
-      "param_match": ["role", "admin", "is_admin", "user_id", "tenant_id", "scope"],
+      "tech_match": [
+        "Rails",
+        "Django",
+        "Express",
+        "Spring"
+      ],
+      "param_match": [
+        "role",
+        "admin",
+        "is_admin",
+        "user_id",
+        "tenant_id",
+        "scope"
+      ],
       "probes": [
         {
           "payload": "{\"username\":\"swktest-{{marker}}\"}",
           "description": "Registration without role field -- if server creates user with default role from model, missing field may elevate when default is permissive",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["admin", "role", "is_admin"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "role",
+                "is_admin"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -48,14 +126,34 @@
     "null_value_bypass": {
       "description": "Field present but set to null -- authorization checks that test `if field == \"admin\"` skip null entirely allowing bypass downstream",
       "tech_match": [],
-      "param_match": ["role", "permission", "scope", "filter", "tenant_id", "owner_id", "user_id"],
+      "param_match": [
+        "role",
+        "permission",
+        "scope",
+        "filter",
+        "tenant_id",
+        "owner_id",
+        "user_id"
+      ],
       "probes": [
         {
           "payload": "{\"role\":null,\"action\":\"read\"}",
           "description": "Null role -- string comparison `role == \"user\"` fails for null, may skip role-check branch entirely",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["forbidden", "unauthorized", "permission denied"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized",
+                "permission denied"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -64,8 +162,16 @@
           "payload": "{\"tenant_id\":null}",
           "description": "Null tenant filter -- WHERE tenant_id = NULL returns no rows (correct) OR is dropped from query (cross-tenant leak)",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "length_diff", "min_diff": 500}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 500
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
@@ -74,15 +180,41 @@
     },
     "type_coercion_confusion": {
       "description": "Integer field receives string / array -- parser coercion fallback bypasses validation (NoSQL injection via type confusion classic)",
-      "tech_match": ["Node.js", "MongoDB", "Express", "PHP"],
-      "param_match": ["id", "user_id", "password", "token", "amount", "quantity", "price"],
+      "tech_match": [
+        "Node.js",
+        "MongoDB",
+        "Express",
+        "PHP"
+      ],
+      "param_match": [
+        "id",
+        "user_id",
+        "password",
+        "token",
+        "amount",
+        "quantity",
+        "price"
+      ],
       "probes": [
         {
           "payload": "{\"password\":{\"$ne\":null}}",
           "description": "MongoDB operator injection -- string field coerced to query object bypasses password check",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["invalid", "incorrect", "not found"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "invalid",
+                "incorrect",
+                "not found"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65
@@ -91,7 +223,17 @@
           "payload": "{\"id\":[1,2,3]}",
           "description": "Array-where-int -- array param coerced to first element OR triggers SQL/ORM error revealing stack",
           "matchers": [
-            {"type": "word", "words": ["TypeError", "ClassCastException", "expected integer", "sql", "syntax"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "TypeError",
+                "ClassCastException",
+                "expected integer",
+                "sql",
+                "syntax"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -100,8 +242,19 @@
           "payload": "{\"is_admin\":\"false\"}",
           "description": "String 'false' -- truthy in JS/Python (non-empty string), bypasses boolean check `if (!is_admin)`",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["forbidden", "unauthorized"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -110,15 +263,36 @@
     },
     "content_type_parser_fallback": {
       "description": "Wrong / missing Content-Type -- server falls back to a permissive parser that accepts attacker-controlled structure (XML where JSON expected, form where JSON expected)",
-      "tech_match": ["Spring", "ASP.NET", "Rails", "Express"],
+      "tech_match": [
+        "Spring",
+        "ASP.NET",
+        "Rails",
+        "Express"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "<?xml version=\"1.0\"?><user><role>admin</role></user>",
           "description": "XML body on JSON endpoint -- if server auto-detects and parses XML, XXE attack surface opens on a JSON-only route",
           "matchers": [
-            {"type": "status", "status": [200, 201, 500]},
-            {"type": "word", "words": ["role", "admin", "XMLStreamException", "DOCTYPE"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201,
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "role",
+                "admin",
+                "XMLStreamException",
+                "DOCTYPE"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -127,8 +301,22 @@
           "payload": "role=admin&is_admin=true",
           "description": "form-urlencoded on JSON endpoint -- Spring/Rails may accept both formats and bind to same model",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["admin", "role", "is_admin"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "role",
+                "is_admin"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -137,15 +325,37 @@
     },
     "oversized_payload_stacktrace": {
       "description": "Oversized JSON / deeply-nested array crashes parser and leaks framework stack trace in 500 body",
-      "tech_match": ["Spring", "Express", "Django", "Rails"],
+      "tech_match": [
+        "Spring",
+        "Express",
+        "Django",
+        "Rails"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline_with_nested_array_depth_1000}}",
           "description": "Deeply-nested array (depth 1000) -- StackOverflowError / RecursionError leaks framework + file paths in body",
           "matchers": [
-            {"type": "status", "status": [500, 502]},
-            {"type": "word", "words": ["StackOverflow", "RecursionError", "at com.", "at org.", "Traceback", "node_modules"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                500,
+                502
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "StackOverflow",
+                "RecursionError",
+                "at com.",
+                "at org.",
+                "Traceback",
+                "node_modules"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -154,15 +364,38 @@
     },
     "trailing_nullbyte_identifier_bypass": {
       "description": "Trailing null byte / whitespace in identifier passes validation but truncated downstream -- 'admin\\x00x' matches 'admin' in DB but not in validator",
-      "tech_match": ["PHP", "C", "Go"],
-      "param_match": ["username", "email", "user", "filename", "path", "id"],
+      "tech_match": [
+        "PHP",
+        "C",
+        "Go"
+      ],
+      "param_match": [
+        "username",
+        "email",
+        "user",
+        "filename",
+        "path",
+        "id"
+      ],
       "probes": [
         {
           "payload": "admin\u0000extra",
           "description": "Null byte truncation -- validation sees full string, DB lookup truncates at null",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["not found", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "not found",
+                "invalid"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -171,8 +404,20 @@
           "payload": "admin ",
           "description": "Trailing space -- DB comparison may trim, validation does not",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["not found", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "not found",
+                "invalid"
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -181,15 +426,39 @@
     },
     "boolean_coercion": {
       "description": "Boolean field accepts string/number forms that bypass `if (x === true)` check but pass `if (x)` check elsewhere",
-      "tech_match": ["Node.js", "JavaScript", "PHP", "Python"],
-      "param_match": ["enabled", "verified", "is_admin", "approved", "confirmed", "active"],
+      "tech_match": [
+        "Node.js",
+        "JavaScript",
+        "PHP",
+        "Python"
+      ],
+      "param_match": [
+        "enabled",
+        "verified",
+        "is_admin",
+        "approved",
+        "confirmed",
+        "active"
+      ],
       "probes": [
         {
           "payload": "{\"verified\":\"true\"}",
           "description": "String 'true' -- strict-equality check fails (string != bool), loose-equality elsewhere passes -- inconsistent enforcement",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["forbidden", "denied", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "denied",
+                "invalid"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -198,8 +467,20 @@
           "payload": "{\"verified\":1}",
           "description": "Number 1 for boolean -- PHP/JS truthy, may bypass strict bool check",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["forbidden", "denied", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "denied",
+                "invalid"
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -208,15 +489,42 @@
     },
     "array_vs_string_confusion": {
       "description": "Param expected as string sent as array (or vice versa) -- server picks first/last element or concatenates, bypassing filters that ran on full input",
-      "tech_match": ["Express", "PHP", "Rails"],
-      "param_match": ["id", "user", "search", "filter", "sort", "order", "redirect"],
+      "tech_match": [
+        "Express",
+        "PHP",
+        "Rails"
+      ],
+      "param_match": [
+        "id",
+        "user",
+        "search",
+        "filter",
+        "sort",
+        "order",
+        "redirect"
+      ],
       "probes": [
         {
           "payload": "id[]=1&id[]=2",
           "description": "Array param for scalar id -- PHP returns array, Express returns array, Rails returns last value -- inconsistent with downstream string ops",
           "matchers": [
-            {"type": "status", "status": [200, 500]},
-            {"type": "word", "words": ["TypeError", "Array", "expected", "no method"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "TypeError",
+                "Array",
+                "expected",
+                "no method"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -225,15 +533,33 @@
     },
     "charset_mismatch_filter_bypass": {
       "description": "Request charset declared differently than parsed -- filter runs on UTF-8 view but storage uses UTF-16/Latin-1 view, allowing bytes to pass",
-      "tech_match": ["Java", "Spring", "ASP.NET"],
-      "param_match": ["q", "search", "comment", "name", "title", "content"],
+      "tech_match": [
+        "Java",
+        "Spring",
+        "ASP.NET"
+      ],
+      "param_match": [
+        "q",
+        "search",
+        "comment",
+        "name",
+        "title",
+        "content"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}<script>alert(1)</script>",
           "description": "XSS with Content-Type: text/plain; charset=utf-7 -- filter runs UTF-8 then storage transcodes UTF-7 escape passes through",
           "matchers": [
-            {"type": "reflection", "check_variants": true},
-            {"type": "header", "name": "Content-Type", "contains": "utf-7"}
+            {
+              "type": "reflection",
+              "check_variants": true
+            },
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "utf-7"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -242,15 +568,32 @@
     },
     "fail_open_on_parser_error": {
       "description": "Auth middleware throws on malformed JWT/header -- exception is swallowed and request continues unauthenticated as if anonymous-allowed",
-      "tech_match": ["Express", "Spring Security", "ASP.NET", "Django"],
+      "tech_match": [
+        "Express",
+        "Spring Security",
+        "ASP.NET",
+        "Django"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "Bearer not_a_jwt",
           "description": "Malformed bearer token -- if middleware throws and downstream treats throw as 'no auth', protected resource may serve anonymous response",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["unauthorized", "forbidden", "invalid token"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden",
+                "invalid token"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 55
@@ -259,8 +602,19 @@
           "payload": "Bearer ",
           "description": "Empty bearer -- some validators short-circuit on empty and skip auth check",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["unauthorized", "forbidden"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 55
@@ -269,15 +623,41 @@
     },
     "default_role_on_register": {
       "description": "Registration endpoint accepts role/scope/tier fields that should be server-controlled -- mass-assignment via missing-field default OR explicit field acceptance",
-      "tech_match": ["Rails", "Django", "Express", "Spring"],
-      "param_match": ["role", "is_admin", "scope", "tier", "plan", "permissions"],
+      "tech_match": [
+        "Rails",
+        "Django",
+        "Express",
+        "Spring"
+      ],
+      "param_match": [
+        "role",
+        "is_admin",
+        "scope",
+        "tier",
+        "plan",
+        "permissions"
+      ],
       "probes": [
         {
           "payload": "{\"username\":\"swktest-{{marker}}\",\"role\":\"admin\"}",
           "description": "Explicit admin role on signup -- if server persists without filter, classic mass-assignment ATO",
           "matchers": [
-            {"type": "status", "status": [200, 201]},
-            {"type": "word", "words": ["admin", "role", "created"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "role",
+                "created"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 65
