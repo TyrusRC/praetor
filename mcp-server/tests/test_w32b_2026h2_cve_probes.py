@@ -149,11 +149,18 @@ class KbMergeTest(unittest.TestCase):
         self.assertTrue(ctx.get("probes"))
         self.assertEqual(ctx.get("severity"), "critical")
 
-    def test_no_new_kb_sibling_files(self):
-        """KB-org rule check: no W32-b creates new KB files. Count must be 137 still."""
+    def test_w32b_kb_merges_did_not_create_new_files(self):
+        """KB-org rule check: W32-b adds contexts via merge only.
+        Count must be at least 137 (W31-c baseline); later waves may add new
+        framework parents when justified (W32-c added a2a_protocol.json)."""
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 137,
-                         f"KB count drifted from 137 (W31-c baseline) to {count}")
+        self.assertGreaterEqual(count, 137,
+                                f"KB count regressed below W31-c baseline 137: {count}")
+        # Specifically: the contexts merged in W32-b must be in existing parents
+        k8s = json.loads((KB_DIR / "kubernetes_exposed.json").read_text())
+        cw = json.loads((KB_DIR / "cloud_webapp.json").read_text())
+        self.assertIn("runc_masked_path_symlink_race_2025", k8s.get("contexts", {}))
+        self.assertIn("azure_imds_keyvault_chain_storm2949_2026", cw.get("contexts", {}))
 
 
 class ClaudeCodeHookScannerBehaviorTest(unittest.IsolatedAsyncioTestCase):
