@@ -2,15 +2,14 @@
 
 *Agentic DAST orchestrator for Burp Suite.*
 
-[![MCP Badge](https://lobehub.com/badge/mcp/tyrusrc-burpsuite-swiss-knife-mcp)](https://lobehub.com/mcp/tyrusrc-burpsuite-swiss-knife-mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/TyrusRC/praetor/releases)
 [![Java](https://img.shields.io/badge/java-21%2B-blue)](https://adoptium.net/temurin/releases/?version=21)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io/)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows%20%7C%20wsl-blue)](#supported-platforms)
 
-> **Renamed in v1.0** from `burpsuite-swiss-knife-mcp` to **Praetor**. Repo URL and Python package directory unchanged this release; binary names (`praetor-mcp`, `praetor-burp-ext-1.0.0.jar`) are new. Backwards-compatible script aliases retained for one release cycle.
+> **Renamed in v1.0** from `burpsuite-swiss-knife-mcp` to **Praetor**. The GitHub repo is now `github.com/TyrusRC/praetor` (old URLs redirect). Python package directory unchanged this release; binary names (`praetor-mcp`, `praetor-burp-ext-1.0.0.jar`) are new. Backwards-compatible script aliases retained for one release cycle.
 
 Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into a Burp-native agentic pentester. It exposes Burp's HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), an 11-agent team, and a save-finding pipeline with persistent target memory. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
 
@@ -80,7 +79,7 @@ Pick the level of automation you want.
 The MCP server runs straight from the source tree with `uvx`. You still need the Burp extension JAR loaded in Burp Suite — see the Manual section below for that part.
 
 ```sh
-uvx --from "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server" \
+uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" \
     burpsuite-swiss-knife-mcp
 ```
 
@@ -93,7 +92,7 @@ Or in `.mcp.json`:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server",
+        "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server",
         "burpsuite-swiss-knife-mcp"
       ]
     }
@@ -132,7 +131,7 @@ uv sync
 ### `pipx`
 
 ```sh
-pipx install "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server"
+pipx install "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server"
 burpsuite-swiss-knife-mcp     # entrypoint
 ```
 

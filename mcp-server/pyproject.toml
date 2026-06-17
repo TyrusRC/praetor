@@ -26,9 +26,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp"
-Repository = "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp"
-Issues = "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/issues"
+Homepage = "https://github.com/TyrusRC/praetor"
+Repository = "https://github.com/TyrusRC/praetor"
+Issues = "https://github.com/TyrusRC/praetor/issues"
 
 [project.scripts]
 praetor-mcp = "burpsuite_mcp.__main__:main"

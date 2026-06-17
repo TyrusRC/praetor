@@ -118,7 +118,7 @@ def _to_sarif(findings: list[dict]) -> dict:
                     "driver": {
                         "name": "Praetor",
                         "version": "1.0.0",
-                        "informationUri": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp",
+                        "informationUri": "https://github.com/TyrusRC/praetor",
                         "rules": list(rule_ids.values()),
                     }
                 },

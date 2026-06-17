@@ -5,9 +5,9 @@
   "description": "Praetor — agentic DAST orchestrator for Burp Suite. ~233 MCP tools spanning recon (amass / subfinder / httpx + wappalyzergo / gau / katana / wafw00f), web scan (nuclei / nikto / wpscan / dalfox / ffuf / arjun), exploit (sqlmap / commix / ysoserial gen), SAST + secrets (opengrep / gitleaks / trufflehog / git-dumper / Noir OpenAPI ingest), browser-driven crawl + screenshot via CloakBrowser stealth Chromium, auth-matrix (Subject × Object × Action), fuzz, race (single-packet + timeless + last-byte), smuggling (Kettle 2025 — 0.CL/CL.0/V-H/Expect/double-desync), OAuth/SAML chain probes (mix-up/XSW/JWKS swap), FIDO/passkey/payment flows, business-logic battery (idempotency / workflow_reorder / line_item_mutation / float_decimal_rounding / cron_backfill / content_type_switch / quota_window_edge), edge-vs-internal trust split, privilege-revocation verification, monotonic-ID enumeration (UUIDv1/ULID/Snowflake), cross-transport IDOR (REST/GraphQL/WS), identifier harvest for IDOR pivots, native JWT forge/crack (no external deps), login-bypass + MFA-bypass + session-lifecycle + reset-token entropy orchestrators, native CSRF/SSRF/SSTI/XXE/WebSocket-CSWSH/prototype-pollution orchestrators, active LLM/MCP attack probes (prompt-injection / EchoLeak / vector-DB injection / tool-poisoning) with declarative guardrail middleware, anonymous cloud surface (S3/GCS/Azure/etcd/kubelet/Docker-daemon/.tfstate/Firebase/Lambda-URL), security-research bundler, cross-engagement findings graph, 128+ file knowledge base for adaptive probing, three-phase save-finding pipeline (replay → 7-question gate → persist), intensity flag (safe/normal/aggressive), engagement cost cap, SARIF + JUnit + compliance (PCI-DSS/HIPAA/SOC2/GDPR) reporting, auto-PoC repro.sh generator, confirm_* exploit-to-confirm with tool-layer destructive denylist.",
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp",
-  "repository": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp",
-  "issues": "https://github.com/TyrusRC/burpsuite-swiss-knife-mcp/issues",
+  "homepage": "https://github.com/TyrusRC/praetor",
+  "repository": "https://github.com/TyrusRC/praetor",
+  "issues": "https://github.com/TyrusRC/praetor/issues",
   "author": "TyrusRC",
   "category": "security",
   "tags": [
@@ -74,11 +74,11 @@
     "command": "uvx",
     "args": [
       "--from",
-      "git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server",
+      "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server",
       "burpsuite-swiss-knife-mcp"
     ],
     "alternative_installs": {
-      "pipx": "pipx install 'git+https://github.com/TyrusRC/burpsuite-swiss-knife-mcp.git#subdirectory=mcp-server'",
+      "pipx": "pipx install 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server'",
       "uv": "uv pip install -e ./mcp-server && uv run python -m burpsuite_mcp"
     },
     "env": {

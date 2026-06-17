@@ -20,7 +20,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-PROJECT_SLUG = "-home-tyrus-Github-burpsuite-swiss-knife-mcp"
+PROJECT_SLUG = "-home-tyrus-Github-praetor"
 MEMORY_DIR = Path.home() / ".claude" / "projects" / PROJECT_SLUG / "memory"
 
 # Memory types in order of decay risk (most-likely-stale first).
