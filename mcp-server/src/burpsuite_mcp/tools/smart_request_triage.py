@@ -440,39 +440,12 @@ def register(mcp: FastMCP) -> None:
     async def smart_request_triage(index: int) -> dict:
         """Capture a proxy/logger index, output a fire-ready attack plan.
 
-        Collapses the get_request_detail -> extract_* -> smart_analyze ->
-        reason -> pick four-step LLM loop into ONE call. Reads the captured
-        request/response, applies content-type + signal-driven routing, and
-        emits a priority-ordered attack_plan whose suggested_call lines are
-        ready to dispatch.
-
-        Routing:
-          P0 - error-marker class match (sqli/ssti/rce) -> confirm_*
-          P0 - text/x-component response                 -> probe_cve_with_variants (CVE-2025-55182)
-          P1 - JS bundle                                 -> smart_js_analyze
-          P1 - GraphQL response                          -> test_graphql
-          P1 - XML body (POST/PUT/PATCH)                 -> test_xxe
-          P1 - HTML w/ forms                             -> test_csrf + test_dom_sinks
-          P1 - 401/403                                   -> test_auth_matrix (+ probe_kerberos_spnego_auth if Negotiate)
-          P1 - 30x + redirect-named param                -> test_open_redirect
-          P2 - JSON API + auth header                    -> test_auth_matrix + auto_probe
-          P3 - debug headers, secrets, stack trace       -> annotate_request / save_finding (NEVER_SUBMIT)
+        Collapses get_request_detail->extract_*->smart_analyze->reason->pick into ONE call. Reads the captured request/response, applies content-type + signal-driven routing, and emits a priority-ordered attack_plan whose suggested_call lines are ready to dispatch.
 
         Args:
             index: Proxy history index of the captured entry.
 
-        Returns:
-            {
-                "index", "url", "method", "status_code", "content_type",
-                "request_params": {query: [...], body: [...], cookies: [...]},
-                "request_headers", "response_headers",
-                "has_auth_header", "tech_hints",
-                "response_signals": {has_forms, form_inputs, stack_trace,
-                    error_class, rsc_response, graphql_response, secrets},
-                "attack_plan": [{priority, vuln_class, target_url, parameter,
-                    canary, suggested_tool, suggested_call, rationale}, ...],
-                "human_summary": <readable digest>,
-            }
+        Returns dict: index/url/method/status_code/content_type, request_params, headers, has_auth_header, tech_hints, response_signals, attack_plan[{priority, vuln_class, target_url, parameter, canary, suggested_tool, suggested_call, rationale}], human_summary.
         """
         if index < 0:
             return {"error": "smart_request_triage requires a non-negative index"}

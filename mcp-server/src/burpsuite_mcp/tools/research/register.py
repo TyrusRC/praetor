@@ -29,36 +29,14 @@ def register(mcp: FastMCP):
     ) -> str:
         """Curated security-research bundle for a suspected attack vector.
 
-        Returns four sections: (1) deep-dive prompts + obscure vectors +
-        chain hypotheses (from inline KB), (2) verified-static methodology
-        deep-links (PortSwigger Academy + HackTricks + PayloadsAllTheThings
-        + OWASP WSTG) Claude can WebFetch, (3) pre-baked WebSearch queries
-        Claude pipes to its native search tool to reach JS-SPA / bot-blocked
-        sources (HackerOne reports, Bugcrowd disclosures, writeup blogs)
-        via search engines, (4) direct advisory-DB URLs (Exploit-DB / OSV /
-        GitHub Advisory / Snyk DB / AttackerKB).
-
-        Hardcoded URLs are ONLY used for sources verified to return rich
-        non-JS content. Everything else routes through WebSearch — search
-        engines crawl them and we get content without fighting Cloudflare.
-
-        Use when you found something interesting but aren't sure how deep
-        it goes — this tool encodes "what would a senior researcher try?"
-        as a single call. Rule 27's 20%-creative-hunting budget lives here.
+        Returns four sections: (1) deep-dive prompts + chain hypotheses, (2) verified-static methodology deep-links (PortSwigger/HackTricks/PayloadsAllTheThings/WSTG) to WebFetch, (3) pre-baked WebSearch queries for JS/bot-blocked sources (H1/Bugcrowd/writeups), (4) advisory-DB URLs (Exploit-DB/OSV/GitHub Advisory/Snyk/AttackerKB). Rule 27's creative-hunting budget lives here.
 
         Args:
-            vuln_type: Class (sqli, xss, ssrf, ssti, idor, rce, csrf, xxe,
-                race_condition, request_smuggling, deserialization,
-                open_redirect, prototype_pollution, auth_bypass, graphql,
-                websocket, cors, business_logic). Free-form accepted.
-            tech_stack: Comma-separated tech identifiers — "express,redis"
-                / "django,postgres" / "spring-boot,kafka". Narrows code
-                search + advisory-DB queries.
-            finding_summary: One-sentence observation. Used verbatim in
-                some search queries for highest-signal matches.
-            endpoint: Endpoint that triggered the suspicion. Optional.
-            target_domain: Bug-bounty target host. If supplied, adds a
-                "priors on this target" search query.
+            vuln_type: Class (sqli/xss/ssrf/ssti/idor/rce/csrf/xxe/race_condition/request_smuggling/deserialization/open_redirect/prototype_pollution/auth_bypass/graphql/websocket/cors/business_logic). Free-form accepted.
+            tech_stack: Comma-separated tech ("express,redis"). Narrows code + advisory-DB search.
+            finding_summary: One-sentence observation; used verbatim in some queries.
+            endpoint: Endpoint that triggered suspicion. Optional.
+            target_domain: Bug-bounty host; adds a "priors on this target" query.
         """
         v = (vuln_type or "").lower().strip()
         kb = _VECTOR_KB.get(v)

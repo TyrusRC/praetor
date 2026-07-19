@@ -60,40 +60,20 @@ def register(mcp: FastMCP) -> None:
         click_crawl: bool = True,
         max_clicks: int = 3,
     ) -> dict:
-        """Inject a unique marker (optionally wrapped in a polyglot exploit
-        payload) through query / fragment / referrer and capture which DOM
-        sinks it reaches. Returns VerdictResult (W7 schema).
+        """Inject a marker (optionally polyglot-wrapped) via query/fragment/referrer and capture which DOM sinks it reaches. Returns VerdictResult.
 
-        Detects DOM-based XSS, DOM open-redirect, link
-        manipulation, DOM data manipulation, CSPP, AngularJS CSTI.
+        Detects DOM XSS, DOM open-redirect, link manipulation, DOM data manipulation, CSPP, AngularJS CSTI.
 
         Args:
-            url: Target URL (must already be in scope).
-            source_param: Parameter name to inject the marker into (for
-                query / fragment_kv / fragment_shapes / referrer kinds).
-            source_kinds: Subset of ['query', 'fragment', 'fragment_kv',
-                'fragment_shapes', 'referrer']. Default: all five.
-            polyglots: Subset of polyglot wrappers. Default:
-                ['plain', 'angular_csti', 'proto_pollute', 'xss_svg'].
-                Full list: plain, angular_csti, handlebars, proto_pollute,
-                proto_constr, xss_svg, xss_img, url_break.
-            fragment_shapes: When source_kinds includes 'fragment_shapes',
-                which router patterns to test. Default: all of bare, param,
-                qs_in_hash, hash_route, hash_route_kv, hashbang_kv.
-            cspp_known_keys: List of Object.prototype keys to attempt to
-                pollute via `?__proto__[<key>]=<marker>`. The marker is
-                the VALUE, so any sink that later reads that key (e.g.
-                `script.src = config.transport_url`) flags as DOM XSS via
-                CSPP. Default: transport_url, src, url, html, redirect_uri,
-                redirectUri, next, callback, action, include, template.
-                Pass [] to disable.
-            wait_ms: How long to wait after navigation for async DOM
-                mutations (default 2500ms).
-            click_crawl: After the initial navigation, click up to
-                `max_clicks` visible same-origin anchors so SPA routers
-                that only fire DOM sinks after a navigation event get
-                a chance to trigger. Default True.
-            max_clicks: Cap on click_crawl follow-up navigations. Default 3.
+            url: Target URL (must be in scope).
+            source_param: Param to inject into (query/fragment_kv/fragment_shapes/referrer).
+            source_kinds: Subset of query/fragment/fragment_kv/fragment_shapes/referrer. Default all.
+            polyglots: Subset of plain/angular_csti/handlebars/proto_pollute/proto_constr/xss_svg/xss_img/url_break. Default: plain, angular_csti, proto_pollute, xss_svg.
+            fragment_shapes: Router patterns for 'fragment_shapes' (bare/param/qs_in_hash/hash_route/hash_route_kv/hashbang_kv). Default all.
+            cspp_known_keys: Object.prototype keys to pollute via ?__proto__[key]=marker; sinks reading the key flag DOM-XSS-via-CSPP. Default: transport_url/src/url/html/redirect_uri/... Pass [] to disable.
+            wait_ms: Wait after navigation for async DOM mutations (default 2500).
+            click_crawl: Click up to max_clicks same-origin anchors to trigger SPA-router sinks. Default True.
+            max_clicks: Cap on click_crawl navigations. Default 3.
         """
         from burpsuite_mcp import client as burp_client
 

@@ -45,25 +45,25 @@ def register(mcp: FastMCP):
         human_verified: bool = False,
         overrides: list[str] | None = None,
     ) -> str:
-        """Save a pentest finding. Requires prior assess_finding() call. Burp hard-rejects missing evidence.
+        """Save a pentest finding. Requires prior assess_finding(). Burp hard-rejects missing evidence.
 
         Args:
-            title: Short finding title
-            description: Detailed vulnerability description
-            evidence: Dict with logger_index, proxy_history_index, or collaborator_interaction_id
-            severity: CRITICAL, HIGH, MEDIUM, LOW, or INFO. Operator-locked — wins over advisor's inferred severity. See user-override skill for routing guidance.
-            endpoint: Affected URL/endpoint
-            evidence_text: Freeform proof string for the report
-            reproductions: Required for timing/blind vuln_types (>=2 dicts with logger_index/elapsed_ms/status_code)
-            chain_with: Required for NEVER SUBMIT vuln_types — list of finding IDs for the chain
-            status: suspected, confirmed, stale, or likely_false_positive
-            domain: Target domain for persistent .burp-intel storage
-            parameter: Parameter name (dedup key)
-            vuln_type: Vulnerability class (e.g. sqli, xss, sqli_blind)
-            confidence: 0.0-1.0 score
-            force_recon_gate: Bypass the session-start recon gate (Rule 20a). Only use if recon is already in flight in this session and not yet persisted.
-            human_verified: Operator confirmed visually in Burp UI / browser DevTools. Logged in finding metadata (R19).
-            overrides: Audit-trailed gate bypasses (R20). Each entry "<gate>:<reason>". Stored in finding entry as 'overrides' for review.
+            title: Short finding title.
+            description: Detailed vulnerability description.
+            evidence: Dict with logger_index, proxy_history_index, or collaborator_interaction_id.
+            severity: CRITICAL/HIGH/MEDIUM/LOW/INFO. Operator-locked — wins over advisor's inferred severity.
+            endpoint: Affected URL/endpoint.
+            evidence_text: Freeform proof string for the report.
+            reproductions: Required for timing/blind vuln_types (>=2 dicts with logger_index/elapsed_ms/status_code).
+            chain_with: Required for NEVER-SUBMIT vuln_types — list of finding IDs for the chain.
+            status: suspected/confirmed/stale/likely_false_positive.
+            domain: Target domain for persistent .burp-intel storage.
+            parameter: Parameter name (dedup key).
+            vuln_type: Vuln class (e.g. sqli, xss, sqli_blind).
+            confidence: 0.0-1.0 score.
+            force_recon_gate: Bypass session-start recon gate (Rule 20a); only if recon is in flight and not yet persisted.
+            human_verified: Operator confirmed visually in Burp/DevTools. Logged in metadata.
+            overrides: Audit-trailed gate bypasses (R20), each "<gate>:<reason>".
         """
         # Severity is operator-locked. Validate but don't auto-adjust.
         valid_severities = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}

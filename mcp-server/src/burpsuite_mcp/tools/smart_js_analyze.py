@@ -461,44 +461,17 @@ def register(mcp: FastMCP) -> None:
         max_targets: int = 10,
         session: str = "",
     ) -> dict:
-        """Read JS file(s), synthesise a fire-ready attack plan.
-
-        Replaces the extract → reason → pick → fire LLM loop with one call.
-        Operator dispatches the top entries of `attack_plan` directly — no
-        intermediate thinking, no token burn.
+        """Read JS file(s), synthesise a fire-ready attack plan — replaces the extract->reason->pick->fire loop with one call.
 
         Args:
-            index: Proxy history index of a captured JS response. Mutually
-                exclusive with `url`/`urls`.
-            url: JS file URL to fetch via Burp (curl_request) and analyse.
-                Mutually exclusive with `index`/`urls`.
-            urls: Batch — list of JS URLs. Each fetched + analysed; the plan
-                is synthesised over the union. Use when 30 bundle chunks
-                share one app shell.
-            target_base_url: Base URL for the running app (e.g.
-                'https://app.example.com'). Used to resolve relative endpoint
-                paths and to anchor RSC / GraphQL / WebSocket suggestions.
-                Falls back to the JS source URL when omitted.
-            max_targets: Cap on the attack_plan length. Default 10.
-                Informational entries (secrets, source maps) past the cap
-                are still appended at priority 4.
-            session: Burp session name (auth-aware fetches for URL mode).
+            index: Proxy index of a captured JS response. Exclusive with url/urls.
+            url: JS URL to fetch via Burp and analyse. Exclusive with index/urls.
+            urls: Batch of JS URLs; plan synthesised over the union.
+            target_base_url: Base URL of the running app; resolves relative paths, anchors RSC/GraphQL/WS. Falls back to JS source URL.
+            max_targets: Cap on attack_plan length. Default 10.
+            session: Burp session name (auth-aware fetches).
 
-        Returns:
-            {
-                "sources": [{source, size, frameworks, ...}, ...],
-                "summary": {
-                    "endpoints": int, "rsc_action_ids": int,
-                    "graphql": int, "websocket": int,
-                    "secrets": int, "dom_sinks": int,
-                },
-                "attack_plan": [
-                    {priority, vuln_class, target_url, parameter,
-                     canary, suggested_tool, suggested_call, rationale},
-                    ...
-                ],
-                "human_summary": <readable digest for log/diff>,
-            }
+        Returns dict: sources, summary counts, attack_plan[{priority, vuln_class, target_url, parameter, canary, suggested_tool, suggested_call, rationale}], human_summary.
         """
         # Resolve sources
         if index >= 0 and (url or urls):

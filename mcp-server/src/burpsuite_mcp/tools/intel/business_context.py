@@ -45,40 +45,19 @@ def register(mcp: FastMCP):
         notes: str = "",
         extras: dict | None = None,
     ) -> str:
-        """Persist structured business context for the target.
-
-        Run this ONCE at engagement start. assess_finding auto-loads it from
-        profile.json on every call thereafter — no need to re-pass per-call.
+        """Persist structured business context for the target. Run ONCE at engagement start; assess_finding auto-loads it from profile.json thereafter.
 
         Args:
-            domain: Target domain
-            app_type: One of ecommerce, banking, fintech, healthcare, saas, social,
-                      government, gaming, content, communication, infrastructure,
-                      crypto, payment, education, marketplace, iot. Drives the
-                      assess gate's impact-multiplier match.
-            money_flow: Free-text — how money moves: 'payments', 'subscriptions',
-                        'payouts to users', 'wallet+settlement', 'none'. Used by
-                        the operator and human report writers; not currently scored.
-            sensitive_data: List of data classes the app touches. Suggested values:
-                            pii, pci, phi, financial, credentials, intellectual_property,
-                            government, biometric, location, minor_data, none.
-            user_roles: List of roles in the system, e.g. ['admin', 'merchant',
-                        'customer', 'support']. Used by playbook-business-logic.md
-                        to drive cross-role authorization tests.
-            kill_switches: List of high-impact actions where impact is large even
-                           on first abuse — e.g. ['delete_account', 'transfer_funds',
-                           'create_api_key', 'rotate_password', 'export_data'].
-            key_workflows: List of workflow dicts, each with 'name' (str) and
-                           'steps' (list[str]). Used to drive workflow-bypass
-                           testing. Example: [{'name': 'checkout', 'steps':
-                           ['add_to_cart', 'review', 'pay', 'confirm']}].
-            threat_actors: Who would attack? competitor, criminal, nation_state,
-                           insider, automated_scanner. Sets report tone.
-            notes: Freeform paragraph of anything the structured fields missed
-                   (regulatory regime, geographic constraints, third-party
-                   integrations the engagement cares about).
-            extras: Free-form dict — persisted as-is. Use for engagement-specific
-                    fields the operator wants alongside the canonical schema.
+            domain: Target domain.
+            app_type: ecommerce/banking/fintech/healthcare/saas/social/government/gaming/content/communication/infrastructure/crypto/payment/education/marketplace/iot. Drives the assess impact multiplier.
+            money_flow: Free-text money movement (payments/subscriptions/payouts/...). Operator-facing, not scored.
+            sensitive_data: Data classes touched (pii/pci/phi/financial/credentials/ip/government/biometric/location/minor_data/none).
+            user_roles: Roles in the system, e.g. ['admin','merchant','customer','support']. Drives cross-role authz tests.
+            kill_switches: High-impact actions (delete_account/transfer_funds/create_api_key/rotate_password/export_data).
+            key_workflows: Workflow dicts {'name', 'steps':[...]} for workflow-bypass testing.
+            threat_actors: competitor/criminal/nation_state/insider/automated_scanner. Sets report tone.
+            notes: Freeform paragraph for anything the structured fields missed.
+            extras: Free-form dict persisted as-is.
         """
         if not domain:
             return "Error: domain is required."

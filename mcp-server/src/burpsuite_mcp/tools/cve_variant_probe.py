@@ -481,38 +481,21 @@ def register(mcp: FastMCP) -> None:
         total_budget_seconds: int = 60,
         session: str = "",
     ) -> dict:
-        """Send bounded CVE-aware PoC variants — confirm or fail fast.
-
-        Closes the operator pain "known CVE, public PoC needs tweak, manual
-        iteration burns tokens". One call, hard caps, first-CONFIRMED short-circuit.
+        """Send bounded CVE-aware PoC variants — confirm or fail fast, first-CONFIRMED short-circuit.
 
         Args:
-            cve_id: e.g. "CVE-2025-55182" or alias ("react2shell"). Maps to a
-                class via static table. Falls through to `generic` if unknown.
-            target_url: Full target URL. Path is part of the variant (some
-                classes require a specific Server Action route).
-            vuln_class: Optional override — bypasses cve_id mapping. One of:
-                react_server_components / nextjs_cache_poisoning / trpc_sspp /
-                prototype_pollution / generic.
-            baseline_payload: Public PoC body. Placeholder __CANARY__ is
-                substituted with a per-call canary token. Used by the
-                "baseline" variant and by `generic` class mutators.
-            action_id: For RSC/Next.js classes — operator-harvested Server
-                Action ID (from bundle grep). If empty, a zero-filled stub
-                is used (still triggers parser; just won't reach handler).
-            extra_headers: Additional headers merged into EVERY variant
-                (cookies, bearer, CSRF token). Caller-supplied wins.
-            max_variants: Hard cap on requests. Default 12, ceiling 50.
+            cve_id: e.g. "CVE-2025-55182" or alias; maps to a class, else `generic`.
+            target_url: Full target URL (path is part of the variant).
+            vuln_class: Optional override: react_server_components/nextjs_cache_poisoning/trpc_sspp/prototype_pollution/generic.
+            baseline_payload: Public PoC body; __CANARY__ is substituted per call.
+            action_id: RSC/Next.js Server Action ID; zero-stub if empty.
+            extra_headers: Headers merged into every variant (cookies/bearer/CSRF).
+            max_variants: Request cap. Default 12, ceiling 50.
             per_request_timeout: Per-request seconds. Default 15.
-            total_budget_seconds: Whole-call wall budget. Default 60s. Loop
-                exits regardless of remaining variants when exceeded.
+            total_budget_seconds: Whole-call wall budget. Default 60.
             session: Burp session name (auth-aware).
 
-        Returns:
-            VerdictResult dict. CONFIRMED on first canary-echo or strong
-            class-marker hit. SUSPECTED if any variant nudged a class marker
-            without echo. FAILED if all variants rejected with no signal.
-            ERROR on transport / scope failure.
+        Returns VerdictResult dict (CONFIRMED on canary echo / class marker; SUSPECTED on partial; FAILED otherwise).
         """
         if not cve_id and not vuln_class:
             return error_verdict(

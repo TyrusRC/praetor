@@ -201,35 +201,23 @@ def register(mcp: FastMCP) -> None:
         early_stop: bool = True,
         concurrency: int = 5,
     ) -> dict:
-        """Feedback-driven mutation loop for WAF/filter bypass discovery.
+        """Feedback-driven mutation loop for WAF/filter bypass discovery. Returns VerdictResult.
 
-        Returns VerdictResult (W7 schema).
-
-        Sends one clean baseline, then up to `max_iters` mutated variants of
-        `seed`, scoring each against `signals`. Returns ranked hits with
-        mutation_class so the operator can save the winning variant.
+        Sends one clean baseline then up to max_iters mutated variants of seed, scoring each against signals; returns ranked hits with mutation_class.
 
         Args:
             url: Target URL.
-            parameter: Parameter name (or path placeholder) to inject into.
+            parameter: Parameter (or path placeholder) to inject into.
             seed: Starting payload — mutated by mutate_payload classes.
-            signals: Dict of signal predicates. Keys:
-                status_in=[400,500], status_changed=True,
-                length_delta_min=200, regex="error|Exception",
-                regex_not_in_baseline="root:x:", header_present="X-Debug",
-                header_changed="server", timing_delta_ms=3000,
-                reflected=True.
+            signals: Predicate dict: status_in/status_changed/length_delta_min/regex/regex_not_in_baseline/header_present/header_changed/timing_delta_ms/reflected.
             method: HTTP method.
-            body: Base request body (used for body_form / body_json locations).
+            body: Base request body (body_form/body_json locations).
             headers: Base headers.
             cookies: Base cookies.
-            location: Where to inject — query | body_form | body_json |
-                header | cookie | path.
-            mutation_classes: Mutation classes to use (default: productive
-                subset). See mutate_payload docs.
-            max_iters: Max variants to send. Default 30.
-            early_stop: Stop on first signal match (default True). False =
-                evaluate all variants and rank.
+            location: query | body_form | body_json | header | cookie | path.
+            mutation_classes: Mutation classes (default productive subset; see mutate_payload).
+            max_iters: Max variants. Default 30.
+            early_stop: Stop on first match (default True); False ranks all.
             concurrency: Parallel in-flight requests (default 5).
         """
         if not seed:

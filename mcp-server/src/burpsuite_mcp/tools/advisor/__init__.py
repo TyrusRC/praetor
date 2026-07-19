@@ -100,21 +100,21 @@ def register(mcp: FastMCP):
         """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
         Args:
-            vuln_type: Vulnerability type (e.g. 'xss', 'sqli', 'idor', 'ssrf')
-            evidence: What you observed (free-text)
-            endpoint: The endpoint tested
-            parameter: The parameter tested
-            response_diff: How the response differed from baseline
-            domain: Target domain for scope + duplicate checks
-            business_context: Target business type for impact scoring (e.g. 'ecommerce', 'healthcare', 'banking', 'saas', 'social', 'government')
-            environment: Deployment environment (e.g. 'production', 'staging', 'internal', 'public_api')
-            logger_index: Proxy-history index of the confirming response. When provided, evidence is auto-augmented with class-specific markers detected programmatically (R1).
-            human_verified: Operator manually confirmed in Burp UI / browser. Skips Q5 evidence gate; Q1/Q4/Q6 still apply (R19).
-            overrides: Gate names to bypass (R20). Each entry "<gate>:<reason>". Recognized gates: q1_scope, q2_repro, q4_dedup, q5_evidence, q6_never_submit, q7_triager.
-            chain_with: Existing finding IDs this report chains to. Non-empty list (a) allows NEVER-SUBMIT classes through Q6, (b) skips Q7 mass-report downgrade, (c) boosts impact.
-            reproductions: For timing/blind classes — list of dicts {logger_index, elapsed_ms, status_code}. Length >= 3 satisfies the timing rule even without keyword text in `evidence`.
-            session_name: Active session name. When provided, the gate queries session auth state; authenticated sessions boost IDOR/BFLA/business-logic impact (Rule 28 grey-box mindset).
-            intensity: Engagement mode. 'safe' = production / customer-impact-sensitive (annotates that state-mutating probe variants should be suppressed). 'normal' = default. 'aggressive' = staging / pre-engagement / authorized internal — relaxes the Q7 mass-report downgrade.
+            vuln_type: Vuln class (e.g. 'xss', 'sqli', 'idor', 'ssrf').
+            evidence: What you observed (free-text).
+            endpoint: Endpoint tested.
+            parameter: Parameter tested.
+            response_diff: How the response differed from baseline.
+            domain: Target domain (scope + duplicate checks).
+            business_context: Business type for impact scoring (ecommerce/healthcare/banking/saas/...).
+            environment: Deployment env (production/staging/internal/public_api).
+            logger_index: Proxy index of the confirming response; auto-augments evidence with class markers.
+            human_verified: Operator confirmed in Burp/browser. Skips Q5; Q1/Q4/Q6 still apply.
+            overrides: Gate bypasses (R20), each "<gate>:<reason>". Gates: q1_scope/q2_repro/q4_dedup/q5_evidence/q6_never_submit/q7_triager.
+            chain_with: Finding IDs to chain — allows NEVER-SUBMIT through Q6, skips Q7, boosts impact.
+            reproductions: Timing/blind classes — list of {logger_index, elapsed_ms, status_code}; len>=3 satisfies the timing rule.
+            session_name: Active session; authenticated state boosts IDOR/BFLA/business-logic impact.
+            intensity: safe | normal | aggressive — aggressive relaxes the Q7 mass-report downgrade.
         """
         return await assess_finding_impl(
             vuln_type=vuln_type,

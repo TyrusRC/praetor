@@ -67,30 +67,19 @@ def register(mcp: FastMCP):
         follow_redirects: bool = False,
         full_body: bool = False,
     ) -> str:
-        """Send HTTP request using a persistent session with auto-applied auth and cookies.
+        """Send an HTTP request using a persistent session with auto-applied auth and cookies.
 
         Args:
-            session: Session name
-            method: HTTP method
-            path: Request path relative to session base_url
-            headers: Additional headers merged with session defaults
-            body: Raw request body
-            data: Form-encoded data
-            json_body: JSON body dict
-            cookies: Additional cookies merged with session jar
-            extract: Inline extraction rules. Maps variable name -> rule dict.
-                Extracted values are merged into session variables for later
-                interpolation via {{var}} in run_flow steps. Schema (any of):
-                  body regex   : {"regex": "<re>"}     or {"pattern": "<re>"}
-                                 or {"type": "regex", "pattern": "<re>"}
-                  body json    : {"json_path": "$.k"}  or {"path": "$.k"}
-                                 or {"type": "json_path", "path": "$.k"}
-                  header       : {"from": "header", "name": "X-Foo"}
-                                 or {"type": "header", "name": "X-Foo"}
-                  cookie       : {"from": "cookie", "name": "session"}
-                                 or {"type": "cookie", "name": "session"}
-                Rules that fail to match surface in `extract_warnings`.
-            follow_redirects: Follow 3xx redirects
+            session: Session name.
+            method: HTTP method.
+            path: Request path relative to session base_url.
+            headers: Additional headers merged with session defaults.
+            body: Raw request body.
+            data: Form-encoded data.
+            json_body: JSON body dict.
+            cookies: Additional cookies merged with session jar.
+            extract: Inline extraction rules {var: rule}. Rule forms: body regex {"regex"|"pattern"}; body json {"json_path"|"path"}; header {"from":"header","name"}; cookie {"from":"cookie","name"}. Extracted values feed {{var}} in run_flow; misses surface in extract_warnings.
+            follow_redirects: Follow 3xx redirects.
         """
         payload_dict: dict = {"session": session, "method": method, "path": path}
         if headers:

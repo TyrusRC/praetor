@@ -106,33 +106,16 @@ def register(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Detect target-page CUA-hijack vectors (W22-b).
 
-        Two modes:
-          - passive: fetch rendered HTML via browser_navigate, grep CUA-readable
-            channels (hidden divs / aria-label / alt / title / noscript / data-*)
-            for injection-shape phrasing. No state change. No payload. No OOB.
-          - active: plant a benign English canary at `plant_endpoint` (param
-            `plant_param`), reload `url`, then drive CloakBrowser. Watch
-            `collaborator_url` for a hit; if reached, a CUA visiting `url`
-            would have followed the planted instruction → CONFIRMED.
-
-        Returns VerdictResult dict:
-          verdict: CONFIRMED | SUSPECTED | FAILED | ERROR
-          confidence: 0.0-1.0
-          evidence_summary: short string
-          details:
-            hits: [{channel, text, kind}, ...]
-            mode: passive | active
-            collab_marker: str (active mode only)
-            canary_planted: bool (active mode only)
-            human_summary: str
+        Modes: passive — fetch rendered HTML, grep CUA-readable channels (hidden divs/aria-label/alt/title/noscript/data-*) for injection-shape phrasing; no state change. active — plant a benign canary at plant_endpoint, reload url, drive CloakBrowser, watch collaborator_url; a hit means a CUA visiting url would follow the planted instruction -> CONFIRMED.
 
         Args:
             url: Target URL to inspect (rendered HTML).
             mode: 'passive' (default) or 'active'.
-            collaborator_url: Required for active mode. Must be Collaborator or
-                operator-supplied callback. NO default — Rule 9a.
-            plant_param: Param name to plant canary into (active mode).
-            plant_endpoint: Endpoint that stores the canary value (active mode).
+            collaborator_url: Required for active — Collaborator or operator callback. No default (Rule 9a).
+            plant_param: Param to plant canary into (active).
+            plant_endpoint: Endpoint that stores the canary (active).
+
+        Returns VerdictResult dict (verdict/confidence/evidence_summary/details).
         """
         if mode not in ("passive", "active"):
             return _err(f"unknown mode '{mode}' — use passive or active")

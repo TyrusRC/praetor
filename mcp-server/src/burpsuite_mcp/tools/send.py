@@ -121,32 +121,23 @@ def register(mcp: FastMCP):
     ) -> str:
         """Flexible HTTP request through Burp with auth, cookies, and optional redirect following.
 
-        Realistic browser headers (User-Agent, Accept, Sec-Ch-Ua, ...) are
-        auto-injected unless already set or bare_headers=True. If a saved
-        profile exists for the URL's domain
-        (.burp-intel/<domain>/profile.json -> realistic_headers), its values
-        override defaults. Caller-supplied headers, auth_*, bearer_token, and
-        cookies always win.
+        Realistic browser headers are auto-injected unless already set or bare_headers=True; a saved profile (.burp-intel/<domain>/profile.json) overrides defaults. Caller-supplied headers/auth/bearer/cookies always win.
 
         Args:
-            url: Target URL
-            method: HTTP method (GET, POST, PUT, DELETE, PATCH, etc.)
-            headers: Custom headers dict
-            body: Raw request body string
-            data: Form-encoded data (auto-sets Content-Type)
-            json_body: JSON body dict (auto-sets Content-Type)
-            auth_user: Username for Basic auth
-            auth_pass: Password for Basic auth
-            bearer_token: Bearer token for Authorization header
-            cookies: Cookies dict
-            follow_redirects: Follow redirects (default False to prevent cross-scope leaks)
-            max_redirects: Max redirect hops (default 10)
-            bare_headers: Skip realistic-header injection entirely. Use for
-                WAF detection / pure raw wire tests.
-            unsafe_headers: Keep browser fingerprint BUT also pass profile's
-                Host / Content-Length / Transfer-Encoding / Content-Type
-                through. Use for header injection, host-header injection,
-                HTTP parameter pollution, and request smuggling.
+            url: Target URL.
+            method: HTTP method (GET/POST/PUT/DELETE/PATCH/...).
+            headers: Custom headers dict.
+            body: Raw request body string.
+            data: Form-encoded data (auto-sets Content-Type).
+            json_body: JSON body dict (auto-sets Content-Type).
+            auth_user: Username for Basic auth.
+            auth_pass: Password for Basic auth.
+            bearer_token: Bearer token for Authorization header.
+            cookies: Cookies dict.
+            follow_redirects: Follow redirects (default False to prevent cross-scope leaks).
+            max_redirects: Max redirect hops (default 10).
+            bare_headers: Skip realistic-header injection (WAF detection / raw wire tests).
+            unsafe_headers: Keep fingerprint but pass profile's Host/Content-Length/Transfer-Encoding/Content-Type through (header/host-header injection, HPP, smuggling).
         """
         merged = apply_realistic_headers(
             url, headers, bare=bare_headers, unsafe_headers=unsafe_headers,
