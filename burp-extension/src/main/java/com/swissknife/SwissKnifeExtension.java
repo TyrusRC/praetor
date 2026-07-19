@@ -153,10 +153,18 @@ public class SwissKnifeExtension implements BurpExtension {
     }
 
     private static void saveInt(MontoyaApi api, String key, int value) {
-        try { api.persistence().extensionData().setString(key, String.valueOf(value)); } catch (Exception ignored) {}
+        try {
+            api.persistence().extensionData().setString(key, String.valueOf(value));
+        } catch (Exception e) {
+            api.logging().logToError("[SwissKnife] persistence write failed for '" + key + "': " + e.getMessage());
+        }
     }
 
     private static void saveString(MontoyaApi api, String key, String value) {
-        try { api.persistence().extensionData().setString(key, value); } catch (Exception ignored) {}
+        try {
+            api.persistence().extensionData().setString(key, value);
+        } catch (Exception e) {
+            api.logging().logToError("[SwissKnife] persistence write failed for '" + key + "': " + e.getMessage());
+        }
     }
 }
