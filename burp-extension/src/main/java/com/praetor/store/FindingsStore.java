@@ -74,6 +74,24 @@ public class FindingsStore {
     private final List<Map<String, Object>> findings = new CopyOnWriteArrayList<>();
     private final AtomicInteger idCounter = new AtomicInteger(0);
 
+    /** Fired after any mutation (add / setStatus / removeById / loadFromJson).
+     *  The extension wires this to persist the store into the Burp project so
+     *  findings + status survive a Burp reopen. Default no-op keeps the store
+     *  usable (and unit-testable) without a persistence backend. */
+    private volatile Runnable changeListener = () -> {};
+
+    public void setChangeListener(Runnable listener) {
+        this.changeListener = listener != null ? listener : () -> {};
+    }
+
+    private void notifyChange() {
+        try {
+            changeListener.run();
+        } catch (Exception ignored) {
+            // Persistence is best-effort; never let it break a store mutation.
+        }
+    }
+
     public Map<String, Object> add(String title, String description, String severity,
                                     String endpoint, String evidenceText) {
         return addFull(title, description, severity, endpoint, evidenceText,
@@ -94,6 +112,7 @@ public class FindingsStore {
         finding.put("endpoint", endpoint != null ? endpoint : "");
         finding.put("evidence", evidenceText != null ? evidenceText : "");
         finding.put("vuln_type", vulnType != null ? vulnType : "");
+        finding.put("status", "open");
         if (evidence != null) finding.put("evidence_refs", new LinkedHashMap<>(evidence));
         if (reproductions != null) finding.put("reproductions", new ArrayList<>(reproductions));
         if (chainWith != null) finding.put("chain_with", new ArrayList<>(chainWith));
@@ -105,7 +124,63 @@ public class FindingsStore {
         while (findings.size() > MAX_FINDINGS) {
             findings.remove(0);
         }
+        notifyChange();
         return finding;
+    }
+
+    /**
+     * Set the lifecycle status of a finding by its in-memory id.
+     * Accepts any status string (open / confirmed / reopened / retest /
+     * fixed / regressed / false_positive / stale) so it interoperates with
+     * the Python .burp-intel status + retest vocabulary. Returns the mutated
+     * finding, or null if no finding has that id.
+     */
+    public Map<String, Object> setStatus(String id, String status) {
+        if (id == null || id.isEmpty() || status == null) return null;
+        for (Map<String, Object> f : findings) {
+            Object fid = f.get("id");
+            if (fid != null && id.equals(String.valueOf(fid))) {
+                f.put("status", status);
+                notifyChange();
+                return f;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Replace the in-memory findings with the contents of a JSON array
+     * (as produced by exportJson) and advance the id counter past the
+     * highest restored id so new findings never collide. Called once at
+     * extension load to restore state persisted in the Burp project.
+     */
+    public void loadFromJson(String json) {
+        if (json == null || json.isBlank()) return;
+        List<Object> parsed;
+        try {
+            parsed = com.praetor.util.JsonUtil.parseArray(json);
+        } catch (Exception e) {
+            return; // corrupt persisted blob — start empty rather than crash load
+        }
+        if (parsed == null) return;
+        findings.clear();
+        int maxId = 0;
+        for (Object o : parsed) {
+            if (!(o instanceof Map)) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> f = new LinkedHashMap<>((Map<String, Object>) o);
+            f.putIfAbsent("status", "open");
+            findings.add(f);
+            Object fid = f.get("id");
+            if (fid instanceof Number) {
+                maxId = Math.max(maxId, ((Number) fid).intValue());
+            } else if (fid != null) {
+                try { maxId = Math.max(maxId, Integer.parseInt(String.valueOf(fid))); }
+                catch (NumberFormatException ignored) {}
+            }
+        }
+        idCounter.set(maxId);
+        notifyChange();
     }
 
     public List<Map<String, Object>> getAll(String filterEndpoint) {
@@ -300,6 +375,8 @@ public class FindingsStore {
             }
         }
         if (target == null) return false;
-        return findings.remove(target);
+        boolean removed = findings.remove(target);
+        if (removed) notifyChange();
+        return removed;
     }
 }

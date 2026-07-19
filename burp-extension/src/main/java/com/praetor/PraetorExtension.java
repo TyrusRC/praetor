@@ -33,6 +33,20 @@ public class PraetorExtension implements BurpExtension {
         // Start API server first (creates SessionHandler + FindingsStore)
         startServer(api, host, port);
 
+        // Restore findings persisted in the Burp project so they + their status
+        // survive a Burp reopen (the store is otherwise in-memory only). Load
+        // BEFORE wiring the change listener so the restore itself doesn't
+        // re-persist. Thereafter every add / status-change / delete rewrites
+        // the project blob.
+        String savedFindings = loadString(api, "praetor.findings", "");
+        if (!savedFindings.isEmpty()) {
+            findingsStore.loadFromJson(savedFindings);
+            api.logging().logToOutput(EXTENSION_NAME + " restored "
+                    + findingsStore.getAll(null).size() + " persisted findings");
+        }
+        findingsStore.setChangeListener(() ->
+                saveString(api, "praetor.findings", findingsStore.exportJson()));
+
         // Register UI dashboard tab with references to live data. The
         // suppliers re-read `apiServer` on every invocation so a server
         // restart hands the UI fresh references rather than stale ones.

@@ -11,6 +11,7 @@ import java.util.Map;
 /**
  * POST   /api/notes/findings           - save a finding
  * GET    /api/notes/findings?endpoint= - get findings
+ * POST   /api/notes/findings/{id}/status - set finding status (open/confirmed/reopened/retest/fixed/regressed/false_positive)
  * DELETE /api/notes/findings/{id}      - hard-delete a finding by in-memory id
  * GET    /api/notes/export?format=     - export report (markdown or json)
  */
@@ -33,6 +34,8 @@ public class NotesHandler extends BaseHandler {
             handleSave(exchange);
         } else if (path.equals("/api/notes/findings") && "GET".equalsIgnoreCase(method)) {
             handleGet(exchange);
+        } else if (path.matches("/api/notes/findings/[^/]+/status") && "POST".equalsIgnoreCase(method)) {
+            handleSetStatus(exchange, path);
         } else if (path.startsWith("/api/notes/findings/") && "DELETE".equalsIgnoreCase(method)) {
             handleDelete(exchange, path);
         } else if (path.equals("/api/notes/export") && "GET".equalsIgnoreCase(method)) {
@@ -50,6 +53,28 @@ public class NotesHandler extends BaseHandler {
         }
         boolean removed = store.removeById(id);
         sendJson(exchange, JsonUtil.object("removed", removed, "id", id));
+    }
+
+    // POST /api/notes/findings/{id}/status  body: {"status": "..."}
+    private void handleSetStatus(HttpExchange exchange, String path) throws Exception {
+        String mid = path.substring("/api/notes/findings/".length());
+        String id = mid.substring(0, mid.length() - "/status".length());
+        if (id.isEmpty()) {
+            sendError(exchange, 400, "Missing finding id in path");
+            return;
+        }
+        Map<String, Object> body = readJsonBody(exchange);
+        String status = body == null ? null : (String) body.get("status");
+        if (status == null || status.isEmpty()) {
+            sendError(exchange, 400, "Missing 'status' in body");
+            return;
+        }
+        Map<String, Object> updated = store.setStatus(id, status);
+        if (updated == null) {
+            sendError(exchange, 404, "No finding with id " + id);
+            return;
+        }
+        sendJson(exchange, JsonUtil.object("id", id, "status", status, "updated", true));
     }
 
     private void handleSave(HttpExchange exchange) throws Exception {
