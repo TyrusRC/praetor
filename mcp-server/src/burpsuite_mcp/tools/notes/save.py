@@ -280,6 +280,9 @@ def register(mcp: FastMCP):
             store["findings"] = updated_list
             store["last_modified"] = now
             _write_findings_file(findings_path, store)
+            # Projection: human-readable writeup from the canonical record (best-effort).
+            from ._projection import write_finding_projection
+            write_finding_projection(resolved_domain, updated_list[idx])
 
         if not resolved_domain:
             return (

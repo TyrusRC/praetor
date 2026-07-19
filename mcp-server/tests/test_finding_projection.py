@@ -42,6 +42,19 @@ class TestProjection(unittest.TestCase):
         remove_finding_projection("x.test", "VULN-001")
         self.assertFalse(Path(".burp-intel/x.test/findings/VULN-001").exists())
 
+    def test_hard_delete_removes_projection(self):
+        # Exercises the wired delete path in _helpers._hard_delete_finding.
+        import asyncio
+        from burpsuite_mcp.tools.notes._helpers import (
+            _safe_findings_path, _write_findings_file, _hard_delete_finding)
+        rec = dict(FINDING)
+        path = _safe_findings_path("x.test")
+        _write_findings_file(path, {"findings": [rec], "last_modified": ""})
+        write_finding_projection("x.test", rec)
+        self.assertTrue(Path(".burp-intel/x.test/findings/VULN-001").exists())
+        asyncio.run(_hard_delete_finding("x.test", rec))
+        self.assertFalse(Path(".burp-intel/x.test/findings/VULN-001").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

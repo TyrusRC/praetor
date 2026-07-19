@@ -152,6 +152,8 @@ async def _hard_delete_finding(domain: str, finding: dict) -> tuple[bool, str]:
             store["last_modified"] = datetime.now(timezone.utc).isoformat()
             _write_findings_file(findings_path, store)
             deleted_locally = True
+            from ._projection import remove_finding_projection
+            remove_finding_projection(domain, target_id)
     burp_msg = ""
     burp_id = (finding.get("burp_id") or "")
     ev = finding.get("evidence") or {}
