@@ -6,7 +6,9 @@ from functools import lru_cache
 from ._constants import KNOWLEDGE_DIR, _PARAM_RISK_MAP, _REFERENCE_ONLY
 
 
-@lru_cache(maxsize=16)
+# KB set is static at runtime and has ~138 files; an unbounded cache eliminates
+# re-parse thrash on auto_probe's full-load path (maxsize=16 evicted mid-loop).
+@lru_cache(maxsize=None)
 def _load_knowledge(category: str) -> dict | None:
     """Load and cache a single knowledge base file."""
     f = KNOWLEDGE_DIR / f"{category}.json"
