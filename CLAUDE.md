@@ -168,7 +168,7 @@ Skills in `.claude/skills/` (load via Skill tool):
 
 ## Agent Team
 
-`AGENTS.md` — orchestrator `grow-agent` + 10 workers: `recon-agent`, `js-analyst`, `vuln-scanner`, `finding-verifier`, `payload-crafter`, `auth-tester`, `browser-agent`, `mobile-dynamic-agent`, `auth-payment-agent`, `fuzz-agent`. Definitions in `.claude/agents/<name>.md`.
+`AGENTS.md` — command tier `pentest-commander` / `redteam-commander` (engagement leads, invoke `.claude/skills/command-engagement.md`) → orchestrator `grow-agent` (per-domain) → 10 workers: `recon-agent`, `js-analyst`, `vuln-scanner`, `finding-verifier`, `payload-crafter`, `auth-tester`, `browser-agent`, `mobile-dynamic-agent`, `auth-payment-agent`, `fuzz-agent`. Definitions in `.claude/agents/<name>.md`. Anti-recursion: a commander never dispatches a commander; grow-agent never dispatches grow-agent.
 
 Dispatch the orchestrator on-demand: `Agent(subagent_type="grow-agent", prompt="<domain>, <objective>, max_rounds=<N>")`. Spec: `docs/specs/2026-05-22-grow-agent-design.md`.
 

@@ -8,6 +8,30 @@ Each role below corresponds to a file in `.claude/agents/<role>.md` that the `Ag
 
 The orchestrator role is split out: `grow-agent` is the session-lifecycle orchestrator (see `docs/specs/2026-05-22-grow-agent-design.md`). When invoked, grow-agent dispatches the 9 roles below.
 
+## Command Tier (above grow-agent)
+
+Two engagement leads sit above `grow-agent`. They own strategy — research, a written plan, multi-domain dispatch, cross-target synthesis, delivery — and do NOT run the per-domain loop themselves. Both invoke the shared SOP `.claude/skills/command-engagement.md`; each agent file carries only its role deltas. On-demand only.
+
+```
+{pentest|redteam}-commander        engagement lead — research, plan, synthesize, report
+  └─ grow-agent(domain)   × N      per-domain executor (bounded: 2–3 in flight)
+       └─ 10 workers
+```
+
+### pentest-commander
+**Purpose:** Coverage-driven engagement lead. Full WSTG/OWASP coverage, every finding verified and reported.
+**When to dispatch:** Multi-endpoint / multi-domain pentest where breadth + a findings report is the deliverable.
+**Dispatch:** `Agent(subagent_type="pentest-commander", prompt="domains=[...], objective=..., session_name=...")`.
+**Success:** coverage matrix complete (or documented negatives), all findings confirmed + written up, report in `reports/`.
+
+### redteam-commander
+**Purpose:** Objective-driven engagement lead. Shortest verified kill chain to a stated goal, under a stealth/noise budget.
+**When to dispatch:** Goal-oriented red team op (reach data/access/flag) rather than a coverage sweep.
+**Dispatch:** `Agent(subagent_type="redteam-commander", prompt="objective=..., domains=[...], noise_budget=low|moderate|high")`.
+**Success:** objective reached + kill chain documented, or furthest-progress chain + blocker.
+
+**Anti-recursion (HARD):** a commander NEVER dispatches a commander. Commanders dispatch `grow-agent` (which never dispatches `grow-agent`) + specialists. One command layer only.
+
 ## Agent Roles
 
 ### recon-agent
