@@ -105,7 +105,7 @@ Full guidance: `.claude/skills/user-override.md`. HARD rules (1–10) cannot be 
 
 ## Target Memory System
 
-Persistent intel in `.burp-intel/<domain>/` (gitignored). Files: `profile.json`, `endpoints.json`, `coverage.json`, `findings.json`, `fingerprint.json`, `patterns.json`, `notes.md`.
+Persistent intel in `.burp-intel/<domain>/` (gitignored). Canonical machine files at the domain root: `profile.json`, `endpoints.json`, `coverage.json`, `findings.json`, `fingerprint.json`, `patterns.json`, `notes.md`. Human-facing artifacts live in subdirs — see "Engagement Workspace Layout" below. Findings carry an additive `retests[]` field (retest rounds).
 
 Tools: `save_target_intel`, `load_target_intel`, `check_target_freshness`, `save_target_notes`, `lookup_cross_target_patterns`, `coverage_summary`.
 
@@ -116,6 +116,33 @@ Memory is advisory — verify before trusting. Knowledge-version tracking re-run
 ### Auto-Memory Scope (R21)
 
 `~/.claude/projects/<slug>/memory/` entries MUST carry `applies_to: <domain>` or `applies_to: global`. Default to domain scope. Read-time: if `applies_to` doesn't match current domain (or `global`), do not apply.
+
+## Engagement Workspace Layout
+
+Per-target data lives under `.burp-intel/<domain>/` (gitignored). Machine files stay at the domain root; human-facing artifacts live in subdirs. Write outputs to the RIGHT place — do not dump unstructured files like an ad-hoc tool would.
+
+```
+.burp-intel/<domain>/
+  profile.json endpoints.json coverage.json fingerprint.json patterns.json notes.md findings.json
+  findings/<fid>/current.md + v<N>_<YYYY-MM-DD>_<status>.md   # generated from findings.json
+  artifacts/{screenshots,captures,poc}/
+  testcases/   reports/   material/{wordlists,tool-output}/
+```
+
+Write-routing:
+
+| Output | Location |
+|---|---|
+| Finding writeup | `findings/<fid>/` (auto, from `save_finding`) |
+| Screenshot evidence | `artifacts/screenshots/` |
+| Saved request/response | `artifacts/captures/` |
+| PoC script / bundle | `artifacts/poc/` (`export_poc_bundle` default) |
+| Raw tool output (ffuf/nuclei) | `material/tool-output/` |
+| Wordlists | `material/wordlists/` |
+| Generated / imported report | `reports/` |
+| Testcase status matrix | `testcases/<framework>-matrix.json` |
+
+`scaffold_workspace(domain)` creates the tree (also auto-run by `load_target_intel`/`save_target_intel`). Retests: `record_retest(finding_id, domain, status, date)` where status ∈ `confirmed | reopened | fixed | regressed`; each round appends to `findings.json.retests[]` and writes an immutable `findings/<fid>/v<N>_<date>_<status>.md` snapshot. `findings.json` stays the source of truth; `current.md` is a regenerated projection.
 
 ## Scanning Tool Hierarchy
 
