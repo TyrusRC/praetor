@@ -293,12 +293,12 @@ def register(mcp: FastMCP):
 
         Bundle includes raw request + response, repro.sh, verify.py, README,
         and the finding.json record. Drops to
-        `.burp-intel/<domain>/_poc/<finding_id>.tar.gz` unless output_dir given.
+        `.burp-intel/<domain>/artifacts/poc/poc-<finding_id>.tar.gz` unless output_dir given.
 
         Args:
             domain: target domain (used for .burp-intel path resolution)
             finding_id: saved-finding ID
-            output_dir: optional output directory (default .burp-intel/<domain>/_poc/)
+            output_dir: optional output directory (default .burp-intel/<domain>/artifacts/poc/)
         """
         path = _safe_findings_path(domain)
         if not path.exists():
@@ -328,7 +328,12 @@ def register(mcp: FastMCP):
             return {"error": f"fetch proxy entry {idx}: {req['error']}"}
         resp = req.get("response") or {}
 
-        out_root = Path(output_dir) if output_dir else (_intel_dir() / _sanitized(domain) / "_poc")
+        if output_dir:
+            out_root = Path(output_dir)
+        else:
+            new_root = _intel_dir() / _sanitized(domain) / "artifacts" / "poc"
+            legacy = _intel_dir() / _sanitized(domain) / "_poc"
+            out_root = legacy if (legacy.exists() and not new_root.exists()) else new_root
         out_root.mkdir(parents=True, exist_ok=True)
         tar_path = out_root / f"poc-{finding_id}.tar.gz"
 

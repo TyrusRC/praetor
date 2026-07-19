@@ -8,8 +8,6 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from burpsuite_mcp.tools.notes._helpers import _intel_dir, _sanitized
-
 _SUBDIRS = {
     "findings": ("findings",),
     "artifacts": ("artifacts",),
@@ -29,6 +27,8 @@ def workspace_paths(domain: str) -> dict[str, Path]:
 
     Raises ValueError on path-traversal input (delegated to _sanitized).
     """
+    # Local import: keeps module load free of a notes<->workspace import cycle.
+    from burpsuite_mcp.tools.notes._helpers import _intel_dir, _sanitized
     root = _intel_dir() / _sanitized(domain)
     paths: dict[str, Path] = {"root": root}
     for key, parts in _SUBDIRS.items():

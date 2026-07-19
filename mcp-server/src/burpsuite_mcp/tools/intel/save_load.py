@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
+from burpsuite_mcp.tools.workspace import ensure_workspace
 from ._internals import (
     VALID_CATEGORIES,
     _atomic_write_json,
@@ -36,6 +37,10 @@ def register(mcp: FastMCP):
             return f"Error: invalid category '{category}'. Must be one of: {', '.join(VALID_CATEGORIES)}"
 
         dir_path = _ensure_dir(domain)
+        try:
+            ensure_workspace(domain)  # Spec 1: scaffold the engagement tree on the intel gate
+        except ValueError:
+            pass  # invalid domain handled by downstream path guards
         file_path = dir_path / f"{category}.json"
         now = _utcnow_iso()
 
@@ -148,6 +153,10 @@ def register(mcp: FastMCP):
             chain_with_open: For findings — only return findings whose status is suspected/confirmed (chain-relevant).
         """
         dir_path = _intel_path(domain)
+        try:
+            ensure_workspace(domain)  # Spec 1: scaffold the engagement tree on the intel gate
+        except ValueError:
+            pass
 
         if category == "notes":
             notes_path = dir_path / "notes.md"
