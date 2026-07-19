@@ -240,24 +240,11 @@ def register(mcp: FastMCP) -> None:
         cmd = ["notify", "-silent", "-bulk"]
         if provider:
             cmd += ["-provider", provider]
-        import asyncio, os
-        resolved = cmd[0]
-        env = os.environ.copy()
-        env["GODEBUG"] = "netdns=cgo"
-        proc = await asyncio.create_subprocess_exec(
-            resolved, *cmd[1:], stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=message.encode("utf-8")), timeout=timeout,
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            return "Error: notify timed out."
-        if proc.returncode != 0:
-            return f"notify failed [rc={proc.returncode}]: {stderr.decode(errors='replace')[:300]}"
+        # notify dispatches to Slack/Discord/etc — must NOT route through Burp.
+        _out, err, rc = await _run_cmd(
+            cmd, timeout=timeout, bypass_proxy=True, stdin_input=message.encode("utf-8"))
+        if rc != 0:
+            return f"notify failed [rc={rc}]: {err[:300]}"
         return f"notify: dispatched ({len(message)} bytes)" + (f" via {provider}" if provider else "")
 
     @mcp.tool()

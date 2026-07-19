@@ -29,7 +29,8 @@ def _check_tool(name: str) -> bool:
     return _find_tool(name) is not None
 
 
-async def _run_cmd(cmd: list[str], timeout: int = 120, bypass_proxy: bool = False) -> tuple[str, str, int]:
+async def _run_cmd(cmd: list[str], timeout: int = 120, bypass_proxy: bool = False,
+                   stdin_input: bytes | None = None) -> tuple[str, str, int]:
     """Run a command safely using create_subprocess_exec (no shell) and return (stdout, stderr, returncode).
 
     Routes HTTPS_PROXY/HTTP_PROXY env vars to Burp by default (Rule 26a).
@@ -66,13 +67,16 @@ async def _run_cmd(cmd: list[str], timeout: int = 120, bypass_proxy: bool = Fals
             # ignoring -u / -list flags. The MCP server's own stdin is the
             # MCP stdio transport pipe — leaving stdin inherited makes those
             # tools hang waiting for input that never comes. DEVNULL forces
-            # them to fall through to the explicit -u / -list path.
-            stdin=asyncio.subprocess.DEVNULL,
+            # them to fall through to the explicit -u / -list path. When a caller
+            # needs to feed stdin (notify -bulk, peirates script), pass stdin_input
+            # and we open a PIPE instead.
+            stdin=asyncio.subprocess.PIPE if stdin_input is not None else asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(input=stdin_input), timeout=timeout)
         rc = proc.returncode if proc.returncode is not None else 1
         return stdout.decode(errors="replace"), stderr.decode(errors="replace"), rc
     except asyncio.TimeoutError:

@@ -129,31 +129,11 @@ def register(mcp: FastMCP) -> None:
             return _hint("peirates",
                          "go install github.com/inguardians/peirates@latest  |  "
                          "https://github.com/inguardians/peirates")
-        import asyncio, os
-        from burpsuite_mcp.tools.recon._common import _find_tool
+        from burpsuite_mcp.tools.recon._common import _run_cmd
         stdin_input = ("\n".join(commands or ["1", "exit"]) + "\n").encode()
-        env = os.environ.copy()
-        env.pop("HTTPS_PROXY", None); env.pop("HTTP_PROXY", None)
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                _find_tool("peirates") or "peirates",
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env,
-            )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=stdin_input), timeout=timeout,
-            )
-            rc = proc.returncode or 0
-        except asyncio.TimeoutError:
-            try:
-                proc.kill(); await proc.wait()
-            except Exception:
-                pass
-            return f"peirates: timed out after {timeout}s"
-        out_s = stdout.decode(errors="replace")
-        err_s = stderr.decode(errors="replace")
+        # peirates is an interactive K8s attack tool — never proxy it through Burp.
+        out_s, err_s, rc = await _run_cmd(
+            ["peirates"], timeout=timeout, bypass_proxy=True, stdin_input=stdin_input)
         tail = "\n".join(out_s.splitlines()[-80:])
         lines = [f"peirates rc={rc}", tail]
         if rc != 0:

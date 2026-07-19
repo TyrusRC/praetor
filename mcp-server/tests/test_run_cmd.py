@@ -32,7 +32,8 @@ class StdinHandling(unittest.TestCase):
             captured["kwargs"] = kwargs
             mock = MagicMock()
 
-            async def communicate():
+            async def communicate(input=None):
+                captured["input"] = input
                 return (b"", b"")
             mock.communicate = communicate
             mock.returncode = 0
@@ -50,6 +51,33 @@ class StdinHandling(unittest.TestCase):
                          asyncio.subprocess.DEVNULL,
                          "stdin must be DEVNULL to prevent PD tools from "
                          "auto-reading the MCP stdio pipe")
+        self.assertIsNone(captured["input"], "no stdin_input -> input None")
+
+    def test_run_cmd_stdin_input_opens_pipe(self):
+        """stdin_input must open a PIPE and be fed to communicate()."""
+        captured: dict = {}
+
+        async def fake_proc(*args, **kwargs):
+            captured["kwargs"] = kwargs
+            mock = MagicMock()
+
+            async def communicate(input=None):
+                captured["input"] = input
+                return (b"ok", b"")
+            mock.communicate = communicate
+            mock.returncode = 0
+            return mock
+
+        with patch.object(_common.asyncio, "create_subprocess_exec",
+                          side_effect=fake_proc):
+            with patch.object(_common, "_find_tool", return_value="/usr/bin/peirates"):
+                result = asyncio.run(
+                    _common._run_cmd(["peirates"], timeout=2, stdin_input=b"1\nexit\n"))
+
+        self.assertEqual(result, ("ok", "", 0))
+        self.assertEqual(captured["kwargs"]["stdin"], asyncio.subprocess.PIPE,
+                         "stdin_input must switch stdin to PIPE")
+        self.assertEqual(captured["input"], b"1\nexit\n")
 
 
 if __name__ == "__main__":
