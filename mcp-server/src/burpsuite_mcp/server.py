@@ -41,6 +41,7 @@ from burpsuite_mcp.tools import (
     clean_room_confirm,
     owasp_asi_top10,
     a2a_agent_card_probe,
+    workspace,
 )
 
 mcp = FastMCP(
@@ -199,3 +200,4 @@ bopla_probe.register(mcp)                       # probe_bopla — Rapid7 per-pro
 clean_room_confirm.register(mcp)                # confirm_with_clean_room — XBOW second-pass replay agent
 owasp_asi_top10.register(mcp)                   # run_owasp_asi_top10 — OWASP Agentic Top 10 (ASI01-10) sweep dispatcher
 a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2A v1.0 agent card audit
+workspace.register(mcp)                          # scaffold_workspace — engagement workspace tree (Spec 1)
