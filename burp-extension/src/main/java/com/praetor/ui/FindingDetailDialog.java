@@ -122,12 +122,21 @@ final class FindingDetailDialog {
         dialog.setVisible(true);
     }
 
-    private static JLabel makeField(String name, String value) {
-        JLabel l = new JLabel("<html><b>" + UiHelpers.escapeHtml(name) + ":</b> " + UiHelpers.escapeHtml(value) + "</html>");
-        l.setFont(l.getFont().deriveFont(12f));
-        l.setAlignmentX(Component.LEFT_ALIGNMENT);
-        l.setBorder(BorderFactory.createEmptyBorder(1, 0, 1, 0));
-        return l;
+    private static JComponent makeField(String name, String value) {
+        // Burp disables HTML rendering in Swing labels (anti-injection), so a
+        // "<html><b>…" label would show as raw tags. Bold the name via font and
+        // keep the value in a second plain label instead.
+        JPanel row = new JPanel();
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setBorder(BorderFactory.createEmptyBorder(1, 0, 1, 0));
+        JLabel nameLabel = new JLabel(name + ": ");
+        nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
+        JLabel valueLabel = new JLabel(value);
+        valueLabel.setFont(valueLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        row.add(nameLabel);
+        row.add(valueLabel);
+        return row;
     }
 
     private static JLabel makeSectionLabel(String text) {

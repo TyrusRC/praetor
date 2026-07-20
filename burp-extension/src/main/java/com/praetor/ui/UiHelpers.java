@@ -90,11 +90,6 @@ final class UiHelpers {
         return iso;
     }
 
-    static String escapeHtml(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
     /**
      * Make stored finding text readable in a plain {@link JTextArea}.
      *
