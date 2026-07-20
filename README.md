@@ -150,7 +150,26 @@ Create `.mcp.json` in the project root. The file is gitignored; each developer m
 }
 ```
 
-On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`. On WSL with Burp on the Windows host, add an `env` block setting `BURP_API_HOST` to the Windows host IP and bind the extension to `0.0.0.0` in the Swiss Knife config tab.
+**Connection defaults — no config needed on a single host.** The extension's config tab defaults to Host `127.0.0.1`, Port `8111`, and the MCP server defaults to the same `127.0.0.1:8111`. When Burp and Claude Code run on the same machine (or on WSL with mirrored networking), the two align and the MCP auto-connects with nothing to change. Edit the tab's Host/Port only for the exceptions below: a non-default port, or reaching Burp across a host boundary (WSL NAT → bind `0.0.0.0`). Caller-supplied `BURP_API_HOST` / `BURP_API_PORT` env in `.mcp.json` override the client side.
+
+On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
+
+### WSL (Burp on the Windows host)
+
+`./setup.sh` auto-detects WSL and its networking mode, then configures `.mcp.json` accordingly. Two modes:
+
+- **Mirrored (recommended, secure).** Add to `%UserProfile%\.wslconfig`:
+  ```ini
+  [wsl2]
+  networkingMode=mirrored
+  ```
+  then run `wsl --shutdown` in PowerShell and reopen WSL. Burp on Windows `127.0.0.1:8111` is now reachable from WSL as `127.0.0.1` — no env override, no bind change, nothing exposed off the host. Verify from WSL with Burp running: `curl -s http://127.0.0.1:8111/api/health`. Requires Windows 11 22H2+.
+- **NAT (default).** Reach Burp via the Windows host IP (the WSL default-route gateway, e.g. `172.22.112.1`):
+  1. Add an `env` block to `.mcp.json` setting `BURP_API_HOST` to that IP (setup.sh writes this for you).
+  2. In the Praetor config tab set **Host = `0.0.0.0`**.
+  3. Launch Burp with the JVM flag `-Dswissknife.allow_non_loopback_bind=true` — the extension refuses a non-loopback bind without it.
+
+  NAT mode exposes the unauthenticated API on the WSL virtual switch; use only on a trusted host. Prefer mirrored.
 
 ### Environment Variables
 
@@ -303,7 +322,7 @@ Roles and parallelization patterns: [AGENTS.md](AGENTS.md).
 - Linux
 - macOS
 - Windows (use `.venv\Scripts\python.exe` in `.mcp.json`)
-- WSL (set `BURP_API_HOST` to the Windows host IP and bind the extension to `0.0.0.0`)
+- WSL (Burp on the Windows host — prefer mirrored networking; NAT fallback available. See [WSL](#wsl-burp-on-the-windows-host))
 
 The Java extension and Python server use platform-independent libraries.
 

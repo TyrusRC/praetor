@@ -65,7 +65,7 @@ http_status() {
     curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$url" 2>/dev/null || echo ""
 }
 
-echo -e "${BOLD}Burp Suite Swiss Knife MCP — Doctor${NC}"
+echo -e "${BOLD}Praetor — Doctor${NC}"
 echo "Platform: $PLATFORM  |  Project: $SCRIPT_DIR"
 
 # ════════════════════════════════════════════════════════════════════

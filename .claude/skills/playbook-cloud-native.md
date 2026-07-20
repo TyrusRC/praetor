@@ -151,7 +151,7 @@ These work across any cloud:
 
 ## What This Tool Cannot Do (use external tools)
 
-The Burp Swiss Knife MCP is web-app focused. For these you need separate tooling:
+Praetor is web-app focused. For these you need separate tooling:
 
 - AWS CLI / boto3 to actually use leaked AWS credentials against AWS APIs (you can hand-craft SigV4 in Burp but it's painful)
 - `kube-hunter`, `kubectl` for Kubernetes API server probing

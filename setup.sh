@@ -370,9 +370,59 @@ cd "$SCRIPT_DIR"
 MCP_JSON="$SCRIPT_DIR/.mcp.json"
 VENV_PYTHON="$SCRIPT_DIR/mcp-server/.venv/bin/python"
 
+# ── WSL detection ───────────────────────────────────────────────────
+# When the MCP server runs in WSL but Burp runs on the Windows host, the
+# extension API is not on WSL's 127.0.0.1. Two supported modes:
+#   mirrored — Windows 127.0.0.1 is reachable from WSL as 127.0.0.1
+#              (secure, recommended; no env override, no bind change).
+#   NAT      — reach Burp via the Windows host IP (the WSL default-route
+#              gateway); the extension must bind off-loopback.
+IS_WSL=0
+WSL_MODE=""
+WSL_HOST_IP=""
+if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
+    IS_WSL=1
+    if has wslinfo; then
+        WSL_MODE="$(wslinfo --networking-mode 2>/dev/null || true)"
+    fi
+    if [ -z "$WSL_MODE" ]; then
+        # wslinfo unavailable — infer from loopback reachability. In mirrored
+        # mode the default route is the LAN gateway, NOT the Windows host, so
+        # deriving BURP_API_HOST from it would be wrong. If Burp already answers
+        # on loopback we're effectively connected (mirrored), so leave the host
+        # at the default; otherwise assume NAT.
+        if curl -s -m 2 -o /dev/null "http://127.0.0.1:${BURP_API_PORT:-8111}/api/health" 2>/dev/null; then
+            WSL_MODE="mirrored"
+        else
+            WSL_MODE="nat"
+        fi
+    fi
+    if [ "$WSL_MODE" != "mirrored" ]; then
+        # NAT — Windows host is the WSL default-route gateway.
+        WSL_HOST_IP="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+    fi
+    info "WSL detected (networking mode: ${WSL_MODE:-unknown})"
+fi
+
 if [ ! -f "$MCP_JSON" ]; then
     info "Generating .mcp.json..."
-    cat > "$MCP_JSON" << MCPEOF
+    if [ "$IS_WSL" = "1" ] && [ "$WSL_MODE" = "nat" ] && [ -n "$WSL_HOST_IP" ]; then
+        cat > "$MCP_JSON" << MCPEOF
+{
+  "mcpServers": {
+    "praetor": {
+      "command": "$VENV_PYTHON",
+      "args": ["-m", "burpsuite_mcp"],
+      "env": {
+        "BURP_API_HOST": "$WSL_HOST_IP"
+      }
+    }
+  }
+}
+MCPEOF
+        ok "Created $MCP_JSON (WSL NAT → BURP_API_HOST=$WSL_HOST_IP)"
+    else
+        cat > "$MCP_JSON" << MCPEOF
 {
   "mcpServers": {
     "praetor": {
@@ -382,9 +432,13 @@ if [ ! -f "$MCP_JSON" ]; then
   }
 }
 MCPEOF
-    ok "Created $MCP_JSON"
+        ok "Created $MCP_JSON"
+    fi
 else
     ok ".mcp.json already exists — skipping"
+    if [ "$IS_WSL" = "1" ] && [ "$WSL_MODE" = "nat" ] && [ -n "$WSL_HOST_IP" ]; then
+        warn "WSL NAT: .mcp.json must set env BURP_API_HOST=$WSL_HOST_IP (Windows host) — or switch to mirrored networking (see 'WSL → Windows Burp' below)"
+    fi
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -460,3 +514,27 @@ echo "  2. Extensions → Add → Java → Select: $JAR_PATH"
 echo "  3. Verify: 'Praetor MCP started on port 8111' in Burp output"
 echo "  4. Start Claude Code in this directory"
 echo ""
+echo "The extension tab defaults to Host 127.0.0.1 / Port 8111 — same as the MCP"
+echo "server default — so on a single host it auto-connects with no config. Edit the"
+echo "tab's Host/Port only for a custom port or a cross-host bind (see WSL below)."
+echo ""
+
+if [ "$IS_WSL" = "1" ]; then
+    echo "WSL → Windows Burp:"
+    if [ "$WSL_MODE" = "mirrored" ]; then
+        echo -e "  ${GREEN}✓${NC} Mirrored networking active — Burp on Windows 127.0.0.1:8111 is reachable directly."
+        echo "    Keep the Praetor tab Host at 127.0.0.1 (no bind flag, no env override)."
+        echo "    Verify (with Burp running):  curl -s http://127.0.0.1:8111/api/health"
+    else
+        echo "  NAT mode — pick one:"
+        echo "    RECOMMENDED (secure): enable mirrored networking, then re-run this script —"
+        echo "      • add to C:\\Users\\<you>\\.wslconfig :   [wsl2]  networkingMode=mirrored"
+        echo "      • PowerShell:  wsl --shutdown   (restarts WSL)"
+        echo "      • Burp stays on 127.0.0.1; drop the BURP_API_HOST env block from .mcp.json."
+        echo "    OR (NAT — exposes the API on the WSL vSwitch, trusted host only):"
+        echo "      • Praetor config tab → Host = 0.0.0.0"
+        echo "      • launch Burp with JVM flag:  -Dswissknife.allow_non_loopback_bind=true"
+        echo "      • keep  env BURP_API_HOST=${WSL_HOST_IP:-<windows-host-ip>}  in .mcp.json"
+    fi
+    echo ""
+fi

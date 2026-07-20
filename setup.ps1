@@ -1,4 +1,5 @@
-# Burp Suite Swiss Knife MCP - Windows Setup Script
+# Praetor - Windows Setup Script
+# (formerly Burp Suite Swiss Knife MCP - renamed to Praetor at v1.0)
 # Usage: .\setup.ps1
 # If execution policy blocks the script, run via:
 #   powershell -ExecutionPolicy Bypass -File setup.ps1
