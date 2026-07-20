@@ -94,4 +94,42 @@ final class UiHelpers {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
+
+    /**
+     * Make stored finding text readable in a plain {@link JTextArea}.
+     *
+     * <p>Two things break readability of saved findings: content that arrived
+     * JSON double-encoded carries literal {@code \n}/{@code \t} sequences
+     * instead of real whitespace, and presentation fields sometimes carry HTML
+     * markup ({@code <html><b>…}) that a JTextArea shows as raw tags.
+     *
+     * <p>Always converts literal escape sequences to real whitespace. When
+     * {@code stripTags} is true (description / remediation — author-controlled
+     * presentation), HTML line-break/block tags become newlines, remaining tags
+     * are removed, and basic entities are unescaped. When false (EVIDENCE), all
+     * markup is preserved byte-faithfully so attack payloads (e.g.
+     * {@code <script>alert(1)</script>}) stay visible as proof — only the literal
+     * escape sequences are normalised.
+     */
+    static String toReadableText(String s, boolean stripTags) {
+        if (s == null || s.isEmpty()) return "";
+        // Literal escape sequences that survived JSON double-encoding.
+        String out = s.replace("\\r\\n", "\n").replace("\\n", "\n")
+                      .replace("\\r", "\n").replace("\\t", "\t");
+        if (stripTags) {
+            out = out.replaceAll("(?i)<\\s*br\\s*/?\\s*>", "\n")
+                     .replaceAll("(?i)</?\\s*(p|div|li|tr|h[1-6]|html|head|body|ul|ol|table)\\s*>", "\n")
+                     .replaceAll("<[^>]+>", "")
+                     .replaceAll("\n{3,}", "\n\n");
+            out = unescapeEntities(out);
+        }
+        return out.strip();
+    }
+
+    /** Unescape the handful of HTML entities that show up in finding text. */
+    private static String unescapeEntities(String s) {
+        return s.replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&quot;", "\"").replace("&#39;", "'")
+                .replace("&nbsp;", " ").replace("&amp;", "&"); // &amp; last
+    }
 }

@@ -72,7 +72,7 @@ final class FindingDetailDialog {
 
         if (!description.isEmpty()) {
             content.add(makeSectionLabel("Description"));
-            JTextArea descArea = makeTextArea(description);
+            JTextArea descArea = makeTextArea(UiHelpers.toReadableText(description, true));
             JScrollPane descScroll = new JScrollPane(descArea);
             descScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
             descScroll.setPreferredSize(new Dimension(650, 100));
@@ -83,7 +83,9 @@ final class FindingDetailDialog {
 
         if (!evidence.isEmpty()) {
             content.add(makeSectionLabel("Evidence"));
-            JTextArea evidenceArea = makeTextArea(evidence);
+            // Evidence stays byte-faithful (payloads must remain visible) —
+            // only literal escape sequences are normalised, no tag stripping.
+            JTextArea evidenceArea = makeTextArea(UiHelpers.toReadableText(evidence, false));
             evidenceArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
             evidenceArea.setBackground(new Color(245, 245, 245));
             JScrollPane evidenceScroll = new JScrollPane(evidenceArea);
@@ -97,7 +99,7 @@ final class FindingDetailDialog {
         String remediationText = remediation.getOrDefault(cwe, "");
         if (!remediationText.isEmpty()) {
             content.add(makeSectionLabel("Remediation"));
-            JTextArea remArea = makeTextArea(remediationText);
+            JTextArea remArea = makeTextArea(UiHelpers.toReadableText(remediationText, true));
             remArea.setBackground(UiHelpers.BG_INFO);
             JScrollPane remScroll = new JScrollPane(remArea);
             remScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
