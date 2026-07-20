@@ -54,14 +54,13 @@ def build_executive_summary(findings: list[dict], domain: str, profile: dict) ->
         by_sev[sev] = by_sev.get(sev, 0) + 1
 
     total = len(findings)
-    confirmed = sum(1 for f in findings if f.get("status") == "confirmed")
     tech = profile.get("tech_stack", [])
 
+    noun = "finding" if total == 1 else "findings"
     lines = [
         "## Executive Summary",
         "",
-        f"Security assessment of **{domain}** identified **{total} findings** "
-        f"({confirmed} confirmed).",
+        f"Security assessment of **{domain}** identified **{total} {noun}**.",
         "",
     ]
 
@@ -285,11 +284,10 @@ unauthenticated and authenticated perspective where credentials were provided.
    technique mapping where applicable.
 6. **Reporting** — Executive summary, per-finding technical detail (Context,
    Vulnerability, Walkthrough, Impact, Escalation, PoC, Reproduction Steps,
-   Evidence, Remediation, References), test coverage matrix, and prioritised
-   remediation roadmap.
+   Evidence, Remediation, References), and prioritised remediation roadmap.
 
 **Tooling:** Burp Suite Professional (intercepting proxy, scanner, repeater,
-intruder, collaborator), Burp Suite Swiss Knife MCP integration with Claude
+intruder, collaborator), Praetor MCP integration with Claude
 Code, supplementary external recon tools (subfinder, nuclei, katana, ffuf,
 dalfox, sqlmap) routed through the Burp proxy for full traffic capture.
 
