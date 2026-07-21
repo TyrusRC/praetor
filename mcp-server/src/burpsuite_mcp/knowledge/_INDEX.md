@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**137 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**149 knowledge files** under `mcp-server/src/burpsuite_mcp/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -242,7 +242,8 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown, langchain_lc_marker_injection_2025 (CVE-2025-68664), cua_dom_hidden_instruction_2026, cua_multistep_persistence_2026, cua_data_attribute_pii_2026, mcp_resource_theft_hidden_directive_2026 (Unit 42), mcp_conversation_hijack_persistent_2026 (Unit 42), mcp_covert_tool_invocation_2026 (Unit 42), idpi_visual_concealment_2026 (Unit 42), idpi_invisible_unicode_jailbreak_2026 (Unit 42), idpi_payload_splitting_2026 (Unit 42), idpi_illegal_utf8_normalization_2026 (Black Hat USA 2026) | critical | anthropic, anthropic-tools, chatbot, claude, cua, function-calling, langchain, mcp-server, model-context-protocol |
+| `ai_prompt_injection` | direct_injection, indirect_xpi, tool_call_hijack, exfil_via_markdown, langchain_lc_marker_injection_2025 (CVE-2025-68664), cua_dom_hidden_instruction_2026, cua_multistep_persistence_2026, cua_data_attribute_pii_2026, mcp_resource_theft_hidden_directive_2026 (Unit 42), mcp_conversation_hijack_persistent_2026 (Unit 42), mcp_covert_tool_invocation_2026 (Unit 42), idpi_visual_concealment_2026 (Unit 42), idpi_invisible_unicode_jailbreak_2026 (Unit 42), idpi_payload_splitting_2026 (Unit 42), idpi_illegal_utf8_normalization_2026 (Black Hat USA 2026), remote_prompt_execution_upload_2026 (RPE / ChatMate, Black Hat USA 2026 — file-upload channel, ASI02), llm_gateway_execution_blindness_2026 (Vertex AI Search class, Black Hat USA 2026 — gateway blind to tool exec, ASI08) | critical | anthropic, anthropic-tools, assistant, chatbot, claude, code-interpreter, cua, function-calling, langchain, llm-gateway, mcp-server, model-context-protocol, vertex-ai-search |
+| `a2a_protocol` | agent_card_missing_signature, agent_card_capability_overclaim, agent_card_recursive_delegation_unbounded, agent_card_internal_url, agent_card_missing_caller_allowlist, agent_card_tool_desc_prompt_injection, stage_trust_handoff_confusion_2026 (Black Hat USA 2026 — cross-stage trust over-trust, ASI03) | critical | a2a, agent-pipeline, agentic-workflow, assistant, linux-foundation-a2a, mcp, multi-stage-agent |
 | `web_llm` | prompt_injection_via_web, llm_ssrf, llm_data_exfil, llm_tool_abuse, stored_injection | critical | ai, assistant, chatbot, claude, embedding |
 | `mcp_server_attacks` | tool_description_prompt_injection, mcp_rug_pull, claude_code_path_prefix_match_traversal_2025 (CVE-2025-54794), claude_code_tool_arg_shell_injection_2025 (CVE-2025-54795), claude_code_settings_json_hook_preconsent_rce_2025 (CVE-2025-59536), mcp_atlassian_path_traversal_rce_2026 (CVE-2026-27825), mcp_atlassian_header_ssrf_2026 (CVE-2026-27826) | critical | claude-code, claude-desktop, cursor, mcp, mcp-atlassian, model-context-protocol |
 | `mcp_tool_poisoning` | tool_description_prompt_injection, parasitic_tool_chaining, server_identity_spoofing, rug_pull_post_install, indirect_resource_injection | high | mcp, claude-desktop, cursor, fastmcp |
@@ -311,3 +312,22 @@ Active-only surfaces (probes run via binary tools, no KB matchers):
 - CVE prioritisation: `kev_epss_enrich(cve_ids)` — CISA KEV + FIRST EPSS sort.
 - Subdomain perm: `run_chaos`, `run_dnsgen`, `run_shuffledns`.
 - Visual EASM: `visual_easm_diff` — gowitness screenshot + per-host PNG-hash delta.
+
+## 2026-07-20 W34-a additions — Edge Appliances / Perimeter CVEs
+
+12 KB packs mapping known-exploited edge/perimeter appliance CVEs to `auto_probe` fingerprints. **Detection-only and benign** — version/endpoint fingerprints, benign arithmetic-echo for eval-class (GeoServer), and `COLLABORATOR`-token OOB for Log4Shell. No state-changing OGNL/command payloads (Rule 5). Exploitation steps are operator-supervised (`manual_chain`). Fingerprints also registered in `tech_vulns.json` for `map_tech_to_cves`.
+
+| Category | Contexts | CVEs | Top severity | Tech tags |
+|---|---|---|---|---|
+| `citrix_netscaler` | shitrix_path_traversal_2019, citrix_bleed_memdisc_2023 | CVE-2019-19781, CVE-2023-4966 | critical | citrix, netscaler, citrix adc, citrix gateway |
+| `f5_bigip` | tmui_rce_2020, icontrol_rest_authbypass_2022 | CVE-2020-5902, CVE-2022-1388 | critical | f5, big-ip, tmui, icontrol |
+| `ivanti` | ics_authbypass_cmdi_2024, ics_stack_overflow_rce_2025 | CVE-2023-46805, CVE-2024-21887, CVE-2025-0282 | critical | ivanti, connect secure, pulse secure, policy secure |
+| `panos_globalprotect` | globalprotect_cmdi_2024, mgmt_authbypass_2025 | CVE-2024-3400, CVE-2025-0108 | critical | pan-os, palo alto, globalprotect |
+| `moveit_transfer` | moveit_sqli_2023, moveit_authbypass_2024 | CVE-2023-34362, CVE-2024-5806 | critical | moveit, moveit transfer, moveitisapi |
+| `sonicwall_sslvpn` | sslvpn_session_hijack_2024, sslvpn_sqli_2021 | CVE-2024-53704, CVE-2021-20016 | critical | sonicwall, sonicos, sslvpn, netextender |
+| `crushftp` | crushftp_authbypass_2025, crushftp_vfs_ssti_2024 | CVE-2025-31161, CVE-2024-4040 | critical | crushftp, webinterface |
+| `exchange_owa` | proxylogon_ssrf_2021, proxyshell_pathconfusion_2021 | CVE-2021-26855, CVE-2021-34473 | critical | exchange, owa, autodiscover |
+| `atlassian_confluence` | confluence_broken_access_2023, confluence_ognl_rce_2023 | CVE-2023-22515, CVE-2023-22527 | critical | confluence, atlassian |
+| `teamcity` | teamcity_authbypass_2024, teamcity_authbypass_rce_2023 | CVE-2024-27198, CVE-2023-42793 | critical | teamcity, jetbrains |
+| `geoserver` | geoserver_eval_rce_2024 | CVE-2024-36401 | critical | geoserver, geowebcache |
+| `log4shell` | log4shell_jndi_2021 | CVE-2021-44228 | critical | java, log4j, log4j2, spring, struts |

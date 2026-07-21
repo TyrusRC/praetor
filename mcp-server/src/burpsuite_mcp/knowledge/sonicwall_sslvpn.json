@@ -1,0 +1,52 @@
+{
+  "category": "sonicwall_sslvpn",
+  "description": "SonicWall SonicOS SSLVPN edge-appliance CVEs — SSLVPN authentication bypass / session hijack (CVE-2024-53704) and SSLVPN SQL injection (CVE-2021-20016). Detection-only endpoint fingerprints.",
+  "contexts": {
+    "sslvpn_session_hijack_2024": {
+      "description": "CVE-2024-53704 — SonicWall SonicOS SSLVPN authentication mechanism flaw allowing session hijack. Detection = confirm the SSLVPN portal / auth endpoint fingerprint; session-hijack exploitation is operator-supervised.",
+      "tech_match": ["sonicwall", "sonicos", "sslvpn", "netextender", "swap"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/cgi-bin/sslvpnclient",
+          "description": "SSLVPN client endpoint present (200/302 with SonicWall markers) confirms the CVE-2024-53704 SSLVPN surface is exposed. Fingerprint only.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "word", "words": ["SonicWall", "sslvpn", "NetExtender", "swap"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/auth.html",
+          "description": "SonicWall SonicOS virtual-office / auth portal fingerprint — confirms the affected appliance.",
+          "matchers": [
+            {"type": "word", "words": ["SonicWall", "Virtual Office", "SonicOS"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "sslvpn_sqli_2021": {
+      "description": "CVE-2021-20016 — SonicWall SSLVPN SQL injection in the jarrewrite / API handler (unauthenticated). Detection = confirm the SSLVPN endpoint is reachable; no SQLi payload is sent.",
+      "tech_match": ["sonicwall", "sonicos", "sslvpn"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/sonicos/auth",
+          "description": "SonicOS API auth endpoint present (200/401 with SonicWall JSON/markers) = the CVE-2021-20016 SSLVPN SQLi surface family is reachable. Endpoint fingerprint only.",
+          "matchers": [
+            {"type": "status", "status": [200, 401]},
+            {"type": "word", "words": ["SonicWall", "SonicOS", "status"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

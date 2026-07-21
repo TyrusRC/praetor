@@ -1,0 +1,35 @@
+{
+  "category": "geoserver",
+  "description": "GeoServer edge CVE — OGC filter evaluation RCE (CVE-2024-36401) via unsafe commons-jxpath expression evaluation. Detection-only: version/endpoint fingerprint + BENIGN arithmetic-echo marker (no command execution).",
+  "contexts": {
+    "geoserver_eval_rce_2024": {
+      "description": "CVE-2024-36401 — GeoServer evaluates OGC filter property names as commons-jxpath expressions, allowing unauthenticated RCE via WFS/WMS requests. Detection uses (1) the /geoserver/web/ version fingerprint and (2) a BENIGN arithmetic expression (1337*1338=1788906) — never a command-execution payload (Rule 5).",
+      "tech_match": ["geoserver", "geoserver-node", "geowebcache"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/geoserver/web/",
+          "description": "GeoServer web admin present (200 with GeoServer branding / version) confirms the product/version family affected by CVE-2024-36401. Read-only version fingerprint.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["GeoServer", "geoserver", "GeoWebCache"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/geoserver/ows?service=WFS&version=2.0.0&request=GetPropertyValue&typeNames=sf:archsites&valueReference=1337*1338",
+          "description": "Benign arithmetic-echo probe — if the jxpath evaluator is vulnerable, the response reflects the EVALUATED product 1788906 instead of the literal string, confirming expression evaluation without executing any OS command. Non-destructive detection marker only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["1788906"], "in": "body"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

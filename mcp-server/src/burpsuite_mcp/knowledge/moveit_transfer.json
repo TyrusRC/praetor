@@ -1,0 +1,52 @@
+{
+  "category": "moveit_transfer",
+  "description": "Progress MOVEit Transfer edge-appliance CVEs — SQL injection (CVE-2023-34362) and authentication bypass (CVE-2024-5806). Detection-only endpoint fingerprints.",
+  "contexts": {
+    "moveit_sqli_2023": {
+      "description": "CVE-2023-34362 — MOVEit Transfer SQL injection in the MOVEitISAPI / machine2 interface (Cl0p mass-exploitation). Detection = confirm the moveitisapi.dll endpoint is present; no SQLi payload is sent.",
+      "tech_match": ["moveit", "moveit transfer", "moveitisapi", "progress moveit"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/moveitisapi/moveitisapi.dll?action=m2",
+          "description": "moveitisapi.dll responding (200 with MOVEit/machine2 markers) confirms the CVE-2023-34362 SQLi attack surface is exposed. Endpoint fingerprint only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["MOVEit", "machine2", "X-siLock", "ISAPI"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 65,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/human.aspx",
+          "description": "MOVEit Transfer web client fingerprint (human.aspx portal) — confirms the affected product.",
+          "matchers": [
+            {"type": "word", "words": ["MOVEit", "Ipswitch", "Progress"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "moveit_authbypass_2024": {
+      "description": "CVE-2024-5806 — MOVEit Transfer SFTP-module authentication bypass (improper authentication in the underlying IPWorks SSH). Detection = confirm the MOVEit REST/auth surface; the auth-bypass flow is operator-supervised.",
+      "tech_match": ["moveit", "moveit transfer", "progress moveit"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1/token",
+          "description": "MOVEit REST token endpoint present (200/400/401 with MOVEit JSON) = the appliance version family exposing CVE-2024-5806 is reachable. Fingerprint only.",
+          "matchers": [
+            {"type": "status", "status": [200, 400, 401]},
+            {"type": "word", "words": ["grant_type", "MOVEit", "access_token", "invalid_grant"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "category": "citrix_netscaler",
+  "description": "Citrix NetScaler / ADC / Gateway edge-appliance CVEs — path traversal (CVE-2019-19781) and Citrix Bleed memory disclosure (CVE-2023-4966). Detection-only fingerprints.",
+  "contexts": {
+    "shitrix_path_traversal_2019": {
+      "description": "CVE-2019-19781 (Shitrix) — Citrix ADC/Gateway directory traversal in the VPN/rewrite handler. Reaching /vpns/cfg/smb.conf via ../ confirms the traversal that enables the template-write RCE chain.",
+      "tech_match": ["citrix", "netscaler", "citrix adc", "citrix gateway", "vpn/index.html"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/vpn/../vpns/cfg/smb.conf",
+          "description": "200 with smb.conf ini markers (global/encrypt passwords) = traversal reads appliance config = vulnerable to CVE-2019-19781.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["[global]", "encrypt passwords", "name resolve order"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "citrix_bleed_memdisc_2023": {
+      "description": "CVE-2023-4966 (Citrix Bleed) — NetScaler ADC/Gateway sensitive information disclosure. An over-long OpenID configuration request leaks uninitialised memory (session tokens). Detection = confirm the vulnerable NetScaler build/endpoint fingerprint; exploitation (session-token replay) is operator-supervised.",
+      "tech_match": ["citrix", "netscaler", "citrix adc", "citrix gateway"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/oauth/idp/.well-known/openid-configuration",
+          "description": "200 with OpenID JSON (issuer/authorization_endpoint) exposes the AAA/Gateway OAuth IdP that CVE-2023-4966 abuses — confirms the reachable vulnerable surface. Fingerprint only; do NOT send the oversized Host leak payload here.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["issuer", "authorization_endpoint", "token_endpoint"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/vpn/index.html",
+          "description": "NetScaler Gateway login fingerprint (Citrix build banner / NSC_ cookies) — establishes the appliance is a NetScaler Gateway, the affected product for CVE-2023-4966.",
+          "matchers": [
+            {"type": "word", "words": ["NetScaler", "Citrix Gateway", "NSC_"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    }
+  }
+}

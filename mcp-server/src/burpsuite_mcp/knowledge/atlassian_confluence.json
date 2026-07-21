@@ -1,0 +1,53 @@
+{
+  "category": "atlassian_confluence",
+  "description": "Atlassian Confluence Data Center/Server edge CVEs — broken access control privesc (CVE-2023-22515) and OGNL template injection RCE (CVE-2023-22527). Detection-only version/endpoint fingerprints — NO state-changing OGNL.",
+  "contexts": {
+    "confluence_broken_access_2023": {
+      "description": "CVE-2023-22515 — Confluence broken access control allowing an attacker to create an unauthorised administrator via the setup/bootstrap endpoints. Detection = confirm Confluence version + reachable setup endpoint; the admin-create flow is NOT performed.",
+      "tech_match": ["confluence", "atlassian", "x-confluence-request-time", "atl-token"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/server-info.action",
+          "description": "server-info.action returning Confluence version markers confirms the product/version family affected by CVE-2023-22515. Read-only version fingerprint.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["Confluence", "confluence-base-url", "Atlassian"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/setup/setupadministrator.action",
+          "description": "setup administrator endpoint reachable post-install (200/302, not hard 403) indicates the CVE-2023-22515 access-control surface is exposed. Detection only — no account is created.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    },
+    "confluence_ognl_rce_2023": {
+      "description": "CVE-2023-22527 — Confluence OGNL template injection in the legacy Velocity template path → unauthenticated RCE. Detection = confirm the vulnerable template endpoint + version; NO OGNL expression that changes state or executes commands is sent.",
+      "tech_match": ["confluence", "atlassian"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/template/aui/text-inline.vm",
+          "description": "text-inline.vm reachable (200/other, Velocity/Confluence markers) confirms the CVE-2023-22527 OGNL template surface is exposed. Endpoint fingerprint only — no OGNL/command injection payload sent (detection-only per Rule 5).",
+          "matchers": [
+            {"type": "not_status", "status": [404]},
+            {"type": "word", "words": ["Confluence", "aui", "velocity", "Atlassian"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

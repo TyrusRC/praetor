@@ -1,0 +1,52 @@
+{
+  "category": "teamcity",
+  "description": "JetBrains TeamCity edge CVEs — authentication bypass exposing REST admin (CVE-2024-27198) and auth-bypass RCE (CVE-2023-42793). Detection-only endpoint fingerprints.",
+  "contexts": {
+    "teamcity_authbypass_2024": {
+      "description": "CVE-2024-27198 — TeamCity authentication bypass in the web component allowing unauthenticated access to authenticated REST endpoints (admin token / user create → RCE). Detection = confirm the TeamCity server + REST surface; the bypass request is operator-supervised.",
+      "tech_match": ["teamcity", "jetbrains", "tcsessionid"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/app/rest/server",
+          "description": "REST /app/rest/server present (200/401 with TeamCity version XML/JSON) confirms the CVE-2024-27198 auth-bypass surface family. Fingerprint only — no bypass path parameter appended.",
+          "matchers": [
+            {"type": "status", "status": [200, 401]},
+            {"type": "word", "words": ["TeamCity", "buildDate", "versionMajor", "version"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/login.html",
+          "description": "TeamCity login fingerprint (JetBrains/TeamCity branding, TCSESSIONID) — confirms the affected product.",
+          "matchers": [
+            {"type": "word", "words": ["TeamCity", "JetBrains", "TCSESSIONID"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "teamcity_authbypass_rce_2023": {
+      "description": "CVE-2023-42793 — TeamCity authentication bypass reaching the RPC/token endpoint → admin token creation → RCE. Detection = confirm the token RPC endpoint is reachable; no token is created.",
+      "tech_match": ["teamcity", "jetbrains"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/app/rest/users/id:1/tokens/RPC2",
+          "description": "Reaching the tokens RPC endpoint (401/403 gated vs the CVE-2023-42793 bypass) fingerprints the affected TeamCity REST surface. Endpoint fingerprint only — no token creation performed.",
+          "matchers": [
+            {"type": "status", "status": [200, 400, 401, 403]},
+            {"type": "not_status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

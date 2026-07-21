@@ -1,0 +1,42 @@
+{
+  "category": "exchange_owa",
+  "description": "Microsoft Exchange OWA edge CVEs — ProxyLogon SSRF (CVE-2021-26855) and ProxyShell path confusion (CVE-2021-34473). Detection-only endpoint fingerprints.",
+  "contexts": {
+    "proxylogon_ssrf_2021": {
+      "description": "CVE-2021-26855 (ProxyLogon) — Exchange server-side request forgery via the /owa/ front-end trusting an X-BEResource cookie to reach the back-end Autodiscover, enabling pre-auth impersonation. Detection = confirm the OWA/EWS surface; the SSRF cookie payload is operator-supervised.",
+      "tech_match": ["exchange", "outlook web access", "owa", "x-owa-version", "microsoft exchange"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/owa/auth/logon.aspx",
+          "description": "OWA logon page present (200 with Exchange/OWA markers or X-OWA-Version header) confirms the CVE-2021-26855 ProxyLogon front-end is exposed. Fingerprint only — no X-BEResource SSRF cookie sent.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["Outlook Web App", "owa", "X-OWA-Version", "Exchange"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    },
+    "proxyshell_pathconfusion_2021": {
+      "description": "CVE-2021-34473 (ProxyShell) — Exchange Autodiscover path confusion via the Explicit Logon URL, reaching the PowerShell back-end pre-auth. Detection = confirm autodiscover.json is reachable; no ProxyShell chain is executed.",
+      "tech_match": ["exchange", "owa", "autodiscover", "microsoft exchange"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/autodiscover/autodiscover.json?@evil.com/&Email=autodiscover/autodiscover.json%3F@evil.com",
+          "description": "autodiscover.json responding (200/other non-404 with Exchange markers) via the @-in-path Explicit-Logon confusion = CVE-2021-34473 ProxyShell path surface reachable. Detection only — placeholder evil.com tests the path-confusion behaviour, not a callback.",
+          "matchers": [
+            {"type": "not_status", "status": [404]},
+            {"type": "word", "words": ["autodiscover", "Exchange", "ErrorCode", "Autodiscover"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

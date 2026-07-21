@@ -1,0 +1,52 @@
+{
+  "category": "ivanti",
+  "description": "Ivanti Connect Secure / Policy Secure edge-appliance CVEs — auth bypass + command injection (CVE-2023-46805 / CVE-2024-21887) and stack-buffer-overflow RCE (CVE-2025-0282). Detection-only path fingerprints.",
+  "contexts": {
+    "ics_authbypass_cmdi_2024": {
+      "description": "CVE-2023-46805 (auth bypass in web component) chained with CVE-2024-21887 (command injection in /api/v1/totp/user-backup-code). Detection = confirm the vulnerable REST paths are reachable without auth; no OS command is injected.",
+      "tech_match": ["ivanti", "connect secure", "pulse secure", "policy secure", "ivanti connect secure"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/api/v1/totp/user-backup-code/../../system/system-information",
+          "description": "Reaching system-information through the /../ auth-bypass traversal (200, not redirected to /dana-na/ login) = CVE-2023-46805 auth bypass present, the precondition for the CVE-2024-21887 command-injection chain. Detection only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["/dana-na/auth/url_default/welcome.cgi"], "in": "header"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/dana-na/auth/url_default/welcome.cgi",
+          "description": "Ivanti Connect Secure / Pulse Secure login fingerprint (dana-na welcome page / DSSignInURL) — confirms the affected VPN appliance.",
+          "matchers": [
+            {"type": "word", "words": ["Pulse Secure", "Ivanti", "DSSignInURL", "welcome.cgi"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "ics_stack_overflow_rce_2025": {
+      "description": "CVE-2025-0282 — Ivanti Connect Secure / Policy Secure / ZTA Gateways stack-based buffer overflow → unauthenticated RCE. Detection = confirm the affected appliance/endpoint; overflow exploitation is destructive and NOT sent by this probe.",
+      "tech_match": ["ivanti", "connect secure", "policy secure", "ivanti connect secure", "zta gateway"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/dana-cached/hc/HostCheckerInstaller.osx",
+          "description": "Presence of the Host Checker component path (200/302) fingerprints an Ivanti Connect Secure build in the CVE-2025-0282 affected range. Fingerprint only; version confirmation is operator-supervised.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_status", "status": [404]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

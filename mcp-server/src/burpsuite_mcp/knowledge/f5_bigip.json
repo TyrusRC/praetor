@@ -1,0 +1,52 @@
+{
+  "category": "f5_bigip",
+  "description": "F5 BIG-IP edge-appliance CVEs — TMUI RCE (CVE-2020-5902) and iControl REST auth bypass (CVE-2022-1388). Detection-only endpoint fingerprints.",
+  "contexts": {
+    "tmui_rce_2020": {
+      "description": "CVE-2020-5902 — F5 BIG-IP TMUI (Traffic Management UI) auth bypass → RCE via a path-traversal semicolon trick. Reaching the tmshCmd workspace unauthenticated confirms exposure; the benign probe issues no command.",
+      "tech_match": ["f5", "big-ip", "bigip", "tmui", "bigipauthcookie"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/tmui/login.jsp/..;/tmui/locallb/workspace/tmshCmd.jsp",
+          "description": "200 reaching tmshCmd.jsp through the /..;/ traversal = TMUI auth bypass present (CVE-2020-5902). No fileName/command supplied — detection only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["Location: /tmui/login.jsp"], "in": "header"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/tmui/login.jsp",
+          "description": "F5 BIG-IP TMUI login fingerprint (BIG-IP branding / BIGIPAuthCookie) — confirms the affected management UI is exposed.",
+          "matchers": [
+            {"type": "word", "words": ["BIG-IP", "F5 Networks", "BIGIPAuthCookie"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "icontrol_rest_authbypass_2022": {
+      "description": "CVE-2022-1388 — F5 BIG-IP iControl REST authentication bypass via X-F5-Auth-Token / Connection header smuggling to the mgmt endpoint. Detection = confirm the iControl REST endpoint is reachable; the auth-bypass payload is operator-supervised.",
+      "tech_match": ["f5", "big-ip", "bigip", "icontrol"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/mgmt/shared/authn/login",
+          "description": "iControl REST authn endpoint present (401/200 with F5 JSON error/token) = the CVE-2022-1388 attack surface is reachable. Fingerprint only.",
+          "matchers": [
+            {"type": "status", "status": [200, 401]},
+            {"type": "word", "words": ["\"code\":", "iControl", "X-F5-Auth-Token", "loginReference"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

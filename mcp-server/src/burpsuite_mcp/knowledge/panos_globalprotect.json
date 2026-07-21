@@ -1,0 +1,52 @@
+{
+  "category": "panos_globalprotect",
+  "description": "Palo Alto PAN-OS GlobalProtect / management edge CVEs — GlobalProtect command injection (CVE-2024-3400) and management web auth bypass (CVE-2025-0108). Detection-only path fingerprints.",
+  "contexts": {
+    "globalprotect_cmdi_2024": {
+      "description": "CVE-2024-3400 — PAN-OS GlobalProtect arbitrary file creation → OS command injection via the SESSID cookie handling on /ssl-vpn/hipreport.esp. Detection = confirm the GlobalProtect HIP-report endpoint is reachable; no injection payload is sent.",
+      "tech_match": ["pan-os", "palo alto", "globalprotect", "global protect", "gpsession"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/ssl-vpn/hipreport.esp",
+          "description": "hipreport.esp reachable (200/other non-404, GlobalProtect markers) = the CVE-2024-3400 command-injection surface is exposed. Fingerprint only.",
+          "matchers": [
+            {"type": "not_status", "status": [404]},
+            {"type": "word", "words": ["GlobalProtect", "hip-report", "Palo Alto"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 70,
+          "variables": {"path_override": true, "manual_chain": true}
+        },
+        {
+          "payload": "/global-protect/login.esp",
+          "description": "PAN-OS GlobalProtect portal login fingerprint — confirms the affected product/version family.",
+          "matchers": [
+            {"type": "word", "words": ["GlobalProtect", "Palo Alto Networks"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        }
+      ]
+    },
+    "mgmt_authbypass_2025": {
+      "description": "CVE-2025-0108 — PAN-OS management web interface authentication bypass allowing an unauthenticated attacker to invoke certain PHP scripts. Detection = reach a management PHP script without auth; no privileged action is taken.",
+      "tech_match": ["pan-os", "palo alto"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/unauth/php/change_password.php/",
+          "description": "Reaching an /unauth-prefixed management PHP script (200, PAN-OS markers, not redirected to login) indicates the CVE-2025-0108 auth-bypass path is exposed. Detection only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["Palo Alto", "PAN-OS", "pan_confirmation"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

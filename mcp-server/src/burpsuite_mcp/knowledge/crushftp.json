@@ -1,0 +1,42 @@
+{
+  "category": "crushftp",
+  "description": "CrushFTP edge-appliance CVEs — authentication bypass (CVE-2025-31161) and VFS/SSTI auth bypass (CVE-2024-4040). Detection-only endpoint fingerprints.",
+  "contexts": {
+    "crushftp_authbypass_2025": {
+      "description": "CVE-2025-31161 — CrushFTP authentication bypass via crafted Authorization header / race in the login handler, granting admin access. Detection = confirm the CrushFTP WebInterface and version banner; the auth-bypass flow is operator-supervised.",
+      "tech_match": ["crushftp", "crushftpver", "webinterface"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/WebInterface/login.html",
+          "description": "CrushFTP WebInterface login present (200 with CrushFTP branding / crushftpver) confirms the CVE-2025-31161 attack surface. Fingerprint only.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["CrushFTP", "crushftpver", "WebInterface"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    },
+    "crushftp_vfs_ssti_2024": {
+      "description": "CVE-2024-4040 — CrushFTP server-side template injection / VFS sandbox escape enabling unauthenticated file read + auth bypass. Detection = confirm the CrushFTP version endpoint; no SSTI payload is sent.",
+      "tech_match": ["crushftp", "webinterface"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/WebInterface/function/?command=getServerItem",
+          "description": "CrushFTP function endpoint reachable (200/401 with CrushFTP markers) = the CVE-2024-4040 VFS/SSTI surface family is exposed. Endpoint fingerprint only — no template payload injected.",
+          "matchers": [
+            {"type": "status", "status": [200, 401]},
+            {"type": "word", "words": ["CrushFTP", "response", "getServerItem"], "in": "body", "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}
