@@ -266,7 +266,20 @@ The adaptive scan engine reads JSON files from `mcp-server/src/burpsuite_mcp/kno
 | HackTricks Web | Path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, WebDAV, file upload |
 | HackTricks Cloud | Anonymous external surface covered: object storage misconfig (S3 / GCS / Azure Blob / R2 / B2 / Spaces / OCI / MinIO), function URLs (Lambda / Cloud Run / Cloud Functions / Azure / OpenFaaS), API gateway (AWS / GCP / Azure APIM / Kong / KrakenD / Tyk), Kubernetes (kubelet / kube-apiserver / etcd / dashboard / ArgoCD / Tekton / Rancher / Portainer / registries). Credential-based privesc (Pacu class) out-of-scope per operator policy. |
 
-Latest additions cover the gap surface most bug-bounty and red-team work hits in 2024–2026: cloud storage anonymous enumeration, serverless function URL discovery, K8s external exposure, mobile deep-link and WebView injection, archive extraction (Zip Slip) and argument injection (`curl --upload-file`, `git ext::`, `ssh -oProxyCommand`, …), GraphQL engine-specific attacks (Hasura admin-secret, Apollo APQ poisoning, federation `_entities` abuse, PostGraphile RLS bypass, Dgraph admin, Strawberry SDL leak).
+Latest additions cover the gap surface most bug-bounty and red-team work hits in 2024–2026: cloud storage anonymous enumeration, serverless function URL discovery, K8s external exposure, mobile deep-link and WebView injection, archive extraction (Zip Slip) and argument injection (`curl --upload-file`, `git ext::`, `ssh -oProxyCommand`, …), GraphQL engine-specific attacks (Hasura admin-secret, Apollo APQ poisoning, federation `_entities` abuse, PostGraphile RLS bypass, Dgraph admin, Strawberry SDL leak), and a perimeter-appliance CVE pack (Citrix NetScaler, F5 BIG-IP, Ivanti Connect Secure, PAN-OS GlobalProtect, MOVEit, SonicWall SSLVPN, CrushFTP, Exchange, Confluence, TeamCity, GeoServer, Log4Shell).
+
+### Scope & Non-Goals
+
+Praetor is a **web / API / cloud / LLM DAST orchestrator** driven through Burp. That lane is deliberate — the tooling, memory model, and finding pipeline are optimized for it. The following are **out of scope by design**, not gaps to be filled:
+
+- **Internal-network / Active Directory** — no BloodHound / NetExec / impacket / Kerberos-abuse / SMB tooling. `probe_kerberos_spnego_auth` is detection-only (advertises `WWW-Authenticate: Negotiate`); full GSSAPI negotiation and AD lateral movement are not covered. Reach for a dedicated AD toolkit for internal engagements.
+- **Thick-client / native desktop binaries** — Electron IPC/ASAR inspection ships as reference KB (`desktop_electron`) + skill only; there is no binary-instrumentation automation for native Windows/macOS apps.
+- **Non-HTTP protocol / binary fuzzing** — fuzzing is HTTP/parameter-oriented; no boofuzz/AFL-class grammar or network-protocol fuzzing.
+- **Email-infrastructure security** — DNS analysis notes SPF/DMARC *presence* only; no DKIM-selector enumeration, SMTP/STARTTLS/open-relay, or BEC/spoofing assessment.
+- **Container-runtime / eBPF behavioral detection** — image scanning (Trivy/Grype/Hadolint) is covered; runtime (Falco-class) is not.
+- **Autonomous exploitation of destructive/RCE classes** — RCE is detection-gated; Metasploit integration is operator-supervised. Praetor proves impact with benign markers, never with data destruction (Rules 5–8).
+
+If an engagement genuinely needs one of these, use a purpose-built tool alongside Praetor rather than expecting Praetor to grow into it.
 
 ## Save-Finding Pipeline
 
