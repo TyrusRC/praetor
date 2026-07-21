@@ -29,13 +29,28 @@ Framework route extraction (regex-based, no AST — keeps the file zero-dep):
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from burpsuite_mcp.tools.intel._internals import (
+    _atomic_write_json,
+    _empty_structure,
+    _intel_path,
+)
 from burpsuite_mcp.tools.recon._common import _check_tool, _run_cmd
+
+
+# Source route inventory (W36-P4). Extensions we regex for framework routes,
+# and directories pruned from the walk to keep it bounded.
+_SOURCE_EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".java", ".kt", ".rb"}
+_SKIP_DIRS = {
+    "node_modules", ".git", ".venv", "venv", "env", "__pycache__",
+    "dist", "build", "vendor", ".next", "target", "site-packages",
+}
 
 
 # Rule-ID substrings → Praetor vuln_type. Order matters: first match wins.
@@ -119,6 +134,37 @@ def _classify_rule(rule_id: str) -> tuple[str, int]:
     return "generic_sink", 3
 
 
+def _route_from_match(framework: str, m: re.Match[str]) -> dict[str, str]:
+    """Turn a single _ROUTE_PATTERNS match into a {framework, method, path} dict.
+
+    Shared by the finding-walkback (SAST handoff) and the standalone source
+    route inventory so the per-framework group ordering lives in one place.
+    """
+    if framework == "flask":
+        path = m.group(1)
+        methods_raw = (m.group(2) or "").upper()
+        method = "GET"
+        for verb in ("POST", "PUT", "PATCH", "DELETE"):
+            if verb in methods_raw:
+                method = verb
+                break
+        return {"framework": framework, "method": method, "path": path}
+    if framework == "fastapi":
+        return {"framework": framework, "method": m.group(1).upper(), "path": m.group(2)}
+    if framework == "express":
+        method = m.group(1).upper()
+        if method == "ALL":
+            method = "ANY"
+        return {"framework": framework, "method": method, "path": m.group(2)}
+    if framework == "spring_method":
+        verb = m.group(1).upper()
+        method = "GET" if verb == "REQUEST" else verb.upper()
+        return {"framework": "spring", "method": method, "path": m.group(2)}
+    if framework == "rails":
+        return {"framework": framework, "method": m.group(1).upper(), "path": m.group(2)}
+    return {}
+
+
 def _walk_back_for_route(file_path: Path, line: int, lookback: int = 30) -> dict[str, str]:
     """Read up to `lookback` lines before `line` looking for a route decorator.
 
@@ -137,28 +183,9 @@ def _walk_back_for_route(file_path: Path, line: int, lookback: int = 30) -> dict
         m = pattern.search(snippet)
         if not m:
             continue
-        if framework == "flask":
-            path = m.group(1)
-            methods_raw = (m.group(2) or "").upper()
-            method = "GET"
-            for verb in ("POST", "PUT", "PATCH", "DELETE"):
-                if verb in methods_raw:
-                    method = verb
-                    break
-            return {"framework": framework, "method": method, "path": path}
-        elif framework == "fastapi":
-            return {"framework": framework, "method": m.group(1).upper(), "path": m.group(2)}
-        elif framework == "express":
-            method = m.group(1).upper()
-            if method == "ALL":
-                method = "ANY"
-            return {"framework": framework, "method": method, "path": m.group(2)}
-        elif framework == "spring_method":
-            verb = m.group(1).upper()
-            method = "GET" if verb == "REQUEST" else verb.upper()
-            return {"framework": "spring", "method": method, "path": m.group(2)}
-        elif framework == "rails":
-            return {"framework": framework, "method": m.group(1).upper(), "path": m.group(2)}
+        route = _route_from_match(framework, m)
+        if route:
+            return route
     # Next.js / Remix filesystem route fallback.
     path_str = str(file_path)
     if "/app/" in path_str and path_str.endswith(("route.ts", "route.js", "route.tsx", "route.jsx")):
@@ -224,6 +251,98 @@ def _parse_opengrep_blob(blob: str) -> list[dict]:
     return report.get("results") or []
 
 
+def _scan_source_tree(root: Path, max_files: int) -> tuple[list[dict[str, str]], int]:
+    """Walk `root`, regex each source file for framework route definitions.
+
+    Returns (routes, files_scanned). Each route: {method, path, framework,
+    source: "<file>:<line>"}. Prunes _SKIP_DIRS and caps at max_files.
+
+    NOTE: regex heuristic, not a full AST/import-graph parse. Misses routes
+    built dynamically (loops, add_url_rule, decorator factories, string
+    concatenation) and blueprint URL prefixes; over-matches commented-out
+    decorators. Upgrade path: per-language AST (ast / tree-sitter) or OWASP
+    Noir (already wired via check_recon_tools) for exact extraction.
+    """
+    routes: list[dict[str, str]] = []
+    files_scanned = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        for fn in filenames:
+            if files_scanned >= max_files:
+                return routes, files_scanned
+            if os.path.splitext(fn)[1] not in _SOURCE_EXTS:
+                continue
+            fp = Path(dirpath) / fn
+            try:
+                text = fp.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            files_scanned += 1
+            for framework, pattern in _ROUTE_PATTERNS:
+                for m in pattern.finditer(text):
+                    route = _route_from_match(framework, m)
+                    if not route or not route.get("path"):
+                        continue
+                    route["source"] = f"{fp}:{text.count(chr(10), 0, m.start()) + 1}"
+                    routes.append(route)
+    return routes, files_scanned
+
+
+def _dedupe_routes(routes: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Collapse routes by (METHOD, path); keep the first source seen."""
+    seen: set[tuple[str, str]] = set()
+    out: list[dict[str, str]] = []
+    for r in routes:
+        key = (r["method"].upper(), r["path"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def _merge_routes_into_endpoints(domain: str, routes: list[dict[str, str]]) -> tuple[int, int]:
+    """Merge inventory routes into <domain>/endpoints.json, dedup by (method, path).
+
+    Reuses the canonical intel store (_intel_path + _empty_structure + atomic
+    write) — does NOT create a new store. Returns (added, total).
+    """
+    dir_path = _intel_path(domain)
+    dir_path.mkdir(parents=True, exist_ok=True)
+    fp = dir_path / "endpoints.json"
+    data = _empty_structure("endpoints")
+    if fp.exists():
+        try:
+            loaded = json.loads(fp.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                data = loaded
+        except (json.JSONDecodeError, OSError):
+            data = _empty_structure("endpoints")
+    endpoints = data.get("endpoints") or []
+    existing: set[tuple[str, str]] = set()
+    for ep in endpoints:
+        method = (ep.get("method") or "GET").upper()
+        path = ep.get("path") or ep.get("url") or ""
+        existing.add((method, path))
+    added = 0
+    for r in routes:
+        key = (r["method"].upper(), r["path"])
+        if key in existing:
+            continue
+        existing.add(key)
+        endpoints.append({
+            "method": r["method"].upper(),
+            "path": r["path"],
+            "framework": r.get("framework", ""),
+            "source": r.get("source", ""),
+            "discovered_via": "source_route_inventory",
+        })
+        added += 1
+    data["endpoints"] = endpoints
+    _atomic_write_json(fp, data)
+    return added, len(endpoints)
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -286,6 +405,77 @@ def register(mcp: FastMCP) -> None:
                 "priors. High-risk source-trace findings warrant immediate DAST."
             ),
         }
+
+    @mcp.tool()
+    async def inventory_source_routes(
+        source_dir: str,
+        domain: str = "",
+        max_files: int = 5000,
+    ) -> dict:
+        """Inventory API routes from SOURCE CODE (W36-P4, Invicti parity).
+
+        Regex-scans a source tree for framework route definitions and (if a
+        domain is given) MERGES them into <domain>/endpoints.json — the same
+        store discover_attack_surface / crawl / JS extraction feed. Grey/white-
+        box: discover endpoints the crawler never reached.
+
+        Frameworks: Flask/Quart (@app.route), FastAPI/Starlette/Sanic
+        (@app.get / @router.post / ...), Express/Koa/Fastify
+        (app.get / router.post / ...), Spring (@GetMapping / @PostMapping /
+        @RequestMapping / ...), Rails (config/routes.rb verbs).
+
+        NOTE: regex heuristic, not a full AST — misses dynamically-built routes
+        (loops, add_url_rule, blueprint prefixes) and may over-match commented
+        decorators. For exact extraction use OWASP Noir (check_recon_tools).
+
+        Args:
+            source_dir: Repo / app directory to scan.
+            domain: If set, merge discovered routes into that domain's
+                endpoints.json (dedup by method+path). Empty = inventory only.
+            max_files: Cap on source files read (default 5000).
+
+        Returns:
+          {
+            "source_dir": ..., "files_scanned": N, "routes_found": M,
+            "by_framework": {"fastapi": 4, ...},
+            "routes": [{"method","path","framework","source":"file:line"}, ...],
+            "endpoints_merged": {"added": X, "total": Y}  # only if domain set
+          }
+        """
+        root = Path(source_dir).expanduser()
+        if not root.exists() or not root.is_dir():
+            return {"error": f"source_dir not found or not a directory: {source_dir}"}
+
+        raw, files_scanned = _scan_source_tree(root, max_files)
+        routes = _dedupe_routes(raw)
+
+        by_framework: dict[str, int] = {}
+        for r in routes:
+            fw = r.get("framework", "")
+            by_framework[fw] = by_framework.get(fw, 0) + 1
+
+        result: dict[str, Any] = {
+            "source_dir": str(root),
+            "files_scanned": files_scanned,
+            "routes_found": len(routes),
+            "by_framework": by_framework,
+            "routes": routes[:500],
+        }
+        if len(routes) > 500:
+            result["truncated"] = f"routes list capped at 500 of {len(routes)}"
+
+        if domain and routes:
+            try:
+                added, total = _merge_routes_into_endpoints(domain, routes)
+                result["endpoints_merged"] = {"added": added, "total": total}
+                result["next_step"] = (
+                    f"{added} new source-derived endpoints in {domain}. "
+                    "Verify liveness (curl_request / probe_hosts), then "
+                    "auto_probe / discover_attack_surface against them."
+                )
+            except ValueError as e:
+                result["merge_error"] = str(e)
+        return result
 
     @mcp.tool()
     async def risk_rank_endpoints(
