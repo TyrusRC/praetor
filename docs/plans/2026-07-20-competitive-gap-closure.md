@@ -114,6 +114,24 @@ Sources: BH USA 2026 briefings, QUIC-er Races (Springer IJIS 2026), AI-pentest-a
 
 ---
 
+## W37 — Large-context engagement state (MiMo-Code pass, 2026-07-21)
+
+Source: `XiaomiMiMo/MiMo-Code` — checkpoint.md task-tree + independent goal/stop judge. Mapping showed Praetor covers roles / skill-discovery / memory distillation / structured per-agent status already; the two real gaps were durable task state and an independent completion check. Both file-based, no new deps, reuse existing `.burp-intel/` + `business_logic_gate`.
+
+### W37-A — Durable engagement checkpoint + task ledger (SHIPPED)
+- **Gap:** engagement task state lived only in prose (`notes.md`) + model context; a compacted/resumed agent re-derived it. No hierarchical plan tree, no single durable `next_action`.
+- **Fix:** `write_checkpoint` / `load_checkpoint` → `.burp-intel/<domain>/checkpoint.json` (phase, round, next_action, hierarchical task tree, open_threads). Merges by task id (field-level; a status flip never drops a title/note). `intel/checkpoint.py`. Wired: grow-agent Round 0 LOAD + CHECKPOINT step, resume.md step 1b.
+- **Effort:** low. Done.
+
+### W37-B — Independent completion judge (SHIPPED)
+- **Gap:** grow-agent's stop condition is mechanical (rounds / coverage_delta / WAF). Nothing verified the engagement was actually finished — open tasks, un-revisited threads, or a skipped business-logic pass all passed the circuit breaker.
+- **Fix:** `judge_completion(domain, objective)` — deterministic verdict re-derived from persisted state (checkpoint tasks + coverage + findings + `business_logic_gate`), independent of the agent's own narrative. complete only when all gates clear; zero findings does NOT block (a fully-worked clean target is done). `report/completion_judge.py`. Wired: grow-agent STOP GATE, command-engagement Phase 5 per-domain gate.
+- **Effort:** low. Done.
+
+Tests: `tests/test_w37_checkpoint_judge.py` (13). Routing: `pick_tool` W37 block.
+
+---
+
 ## Backlog — adopt opportunistically
 
 | Idea | Source | Note |

@@ -118,6 +118,7 @@ intel.register(mcp)     # persistent target intelligence storage across sessions
 cve.register(mcp)      # CVE intelligence: match tech stack against known vulnerabilities
 report.register(mcp)   # professional pentest report generation with platform templates
 report.business_logic_gate.register(mcp)  # W36-P1 — record_business_logic_test + business-logic completion gate
+report.completion_judge.register(mcp)  # W37-B — independent judge_completion over checkpoint + coverage + findings
 recon.register(mcp)    # external recon tool orchestration (subfinder, nuclei, katana)
 recon_extended.register(mcp)  # Python-only recon: crt.sh, wayback, DNS, takeover, rate limit
 transform.register(mcp)  # encoding chains, smart decode, encoding detection

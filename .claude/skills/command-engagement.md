@@ -61,6 +61,7 @@ You are the engagement lead. You do NOT run the per-domain loop yourself — `gr
 
 ### Phase 5 — DELIVER
 - `save_target_intel` the merged state per domain (Dispatch Rule 5 — you save, not the workers).
+- **Completion gate — per domain, before reporting:** `judge_completion(domain, objective)`. It re-derives "done" from persisted state (checkpoint task ledger + coverage + findings + business-logic gate), independent of any worker's own claim. If `complete=False`, its `gaps[]` are unfinished work — dispatch a grow-agent round to close them or record the accepted gap in the plan; do not deliver a domain as complete over open gaps.
 - Generate the final report into `reports/` (role file dictates format: findings report vs attack narrative).
 - Populate the **retest queue**: for each confirmed finding, note the `record_retest(finding_id, domain, status, date)` target so a future round can version it (`v<N>_<date>_<status>.md`, Spec 1).
 - Report only TRUE POSITIVES (R16). NEVER-SUBMIT items only when chained (R17).

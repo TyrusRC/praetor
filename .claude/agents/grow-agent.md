@@ -43,7 +43,8 @@ Each round = ONE decision compaction. If 3 rounds with no new finding → pivot 
 
 1. `load_target_intel(domain, "all")`
 2. `check_target_freshness(domain, session_name)`
-3. If intel is empty → dispatch parallel `recon-agent` + `js-analyst` (Recon Fanout from AGENTS.md). Merge results. Save intel. Round 0 ends.
+3. `load_checkpoint(domain)` — restore the task ledger + `next_action` from a prior run (survives compaction). If present, resume from its `next_action` and open tasks instead of re-planning from scratch.
+4. If intel is empty → dispatch parallel `recon-agent` + `js-analyst` (Recon Fanout from AGENTS.md). Merge results. Save intel. `write_checkpoint(domain, phase='recon', round=0, tasks=[...])`. Round 0 ends.
 
 ### Round N — single atomic decision
 
@@ -77,15 +78,27 @@ PROMOTE:
 
 CHECKPOINT:
   save_target_intel(domain, ...)
+  write_checkpoint(domain, phase=<recon|scan|verify|chain|report>, round=N,
+                   next_action="<single directive for next round>",
+                   tasks=[{"id":"T<x>","status":"done|in_progress|blocked"}],
+                   open_threads=["<anomaly to revisit>", ...])
+    → durable task ledger; survives compaction. resume.md reads it on restart.
   append to .burp-intel/<domain>/notes.md:
     "Round N | <action> | <target> | hypothesis: <h> | outcome: <o>"
 
-CIRCUIT:
-  STOP if:
+CIRCUIT (bounds EFFORT — does not prove completion):
+  STOP the loop if:
     - round_count >= max_rounds
     - 3 consecutive rounds with coverage_delta == 0 AND no chain progress
     - 5 consecutive WAF/429 responses
     - operator interrupt
+
+STOP GATE (proves COMPLETION — run before returning stop_reason='complete'):
+  judge_completion(domain, objective)
+    → independent verdict from persisted state (checkpoint tasks + coverage +
+      findings + business-logic gate). If complete=False, its gaps[] are the
+      remaining work: do NOT return 'complete' — either work a gap or return the
+      real stop_reason (circuit|max_rounds|interrupt) with the gaps surfaced.
 ```
 
 ## Subagent Dispatch Map

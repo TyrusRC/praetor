@@ -6,6 +6,26 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W37: durable checkpoint + completion judge -----
+    (["write checkpoint", "save checkpoint", "engagement checkpoint",
+      "task ledger", "record task state", "update task tree",
+      "save progress state", "checkpoint the engagement", "next action ledger",
+      "mark task done", "track engagement tasks"],
+     "write_checkpoint",
+     "write_checkpoint(domain='app.example.com', phase='scan', round=4, "
+     "next_action='dispatch finding-verifier on f-0007', "
+     "tasks=[{'id':'T2','status':'done'}])"),
+    (["load checkpoint", "restore task state", "resume checkpoint",
+      "read engagement state", "restore engagement", "where did i leave off",
+      "engagement task state", "resume progress"],
+     "load_checkpoint",
+     "load_checkpoint(domain='app.example.com')"),
+    (["is the engagement complete", "engagement done", "completion check",
+      "am i done", "should i report", "judge completion", "is it complete",
+      "stop condition", "completion judge", "verify engagement complete",
+      "engagement finished"],
+     "judge_completion",
+     "judge_completion(domain='app.example.com', objective='broad coverage')"),
     # ----- W36: frontier probes + business-logic gate -----
     (["http3 race", "http/3 race", "quic race", "single datagram race",
       "h3 datagram race", "quic single packet", "http3 datagram race",

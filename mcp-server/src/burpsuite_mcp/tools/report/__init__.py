@@ -26,6 +26,7 @@ from burpsuite_mcp.tools.report.lifecycle import (
 )
 from burpsuite_mcp.tools.report.platforms import format_platform_finding
 from burpsuite_mcp.tools.report.severity import severity_sort_key
+from burpsuite_mcp.tools.report import completion_judge  # W37-B — bind submodule for server.register
 
 
 def register(mcp: FastMCP):

@@ -11,6 +11,7 @@ You are continuing a bug bounty engagement from a previous session. Your priorit
 
 R20a session-start gate runs in this order before any test fires:
 1. `load_target_intel(domain, "all")` — restores profile / findings / coverage / fingerprint
+1b. `load_checkpoint(domain)` — restores the durable task ledger: phase, round, `next_action`, open tasks, open threads. This is the one read that survives context compaction — start from its `next_action` instead of re-deriving state from prose `notes.md`. Empty → fall through to the fresh-target path in step 5.
 2. `check_target_freshness(domain, session)` — flags endpoints whose fingerprint has drifted; those re-enter the test queue
 3. `get_business_context(domain)` — confirms structured scoring inputs are present; if empty, `capture_business_context(...)` BEFORE re-testing (assess_finding depends on it)
 4. `list_sessions` → reuse if alive, else `create_session` from stored profile

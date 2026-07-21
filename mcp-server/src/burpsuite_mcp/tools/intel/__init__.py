@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import (
     business_context,
+    checkpoint,
     cost_cap,
     cross_target,
     episodes,
@@ -60,6 +61,7 @@ def register(mcp: FastMCP) -> None:
     findings_graph.register(mcp)
     cost_cap.register(mcp)
     episodes.register(mcp)
+    checkpoint.register(mcp)  # W37 — durable engagement checkpoint + task ledger
 
 
 __all__ = [
