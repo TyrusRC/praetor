@@ -171,26 +171,45 @@ def merge_checkpoint(
 
 
 def _render(data: dict) -> str:
-    """Compact one-glance summary of a checkpoint for the resuming agent."""
-    tasks = data.get("tasks") or []
-    open_tasks = [t for t in tasks if isinstance(t, dict) and t.get("status") in _OPEN_STATES]
+    """Token-lean resume view: enumerate OPEN tasks in full (they drive the next
+    actions), collapse DONE tasks to an id list (keeps the plan-tree shape without
+    spending tokens on titles/notes of finished work). This is the context-
+    injection path — every token here is re-read on every resume."""
+    tasks = [t for t in (data.get("tasks") or []) if isinstance(t, dict)]
+    open_tasks = [t for t in tasks if t.get("status") in _OPEN_STATES]
+    done_ids = [str(t.get("id", "?")) for t in tasks if t.get("status") == "done"]
     lines = [
         f"CHECKPOINT {data.get('domain', '?')} | phase={data.get('phase', '?')} "
         f"round={data.get('round', '?')} | updated={data.get('updated_at', '?')}",
         f"objective: {data.get('objective', '(unset)')}",
         f"next_action: {data.get('next_action', '(none)')}",
-        f"tasks: {len(tasks)} total, {len(open_tasks)} open",
+        f"tasks: {len(tasks)} total, {len(open_tasks)} open, {len(done_ids)} done",
     ]
-    for t in tasks:
-        if not isinstance(t, dict):
-            continue
+    for t in open_tasks:
         note = f" — {t['note']}" if t.get("note") else ""
         lines.append(f"  [{t.get('status', '?'):>11}] {t.get('id', '?')} {t.get('title', '')}{note}")
+    if done_ids:
+        lines.append(f"  done: {', '.join(done_ids)}")
     threads = data.get("open_threads") or []
     if threads:
         lines.append(f"open_threads ({len(threads)}):")
         lines.extend(f"  - {th}" for th in threads)
     return "\n".join(lines)
+
+
+def _summary_line(data: dict) -> str:
+    """One-line write confirmation. The writer already holds the full state, so a
+    checkpoint write echoes back only what changed + resulting counts — not the
+    whole tree (this runs every grow-agent round; the tree would be pure waste)."""
+    tasks = [t for t in (data.get("tasks") or []) if isinstance(t, dict)]
+    open_n = sum(1 for t in tasks if t.get("status") in _OPEN_STATES)
+    threads = data.get("open_threads") or []
+    return (
+        f"checkpoint saved: {data.get('domain', '?')} | "
+        f"phase={data.get('phase', '?')} round={data.get('round', '?')} | "
+        f"tasks {len(tasks)} ({open_n} open), {len(threads)} thread(s) | "
+        f"next: {data.get('next_action') or '(none)'}"
+    )
 
 
 def register(mcp: FastMCP) -> None:
@@ -216,6 +235,10 @@ def register(mcp: FastMCP) -> None:
         keeps its title/note; `open_threads` append+dedupe (pass an explicit empty
         list to clear resolved threads).
 
+        Returns a one-line confirmation (counts + next_action), not the full tree —
+        the writer already holds the state, so echoing it back every round is token
+        waste. Use load_checkpoint to read the full ledger on resume.
+
         Args:
             domain: Target domain (slug).
             phase: recon|scan|verify|chain|report|done. Empty = leave unchanged.
@@ -235,7 +258,7 @@ def register(mcp: FastMCP) -> None:
         )
         if not data:
             return f"Error: invalid domain {domain!r}."
-        return _render(data)
+        return _summary_line(data)
 
     @mcp.tool()
     async def load_checkpoint(domain: str) -> str:

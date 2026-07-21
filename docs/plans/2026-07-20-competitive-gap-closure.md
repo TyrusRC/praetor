@@ -130,6 +130,11 @@ Source: `XiaomiMiMo/MiMo-Code` — checkpoint.md task-tree + independent goal/st
 
 Tests: `tests/test_w37_checkpoint_judge.py` (13). Routing: `pick_tool` W37 block.
 
+### W37-C — Memory store: files stay canonical; token-lean recall (DECISION + SHIPPED)
+- **Decision (do not re-litigate):** `.burp-intel` structured JSON stays the source of truth over SQLite-FTS5 / vector-embedding memory. Rationale (grounded in code): Praetor's memory access is overwhelmingly **exact keyed lookup** (`load_target_intel(domain, category)`, Rule 20a) — a primary-key fetch that files answer with 100% recall and full determinism; FTS5/vector only help content-search-*without*-a-key. For a finding/coverage store, approximate recall is a correctness hazard (silent dedup miss → dropped bug), and embeddings add a model dependency + data-egress path that collides with the never-exfiltrate rules. Confirmed there is **no** sqlite/fts5/embedding in the memory path today (`research/_vector_kb.py` is attack-vector *prompts*, not an embedding store).
+- **Single deferred exception (trigger, not now):** cross-target search-without-a-key at scale. `lookup_cross_target_patterns` + `patterns.json` does exact fingerprint-key matching — fine at small N. **If** that corpus grows past ~10k rows and fuzzy recall is genuinely needed, add a **local SQLite FTS5 index built *over* the files as a rebuildable cache** (files remain canonical; stdlib `sqlite3`; BM25; no deps; no egress). **Do NOT add embeddings** unless synonym-level semantic recall is *proven* necessary and runs on a *local* model.
+- **Token optimization (shipped):** applied return-lean-on-write / expand-on-read to the checkpoint path. `write_checkpoint` (runs every grow-agent round) returns a one-line confirmation instead of echoing the full tree — **93% smaller per write** (2028→147 chars on a 20-task engagement; ~37.6k chars / ~9–10k tokens saved across a 20-round run). `load_checkpoint` (resume context-injection path) enumerates open tasks in full but collapses done tasks to an id list — **67% smaller** (2028→667). Mirrors the existing W30 `summary_only` / R24 pagination line. `intel/checkpoint.py` `_summary_line` / `_render`.
+
 ---
 
 ## Backlog — adopt opportunistically

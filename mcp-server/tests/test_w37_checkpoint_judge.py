@@ -125,11 +125,23 @@ class CheckpointMergeTest(unittest.TestCase):
         load = cap.tools["load_checkpoint"]
         out = asyncio.run(write(self.DOMAIN, phase="scan", round=3,
                                 next_action="dispatch verifier",
-                                tasks=[{"id": "T1", "title": "x", "status": "done"}]))
+                                tasks=[{"id": "T1", "title": "recon detail here",
+                                        "status": "done"},
+                                       {"id": "T2", "title": "sqli sweep",
+                                        "status": "in_progress"}]))
+        # Write returns a COMPACT one-liner (token-lean hot path): counts +
+        # next_action, NOT the full tree. A done task's title must not appear.
         self.assertIn("phase=scan", out)
+        self.assertIn("dispatch verifier", out)
+        self.assertEqual(out.count("\n"), 0)
+        self.assertNotIn("recon detail here", out)
+
         summary = asyncio.run(load(self.DOMAIN))
         self.assertIn("dispatch verifier", summary)
-        self.assertIn("T1", summary)
+        # Open task enumerated in full; done task collapsed to an id line.
+        self.assertIn("sqli sweep", summary)          # open -> full
+        self.assertIn("done: T1", summary)            # done -> id-only
+        self.assertNotIn("recon detail here", summary)  # done title dropped
         # Fresh domain -> new-target notice.
         self.assertIn("fresh engagement",
                       asyncio.run(load("w37-nope.test-throwaway.example")).lower())
