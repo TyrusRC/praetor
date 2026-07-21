@@ -71,3 +71,15 @@ For each `finding_id`:
 - NEVER promote a finding to 'confirmed' without the per-class evidence bar.
 - For blind classes, `reproductions[]` MUST have ≥3 entries.
 - Stale ≠ false_positive. Stale = target changed; FP = was never real.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The per-id state transitions stay in `## Returns`; `findings_confirmed` counts findings promoted to `confirmed` this run:
+
+```json
+{"agent":"finding-verifier","domain":"<domain>","phase":"verify","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N verified: promoted/stale/FP breakdown>","next_action":"<e.g. report confirmed f-XXXX / re-probe stale>","blockers":[]}
+```
+
+## Model (operator option)
+
+This agent is triage/verification — replay + evidence-bar checks, no exploit generation. To reduce cost, the operator MAY run it on a cheaper model by adding `model: haiku` to the frontmatter above (Claude Code reads the frontmatter `model:` key — `haiku` / `sonnet` / `opus` / `inherit`). The per-class evidence bar is unchanged; only the reasoning model swaps. Left unset, the agent inherits the session model — set it deliberately, don't hardcode.

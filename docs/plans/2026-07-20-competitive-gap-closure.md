@@ -126,14 +126,13 @@ Sources: BH USA 2026 briefings, QUIC-er Races (Springer IJIS 2026), AI-pentest-a
 | Paired Sigma/SPL/KQL + ATT&CK ID per technique | pentest-ai-agents | Purple-team deliverable upgrade |
 | Diff-scoped CI review mode (probe only changed endpoints) | Strix | Maps to `findings_diff` |
 | Structured JSON agent status schema | VoltAgent | Replace prose returns in grow-agent orchestration |
-| CI lint for agent/skill frontmatter + per-agent tool doctor | pentest-ai-agents | 14 agents + 53 skills currently unlinted |
 | Lite-mode Haiku routing for advisory/triage subagents | pentest-ai-agents | Cost cut, no methodology loss |
 | RSA/local-key-encrypted OAST payloads | pentest-ai | Provider sees metadata only |
-| `check-leaks.sh` pre-push client-data gate | ClaudeBrain | `.burp-intel/` gitignored but no push-time scan |
 
 ## Explicitly NOT adopting
 
 - Docker-per-agent sandbox (Strix/PentAGI) — Praetor runs in Claude Code, not a server; sandbox is the harness's job.
 - Vector-DB/Neo4j memory (PentAGI Graphiti) — over-engineered vs the file-based `.burp-intel` intel that already works.
 - Auto-fix / PR-patch generation (Strix) — out of a pentest tool's lane; scope creep.
+- Push-time / CI leak-scan + frontmatter linter (ClaudeBrain, pentest-ai-agents) — Praetor is a local tool; engagement findings live in gitignored `.burp-intel/` and are never pushed, so a pre-push gate solves a problem this project doesn't have.
 ```

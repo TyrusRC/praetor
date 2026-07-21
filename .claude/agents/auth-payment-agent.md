@@ -65,3 +65,11 @@ Follow `.claude/skills/playbook-payment-and-auth.md`. Standard cadence:
 - Always map flow before mutating (R3 surgical changes).
 - Don't fuzz `redirect_uri` with 1000 payloads when `auto_probe` covers working bypasses.
 - Co-dispatch with `mobile-dynamic-agent` when flow originates from a mobile app.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The `flow_map` + chain anchors stay in `## Returns`:
+
+```json
+{"agent":"auth-payment-agent","domain":"<domain>","phase":"auth-payment:<surface>","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<surface flow mapped; bypasses/chain candidates>","next_action":"<e.g. chain state-CSRF with open_redirect f-XXXX>","blockers":[]}
+```

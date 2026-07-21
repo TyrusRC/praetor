@@ -46,3 +46,13 @@ You test authorization (not authentication). You need ≥2 sessions to compare a
 - R6 credential brute-force is out of scope. ID enumeration IS in scope.
 - IDOR PoC: READ access proof only; never WRITE to another user's data (R8).
 - For sequential IDs: include "sequential"/"predictable"/"enumeration" in evidence so `assess_finding` boosts impact.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The `matrix_results` + ID lists stay in `## Returns`:
+
+```json
+{"agent":"auth-tester","domain":"<domain>","phase":"authz","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<idor/bfla/bypass across N endpoints x M roles>","next_action":"<e.g. verify idor f-XXXX>","blockers":[]}
+```
+
+If fewer than 2 sessions are supplied, return `status":"blocked"` with `blockers":["needs >=2 auth states"]`.

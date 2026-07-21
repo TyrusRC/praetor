@@ -1,3 +1,8 @@
+---
+name: fuzz-hidden-paths
+description: Discover hidden directories/files with tech-aware SecLists slicing + ffuf, fed by recon intel. Use for hidden-path fuzzing on a known target instead of spray fuzzing.
+---
+
 # Fuzz Hidden Paths — Smart Wordlist + ffuf
 
 Use when discovering hidden directories / files on a known target. Replaces spray fuzzing with tech-aware SecLists slicing fed by recon intel.

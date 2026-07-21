@@ -76,3 +76,11 @@ Class-specific overrides (route directly, skip auto_probe step):
 - Do NOT touch endpoints not in `endpoints` (overlap = WAF risk).
 - Do NOT call `save_finding` without first calling `assess_finding` (R10).
 - For NEVER-SUBMIT vuln_types, supply `chain_with[]` per R17.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The ID lists stay in `## Returns`; this carries the counts + hand-off:
+
+```json
+{"agent":"vuln-scanner","domain":"<domain>","phase":"scan:<category>","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<category over N (endpoint,param) tuples>","next_action":"<e.g. verify suspected f-XXXX>","blockers":[]}
+```

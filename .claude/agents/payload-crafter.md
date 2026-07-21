@@ -63,3 +63,11 @@ You craft bypasses for filters. Standard payloads from `get_payloads` failed; yo
 
 - NO destructive payloads (R5). Detection payloads only.
 - Bypass must be functional — proven against the live filter, not theoretical.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. Detailed `filter_map` / `working_payload` stay in `## Returns`:
+
+```json
+{"agent":"payload-crafter","domain":"<domain>","phase":"payload-craft:<vuln_class>","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<bypass_found|filter_too_strong for endpoint/param>","next_action":"<e.g. hand working payload to vuln-scanner>","blockers":[]}
+```

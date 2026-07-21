@@ -1,3 +1,8 @@
+---
+name: msf-quickwin
+description: Metasploit exploit-on-demand for an identified CVE / fingerprinted service / scanner-detected vuln — use audited MSF modules instead of regenerating payloads from scratch.
+---
+
 # msf-quickwin — Metasploit Framework exploit-on-demand
 
 Load when an attack vector has been identified that **matches a known CVE / fingerprinted vuln / scanner-detected service**. Operator quick-win pattern: hundreds of audited MSF modules cover well-known classes — using them is faster + more reliable than Claude regenerating payloads from scratch.

@@ -60,3 +60,15 @@ Covers Rule 20a (session-start gate). If `dns_only` signal in subdomain set → 
 - Do NOT test for vulns — that's `vuln-scanner`'s job.
 - Do NOT chase anomalies — record and return; orchestrator decides.
 - Respect Rule 1 scope; Rule 19 says "test every applicable vuln class" — but that's the orchestrator's deciding gate, not yours.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The endpoint/tech/param detail stays in `## Returns`; this carries the summary + hand-off (recon produces no findings, so counts are 0):
+
+```json
+{"agent":"recon-agent","domain":"<domain>","phase":"recon","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N endpoints, tech stack, sensitive files, hidden params>","next_action":"<e.g. dispatch vuln-scanner on top-risk params>","blockers":[]}
+```
+
+## Model (operator option)
+
+This agent is pure recon/analysis — no exploit generation. To reduce cost, the operator MAY run it on a cheaper model by adding `model: haiku` to the frontmatter above (Claude Code reads the frontmatter `model:` key — `haiku` / `sonnet` / `opus` / `inherit`). Methodology is unchanged; only the reasoning model swaps. Left unset, the agent inherits the session model — set it deliberately, don't hardcode.

@@ -1,3 +1,8 @@
+---
+name: operational-discipline
+description: Always-active engagement discipline — counters the LLM tendency to act like a fuzzing scanner (payload spamming, skipped verification, single-200 victory, low-impact noise) across pentest / bug-bounty / red-team roles.
+---
+
 # Operational Discipline
 
 Always-active when running an engagement. Counters the LLM tendency to act

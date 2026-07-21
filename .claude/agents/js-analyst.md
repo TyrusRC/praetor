@@ -52,3 +52,15 @@ Returns priority-ordered `attack_plan` — RSC action IDs first (probe_cve_with_
 
 - No requests to discovered endpoints — that's later phases.
 - Severity ranking on secrets follows existing `extract_js_secrets` output; don't inflate.
+
+## Status Report (return this JSON)
+
+Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The secrets/sinks/endpoint detail stays in `## Returns`; this carries the summary + hand-off (analysis produces no findings, so counts are 0):
+
+```json
+{"agent":"js-analyst","domain":"<domain>","phase":"js-analysis","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N files; secrets, DOM sinks, hidden endpoints found>","next_action":"<e.g. probe RSC action IDs / hand endpoints to recon-agent>","blockers":[]}
+```
+
+## Model (operator option)
+
+This agent is pure JS analysis — no exploit generation. To reduce cost, the operator MAY run it on a cheaper model by adding `model: haiku` to the frontmatter above (Claude Code reads the frontmatter `model:` key — `haiku` / `sonnet` / `opus` / `inherit`). Methodology is unchanged; only the reasoning model swaps. Left unset, the agent inherits the session model — set it deliberately, don't hardcode.

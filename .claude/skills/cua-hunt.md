@@ -1,3 +1,8 @@
+---
+name: cua-hunt
+description: Hunt Computer-Use-Agent (CUA) prompt-injection surface — instructions planted in CUA-readable DOM channels (hidden text, aria-label, alt, noscript). Load when a target is consumed or driven by a Computer-Use Agent.
+---
+
 # cua-hunt — Computer-Use-Agent injection surface
 
 Load when target is consumed by a Computer-Use Agent (Claude CUA, OpenAI Operator, ChatGPT Atlas browser, Sider, Comet, Genspark) OR when victim users are likely to drive a CUA through the app.
