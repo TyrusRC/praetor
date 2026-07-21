@@ -3,6 +3,7 @@
 Tools:
     recorded_login        — capture proxy indices -> create macro -> replay -> emit token
     findings_diff         — new / resolved / regression delta between two snapshots
+    scope_targets_to_diff — intersect PR/git-diff changed paths with endpoints.json
     format_pr_comment     — GitHub/GitLab PR-comment markdown for a finding
     easm_monitor_loop     — subfinder + httpx + takeover sweep, persisted delta vs prior run
 """

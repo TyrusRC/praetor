@@ -5,6 +5,9 @@ Layout follows PTES §7 (Reporting), OWASP WSTG v4.2, NIST SP 800-115:
   Escalation → PoC → Reproduction → Evidence → Remediation → References
 """
 
+from burpsuite_mcp.tools._framework_map import framework_tags
+from burpsuite_mcp.tools.report.business_logic_gate import business_logic_gate
+
 
 def format_poc_request(poc: dict | str | None) -> str:
     """Render a poc_request dict (or string) as an http code block."""
@@ -57,7 +60,19 @@ def build_executive_summary(findings: list[dict], domain: str, profile: dict) ->
     tech = profile.get("tech_stack", [])
 
     noun = "finding" if total == 1 else "findings"
-    lines = [
+    lines: list[str] = []
+
+    # W36-P1: business-logic completion gate. Operator-only warning (not client
+    # content) — surfaces at the top when the business-logic pass is unproven.
+    # Never blocks; disappears once one invariant is recorded as tested.
+    bl_warning = business_logic_gate(domain)
+    if bl_warning:
+        lines += [
+            f"> **Operator note (remove before client delivery):** {bl_warning}",
+            "",
+        ]
+
+    lines += [
         "## Executive Summary",
         "",
         f"Security assessment of **{domain}** identified **{total} {noun}**.",
@@ -104,6 +119,14 @@ def build_finding_section(finding: dict, index: int) -> str:
     cvss = finding.get("cvss_vector") or finding.get("cvss", "")
     vuln_type = finding.get("vulnerability_type") or finding.get("vuln_type", "")
 
+    # Framework tagging (W34-b): MITRE ATT&CK / WSTG / OWASP / CWE from the
+    # class lookup. Finding-supplied cwe/owasp always win; map fills the gap.
+    fw = framework_tags(finding.get("vuln_type") or vuln_type)
+    if not cwe:
+        cwe = fw.get("cwe", "")
+    if not owasp:
+        owasp = fw.get("owasp", "")
+
     lines.append("**Classification**")
     if vuln_type:
         lines.append(f"- Vulnerability class: `{vuln_type}`")
@@ -115,6 +138,12 @@ def build_finding_section(finding: dict, index: int) -> str:
         lines.append(f"- CWE: {cwe}")
     if owasp:
         lines.append(f"- OWASP Top 10: {owasp}")
+    if fw.get("attack_ck"):
+        name = fw.get("attack_name", "")
+        ids = ", ".join(fw["attack_ck"])
+        lines.append(f"- MITRE ATT&CK: {ids}" + (f" ({name})" if name else ""))
+    if fw.get("wstg"):
+        lines.append(f"- OWASP WSTG: {fw['wstg']}")
     if cvss:
         lines.append(f"- CVSS 4.0 vector: `{cvss}`")
     lines.append(f"- Severity: **{severity}**")
@@ -235,6 +264,26 @@ def build_finding_section(finding: dict, index: int) -> str:
                 lines.append(f"- {r}")
         else:
             lines.append(str(remediation))
+        lines.append("")
+
+    # ── Detection guidance (blue-team / purple-team pairing, W34-b)
+    detection = fw.get("detection") or {}
+    if any(detection.get(k) for k in ("sigma", "spl", "kql")):
+        lines.append("**Detection Guidance (Blue Team)**")
+        lines.append(
+            "Paired defensive rules — how a defender would spot this attack class "
+            "in web, proxy, or WAF telemetry:"
+        )
+        lines.append("")
+        if detection.get("sigma"):
+            lines.append("- Sigma:")
+            lines.append(f"  ```\n  {detection['sigma']}\n  ```")
+        if detection.get("spl"):
+            lines.append("- Splunk (SPL):")
+            lines.append(f"  ```\n  {detection['spl']}\n  ```")
+        if detection.get("kql"):
+            lines.append("- Microsoft Sentinel (KQL):")
+            lines.append(f"  ```\n  {detection['kql']}\n  ```")
         lines.append("")
 
     # ── References

@@ -8,9 +8,11 @@ operator can diff any two timestamps.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -53,6 +55,61 @@ def _index_by_dedup_key(findings: list[dict]) -> dict[str, dict]:
         key = "|".join(str(f.get(k) or "") for k in ("endpoint", "vuln_type", "parameter", "title"))
         out[key] = f
     return out
+
+
+def _load_endpoints(domain: str) -> tuple[list[dict], Path]:
+    """Load endpoints.json (same shape rank_attack_targets/predict_paths read):
+    `{"endpoints"|"targets": [...]}` or a bare list. Returns (list, path)."""
+    path = _safe_findings_path(domain).parent / "endpoints.json"
+    if not path.exists():
+        return [], path
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return [], path
+    if isinstance(data, list):
+        return data, path
+    return (data.get("endpoints") or data.get("targets") or []), path
+
+
+def _ep_path(ep: dict) -> str:
+    return ep.get("path") or ep.get("url") or ""
+
+
+def _ep_params(ep: dict) -> list[str]:
+    """Every user-controlled param name on an endpoint, across all locations."""
+    out: list[str] = []
+    for p in ep.get("parameters") or []:
+        name = p if isinstance(p, str) else (p.get("name") or p.get("parameter"))
+        if name:
+            out.append(name)
+    for key in ("body_keys", "cookie_keys", "header_keys", "path_params", "query_keys"):
+        for k in ep.get(key) or []:
+            if k:
+                out.append(k)
+    # preserve order, drop dups
+    seen: set = set()
+    return [x for x in out if not (x in seen or seen.add(x))]
+
+
+def _norm_path(s: str) -> str:
+    """Reduce an endpoint URL or bare path to its path component for comparison."""
+    s = (s or "").strip()
+    if "://" in s:
+        return urlparse(s).path or "/"
+    return s
+
+
+def _path_matches(pattern: str, ep_path: str) -> bool:
+    """Simple glob / prefix / exact path match. Glob chars trigger fnmatch;
+    otherwise exact or segment-boundary prefix (`/api/` matches `/api/users`)."""
+    if not pattern or not ep_path:
+        return False
+    if any(c in pattern for c in "*?["):
+        return fnmatch.fnmatch(ep_path, pattern)
+    if ep_path == pattern:
+        return True
+    return ep_path.startswith(pattern.rstrip("/") + "/")
 
 
 def register(mcp: FastMCP) -> None:
@@ -137,6 +194,117 @@ def register(mcp: FastMCP) -> None:
         lines.append("")
         lines.append(f"PERSISTING: {len(persisting)}")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def scope_targets_to_diff(
+        domain: str,
+        changed_paths: list[str],
+        include_unmatched: bool = True,
+    ) -> dict:
+        """Intersect PR/git-diff changed paths with discovered endpoints → a
+        fire-ready (endpoint, parameter) target list for auto_probe. A CI run
+        probes only what the diff touched instead of a full re-crawl.
+
+        Args:
+            domain: target domain (slug) — reads .burp-intel/<domain>/endpoints.json.
+            changed_paths: URL paths/params touched by the diff. Each entry may be
+                a path ('/api/users'), a glob ('/api/users/*', '/api/*/settings'),
+                a segment prefix ('/api/'), or a path+param
+                ('/api/users?id' or '/api/users?id=1') to scope to specific params.
+            include_unmatched: also report changed paths that hit no known endpoint.
+
+        Returns:
+            {matched_targets: [{endpoint, method, parameter, changed_path}, ...],
+             unmatched_changed: [...], note: str}
+        """
+        if not changed_paths:
+            return {"matched_targets": [], "unmatched_changed": [], "note": "changed_paths empty"}
+
+        eps, ep_path_file = _load_endpoints(domain)
+        if not eps:
+            return {
+                "matched_targets": [],
+                "unmatched_changed": list(changed_paths),
+                "note": (
+                    f"no endpoints.json at {ep_path_file} — run discover_attack_surface "
+                    "+ save_target_intel(category='endpoints') first"
+                ),
+            }
+
+        matched: list[dict] = []
+        seen: set = set()
+        unmatched: list[str] = []
+
+        for raw in changed_paths:
+            entry = (raw or "").strip()
+            if not entry:
+                continue
+
+            # split off a param spec: ?a=1&b=2  or  #fragment  or a full URL query
+            param_filter: set[str] = set()
+            core = entry
+            if "://" in core:
+                parsed = urlparse(core)
+                core = parsed.path or "/"
+                if parsed.query:
+                    param_filter |= {kv.split("=", 1)[0] for kv in parsed.query.split("&") if kv}
+            elif "?" in core:
+                core, q = core.split("?", 1)
+                param_filter |= {kv.split("=", 1)[0] for kv in q.split("&") if kv}
+            elif "#" in core:
+                core, frag = core.split("#", 1)
+                if frag:
+                    param_filter.add(frag)
+            pattern = core.strip() or "/"
+
+            hit = False
+            for ep in eps:
+                ep_path = _norm_path(_ep_path(ep))
+                if not _path_matches(pattern, ep_path):
+                    continue
+                hit = True
+                method = (ep.get("method") or "GET").upper()
+                all_params = _ep_params(ep)
+                if param_filter:
+                    use = [p for p in all_params if p in param_filter]
+                    # param named in the diff but not (yet) known on this endpoint —
+                    # still surface it so CI probes the changed input
+                    if not use:
+                        use = sorted(param_filter)
+                else:
+                    use = all_params
+
+                if not use:
+                    key = (ep_path, method, "")
+                    if key not in seen:
+                        seen.add(key)
+                        matched.append({
+                            "endpoint": _ep_path(ep), "method": method,
+                            "parameter": None, "changed_path": entry,
+                        })
+                    continue
+
+                for pname in use:
+                    key = (ep_path, method, pname)
+                    if key not in seen:
+                        seen.add(key)
+                        matched.append({
+                            "endpoint": _ep_path(ep), "method": method,
+                            "parameter": pname, "changed_path": entry,
+                        })
+
+            if not hit:
+                unmatched.append(entry)
+
+        out = {
+            "matched_targets": matched,
+            "note": (
+                f"{len(matched)} (endpoint, param) targets from {len(changed_paths)} "
+                f"changed paths vs {len(eps)} known endpoints"
+            ),
+        }
+        out["unmatched_changed"] = unmatched if include_unmatched else []
+        return out
 
     @mcp.tool()
     async def list_findings_snapshots(domain: str) -> str:

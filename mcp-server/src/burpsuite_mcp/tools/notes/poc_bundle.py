@@ -40,6 +40,11 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._helpers import _intel_dir, _safe_findings_path, _sanitized
+from .repro_script import _render_repro
+
+# Bump when the capsule on-disk layout / manifest schema changes so a consumer
+# can refuse an incompatible capsule instead of silently misreading it.
+_CAPSULE_SCHEMA_VERSION = "1.0"
 
 
 _VERIFY_HINTS: dict[str, list[str]] = {
@@ -281,6 +286,73 @@ def _readme(finding: dict, req: dict) -> str:
 """
 
 
+def _oracle_spec(finding: dict, req: dict) -> dict:
+    """Distil the machine-checkable oracle that separates a true positive from
+    noise for THIS finding. Consumed by manifest.json and the replay script so
+    a re-fire can decide pass/fail without a human re-reading the response.
+
+    Mirrors the decision ladder in _verify_py so both agree on the verdict.
+    """
+    vt = str(finding.get("vuln_type") or "").lower()
+    evidence = finding.get("evidence") or {}
+    if not isinstance(evidence, dict):
+        evidence = {}
+
+    markers: list[str] = []
+    for prefix, hints in _VERIFY_HINTS.items():
+        if vt.startswith(prefix):
+            markers = list(hints)
+            break
+
+    timing_class = vt in (
+        "sqli_blind", "sqli_time", "ssrf_blind", "rce_blind", "command_injection_blind",
+    )
+    collab_id = evidence.get("collaborator_interaction_id")
+
+    baseline = evidence.get("baseline") or {}
+    if not isinstance(baseline, dict):
+        baseline = {}
+    bl_status = baseline.get("status") or evidence.get("baseline_status")
+    bl_len = baseline.get("length") or evidence.get("baseline_length")
+
+    if collab_id:
+        kind = "collaborator"
+        description = (
+            f"True positive iff Collaborator interaction {collab_id} is present "
+            "(out-of-band DNS/HTTP callback from the target confirms the blind vuln)."
+        )
+    elif timing_class:
+        kind = "timing"
+        description = (
+            "True positive iff response latency >= 4000ms (injected time delay "
+            "reproduces the blind timing side-channel vs baseline)."
+        )
+    elif markers:
+        kind = "markers"
+        description = (
+            f"True positive iff response body contains any class marker "
+            f"({', '.join(markers[:5])}{'...' if len(markers) > 5 else ''}) — "
+            "confirms the payload reached an executable/parsing sink."
+        )
+    else:
+        kind = "baseline_delta"
+        description = (
+            "True positive iff response status differs from baseline, or body "
+            "length differs by > 200 bytes (anomaly vs recorded clean baseline)."
+        )
+
+    return {
+        "vuln_class": vt or "unknown",
+        "verdict_kind": kind,
+        "markers": markers,
+        "timing_threshold_ms": 4000 if timing_class else None,
+        "collaborator_interaction_id": collab_id,
+        "baseline": {"status": bl_status, "length": bl_len},
+        "endpoint": finding.get("endpoint") or req.get("url") or "",
+        "description": description,
+    }
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -371,4 +443,122 @@ def register(mcp: FastMCP):
             "bundle_path": str(tar_path),
             "size_bytes": tar_path.stat().st_size,
             "files": ["README.md", "request.http", "response.http", "repro.sh", "verify.py", "finding.json"],
+        }
+
+    @mcp.tool()
+    async def export_proof_capsule(
+        finding_id: str,
+        domain: str,
+        output_dir: str = "",
+    ) -> dict:
+        """Emit a self-contained, one-command-replayable proof capsule for a
+        single confirmed finding.
+
+        Unlike export_poc_bundle (a .tar.gz for triager handoff), the capsule is
+        an unpacked directory carrying the confirming request/response, the
+        machine-checkable oracle (what makes it a true positive), and a replay
+        script that re-fires the request and exits 0 only if the oracle still
+        holds. This is EVIDENCE packaging, not a benchmark.
+
+        Layout: `.burp-intel/<domain>/artifacts/poc/<finding_id>/capsule/`
+            manifest.json   — finding id, class, endpoint, oracle spec, schema version
+            oracle.json     — the standalone oracle spec (also embedded in manifest)
+            request.http    — confirming request bytes (CRLF normalised)
+            response.http   — confirming response bytes (first 64 KB)
+            replay.py       — re-fire + oracle assertion (exit 0 = still reproduces)
+            repro.sh        — curl-through-Burp replay (reuses generate_repro_script)
+            finding.json    — full saved-finding record
+
+        Replay in one command:  `python replay.py`  (exit 0 = confirmed).
+
+        Args:
+            finding_id: saved-finding ID
+            domain: target domain (used for .burp-intel path resolution)
+            output_dir: optional override for the capsule directory root
+
+        Returns a clear error if the finding or its evidence index is unresolvable.
+        """
+        path = _safe_findings_path(domain)
+        if not path.exists():
+            return {"error": f"no findings.json at {path}", "finding_id": finding_id}
+
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            return {"error": f"failed to read findings.json: {exc}"}
+        items = data if isinstance(data, list) else data.get("findings", [])
+        target = next(
+            (f for f in items if (f.get("id") or f.get("finding_id")) == finding_id),
+            None,
+        )
+        if not target:
+            return {"error": f"finding {finding_id!r} not found in {path}"}
+
+        evidence = target.get("evidence") or {}
+        idx = evidence.get("logger_index") if isinstance(evidence, dict) else None
+        if idx is None and isinstance(evidence, dict):
+            idx = evidence.get("proxy_history_index")
+        if idx is None or int(idx) < 0:
+            return {
+                "error": (
+                    f"finding {finding_id!r} has no logger_index / proxy_history_index "
+                    "in evidence — cannot resolve the confirming request"
+                )
+            }
+
+        req = await client.get(f"/api/proxy/{int(idx)}", params={"include_body": "true"})
+        if "error" in req:
+            return {"error": f"fetch proxy entry {idx}: {req['error']}"}
+        resp = req.get("response") or {}
+
+        if output_dir:
+            capsule_dir = Path(output_dir)
+        else:
+            capsule_dir = (
+                _intel_dir() / _sanitized(domain) / "artifacts" / "poc"
+                / _sanitized(str(finding_id)) / "capsule"
+            )
+        capsule_dir.mkdir(parents=True, exist_ok=True)
+
+        oracle = _oracle_spec(target, req)
+        manifest = {
+            "capsule_schema_version": _CAPSULE_SCHEMA_VERSION,
+            "finding_id": finding_id,
+            "vuln_class": oracle["vuln_class"],
+            "severity": str(target.get("severity") or "INFO").upper(),
+            "title": target.get("title") or target.get("vuln_type") or "",
+            "endpoint": oracle["endpoint"],
+            "parameter": target.get("parameter") or "",
+            "evidence_index": int(idx),
+            "oracle": oracle,
+            "replay_cmd": "python replay.py",
+            "files": [
+                "manifest.json", "oracle.json", "request.http",
+                "response.http", "replay.py", "repro.sh", "finding.json",
+            ],
+        }
+
+        writes: dict[str, bytes] = {
+            "manifest.json": json.dumps(manifest, indent=2, default=str).encode("utf-8"),
+            "oracle.json": json.dumps(oracle, indent=2, default=str).encode("utf-8"),
+            "request.http": _raw_request(req),
+            "response.http": _raw_response(resp),
+            "replay.py": _verify_py(target, req).encode("utf-8"),
+            "repro.sh": _render_repro(target, req).encode("utf-8"),
+            "finding.json": json.dumps(target, indent=2, default=str).encode("utf-8"),
+        }
+        for name, content in writes.items():
+            fpath = capsule_dir / name
+            fpath.write_bytes(content)
+            if name in ("replay.py", "repro.sh"):
+                fpath.chmod(0o755)
+
+        return {
+            "ok": True,
+            "finding_id": finding_id,
+            "capsule_dir": str(capsule_dir),
+            "capsule_schema_version": _CAPSULE_SCHEMA_VERSION,
+            "oracle_kind": oracle["verdict_kind"],
+            "replay_cmd": "python replay.py",
+            "files": manifest["files"],
         }

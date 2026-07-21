@@ -17,6 +17,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools._framework_map import attack_tag_list, framework_tags
 
 _SEVERITY_TO_LEVEL = {
     "CRITICAL": "error",
@@ -59,11 +60,18 @@ def _to_sarif_result(f: dict, mappings: dict) -> dict:
     desc = f.get("description") or ""
     evidence_text = f.get("evidence_text") or ""
 
+    fw = framework_tags(vuln)
     properties: dict[str, Any] = {
         "severity": sev,
         "vuln_type": vuln,
         "status": f.get("status") or "suspected",
         "compliance": _vuln_tags(vuln, mappings),
+        # Framework tagging (W34-b): MITRE ATT&CK / WSTG / CWE.
+        "attack": fw["attack_ck"],
+        "wstg": fw["wstg"],
+        "cwe": fw["cwe"] or (f.get("cwe") or ""),
+        "owasp": fw["owasp"],
+        "tags": _vuln_tags(vuln, mappings) + attack_tag_list(vuln),
     }
     if evidence := f.get("evidence"):
         if isinstance(evidence, dict):
@@ -99,6 +107,8 @@ def _to_sarif(findings: list[dict]) -> dict:
         rid = f"praetor.{vuln}"
         if rid not in rule_ids:
             tags = _vuln_tags(vuln, mappings)
+            fw_tags = attack_tag_list(vuln)
+            all_tags = tags + fw_tags
             rule_ids[rid] = {
                 "id": rid,
                 "name": vuln,
@@ -106,7 +116,7 @@ def _to_sarif(findings: list[dict]) -> dict:
                 "fullDescription": {
                     "text": f"Praetor DAST finding category: {vuln}. Compliance: {', '.join(tags) if tags else 'none mapped'}."
                 },
-                "properties": {"tags": tags or [vuln]},
+                "properties": {"tags": all_tags or [vuln]},
             }
 
     return {

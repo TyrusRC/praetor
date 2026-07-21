@@ -138,6 +138,23 @@ def _apply_program_policy(ctx: AssessContext) -> None:
     ctx.program_confidence_floor = float(program.get("confidence_floor", 0.0) or 0.0)
 
 
+def _framework_line(vuln_type: str) -> str | None:
+    """One-line MITRE ATT&CK / WSTG / CWE tag for the finding class (W34-b)."""
+    try:
+        from burpsuite_mcp.tools._framework_map import framework_tags
+        t = framework_tags(vuln_type)
+    except Exception:
+        return None
+    parts = []
+    if t.get("attack_ck"):
+        parts.append("ATT&CK " + ",".join(t["attack_ck"]))
+    if t.get("wstg"):
+        parts.append("WSTG " + (t["wstg"] if isinstance(t["wstg"], str) else ",".join(t["wstg"])))
+    if t.get("cwe"):
+        parts.append(t["cwe"])
+    return " | ".join(parts) if parts else None
+
+
 def _render(ctx: AssessContext) -> str:
     """Render the final string output. Matches pre-refactor formatting."""
     program_banner = (
@@ -162,6 +179,9 @@ def _render(ctx: AssessContext) -> str:
             extras.append(f"  Overrides: {'; '.join(ctx.audit_overrides)}")
         if ctx.impact_notes:
             extras.append("  Impact: " + " | ".join(ctx.impact_notes[:3]))
+        _fw = _framework_line(ctx.vuln_type)
+        if _fw:
+            extras.append(f"  Framework: {_fw}")
         if extras:
             compact += "\n" + "\n".join(extras)
         return compact
@@ -169,6 +189,9 @@ def _render(ctx: AssessContext) -> str:
     lines = [f"VERDICT: {ctx.verdict}"]
     lines.append(f"  {program_banner}")
     lines.append(f"  Type: {ctx.vuln_type}")
+    _fw = _framework_line(ctx.vuln_type)
+    if _fw:
+        lines.append(f"  Framework: {_fw}")
     lines.append(f"  Endpoint: {ctx.endpoint}")
     if ctx.parameter:
         lines.append(f"  Parameter: {ctx.parameter}")
