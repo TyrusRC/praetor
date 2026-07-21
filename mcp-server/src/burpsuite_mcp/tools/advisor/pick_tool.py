@@ -176,6 +176,13 @@ _MAPPINGS = [
      "msf_check(module='exploit/multi/http/<...>', options={'RHOSTS':'10.0.0.1'})"),
     (["msfvenom", "generate shellcode", "encode payload", "msf payload"], "msf_payload_gen",
      "msf_payload_gen(payload='linux/x64/shell_reverse_tcp', options={'LHOST':'...','LPORT':4444}, format='python')"),
+    # msfrpcd fast-daemon path — distinct transport from the msfconsole
+    # subprocess tools above. Route here when the operator has msfrpcd running
+    # or needs high-volume module lookups (batch CVE checks).
+    (["msfrpc", "msfrpcd", "msf daemon", "fast msf", "batch msf",
+      "msf rpc", "high volume msf"], "msfrpc_module_search",
+     "msfrpc_login(password='...') then msfrpc_module_search(query='log4shell')  "
+     "# needs msfrpcd running; ~10x faster than msfconsole subprocess for volume"),
     # CVE-prefixed queries — route to MSF search by default (operator quick-win)
     # When operator says "exploit CVE-2024-XXXX", check MSF first before crafting custom.
     (["cve-2", "cve 2"], "msf_search",
@@ -323,11 +330,67 @@ TIER1_HUNT_LOOP = [
 
 
 
+def _match_specificity(keyword: str) -> int:
+    """Specificity weight of a matched keyword.
+
+    Multi-word anchors ("csrf token", "cve-2026-32879") are far more specific
+    than bare words ("token", "cve-2") and must win. Weight = word-count * 10
+    + character length, so a 3-word anchor always outranks a 1-word substring
+    no matter how long the latter is.
+    """
+    return len(keyword.split()) * 10 + len(keyword)
+
+
+def _score_mappings(task_lower: str):
+    """Rank matching mappings by best-matched-keyword specificity, best-first.
+
+    Used only to surface *alternatives* — the primary pick stays first-match so
+    the hand-ranked _MAPPINGS order (jwt before header, specific-CVE before the
+    generic cve-2 fallback) is preserved verbatim. Ranking alternatives by
+    specificity means a genuinely more-specific route (multi-word anchor) is
+    offered ahead of a generic one regardless of its position in the list.
+    Returns (score, -index, tool, example) tuples.
+    """
+    scored = []
+    for idx, (keywords, tool, example) in enumerate(_MAPPINGS):
+        best = max(
+            (_match_specificity(kw) for kw in keywords if kw in task_lower),
+            default=0,
+        )
+        if best > 0:
+            scored.append((best, -idx, tool, example))
+    scored.sort(reverse=True)
+    return scored
+
+
 async def pick_tool_impl(task: str) -> str:
     task_lower = task.lower()
+
+    # Primary pick: first-match (unchanged) preserves hand-ranked priority.
+    primary = None
     for keywords, tool, example in _MAPPINGS:
         if any(kw in task_lower for kw in keywords):
-            return f"Use: {tool}\nExample: {example}"
+            primary = (tool, example)
+            break
+
+    if primary is not None:
+        tool, example = primary
+        out = [f"Use: {tool}", f"Example: {example}"]
+        # Surface up to 2 distinct specificity-ranked runners-up so the model
+        # can course-correct when the top route is wrong — cheaper than
+        # re-querying, and directly counters first-match shadowing.
+        alts, seen = [], {tool}
+        for _s, _i, alt_tool, alt_example in _score_mappings(task_lower):
+            if alt_tool in seen:
+                continue
+            seen.add(alt_tool)
+            alts.append(f"  - {alt_tool}: {alt_example}")
+            if len(alts) == 2:
+                break
+        if alts:
+            out.append("Alternatives:")
+            out.extend(alts)
+        return "\n".join(out)
 
     # Tier-1 fallback — list the core hunt-loop tools so the model can pick
     # one rather than blindly searching the 300+ tool surface.

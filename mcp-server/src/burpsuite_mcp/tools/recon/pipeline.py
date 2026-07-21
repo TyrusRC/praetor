@@ -27,6 +27,10 @@ def register(mcp: FastMCP):
             timeout: Max seconds per tool invocation (default 300)
         """
         domain = _sanitize_domain(domain)
+        from burpsuite_mcp.tools.intel.cost_cap import budget_gate
+        _over = budget_gate(domain)
+        if _over:
+            return _over
         lines = [f"Recon pipeline for {domain} (depth: {depth})", "=" * 50, ""]
         subdomains: list[str] = []
         live_hosts: list[str] = []

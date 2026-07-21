@@ -200,6 +200,14 @@ def register(mcp: FastMCP):
         if concurrency < 1:
             concurrency = 1
 
+        # Loop guard — concurrent_requests is the classic runaway spot.
+        from burpsuite_mcp.tools._runtime_guard import note_call
+        _first = requests[0] if requests else {}
+        _sig = f"{len(requests)}:{_first.get('method','GET')}:{_first.get('url','')}"
+        _loop = note_call("concurrent_requests", _sig)
+        if _loop:
+            return _loop
+
         sem = asyncio.Semaphore(concurrency)
         results: list[dict] = [{} for _ in requests]
 

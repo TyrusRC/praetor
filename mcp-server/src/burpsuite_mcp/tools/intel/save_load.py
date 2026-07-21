@@ -349,6 +349,92 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
+    async def next_untested_targets(
+        domain: str,
+        vuln_classes: str = "",
+        top_n: int = 10,
+    ) -> str:
+        """Rank the highest-value UNTESTED (endpoint, param, class) tuples as fire-ready next moves.
+
+        Where coverage_summary reports per-class counts, this surfaces the
+        specific tuples to hit next — ranked by parameter-name risk signal and
+        by how many classes remain untested — each with a ready auto_probe call.
+        Prevents rework and points the operator (or grow-agent) straight at the
+        gaps. Reads the same endpoints.json / coverage.json as coverage_summary.
+
+        Args:
+            domain: Target domain
+            vuln_classes: Comma-separated classes to consider (empty = default top-10 web classes)
+            top_n: Max tuples to return (default 10)
+        """
+        dir_path = _intel_path(domain)
+        endpoints_path = dir_path / "endpoints.json"
+        coverage_path = dir_path / "coverage.json"
+        if not endpoints_path.exists():
+            return f"No endpoints recorded for {domain}. Run discover_attack_surface or full_recon first."
+        try:
+            endpoints = (json.loads(endpoints_path.read_text()).get("endpoints", []) or [])
+        except (json.JSONDecodeError, OSError) as e:
+            return f"endpoints.json unreadable: {e}"
+        if not endpoints:
+            return f"endpoints.json present but empty for {domain}."
+
+        tested: dict[tuple[str, str], set[str]] = {}
+        if coverage_path.exists():
+            try:
+                for e in json.loads(coverage_path.read_text()).get("entries", []) or []:
+                    cls = e.get("vuln_class") or e.get("class") or ""
+                    if cls:
+                        tested.setdefault((e.get("endpoint", ""), e.get("parameter", "")), set()).add(cls)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if vuln_classes.strip():
+            classes = [c.strip() for c in vuln_classes.split(",") if c.strip()]
+        else:
+            classes = ["sqli", "xss", "ssrf", "idor", "ssti",
+                       "command_injection", "path_traversal", "xxe",
+                       "open_redirect", "auth_bypass"]
+
+        # Param-name → likely-class signal, reused from the scan risk map.
+        from burpsuite_mcp.tools.scan._constants import _PARAM_RISK_MAP
+        param_signals: dict[str, set[str]] = {}
+        for risk_key, names in _PARAM_RISK_MAP.items():
+            for n in names:
+                param_signals.setdefault(n.lower(), set()).update(risk_key.split("_"))
+
+        ranked = []
+        for ep in endpoints:
+            url = ep.get("url") or ep.get("endpoint") or ""
+            params = ep.get("parameters") or ep.get("params") or [""]
+            for p in params:
+                pname = p if isinstance(p, str) else (p.get("name") or "")
+                done = tested.get((url, pname), set())
+                untested = [c for c in classes if c not in done]
+                if not untested:
+                    continue
+                signals = param_signals.get(pname.lower(), set())
+                # Score: param-name signal for an untested class is highest-value;
+                # break ties by breadth of untested surface.
+                signal_hit = sum(1 for c in untested if any(s in c for s in signals))
+                score = signal_hit * 100 + len(untested)
+                ranked.append((score, url, pname, untested, signal_hit))
+
+        if not ranked:
+            return f"All ({len(classes)}) classes covered for every known tuple on {domain}. Expand endpoints or classes."
+        ranked.sort(key=lambda r: r[0], reverse=True)
+
+        lines = [f"Next untested targets for {domain} (top {min(top_n, len(ranked))} of {len(ranked)}):", ""]
+        for score, url, pname, untested, signal_hit in ranked[:top_n]:
+            flag = " ⚑ param-name signal" if signal_hit else ""
+            top_classes = untested[:3]
+            lines.append(f"  {url}  param={pname or '(none)'}{flag}")
+            lines.append(f"      untested: {', '.join(untested[:6])}{' …' if len(untested) > 6 else ''}")
+            lines.append(f"      → auto_probe(session='hunt', domain='{domain}', "
+                         f"targets=[{{'endpoint':'{url}','parameter':'{pname}'}}], categories={top_classes})")
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def save_target_notes(
         domain: str,
         notes: str,

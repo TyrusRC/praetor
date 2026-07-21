@@ -5,6 +5,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from .._common import _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL
+from ..._runtime_guard import wrap_untrusted
 
 
 def register(mcp: FastMCP):
@@ -110,7 +111,7 @@ def register(mcp: FastMCP):
         if len(findings) > 50:
             lines.append(f"  ... and {len(findings) - 50} more")
 
-        return "\n".join(lines)
+        return wrap_untrusted("\n".join(lines), source="nuclei")
 
     @mcp.tool()
     async def run_dalfox(
@@ -162,7 +163,7 @@ def register(mcp: FastMCP):
             lines.append(out[:2000])
         if use_proxy:
             lines.append("\nAll requests routed through Burp proxy — check proxy history.")
-        return "\n".join(lines)
+        return wrap_untrusted("\n".join(lines), source="dalfox")
 
     @mcp.tool()
     async def run_commix(

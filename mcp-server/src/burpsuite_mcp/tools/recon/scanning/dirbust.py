@@ -5,6 +5,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from .._common import _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL
+from ..._runtime_guard import wrap_untrusted
 
 
 def register(mcp: FastMCP):
@@ -89,7 +90,7 @@ def register(mcp: FastMCP):
             lines.append(f"  ... and {len(hits) - 100} more")
         if use_proxy:
             lines.append("\nAll requests routed through Burp proxy — check proxy history.")
-        return "\n".join(lines)
+        return wrap_untrusted("\n".join(lines), source="ffuf")
 
     @mcp.tool()
     async def run_arjun(

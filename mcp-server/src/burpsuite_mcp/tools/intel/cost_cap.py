@@ -41,6 +41,37 @@ def _cost_path(domain: str) -> Path:
     return d / "cost.json"
 
 
+def budget_gate(domain: str) -> str | None:
+    """Importable hard-stop check for high-volume tools.
+
+    Returns a message string ONLY when a cap is set AND spend has EXCEEDED it,
+    so callers can early-exit. Returns None (proceed) when no cap is set or
+    spend is under the ceiling — the common case, so wiring this in is a no-op
+    for unbounded engagements. Sync + cheap; safe to call at tool entry.
+    """
+    if not domain:
+        return None
+    try:
+        data = _read(domain)
+    except (ValueError, OSError):
+        return None
+    if not data:
+        return None
+    max_usd = float(data.get("max_usd", 0) or 0)
+    max_tokens = int(data.get("max_tokens", 0) or 0)
+    spent_usd = float(data.get("spent_usd", 0) or 0)
+    spent_tokens = int(data.get("spent_tokens", 0) or 0)
+    usd_pct = (spent_usd / max_usd) if max_usd else 0.0
+    tok_pct = (spent_tokens / max_tokens) if max_tokens else 0.0
+    if max(usd_pct, tok_pct) >= 1.0:
+        return (
+            f"[cost-cap EXCEEDED] {domain}: ${spent_usd:.2f}/${max_usd:.2f}, "
+            f"{spent_tokens:,}/{max_tokens:,} tokens. High-volume call blocked. "
+            f"Raise the cap with set_engagement_cost_cap or wrap up the engagement."
+        )
+    return None
+
+
 def _read(domain: str) -> dict:
     p = _cost_path(domain)
     if not p.exists():

@@ -61,6 +61,12 @@ def register(mcp: FastMCP):
             max_pages: Maximum pages to visit (default 20)
             same_origin: Only follow same-origin links (default True)
         """
+        from urllib.parse import urlparse
+        from burpsuite_mcp.tools.intel.cost_cap import budget_gate
+        _over = budget_gate(urlparse(url).hostname or "")
+        if _over:
+            return _over
+
         _, _, page = await _ensure_browser()
 
         visited: set[str] = set()

@@ -11,6 +11,33 @@ from ._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
 from ._helpers import _load_all_knowledge
 
 
+def _rank_order_targets(targets: list[dict]) -> list[dict]:
+    """Order probe targets highest-risk-first (W36-P5, Burp 2026.6 parity).
+
+    Reuses the exact scoring engine behind rank_attack_targets — no
+    reimplemented math — so early probes hit the most valuable surface.
+    Safe default: any failure falls back to the caller's original order.
+    """
+    try:
+        from .rank_targets import (
+            _METHOD_WEIGHT,
+            _LOCATION_WEIGHT,
+            _endpoint_score,
+            _param_score,
+        )
+
+        def _score(t: dict) -> int:
+            ep_s, _ = _endpoint_score(t.get("path") or t.get("url") or "")
+            p_s, _ = _param_score(t.get("parameter") or "")
+            m_s = _METHOD_WEIGHT.get((t.get("method") or "GET").upper(), 5)
+            loc_s = _LOCATION_WEIGHT.get(t.get("location") or "", 5)
+            return ep_s + p_s + m_s + loc_s
+
+        return sorted(targets, key=_score, reverse=True)
+    except Exception:
+        return targets
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -40,6 +67,18 @@ def register(mcp: FastMCP) -> None:
             force_recon_gate: Bypass recon gate for in-flight recon
             skip_already_covered: Skip (endpoint, param, category) tuples whose knowledge_version in coverage.json matches current. Eliminates re-test cycle (R13). Default True. Set False after knowledge base updates.
         """
+        # ── Runtime guards: cost cap (hard stop) + loop detection ──
+        from burpsuite_mcp.tools._runtime_guard import note_call
+        from burpsuite_mcp.tools.intel.cost_cap import budget_gate
+        _over = budget_gate(domain)
+        if _over:
+            return _over
+        _cats = ",".join(sorted(categories)) if categories else "all"
+        _tsig = "|".join(sorted(str(t.get("endpoint", t)) for t in targets))[:200]
+        _loop = note_call("auto_probe", f"{session}:{_cats}:{hash(_tsig)}")
+        if _loop:
+            return _loop
+
         # ── Pre-flight session-auth assertion ─────────────────────────
         try:
             sess_info = await client.get("/api/session/list")
@@ -130,6 +169,11 @@ def register(mcp: FastMCP) -> None:
             if kb_drift_hint:
                 msg += "\n" + kb_drift_hint
             return msg
+
+        # ── W36-P5: audit highest-value surface first ──
+        # Order surviving targets by the rank_attack_targets risk engine so the
+        # extension's per-target iteration probes the most valuable tuples early.
+        targets = _rank_order_targets(targets)
 
         data = await client.post("/api/session/auto-probe", json={
             "session": session,

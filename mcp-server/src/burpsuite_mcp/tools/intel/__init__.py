@@ -20,6 +20,7 @@ from . import (
     business_context,
     cost_cap,
     cross_target,
+    episodes,
     findings_graph,
     freshness,
     header_profile,
@@ -58,6 +59,7 @@ def register(mcp: FastMCP) -> None:
     business_context.register(mcp)
     findings_graph.register(mcp)
     cost_cap.register(mcp)
+    episodes.register(mcp)
 
 
 __all__ = [
