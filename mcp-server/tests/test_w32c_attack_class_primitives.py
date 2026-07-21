@@ -269,9 +269,9 @@ class A2aKbTest(unittest.TestCase):
         self.assertGreaterEqual(len(kb["chain_with"]), 2)
 
     def test_kb_count_incremented(self):
-        # 137 → 138 (a2a_protocol added)
+        # 137 → 138 (a2a_protocol added); → 150 (W34-a +12 edge-appliance packs)
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 138, f"KB count expected 138, got {count}")
+        self.assertEqual(count, 150, f"KB count expected 150, got {count}")
 
 
 if __name__ == "__main__":
