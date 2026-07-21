@@ -73,11 +73,13 @@ def business_logic_gate(domain: str) -> str | None:
     if not data:
         return (
             f"business-logic coverage gate: no testcase matrix for {domain}. "
-            f"Rule 27 requires a business-logic pass — run infer_business_invariants, "
-            f"test the proposals (test_business_logic / probe_workflow_reorder / "
-            f"test_race_condition / probe_idempotency_key), and record each with "
-            f"record_business_logic_test(domain, invariant, endpoint, result). "
-            f"The engagement is not complete until at least one invariant is tested."
+            f"Rule 27 requires a business-logic pass — run "
+            f"infer_business_invariants(domain, seed_matrix=True) to build the "
+            f"checklist, test each proposal (test_business_logic / "
+            f"probe_workflow_reorder / test_race_condition / probe_idempotency_key), "
+            f"and mark results with record_business_logic_test(domain, invariant, "
+            f"endpoint, result). The engagement is not complete until at least one "
+            f"invariant is tested."
         )
     invariants = data.get("invariants") or []
     tested = [i for i in invariants if isinstance(i, dict) and i.get("tested")]
@@ -89,6 +91,58 @@ def business_logic_gate(domain: str) -> str | None:
             f"before treating the engagement as complete."
         )
     return None
+
+
+def seed_matrix(domain: str, invariants: list[dict]) -> dict:
+    """Seed the business-logic matrix with proposed invariants as untested rows.
+
+    Bridges infer_business_invariants (proposal) → the W36-P1 gate (measurement):
+    each proposal becomes a `tested=False` checklist row carrying its suggested
+    tool + test recipe + severity, so the operator/agent works a concrete,
+    prioritised list instead of a blank warning. Existing rows are preserved —
+    a proposal matching an existing (invariant, endpoint) is skipped, so an
+    already-tested row is never reset. Returns {seeded, skipped, total}.
+    """
+    if not domain or not isinstance(invariants, list):
+        return {"seeded": 0, "skipped": 0, "total": 0}
+    try:
+        data = _load(domain)
+    except Exception:  # noqa: BLE001 — never let a bad domain raise here
+        data = {}
+    data.setdefault("domain", domain)
+    rows = data.get("invariants")
+    if not isinstance(rows, list):
+        rows = []
+    seen = {
+        (r.get("invariant"), r.get("endpoint") or "")
+        for r in rows if isinstance(r, dict)
+    }
+    seeded = skipped = 0
+    for inv in invariants:
+        if not isinstance(inv, dict):
+            continue
+        name = (inv.get("invariant") or "").strip()
+        if not name:
+            continue
+        ep = (inv.get("endpoint") or "").strip()
+        if (name, ep) in seen:
+            skipped += 1
+            continue
+        rows.append({
+            "invariant": name,
+            "endpoint": ep,
+            "tested": False,
+            "result": "",
+            "tool": inv.get("tool", ""),
+            "test": inv.get("test", ""),
+            "severity": inv.get("severity", ""),
+        })
+        seen.add((name, ep))
+        seeded += 1
+    data["invariants"] = rows
+    if seeded:
+        _write(domain, data)
+    return {"seeded": seeded, "skipped": skipped, "total": len(rows)}
 
 
 def register(mcp: FastMCP):

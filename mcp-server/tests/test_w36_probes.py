@@ -237,6 +237,62 @@ class BusinessLogicGateTest(unittest.TestCase):
         self.assertIsNone(business_logic_gate(""))
 
 
+# 3b. seed_matrix — bridge from infer_business_invariants proposals -> gate
+
+class SeedMatrixTest(unittest.TestCase):
+    DOMAIN = "w36-seed.test-throwaway.example"
+
+    PROPOSALS = [
+        {"invariant": "coupon one-use per account", "endpoint": "/api/redeem",
+         "tool": "test_race_condition", "test": "race-apply N times", "severity": "high"},
+        {"invariant": "balance decremented before delivery", "endpoint": "/api/transfer",
+         "tool": "probe_idempotency_key", "test": "reuse key", "severity": "critical"},
+    ]
+
+    def tearDown(self) -> None:
+        shutil.rmtree(_intel_dir() / _sanitized(self.DOMAIN), ignore_errors=True)
+
+    def test_seeds_untested_rows_with_recipe(self):
+        from burpsuite_mcp.tools.report.business_logic_gate import (
+            seed_matrix, business_logic_gate, _matrix_path)
+        res = seed_matrix(self.DOMAIN, self.PROPOSALS)
+        self.assertEqual(res["seeded"], 2)
+        self.assertEqual(res["skipped"], 0)
+        rows = json.loads(_matrix_path(self.DOMAIN).read_text(encoding="utf-8"))["invariants"]
+        self.assertTrue(all(r["tested"] is False for r in rows))
+        crit = next(r for r in rows if r["endpoint"] == "/api/transfer")
+        self.assertEqual(crit["tool"], "probe_idempotency_key")
+        self.assertEqual(crit["severity"], "critical")
+        # Matrix now exists but 0 tested -> gate still warns (concrete checklist).
+        warn = business_logic_gate(self.DOMAIN)
+        self.assertIsNotNone(warn)
+        self.assertIn("0 are tested", warn)
+
+    def test_dedupe_and_preserve_tested_rows(self):
+        from burpsuite_mcp.tools.report import business_logic_gate as mod
+        from burpsuite_mcp.tools.report.business_logic_gate import (
+            seed_matrix, _matrix_path)
+        # Operator already TESTED the coupon invariant.
+        cap = _ToolCapture()
+        mod.register(cap)
+        record = cap.tools["record_business_logic_test"]
+        asyncio.run(record(self.DOMAIN, "coupon one-use per account", "/api/redeem",
+                           "held", True))
+        # Seeding proposals must NOT reset the tested row, and must skip the dup.
+        res = seed_matrix(self.DOMAIN, self.PROPOSALS)
+        self.assertEqual(res["skipped"], 1)   # coupon already present
+        self.assertEqual(res["seeded"], 1)    # only the transfer invariant is new
+        rows = json.loads(_matrix_path(self.DOMAIN).read_text(encoding="utf-8"))["invariants"]
+        coupon = next(r for r in rows if r["endpoint"] == "/api/redeem")
+        self.assertTrue(coupon["tested"])     # preserved, not reset to False
+        self.assertEqual(coupon["result"], "held")
+
+    def test_bad_input_is_safe(self):
+        from burpsuite_mcp.tools.report.business_logic_gate import seed_matrix
+        self.assertEqual(seed_matrix("", self.PROPOSALS)["seeded"], 0)
+        self.assertEqual(seed_matrix(self.DOMAIN, "notalist")["seeded"], 0)  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # 4. poc_bundle — export_proof_capsule pure oracle path
 # ---------------------------------------------------------------------------

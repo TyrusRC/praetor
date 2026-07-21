@@ -226,6 +226,7 @@ def register(mcp: FastMCP) -> None:
         domain: str,
         api_schema_endpoints: list[dict] | None = None,
         max_invariants: int = 30,
+        seed_matrix: bool = False,
     ) -> dict:
         """Walk discovered endpoints + parameters → propose business-logic invariants to test.
 
@@ -239,6 +240,10 @@ def register(mcp: FastMCP) -> None:
             api_schema_endpoints: optional endpoint list from parse_api_schema.
                 Shape: [{url|path, method, params?, body_keys?}, ...].
             max_invariants: cap on returned invariants (default 30).
+            seed_matrix: when True, write the proposed invariants into the
+                business-logic testcase matrix as untested checklist rows
+                (feeds the W36-P1 completion gate). Existing/tested rows are
+                preserved. Adds `matrix_seeded`/`matrix_skipped` to the result.
         """
         endpoints: list[dict[str, Any]] = []
         endpoints.extend(api_schema_endpoints or [])
@@ -264,10 +269,21 @@ def register(mcp: FastMCP) -> None:
         )
 
         profile = _load_profile(domain)
-        return {
+        ranked = invariants[:max_invariants]
+        result = {
             "domain": domain,
             "endpoints_scanned": len(endpoints),
             "tech_stack": profile.get("tech_stack") or profile.get("technologies"),
-            "invariants": invariants[:max_invariants],
+            "invariants": ranked,
             "total_proposed": len(invariants),
         }
+        if seed_matrix:
+            # Bridge propose → gate: write the ranked proposals as untested
+            # checklist rows. Lazy import keeps report/ off this module's
+            # import path (no cycle).
+            from burpsuite_mcp.tools.report.business_logic_gate import seed_matrix as _seed
+            seeded = _seed(domain, ranked)
+            result["matrix_seeded"] = seeded["seeded"]
+            result["matrix_skipped"] = seeded["skipped"]
+            result["matrix_total"] = seeded["total"]
+        return result
