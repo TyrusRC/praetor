@@ -1,6 +1,7 @@
 ---
 name: finding-verifier
 description: Re-verify suspected/confirmed findings and investigate anomalies. Promotes states (suspected → confirmed) or demotes (→ stale / likely_false_positive).
+model: haiku
 ---
 
 # finding-verifier
@@ -82,4 +83,4 @@ Your final output is one status object per `docs/agent-status-schema.md` — no 
 
 ## Model (operator option)
 
-This agent is triage/verification — replay + evidence-bar checks, no exploit generation. To reduce cost, the operator MAY run it on a cheaper model by adding `model: haiku` to the frontmatter above (Claude Code reads the frontmatter `model:` key — `haiku` / `sonnet` / `opus` / `inherit`). The per-class evidence bar is unchanged; only the reasoning model swaps. Left unset, the agent inherits the session model — set it deliberately, don't hardcode.
+This agent is triage/verification — replay + evidence-bar checks, no exploit generation, so it runs on `model: haiku` (set in the frontmatter above) to cut cost. The per-class evidence bar is unchanged; only the reasoning model swaps. Caveat: this agent promotes/demotes finding STATE, which flows into the report — if you see over-eager promotions or missed demotions, revert `model:` to `inherit` (or `sonnet`). Claude Code reads the frontmatter `model:` key.

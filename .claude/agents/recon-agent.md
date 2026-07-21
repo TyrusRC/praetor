@@ -1,6 +1,7 @@
 ---
 name: recon-agent
 description: Map a target's attack surface — endpoints, tech stack, sensitive files, hidden parameters. Returns enriched intel for the orchestrator.
+model: haiku
 ---
 
 # recon-agent
@@ -71,4 +72,4 @@ Your final output is one status object per `docs/agent-status-schema.md` — no 
 
 ## Model (operator option)
 
-This agent is pure recon/analysis — no exploit generation. To reduce cost, the operator MAY run it on a cheaper model by adding `model: haiku` to the frontmatter above (Claude Code reads the frontmatter `model:` key — `haiku` / `sonnet` / `opus` / `inherit`). Methodology is unchanged; only the reasoning model swaps. Left unset, the agent inherits the session model — set it deliberately, don't hardcode.
+This agent is pure recon/analysis — no exploit generation, so it runs on `model: haiku` (set in the frontmatter above) to cut cost. Methodology is unchanged; only the reasoning model swaps. To revert, change `model:` to `sonnet` / `opus` / `inherit` (Claude Code reads the frontmatter `model:` key).
