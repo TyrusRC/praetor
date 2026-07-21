@@ -6,6 +6,26 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- W36: frontier probes + business-logic gate -----
+    (["http3 race", "http/3 race", "quic race", "single datagram race",
+      "h3 datagram race", "quic single packet", "http3 datagram race",
+      "single udp race", "quic parser race", "ssro race"],
+     "probe_race_http3_datagram",
+     "probe_race_http3_datagram(target_url='https://app/api/coupon', "
+     "method='POST', body='code=SAVE10', concurrent=100)"),
+    (["source routes", "inventory routes", "routes from source",
+      "api routes from code", "extract routes from source",
+      "flask fastapi express routes", "spring routes",
+      "source code endpoints", "route inventory",
+      "discover api from source"],
+     "inventory_source_routes",
+     "inventory_source_routes(source_dir='/path/to/repo', domain='app.example.com')"),
+    (["record business logic test", "business logic matrix",
+      "log business logic test", "business logic coverage",
+      "mark invariant tested", "record invariant"],
+     "record_business_logic_test",
+     "record_business_logic_test(domain='app.example.com', "
+     "invariant='price cannot go negative', endpoint='/cart', result='held')"),
     # ----- W30-c: smart request triage — proxy entry → attack plan -----
     # Collapses get_request_detail -> extract_* -> smart_analyze -> reason
     # -> pick LLM loop into ONE call. Operator hands an index, gets a
