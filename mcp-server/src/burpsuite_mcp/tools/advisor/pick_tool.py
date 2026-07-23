@@ -144,6 +144,11 @@ _MAPPINGS = [
       "tools/list mcp", "resources/list mcp", "prompts/list mcp",
       "mcp jsonrpc enumerate"], "probe_mcp_jsonrpc_methods",
      "probe_mcp_jsonrpc_methods(endpoint_url='https://mcp.example.com/mcp')"),
+    # D1: invisible-unicode concealment in MCP tool metadata (TAG-block / ZW / bidi)
+    (["mcp invisible unicode", "tool metadata concealment", "tag block unicode",
+      "hidden unicode tool description", "mcp tool poisoning unicode",
+      "zero width tool name", "mcptox"], "detect_mcp_invisible_unicode",
+     "detect_mcp_invisible_unicode(server_url='https://mcp.example.com/mcp')"),
     # ----- W28-b: 2026 H2 mid-year CVE intake — verb-led routing -----
     # Anchored to specific keywords so they win before generic routes
     # ("sqli" → auto_probe sqli, etc).

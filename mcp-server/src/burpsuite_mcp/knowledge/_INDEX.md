@@ -7,7 +7,7 @@
 `auto_probe(categories=['ssti'])` loads `ssti.json` AND any `ssti_*.json` split file. This lets large categories live in multiple smaller files without changing the caller API.
 
 Split categories:
-- `ssti` → `ssti.json` + `ssti_python.json`, `ssti_java.json`, `ssti_js.json`, `ssti_php.json`
+- `ssti` → `ssti.json` + `ssti_python.json`, `ssti_java.json`, `ssti_js.json`, `ssti_php.json`, `ssti_elixir.json`
 - `sqli` → `sqli.json` + `sqli_blind.json`, `sqli_engines.json`
 - `ssrf` → `ssrf.json` + `ssrf_bypass.json`, `ssrf_protocol.json`
 - `graphql` → `graphql.json` + `graphql_engines.json`
@@ -52,6 +52,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `ssti_java` | freemarker, thymeleaf, pebble | critical | java, spring, tomcat |
 | `ssti_js` | handlebars, nunjucks | critical | express, node.js |
 | `ssti_php` | smarty, twig | critical | laravel, php |
+| `ssti_elixir` | eex_arithmetic, error_based_blind, boolean_error_blind | critical | elixir, phoenix, eex, heex |
 | `command_injection` | bash, windows_cmd, blind_oob, filter_bypass | critical | apache, asp.net, flask, iis, nginx |
 | `xxe` | file_read, ssrf_via_xxe, blind_oob, error_based, parameter_entity, xinclude (+2) | critical | .net, java, php, soap, wcf |
 | `ldap_injection` | auth_bypass, data_extraction, blind_boolean | critical | .net, active directory, java, ldap, openldap |
