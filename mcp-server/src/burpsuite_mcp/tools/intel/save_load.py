@@ -217,7 +217,7 @@ def register(mcp: FastMCP):
 
         cat_path = dir_path / f"{category}.json"
         if not cat_path.exists():
-            return json.dumps(_empty_structure(category), indent=2)
+            return json.dumps(_empty_structure(category), separators=(",", ":"))
 
         data = json.loads(cat_path.read_text())
         stat = cat_path.stat()
@@ -261,7 +261,9 @@ def register(mcp: FastMCP):
             data["_meta"]["offset"] = offset
             data["_meta"]["limit"] = limit
 
-        return json.dumps(data, indent=2, default=str)
+        # Token-lean (Spec E1.3): compact separators — this is machine-consumed
+        # (Rule 20a runs it every session); no human reads the indentation.
+        return json.dumps(data, separators=(",", ":"), default=str)
 
     @mcp.tool()
     async def coverage_summary(
