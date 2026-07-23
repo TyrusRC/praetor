@@ -31,8 +31,9 @@ class VerdictSchemaTest(unittest.TestCase):
         self.assertEqual(v["logger_indices"], [42, 43])
         self.assertEqual(v["collaborator_interactions"], ["abc.oastify.com"])
         self.assertEqual(v["vuln_type"], "ssrf")
-        self.assertEqual(v["details"]["summary"], "*** SSRF CONFIRMED ***")
+        # Spec E1.2: summary lives only at top-level human_summary (no details dup).
         self.assertEqual(v["human_summary"], "*** SSRF CONFIRMED ***")
+        self.assertNotIn("summary", v.get("details", {}))
 
     def test_invalid_verdict_rejected(self):
         with self.assertRaises(ValueError):

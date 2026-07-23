@@ -1,9 +1,8 @@
 """Structured verdict schema for testing/probe tools (W7).
 
 Senior-engineer outputs: every probe returns the same shape so the orchestrator
-can pipe results into `assess_finding` without re-parsing prose. Backward-compat:
-human-readable string is kept in `details.summary` so existing call-sites that
-log the output still get usable text.
+can pipe results into `assess_finding` without re-parsing prose. The
+human-readable string is surfaced at top-level `human_summary`.
 
 Verdict semantics
 -----------------
@@ -45,26 +44,32 @@ def make_verdict(
 ) -> dict[str, Any]:
     """Build a normalised verdict dict.
 
-    `summary` is the legacy human-readable string. When supplied, it's stored at
-    `details.summary` so existing string-consuming call-sites keep working via
-    the convenience field `human_summary` returned at the top level.
+    `summary` is the human-readable string, surfaced at top-level `human_summary`
+    when supplied. Empty evidence lists and empty `details` are omitted from the
+    returned dict (token-lean, Spec E1.2); read them via `.get(...)`.
     """
     if verdict not in _VALID:
         raise ValueError(f"invalid verdict {verdict!r}; must be one of {_VALID}")
     conf = max(0.0, min(1.0, float(confidence)))
     d = dict(details or {})
-    if summary is not None:
-        d.setdefault("summary", summary)
     out: dict[str, Any] = {
         "verdict": verdict,
         "confidence": round(conf, 3),
         "evidence_summary": evidence_summary,
-        "logger_indices": list(logger_indices or []),
-        "proxy_indices": list(proxy_indices or []),
-        "collaborator_interactions": list(collaborator_interactions or []),
-        "reproductions": list(reproductions or []),
-        "details": d,
     }
+    # Token-lean (Spec E1.2): include evidence lists / details only when
+    # non-empty. `to_assess_evidence` and all consumers read these via .get(),
+    # so omitting an empty list is safe and saves ~4 keys on every verdict.
+    if logger_indices:
+        out["logger_indices"] = list(logger_indices)
+    if proxy_indices:
+        out["proxy_indices"] = list(proxy_indices)
+    if collaborator_interactions:
+        out["collaborator_interactions"] = list(collaborator_interactions)
+    if reproductions:
+        out["reproductions"] = list(reproductions)
+    if d:
+        out["details"] = d
     if vuln_type:
         out["vuln_type"] = vuln_type
     if summary is not None:
