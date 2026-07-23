@@ -144,6 +144,11 @@ _MAPPINGS = [
       "tools/list mcp", "resources/list mcp", "prompts/list mcp",
       "mcp jsonrpc enumerate"], "probe_mcp_jsonrpc_methods",
      "probe_mcp_jsonrpc_methods(endpoint_url='https://mcp.example.com/mcp')"),
+    # Spec F1: author + run an ad-hoc probe the hand-authored KB doesn't cover yet
+    (["adhoc probe", "custom probe", "generate probe", "nl probe",
+      "new technique no kb", "test fresh cve", "author matcher",
+      "probe without kb"], "run_adhoc_probe",
+     "run_adhoc_probe(context_name='cve_x', probes=[{'payload':'...','matchers':[{'type':'word','words':['marker']}]}], targets=[{'url':'...'}])"),
     # Spec E: one-call situational orientation for the agent (recon-intel map)
     (["orient", "situational awareness", "target brief", "context map",
       "where am i", "quick context", "understand target", "resume target",

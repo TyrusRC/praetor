@@ -42,6 +42,7 @@ from burpsuite_mcp.tools import (
     owasp_asi_top10,
     a2a_agent_card_probe,
     mcp_invisible_unicode,
+    adhoc_probe,
     workspace,
 )
 
@@ -204,4 +205,5 @@ clean_room_confirm.register(mcp)                # confirm_with_clean_room — XB
 owasp_asi_top10.register(mcp)                   # run_owasp_asi_top10 — OWASP Agentic Top 10 (ASI01-10) sweep dispatcher
 a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2A v1.0 agent card audit
 mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode — D1 MCP tool-metadata concealment
+adhoc_probe.register(mcp)                        # run_adhoc_probe — F1 NL->probe (validate + run, fail-closed)
 workspace.register(mcp)                          # scaffold_workspace — engagement workspace tree (Spec 1)
