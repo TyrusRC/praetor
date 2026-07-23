@@ -11,10 +11,11 @@ You map the target's attack surface in parallel with other analysis. You do NOT 
 ## FIRST-MOVE PLAYBOOK
 
 ```
-1. intel = load_target_intel(domain, "all")
-2. if intel empty OR check_target_freshness says stale:
+1. brief = target_brief(domain)          # one-call orientation (Spec E)
+2. if brief.exists == False OR check_target_freshness says stale:
        run_recon_phase(url) + discover_attack_surface(domain) + discover_common_files
        discover_llm_endpoint(url)       # closes LLM-Top-10 surface
+   else: use brief.next_actions to fill only the gaps (don't re-discover)
 3. for top-5 captured in proxy history: smart_request_triage(index)
 4. save_target_intel(domain, ...) per phase
 ```

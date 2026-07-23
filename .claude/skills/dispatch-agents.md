@@ -27,16 +27,31 @@ Pick agent first, THEN brief — the agent owns the playbook for its shape.
 
 **Concurrency cap: up to 6 simultaneous agents.** The Java extension's HTTP server uses a fixed thread pool of 6 (see `ApiServer.java`), so 6 in-flight MCP requests run truly in parallel. Beyond 6, requests queue. Earlier guidance capped this at 3-4 — that was wrong; correct it whenever you see it.
 
+### Effort-scaling ladder (Spec E2.2 — there is a FLOOR, not just a ceiling)
+
+Over-dispatch is expensive: an agent multiplies token cost ~15× vs a direct call (Anthropic multi-agent research: token usage explained 80% of eval variance). Match the fan-out to the work:
+
+| Work shape | Dispatch |
+|---|---|
+| Trivial / single lookup / one known call | **No agent** — call the tool directly inline |
+| One vuln class on ≤3 endpoints | **1 worker** |
+| One class across many endpoints, OR 2-4 independent classes | **2-4 workers**, partitioned by non-overlapping endpoint sets |
+| Broad coverage sweep | **≤6 workers**, partitioned; never exceed the cap |
+
+Before dispatching ≥4 workers or a Tier-2 council panel, consult `check_cost_budget` — if the engagement is near its cap, scale down. The ceiling (6) is a limit; this ladder is the default routing.
+
 ## Mandatory Briefing Block
 
 Every dispatched subagent MUST receive these three lines verbatim in addition to its task. Subagents do not see prior conversation, so without this block they hallucinate file paths, line numbers, function names, and findings — observed multiple times in past audits.
 
 ```
+ORIENT FIRST: your first call is `target_brief(domain)` — it returns tech/auth context, findings posture, top findings, next-action hints, and copy-paste follow-up queries in one lean response. Read it before acting so you build on peers' prior-round findings (the shared .burp-intel/<domain>/ blackboard) instead of re-discovering. If it returns exists:False, the target is new — run recon first.
+
 VERIFY before reporting: every file:line you cite must be opened and read in this run; every symbol you name must be grepped in this run; every finding you claim must reference an existing logger_index from get_proxy_history. If you cannot verify a claim, mark it UNVERIFIED rather than reporting it as fact.
 
-EVIDENCE FORMAT: report findings as `<severity> | <file>:<line> | <one-line problem> | <one-line fix>`. No prose, no speculation, no recommendations beyond the fix line.
+EVIDENCE FORMAT: persist full output to .burp-intel/<domain>/ and report back only lightweight references — finding ids, logger indices, top-N ranked — as `<severity> | <file>:<line> | <one-line problem> | <one-line fix>`. Never return full dumps; the orchestrator's context is finite across a long loop.
 
-SCOPE GUARD: do not act outside your assigned scope. Recon agents do not test vulnerabilities. Vuln-scanner agents do not exfiltrate data. Verifier agents do not save findings (they report back; orchestrator persists).
+SCOPE GUARD: do not act outside your assigned scope. Recon agents do not test vulnerabilities. Vuln-scanner agents do not exfiltrate data. Verifier agents do not save findings (they report back; orchestrator persists). Least-privilege boundary (Spec E2.3): recon-agent / js-analyst do NOT call save_finding / assess_finding / confirm_* / msf_* / any exploit tool — they return intel; the orchestrator gates and persists.
 ```
 
 When you write the dispatch prompt, paste the block above ahead of the task-specific instructions. No shortcuts.
