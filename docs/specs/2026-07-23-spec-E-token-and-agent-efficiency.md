@@ -72,6 +72,12 @@ Drawn from Anthropic multi-agent research, Microsoft Magentic-One, Alias CAI, Pe
 - **Output-QA gate at merge [extends existing]** — grow-agent confirms every claimed finding cites a resolvable `logger_index` before accepting a worker report; reject-for-rework otherwise. Deterministic, no second LLM jury (consistent with `debate_triage`'s no-hidden-juries principle).
 - **Cost-in-loop [extends existing]** — the progress ledger (E2.1) records per-round cost delta; grow-agent consults `check_cost_budget` before a Tier-2 panel or 6-agent fanout.
 
+## E3 — `target_brief` recon-intel map (agent orientation) **[net-new, BUILT 2026-07-23]**
+- **Motivation (operator directive):** "treat this tool as an AI agent — quick understand context, quick query, quick action." The agent lacked a single fast orientation call; it had to fire `load_target_intel` + `coverage_summary` + `next_untested_targets` + freshness separately.
+- **Design:** `target_brief(domain, max_items=8)` — read-only, token-lean fusion of `profile` + `endpoints` + `coverage` + `findings` + `fingerprint` into one dict: **CONTEXT** (tech_stack / auth_model / scope / edition), **posture** (endpoints_known, coverage_tuples, knowledge_version, findings-by-status), **top_findings** (severity-ranked, lean projection — reuses E1.1), **next_actions** (deterministic hints from state: verify-suspected / coverage-gap / chain-confirmed / map-surface), and **quick_queries** (copy-paste field-projected follow-ups). Returns `exists:False` + a recon directive for a NEW target (serves Rule 20a fresh-target path).
+- **Location:** `tools/intel/brief.py` (new small module, not bolted onto the 451-line `save_load.py` — consistent with the large-file discipline). Pure `build_brief()` core + thin `@mcp.tool()` wrapper; registered in `intel/__init__.py`; routed in `pick_tool` (orient / situational / target brief / where am i). Tested: `tests/test_target_brief.py`.
+- **Status:** implemented and green. This is the concrete "recon-intel mapping for the agent" feature.
+
 ## Anti-patterns — do NOT port
 - **Live peer-to-peer / group chat** (AutoGen, CAI swarm) — impossible under sequential MCP. File-backed ledger is the correct adaptation.
 - **Auction / bidding handoff** (CAI) — needs live negotiation; chatty/expensive. Keep the deterministic dispatch map.
