@@ -93,6 +93,7 @@ def merge_checkpoint(
     objective: str = "",
     tasks: list[dict] | None = None,
     open_threads: list[str] | None = None,
+    progress: dict | None = None,
 ) -> dict:
     """Upsert the checkpoint. Returns the persisted dict (or {} on bad domain).
 
@@ -105,6 +106,11 @@ def merge_checkpoint(
         ids append. Order is preserved (existing first, then new).
       - `open_threads` append + dedupe (order-preserving). To CLEAR a resolved
         thread, pass the full desired list — an explicit empty list replaces.
+      - `progress` (Spec E2.1, Magentic-One progress ledger): a per-round
+        {progress_made, in_loop, request_satisfied, stall_reason} record. Latest
+        overwrites; `consecutive_no_progress` auto-increments while progress_made
+        is False and resets to 0 when True — deterministic stall/loop detection
+        that fires before the coarse '3 zero-delta rounds' heuristic.
     """
     if not domain:
         return {}
@@ -166,8 +172,36 @@ def merge_checkpoint(
                     seen.add(s)
             data["open_threads"] = cur
 
+    if progress is not None and isinstance(progress, dict):
+        prev = data.get("progress") if isinstance(data.get("progress"), dict) else {}
+        made = bool(progress.get("progress_made", True))
+        cons = 0 if made else int(prev.get("consecutive_no_progress", 0)) + 1
+        data["progress"] = {
+            "progress_made": made,
+            "in_loop": bool(progress.get("in_loop", False)),
+            "request_satisfied": bool(progress.get("request_satisfied", False)),
+            "stall_reason": str(progress.get("stall_reason", "")).strip(),
+            "consecutive_no_progress": cons,
+        }
+
     _write(domain, data)
     return data
+
+
+def stall_alert(data: dict) -> str:
+    """Deterministic stall/loop signal for the convener. Returns '' when healthy.
+
+    Fires when the model reports it's looping, or when ≥2 consecutive rounds made
+    no progress — the trigger for the agent-council convene-on-stall (Rule 4 pivot).
+    """
+    p = data.get("progress") if isinstance(data.get("progress"), dict) else {}
+    if not p:
+        return ""
+    cons = int(p.get("consecutive_no_progress", 0))
+    if p.get("in_loop") or cons >= 2:
+        reason = p.get("stall_reason") or "no progress"
+        return f"STALL: {cons} round(s) no progress ({reason}) — pivot/convene council"
+    return ""
 
 
 def _render(data: dict) -> str:
@@ -194,6 +228,9 @@ def _render(data: dict) -> str:
     if threads:
         lines.append(f"open_threads ({len(threads)}):")
         lines.extend(f"  - {th}" for th in threads)
+    alert = stall_alert(data)
+    if alert:
+        lines.append(alert)
     return "\n".join(lines)
 
 
@@ -204,11 +241,13 @@ def _summary_line(data: dict) -> str:
     tasks = [t for t in (data.get("tasks") or []) if isinstance(t, dict)]
     open_n = sum(1 for t in tasks if t.get("status") in _OPEN_STATES)
     threads = data.get("open_threads") or []
+    alert = stall_alert(data)
     return (
         f"checkpoint saved: {data.get('domain', '?')} | "
         f"phase={data.get('phase', '?')} round={data.get('round', '?')} | "
         f"tasks {len(tasks)} ({open_n} open), {len(threads)} thread(s) | "
         f"next: {data.get('next_action') or '(none)'}"
+        + (f" | {alert}" if alert else "")
     )
 
 
@@ -223,6 +262,7 @@ def register(mcp: FastMCP) -> None:
         objective: str = "",
         tasks: list[dict] | None = None,
         open_threads: list[str] | None = None,
+        progress: dict | None = None,
     ) -> str:
         """Upsert the engagement checkpoint for a domain (task ledger + next action).
 
@@ -249,12 +289,18 @@ def register(mcp: FastMCP) -> None:
             tasks: List of {id, title?, status?, note?}. id is hierarchical
                 (T1, T1.1). status ∈ pending|in_progress|done|blocked.
             open_threads: Anomalies/leads to revisit. Append+dedupe; [] clears.
+            progress: Per-round progress ledger (Spec E2.1) —
+                {progress_made: bool, in_loop: bool, request_satisfied: bool,
+                stall_reason: str}. consecutive_no_progress auto-tracks; a STALL
+                alert surfaces in load_checkpoint when it's ≥2 or in_loop=True,
+                the deterministic trigger to pivot / convene the council.
         """
         if not domain:
             return "Error: domain is required."
         data = merge_checkpoint(
             domain, phase=phase, round=round, next_action=next_action,
             objective=objective, tasks=tasks, open_threads=open_threads,
+            progress=progress,
         )
         if not data:
             return f"Error: invalid domain {domain!r}."
