@@ -81,14 +81,23 @@ CHECKPOINT:
   write_checkpoint(domain, phase=<recon|scan|verify|chain|report>, round=N,
                    next_action="<single directive for next round>",
                    tasks=[{"id":"T<x>","status":"done|in_progress|blocked"}],
-                   open_threads=["<anomaly to revisit>", ...])
-    → durable task ledger; survives compaction. resume.md reads it on restart.
+                   open_threads=["<anomaly to revisit>", ...],
+                   progress={"progress_made": <bool this round>,
+                             "in_loop": <retrying the same thing?>,
+                             "request_satisfied": <objective met?>,
+                             "stall_reason": "<why, if no progress>"})
+    → durable task ledger + progress ledger (Spec E2.1); survives compaction.
+      resume.md reads it on restart. load_checkpoint surfaces a STALL alert when
+      consecutive_no_progress ≥ 2 or in_loop — read it: that is the deterministic
+      Rule 4 pivot / convene-council trigger (finer than the round counter below).
   append to .burp-intel/<domain>/notes.md:
     "Round N | <action> | <target> | hypothesis: <h> | outcome: <o>"
 
 CIRCUIT (bounds EFFORT — does not prove completion):
   STOP the loop if:
     - round_count >= max_rounds
+    - the checkpoint STALL alert fires (progress.consecutive_no_progress ≥ 2 or
+      in_loop) AND no chain progress — deterministic, replaces eyeballing below
     - 3 consecutive rounds with coverage_delta == 0 AND no chain progress
     - 5 consecutive WAF/429 responses
     - operator interrupt
