@@ -27,5 +27,5 @@ def register(mcp: FastMCP):
     _login_bypass.register(mcp)
     _mfa_bypass.register(mcp)
     _reset_tokens.register(mcp)
-    _oauth_flow.register(mcp)
+    _oauth_flow.register(mcp)  # aggregator: also registers device/hybrid/dpop siblings
     _passkey_stepup.register(mcp)
