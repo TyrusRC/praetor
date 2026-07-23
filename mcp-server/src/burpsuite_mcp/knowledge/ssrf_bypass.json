@@ -323,6 +323,25 @@
           }
         }
       ]
+    },
+    "redirect_loop_full_response_leak": {
+      "description": "Assetnote/PortSwigger Top-10-2025 #3: attacker redirect server increments 3xx status (301->310) then 200. When the client's redirect threshold trips, the app's internal error handler leaks the entire redirect chain plus final response body — turning blind SSRF into full-response-readable. Point the SSRF param at a Collaborator subdomain running an incrementing-3xx responder (replace COLLABORATOR at runtime, Rule 9a). Compare length + leaked internal markers vs the blind baseline.",
+      "tech_match": ["ssrf", "http-client", "curl", "libcurl", "reqwest"],
+      "param_match": ["url", "uri", "next", "target", "redirect", "callback", "webhook", "image", "feed", "dest"],
+      "probes": [
+        {
+          "payload": "https://COLLABORATOR/redir-chain",
+          "description": "SSRF param -> incrementing-3xx Collaborator chain. Leak = internal error body echoing the redirect chain / final response.",
+          "matchers": [
+            {"type": "length_delta", "min_delta": 500, "weight": 40},
+            {"type": "word", "words": ["redirect", "Location:", "internal", "upstream", "127.0.0.1", "169.254.169.254", "Max redirects", "too many redirects"], "condition": "or", "weight": 50},
+            {"type": "collaborator", "weight": 60}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {"COLLABORATOR": "runtime"}
+        }
+      ]
     }
   }
 }
