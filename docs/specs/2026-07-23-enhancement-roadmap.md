@@ -41,6 +41,14 @@ Every item below **builds on primitives Praetor already ships**. No green-field.
 - Spec E's **blackboard-read** and **handoff artifact** fold into `2026-07-21-agent-council-design.md`.
 - Spec F's **NL→probe generator** is the automation engine behind Spec D's cadence problem — Spec D closes today's gaps by hand; Spec F stops the gap from re-opening weekly.
 
+## Implementation status (2026-07-23, branch `feat/w38-spec-d-p0`)
+
+Built and tested this session (1419 tests green):
+- **Spec D P0** — D1 `detect_mcp_invisible_unicode`; D2 error-based blind SSTI + `ssti_elixir.json`; D3 SSRF redirect-loop context; D4 Next.js middleware-bypass variants + RSC deser-DoS. (P1/P2 intake remains a follow-on.)
+- **Spec E** — E1.1 findings field projection; E1.2 verdict double-encode kill; E1.3 compact JSON on intel returns; E2.1 progress ledger + stall alert; E2.2 effort-scaling ladder; E2.3 least-privilege boundary (soft-guard in briefing; hard `tools:` frontmatter deferred — brittle across ~369 tools); E2.4 orient-first blackboard; E2.5 reference-return; **E3 `target_brief`** (recon-intel map). E1.5 (`summary_only` on ~10 tools) deferred — marginal value/higher risk.
+- **Spec F** — F1 `run_adhoc_probe` (NL→probe, validate + run, fail-closed); F2 `cve-freshness-loop.md` + F4 `continuous-retest-loop.md` playbooks; F3 adversarial anti-cheat protocol on `finding-verifier`.
+- **Refactors** — `oauth_flow.py` 1041→5 files, `cve_variant_probe.py` 725→3, `msfrpc.py` 705→3. Codebase now ≤569 lines/file.
+
 ## Excluded
 
 - Fabricated CVE IDs surfaced from AI-content-farm domains (see Spec D "Hallucination guard"). No KB context is minted around any CVE without an authoritative vendor/NVD advisory.
