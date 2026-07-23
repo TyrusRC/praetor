@@ -140,12 +140,18 @@ def register(mcp: FastMCP):
         sort_by: str = "",
         status_filter: str = "",
         chain_with_open: bool = False,
+        fields: str = "",
     ) -> str:
         """Load persistent target intelligence for a domain.
 
         Args:
             domain: Target domain
             category: 'all' for summary, 'notes' for markdown, or a specific category
+            fields: For findings — comma-separated whitelist to project each finding
+                to (e.g. 'id,title,severity,status,endpoint,vuln_type'). Empty = full
+                objects. Token-lean session-start recall (Spec E1.1); the heavy
+                poc_request/evidence/reproductions/description fields are dropped
+                unless named.
             limit: For findings/endpoints/coverage — paginate to N entries (0 = all). R24.
             offset: Pagination offset.
             sort_by: For findings — 'severity' (CRITICAL>HIGH>MEDIUM>LOW>INFO) or 'recency' (newest first).
@@ -242,6 +248,10 @@ def register(mcp: FastMCP):
                 findings = findings[offset:offset + limit]
                 data["_meta"]["offset"] = offset
                 data["_meta"]["limit"] = limit
+            if fields:
+                keep = [f.strip() for f in fields.split(",") if f.strip()]
+                findings = [{k: f.get(k) for k in keep if k in f} for f in findings]
+                data["_meta"]["projected_fields"] = keep
             data["findings"] = findings
         elif category in ("endpoints", "coverage") and limit > 0:
             key = "endpoints" if category == "endpoints" else "entries"
