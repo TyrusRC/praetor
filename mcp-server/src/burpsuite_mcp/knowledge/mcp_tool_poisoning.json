@@ -87,6 +87,23 @@
           "variables": {}
         }
       ]
+    },
+    "invisible_unicode_in_tool_metadata": {
+      "description": "Tool name/description/inputSchema carries TAG-block (U+E0000-E007F), zero-width, or bidi-override codepoints. Invisible in the host approval UI, delivered verbatim to the consuming LLM (arXiv 2607.05744; MCPTox ASR up to 72.8%). Primary detector is detect_mcp_invisible_unicode; this KB context flags the same channel in a captured tools/list response.",
+      "tech_match": ["mcp", "model-context-protocol", "fastmcp", "claude-desktop", "cursor"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}",
+          "description": "Fetch tools/list; flag concealment codepoints in tool metadata.",
+          "matchers": [
+            {"type": "regex", "pattern": "[\\x{E0000}-\\x{E007F}\\x{200B}-\\x{200D}\\x{2060}\\x{FEFF}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]", "weight": 90}
+          ],
+          "severity": "high",
+          "confidence_boost": 70,
+          "variables": {}
+        }
+      ]
     }
   }
 }
