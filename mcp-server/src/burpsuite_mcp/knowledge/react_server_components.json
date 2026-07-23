@@ -231,6 +231,24 @@
           "variables": {}
         }
       ]
+    },
+    "server_function_deser_dos": {
+      "description": "CVE-2026-23870 (Vercel/react.dev, May 2026): RSC Server-Function argument deserialization triggers CPU-DoS on React 19.x / all App Router. A malformed/nested serialized action payload to a Server Action endpoint spikes CPU. Detection-only (Rule 5): send a MODERATELY-nested payload and measure timing delta vs baseline; do NOT send a resource-exhausting payload. baseline_ms is injected by auto_probe.",
+      "tech_match": ["nextjs", "react", "app-router", "rsc", "server-actions"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"__rsc_action\":true,\"args\":[[[[[[[[[[1]]]]]]]]]]}",
+          "description": "Moderately-nested Server-Action arg; timing delta vs baseline flags the deserialization cost path.",
+          "matchers": [
+            {"type": "differential_timing", "min_diff_ms": 1500, "weight": 60},
+            {"type": "status", "status": [500, 503], "condition": "or", "weight": 30}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
     }
   }
 }
