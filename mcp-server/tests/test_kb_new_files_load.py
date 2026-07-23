@@ -18,6 +18,8 @@ NEW_FILES = [
     "h2_continuation_flood.json",
     "mcp_server_attacks.json",
     "rag_injection.json",
+    # Spec D (2026-07-23): new Elixir SSTI parent (no existing parent fits).
+    "ssti_elixir.json",
 ]
 
 
@@ -55,7 +57,7 @@ class ReferenceOnlySkipsAutoProbeTest(unittest.TestCase):
                      "edge_worker_ssrf", "webauthn_passkey",
                      "dom_clobbering_2024",
                      "service_worker_attacks",
-                     "mcp_server_attacks", "rag_injection"):
+                     "mcp_server_attacks", "rag_injection", "ssti_elixir"):
             self.assertNotIn(name, _REFERENCE_ONLY, f"{name} must be auto-probe enabled")
 
 

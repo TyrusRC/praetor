@@ -147,6 +147,41 @@
           "variables": {}
         }
       ]
+    },
+    "error_based_blind": {
+      "description": "Successful Errors (PortSwigger Top-10-2025 #1): force Jinja2/Mako to raise an exception whose message echoes evaluated output. Blind SSTI extraction where no direct reflection exists. Marker 1337=1336+1 inside the traceback proves evaluation.",
+      "tech_match": ["Jinja2", "Mako", "Flask", "Django", "Python"],
+      "param_match": ["name", "template", "q", "msg", "comment", "input"],
+      "probes": [
+        {
+          "payload": "{{1336+1}}{{undefined_zz.__err__}}",
+          "description": "Trigger an engine error after evaluation; look for 1337 echoed in the exception body.",
+          "matchers": [
+            {"type": "regex", "pattern": "1337", "weight": 60},
+            {"type": "word", "words": ["Traceback", "UndefinedError", "jinja2", "TemplateError"], "condition": "or", "weight": 40}
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        }
+      ]
+    },
+    "boolean_error_blind": {
+      "description": "Boolean-error oracle: payload raises an error only when a boolean condition on evaluated state holds, turning blind SSTI into a bit-oracle without direct output.",
+      "tech_match": ["Jinja2", "Flask", "Python"],
+      "param_match": ["name", "template", "q"],
+      "probes": [
+        {
+          "payload": "{{ (1 if 7*7==49 else x.__error__) }}",
+          "description": "Differential error vs benign baseline when the arithmetic condition is true.",
+          "matchers": [
+            {"type": "word", "words": ["Error", "Traceback", "Exception"], "condition": "or", "weight": 50}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {}
+        }
+      ]
     }
   }
 }
