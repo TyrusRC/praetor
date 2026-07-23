@@ -269,9 +269,10 @@ class A2aKbTest(unittest.TestCase):
         self.assertGreaterEqual(len(kb["chain_with"]), 2)
 
     def test_kb_count_incremented(self):
-        # 137 → 138 (a2a_protocol added); → 150 (W34-a +12 edge-appliance packs)
+        # 137 → 138 (a2a_protocol added); → 150 (W34-a +12 edge-appliance packs);
+        # → 151 (W38/Spec D: ssti_elixir.json new Elixir SSTI parent)
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 150, f"KB count expected 150, got {count}")
+        self.assertEqual(count, 151, f"KB count expected 151, got {count}")
 
 
 if __name__ == "__main__":
