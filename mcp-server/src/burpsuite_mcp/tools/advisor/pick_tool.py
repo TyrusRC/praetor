@@ -144,6 +144,11 @@ _MAPPINGS = [
       "tools/list mcp", "resources/list mcp", "prompts/list mcp",
       "mcp jsonrpc enumerate"], "probe_mcp_jsonrpc_methods",
      "probe_mcp_jsonrpc_methods(endpoint_url='https://mcp.example.com/mcp')"),
+    # Spec E: one-call situational orientation for the agent (recon-intel map)
+    (["orient", "situational awareness", "target brief", "context map",
+      "where am i", "quick context", "understand target", "resume target",
+      "pick up domain", "orientation"], "target_brief",
+     "target_brief(domain='app.example.com')"),
     # D1: invisible-unicode concealment in MCP tool metadata (TAG-block / ZW / bidi)
     (["mcp invisible unicode", "tool metadata concealment", "tag block unicode",
       "hidden unicode tool description", "mcp tool poisoning unicode",

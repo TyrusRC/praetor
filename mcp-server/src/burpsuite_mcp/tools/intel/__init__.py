@@ -17,6 +17,7 @@ Public surface preserved:
 from mcp.server.fastmcp import FastMCP
 
 from . import (
+    brief,
     business_context,
     checkpoint,
     cost_cap,
@@ -62,6 +63,7 @@ def register(mcp: FastMCP) -> None:
     cost_cap.register(mcp)
     episodes.register(mcp)
     checkpoint.register(mcp)  # W37 — durable engagement checkpoint + task ledger
+    brief.register(mcp)       # target_brief — one-call situational orientation (Spec E)
 
 
 __all__ = [
