@@ -14,6 +14,13 @@ Q5 may mutate ctx.weak_evidence (read later by Q7 and severity scoring).
 from ..advisor._context import AssessContext
 from . import CheckResult, Q5_ALIASES, Q5_KEYWORDS, TIMING_VULN_TYPES
 
+# Reflection-injection classes where an encoded/neutralized payload is a false
+# positive: executable context must be proven (payload reflected un-encoded).
+_REFLECTION_CLASSES = {
+    "xss", "ssti", "html_injection", "csti",
+    "client_side_template_injection", "template_injection",
+}
+
 
 async def check(ctx: AssessContext) -> CheckResult:
     if ctx.human_verified:
@@ -47,6 +54,22 @@ async def check(ctx: AssessContext) -> CheckResult:
                 f"Pass logger_index=<N> to auto-derive, or human_verified=True if confirmed in UI."
             )
             ctx.weak_evidence = True
+
+        # Sanitizer/executable-context guard (FP reduction). If the payload was
+        # reflected but only ENCODED, executable context is NOT proven — the #1
+        # reflected-injection false positive. Fail even when prose keywords pass,
+        # unless a live (un-encoded) reflection marker is also present.
+        if q5_class in _REFLECTION_CLASSES and ctx.reflected_sanitized:
+            has_live = any("reflected live" in m for m in ctx.derived_markers)
+            if not has_live:
+                ctx.issues.append(
+                    f"Q5 SANITIZED: {q5_class} payload was reflected but ENCODED/"
+                    f"neutralized in the response (HTML/URL/JS-escaped) — executable "
+                    f"context NOT proven. This is the #1 reflected-injection false "
+                    f"positive. Land the payload un-encoded (probe_xss_executed) or "
+                    f"pass human_verified=True if confirmed executing in a browser."
+                )
+                ctx.weak_evidence = True
     else:
         ctx.issues.append(
             f"Q5 UNKNOWN VULN TYPE: '{ctx.vuln_type}' has no class-specific keyword set. "

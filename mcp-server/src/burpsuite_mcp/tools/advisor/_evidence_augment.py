@@ -13,6 +13,7 @@ question loop, mutates ctx.derived_markers + ctx.evidence_lower.
 import re
 from burpsuite_mcp import client
 from ._context import AssessContext
+from ._liveness import reflection_liveness
 
 
 async def augment_evidence(ctx: AssessContext) -> None:
@@ -47,11 +48,20 @@ async def augment_evidence(ctx: AssessContext) -> None:
             if sql_err in body:
                 markers.append(sql_err)
 
-        # XSS: payload echoed in executable context
-        for xss_marker in ("<script", "onerror=", "onload=", "javascript:",
-                           "alert(", "<svg", "<img"):
-            if xss_marker in body:
-                markers.append(f"executable: {xss_marker}")
+        # XSS/HTML/template-injection: payload echoed in EXECUTABLE context.
+        # Payload-tied — a response containing the page's OWN <script>/<img>
+        # tags is NOT evidence. Only a dangerous token the REQUEST carried that
+        # returns un-encoded counts as live; encoded-only reflection is
+        # neutralized (the #1 reflected-injection false positive).
+        req_payload = f"{detail.get('url','')}\n{detail.get('request_body','')}"
+        full_body = detail.get("response_body") or ""
+        live, sanitized = reflection_liveness(req_payload, full_body)
+        for tok in live:
+            markers.append(f"executable: {tok} (payload reflected live)")
+        if sanitized and not live:
+            markers.append(
+                f"sanitized: payload reflected but encoded ({', '.join(sanitized[:3])})")
+            ctx.reflected_sanitized = True
 
         # SSRF: cloud-metadata or callback proof
         for ssrf_marker in ("ami-id", "instance-identity", "169.254.169.254",

@@ -51,6 +51,10 @@ class AssessContext:
     weak_evidence: bool = False
     derived_markers: list[str] = field(default_factory=list)
     evidence_lower: str = ""
+    # True when a reflection-injection payload came back only ENCODED/neutralized
+    # (HTML/URL/JS-escaped) — set by augment_evidence, read by Q5 to suppress the
+    # classic reflected-XSS/SSTI false positive.
+    reflected_sanitized: bool = False
 
     # ── Lookups derived once for use across multiple checks ──
     effective_domain: str = ""

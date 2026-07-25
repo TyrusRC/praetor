@@ -41,7 +41,8 @@ class W29iKbOrgCleanup(unittest.TestCase):
                          "webauthn_passkey_attacks.json must be merged into webauthn_passkey.json")
 
     def test_cache_deception_contexts_merged_into_parent(self):
-        wcd = json.load(open(_KB / "web_cache_deception.json"))
+        with open(_KB / "web_cache_deception.json") as _f:
+            wcd = json.load(_f)
         for ctx in ("semicolon_path_param", "encoded_slash_split",
                     "fragment_split_parser_discrepancy",
                     "double_extension_parser_split",
@@ -50,7 +51,8 @@ class W29iKbOrgCleanup(unittest.TestCase):
                           f"context {ctx} missing from web_cache_deception.json after merge")
 
     def test_saml_xsw_contexts_merged_into_parent(self):
-        saml = json.load(open(_KB / "saml.json"))
+        with open(_KB / "saml.json") as _f:
+            saml = json.load(_f)
         for ctx in ("saml_response_endpoint_detect", "xsw_signature_wrap",
                     "xsw_comment_injection_nameid", "saml_signature_exclusion",
                     "saml_keyinfo_swap"):
@@ -58,7 +60,8 @@ class W29iKbOrgCleanup(unittest.TestCase):
                           f"context {ctx} missing from saml.json after merge")
 
     def test_webauthn_attacks_contexts_merged_into_parent(self):
-        wp = json.load(open(_KB / "webauthn_passkey.json"))
+        with open(_KB / "webauthn_passkey.json") as _f:
+            wp = json.load(_f)
         for ctx in ("origin_validation_weak", "cross_device_misbinding"):
             self.assertIn(ctx, wp["contexts"],
                           f"context {ctx} missing from webauthn_passkey.json after merge")

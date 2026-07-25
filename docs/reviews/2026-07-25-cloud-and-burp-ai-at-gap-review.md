@@ -95,6 +95,49 @@ log (checkpoints exist), and pushing `find_rre_chains`/`build_api_dag`/
 `propose_chains` toward autonomous multi-step escalation (the one axis where
 beating the *category*, incl. XBOW, would require deeper chaining automation).
 
+---
+
+# Addendum — False-Positive Reduction Pass (2026-07-25)
+
+Researched FP-reduction mechanisms across Invicti (proof-based scanning),
+Acunetix (AcuSensor IAST / AcuMonitor OOB), Burp Scanner (executable-context +
+retry consistency + AI BAC dual-crawl), ZAP (confidence/threshold/alert-filters),
+Nuclei (matchers-condition + negative + dynamic extractors), Semgrep (sanitizer
+awareness), and XBOW (explorer↔deterministic-validator split).
+
+**Already present in Praetor:** AND-composition across matchers + `not_word`
+negation (MatcherEngine), baseline+k-of-n replay (Rules 11/10a), OOB via
+Collaborator (Rule 9a), deterministic-prover split (`confirm_with_clean_room` /
+`debate_triage`). Praetor's FP stack was already mature.
+
+**Real bug found + fixed — reflected-injection false positive (research #6):**
+`augment_evidence` marked XSS "executable context" whenever `<script` / `<img` /
+`<svg` / `onload=` appeared in the response body. Every HTML page contains its
+own `<script>` tags, so this fired regardless of the payload — inflating
+confidence on non-findings. Replaced with a **payload-tied reflection-liveness
+check** (`tools/advisor/_liveness.py`): only a decisive token (tag-former,
+attribute/tag breakout, or template marker) that the REQUEST carried and that
+returns UN-encoded counts as executable. A payload reflected only in
+HTML/URL/JS-encoded form is classified `sanitized`, and for reflection classes
+(xss/ssti/html_injection/csti) the Q5 gate now **suppresses the finding** —
+executable context not proven. Bare event handlers (`onerror=`) are excluded
+from the "live" decision since they cannot execute without a live host tag.
+Mirrors Burp's executable-context model + Semgrep's sanitizer awareness, applied
+black-box.
+
+**Also fixed:** 3 unclosed-file handles in `tests/test_w29_commercial_gap_closure.py`
+(ResourceWarning) — now context-managed; passes under `-W error::ResourceWarning`.
+
+**Deferred (documented, not built — higher regression risk / lower marginal value):**
+- #7 dual-baseline (authed + unauthenticated) auto-suppression for IDOR/BFLA —
+  requires reworking `test_auth_matrix`/`compare_auth_states` output contract.
+- #1 formal `proof_token` evidence field as a Q5 auto-pass — canaries already
+  exist in probes; formalizing the round-trip protocol across all `confirm_*`
+  tools is a larger, separate change.
+- #5/#4 hard gate-enforcement of OOB-mandatory / k-of-n for blind classes —
+  currently Rule-enforced (9a/10a); promoting to a hard assess-gate reject is a
+  calibration change touching the 12-method assess suite.
+
 ## Changes this pass
 - `tools/vuln/test_ssrf.py` — ECS/EKS/IAM-cred endpoints + temp-cred indicators.
 - `tools/edge/test_cloud_metadata.py` + `tools/edge/__init__.py` — full provider
@@ -102,3 +145,14 @@ beating the *category*, incl. XBOW, would require deeper chaining automation).
 - `.claude/skills/autopilot.md` — Autonomy Modes (Burp AT parity) section.
 - `.claude/skills/playbook-cloud-native.md` — container-cred pivot documented.
 - `tests/test_cloud_ssrf_creds.py` — 5 tests (structural + behavioral). Suite 1419→1424, green.
+
+FP-reduction pass:
+- `tools/advisor/_liveness.py` — NEW payload-tied reflection-liveness helper.
+- `tools/advisor/_evidence_augment.py` — payload-tied executable-context marker
+  (replaces blanket `<script`-in-body FP) + `sanitized` signal.
+- `tools/advisor/_context.py` — `reflected_sanitized` flag.
+- `tools/advisor_kb/q5_evidence.py` — sanitizer/executable-context suppression
+  for reflection-injection classes.
+- `tests/test_reflection_liveness.py` — 8 tests (unit + assess-gate integration).
+- `tests/test_w29_commercial_gap_closure.py` — unclosed-file ResourceWarning fix.
+- Suite 1424→1431, green.
