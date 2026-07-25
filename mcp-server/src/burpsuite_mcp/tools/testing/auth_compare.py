@@ -18,10 +18,18 @@ def register(mcp: FastMCP):
         original_token: str = "",
         alt_token: str = "",
         remove_auth: bool = False,
+        check_public: bool = True,
     ) -> dict:
         """Compare responses between auth states to detect IDOR/auth bypass.
 
         Returns VerdictResult (W7 schema).
+
+        FP guard: when the two authed states match (would be CONFIRMED/SUSPECTED),
+        an extra UNAUTHENTICATED probe runs (`check_public=True`, default). If the
+        resource returns the same content with NO auth, it is PUBLIC — not an
+        access-control flaw — and the verdict is downgraded to FAILED. This kills
+        the #1 IDOR false positive (public data misread as cross-user access).
+        Skipped when `remove_auth=True` (request 2 is already the unauth case).
 
         Args:
             index: Proxy history index of the request to test
@@ -102,10 +110,36 @@ def register(mcp: FastMCP):
         lines.append(f"\n--- Response 2 (first 500 chars) ---")
         lines.append(body2[:500] if body2 else "(empty)")
 
-        human = "\n".join(lines)
         identical = body1 == body2 and status1 == status2
         similar = status1 == status2 and abs(length1 - length2) < 50
-        if identical:
+
+        # FP guard (dual-baseline): if the two authed states match, the resource
+        # might just be PUBLIC. Probe it with NO auth — if it returns the same
+        # content unauthenticated, it is public data, not an access-control flaw.
+        public = False
+        if (identical or similar) and check_public and not remove_auth:
+            modify3 = {"index": index, "modify_headers": {"Cookie": "", "Authorization": ""}}
+            data3 = await client.post("/api/http/resend", json=modify3)
+            if "error" not in data3:
+                status3 = data3.get("status_code", 0)
+                length3 = data3.get("response_length", 0)
+                body3 = data3.get("response_body", "")
+                # Public iff the unauth request succeeds AND matches request 1.
+                if status3 == status1 and (body3 == body1 or abs(length3 - length1) < 50):
+                    public = True
+                    lines.append("")
+                    lines.append(
+                        f"  Request 3 (NO auth):       Status {status3}, Length {length3}")
+                    lines.append(
+                        "[OK] Resource returns identically WITHOUT auth — PUBLIC data, "
+                        "not IDOR/BAC. Suppressed to avoid false positive.")
+
+        human = "\n".join(lines)
+        if public:
+            verdict, confidence = "FAILED", 0.1
+            ev = ("resource is PUBLIC (returns identically unauthenticated) — "
+                   "not an access-control flaw")
+        elif identical:
             verdict, confidence = "CONFIRMED", 0.85
             ev = "auth states yield identical response — missing auth check (IDOR/BAC)"
         elif similar:
@@ -123,6 +157,7 @@ def register(mcp: FastMCP):
                 "status_1": status1, "status_2": status2,
                 "length_1": length1, "length_2": length2,
                 "bodies_identical": body1 == body2,
+                "public_resource": public,
             },
             summary=human,
         )

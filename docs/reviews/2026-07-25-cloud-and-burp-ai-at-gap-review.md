@@ -125,6 +125,24 @@ from the "live" decision since they cannot execute without a live host tag.
 Mirrors Burp's executable-context model + Semgrep's sanitizer awareness, applied
 black-box.
 
+**Dual-baseline public-data guard (research #7, DELIVERED).** `compare_auth_states`
+returned CONFIRMED IDOR on identical bodies across two authed states without ever
+checking the resource wasn't simply PUBLIC — the #1 access-control false positive.
+Added a third UNAUTHENTICATED probe (`check_public=True`, default) that runs only
+when the two authed states match; if the resource returns the same content with no
+auth, it is public → verdict downgraded to FAILED. Mirrors Burp AI's BAC dual-crawl.
+
+**Systematic static-analysis sweep (fix-all-issues).** Ran pyflakes over the whole
+`src/` tree. `compileall` clean (no syntax errors). Fixed all 9 assigned-but-never-used
+locals (dead assignments, no dropped comparisons — verified each): `burp_tools`,
+`id_monotonic`, `test_graphql`, `graphql_csrf_probe`, `sse_probe`,
+`content_type_switch` (×2), `grpc_probe` (×2). The ~200 "f-string missing
+placeholders" are harmless leftover `f` prefixes (a real missing brace is a
+SyntaxError, which compileall ruled out) — cosmetic, not defects; not touched
+(fixing would be non-surgical churn across ~100 files). The 7 in-code TODO/XXX hits
+are false positives (`CVE-2024-XXXXX` placeholders, `\uXXXX` docs, one documented
+design-ceiling NOTE).
+
 **Also fixed:** 3 unclosed-file handles in `tests/test_w29_commercial_gap_closure.py`
 (ResourceWarning) — now context-managed; passes under `-W error::ResourceWarning`.
 
@@ -155,4 +173,9 @@ FP-reduction pass:
   for reflection-injection classes.
 - `tests/test_reflection_liveness.py` — 8 tests (unit + assess-gate integration).
 - `tests/test_w29_commercial_gap_closure.py` — unclosed-file ResourceWarning fix.
-- Suite 1424→1431, green.
+
+Dual-baseline + hygiene pass:
+- `tools/testing/auth_compare.py` — third unauth probe + public-data suppression.
+- `tests/test_auth_compare_public_guard.py` — 3 tests.
+- 9 dead unused-locals removed across 7 tool modules (pyflakes-clean).
+- Suite 1424→1434, green. `compileall` clean; pyflakes unused-locals = 0.

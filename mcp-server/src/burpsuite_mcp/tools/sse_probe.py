@@ -125,7 +125,6 @@ def register(mcp: FastMCP) -> None:
             logger_indices.append(baseline["logger_index"])
 
         baseline_is_sse = _is_event_stream(baseline)
-        baseline_body = baseline.get("response_body") or ""
 
         probe_results = []
         hits: list[dict] = []

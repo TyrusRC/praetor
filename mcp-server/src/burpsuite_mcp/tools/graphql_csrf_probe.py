@@ -65,7 +65,6 @@ def register(mcp: FastMCP) -> None:
             return error_verdict("target_url required", vuln_type="graphql_csrf")
 
         op = mutation or _PROBE_MUTATION_DEFAULT
-        op_quoted = json.dumps(op)  # JSON-safe string
 
         variants = [
             ("get_url_param", {

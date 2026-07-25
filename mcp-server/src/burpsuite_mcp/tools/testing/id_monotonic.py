@@ -55,7 +55,6 @@ def _uuidv1_from_timestamp(seed_id: str, new_time: int) -> str:
     time_low = new_time & 0xFFFFFFFF
     time_mid = (new_time >> 32) & 0xFFFF
     time_hi = ((new_time >> 48) & 0x0FFF) | 0x1000  # version 1
-    clock_seq = (u.clock_seq_hi_variant << 8) | u.clock_seq_low
     fields = (time_low, time_mid, time_hi, u.clock_seq_hi_variant, u.clock_seq_low, u.node)
     return str(_uuid.UUID(fields=fields))
 

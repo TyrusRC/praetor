@@ -184,7 +184,6 @@ def register(mcp: FastMCP):
         if "error" in data:
             return f"Error: {data['error']}"
 
-        msg = data.get("message", "")
         pos_count = data.get("positions", "")
         result = f"Sent to Intruder tab '{data.get('tab_name', tab_name)}': {data.get('method', '?')} {data.get('url', '?')}"
         if pos_count:

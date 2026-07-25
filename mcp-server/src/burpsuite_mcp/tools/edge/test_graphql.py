@@ -149,7 +149,6 @@ async def _introspection_fuzz(session: str, path: str, max_per_op: int = 30) -> 
             # Look for known authz-error patterns to distinguish "no auth" vs "200 OK with data"
             if has_data and rj.get("data", {}).get(fname) is not None and 200 <= r_status < 300 and not errs:
                 tags.append("DATA_RETURNED")
-                lower_q = query.lower()
                 if "delete" in fname.lower() or "remove" in fname.lower() or "destroy" in fname.lower():
                     findings["auth_bypass"].append(f"{op_label}.{fname}")
                 elif any(k in fname.lower() for k in ("admin", "internal", "private", "secret", "audit", "log")):

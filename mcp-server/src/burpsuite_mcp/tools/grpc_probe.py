@@ -62,7 +62,7 @@ def _gunframe(blob: bytes) -> list[bytes]:
     frames = []
     off = 0
     while off + 5 <= len(blob):
-        flag = blob[off]
+        # byte[off] is the gRPC compression flag — not needed to unframe.
         length = struct.unpack(">I", blob[off + 1:off + 5])[0]
         if off + 5 + length > len(blob):
             break
@@ -286,7 +286,6 @@ def register(mcp: FastMCP) -> None:
         if baseline.get("error"):
             return error_verdict("grpc_idor", "baseline_failed",
                                  baseline.get("error", "baseline send failed"))
-        b_status = baseline.get("status_code", 0)
         b_body = baseline.get("response_body") or ""
         b_len = len(b_body) if isinstance(b_body, str) else 0
         b_hdrs = {k.lower(): v for k, v in (baseline.get("response_headers") or {}).items()}
