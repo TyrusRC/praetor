@@ -21,6 +21,27 @@ _REFLECTION_CLASSES = {
     "client_side_template_injection", "template_injection",
 }
 
+# Inherently out-of-band classes: no in-band signal exists, so a resolved OOB
+# interaction (Collaborator / callback) is the ONLY proof (Rule 9a). A claimed
+# finding here with just a status/length guess is the classic blind false
+# positive. Timing-provable blinds (sqli_time, rce_blind via sleep) are NOT
+# listed — the Q5 timing rule covers those via k-of-n replay.
+_OOB_REQUIRED = {
+    "ssrf_blind", "blind ssrf", "blind_ssrf",
+    "xxe_blind", "blind xxe", "blind_xxe", "oob xxe",
+    "blind xss", "xss_blind", "blind_xss", "stored blind xss",
+}
+_OOB_MARKERS = (
+    "collaborator", "interaction received", "interaction id", "interaction_id",
+    "oob", "out-of-band", "out of band", "pingback", "callback",
+    "dns lookup", "dns interaction", "burpcollaborator", "interact.sh",
+    "http interaction", "dns callback",
+)
+
+
+def _needs_oob(vuln_lower: str) -> bool:
+    return vuln_lower in _OOB_REQUIRED or vuln_lower.endswith("_oob")
+
 
 async def check(ctx: AssessContext) -> CheckResult:
     if ctx.human_verified:
@@ -75,6 +96,20 @@ async def check(ctx: AssessContext) -> CheckResult:
             f"Q5 UNKNOWN VULN TYPE: '{ctx.vuln_type}' has no class-specific keyword set. "
             f"Available classes: {', '.join(sorted(Q5_KEYWORDS.keys()))}. "
             f"Either retag, pass human_verified=True, or overrides=['q5_evidence:<reason>']."
+        )
+        ctx.weak_evidence = True
+
+    # OOB-mandatory gate (Rule 9a): inherently out-of-band classes need a
+    # resolved Collaborator/callback interaction — the only proof that exists.
+    if _needs_oob(ctx.vuln_lower) and not any(
+        m in ctx.evidence_lower for m in _OOB_MARKERS
+    ):
+        ctx.issues.append(
+            f"Q5 OOB REQUIRED: '{ctx.vuln_type}' is an out-of-band class with no "
+            f"in-band signal — a resolved Collaborator/callback interaction is the "
+            f"only valid proof (Rule 9a). Prose class markers alone are the classic "
+            f"blind false positive. Provide the interaction id in evidence, run "
+            f"auto_collaborator_test, or pass human_verified=True."
         )
         ctx.weak_evidence = True
 

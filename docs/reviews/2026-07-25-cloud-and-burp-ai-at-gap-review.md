@@ -146,15 +146,33 @@ design-ceiling NOTE).
 **Also fixed:** 3 unclosed-file handles in `tests/test_w29_commercial_gap_closure.py`
 (ResourceWarning) — now context-managed; passes under `-W error::ResourceWarning`.
 
-**Deferred (documented, not built — higher regression risk / lower marginal value):**
-- #7 dual-baseline (authed + unauthenticated) auto-suppression for IDOR/BFLA —
-  requires reworking `test_auth_matrix`/`compare_auth_states` output contract.
-- #1 formal `proof_token` evidence field as a Q5 auto-pass — canaries already
-  exist in probes; formalizing the round-trip protocol across all `confirm_*`
-  tools is a larger, separate change.
-- #5/#4 hard gate-enforcement of OOB-mandatory / k-of-n for blind classes —
-  currently Rule-enforced (9a/10a); promoting to a hard assess-gate reject is a
-  calibration change touching the 12-method assess suite.
+**OOB-mandatory gate (research #5, DELIVERED).** Inherently out-of-band classes
+(`ssrf_blind` / `xxe_blind` / `blind xss` / `*_oob`) now hard-fail Q5 without a
+resolved Collaborator/callback marker in evidence — a claimed blind finding with
+only an in-band guess is the classic blind false positive (Rule 9a enforced at the
+gate). Timing-provable blinds (`sqli_time`, `rce_blind` via sleep) are excluded —
+the existing Q5 timing rule covers those via k-of-n replay. `human_verified` and
+the `q5_evidence` override still bypass.
+
+**#1 proof-token — already covered, not a gap.** The research's #1 (dynamic
+computed marker round-trip) already exists in Praetor: probes embed canaries
+(`PRAETOR-<hex>`, arithmetic `1337`=`1336+1`, SSTI `{{7*n}}`) and the resolved
+value flows into `evidence` + `logger_index`, which Q5 keyword-matches. No new
+mechanism warranted.
+
+## Full issue-class audit (fix-all-issues)
+
+Beyond the static-analysis sweep, audited each issue class the codebase can carry:
+
+| Class | Method | Result |
+|---|---|---|
+| Syntax | `compileall` whole tree | Clean (0 errors) |
+| Dead code / unused locals | pyflakes | 9 found → all fixed; now 0 |
+| Security (tool self-vuln) | grep eval/exec/`shell=True`/pickle/`verify=False`/md5-sha1/string-SQL | Clean — every hit is a payload string, KB-detection pattern, justified nonce/fingerprint, or a low-level TLS-race primitive; subprocess uses list-argv (0 string-shell) |
+| Performance | grep blocking `time.sleep`/sync `requests`/`httpx` in async | Clean — 2 `time.sleep` are SSTI payload strings; 1 `requests.get` is a repro-script generator; sequential awaits are WAF/rate-limit-safe by design (parallel tools already use `asyncio.gather`) |
+| Logic errors | manual, driven by unused-local + FP review | 2 real FP logic bugs found + fixed (reflection blanket-`<script`, IDOR public-data) |
+| Design debt (file size) | prior refactor pass | ≤569 lines/file |
+| Cosmetic (leftover `f` prefix) | pyflakes | ~200, non-defects, left untouched (surgical rule) |
 
 ## Changes this pass
 - `tools/vuln/test_ssrf.py` — ECS/EKS/IAM-cred endpoints + temp-cred indicators.
@@ -178,4 +196,9 @@ Dual-baseline + hygiene pass:
 - `tools/testing/auth_compare.py` — third unauth probe + public-data suppression.
 - `tests/test_auth_compare_public_guard.py` — 3 tests.
 - 9 dead unused-locals removed across 7 tool modules (pyflakes-clean).
-- Suite 1424→1434, green. `compileall` clean; pyflakes unused-locals = 0.
+
+OOB-gate pass:
+- `tools/advisor_kb/q5_evidence.py` — OOB-mandatory gate for out-of-band classes.
+- `tests/test_oob_gate.py` — 4 tests.
+- Suite 1424→1438, green. `compileall` clean; pyflakes unused-locals = 0.
+- Full issue-class audit table above: security/perf/syntax/dead-code all clean.
