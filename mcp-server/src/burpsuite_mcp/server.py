@@ -1,4 +1,4 @@
-"""Burp Suite Swiss Knife MCP Server - Claude Code as pentesting brain."""
+"""Praetor MCP Server - Claude Code as pentesting brain."""
 
 from mcp.server.fastmcp import FastMCP
 
@@ -47,8 +47,8 @@ from burpsuite_mcp.tools import (
 )
 
 mcp = FastMCP(
-    "burpsuite-swiss-knife",
-    instructions="""You are connected to Burp Suite via the Swiss Knife MCP server.
+    "praetor",
+    instructions="""You are connected to Burp Suite via the Praetor MCP server.
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.

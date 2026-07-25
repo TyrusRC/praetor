@@ -1,1 +1,1 @@
-"""Burp Suite Swiss Knife MCP Server - Claude Code as pentesting brain."""
+"""Praetor MCP Server - Claude Code as pentesting brain."""

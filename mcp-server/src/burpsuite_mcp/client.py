@@ -36,7 +36,7 @@ def _connect_error_envelope() -> dict:
     return {
         "error": f"Cannot connect to Burp extension at {BASE_URL}. Is the extension loaded?",
         "code": "extension_unreachable",
-        "hint": "Open Burp, ensure the Swiss-Knife extension is loaded, then retry.",
+        "hint": "Open Burp, ensure the Praetor extension is loaded, then retry.",
     }
 
 
