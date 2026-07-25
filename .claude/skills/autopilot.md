@@ -71,6 +71,30 @@ Before EVERY request, verify target is in scope:
 3. Never follow redirects to out-of-scope domains
 ```
 
+## Autonomy Modes (risk-tiered action gate — Burp AT parity)
+
+Three named autonomy levels, mapped to the existing checkpoint flags. Same
+graduated dial Burp AT ships (Manual / Smart / Autonomous), but the gate is
+enforced at the **tool layer** (HARD Rules 1–10, `confirm_*` gates, scope mode)
+— architecturally separate from the model, so a prompt-injected agent still
+cannot exceed it.
+
+| Mode | Flag | Behavior |
+|---|---|---|
+| **Manual** | `--paranoid` | Ask before every state-changing action; auto-run only ALWAYS-SAFE reads. |
+| **Smart** | `--normal` | Act independently on safe + low-impact probes; **pause for approval on any HIGH-IMPACT action** (list below). |
+| **Autonomous** | `--aggressive` | Run without asking — **except the ALWAYS-APPROVAL list, which pauses in every mode including this one.** |
+
+**ALWAYS-APPROVAL high-impact actions (pause even in Autonomous):**
+- Any state-changing write proven exploitable (account takeover PoC, privilege change, data write to another user's object).
+- OOB exfil that would move real data off-target (blind SQLi dump, XXE file read beyond a version banner).
+- `msf_exploit` / `msfrpc_module_execute` / any RCE-confirming payload beyond a benign `id`/`whoami` marker.
+- `save_finding` submission-format export / platform push (`format_finding_for_platform`, report generation for delivery).
+- First request to a newly-discovered in-scope subdomain (Scope Guard §2).
+- Anything on the destructive denylist (HARD Rules 5–9) — this is a hard BLOCK, not an approval prompt.
+
+Smart/Autonomous never relax Rules 1–10. The mode only governs *how often the loop stops to check in* on already-permitted actions — it cannot grant a permission the tool layer denies.
+
 ## Autopilot Loop
 
 ```

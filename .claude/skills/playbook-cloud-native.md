@@ -36,9 +36,13 @@ Save anything found via `save_target_intel(domain, "profile", {"cloud_signals": 
 
 ## AWS — Web App Techniques
 
-### 1. IMDSv1 SSRF → temporary credentials → S3/internal API
-- Run `test_cloud_metadata` against any URL/host param. The probe hits `http://169.254.169.254/latest/meta-data/iam/security-credentials/<role>`.
-- A successful response yields `AccessKeyId`, `SecretAccessKey`, `Token` for the EC2/ECS task role.
+### 1. SSRF → temporary credentials → S3/internal API (header-less cred endpoints FIRST)
+- Run `test_cloud_metadata` against any URL/host param. It sweeps, in priority order:
+  - **ECS/Fargate task creds** — `http://169.254.170.2/v2/credentials/`
+  - **EKS Pod Identity creds** — `http://169.254.170.23/v1/credentials`
+  - **IMDSv1 role creds** — `http://169.254.169.254/latest/meta-data/iam/security-credentials/<role>`
+- Try the container-cred endpoints first: they are plain GETs with **no token/header dance**, so they stay reachable from a bare parameter SSRF even on modern instances where IMDSv1 is disabled (the common case — see §2 for why IMDSv1 often fails now).
+- A successful response yields `AccessKeyId`, `SecretAccessKey`, `Token`, `Expiration` for the task/pod/instance role.
 - Web-app exploitation: pipe the credentials into a follow-up SSRF that signs requests via SigV4 to internal AWS APIs reachable from the same VPC. The hunter does this *manually* through `curl_request` with the Authorization header constructed offline.
 
 ### 2. IMDSv2 SSRF — needs PUT-then-GET

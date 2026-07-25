@@ -61,16 +61,19 @@ def register(mcp: FastMCP):
         parameter: str = "url",
         path: str = "/",
         injection_point: str = "query",
+        extra_headers: dict | None = None,
     ) -> dict:
-        """Test SSRF to cloud metadata services (AWS, GCP, Azure, DigitalOcean).
+        """Test SSRF to cloud metadata + container creds (AWS ECS/EKS/IMDS, GCP, Azure, DO, Alibaba, Oracle).
 
         Args:
             session: Session name
             parameter: Parameter to inject SSRF payload into
             path: Endpoint path
             injection_point: Where to inject: 'query' or 'body'
+            extra_headers: Outer-request headers (e.g. {"Metadata-Flavor": "Google"})
+                for header-forwarding SSRF only — GCP/Azure IMDS are header-gated.
         """
-        return await test_cloud_metadata_impl(session=session, parameter=parameter, path=path, injection_point=injection_point)
+        return await test_cloud_metadata_impl(session=session, parameter=parameter, path=path, injection_point=injection_point, extra_headers=extra_headers)
 
     @mcp.tool()
     async def discover_common_files(
