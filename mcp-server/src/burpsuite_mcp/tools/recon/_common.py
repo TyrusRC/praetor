@@ -8,7 +8,7 @@ import asyncio
 import os
 import shutil
 
-from burpsuite_mcp.config import BURP_PROXY_URL  # noqa: F401 — re-exported for submodules
+from burpsuite_mcp.config import BURP_PROXY_URL
 
 # ProjectDiscovery tools installed via `go install` land in ~/go/bin.
 # Prepend it to search path so Go tools are found.
@@ -79,7 +79,7 @@ async def _run_cmd(cmd: list[str], timeout: int = 120, bypass_proxy: bool = Fals
             proc.communicate(input=stdin_input), timeout=timeout)
         rc = proc.returncode if proc.returncode is not None else 1
         return stdout.decode(errors="replace"), stderr.decode(errors="replace"), rc
-    except asyncio.TimeoutError:
+    except TimeoutError:
         try:
             proc.kill()
             await proc.wait()

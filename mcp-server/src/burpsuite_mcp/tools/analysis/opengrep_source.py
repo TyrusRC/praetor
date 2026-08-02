@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp.tools.recon._common import _check_tool, _run_cmd
 
-from .opengrep_audit import _RULESET_DIR, _resolve_configs
+from .opengrep_audit import _resolve_configs
 
 
 _DEFAULT_CONFIGS = ("p/owasp-top-ten", "p/security-audit")

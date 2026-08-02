@@ -105,7 +105,7 @@ def register(mcp: FastMCP) -> None:
                             "auto_created": True,
                             "auto_created_by": "auto_probe",
                             "note": "Minimal stub. Run full_recon / discover_attack_surface to enrich.",
-                        }, indent=2))
+                        }, indent=2), encoding="utf-8")
                 except Exception:
                     pass
 
@@ -120,7 +120,7 @@ def register(mcp: FastMCP) -> None:
                 from burpsuite_mcp.tools.intel import _knowledge_version, _intel_path
                 cov_path = _intel_path(domain) / "coverage.json"
                 if cov_path.exists():
-                    cov = json.loads(cov_path.read_text())
+                    cov = json.loads(cov_path.read_text(encoding="utf-8"))
                     cur_kv = _knowledge_version()
                     recorded_kv = cov.get("knowledge_version")
                     covered_keys: set[tuple] = set()
@@ -205,8 +205,12 @@ def register(mcp: FastMCP) -> None:
             if idx is None:
                 return False
             conf = finding.get("confidence", 0) or 0
+            # Capped at ORANGE on purpose. Per the Rule 18 colour convention
+            # RED means "confirmed critical/high" — a claim only verification
+            # can make. auto_probe's confidence is a matcher score, so painting
+            # it RED produced a history full of red entries that no finding
+            # backed, and every later reader had to re-derive which were real.
             color = (
-                "RED" if conf >= 0.90 else
                 "ORANGE" if conf >= 0.60 else
                 "YELLOW" if conf >= 0.30 else
                 "GRAY"
@@ -214,12 +218,18 @@ def register(mcp: FastMCP) -> None:
             cat = finding.get("category", "?")
             ctx = finding.get("context", "?")
             param = finding.get("parameter", "?")
-            comment = f"auto_probe | {cat}/{ctx} | param={param} | c={conf:.2f}"
+            # Self-identifying as unverified: the comment states what produced
+            # it and what it is not, so it is never mistaken for PoC evidence.
+            comment = (
+                f"auto_probe UNVERIFIED | {cat}/{ctx} | param={param} | "
+                f"match_confidence={conf:.2f} | verify before citing"
+            )
             try:
                 await client.post("/api/annotations/set", json={
                     "index": int(idx),
                     "color": color,
                     "comment": comment[:300],
+                    "endpoint": finding.get("endpoint", "") or "",
                 })
                 return True
             except Exception:
@@ -241,7 +251,7 @@ def register(mcp: FastMCP) -> None:
                 cov = {"entries": []}
                 if cov_path.exists():
                     try:
-                        cov = json.loads(cov_path.read_text()) or {"entries": []}
+                        cov = json.loads(cov_path.read_text(encoding="utf-8")) or {"entries": []}
                     except (OSError, json.JSONDecodeError):
                         cov = {"entries": []}
                 if "entries" not in cov or not isinstance(cov["entries"], list):
@@ -271,7 +281,7 @@ def register(mcp: FastMCP) -> None:
                                 "knowledge_version": kv,
                             })
                             seen.add(key)
-                cov_path.write_text(json.dumps(cov, indent=2))
+                cov_path.write_text(json.dumps(cov, indent=2), encoding="utf-8")
             except Exception:
                 # coverage write is best-effort; failure must not break the
                 # main probe response.

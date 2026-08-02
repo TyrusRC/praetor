@@ -44,7 +44,7 @@ def _load_findings_file(path: Path) -> dict:
     if not path.exists():
         return {"findings": [], "last_modified": ""}
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"findings": [], "last_modified": ""}
 

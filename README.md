@@ -9,7 +9,7 @@
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io/)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows%20%7C%20wsl-blue)](#supported-platforms)
 
-> **Renamed in v1.0** from `burpsuite-swiss-knife-mcp` to **Praetor**. The GitHub repo is now `github.com/TyrusRC/praetor` (old URLs redirect). Python package directory unchanged this release; binary names (`praetor-mcp`, `praetor-burp-ext-1.0.0.jar`) are new. Backwards-compatible script aliases retained for one release cycle.
+> **v1.0** — the repo is `github.com/TyrusRC/praetor`. Binaries: `praetor-mcp` (MCP server) and `praetor-burp-ext-<version>.jar` (Burp extension). The Python package directory is still `burpsuite_mcp/`; the import-path rename lands in v1.1.
 
 Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into a Burp-native agentic pentester. It exposes Burp's HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), an 11-agent team, and a save-finding pipeline with persistent target memory. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
 
@@ -81,7 +81,7 @@ The MCP server runs straight from the source tree with `uvx`. You still need the
 
 ```sh
 uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" \
-    burpsuite-swiss-knife-mcp
+    praetor-mcp
 ```
 
 Or in `.mcp.json`:
@@ -94,7 +94,7 @@ Or in `.mcp.json`:
       "args": [
         "--from",
         "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server",
-        "burpsuite-swiss-knife-mcp"
+        "praetor-mcp"
       ]
     }
   }
@@ -133,7 +133,7 @@ uv sync
 
 ```sh
 pipx install "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server"
-burpsuite-swiss-knife-mcp     # entrypoint
+praetor-mcp                   # entrypoint
 ```
 
 ## Configuration
@@ -144,7 +144,7 @@ Create `.mcp.json` in the project root. The file is gitignored; each developer m
 {
   "mcpServers": {
     "burpsuite": {
-      "command": "/absolute/path/to/burpsuite-swiss-knife-mcp/mcp-server/.venv/bin/python",
+      "command": "/absolute/path/to/praetor/mcp-server/.venv/bin/python",
       "args": ["-m", "burpsuite_mcp"]
     }
   }
@@ -168,7 +168,7 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 - **NAT (default).** Reach Burp via the Windows host IP (the WSL default-route gateway, e.g. `172.22.112.1`):
   1. Add an `env` block to `.mcp.json` setting `BURP_API_HOST` to that IP (setup.sh writes this for you).
   2. In the Praetor config tab set **Host = `0.0.0.0`**.
-  3. Launch Burp with the JVM flag `-Dswissknife.allow_non_loopback_bind=true` — the extension refuses a non-loopback bind without it.
+  3. Launch Burp with the JVM flag `-Dpraetor.allow_non_loopback_bind=true` — the extension refuses a non-loopback bind without it.
 
   NAT mode exposes the unauthenticated API on the WSL virtual switch; use only on a trusted host. Prefer mirrored.
 
@@ -182,7 +182,7 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
 | `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
 
-The Java extension also accepts JVM system properties `swissknife.proxy.host` and `swissknife.proxy.port` (highest precedence).
+The Java extension also accepts JVM system properties `praetor.proxy.host` and `praetor.proxy.port` (highest precedence).
 
 ## Usage
 

@@ -35,11 +35,11 @@ class CheckResult(TypedDict):
     evidence: dict
 
 
-from .gates import AUTH_STATE_DEPENDENT, LOW_IMPACT_CLASSES  # noqa: E402,F401
-from .never_submit import (  # noqa: E402,F401
+from .gates import AUTH_STATE_DEPENDENT, LOW_IMPACT_CLASSES  # noqa: F401
+from .never_submit import (  # noqa: F401
     CONDITIONAL_NEVER_SUBMIT_TYPES,
     NEVER_SUBMIT_KEYWORDS,
     NEVER_SUBMIT_TYPES,
     SENSITIVE_ENDPOINT_PATTERNS,
 )
-from .q5 import Q5_ALIASES, Q5_KEYWORDS, TIMING_VULN_TYPES  # noqa: E402,F401
+from .q5 import Q5_ALIASES, Q5_KEYWORDS, TIMING_VULN_TYPES  # noqa: F401

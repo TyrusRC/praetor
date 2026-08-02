@@ -23,7 +23,6 @@ Supported classes (variant generators):
 
 from __future__ import annotations
 
-import re
 import time
 from typing import Any
 
@@ -35,12 +34,12 @@ from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 # Split 2026-07-23: generators + scoring live in sibling modules; re-exported
 # here so `from ...cve_variant_probe import _resolve_class/_GENERATORS/...` and
 # the generator/scoring names keep resolving for callers and tests.
-from burpsuite_mcp.tools._cve_variant_gen import (  # noqa: E402,F401
+from burpsuite_mcp.tools._cve_variant_gen import (  # noqa: F401
     _CVE_TO_CLASS, _resolve_class, _GENERATORS,
     _rsc_variants, _nextjs_cache_variants, _trpc_variants, _proto_variants,
     _nextjs_ws_ssrf_variants, _generic_variants, _nextjs_middleware_variants,
 )
-from burpsuite_mcp.tools._cve_variant_score import _score_response  # noqa: E402,F401
+from burpsuite_mcp.tools._cve_variant_score import _score_response
 
 # ----- Helpers ---------------------------------------------------------------
 

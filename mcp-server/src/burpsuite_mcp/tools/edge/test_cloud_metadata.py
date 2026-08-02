@@ -83,7 +83,7 @@ async def test_cloud_metadata_impl(
     if vulns:
         lines.append(f"\n*** {len(vulns)} CLOUD METADATA LEAKS ***")
     else:
-        lines.append(f"\nNo cloud metadata exposure detected.")
+        lines.append("\nNo cloud metadata exposure detected.")
 
     human = "\n".join(lines)
     if vulns:

@@ -7,9 +7,7 @@ the error path.
 
 from __future__ import annotations
 
-import asyncio
 import base64
-import json
 import unittest
 
 from burpsuite_mcp.tools.testing._verdict import is_actionable

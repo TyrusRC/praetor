@@ -2,6 +2,7 @@
 
 from mcp.server.fastmcp import FastMCP
 
+from burpsuite_mcp._schema_slim import slim_tool_schemas
 from burpsuite_mcp.tools import (
     read, analyze, send, correlate, collaborate, notes,
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
@@ -18,6 +19,7 @@ from burpsuite_mcp.tools import (
     postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
     auth_negotiate, mcp_jsonrpc_probe,
     cve_variant_probe,
+    version_delta,
     smart_js_analyze,
     smart_request_triage,
     extract_batch,
@@ -181,6 +183,7 @@ nuclei_llm_infra.register(mcp) # run_nuclei_llm_infra — LLM/AI/MCP template sw
 auth_negotiate.register(mcp)   # probe_kerberos_spnego_auth — enterprise auth gateway detection (W29-j)
 mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimate-detect parity (W29-k)
 cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware PoC sweep (W30-a)
+version_delta.register(mcp)      # adapt_poc_to_version — cross-version PoC adaptation
 smart_js_analyze.register(mcp)   # smart_js_analyze — JS → fire-ready attack plan (W30-b)
 smart_request_triage.register(mcp)  # smart_request_triage — proxy entry → attack plan (W30-c)
 extract_batch.register(mcp)         # extract_js_secrets_batch / extract_api_endpoints_batch / extract_links_batch — dedup across N indices in one call (W31-b)
@@ -207,3 +210,8 @@ a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2
 mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode — D1 MCP tool-metadata concealment
 adhoc_probe.register(mcp)                        # run_adhoc_probe — F1 NL->probe (validate + run, fail-closed)
 workspace.register(mcp)                          # scaffold_workspace — engagement workspace tree (Spec 1)
+
+# Last, after every register(): drop pydantic's redundant `title` keys from the
+# assembled tool schemas. ~9k tokens off the manifest every session, no
+# information lost. See _schema_slim.
+slim_tool_schemas(mcp)

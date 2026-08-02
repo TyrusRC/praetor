@@ -75,7 +75,7 @@ def _recon_segments(domain_intel: Path, limit: int) -> list[str]:
     endpoints_f = domain_intel / "endpoints.json"
     if endpoints_f.exists():
         try:
-            data = json.loads(endpoints_f.read_text())
+            data = json.loads(endpoints_f.read_text(encoding="utf-8"))
             for e in data.get("endpoints", []):
                 if isinstance(e, str):
                     _add_path(e)
@@ -144,7 +144,7 @@ def register(mcp: FastMCP):
         tech_list: list[str] = []
         if fingerprint.exists():
             try:
-                fp = json.loads(fingerprint.read_text())
+                fp = json.loads(fingerprint.read_text(encoding="utf-8"))
                 tech_list = fp.get("tech_stack") or fp.get("tech") or []
             except (json.JSONDecodeError, OSError):
                 pass
@@ -196,7 +196,7 @@ def register(mcp: FastMCP):
                     permuted.append(entry + e)
             ordered = permuted
 
-        out_path.write_text("\n".join(ordered) + "\n")
+        out_path.write_text("\n".join(ordered) + "\n", encoding="utf-8")
 
         return {
             "path": str(out_path),

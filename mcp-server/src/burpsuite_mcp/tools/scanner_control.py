@@ -147,7 +147,7 @@ def register(mcp: FastMCP):
         crit_high = len(by_severity.get("CRITICAL", [])) + len(by_severity.get("HIGH", []))
         if crit_high:
             lines.append(f"  1. Investigate {crit_high} critical/high findings with get_scanner_findings(severity='HIGH')")
-            lines.append(f"  2. Verify each with assess_finding() before reporting")
+            lines.append("  2. Verify each with assess_finding() before reporting")
         if medium:
             lines.append(f"  3. Review {len(medium)} medium findings for exploitability")
         lines.append(f"  4. Poll for new findings: get_new_findings(since_count={total})")

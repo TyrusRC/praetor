@@ -13,7 +13,6 @@ internal-network trust. From outside, hitting these endpoints can:
 Strix-derived. Pure black-box recon.
 """
 
-import json
 
 from mcp.server.fastmcp import FastMCP
 
@@ -95,8 +94,7 @@ def register(mcp: FastMCP):
             trigger_methods = ["GET", "POST"]
         paths = list(_PATH_PATTERNS) + (custom_paths or [])
 
-        if base_url.endswith("/"):
-            base_url = base_url[:-1]
+        base_url = base_url.removesuffix("/")
 
         # Scope check
         scope_res = await client.check_scope(base_url + "/")

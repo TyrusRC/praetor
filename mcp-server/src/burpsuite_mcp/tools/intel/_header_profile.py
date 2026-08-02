@@ -49,9 +49,9 @@ def score_header_set(headers: list[dict]) -> int:
     score += sum(5 for h in _BROWSER_FINGERPRINT_HEADERS if h in by_name)
     if "accept" in by_name and "html" in by_name["accept"].lower():
         score += 10
-    if "referer" in by_name and by_name["referer"]:
+    if by_name.get("referer"):
         score += 5
-    if "cookie" in by_name and by_name["cookie"]:
+    if by_name.get("cookie"):
         score += 3  # logged-in real session — rare but valuable signal
     score += min(20, len(by_name))  # general richness, capped
     return score

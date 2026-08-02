@@ -30,7 +30,7 @@ async def _subfinder(domain: str, timeout: int) -> list[str]:
 async def _httpx(hosts: list[str], timeout: int) -> list[dict]:
     if not hosts or not _check_tool("httpx"):
         return [{"host": h, "alive": None} for h in hosts]
-    import shlex, tempfile, pathlib
+    import tempfile, pathlib
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
         for h in hosts:
             fh.write(h + "\n")

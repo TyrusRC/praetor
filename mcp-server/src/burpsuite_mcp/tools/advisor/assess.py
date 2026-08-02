@@ -23,6 +23,7 @@ from ..advisor_kb import (
     SENSITIVE_ENDPOINT_PATTERNS,
     q1_scope,
     q2_repro,
+    q3_impact,
     q4_dedup,
     q5_evidence,
     q6_never_submit,
@@ -37,12 +38,15 @@ from ._severity import finalize_severity
 # Ordered per-question chain. Q6 runs BEFORE Q5 (preserves original issue
 # ordering — Q6 NEVER SUBMIT messages come before Q5 evidence flags in the
 # baseline). Q4 runs AFTER Q5 (only fires when verdict is still REPORT).
-# Q7 last. Q3 intentionally absent — no source gate.
+# Q3 runs after Q5 so it sees auto-derived evidence markers, and before Q7 so a
+# missing impact statement is reported as the impact problem it is rather than
+# as a generic triager-mass-report downgrade. Q7 last.
 QUESTION_CHAIN = (
     ("q1_scope", q1_scope),
     ("q2_repro", q2_repro),
     ("q6_never_submit", q6_never_submit),
     ("q5_evidence", q5_evidence),
+    ("q3_impact", q3_impact),
     ("q4_dedup", q4_dedup),
     ("q7_triager", q7_triager),
 )

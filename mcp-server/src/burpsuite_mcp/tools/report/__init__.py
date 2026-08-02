@@ -26,7 +26,7 @@ from burpsuite_mcp.tools.report.lifecycle import (
 )
 from burpsuite_mcp.tools.report.platforms import format_platform_finding
 from burpsuite_mcp.tools.report.severity import severity_sort_key
-from burpsuite_mcp.tools.report import completion_judge  # W37-B — bind submodule for server.register
+from burpsuite_mcp.tools.report import completion_judge  # noqa: F401 — W37-B: binds submodule for server.register
 
 
 def register(mcp: FastMCP):
@@ -38,6 +38,7 @@ def register(mcp: FastMCP):
         platform: str = "",
         include_coverage: bool = False,
         include_suspected: bool = False,
+        audience: str = "client",
     ) -> str:
         """Generate a professional pentest report from saved findings. True-positives only; hard-deletes false positives.
 
@@ -50,7 +51,13 @@ def register(mcp: FastMCP):
                 client report carries confirmed findings and impact, not
                 activity counts. Enable only for an internal coverage artifact.
             include_suspected: Include suspected/stale findings (default False)
+            audience: 'client' (default) strips operator bookkeeping — Burp
+                logger/proxy indices, .burp-intel paths, replay tables, FP-purge
+                counts. 'internal' keeps them for your own verification pass.
+                A client report that cites Burp indices cannot be acted on by
+                the reader and reads as raw tool output.
         """
+        internal = (audience or "client").strip().lower() == "internal"
         # 1) Hard-delete false positives BEFORE loading.
         _kept, deleted_count = purge_false_positives(domain)
 
@@ -102,14 +109,17 @@ def register(mcp: FastMCP):
         if format in ("pentest", "executive"):
             sections.append(f"# Security Assessment Report: {domain}")
             sections.append(f"**Date:** {now}")
-            if deleted_count:
+            # Purge/exclusion tallies are engagement bookkeeping. They tell the
+            # reader how the sausage was made and invite "what were the other
+            # 12?" — operator-only.
+            if internal and deleted_count:
                 sections.append(f"_Pre-flight: hard-deleted {deleted_count} likely_false_positive findings._")
-            if excluded_non_confirmed and not include_suspected:
+            if internal and excluded_non_confirmed and not include_suspected:
                 sections.append(
                     f"_Excluded {excluded_non_confirmed} suspected/stale findings (true-positives-only gate)._"
                 )
             sections.append("")
-            sections.append(build_executive_summary(findings, domain, profile))
+            sections.append(build_executive_summary(findings, domain, profile, internal=internal))
 
         if format == "executive":
             return "\n".join(sections)
@@ -122,7 +132,7 @@ def register(mcp: FastMCP):
         sections.append("## Findings")
         sections.append("")
         for i, finding in enumerate(findings, 1):
-            sections.append(build_finding_section(finding, i))
+            sections.append(build_finding_section(finding, i, internal=internal))
 
         if include_coverage and coverage:
             sections.append(build_coverage_section(coverage))

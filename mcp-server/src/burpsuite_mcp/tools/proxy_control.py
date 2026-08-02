@@ -6,6 +6,8 @@ CRUD-collapsed tools:
   - traffic_monitor(action="register"|"check"|"remove", tag=, patterns=)
 """
 
+import json
+
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
@@ -19,6 +21,33 @@ _DANGEROUS_HEADER_PATTERNS = (
     "content-length:",     # mismatches body length → smuggling/500s
     "transfer-encoding:",  # request smuggling risk
 )
+
+
+def _lookup_finding_id(finding_id: str) -> tuple[bool, str]:
+    """Resolve a finding ID across every .burp-intel domain.
+
+    Returns (exists, "<domain> <title>"). Never raises — a missing or corrupt
+    store just means "not found", and the caller refuses the annotation.
+    """
+    try:
+        from burpsuite_mcp.tools.notes._helpers import _intel_dir
+        root = _intel_dir()
+    except Exception:
+        return False, ""
+    if not root.exists():
+        return False, ""
+    for d in sorted(root.iterdir()):
+        path = d / "findings.json"
+        if not path.is_file():
+            continue
+        try:
+            store = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for f in store.get("findings", []) or []:
+            if f.get("id") == finding_id:
+                return True, f"{d.name} {f.get('title', '')}".strip()
+    return False, ""
 
 
 def register(mcp: FastMCP):
@@ -148,32 +177,96 @@ def register(mcp: FastMCP):
         index: int,
         color: str = "",
         comment: str = "",
+        endpoint: str = "",
+        finding_id: str = "",
+        confirm: bool = False,
     ) -> str:
-        """Mark a proxy history item with a color and/or comment in Burp's UI.
+        """Mark a proxy history item with a color and/or comment in Burp's UI. Read-back verified.
+
+        A RED or ORANGE tag is a claim ("this entry proves finding X"). Those
+        colors require either a `finding_id` that resolves in .burp-intel, or
+        `confirm=True`. Everything else annotates freely.
 
         Args:
-            index: Proxy history index
+            index: Proxy history index (Proxy -> HTTP history, NOT a Logger index)
             color: RED, ORANGE, YELLOW, GREEN, CYAN, BLUE, PINK, MAGENTA, GRAY
-            comment: Note text for the annotation
+            comment: Note text. Rule 18 format: '<f-id> | <vuln> | <evidence>'
+            endpoint: Endpoint the annotation is about. Server refuses to tag an
+                unrelated request when supplied — always pass it for claim colors.
+            finding_id: Saved finding this tag refers to (e.g. 'f003'). Verified to exist.
+            confirm: Operator override when a claim color has no saved finding yet.
         """
-        data = await client.post("/api/annotations/set", json={
-            "index": index, "color": color, "comment": comment,
-        })
+        color_upper = (color or "").upper()
+        claim_color = color_upper in ("RED", "ORANGE")
+
+        if finding_id:
+            known, where = _lookup_finding_id(finding_id)
+            if not known:
+                return (
+                    f"Refused: finding_id={finding_id!r} does not exist in .burp-intel. "
+                    f"Annotating a request with a finding ID that was never saved is how "
+                    f"writeups end up citing comments Burp never had.\n"
+                    f"  Fix: save_finding(...) first, then annotate with the returned ID — "
+                    f"or drop finding_id and annotate with a plain observation."
+                )
+            claim_color = False  # a resolvable ID is the evidence the gate wanted
+            comment = comment or f"{finding_id} | see {where}"
+
+        if claim_color and not confirm:
+            return (
+                f"QUESTION GATE — {color_upper} marks a confirmed/strong-suspicion claim on "
+                f"proxy entry #{index}, but no finding_id was given.\n"
+                f"  Comment: {comment or '(none)'}\n"
+                f"  Answer one:\n"
+                f"    a) pass finding_id='fNNN' if the finding is already saved;\n"
+                f"    b) pass confirm=True if you have verified this entry yourself;\n"
+                f"    c) use YELLOW (anomaly) or CYAN (chain candidate) — no claim implied."
+            )
+
+        payload: dict = {"index": index, "color": color, "comment": comment}
+        if endpoint:
+            payload["endpoint"] = endpoint
+        data = await client.post("/api/annotations/set", json=payload)
         if "error" in data:
             return f"Error: {data['error']}"
-        return f"Annotated #{index}: {color} {comment}".strip()
+
+        # Report what Burp actually stored, not what we asked for. A later
+        # get_annotations(index) returns exactly this.
+        stored_color = data.get("color", "NONE")
+        stored_notes = data.get("notes", "")
+        url = data.get("url", "")
+        method = data.get("method", "")
+        lines = [f"Annotated #{index} — verified in Burp:"]
+        lines.append(f"  color:   {stored_color}")
+        lines.append(f"  comment: {stored_notes or '(none)'}")
+        if url:
+            lines.append(f"  entry:   {method} {url}")
+        if comment and stored_notes != comment:
+            lines.append(
+                "  WARNING: Burp stored a different comment than requested. "
+                "Cite the stored text above, not the requested text."
+            )
+        return "\n".join(lines)
 
     @mcp.tool()
     async def annotate_bulk(items: list[dict]) -> str:
         """Annotate multiple proxy history items at once.
 
         Args:
-            items: List of dicts: {index, color?, comment?}
+            items: List of dicts: {index, color?, comment?, endpoint?}.
+                `endpoint` makes the server refuse to tag an unrelated request.
         """
         data = await client.post("/api/annotations/bulk", json={"items": items})
         if "error" in data:
             return f"Error: {data['error']}"
-        return f"Annotated {data.get('applied', len(items))} items"
+        applied = data.get("applied", 0)
+        errors = data.get("errors", []) or []
+        out = [f"Annotated {applied} of {len(items)} items"]
+        if errors:
+            out.append(f"  Rejected {len(errors)}:")
+            out.extend(f"    - {e}" for e in errors[:10])
+            out.append("  Rejected entries carry NO annotation — do not cite them as tagged.")
+        return "\n".join(out)
 
     @mcp.tool()
     async def get_annotations(index: int) -> str:

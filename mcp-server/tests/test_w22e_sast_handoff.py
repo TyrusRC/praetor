@@ -14,7 +14,6 @@ from burpsuite_mcp.tools.sast_handoff import (
     _classify_rule,
     _walk_back_for_route,
     _aggregate_endpoints,
-    _parse_opengrep_blob,
 )
 
 

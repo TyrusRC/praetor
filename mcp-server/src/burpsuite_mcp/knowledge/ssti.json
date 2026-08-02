@@ -296,13 +296,13 @@
           "variables": {}
         },
         {
-          "payload": "{{printf \"%s\" \"SWISSKNIFE_SSTI_PROBE\"}}",
-          "description": "Go template printf function \u2014 SWISSKNIFE_SSTI_PROBE in response confirms Go template evaluation",
+          "payload": "{{printf \"%s\" \"PRAETOR_SSTI_PROBE\"}}",
+          "description": "Go template printf function \u2014 PRAETOR_SSTI_PROBE in response confirms Go template evaluation",
           "matchers": [
             {
               "type": "word",
               "words": [
-                "SWISSKNIFE_SSTI_PROBE"
+                "PRAETOR_SSTI_PROBE"
               ],
               "condition": "or"
             }

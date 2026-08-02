@@ -26,8 +26,19 @@ def _numbered(value) -> str:
 
 
 def _evidence_str(evidence) -> str:
+    """Evidence lines for a platform submission.
+
+    A bug-bounty triager cannot resolve `logger_index: 412` — it is a pointer
+    into someone else's Burp session. Pasting it makes the report look
+    machine-generated and gives the triager nothing to verify, so operator
+    bookkeeping keys are dropped here unconditionally.
+    """
     if isinstance(evidence, dict):
-        return "\n".join(f"- {k}: {v}" for k, v in evidence.items())
+        from burpsuite_mcp.tools.report.builders import _is_internal_evidence
+        return "\n".join(
+            f"- {k}: {v}" for k, v in evidence.items()
+            if not _is_internal_evidence(k, v)
+        )
     if isinstance(evidence, str):
         return evidence
     return ""

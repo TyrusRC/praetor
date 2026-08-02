@@ -17,7 +17,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
-from ._verdict import error_verdict, make_verdict, verdict_from_tally
+from ._verdict import error_verdict, make_verdict
 
 
 def _path_variants(path: str) -> list[str]:

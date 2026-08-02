@@ -11,7 +11,7 @@ These rules are ALWAYS active. They override conflicting behavior. Each rule has
 
 - **HARD (1–10)**: Scope, safety, save-finding pipeline. ALWAYS apply. Tool-layer also enforces these — Claude does not get to override silently.
 - **DEFAULT (11–21)**: Evidence, coverage, persistence. Apply on every engagement. Override with explicit `overrides=[...]` parameter on `assess_finding` / `save_finding` and an audit reason.
-- **ADVISORY (22–28)**: Tool selection, visibility, mode mindset. Read once at session start; consult on demand via skill files. Adapt to context.
+- **ADVISORY (22–31)**: Tool selection, visibility, mode mindset, output economy. Read once at session start; consult on demand via skill files. Adapt to context.
 
 When tier text and per-skill text disagree, the rule number wins. Skill files reference rules by number — do not restate.
 
@@ -108,6 +108,82 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
     - **Attacker-perspective questions.** What would an attacker WANT here? Money, account control, data exfiltration, privilege escalation, denial-of-service for competitors? Then work backwards from the goal to find the path.
 
    Following the checklist gets you info-disclosure and self-XSS. Real bugs and high-impact chains live outside it. Budget tokens explicitly for unstructured time.
+
+## Impact-First Targeting (29) — ADVISORY
+
+29. **Hunt where MEDIUM+ lives. An INFO finding is a lead, not a result.**
+
+   Programs pay for impact. A session that ends with six information-disclosures and no
+   attempt at an authorization or logic bug has not tested the target — it has fingerprinted
+   it. Every INFO/LOW observation is an input to the next question, not an output to file.
+
+   - **Budget by class value, not by ease.** The classes that pay are authorization
+     (IDOR/BOLA/BFLA/BOPLA), authentication and session (ATO, MFA/reset flows, OAuth/SAML/JWT),
+     business logic and race conditions, injection reaching a sink (SQLi/RCE/SSTI/SSRF), and
+     mass assignment. Spend the majority of testing time there. Scanner-shaped classes
+     (headers, TLS, version banners, verbose errors) are recon output — record them, don't
+     hunt them.
+   - **Every LOW gets one escalation cycle before it is filed.** Ask what it ENABLES. An
+     open redirect is nothing; an open redirect on the OAuth `redirect_uri` is token theft.
+     A verbose error is nothing; a verbose error naming an internal host is the start of an
+     SSRF target list. Use `propose_chains` / `research_attack_vector` / `chain-findings.md`.
+     If the escalation fails, the finding is a note in `notes.md`, not a submission.
+   - **Authenticated surface first when credentials exist.** Rule 28's grey-box mindset is
+     where MEDIUM+ concentrates. `test_auth_matrix` across roles is the single highest-ROI
+     call on the tool.
+   - **A session with zero MEDIUM+ candidates is a signal to change approach**, not to file
+     what you have. Re-read the highest-value endpoints, question a trust assumption, or
+     move to a different surface.
+
+## Output Economy (30) — ADVISORY
+
+30. **Every artifact must be read by someone. Write for that reader, or don't write.**
+
+   - **Canonical file first.** `findings.json`, `coverage.json`, `endpoints.json`,
+     `checkpoint.json`, `notes.md` are the stores. Before creating a file, check whether one
+     of those already holds the fact. Ad-hoc summary/scratch markdown next to canonical
+     stores is duplication that must be reconciled forever.
+   - **Never restate a store in prose.** Markdown under `findings/<fid>/` is a regenerated
+     projection of `findings.json` — it is written, never read back, never hand-edited.
+   - **Recall narrow.** Paginate and filter (`get_findings(severity_min=, summary_only=)`,
+     `load_target_intel` field selection, `summary_only=True` on the smart tools). Re-loading
+     an entire engagement to answer one question is the main avoidable token cost.
+   - **Reports carry findings and impact.** No indices, no internal paths, no counts —
+     see Rule 16a. `generate_report(audience='client')` enforces this; `audience='internal'`
+     is for your own verification pass only.
+   - **Do not narrate.** Tool output is the record. A written summary of what a tool just
+     returned is noise unless the operator asked for it.
+
+## Compaction Survival (31) — ADVISORY
+
+31. **Context will be compacted mid-engagement. State that lives only in the conversation is
+    state you will lose.**
+
+   The failure mode is silent: after compaction the agent re-derives task state from prose,
+   re-tests covered tuples, re-discovers endpoints, and cites indices it no longer has.
+
+   - **Checkpoint at every phase boundary**, not at session end: `write_checkpoint(domain,
+     phase=, round=, next_action=, tasks=[...], open_threads=[...])`. The next action must be
+     specific enough to execute cold — "dispatch finding-verifier on f007", not "keep testing".
+   - **Persist before you reason.** A finding, a covered tuple, or a baseline that matters
+     goes to its store the moment it exists (`save_finding`, `record_probe_outcome`,
+     `save_target_intel`), not after the analysis that used it.
+   - **Never carry a Burp index across a compaction boundary in your head.** Indices belong
+     in `evidence`, annotations, and `reproductions[]` — all of which are re-readable. An
+     index recalled from memory after compaction is the classic source of a writeup citing
+     traffic that does not exist.
+   - **On resume, read state before acting**: `load_checkpoint` + `load_target_intel(domain,
+     "all")` + `coverage_summary`. Do not re-crawl to rebuild what is already on disk.
+
+## Ambiguity (32) — ADVISORY
+
+32. **When the request has two readings that lead to different traffic, ask.**
+
+   Guessing costs a wasted round at best and out-of-scope requests at worst. Ask when: the
+   target or scope is unclear; the depth/classes to test are unstated; a borderline finding's
+   submission intent is unknown; the wording maps to tools with different blast radius; or a
+   hard-to-reverse action is implied. Present the readings, recommend one, ask once, then act.
+   Do not ask when a sensible default exists and being wrong costs one re-run.
 
 ## 7-Question Validation Gate (called by `assess_finding`, Rule 10b)
 

@@ -33,7 +33,7 @@ async def _nvd_lookup(query: str, max_results: int) -> list[dict] | str:
         data = resp.json()
     except httpx.TimeoutException:
         return "timed out after 20s"
-    except Exception as e:  # noqa: BLE001 - surface any network/parse issue
+    except Exception as e:
         return str(e)[:150]
 
     vulns = data.get("vulnerabilities", [])

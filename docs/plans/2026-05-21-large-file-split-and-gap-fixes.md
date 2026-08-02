@@ -19,8 +19,8 @@
 
 **Files:**
 - Modify: `burp-extension/pom.xml`
-- Create: `burp-extension/src/test/java/com/swissknife/analysis/MatcherEngineTest.java`
-- Create: `burp-extension/src/test/java/com/swissknife/handlers/ScopeHandlerColdStartTest.java`
+- Create: `burp-extension/src/test/java/com/praetor/analysis/MatcherEngineTest.java`
+- Create: `burp-extension/src/test/java/com/praetor/handlers/ScopeHandlerColdStartTest.java`
 
 - [ ] **Step 1: Add JUnit 5 + Surefire to pom.xml**
 
@@ -46,7 +46,7 @@ Add to `<build><plugins>`:
 - [ ] **Step 2: Write MatcherEngineTest covering `not_status` case**
 
 ```java
-package com.swissknife.analysis;
+package com.praetor.analysis;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -77,7 +77,7 @@ Verify `MatcherEngine.evaluate` signature matches; adjust args if needed (read `
 - [ ] **Step 3: Write ScopeHandlerColdStartTest**
 
 ```java
-package com.swissknife.handlers;
+package com.praetor.handlers;
 
 import org.junit.jupiter.api.*;
 import java.nio.file.*;
@@ -387,17 +387,17 @@ git commit -m "refactor(cve): split into match/shodan/nvd submodules with re-exp
 ## Task A1: Split SessionHandler.java (HIGHEST RISK — 2021 lines)
 
 **Files:**
-- Modify: `burp-extension/src/main/java/com/swissknife/handlers/SessionHandler.java` (→ ~200 lines, router only)
-- Create: `burp-extension/src/main/java/com/swissknife/store/SessionStore.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/SessionRequestExecutor.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/VariableExtractor.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/FlowRunner.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/AttackSurfaceDiscovery.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/AutoProbeOrchestrator.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/BatchProbeHandler.java`
-- Create: `burp-extension/src/main/java/com/swissknife/session/SessionExtractHandler.java`
-- Create: `burp-extension/src/test/java/com/swissknife/store/SessionStoreTest.java`
-- Create: `burp-extension/src/test/java/com/swissknife/session/VariableExtractorTest.java`
+- Modify: `burp-extension/src/main/java/com/praetor/handlers/SessionHandler.java` (→ ~200 lines, router only)
+- Create: `burp-extension/src/main/java/com/praetor/store/SessionStore.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/SessionRequestExecutor.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/VariableExtractor.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/FlowRunner.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/AttackSurfaceDiscovery.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/AutoProbeOrchestrator.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/BatchProbeHandler.java`
+- Create: `burp-extension/src/main/java/com/praetor/session/SessionExtractHandler.java`
+- Create: `burp-extension/src/test/java/com/praetor/store/SessionStoreTest.java`
+- Create: `burp-extension/src/test/java/com/praetor/session/VariableExtractorTest.java`
 
 - [ ] **Step 1: Read full SessionHandler.java (2021 lines)**
 
@@ -406,9 +406,9 @@ Map: field-by-field, method-by-method. Note which methods touch which fields. Bu
 - [ ] **Step 2: Extract SessionStore (state-only class)**
 
 ```java
-package com.swissknife.store;
+package com.praetor.store;
 
-import com.swissknife.handlers.Session;
+import com.praetor.handlers.Session;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -433,7 +433,7 @@ public class SessionStore {
 - [ ] **Step 3: Extract VariableExtractor (static utilities)**
 
 ```java
-package com.swissknife.session;
+package com.praetor.session;
 
 public class VariableExtractor {
     private static final ThreadLocal<List<String>> _lastExtractWarnings = ThreadLocal.withInitial(ArrayList::new);
@@ -450,7 +450,7 @@ public class VariableExtractor {
 - [ ] **Step 4: Extract SessionRequestExecutor**
 
 ```java
-package com.swissknife.session;
+package com.praetor.session;
 
 public class SessionRequestExecutor {
     private final MontoyaApi api;
@@ -472,7 +472,7 @@ public class SessionRequestExecutor {
 - [ ] **Step 5: Extract FlowRunner**
 
 ```java
-package com.swissknife.session;
+package com.praetor.session;
 
 public class FlowRunner {
     private final SessionRequestExecutor executor;
@@ -492,11 +492,11 @@ Same pattern — one class per `handle*` method group. Lift private helpers (`sc
 - [ ] **Step 7: Rewrite SessionHandler as thin router**
 
 ```java
-package com.swissknife.handlers;
+package com.praetor.handlers;
 
-import com.swissknife.server.BaseHandler;
-import com.swissknife.store.SessionStore;
-import com.swissknife.session.*;
+import com.praetor.server.BaseHandler;
+import com.praetor.store.SessionStore;
+import com.praetor.session.*;
 import com.sun.net.httpserver.HttpExchange;
 import java.util.Map;
 
@@ -592,7 +592,7 @@ Expected: BUILD SUCCESS, JUnit 5+ passing.
 
 - [ ] **Step 10: Verify route count unchanged**
 
-Run: `grep -c "createContext" burp-extension/src/main/java/com/swissknife/server/ApiServer.java`
+Run: `grep -c "createContext" burp-extension/src/main/java/com/praetor/server/ApiServer.java`
 Expected: 28.
 
 - [ ] **Step 11: Smoke test the Java side**
@@ -602,11 +602,11 @@ If feasible, load the new JAR in Burp and call `/api/session/list` — verify ro
 - [ ] **Step 12: Commit**
 
 ```bash
-git add burp-extension/src/main/java/com/swissknife/store/SessionStore.java \
-        burp-extension/src/main/java/com/swissknife/session/ \
-        burp-extension/src/main/java/com/swissknife/handlers/SessionHandler.java \
-        burp-extension/src/test/java/com/swissknife/store/SessionStoreTest.java \
-        burp-extension/src/test/java/com/swissknife/session/VariableExtractorTest.java
+git add burp-extension/src/main/java/com/praetor/store/SessionStore.java \
+        burp-extension/src/main/java/com/praetor/session/ \
+        burp-extension/src/main/java/com/praetor/handlers/SessionHandler.java \
+        burp-extension/src/test/java/com/praetor/store/SessionStoreTest.java \
+        burp-extension/src/test/java/com/praetor/session/VariableExtractorTest.java
 git commit -m "refactor(session): split SessionHandler.java (2021 lines) into store + 7 collaborators"
 ```
 
@@ -615,16 +615,16 @@ git commit -m "refactor(session): split SessionHandler.java (2021 lines) into st
 ## Task A6: Split AttackHandler.java
 
 **Files:**
-- Modify: `burp-extension/src/main/java/com/swissknife/handlers/AttackHandler.java` (→ thin router)
-- Create: `burp-extension/src/main/java/com/swissknife/attack/AuthMatrixHandler.java`
-- Create: `burp-extension/src/main/java/com/swissknife/attack/RaceHandler.java`
-- Create: `burp-extension/src/main/java/com/swissknife/attack/HppHandler.java`
-- Create: `burp-extension/src/main/java/com/swissknife/attack/AttackContext.java` (if shared state present)
-- Create: `burp-extension/src/test/java/com/swissknife/attack/AuthMatrixHandlerTest.java` (smoke)
+- Modify: `burp-extension/src/main/java/com/praetor/handlers/AttackHandler.java` (→ thin router)
+- Create: `burp-extension/src/main/java/com/praetor/attack/AuthMatrixHandler.java`
+- Create: `burp-extension/src/main/java/com/praetor/attack/RaceHandler.java`
+- Create: `burp-extension/src/main/java/com/praetor/attack/HppHandler.java`
+- Create: `burp-extension/src/main/java/com/praetor/attack/AttackContext.java` (if shared state present)
+- Create: `burp-extension/src/test/java/com/praetor/attack/AuthMatrixHandlerTest.java` (smoke)
 
 - [ ] **Step 1: Read AttackHandler.java, identify routes**
 
-`grep "case \"" burp-extension/src/main/java/com/swissknife/handlers/AttackHandler.java` to find dispatch table.
+`grep "case \"" burp-extension/src/main/java/com/praetor/handlers/AttackHandler.java` to find dispatch table.
 
 - [ ] **Step 2: Check for shared state**
 
@@ -643,7 +643,7 @@ If no shared state, skip AttackContext — pass `api` directly to each handler.
 
 Pattern per attack (e.g., auth-matrix):
 ```java
-package com.swissknife.attack;
+package com.praetor.attack;
 
 public class AuthMatrixHandler {
     private final MontoyaApi api;
@@ -689,9 +689,9 @@ Match path strings to existing routes — read original first.
 
 ```bash
 cd burp-extension && mvn clean package && mvn test
-git add burp-extension/src/main/java/com/swissknife/attack/ \
-        burp-extension/src/main/java/com/swissknife/handlers/AttackHandler.java \
-        burp-extension/src/test/java/com/swissknife/attack/
+git add burp-extension/src/main/java/com/praetor/attack/ \
+        burp-extension/src/main/java/com/praetor/handlers/AttackHandler.java \
+        burp-extension/src/test/java/com/praetor/attack/
 git commit -m "refactor(attack): split AttackHandler.java per attack class"
 ```
 
@@ -700,10 +700,10 @@ git commit -m "refactor(attack): split AttackHandler.java per attack class"
 ## Task A7: Split ConfigTab.java
 
 **Files:**
-- Modify: `burp-extension/src/main/java/com/swissknife/ui/ConfigTab.java` (→ ~100 lines, JTabbedPane composition only)
-- Create: `burp-extension/src/main/java/com/swissknife/ui/ScopePanel.java`
-- Create: `burp-extension/src/main/java/com/swissknife/ui/InterceptPanel.java`
-- Create: `burp-extension/src/main/java/com/swissknife/ui/MatchReplacePanel.java`
+- Modify: `burp-extension/src/main/java/com/praetor/ui/ConfigTab.java` (→ ~100 lines, JTabbedPane composition only)
+- Create: `burp-extension/src/main/java/com/praetor/ui/ScopePanel.java`
+- Create: `burp-extension/src/main/java/com/praetor/ui/InterceptPanel.java`
+- Create: `burp-extension/src/main/java/com/praetor/ui/MatchReplacePanel.java`
 - Create: per additional tab discovered (read `ConfigTab.java` to enumerate)
 
 - [ ] **Step 1: Read ConfigTab.java, enumerate panels**
@@ -714,7 +714,7 @@ Find every `JTabbedPane.addTab` call. Each tab corresponds to a panel-extraction
 
 Pattern:
 ```java
-package com.swissknife.ui;
+package com.praetor.ui;
 
 import javax.swing.*;
 import burp.api.montoya.MontoyaApi;
@@ -755,7 +755,7 @@ Document in commit message: "Manual UI smoke required — load JAR in Burp, veri
 - [ ] **Step 5: Commit**
 
 ```bash
-git add burp-extension/src/main/java/com/swissknife/ui/
+git add burp-extension/src/main/java/com/praetor/ui/
 git commit -m "refactor(ui): split ConfigTab.java into per-tab panel classes"
 ```
 
@@ -832,13 +832,13 @@ git commit -m "refactor(recon): split scanning.py (1004 lines) into per-family s
 ## Task B1: Audit log rotation
 
 **Files:**
-- Modify: `burp-extension/src/main/java/com/swissknife/audit/ScopeAuditLog.java`
-- Create: `burp-extension/src/test/java/com/swissknife/audit/ScopeAuditLogRotationTest.java`
+- Modify: `burp-extension/src/main/java/com/praetor/audit/ScopeAuditLog.java`
+- Create: `burp-extension/src/test/java/com/praetor/audit/ScopeAuditLogRotationTest.java`
 
 - [ ] **Step 1: Add rotateIfNeeded() to ScopeAuditLog.java**
 
 ```java
-package com.swissknife.audit;
+package com.praetor.audit;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -892,7 +892,7 @@ public class ScopeAuditLog {
 - [ ] **Step 2: Write rotation test**
 
 ```java
-package com.swissknife.audit;
+package com.praetor.audit;
 
 import org.junit.jupiter.api.*;
 import java.nio.file.*;
@@ -925,8 +925,8 @@ Note: requires injection point for intelDir() — either pass system property or
 
 ```bash
 cd burp-extension && mvn clean package && mvn test
-git add burp-extension/src/main/java/com/swissknife/audit/ScopeAuditLog.java \
-        burp-extension/src/test/java/com/swissknife/audit/
+git add burp-extension/src/main/java/com/praetor/audit/ScopeAuditLog.java \
+        burp-extension/src/test/java/com/praetor/audit/
 git commit -m "feat(audit): scope audit log rotation at 10MB, keep 5 archives"
 ```
 
@@ -1056,7 +1056,7 @@ git commit -m "docs(claude.md): refresh counts and module-path references post-r
 
 - [ ] **Step 1: Append refactor section**
 
-Edit `/home/tyrus/.claude/projects/-home-tyrus-Github-burpsuite-swiss-knife-mcp/memory/MEMORY.md`:
+Edit `<claude-project-dir>/memory/MEMORY.md`:
 
 ```markdown
 ## Refactor (2026-05-21)
@@ -1090,6 +1090,6 @@ HTTP route count unchanged: 28 createContext. MCP tool count unchanged: 219.
 - [ ] `mvn clean package` + `mvn test` green
 - [ ] `uv run python -m unittest discover tests -v` ≥ 324 + new tests pass
 - [ ] `grep -rE "@mcp\\.tool" mcp-server/src | wc -l` = 219
-- [ ] `grep -c "createContext" burp-extension/src/main/java/com/swissknife/server/ApiServer.java` = 28
+- [ ] `grep -c "createContext" burp-extension/src/main/java/com/praetor/server/ApiServer.java` = 28
 - [ ] No source file > 500 lines (run `find src -name "*.py" -o -name "*.java" | xargs wc -l | awk '$1 > 500'` — should be empty)
 - [ ] Push: `git push origin main`

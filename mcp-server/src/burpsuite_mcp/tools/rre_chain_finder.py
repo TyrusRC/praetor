@@ -20,17 +20,13 @@ Both tools read existing intel only — NO new HTTP fire.
 
 from __future__ import annotations
 
-import json
 import re
 from collections import defaultdict
-from pathlib import Path
-from typing import Any
 from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
-from burpsuite_mcp.tools.notes._helpers import _intel_dir, _sanitized
 
 
 _SENSITIVE_RESPONSE_FIELDS = (

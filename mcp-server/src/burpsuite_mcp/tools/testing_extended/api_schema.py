@@ -215,7 +215,7 @@ def register(mcp: FastMCP):
 
             endpoints = _postman_walk_items(spec.get("item", []), env)
             lines = [
-                f"API Schema: Postman v2.1 Collection",
+                "API Schema: Postman v2.1 Collection",
                 f"Environment vars resolved: {len(env)}",
                 f"Endpoints: {len(endpoints)}",
                 "",
@@ -269,7 +269,7 @@ def register(mcp: FastMCP):
             version = f"Swagger {spec['swagger']}"
 
         base_url = ""
-        if "servers" in spec and spec["servers"]:
+        if spec.get("servers"):
             base_url = spec["servers"][0].get("url", "")
         elif "host" in spec:
             scheme = (spec.get("schemes") or ["https"])[0]

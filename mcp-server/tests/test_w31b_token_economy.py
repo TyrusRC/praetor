@@ -10,7 +10,6 @@ Covers:
 
 from __future__ import annotations
 
-import inspect
 import unittest
 
 
@@ -118,7 +117,6 @@ class SignaturesTest(unittest.TestCase):
     """
 
     def test_get_request_detail_has_fields(self):
-        import textwrap
         from pathlib import Path
         src = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "read.py"
         text = src.read_text()

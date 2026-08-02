@@ -67,7 +67,7 @@ def open_h2_tunnel(host: str, port: int) -> tuple[ssl.SSLSocket, h2.connection.H
         if srv:
             conn.receive_data(srv)
             ssock.sendall(conn.data_to_send())
-    except socket.timeout:
+    except TimeoutError:
         pass
     return ssock, conn
 
@@ -144,7 +144,7 @@ def read_until_complete(
     while pending and time.time() < deadline:
         try:
             data = ssock.recv(65536)
-        except socket.timeout:
+        except TimeoutError:
             continue
         except (ssl.SSLError, OSError):
             break

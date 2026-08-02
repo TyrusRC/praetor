@@ -68,7 +68,7 @@ public final class HttpServer {
         // Bind only to the configured address (e.g. 127.0.0.1) so we never leak to the network.
         serverSocket.bind(address, backlog);
         running = true;
-        acceptor = new Thread(this::acceptLoop, "swissknife-http-acceptor");
+        acceptor = new Thread(this::acceptLoop, "praetor-http-acceptor");
         acceptor.setDaemon(true);
         acceptor.start();
     }

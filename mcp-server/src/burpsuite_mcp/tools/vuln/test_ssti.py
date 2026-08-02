@@ -1,4 +1,4 @@
-"""test_ssti — native SSTI detection orchestrator.
+r"""test_ssti — native SSTI detection orchestrator.
 
 Modeled on SSTImap (https://github.com/vladko312/SSTImap), the maintained
 fork of tplmap. Multi-phase detection that routes every probe through

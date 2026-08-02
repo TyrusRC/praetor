@@ -75,13 +75,13 @@ def register(mcp: FastMCP):
                 findings.append((payload, flags))
                 lines.append(f"  [{', '.join(flags)}] Payload: {payload[:50]}")
                 if header_injected:
-                    lines.append(f"    Injected header found in response headers!")
+                    lines.append("    Injected header found in response headers!")
                 if body_injected:
-                    lines.append(f"    Injected content found in response body!")
+                    lines.append("    Injected content found in response body!")
             else:
                 lines.append(f"  [OK] {payload[:40]} — no injection (status {status})")
 
-        lines.append(f"\n--- Summary ---")
+        lines.append("\n--- Summary ---")
         if findings:
             lines.append(f"VULNERABLE — {len(findings)}/{len(payloads)} payloads succeeded")
             lines.append("Risk: CRLF injection can lead to response splitting, XSS, cache poisoning, session fixation.")

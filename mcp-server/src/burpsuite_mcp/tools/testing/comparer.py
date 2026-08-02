@@ -64,7 +64,7 @@ def register(mcp: FastMCP):
         # Body diff
         body = data.get("body_diff", {})
         if body:
-            lines.append(f"\n--- Body Diff ---")
+            lines.append("\n--- Body Diff ---")
             lines.append(f"  Identical: {body.get('identical', False)}")
             if "similarity_pct" in body:
                 lines.append(f"  Similarity: {body['similarity_pct']}%")

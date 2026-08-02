@@ -126,8 +126,8 @@ def register(mcp: FastMCP) -> None:
             if "subgraph" in errs.lower() or "downstream" in errs.lower():
                 return make_verdict(
                     "SUSPECTED", 0.50,
-                    f"`_entities` error disclosed subgraph routing — investigate "
-                    f"per-key authz manually.",
+                    "`_entities` error disclosed subgraph routing — investigate "
+                    "per-key authz manually.",
                     vuln_type="graphql_entities_injection",
                     logger_indices=logger_indices,
                     reproductions=reproductions,

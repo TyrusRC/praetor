@@ -51,13 +51,13 @@ def register(mcp: FastMCP):
     def rules_hunting() -> str:
         """The 28 always-active hunting rules (HARD/DEFAULT/ADVISORY)."""
         path = RULES_DIR / "hunting.md"
-        return path.read_text() if path.exists() else "hunting.md not found"
+        return path.read_text(encoding="utf-8") if path.exists() else "hunting.md not found"
 
     @mcp.resource("burp://rules/engineering")
     def rules_engineering() -> str:
         """The 4 engineering rules: think first, simplicity, surgical, goal-driven."""
         path = RULES_DIR / "engineering.md"
-        return path.read_text() if path.exists() else "engineering.md not found"
+        return path.read_text(encoding="utf-8") if path.exists() else "engineering.md not found"
 
     @mcp.resource("burp://skills/{name}")
     def skill_markdown(name: str) -> str:
@@ -68,7 +68,7 @@ def register(mcp: FastMCP):
         if path is None or not path.exists():
             available = sorted(p.stem for p in SKILLS_DIR.glob("*.md"))
             return f"skill {name!r} not found. Available: {', '.join(available)}"
-        return path.read_text()
+        return path.read_text(encoding="utf-8")
 
     @mcp.resource("burp://knowledge/index")
     def knowledge_index() -> str:
@@ -76,7 +76,7 @@ def register(mcp: FastMCP):
         rows = []
         for f in sorted(KNOWLEDGE_DIR.glob("*.json")):
             try:
-                data = json.loads(f.read_text())
+                data = json.loads(f.read_text(encoding="utf-8"))
                 ctx_count = len(data.get("contexts") or {})
                 desc = data.get("description") or data.get("category") or ""
                 rows.append(f"- {f.stem} ({ctx_count} contexts) — {desc[:80]}")
@@ -92,7 +92,7 @@ def register(mcp: FastMCP):
         path = _safe_relative(KNOWLEDGE_DIR, f"{category}.json")
         if path is None or not path.exists():
             return f"unknown category: {category}"
-        return path.read_text()
+        return path.read_text(encoding="utf-8")
 
     @mcp.resource("burp://intel/{domain}/{kind}")
     def intel_resource(domain: str, kind: str) -> str:
@@ -108,7 +108,7 @@ def register(mcp: FastMCP):
         path = domain_dir / f"{kind}.{ext}"
         if not path.exists():
             return f"{kind}.{ext} not yet recorded for {domain}"
-        return path.read_text()
+        return path.read_text(encoding="utf-8")
 
     @mcp.resource("burp://findings/{domain}")
     def findings_for_domain(domain: str) -> str:
@@ -121,4 +121,4 @@ def register(mcp: FastMCP):
         path = domain_dir / "findings.json"
         if not path.exists():
             return f"no findings recorded for {domain} yet"
-        return path.read_text()
+        return path.read_text(encoding="utf-8")

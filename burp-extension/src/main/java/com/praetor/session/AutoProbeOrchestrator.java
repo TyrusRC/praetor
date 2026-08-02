@@ -63,6 +63,45 @@ public final class AutoProbeOrchestrator {
         this.findingsStore = findingsStore;
     }
 
+    /**
+     * Matchers that apply to one probe: its own if it declares any, otherwise
+     * the context's.
+     *
+     * <p>Knowledge files use two shapes. The common one puts a matcher list on
+     * every probe; a few declare a single list for the whole context. Only the
+     * first was ever read, so probes in the second shape were sent and scored
+     * against nothing — {@code auto_probe} fired the payload, reported no
+     * finding, and then wrote a documented negative for a class it had not
+     * actually evaluated. That is worse than skipping the class, because
+     * coverage tracking suppresses the re-test.
+     *
+     * <p>Returns without mutating either map: the knowledge base is shared
+     * across probing threads.
+     */
+    static List<Map<String, Object>> resolveMatchers(
+            Map<String, Object> probe, List<Map<String, Object>> contextMatchers) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> own = (List<Map<String, Object>>) probe.get("matchers");
+        if (own != null && !own.isEmpty()) return own;
+        return contextMatchers;
+    }
+
+    /**
+     * True when a probe is documentation rather than something to send.
+     *
+     * <p>A few knowledge contexts inside otherwise-active files describe a
+     * manual-review class and set {@code variables.reference_only}. Their
+     * {@code payload} is prose for the operator ("compare tool descriptions
+     * across versions"), not a payload — sending it is noise on the target and
+     * scores against nothing while still counting toward coverage.
+     */
+    static boolean isReferenceOnly(Map<String, Object> variables) {
+        if (variables == null) return false;
+        Object flag = variables.get("reference_only");
+        if (flag instanceof Boolean b) return b;
+        return flag != null && "true".equalsIgnoreCase(String.valueOf(flag));
+    }
+
     @SuppressWarnings("unchecked")
     public void handle(HttpExchange exchange, Map<String, Object> body, SessionStore store) throws Exception {
         String sessionName = (String) body.get("session");
@@ -122,11 +161,28 @@ public final class AutoProbeOrchestrator {
                         if (!paramMatch.isEmpty() && !ProbeHelpers.paramMatcherHits(parameter, paramMatch)) continue;
 
                         List<Map<String, Object>> probes = (List<Map<String, Object>>) context.getOrDefault("probes", List.of());
+                        // Context-level matcher fallback. Most knowledge files put
+                        // matchers on each probe, but some declare one matcher set
+                        // for the whole context. Reading probe.matchers only meant
+                        // those probes were SENT and could never MATCH — the payload
+                        // went out, the finding never came back, and auto_probe then
+                        // recorded a documented negative for a class it never
+                        // actually evaluated. Resolved per probe below; the KB map is
+                        // shared across probing threads and must not be mutated.
+                        List<Map<String, Object>> contextMatchers =
+                            (List<Map<String, Object>>) context.get("matchers");
                         for (Map<String, Object> probe : probes) {
                             if (probesRun >= maxProbes) break;
 
                             String payloadTemplate = (String) probe.get("payload");
                             Map<String, Object> variables = (Map<String, Object>) probe.getOrDefault("variables", Map.of());
+
+                            // Reference-only probes document a manual-review class.
+                            // Their "payload" is prose for the operator, not something
+                            // to send — firing it puts junk traffic on the target,
+                            // scores against nothing, and still marks the tuple
+                            // covered. Skip before the request is built.
+                            if (isReferenceOnly(variables)) continue;
 
                             long markerSeq = PROBE_MARKER_SEQ.incrementAndGet();
                             String marker = "probe_" + Long.toString(System.currentTimeMillis(), 36) + "_" + Long.toString(markerSeq, 36);
@@ -141,7 +197,7 @@ public final class AutoProbeOrchestrator {
 
                             String oobPayloadId = null;
                             String oobHost = null;
-                            List<Map<String, Object>> probeMatchers = (List<Map<String, Object>>) probe.get("matchers");
+                            List<Map<String, Object>> probeMatchers = resolveMatchers(probe, contextMatchers);
                             boolean hasBracedToken = payload.contains("{{collaborator}}");
                             boolean hasBareToken = BARE_COLLABORATOR.matcher(payload).find();
                             boolean needsCollaborator = hasBracedToken || hasBareToken;
@@ -192,7 +248,7 @@ public final class AutoProbeOrchestrator {
                             int postHistorySize = api.proxy().history().size();
                             int probeHistoryIndex = postHistorySize > preHistorySize ? postHistorySize - 1 : -1;
 
-                            List<Map<String, Object>> matchers = (List<Map<String, Object>>) probe.get("matchers");
+                            List<Map<String, Object>> matchers = probeMatchers;
 
                             if (oobPayloadId != null && matchers != null) {
                                 try {

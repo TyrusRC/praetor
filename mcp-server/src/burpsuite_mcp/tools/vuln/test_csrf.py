@@ -17,7 +17,7 @@ in the GUI but no scriptable API. This tool fills the gap.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse, urlunparse, urlencode
+from urllib.parse import urlparse, urlunparse
 
 from mcp.server.fastmcp import FastMCP
 

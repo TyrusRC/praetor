@@ -11,16 +11,12 @@ import base64
 import hashlib
 import json
 import math
-import re
 import secrets
-import time
 import urllib.parse
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
-from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _gen_state() -> str:

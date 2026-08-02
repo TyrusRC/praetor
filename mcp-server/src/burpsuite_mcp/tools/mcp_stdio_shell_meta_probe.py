@@ -21,7 +21,6 @@ this is a config audit, not a probe.
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 

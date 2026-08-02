@@ -176,7 +176,7 @@ def register(mcp: FastMCP):
             lines.append("[!] Baseline returned 200/302 — URL is not protected. "
                          "Pick a 401/403 endpoint to make this test meaningful.")
             return error_verdict(
-                f"baseline already 200/302 — URL not protected, test invalid",
+                "baseline already 200/302 — URL not protected, test invalid",
                 vuln_type="auth_bypass",
             ) | {"human_summary": "\n".join(lines)}
 

@@ -329,7 +329,7 @@ def register(mcp: FastMCP):
             for line in out.splitlines()[:80]:
                 lines.append(f"  {line}")
             lines.append("")
-            lines.append(f"Re-run with gadget=<name> command='id' to generate.")
+            lines.append("Re-run with gadget=<name> command='id' to generate.")
             return "\n".join(lines)
 
         # Otherwise the output IS the raw serialized payload. Encode.

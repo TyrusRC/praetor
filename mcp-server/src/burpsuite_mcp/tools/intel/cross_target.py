@@ -38,7 +38,7 @@ def register(mcp: FastMCP):
                 if not profile_path.exists():
                     continue
                 try:
-                    profile = json.loads(profile_path.read_text())
+                    profile = json.loads(profile_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     continue
                 other_tech = profile.get("tech_stack", []) + profile.get("frameworks", [])
@@ -48,7 +48,7 @@ def register(mcp: FastMCP):
                 patterns: dict = {}
                 if patterns_path.exists():
                     try:
-                        patterns = json.loads(patterns_path.read_text())
+                        patterns = json.loads(patterns_path.read_text(encoding="utf-8"))
                     except (json.JSONDecodeError, OSError):
                         patterns = {}
                 out.append((domain_dir, profile, patterns))

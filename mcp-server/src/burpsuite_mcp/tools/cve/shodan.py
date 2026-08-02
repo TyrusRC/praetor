@@ -35,7 +35,7 @@ async def _shodan_cve_lookup(cve_id: str) -> dict | str:
         data = resp.json()
     except httpx.TimeoutException:
         return "timed out after 10s"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return str(e)[:150]
 
     return {
@@ -67,7 +67,7 @@ async def _shodan_cves_query(params: dict, limit: int = 20) -> list[dict] | str:
         data = resp.json()
     except httpx.TimeoutException:
         return "timed out after 15s"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return str(e)[:150]
 
     cves = data.get("cves", []) or []
@@ -113,7 +113,7 @@ async def _shodan_cpe_dict(product: str, limit: int = 40) -> list[str] | str:
         data = resp.json()
     except httpx.TimeoutException:
         return "timed out after 15s"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return str(e)[:150]
 
     cpes = data.get("cpes", []) or []

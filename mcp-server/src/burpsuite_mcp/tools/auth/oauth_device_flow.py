@@ -2,25 +2,15 @@
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import math
 import re
-import secrets
-import time
 import urllib.parse
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
-from burpsuite_mcp.tools.auth._oauth_common import (
-    _gen_state, _gen_pkce_pair, _extract_query, _extract_fragment,
-    _jwt_decode_unverified, _shannon_bits_per_char, _at_hash_match,
-    _authorize_request, _token_request,
-)
 
 
 def register(mcp: FastMCP) -> None:

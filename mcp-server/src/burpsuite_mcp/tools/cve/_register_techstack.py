@@ -252,7 +252,7 @@ def register(mcp: FastMCP) -> None:
                 existing = {}
                 if profile_path.exists():
                     try:
-                        existing = _json.loads(profile_path.read_text())
+                        existing = _json.loads(profile_path.read_text(encoding="utf-8"))
                     except Exception:
                         existing = {}
                 existing["tech_stack"] = techs

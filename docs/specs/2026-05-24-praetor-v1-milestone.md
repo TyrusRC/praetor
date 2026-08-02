@@ -24,12 +24,12 @@ External identifiers (PyPI name, JAR name, display strings) become "Praetor". In
 - `setup.sh`, `doctor.sh` — header comments
 - `skill.json` — `name`, `display_name`, `version`
 - `CLAUDE.md` — "Project Overview" header
-- `.mcp.json` — server name (`burpsuite-swiss-knife` → `praetor`), keep old MCP server name as alias if dual-keyed
+- `.mcp.json` — server name (`praetor`), keep old MCP server name as alias if dual-keyed
 - `MEMORY.md` — note rebrand fact
 
 **NOT touched (deferred to v1.1):**
 - `mcp-server/src/burpsuite_mcp/` directory and all its imports
-- Java package `com.swissknife.*` — Java packages stay, only the JAR artifact name changes
+- Java package `com.praetor.*` — Java packages stay, only the JAR artifact name changes
 - `.burp-intel/` directory structure (operator data, agnostic to product name)
 
 ## Wave breakdown

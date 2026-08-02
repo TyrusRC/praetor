@@ -21,7 +21,6 @@ Probe sequence:
 
 from __future__ import annotations
 
-import re
 from urllib.parse import urlencode
 
 from mcp.server.fastmcp import FastMCP
@@ -110,16 +109,16 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(target_url)
         if not scope.get("in_scope"):
-            return error_verdict("sse_injection", "out_of_scope",
-                                 f"{target_url} not in scope")
+            return error_verdict(f"{target_url} not in scope",
+                                 vuln_type="sse_injection", reason="out_of_scope")
 
         # First confirm the endpoint returns text/event-stream with control data
         baseline = await _send(target_url, param_name, "control",
                                method=method, extra_params=extra_params,
                                timeout=timeout)
         if baseline.get("error"):
-            return error_verdict("sse_injection", "baseline_failed",
-                                 baseline.get("error", ""))
+            return error_verdict(baseline.get("error", ""),
+                                 vuln_type="sse_injection", reason="baseline_failed")
         logger_indices: list[int] = []
         if "logger_index" in baseline:
             logger_indices.append(baseline["logger_index"])
@@ -168,7 +167,7 @@ def register(mcp: FastMCP) -> None:
                     "confirmed": confirmed_hits,
                     "all_probes": probe_results,
                 },
-                human_summary=f"SSE injection confirmed via {best['name']}",
+                summary=f"SSE injection confirmed via {best['name']}",
             )
         if hits:
             return make_verdict(
@@ -183,7 +182,7 @@ def register(mcp: FastMCP) -> None:
                     "all_probes": probe_results,
                     "baseline_is_sse": baseline_is_sse,
                 },
-                human_summary=f"SSE injection SUSPECTED — reflection without event-stream content-type",
+                summary="SSE injection SUSPECTED — reflection without event-stream content-type",
             )
         if not baseline_is_sse:
             return make_verdict(
@@ -193,7 +192,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary="Endpoint does not return text/event-stream — not an SSE endpoint",
                 logger_indices=logger_indices,
                 details={"baseline_content_type": (baseline.get("response_headers") or {}).get("content-type", "")},
-                human_summary="Not an SSE endpoint",
+                summary="Not an SSE endpoint",
             )
         return make_verdict(
             vuln_type="sse_injection",
@@ -202,5 +201,5 @@ def register(mcp: FastMCP) -> None:
             evidence_summary=f"All {len(_PROBES)} variants rejected — server filters newlines correctly",
             logger_indices=logger_indices,
             details={"all_probes": probe_results},
-            human_summary="SSE filters newline injection",
+            summary="SSE filters newline injection",
         )

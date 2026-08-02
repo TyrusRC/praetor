@@ -93,7 +93,7 @@ def register(mcp: FastMCP):
             else:
                 lines.append(f"  [{test_name}] No reflection (status {status})")
 
-        lines.append(f"\n--- Summary ---")
+        lines.append("\n--- Summary ---")
         if findings:
             lines.append(f"Findings: {len(findings)}/{len(tests)} tests showed injection")
             for name, flags in findings:

@@ -201,7 +201,7 @@ def register(mcp: FastMCP):
         vulnerable = data.get("vulnerable", False)
         interactions = data.get("interactions", [])
 
-        lines = [f"Collaborator Auto-Test Results:\n"]
+        lines = ["Collaborator Auto-Test Results:\n"]
         lines.append(f"  Payload: {data.get('payload_injected', '')}")
         lines.append(f"  Parameter: {data.get('parameter', '')}")
         lines.append(f"  Injection Point: {data.get('injection_point', '')}")

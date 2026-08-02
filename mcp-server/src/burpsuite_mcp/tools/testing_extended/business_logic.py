@@ -141,7 +141,7 @@ def register(mcp: FastMCP):
                     anomalies.append((desc, value, flags, body[:200]))
                     lines.append(f"    > {body[:150]}")
 
-        lines.append(f"\n--- Summary ---")
+        lines.append("\n--- Summary ---")
         total_tests = sum(len(v) for v in test_cases.values())
         lines.append(f"Anomalies: {len(anomalies)}/{total_tests} tests")
         if anomalies:

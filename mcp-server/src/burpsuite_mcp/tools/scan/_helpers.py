@@ -15,7 +15,7 @@ def _load_knowledge(category: str) -> dict | None:
     if not f.exists():
         return None
     try:
-        with open(f) as fh:
+        with open(f, encoding="utf-8") as fh:
             return json.load(fh)
     except (json.JSONDecodeError, OSError):
         return None

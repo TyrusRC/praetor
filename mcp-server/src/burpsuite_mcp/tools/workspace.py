@@ -66,5 +66,5 @@ def register(mcp: FastMCP):
         for key, text in readmes.items():
             readme = paths[key] / "README.md"
             if not readme.exists():
-                readme.write_text(f"# {key}\n\n{text}\n")
+                readme.write_text(f"# {key}\n\n{text}\n", encoding="utf-8")
         return f"Workspace ready at {paths['root']}"

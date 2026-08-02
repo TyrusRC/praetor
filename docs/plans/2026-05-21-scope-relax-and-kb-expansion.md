@@ -13,7 +13,7 @@
 **Pre-flight commands** (run once before starting):
 
 ```bash
-cd /home/tyrus/Github/burpsuite-swiss-knife-mcp
+cd <repo-root>
 git status   # working tree clean
 cd mcp-server && uv pip install -e . && cd ..
 cd burp-extension && mvn -q clean package && cd ..
@@ -49,8 +49,8 @@ cd burp-extension && mvn -q clean package && cd ..
 - `mcp-server/src/burpsuite_mcp/server.py` — register `wordlist`, `scope_extra`
 - `mcp-server/src/burpsuite_mcp/tools/__init__.py` — export `wordlist`, `scope_extra`
 - `mcp-server/src/burpsuite_mcp/advisor/q1.py` (or wherever `assess_finding` Q1 lives) — defer to mode
-- `burp-extension/src/main/java/com/swissknife/server/BaseHandler.java:218-242` — mode-aware `requireInScope`
-- `burp-extension/src/main/java/com/swissknife/handlers/ScopeHandler.java` — accept `mode` field; persist
+- `burp-extension/src/main/java/com/praetor/server/BaseHandler.java:218-242` — mode-aware `requireInScope`
+- `burp-extension/src/main/java/com/praetor/handlers/ScopeHandler.java` — accept `mode` field; persist
 - `AGENTS.md` — add `fuzz-agent`
 - `CLAUDE.md` — scope-mode default note + ffuf workflow paragraph
 - `.claude/rules/hunting.md` — R1 subsection on engagement modes
@@ -339,20 +339,20 @@ git commit -m "feat(scope): configure_scope mode=operator|strict (default operat
 ### Task A3: Java BaseHandler mode-aware scope gate + audit log
 
 **Files:**
-- Modify: `burp-extension/src/main/java/com/swissknife/server/BaseHandler.java:218-242`
-- Modify: `burp-extension/src/main/java/com/swissknife/handlers/ScopeHandler.java`
+- Modify: `burp-extension/src/main/java/com/praetor/server/BaseHandler.java:218-242`
+- Modify: `burp-extension/src/main/java/com/praetor/handlers/ScopeHandler.java`
 
 - [ ] **Step A3.1: Locate ScopeHandler and confirm its handle method**
 
 ```bash
-grep -n "mode\|isInScope\|/configure" burp-extension/src/main/java/com/swissknife/handlers/ScopeHandler.java
+grep -n "mode\|isInScope\|/configure" burp-extension/src/main/java/com/praetor/handlers/ScopeHandler.java
 ```
 
 Note the current path that handles `POST /api/scope/configure`. Add a `mode` field read from the JSON body and persist it.
 
 - [ ] **Step A3.2: Add mode state to ScopeHandler**
 
-In `burp-extension/src/main/java/com/swissknife/handlers/ScopeHandler.java`, add at top of class:
+In `burp-extension/src/main/java/com/praetor/handlers/ScopeHandler.java`, add at top of class:
 
 ```java
 // Volatile so the requireInScope read in BaseHandler sees writes from this handler.
@@ -375,7 +375,7 @@ Include `"mode", currentMode` in the response JSON object so the Python wrapper 
 
 - [ ] **Step A3.3: Modify `BaseHandler.requireInScope` to honor mode**
 
-Replace lines 218-242 of `burp-extension/src/main/java/com/swissknife/server/BaseHandler.java` with:
+Replace lines 218-242 of `burp-extension/src/main/java/com/praetor/server/BaseHandler.java` with:
 
 ```java
     protected boolean requireInScope(burp.api.montoya.MontoyaApi api, HttpExchange exchange, String url) throws IOException {
@@ -389,7 +389,7 @@ Replace lines 218-242 of `burp-extension/src/main/java/com/swissknife/server/Bas
         try {
             boolean inScope = api.scope().isInScope(url);
             if (!inScope) {
-                String mode = com.swissknife.handlers.ScopeHandler.currentMode;
+                String mode = com.praetor.handlers.ScopeHandler.currentMode;
                 if ("strict".equals(mode)) {
                     sendError(exchange, 403,
                         "URL is out of scope: " + url,
@@ -398,7 +398,7 @@ Replace lines 218-242 of `burp-extension/src/main/java/com/swissknife/server/Bas
                     return false;
                 }
                 // Operator mode (default): warn-and-log, proceed.
-                com.swissknife.audit.ScopeAuditLog.append(
+                com.praetor.audit.ScopeAuditLog.append(
                     exchange.getRequestURI().getPath(), url, mode
                 );
             }
@@ -415,12 +415,12 @@ Replace lines 218-242 of `burp-extension/src/main/java/com/swissknife/server/Bas
 
 - [ ] **Step A3.4: Create the audit log writer**
 
-Create `burp-extension/src/main/java/com/swissknife/audit/ScopeAuditLog.java`:
+Create `burp-extension/src/main/java/com/praetor/audit/ScopeAuditLog.java`:
 
 ```java
-package com.swissknife.audit;
+package com.praetor.audit;
 
-import com.swissknife.util.JsonUtil;
+import com.praetor.util.JsonUtil;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -475,12 +475,12 @@ public final class ScopeAuditLog {
 cd burp-extension && mvn -q clean package
 ```
 
-Expected: BUILD SUCCESS. `target/burpsuite-swiss-knife-0.3.0.jar` updated.
+Expected: BUILD SUCCESS. `target/praetor-burp-ext-<version>.jar` updated.
 
 - [ ] **Step A3.6: Commit**
 
 ```bash
-git add burp-extension/src/main/java/com/swissknife/audit/ScopeAuditLog.java burp-extension/src/main/java/com/swissknife/server/BaseHandler.java burp-extension/src/main/java/com/swissknife/handlers/ScopeHandler.java
+git add burp-extension/src/main/java/com/praetor/audit/ScopeAuditLog.java burp-extension/src/main/java/com/praetor/server/BaseHandler.java burp-extension/src/main/java/com/praetor/handlers/ScopeHandler.java
 git commit -m "feat(scope): mode-aware requireInScope + JSONL audit log in operator mode"
 ```
 
@@ -2069,7 +2069,7 @@ git commit -m "docs: scope mode default = operator; safety Rules 5-9 unchanged; 
 
 **Files:**
 - Modify: `skill.json`
-- Modify: `~/.claude/projects/-home-tyrus-Github-burpsuite-swiss-knife-mcp/memory/MEMORY.md`
+- Modify: `<claude-project-dir>/memory/MEMORY.md`
 
 - [ ] **Step D2.1: Bump skill.json counts**
 
@@ -2105,7 +2105,7 @@ Also in the top-level `description` field, append after the existing capabilitie
 
 - [ ] **Step D2.2: Update MEMORY.md**
 
-In the user memory file at `/home/tyrus/.claude/projects/-home-tyrus-Github-burpsuite-swiss-knife-mcp/memory/MEMORY.md`, find the "## Tool Count" section and update:
+In the user memory file at `<claude-project-dir>/memory/MEMORY.md`, find the "## Tool Count" section and update:
 
 ```markdown
 ## Tool Count

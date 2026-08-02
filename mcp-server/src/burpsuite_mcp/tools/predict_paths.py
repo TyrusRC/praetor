@@ -20,9 +20,8 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
 

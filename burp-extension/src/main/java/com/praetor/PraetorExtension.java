@@ -26,9 +26,9 @@ public class PraetorExtension implements BurpExtension {
 
         checkJvm(api);
 
-        // Read saved config or use defaults
-        int port = loadInt(api, "swissknife.port", DEFAULT_PORT);
-        String host = loadString(api, "swissknife.host", DEFAULT_HOST);
+        // Read saved config or use defaults.
+        int port = loadInt(api, "praetor.port", DEFAULT_PORT);
+        String host = loadString(api, "praetor.host", DEFAULT_HOST);
 
         // Start API server first (creates SessionHandler + FindingsStore)
         startServer(api, host, port);
@@ -83,7 +83,7 @@ public class PraetorExtension implements BurpExtension {
                 api.logging().logToOutput("Proxy tunnel → "
                     + com.praetor.http.ProxyTunnel.BURP_PROXY_HOST + ":"
                     + com.praetor.http.ProxyTunnel.BURP_PROXY_PORT
-                    + " (override with env BURP_PROXY_HOST/PORT or -Dswissknife.proxy.{host,port})");
+                    + " (override with env BURP_PROXY_HOST/PORT or -Dpraetor.proxy.{host,port})");
             } catch (Exception e) {
                 api.logging().logToError("Failed to start API server on " + host + ":" + port + ": " + e.getMessage());
                 apiServer = null;
@@ -98,8 +98,8 @@ public class PraetorExtension implements BurpExtension {
                 apiServer = null;
                 api.logging().logToOutput("API server stopped for reconfiguration");
             }
-            saveString(api, "swissknife.host", newHost);
-            saveInt(api, "swissknife.port", newPort);
+            saveString(api, "praetor.host", newHost);
+            saveInt(api, "praetor.port", newPort);
             startServer(api, newHost, newPort);
         }
     }
@@ -149,21 +149,28 @@ public class PraetorExtension implements BurpExtension {
         }
     }
 
-    // Persistence helpers using Burp's extension data
+    // Persistence helpers using Burp's extension data.
     private static int loadInt(MontoyaApi api, String key, int defaultValue) {
-        try {
-            String val = api.persistence().extensionData().getString(key);
-            if (val != null) return Integer.parseInt(val);
-        } catch (Exception ignored) {}
+        String val = rawLoad(api, key);
+        if (val != null) {
+            try {
+                return Integer.parseInt(val);
+            } catch (NumberFormatException ignored) {}
+        }
         return defaultValue;
     }
 
     private static String loadString(MontoyaApi api, String key, String defaultValue) {
+        String val = rawLoad(api, key);
+        return (val != null && !val.isEmpty()) ? val : defaultValue;
+    }
+
+    private static String rawLoad(MontoyaApi api, String key) {
         try {
             String val = api.persistence().extensionData().getString(key);
             if (val != null && !val.isEmpty()) return val;
         } catch (Exception ignored) {}
-        return defaultValue;
+        return null;
     }
 
     private static void saveInt(MontoyaApi api, String key, int value) {

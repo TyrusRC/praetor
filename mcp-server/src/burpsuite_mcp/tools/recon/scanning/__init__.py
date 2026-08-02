@@ -54,7 +54,7 @@ def detect_seclists() -> str | None:
 def _cache_seclists(path: str) -> None:
     intel = Path.cwd() / ".burp-intel"
     intel.mkdir(parents=True, exist_ok=True)
-    (intel / "_seclists_path.json").write_text(json.dumps({"path": path}))
+    (intel / "_seclists_path.json").write_text(json.dumps({"path": path}), encoding="utf-8")
 
 
 __all__ = [

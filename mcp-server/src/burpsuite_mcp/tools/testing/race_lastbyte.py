@@ -98,7 +98,7 @@ def _read_response(sock: socket.socket, timeout: float = 5.0) -> tuple[int, int,
             buf += chunk
             if len(buf) > 65536:
                 break
-    except (socket.timeout, ssl.SSLError, OSError):
+    except (TimeoutError, ssl.SSLError, OSError):
         pass
     # Parse status
     status = 0

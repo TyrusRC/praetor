@@ -113,9 +113,9 @@ def register(mcp: FastMCP):
                 else:
                     lines.append(f"  Delay did not reproduce ({confirms}/2) — likely transient")
             elif status == 400:
-                lines.append(f"  Server rejected malformed request (400) — likely not vulnerable")
+                lines.append("  Server rejected malformed request (400) — likely not vulnerable")
             else:
-                lines.append(f"  No anomaly detected")
+                lines.append("  No anomaly detected")
 
         tete_variants = [
             "Transfer-Encoding: xchunked",
@@ -124,7 +124,7 @@ def register(mcp: FastMCP):
             "Transfer-Encoding:\tchunked",
         ]
 
-        lines.append(f"\n--- TE.TE Obfuscation Probes ---")
+        lines.append("\n--- TE.TE Obfuscation Probes ---")
         for variant in tete_variants:
             te_raw = (
                 f"POST {path} HTTP/1.1\r\n"
@@ -173,7 +173,7 @@ def register(mcp: FastMCP):
                 else:
                     lines.append(f"  {variant_short}: status={status}, {elapsed}ms — OK")
 
-        lines.append(f"\n--- Summary ---")
+        lines.append("\n--- Summary ---")
         if findings:
             lines.append(f"Potential smuggling: {', '.join(findings)}")
             lines.append("Recommendation: Verify with repeated timing tests (3+ repetitions). Use Collaborator for confirmation.")

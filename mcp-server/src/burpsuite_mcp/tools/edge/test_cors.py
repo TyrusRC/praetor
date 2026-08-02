@@ -73,7 +73,7 @@ async def test_cors_impl(
     if vulns:
         lines.append(f"\n*** {len(vulns)} CORS vulnerabilities found ***")
     else:
-        lines.append(f"\nNo CORS misconfigurations detected.")
+        lines.append("\nNo CORS misconfigurations detected.")
 
     human = "\n".join(lines)
     critical_hits = sum(1 for v in vulns if v.startswith("CRITICAL"))

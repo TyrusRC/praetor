@@ -30,7 +30,6 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from ._jwt_codec import (
-    b64url_decode,
     decode_header,
     decode_payload,
     encode_segment,

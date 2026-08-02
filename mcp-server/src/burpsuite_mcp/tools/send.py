@@ -197,8 +197,7 @@ def register(mcp: FastMCP):
 
         if not requests:
             return "Error: requests list is empty"
-        if concurrency < 1:
-            concurrency = 1
+        concurrency = max(concurrency, 1)
 
         # Loop guard — concurrent_requests is the classic runaway spot.
         from burpsuite_mcp.tools._runtime_guard import note_call

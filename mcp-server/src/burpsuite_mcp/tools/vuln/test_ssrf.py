@@ -23,7 +23,7 @@ from mcp.server.fastmcp import FastMCP
 from burpsuite_mcp import client
 
 from ._send import send_probe
-from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
+from burpsuite_mcp.tools.testing._verdict import make_verdict
 
 
 _INTERNAL_IPS = (
@@ -227,7 +227,7 @@ def register(mcp: FastMCP):
             # signal connection success (e.g. Redis INFO).
             if "127.0.0.1:" in value and ln > 200 and s in (200, 500):
                 if not hit:
-                    marker = f"  [?] non-empty body, possible TCP connect"
+                    marker = "  [?] non-empty body, possible TCP connect"
             lines.append(f"  {label:<14} {value[:50]:<50} -> {s} ({ln}b, #{idx}){marker}")
 
         if header_results:

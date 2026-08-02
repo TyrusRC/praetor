@@ -144,9 +144,9 @@ def register(mcp: FastMCP):
                     f"prototype pollution: marker {marker!r} leaked to "
                     f"follow-up GET (#{f_idx})")
             elif '"polluted"' in f_body or "polluted:" in f_body:
-                lines.append(f"  [?] WEAK SIGNAL: 'polluted' key visible in "
-                             f"follow-up — marker value differs (might be "
-                             f"sanitized but key still merged)")
+                lines.append("  [?] WEAK SIGNAL: 'polluted' key visible in "
+                             "follow-up — marker value differs (might be "
+                             "sanitized but key still merged)")
                 bypasses.append(
                     f"prototype pollution (key-only): 'polluted' in follow-up "
                     f"(#{f_idx})")

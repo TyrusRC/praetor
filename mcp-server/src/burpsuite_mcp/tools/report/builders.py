@@ -9,6 +9,31 @@ from burpsuite_mcp.tools._framework_map import framework_tags
 from burpsuite_mcp.tools.report.business_logic_gate import business_logic_gate
 
 
+# Evidence keys that only mean something inside this operator's Burp session.
+# A client or triager cannot resolve them, and citing them reads as a tool dump
+# rather than a finding. Kept out of the delivered report; still in findings.json.
+_INTERNAL_EVIDENCE_KEYS = {
+    "logger_index", "proxy_history_index", "proxy_index", "history_index",
+    "repeater_tab", "repeater_tab_id", "burp_id", "organizer_index",
+    "session_name", "scan_id", "task_id", "baseline_index", "annotation_index",
+}
+
+# Substrings that mark a value as an internal artifact path or tool-run
+# reference rather than evidence about the target.
+_INTERNAL_VALUE_MARKERS = (
+    ".burp-intel/", "material/tool-output", "testcases/", "/scratchpad/",
+    "findings.json", "coverage.json", "checkpoint.json",
+)
+
+
+def _is_internal_evidence(key: str, value: object) -> bool:
+    """True when an evidence entry is a Burp/workspace bookkeeping reference."""
+    if str(key).lower() in _INTERNAL_EVIDENCE_KEYS:
+        return True
+    s = str(value)
+    return any(m in s for m in _INTERNAL_VALUE_MARKERS)
+
+
 def format_poc_request(poc: dict | str | None) -> str:
     """Render a poc_request dict (or string) as an http code block."""
     if isinstance(poc, dict):
@@ -50,7 +75,9 @@ def format_repro_steps(steps: list | str | None) -> str:
     return ""
 
 
-def build_executive_summary(findings: list[dict], domain: str, profile: dict) -> str:
+def build_executive_summary(
+    findings: list[dict], domain: str, profile: dict, internal: bool = False
+) -> str:
     by_sev: dict[str, int] = {}
     for f in findings:
         sev = f.get("severity", "INFO").upper()
@@ -65,7 +92,7 @@ def build_executive_summary(findings: list[dict], domain: str, profile: dict) ->
     # W36-P1: business-logic completion gate. Operator-only warning (not client
     # content) — surfaces at the top when the business-logic pass is unproven.
     # Never blocks; disappears once one invariant is recorded as tested.
-    bl_warning = business_logic_gate(domain)
+    bl_warning = business_logic_gate(domain) if internal else ""
     if bl_warning:
         lines += [
             f"> **Operator note (remove before client delivery):** {bl_warning}",
@@ -103,8 +130,15 @@ def build_executive_summary(findings: list[dict], domain: str, profile: dict) ->
     return "\n".join(lines)
 
 
-def build_finding_section(finding: dict, index: int) -> str:
-    """Build a single finding section to professional pentest standard."""
+def build_finding_section(finding: dict, index: int, internal: bool = False) -> str:
+    """Build a single finding section to professional pentest standard.
+
+    Args:
+        internal: True renders operator bookkeeping (Burp indices, workspace
+            paths, replay tables). False — the default, and what a client or
+            triager receives — omits them: they are unresolvable outside this
+            Burp session and read as tool output, not evidence.
+    """
     title = finding.get("vulnerability_type") or finding.get("title", "Finding")
     severity = finding.get("severity", "INFO")
     lines = [f"### {index}. [{severity}] {title}", ""]
@@ -229,14 +263,29 @@ def build_finding_section(finding: dict, index: int) -> str:
     evidence = finding.get("evidence", {})
     evidence_text = finding.get("evidence_text", "")
     reproductions = finding.get("reproductions", []) or []
-    if evidence or evidence_text or reproductions:
+
+    evidence_rows: list[tuple[str, object]] = []
+    if isinstance(evidence, dict):
+        evidence_rows = [
+            (k, v) for k, v in evidence.items()
+            if internal or not _is_internal_evidence(k, v)
+        ]
+
+    has_evidence_body = bool(
+        evidence_rows
+        or (isinstance(evidence, str) and evidence.strip())
+        or (evidence_text and evidence_text.strip())
+        or (reproductions and internal)
+    )
+    if has_evidence_body:
         lines.append("**Evidence**")
-        if isinstance(evidence, dict):
-            for k, v in evidence.items():
-                lines.append(f"- {k}: `{str(v)[:200]}`")
-        elif isinstance(evidence, str) and evidence.strip():
+        for k, v in evidence_rows:
+            lines.append(f"- {k}: `{str(v)[:200]}`")
+        if isinstance(evidence, str) and evidence.strip():
             lines.append(f"```\n{evidence[:800]}\n```")
-        if reproductions:
+        # Replay tables prove reproducibility to the operator, not to the
+        # reader — Rule 16a keeps activity counts out of the deliverable.
+        if reproductions and internal:
             lines.append("")
             lines.append("Replays (timing/blind reproductions):")
             lines.append("")
@@ -248,6 +297,11 @@ def build_finding_section(finding: dict, index: int) -> str:
                         f"| {i} | {r.get('logger_index', '?')} | "
                         f"{r.get('status_code', '?')} | {r.get('elapsed_ms', '?')} |"
                     )
+        elif reproductions and not internal:
+            # Rule 16a: no counts in the deliverable — the qualitative claim is
+            # what the reader needs; the tally stays in evidence.reproductions[].
+            lines.append("")
+            lines.append("Behaviour reproduced consistently on independent replays.")
         if evidence_text and evidence_text.strip():
             lines.append("")
             lines.append("```")

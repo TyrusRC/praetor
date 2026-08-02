@@ -1,5 +1,6 @@
 """Fingerprint / probe intelligence: wafw00f, httpx."""
 
+import contextlib
 import os
 import tempfile
 
@@ -91,14 +92,17 @@ def register(mcp: FastMCP):
 
         # Accept either a literal list or a file path
         targets = targets.strip()
+        tmp_path = ""
         if "\n" in targets or "," in targets:
-            tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-            for t in targets.replace(",", "\n").splitlines():
-                t = t.strip()
-                if t:
-                    tmp.write(t + "\n")
-            tmp.close()
-            input_arg = ["-l", tmp.name]
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as tmp:
+                for t in targets.replace(",", "\n").splitlines():
+                    t = t.strip()
+                    if t:
+                        tmp.write(t + "\n")
+                tmp_path = tmp.name
+            input_arg = ["-l", tmp_path]
         elif os.path.isfile(targets):
             input_arg = ["-l", targets]
         else:
@@ -123,7 +127,14 @@ def register(mcp: FastMCP):
         if use_proxy:
             cmd.extend(["-http-proxy", BURP_PROXY_URL])
 
-        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        try:
+            stdout, stderr, code = await _run_cmd(cmd, timeout)
+        finally:
+            # httpx has read the list by now; leaving it behind fills /tmp over
+            # a long engagement.
+            if tmp_path:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp_path)
         out = stdout.strip()
         if not out:
             return f"httpx produced no output (exit {code}){' — ' + stderr[:200] if stderr else ''}"

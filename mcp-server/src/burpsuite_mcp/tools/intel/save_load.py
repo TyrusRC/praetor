@@ -48,7 +48,7 @@ def register(mcp: FastMCP):
             existing = _empty_structure("patterns")
             if file_path.exists():
                 try:
-                    existing = json.loads(file_path.read_text())
+                    existing = json.loads(file_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     existing = _empty_structure("patterns")
             patterns_list = existing.get("patterns", [])
@@ -76,7 +76,7 @@ def register(mcp: FastMCP):
             existing = _empty_structure("findings")
             if file_path.exists():
                 try:
-                    existing = json.loads(file_path.read_text())
+                    existing = json.loads(file_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     existing = _empty_structure("findings")
             findings_list = existing.get("findings", [])
@@ -103,7 +103,7 @@ def register(mcp: FastMCP):
             existing = _empty_structure("coverage")
             if file_path.exists():
                 try:
-                    existing = json.loads(file_path.read_text())
+                    existing = json.loads(file_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     existing = _empty_structure("coverage")
             entries = existing.get("entries", [])
@@ -167,7 +167,7 @@ def register(mcp: FastMCP):
         if category == "notes":
             notes_path = dir_path / "notes.md"
             if notes_path.exists():
-                return notes_path.read_text()
+                return notes_path.read_text(encoding="utf-8")
             return "No notes saved for this target."
 
         if category == "all":
@@ -178,7 +178,7 @@ def register(mcp: FastMCP):
                     summary_lines.append(f"  {cat}: (none)")
                     continue
                 try:
-                    data = json.loads(cat_path.read_text())
+                    data = json.loads(cat_path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
                     summary_lines.append(f"  {cat}: (corrupted)")
                     continue
@@ -219,7 +219,7 @@ def register(mcp: FastMCP):
         if not cat_path.exists():
             return json.dumps(_empty_structure(category), separators=(",", ":"))
 
-        data = json.loads(cat_path.read_text())
+        data = json.loads(cat_path.read_text(encoding="utf-8"))
         stat = cat_path.stat()
         if "_meta" not in data:
             data["_meta"] = {}
@@ -294,7 +294,7 @@ def register(mcp: FastMCP):
             )
 
         try:
-            endpoints_data = json.loads(endpoints_path.read_text())
+            endpoints_data = json.loads(endpoints_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as e:
             return f"endpoints.json unreadable: {e}"
 
@@ -306,7 +306,7 @@ def register(mcp: FastMCP):
         kv_recorded = None
         if coverage_path.exists():
             try:
-                cov = json.loads(coverage_path.read_text())
+                cov = json.loads(coverage_path.read_text(encoding="utf-8"))
                 coverage_entries = cov.get("entries", []) or []
                 kv_recorded = cov.get("knowledge_version")
             except (json.JSONDecodeError, OSError):
@@ -385,7 +385,7 @@ def register(mcp: FastMCP):
         if not endpoints_path.exists():
             return f"No endpoints recorded for {domain}. Run discover_attack_surface or full_recon first."
         try:
-            endpoints = (json.loads(endpoints_path.read_text()).get("endpoints", []) or [])
+            endpoints = (json.loads(endpoints_path.read_text(encoding="utf-8")).get("endpoints", []) or [])
         except (json.JSONDecodeError, OSError) as e:
             return f"endpoints.json unreadable: {e}"
         if not endpoints:
@@ -394,7 +394,7 @@ def register(mcp: FastMCP):
         tested: dict[tuple[str, str], set[str]] = {}
         if coverage_path.exists():
             try:
-                for e in json.loads(coverage_path.read_text()).get("entries", []) or []:
+                for e in json.loads(coverage_path.read_text(encoding="utf-8")).get("entries", []) or []:
                     cls = e.get("vuln_class") or e.get("class") or ""
                     if cls:
                         tested.setdefault((e.get("endpoint", ""), e.get("parameter", "")), set()).add(cls)
@@ -459,5 +459,5 @@ def register(mcp: FastMCP):
         """
         dir_path = _ensure_dir(domain)
         notes_path = dir_path / "notes.md"
-        notes_path.write_text(notes)
+        notes_path.write_text(notes, encoding="utf-8")
         return f"Notes saved for {domain} ({len(notes)} chars)"

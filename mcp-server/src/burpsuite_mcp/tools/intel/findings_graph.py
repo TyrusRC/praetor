@@ -18,7 +18,6 @@ Output is markdown for human review plus a JSON file written under
 import asyncio
 import json
 from collections import defaultdict
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -54,13 +53,13 @@ def register(mcp: FastMCP):
                 profile: dict = {}
                 if profile_path.exists():
                     try:
-                        profile = json.loads(profile_path.read_text())
+                        profile = json.loads(profile_path.read_text(encoding="utf-8"))
                     except Exception:
                         profile = {}
                 if not fp.exists():
                     continue
                 try:
-                    data = json.loads(fp.read_text())
+                    data = json.loads(fp.read_text(encoding="utf-8"))
                 except Exception:
                     continue
                 for f in data.get("findings", []):
@@ -141,7 +140,7 @@ def register(mcp: FastMCP):
             f"build_findings_graph — {len(findings)} findings",
             f"Wrote: {graph_path}",
             "",
-            f"--- Nodes by severity ---",
+            "--- Nodes by severity ---",
         ]
         sev_count: dict[str, int] = defaultdict(int)
         for f in findings:

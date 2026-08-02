@@ -165,7 +165,7 @@ def register(mcp: FastMCP) -> None:
 
 def _looks_like_card(obj: dict) -> bool:
     """Heuristic: an A2A card carries at least one of these keys."""
-    keys = set(k.lower() for k in obj.keys())
+    keys = set(k.lower() for k in obj)
     expected = {"agent_id", "agentid", "name", "capabilities", "tools",
                 "delegation", "endpoints", "version", "signature"}
     return len(keys & expected) >= 2

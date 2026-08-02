@@ -372,7 +372,7 @@ public class ResourceHandler extends BaseHandler {
                     .withPath(path)
                     .withService(service)
                     .withHeader("Host", service.host())
-                    .withHeader("User-Agent", "Mozilla/5.0 (compatible; BurpSuite SwissKnife)");
+                    .withHeader("User-Agent", "Mozilla/5.0 (compatible; Praetor)");
 
             return com.praetor.http.ProxyTunnel.sendOrFallback(api, request);
         } catch (Exception e) {

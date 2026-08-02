@@ -158,7 +158,7 @@ def register(mcp: FastMCP) -> None:
             reproductions=reproductions,
             details={"replays": replays, "source_logger_index": logger_index,
                      "expected_markers": expected_markers},
-            summary=f"FAILED clean-room replay — likely FP or target changed",
+            summary="FAILED clean-room replay — likely FP or target changed",
         )
 
 

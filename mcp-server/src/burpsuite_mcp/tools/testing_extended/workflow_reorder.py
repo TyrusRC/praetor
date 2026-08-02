@@ -16,7 +16,6 @@ already observed in a working flow.
 """
 
 import json
-from copy import deepcopy
 
 from mcp.server.fastmcp import FastMCP
 

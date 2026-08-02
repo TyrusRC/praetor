@@ -2,24 +2,22 @@
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import json
-import math
-import re
 import secrets
-import time
-import urllib.parse
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from burpsuite_mcp import client
 from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 from burpsuite_mcp.tools.auth._oauth_common import (
-    _gen_state, _gen_pkce_pair, _extract_query, _extract_fragment,
-    _jwt_decode_unverified, _shannon_bits_per_char, _at_hash_match,
-    _authorize_request, _token_request,
+    _gen_state, _gen_pkce_pair, _extract_query, _authorize_request, _token_request,
+)
+
+# Split 2026-07-23: `client` and the helpers below are not referenced in this
+# module — they are re-exported so `oauth_flow.<name>` keeps resolving for the
+# sibling simulators' tests, which patch and import through this module.
+from burpsuite_mcp import client  # noqa: F401
+from burpsuite_mcp.tools.auth._oauth_common import (  # noqa: F401
+    _at_hash_match, _extract_fragment, _jwt_decode_unverified,
+    _shannon_bits_per_char,
 )
 
 

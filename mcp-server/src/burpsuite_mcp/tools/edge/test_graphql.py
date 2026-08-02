@@ -223,7 +223,7 @@ async def test_graphql_impl(
             except (json.JSONDecodeError, KeyError):
                 lines.append(f"  EXPOSED — schema in response (status {status})")
         else:
-            lines.append(f"  [VULN] Introspection: ENABLED (schema leaked)")
+            lines.append("  [VULN] Introspection: ENABLED (schema leaked)")
     else:
         lines.append(f"  Blocked or not available (status {status})")
 
@@ -233,7 +233,7 @@ async def test_graphql_impl(
     lines.append("\nTest 2 — Field Suggestions:")
     if "did you mean" in body2.lower() or "suggestion" in body2.lower():
         risks.append("Field suggestions leak schema via error messages")
-        lines.append(f"  EXPOSED — error reveals field suggestions")
+        lines.append("  EXPOSED — error reveals field suggestions")
         if depth == "deep":
             lines.append(f"  Snippet: {body2[:300].replace(chr(10), ' ')}")
     else:
@@ -258,7 +258,7 @@ async def test_graphql_impl(
             else:
                 lines.append(f"  Partial — array with {len(batch_resp) if isinstance(batch_resp, list) else '?'} items")
         except json.JSONDecodeError:
-            lines.append(f"  Array response but unparseable")
+            lines.append("  Array response but unparseable")
     else:
         lines.append(f"  Blocked or unsupported (status {status3})")
 
@@ -271,7 +271,7 @@ async def test_graphql_impl(
     lines.append("\nTest 4 — GET-based queries (CSRF):")
     if "__typename" in body4.lower():
         risks.append("GET-based queries accepted — CSRF risk")
-        lines.append(f"  [VULN] GET queries: ACCEPTED")
+        lines.append("  [VULN] GET queries: ACCEPTED")
     else:
         lines.append(f"  Blocked (status {resp4.get('status', '?')})")
 
@@ -287,7 +287,7 @@ async def test_graphql_impl(
             risks.append("No alias limit — DoS via query amplification")
             lines.append(f"  VULNERABLE — all 100 aliases executed (status {status5})")
         elif status5 == 200:
-            lines.append(f"  Partial — status 200 but aliases may be limited")
+            lines.append("  Partial — status 200 but aliases may be limited")
         else:
             lines.append(f"  Blocked or limited (status {status5})")
 
@@ -313,7 +313,7 @@ async def test_graphql_impl(
 
     # Summary
     total = {"quick": 4, "deep": 6, "introspection_fuzz": 6}.get(depth, 4)
-    lines.append(f"\n--- Summary ---")
+    lines.append("\n--- Summary ---")
     lines.append(f"Risks found: {len(risks)}/{total} tests")
     if risks:
         for r in risks:

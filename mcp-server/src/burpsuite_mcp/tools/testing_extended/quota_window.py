@@ -117,7 +117,7 @@ def register(mcp: FastMCP):
                 lines.append(f"  Burned {burn_count} requests until status={s}")
                 break
         else:
-            lines.append(f"  Burned 50 requests without hitting rate-limit — endpoint may not be rate-limited or limit > 50.")
+            lines.append("  Burned 50 requests without hitting rate-limit — endpoint may not be rate-limited or limit > 50.")
 
         # 3) Sleep until just before reset
         now = int(time.time())

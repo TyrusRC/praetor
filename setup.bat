@@ -1,5 +1,5 @@
 @echo off
-REM Burp Suite Swiss Knife MCP - Windows setup (double-click-friendly wrapper)
+REM Praetor - Windows setup (double-click-friendly wrapper)
 REM Runs setup.ps1 bypassing the user's execution policy for this invocation only.
 
 setlocal

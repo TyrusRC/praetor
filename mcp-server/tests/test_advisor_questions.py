@@ -9,20 +9,17 @@ Behaviour parity with the monolithic assess_finding_impl is covered by
 tests/test_assess_finding.py and the _baseline_capture harness.
 """
 
-import asyncio
 import json
 import os
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from burpsuite_mcp.tools.advisor._context import AssessContext
 from burpsuite_mcp.tools.advisor_kb import (
     NEVER_SUBMIT_TYPES,
     SENSITIVE_ENDPOINT_PATTERNS,
-    CheckResult,
     q1_scope,
     q2_repro,
     q3_impact,
@@ -278,13 +275,60 @@ class Q7TriagerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["reason"], "chained")
 
 
-class Q3PlaceholderTest(unittest.IsolatedAsyncioTestCase):
-    async def test_q3_is_noop_pass(self):
-        ctx = _ctx()
+class Q3ImpactTest(unittest.IsolatedAsyncioTestCase):
+    """Q3 blocks observation-only findings — the 'closed as Informative' class."""
+
+    async def test_observation_only_is_downgraded(self):
+        ctx = _ctx(
+            vuln_type="information_disclosure",
+            evidence="response returns a stack trace with the framework version",
+        )
         result = await q3_impact.check(ctx)
-        self.assertTrue(_shape(result))
+        self.assertFalse(result["passed"])
+        self.assertEqual(ctx.verdict, "NEEDS MORE EVIDENCE")
+        self.assertTrue(any("Q3 IMPACT NOT DEMONSTRATED" in i for i in ctx.issues))
+        # The issue must name the specific next proof, not just complain.
+        self.assertTrue(any("Next proof:" in i for i in ctx.issues))
+
+    async def test_named_asset_passes(self):
+        ctx = _ctx(
+            vuln_type="information_disclosure",
+            evidence="endpoint leaks the AWS secret key used by the payments service",
+        )
+        result = await q3_impact.check(ctx)
         self.assertTrue(result["passed"])
-        self.assertEqual(result["reason"], "delegated-to-impact-scoring")
+        self.assertEqual(result["reason"], "asset-obtained")
+        self.assertEqual(ctx.verdict, "REPORT")
+
+    async def test_capability_statement_passes(self):
+        ctx = _ctx(
+            vuln_type="cors",
+            evidence="credentialed cross-origin read returns another user's profile",
+        )
+        result = await q3_impact.check(ctx)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "capability-stated")
+
+    async def test_inherent_impact_class_skips_gate(self):
+        ctx = _ctx(vuln_type="sqli", evidence="pg_query error on quote injection")
+        result = await q3_impact.check(ctx)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "class-is-impact")
+
+    async def test_chain_supplies_impact(self):
+        ctx = _ctx(vuln_type="open_redirect", evidence="redirects to evil.com")
+        ctx.chain_provided = True
+        ctx.chain_with = ["f001"]
+        result = await q3_impact.check(ctx)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "chained")
+
+    async def test_override_bypasses(self):
+        ctx = _ctx(vuln_type="information_disclosure", evidence="verbose error")
+        ctx.override_set.add("q3_impact")
+        result = await q3_impact.check(ctx)
+        self.assertTrue(result["passed"])
+        self.assertEqual(ctx.verdict, "REPORT")
 
 
 class CheckResultShapeTest(unittest.IsolatedAsyncioTestCase):

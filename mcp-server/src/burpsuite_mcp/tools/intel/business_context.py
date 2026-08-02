@@ -82,7 +82,7 @@ def register(mcp: FastMCP):
         profile: dict = {}
         if profile_path.exists():
             try:
-                profile = json.loads(profile_path.read_text())
+                profile = json.loads(profile_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 profile = {}
 
@@ -138,7 +138,7 @@ def register(mcp: FastMCP):
         if not profile_path.exists():
             return f"No profile.json for {domain}. Run capture_business_context() to set one."
         try:
-            profile = json.loads(profile_path.read_text())
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return f"profile.json for {domain} is corrupted."
         bc = profile.get("business_context")

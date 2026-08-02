@@ -30,7 +30,7 @@ def register(mcp: FastMCP):
         existing = {}
         if path.exists():
             try:
-                existing = json.loads(path.read_text())
+                existing = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 existing = {}
 
@@ -116,7 +116,7 @@ def register(mcp: FastMCP):
         profile: dict = {}
         if path.exists():
             try:
-                profile = json.loads(path.read_text())
+                profile = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 profile = {}
 
@@ -125,7 +125,7 @@ def register(mcp: FastMCP):
         if not headers and auto_build:
             build_msg = await build_target_header_profile(domain=domain)
             try:
-                profile = json.loads(path.read_text()) if path.exists() else {}
+                profile = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
             except (json.JSONDecodeError, OSError):
                 profile = {}
             headers = profile.get("realistic_headers") or {}

@@ -61,7 +61,7 @@ def format_fuzz_results(data: dict) -> str:
     # Anomaly summary
     summary = data.get("anomaly_summary", {})
     if summary:
-        lines.append(f"\n--- Anomaly Summary ---")
+        lines.append("\n--- Anomaly Summary ---")
         if summary.get("status_anomalies"):
             lines.append(f"  [!STATUS] {summary['status_anomalies']} responses with different status code")
         if summary.get("length_anomalies"):

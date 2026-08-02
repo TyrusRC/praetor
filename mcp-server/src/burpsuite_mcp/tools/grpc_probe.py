@@ -34,7 +34,6 @@ import base64
 import re
 import struct
 from typing import Any
-from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -167,15 +166,15 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(base_url)
         if not scope.get("in_scope"):
-            return error_verdict("grpc_reflection", "out_of_scope",
-                                 f"{base_url} not in scope")
+            return error_verdict(f"{base_url} not in scope",
+                                 vuln_type="grpc_reflection", reason="out_of_scope")
 
         url = base_url.rstrip("/") + reflection_method
         body = _gframe(_LIST_SERVICES_PROTOBUF)
         resp = await _send_grpc(url, body, timeout=timeout)
         if resp.get("error"):
-            return error_verdict("grpc_reflection", "transport_error",
-                                 resp.get("error", "send failed"))
+            return error_verdict(resp.get("error", "send failed"),
+                                 vuln_type="grpc_reflection", reason="transport_error")
 
         status = resp.get("status_code", 0)
         logger_indices = [resp["logger_index"]] if "logger_index" in resp else []
@@ -210,7 +209,7 @@ def register(mcp: FastMCP) -> None:
                     "grpc_status": grpc_status,
                     "http_status": status,
                 },
-                human_summary=f"gRPC reflection enabled: {len(services)} services ({services[0] if services else ''}…)",
+                summary=f"gRPC reflection enabled: {len(services)} services ({services[0] if services else ''}…)",
             )
         if grpc_status == "12":
             return make_verdict(
@@ -221,7 +220,7 @@ def register(mcp: FastMCP) -> None:
                 logger_indices=logger_indices,
                 details={"base_url": base_url, "grpc_status": "12 UNIMPLEMENTED",
                          "http_status": status},
-                human_summary="gRPC reachable; reflection disabled",
+                summary="gRPC reachable; reflection disabled",
             )
         return make_verdict(
             vuln_type="grpc_reflection",
@@ -232,7 +231,7 @@ def register(mcp: FastMCP) -> None:
             details={"base_url": base_url, "http_status": status,
                      "grpc_status": grpc_status,
                      "frames_seen": len(frames)},
-            human_summary="No gRPC reflection",
+            summary="No gRPC reflection",
         )
 
     @mcp.tool()
@@ -262,30 +261,31 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(method_url)
         if not scope.get("in_scope"):
-            return error_verdict("grpc_idor", "out_of_scope",
-                                 f"{method_url} not in scope")
+            return error_verdict(f"{method_url} not in scope",
+                                 vuln_type="grpc_idor", reason="out_of_scope")
 
         try:
             baseline_frame = base64.b64decode(request_body_b64)
         except Exception as e:
-            return error_verdict("grpc_idor", "bad_payload", f"base64 decode: {e}")
+            return error_verdict(f"base64 decode: {e}",
+                                 vuln_type="grpc_idor", reason="bad_payload")
 
         # Unframe baseline to get inner protobuf
         frames = _gunframe(baseline_frame)
         if not frames:
-            return error_verdict("grpc_idor", "bad_payload",
-                                 "no valid gRPC frame in request_body")
+            return error_verdict("no valid gRPC frame in request_body",
+                                 vuln_type="grpc_idor", reason="bad_payload")
         inner = frames[0]
         mutated = _mutate_first_varint(inner)
         if not mutated and not custom_mutations_b64:
-            return error_verdict("grpc_idor", "no_mutation",
-                                 "no varint field 1-5 found and no custom_mutations provided")
+            return error_verdict("no varint field 1-5 found and no custom_mutations provided",
+                                 vuln_type="grpc_idor", reason="no_mutation")
 
         # Baseline
         baseline = await _send_grpc(method_url, baseline_frame, timeout=timeout)
         if baseline.get("error"):
-            return error_verdict("grpc_idor", "baseline_failed",
-                                 baseline.get("error", "baseline send failed"))
+            return error_verdict(baseline.get("error", "baseline send failed"),
+                                 vuln_type="grpc_idor", reason="baseline_failed")
         b_body = baseline.get("response_body") or ""
         b_len = len(b_body) if isinstance(b_body, str) else 0
         b_hdrs = {k.lower(): v for k, v in (baseline.get("response_headers") or {}).items()}
@@ -342,7 +342,7 @@ def register(mcp: FastMCP) -> None:
                     "baseline_length": b_len,
                     "mutations": mutation_results,
                 },
-                human_summary=f"gRPC IDOR: {len(hits)} mutations succeeded with similar response shape",
+                summary=f"gRPC IDOR: {len(hits)} mutations succeeded with similar response shape",
             )
         # Mixed signals — at least one 0 status but shape different
         suspect = [r for r in mutation_results if r["grpc_status"] == "0"]
@@ -354,7 +354,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary=f"{len(suspect)} mutations succeeded but response shape diverged",
                 logger_indices=logger_indices,
                 details={"mutations": mutation_results, "baseline_length": b_len},
-                human_summary=f"gRPC IDOR suspect: status 0 returned with different shape",
+                summary="gRPC IDOR suspect: status 0 returned with different shape",
             )
         return make_verdict(
             vuln_type="grpc_idor",
@@ -363,5 +363,5 @@ def register(mcp: FastMCP) -> None:
             evidence_summary=f"All {len(mutation_results)} mutations rejected (grpc-status non-zero)",
             logger_indices=logger_indices,
             details={"mutations": mutation_results, "baseline_grpc_status": b_grpc},
-            human_summary="gRPC method correctly authorised — no IDOR",
+            summary="gRPC method correctly authorised — no IDOR",
         )

@@ -30,7 +30,7 @@ def register(mcp: FastMCP):
         if not fp_path.exists():
             return "No fingerprint data stored for this target. Save fingerprint intel first."
 
-        fp_data = json.loads(fp_path.read_text())
+        fp_data = json.loads(fp_path.read_text(encoding="utf-8"))
         pages = fp_data.get("pages", [])
         if not pages:
             return "Fingerprint file has no pages to check."
@@ -83,7 +83,7 @@ def register(mcp: FastMCP):
         kv_report = ""
         cov_path = dir_path / "coverage.json"
         if cov_path.exists():
-            cov = json.loads(cov_path.read_text())
+            cov = json.loads(cov_path.read_text(encoding="utf-8"))
             stored_kv = cov.get("knowledge_version", "")
             current_kv = _knowledge_version()
             if stored_kv and stored_kv != current_kv:

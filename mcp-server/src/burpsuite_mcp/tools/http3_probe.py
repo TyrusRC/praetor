@@ -236,8 +236,8 @@ def register(mcp: FastMCP) -> None:
         if nontrivial:
             return make_verdict(
                 "SUSPECTED", 0.55,
-                f"H3 advertised + fingerprint differs (hash/header) — "
-                f"deeper test needs aioquic client",
+                "H3 advertised + fingerprint differs (hash/header) — "
+                "deeper test needs aioquic client",
                 vuln_type="http3_downgrade",
                 logger_indices=logger_indices,
                 details=details,
@@ -250,8 +250,8 @@ def register(mcp: FastMCP) -> None:
             )
         return make_verdict(
             "FAILED", 0.15,
-            f"H3 advertised but H2 and H3-path fingerprints match — "
-            f"no downgrade differential observed",
+            "H3 advertised but H2 and H3-path fingerprints match — "
+            "no downgrade differential observed",
             vuln_type="http3_downgrade",
             logger_indices=logger_indices,
             details=details,

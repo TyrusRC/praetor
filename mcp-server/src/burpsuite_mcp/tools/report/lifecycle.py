@@ -17,7 +17,7 @@ def load_intel(domain: str, category: str) -> dict:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
 
@@ -35,7 +35,7 @@ def purge_false_positives(domain: str) -> tuple[list[dict], int]:
     if not path.exists():
         return [], 0
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return [], 0
 
@@ -48,6 +48,6 @@ def purge_false_positives(domain: str) -> tuple[list[dict], int]:
         keep, _id_map = _compact_and_remap_findings(keep)
         data["findings"] = keep
         data["last_modified"] = datetime.now(timezone.utc).isoformat()
-        path.write_text(json.dumps(data, indent=2))
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     return keep, deleted

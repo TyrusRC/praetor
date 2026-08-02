@@ -145,7 +145,7 @@ def register(mcp: FastMCP):
             if status != baseline_status:
                 flags.append(f"STATUS:{status}")
             if abs(length - baseline_length) > baseline_length * 0.1:
-                flags.append(f"LENGTH_DIFF")
+                flags.append("LENGTH_DIFF")
             if body != baseline_body and not flags:
                 flags.append("BODY_CHANGED")
 
@@ -190,7 +190,7 @@ def register(mcp: FastMCP):
             lines.append(f"\nNested overrides ACCEPTED: {', '.join(nested_accepted)}")
             lines.append("Risk: framework binds nested parameters — verify privilege effect with a separate auth check.")
 
-        lines.append(f"\n--- Summary ---")
+        lines.append("\n--- Summary ---")
         if accepted:
             lines.append(f"ACCEPTED (reflected/changed behavior): {', '.join(accepted)}")
             lines.append("Risk: Server may bind these parameters — test if they persist or change authorization.")

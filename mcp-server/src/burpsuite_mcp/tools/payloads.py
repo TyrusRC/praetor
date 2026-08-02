@@ -7,6 +7,8 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from .scan._helpers import _load_knowledge
+
 
 PAYLOADS_DIR = Path(__file__).parent.parent / "payloads"
 
@@ -18,7 +20,7 @@ def _load_payload_file(category: str) -> dict | None:
     if not payload_file.exists():
         return None
     try:
-        with open(payload_file) as f:
+        with open(payload_file, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
@@ -111,22 +113,19 @@ def register(mcp: FastMCP):
             lines.append(f"{i}. {r['payload']}")
             lines.append(f"   {r['description']}{bypass}")
 
-        # Also surface category-level craft guidance from knowledge base
-        knowledge_path = Path(__file__).parent.parent / "knowledge" / f"{category}.json"
-        if knowledge_path.exists():
-            try:
-                with open(knowledge_path) as kb_fh:
-                    kb = json.load(kb_fh)
-                kb_guidance = kb.get("craft_guidance")
-                if kb_guidance:
-                    lines.append(f"\n--- Payload Crafting Guide ({category}) ---")
-                    if isinstance(kb_guidance, list):
-                        for g in kb_guidance:
-                            lines.append(f"  - {g}")
-                    else:
-                        lines.append(f"  {kb_guidance}")
-            except (json.JSONDecodeError, OSError):
-                pass
+        # Also surface category-level craft guidance from knowledge base.
+        # Reuses scan's cached loader — re-reading + re-parsing the KB file on
+        # every get_payloads call was the only blocking disk read left in this
+        # coroutine.
+        kb = _load_knowledge(category)
+        kb_guidance = kb.get("craft_guidance") if kb else None
+        if kb_guidance:
+            lines.append(f"\n--- Payload Crafting Guide ({category}) ---")
+            if isinstance(kb_guidance, list):
+                for g in kb_guidance:
+                    lines.append(f"  - {g}")
+            else:
+                lines.append(f"  {kb_guidance}")
 
         return "\n".join(lines)
 

@@ -86,7 +86,7 @@ async def discover_common_files_impl(
         # Best-effort tech detection from session intel (cookies, headers).
         # Falls open: if intel unavailable, the universal list still runs.
         try:
-            intel = await client.get(f"/api/session/list")
+            intel = await client.get("/api/session/list")
             stack = (str(intel) if isinstance(intel, dict) else "").lower()
         except Exception:
             stack = ""
@@ -201,7 +201,7 @@ async def discover_common_files_impl(
             elif "debug" in p or "console" in p:
                 lines.append(f"  HIGH: Debug interface exposed ({p})")
     else:
-        lines.append(f"\nNo sensitive files found.")
+        lines.append("\nNo sensitive files found.")
 
     return "\n".join(lines)
 

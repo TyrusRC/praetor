@@ -45,6 +45,5 @@ def vuln_root(v: str) -> str:
     v = (v or "").lower().strip()
     for sep in ("_blind", "_time", "_boolean", "_error", "_oob",
                 "_reflected", "_stored", "_dom", "_second_order"):
-        if v.endswith(sep):
-            v = v[: -len(sep)]
+        v = v.removesuffix(sep)
     return v

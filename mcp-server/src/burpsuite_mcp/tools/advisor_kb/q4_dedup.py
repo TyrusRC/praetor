@@ -28,7 +28,7 @@ async def check(ctx: AssessContext) -> CheckResult:
         findings_path = Path.cwd() / ".burp-intel" / sanitized / "findings.json"
         if not findings_path.exists():
             return {"passed": True, "reason": "no-findings", "evidence": {}}
-        existing = json.loads(findings_path.read_text()).get("findings", [])
+        existing = json.loads(findings_path.read_text(encoding="utf-8")).get("findings", [])
         new_root = vuln_root(ctx.vuln_lower)
         for f in existing:
             same_ep = f.get("endpoint", "") == ctx.endpoint

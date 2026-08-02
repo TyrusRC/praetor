@@ -20,7 +20,6 @@ discovery — the deficit was surfaced explicitly in the W7 gap analysis.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP

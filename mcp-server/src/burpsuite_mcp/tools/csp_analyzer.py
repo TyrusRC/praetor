@@ -31,9 +31,6 @@ isn't supplied) and parses the CSP. No payload sent at the target.
 
 from __future__ import annotations
 
-import re
-from typing import Any
-from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -157,8 +154,8 @@ def register(mcp: FastMCP) -> None:
         if not csp_str and target_url:
             scope = await client.check_scope(target_url)
             if not scope.get("in_scope"):
-                return error_verdict("csp_misconfig", "out_of_scope",
-                                     f"{target_url} not in scope")
+                return error_verdict(f"{target_url} not in scope",
+                                     vuln_type="csp_misconfig", reason="out_of_scope")
             resp = await client.post("/api/http/curl", json={
                 "method": "GET",
                 "url": target_url,
@@ -166,8 +163,8 @@ def register(mcp: FastMCP) -> None:
                 "timeout": 20,
             })
             if resp.get("error"):
-                return error_verdict("csp_misconfig", "fetch_failed",
-                                     resp.get("error", ""))
+                return error_verdict(resp.get("error", ""),
+                                     vuln_type="csp_misconfig", reason="fetch_failed")
             if "logger_index" in resp:
                 logger_indices.append(resp["logger_index"])
             hdrs = {k.lower(): v for k, v in (resp.get("response_headers") or {}).items()}
@@ -185,7 +182,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary="No Content-Security-Policy header — site has no client-side XSS mitigation layer",
                 logger_indices=logger_indices,
                 details={"target_url": target_url},
-                human_summary="CSP missing — XSS mitigation absent",
+                summary="CSP missing — XSS mitigation absent",
             )
 
         parsed = _parse_csp(csp_str)
@@ -327,7 +324,7 @@ def register(mcp: FastMCP) -> None:
                 ),
                 logger_indices=logger_indices,
                 details=details,
-                human_summary=f"CSP bypassable: {critical_count} critical + {high_count} high issues",
+                summary=f"CSP bypassable: {critical_count} critical + {high_count} high issues",
             )
         if med_count:
             return make_verdict(
@@ -337,7 +334,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary=f"{med_count} medium-severity CSP issues",
                 logger_indices=logger_indices,
                 details=details,
-                human_summary=f"CSP issues (medium): {med_count}",
+                summary=f"CSP issues (medium): {med_count}",
             )
         return make_verdict(
             vuln_type="csp_misconfig",
@@ -346,5 +343,5 @@ def register(mcp: FastMCP) -> None:
             evidence_summary="No critical/high CSP issues found",
             logger_indices=logger_indices,
             details=details,
-            human_summary="CSP is well-configured",
+            summary="CSP is well-configured",
         )

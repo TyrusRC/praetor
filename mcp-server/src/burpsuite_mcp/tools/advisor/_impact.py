@@ -28,7 +28,7 @@ def _read_profile_cached(path: Path) -> dict:
     cached = _profile_cache.get(key)
     if cached and cached[0] == mtime:
         return cached[1]
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     _profile_cache[key] = (mtime, data)
     return data
 

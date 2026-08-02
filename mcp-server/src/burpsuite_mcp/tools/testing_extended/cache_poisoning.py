@@ -167,11 +167,11 @@ def register(mcp: FastMCP):
                 })
                 if "error" not in resp2 and "evil" in resp2.get("response_body", ""):
                     findings.append(f"Parameter cloaking with '{separator}'")
-                    lines.append(f"  [!!] Poisoned value persists — cache is keyed differently!")
+                    lines.append("  [!!] Poisoned value persists — cache is keyed differently!")
             else:
                 lines.append(f"  Separator '{separator}': Not reflected")
 
-        lines.append(f"\n--- Summary ---")
+        lines.append("\n--- Summary ---")
         if findings:
             lines.append(f"Findings ({len(findings)}):")
             for f in findings:

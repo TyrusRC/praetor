@@ -128,7 +128,7 @@ async def test_lfi_impl(
             matched = [i for i in linux_indicators if i in body]
             if matched:
                 vulnerable = True
-                result = f"VULNERABLE (null byte bypass)"
+                result = "VULNERABLE (null byte bypass)"
 
         # Length anomaly
         if not vulnerable and status == 200 and baseline_length > 0:

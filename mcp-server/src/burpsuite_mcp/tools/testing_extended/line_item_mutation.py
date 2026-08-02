@@ -16,7 +16,7 @@ from copy import deepcopy
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
-from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
+from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict
 
 
 def _get_path(obj, path: list[str]):
@@ -90,7 +90,7 @@ def register(mcp: FastMCP):
             q_json = {}
 
         lines = [
-            f"probe_line_item_mutation",
+            "probe_line_item_mutation",
             f"[quote] {quote_request.get('method','POST')} {quote_request['path']} status={q_status}",
             f"  quote response keys: {list(q_json.keys()) if isinstance(q_json, dict) else 'non-dict'}",
             "",

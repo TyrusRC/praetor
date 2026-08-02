@@ -7,7 +7,6 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from burpsuite_mcp.tools.notes import chain_proposer
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Praetor — Setup Script
-# (formerly Burp Suite Swiss Knife MCP — renamed to Praetor at v1.0)
 # Installs all required and optional dependencies for Linux and macOS.
 # Usage: chmod +x setup.sh && ./setup.sh
 #
@@ -484,11 +483,10 @@ check wpscan
 
 echo ""
 echo "Project:"
-JAR_PATH="$SCRIPT_DIR/burp-extension/target/praetor-burp-ext-1.0.0.jar"
-# v0.x backwards-compat: if v1 jar missing but legacy jar exists, fall back.
-if [ ! -f "$JAR_PATH" ] && [ -f "$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar" ]; then
-    JAR_PATH="$SCRIPT_DIR/burp-extension/target/burpsuite-swiss-knife-0.3.0.jar"
-fi
+# Version-agnostic: a version bump in pom.xml must not make this report
+# "not built".
+JAR_PATH="$(ls -t "$SCRIPT_DIR"/burp-extension/target/praetor-burp-ext-*.jar 2>/dev/null \
+        | grep -v -e '-sources' -e '-javadoc' | head -1)"
 if [ -f "$JAR_PATH" ]; then
     echo -e "  ${GREEN}✓${NC} Burp extension JAR built"
 else
@@ -533,7 +531,7 @@ if [ "$IS_WSL" = "1" ]; then
         echo "      • Burp stays on 127.0.0.1; drop the BURP_API_HOST env block from .mcp.json."
         echo "    OR (NAT — exposes the API on the WSL vSwitch, trusted host only):"
         echo "      • Praetor config tab → Host = 0.0.0.0"
-        echo "      • launch Burp with JVM flag:  -Dswissknife.allow_non_loopback_bind=true"
+        echo "      • launch Burp with JVM flag:  -Dpraetor.allow_non_loopback_bind=true"
         echo "      • keep  env BURP_API_HOST=${WSL_HOST_IP:-<windows-host-ip>}  in .mcp.json"
     fi
     echo ""

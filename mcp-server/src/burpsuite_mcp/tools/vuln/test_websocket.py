@@ -22,7 +22,7 @@ from __future__ import annotations
 import base64
 import os
 import re
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -85,7 +85,7 @@ def register(mcp: FastMCP):
             ws_url, re.IGNORECASE))
         if token_in_url:
             bypasses.append(
-                f"§4 token in URL — leaks to proxy logs / Referer / browser history")
+                "§4 token in URL — leaks to proxy logs / Referer / browser history")
             lines.append("  §4 Token in URL:  *** PRESENT *** — auth in "
                          "ws:// URL is logged everywhere it transits")
             lines.append("")
@@ -177,7 +177,6 @@ def register(mcp: FastMCP):
                          "auth / subprotocol axes.")
 
         human = "\n".join(lines)
-        import re
         logger_indices = [int(m) for m in re.findall(r"#(-?\d+)", human) if int(m) >= 0][:10]
         if len(bypasses) >= 2:
             verdict, confidence = "CONFIRMED", 0.85

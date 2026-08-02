@@ -43,7 +43,7 @@ public final class ProxyTunnel {
 
     /**
      * Proxy host for outbound tunnel. Resolved once at class init via (in order):
-     *   1. JVM system property -Dswissknife.proxy.host (highest precedence,
+     *   1. JVM system property -Dpraetor.proxy.host (highest precedence,
      *      survives Burp launch scripts).
      *   2. Environment variable BURP_PROXY_HOST (matches the MCP server's
      *      config.py and the user's .env — works when Burp was launched
@@ -56,8 +56,12 @@ public final class ProxyTunnel {
     private static final int CONNECT_TIMEOUT_MS = 5_000;
     private static final int READ_TIMEOUT_MS = 30_000;
 
+    private static String prop(String suffix) {
+        return System.getProperty("praetor." + suffix);
+    }
+
     private static String resolveHost() {
-        String v = System.getProperty("swissknife.proxy.host");
+        String v = prop("proxy.host");
         if (v != null && !v.isBlank()) return v.trim();
         v = System.getenv("BURP_PROXY_HOST");
         if (v != null && !v.isBlank()) return v.trim();
@@ -82,7 +86,7 @@ public final class ProxyTunnel {
     }
 
     private static int resolvePort() {
-        String v = System.getProperty("swissknife.proxy.port");
+        String v = prop("proxy.port");
         if (v == null || v.isBlank()) v = System.getenv("BURP_PROXY_PORT");
         if (v != null && !v.isBlank()) {
             try { return Integer.parseInt(v.trim()); } catch (NumberFormatException ignored) {}

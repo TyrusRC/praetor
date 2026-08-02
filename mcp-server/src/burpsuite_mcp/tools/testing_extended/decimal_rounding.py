@@ -12,6 +12,7 @@ Pure black-box. Operator provides the JSON path to the amount field.
 """
 
 import json
+import math
 from copy import deepcopy
 
 from mcp.server.fastmcp import FastMCP
@@ -107,7 +108,7 @@ def register(mcp: FastMCP):
                 _set_json_path(mutated, path_parts, value)
                 vbody = json.dumps(mutated, allow_nan=True)
             except Exception as e:
-                lines.append(f"  {repr(value)}: encode error — {e}")
+                lines.append(f"  {value!r}: encode error — {e}")
                 continue
             r = await client.post("/api/session/request", json={
                 "session": session, "method": method, "path": endpoint,
@@ -115,7 +116,7 @@ def register(mcp: FastMCP):
                 "body": vbody,
             })
             if "error" in r:
-                lines.append(f"  {repr(value)} ({intent}): error — {r['error']}")
+                lines.append(f"  {value!r} ({intent}): error — {r['error']}")
                 continue
             s = r.get("status", 0)
             rbody = r.get("response_body", "")
@@ -127,7 +128,11 @@ def register(mcp: FastMCP):
             elif 200 <= s < 300:
                 # Look for the value or its rounded form in response
                 str_v = str(value)
-                for echo in (str_v, str(int(value) if isinstance(value, (int, float)) and value == value and value not in (float("inf"), float("-inf")) else "")):
+                # int() would raise on NaN/inf; isfinite covers both.
+                rounded = (str(int(value))
+                           if isinstance(value, (int, float)) and math.isfinite(value)
+                           else "")
+                for echo in (str_v, rounded):
                     if echo and echo in rbody:
                         flags.append("ECHOED")
                         break
@@ -137,7 +142,7 @@ def register(mcp: FastMCP):
                 flags.append(f"SERVER_ERROR:{s}")
 
             flag_str = " ".join(f"[!{f}]" for f in flags) if flags else "[OK]"
-            lines.append(f"  {repr(value)} ({intent}): status={s} len={ln} {flag_str}")
+            lines.append(f"  {value!r} ({intent}): status={s} len={ln} {flag_str}")
             if flags:
                 findings.append((value, intent, flags))
 
@@ -145,7 +150,7 @@ def register(mcp: FastMCP):
         if findings:
             lines.append(f"Anomalies: {len(findings)} / {len(_VARIANTS)}")
             for value, intent, flags in findings:
-                lines.append(f"  [!] {repr(value)} ({intent}): {', '.join(flags)}")
+                lines.append(f"  [!] {value!r} ({intent}): {', '.join(flags)}")
             lines.append("\nRisk: amount field accepts edge-case numerics. Verify the stored/charged amount in a real ledger before claiming finding.")
         else:
             lines.append("No numeric-edge anomalies detected.")

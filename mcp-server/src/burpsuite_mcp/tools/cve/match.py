@@ -15,7 +15,7 @@ def _load_tech_vulns() -> dict:
     path = KNOWLEDGE_DIR / "tech_vulns.json"
     if not path.exists():
         return {}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

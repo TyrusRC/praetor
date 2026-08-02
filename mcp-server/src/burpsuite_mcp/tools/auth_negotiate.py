@@ -55,8 +55,8 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(target_url)
         if not scope.get("in_scope"):
-            return error_verdict("enterprise_auth_gateway", "out_of_scope",
-                                 f"{target_url} not in scope")
+            return error_verdict(f"{target_url} not in scope",
+                                 vuln_type="enterprise_auth_gateway", reason="out_of_scope")
 
         resp = await client.post("/api/http/curl", json={
             "method": "GET",
@@ -66,8 +66,8 @@ def register(mcp: FastMCP) -> None:
             "bare_headers": True,
         })
         if resp.get("error"):
-            return error_verdict("enterprise_auth_gateway", "fetch_failed",
-                                 resp.get("error", ""))
+            return error_verdict(resp.get("error", ""),
+                                 vuln_type="enterprise_auth_gateway", reason="fetch_failed")
         logger_indices = []
         if "logger_index" in resp:
             logger_indices.append(resp["logger_index"])
@@ -113,7 +113,7 @@ def register(mcp: FastMCP) -> None:
                         "Standard cookie/bearer auth — create_session as usual."
                     ),
                 },
-                human_summary=f"Enterprise auth: {', '.join(set(mechanisms))}",
+                summary=f"Enterprise auth: {', '.join(set(mechanisms))}",
             )
         if status == 401:
             return make_verdict(
@@ -124,7 +124,7 @@ def register(mcp: FastMCP) -> None:
                 logger_indices=logger_indices,
                 details={"target_url": target_url, "status": 401,
                          "response_headers": hdrs},
-                human_summary="401 without WWW-Authenticate — custom auth gateway",
+                summary="401 without WWW-Authenticate — custom auth gateway",
             )
         return make_verdict(
             vuln_type="enterprise_auth_gateway",
@@ -133,5 +133,5 @@ def register(mcp: FastMCP) -> None:
             evidence_summary=f"Status {status} — no enterprise auth gateway",
             logger_indices=logger_indices,
             details={"target_url": target_url, "status": status},
-            human_summary=f"No enterprise auth gateway (status {status})",
+            summary=f"No enterprise auth gateway (status {status})",
         )

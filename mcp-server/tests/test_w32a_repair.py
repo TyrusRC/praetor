@@ -24,27 +24,40 @@ CLAUDE_MD = ROOT / "CLAUDE.md"
 
 
 class CountDriftTest(unittest.TestCase):
-    def test_claude_md_tool_count_not_stale(self):
-        """CLAUDE.md must show the current tool count, not pre-W32 stale 351."""
-        text = CLAUDE_MD.read_text()
-        # Forward-compatible: guard against pre-W32 stale values only.
-        # Each subsequent wave bumps the count.
-        self.assertNotIn("~351 MCP tools", text)
-        # Must still show a count line
-        import re
-        m = re.search(r"~(\d{3}) MCP tools", text)
-        self.assertIsNotNone(m, "CLAUDE.md missing tool count line")
-        # Sanity: must be ≥352 post-W32-a
-        self.assertGreaterEqual(int(m.group(1)), 352)
+    """CLAUDE.md must not carry exact inventory counts at all.
 
-    def test_claude_md_kb_count_not_stale(self):
-        """KB count must not show pre-W31-c stale 138-of-different-shape."""
+    These used to assert "the count is current". That guard failed at its own
+    job: every release moved the real number, the doc lagged, and the count
+    line was loaded into context on every session while being wrong. The fix
+    is not a fresher number — it is not stating one. Discovery goes through
+    `list_tier1_tools()` / `pick_tool()` / `skill.json` / the KB `_INDEX.md`,
+    all of which are generated from the tree and cannot drift.
+    """
+
+    def test_claude_md_states_no_tool_count(self):
         text = CLAUDE_MD.read_text()
-        # Either 137 (post-W31-c) or 138 (post-W32-c a2a_protocol intake)
-        import re
-        m = re.search(r"(\d{3}) knowledge-base JSON files", text)
-        self.assertIsNotNone(m, "CLAUDE.md missing KB count line")
-        self.assertGreaterEqual(int(m.group(1)), 137)
+        m = re.search(r"~?\d{3}\+? MCP tools", text)
+        self.assertIsNone(
+            m,
+            "CLAUDE.md states an exact tool count "
+            f"({m.group(0) if m else ''}) — it will be stale by the next release. "
+            "Point at list_tier1_tools() / pick_tool() / skill.json instead.",
+        )
+
+    def test_claude_md_states_no_kb_file_count(self):
+        text = CLAUDE_MD.read_text()
+        m = re.search(r"\d{3}\+? knowledge-base JSON files", text)
+        self.assertIsNone(
+            m,
+            "CLAUDE.md states an exact knowledge-base file count "
+            f"({m.group(0) if m else ''}) — point at knowledge/_INDEX.md instead.",
+        )
+
+    def test_claude_md_points_at_the_generated_indexes(self):
+        """Removing the counts is only safe if the lookup path is still stated."""
+        text = CLAUDE_MD.read_text()
+        for marker in ("list_tier1_tools()", "pick_tool(", "skill.json", "_INDEX.md"):
+            self.assertIn(marker, text, f"CLAUDE.md lost the discovery pointer: {marker}")
 
 
 class ChainWithCoverageTest(unittest.TestCase):
@@ -122,11 +135,16 @@ class StrToDictContractTest(unittest.TestCase):
     for backwards-compat, (c) use `{"error": ...}` shape on error paths."""
 
     def test_get_findings_returns_dict(self):
+        # Signature-shape, not signature-literal: get_findings gained pagination
+        # and filter params, and pinning the exact argument list made an
+        # unrelated feature look like a contract break.
         src = (TOOLS_DIR / "notes" / "query.py").read_text()
-        self.assertIn('async def get_findings(endpoint: str = "") -> dict:', src)
+        sig = re.search(r"async def get_findings\((.*?)\)\s*->\s*(\w+):", src, re.S)
+        self.assertIsNotNone(sig, "get_findings signature not found")
+        self.assertEqual(sig.group(2), "dict", "get_findings must return dict, not str")
+        self.assertIn("endpoint", sig.group(1))
         self.assertIn('"human_summary"', src)
         self.assertIn('"error": data["error"]', src)
-        self.assertNotIn('async def get_findings(endpoint: str = "") -> str:', src)
 
     def test_check_scope_returns_dict(self):
         src = (TOOLS_DIR / "read.py").read_text()

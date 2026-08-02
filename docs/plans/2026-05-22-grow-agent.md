@@ -23,17 +23,17 @@
 
 - [ ] **Step 1: Verify `.gitignore` excludes `.burp-intel/`**
 
-Run: `grep -n burp-intel /home/tyrus/Github/burpsuite-swiss-knife-mcp/.gitignore`
+Run: `grep -n burp-intel <repo-root>/.gitignore`
 Expected: at least one match. If absent, append `.burp-intel/` to `.gitignore`.
 
 - [ ] **Step 2: Create `_growth/` and `_growth/proposals/` directories**
 
-Run: `mkdir -p /home/tyrus/Github/burpsuite-swiss-knife-mcp/.burp-intel/_growth/proposals`
+Run: `mkdir -p <repo-root>/.burp-intel/_growth/proposals`
 Expected: directories exist, gitignored.
 
 - [ ] **Step 3: Verify on-disk layout**
 
-Run: `ls -la /home/tyrus/Github/burpsuite-swiss-knife-mcp/.burp-intel/_growth/`
+Run: `ls -la <repo-root>/.burp-intel/_growth/`
 Expected: `proposals/` subdir present.
 
 (No commit yet — storage scaffolding lands with Task 2.)
@@ -215,7 +215,7 @@ Final round emits a structured summary:
 - [ ] **Step 2: Commit storage + grow-agent file**
 
 ```bash
-cd /home/tyrus/Github/burpsuite-swiss-knife-mcp
+cd <repo-root>
 git add .claude/agents/grow-agent.md .burp-intel/_growth/.gitkeep .burp-intel/_growth/proposals/.gitkeep 2>/dev/null || true
 git commit -m "feat(agent): add grow-agent session orchestrator with growth proposals"
 ```
@@ -1004,7 +1004,7 @@ Expected: 10 files in `.claude/agents/`.
 ## Task 16: Update auto-memory MEMORY.md
 
 **Files:**
-- Modify: `~/.claude/projects/-home-tyrus-Github-burpsuite-swiss-knife-mcp/memory/MEMORY.md`
+- Modify: `<claude-project-dir>/memory/MEMORY.md`
 
 - [ ] **Step 1: Append a new section after the "## Refactor (2026-05-22)" section**
 

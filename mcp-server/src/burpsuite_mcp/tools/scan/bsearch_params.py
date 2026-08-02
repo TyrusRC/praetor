@@ -17,10 +17,8 @@ With cache-busting + reflection canaries we catch params that change behavior
 but don't echo. Routes through Burp (Rule 26a) — every request is captured.
 """
 
-import asyncio
 import hashlib
 import time
-from pathlib import Path
 from urllib.parse import urlencode, urlparse, parse_qsl
 
 from mcp.server.fastmcp import FastMCP

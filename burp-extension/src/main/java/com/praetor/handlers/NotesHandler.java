@@ -77,6 +77,16 @@ public class NotesHandler extends BaseHandler {
         sendJson(exchange, JsonUtil.object("id", id, "status", status, "updated", true));
     }
 
+    /**
+     * Null when history[index] plausibly belongs to {@code endpoint}, else a
+     * one-line description of the disagreement. Guards every downstream
+     * artifact (Burp comment, finding markdown, client report) from citing
+     * traffic unrelated to the finding.
+     */
+    private String describeEndpointMismatch(int index, String endpoint) {
+        return com.praetor.util.EvidenceMatch.describeMismatch(api, index, endpoint);
+    }
+
     private void handleSave(HttpExchange exchange) throws Exception {
         Map<String, Object> body = readJsonBody(exchange);
         String title = (String) body.get("title");
@@ -151,6 +161,7 @@ public class NotesHandler extends BaseHandler {
 
         // ── verify existence against live Burp data ──
         int proxyHistorySize = api.proxy().history().size();
+        String findingEndpoint = (String) body.get("endpoint");
         if (hasLogger) {
             int idx = ((Number) loggerIdxObj).intValue();
             // Logger entries in this codebase are sourced from proxy history
@@ -159,11 +170,31 @@ public class NotesHandler extends BaseHandler {
                 sendError(exchange, 400, "evidence.logger_index not found: " + idx);
                 return;
             }
+            String mismatch = describeEndpointMismatch(idx, findingEndpoint);
+            if (mismatch != null) {
+                sendError(exchange, 400,
+                    "evidence.logger_index " + idx + " does not belong to this finding: " + mismatch,
+                    "evidence_endpoint_mismatch",
+                    "The cited index is a different request than the one the finding describes — "
+                    + "reports, Burp comments and generated writeups would all point at the wrong "
+                    + "traffic. Re-run resend_with_modification() on the real request and cite the "
+                    + "index it returns, or fix `endpoint` to match the captured request.");
+                return;
+            }
         }
         if (hasProxy) {
             int idx = ((Number) proxyIdxObj).intValue();
             if (idx < 0 || idx >= proxyHistorySize) {
                 sendError(exchange, 400, "evidence.proxy_history_index not found: " + idx);
+                return;
+            }
+            String mismatch = describeEndpointMismatch(idx, findingEndpoint);
+            if (mismatch != null) {
+                sendError(exchange, 400,
+                    "evidence.proxy_history_index " + idx + " does not belong to this finding: " + mismatch,
+                    "evidence_endpoint_mismatch",
+                    "The cited index is a different request than the one the finding describes. "
+                    + "Cite the index of the confirming replay for this endpoint.");
                 return;
             }
         }
@@ -225,6 +256,15 @@ public class NotesHandler extends BaseHandler {
                     sendError(exchange, 400, "reproductions[].logger_index not found: " + ri,
                         "reproductions_invalid",
                         "Logger index " + ri + " is out of range (history size = " + proxyHistorySize + ").");
+                    return;
+                }
+                String repMismatch = describeEndpointMismatch(ri, findingEndpoint);
+                if (repMismatch != null) {
+                    sendError(exchange, 400,
+                        "reproductions[].logger_index " + ri + " is a different request: " + repMismatch,
+                        "reproductions_invalid",
+                        "Every replay in reproductions[] must hit the endpoint the finding describes. "
+                        + "A replay of unrelated traffic is not a reproduction.");
                     return;
                 }
             }

@@ -55,13 +55,13 @@ Top 7 files by line count carry 60%+ of recent edit churn. SessionHandler alone 
 
 | # | File | Lines | Split target |
 |---|---|---|---|
-| A1 | `burp-extension/src/main/java/com/swissknife/handlers/SessionHandler.java` | 2021 | `store/SessionStore.java`, `session/SessionRequestExecutor.java`, `session/VariableExtractor.java`, `session/FlowRunner.java`, `session/AttackSurfaceDiscovery.java`, `session/AutoProbeOrchestrator.java`, `session/BatchProbeHandler.java`, `session/SessionExtractHandler.java`, thin `SessionHandler.java` |
+| A1 | `burp-extension/src/main/java/com/praetor/handlers/SessionHandler.java` | 2021 | `store/SessionStore.java`, `session/SessionRequestExecutor.java`, `session/VariableExtractor.java`, `session/FlowRunner.java`, `session/AttackSurfaceDiscovery.java`, `session/AutoProbeOrchestrator.java`, `session/BatchProbeHandler.java`, `session/SessionExtractHandler.java`, thin `SessionHandler.java` |
 | A2 | `mcp-server/src/burpsuite_mcp/tools/recon/scanning.py` | 1004 | `recon/scanning/` package per recon family (read body to determine exact split) |
 | A3 | `mcp-server/src/burpsuite_mcp/tools/advisor/assess.py` | 884 | 6 new `advisor_kb/qN_*.py` modules + thin orchestrator |
 | A4 | `mcp-server/src/burpsuite_mcp/tools/research.py` | 841 | `research/{exploitdb,osv,github_advisory,snyk,attackerkb,github_code,register}.py` |
 | A5 | `mcp-server/src/burpsuite_mcp/tools/cve.py` | 816 | `cve/{match,shodan,nvd,register}.py` |
-| A6 | `burp-extension/src/main/java/com/swissknife/handlers/AttackHandler.java` | 789 | `attack/{AuthMatrixHandler,RaceHandler,HppHandler}.java` + shared `attack/AttackContext.java` if needed |
-| A7 | `burp-extension/src/main/java/com/swissknife/ui/ConfigTab.java` | 757 | `ui/{ScopePanel,InterceptPanel,MatchReplacePanel,...}.java` |
+| A6 | `burp-extension/src/main/java/com/praetor/handlers/AttackHandler.java` | 789 | `attack/{AuthMatrixHandler,RaceHandler,HppHandler}.java` + shared `attack/AttackContext.java` if needed |
+| A7 | `burp-extension/src/main/java/com/praetor/ui/ConfigTab.java` | 757 | `ui/{ScopePanel,InterceptPanel,MatchReplacePanel,...}.java` |
 
 ### B. Gap fixes (4 items)
 
@@ -109,7 +109,7 @@ Rationale:
 - No file in changed set > 500 lines (soft cap 400)
 - Every previously-importable symbol still importable via old path
 - MCP tool count unchanged (218): `grep -rE "@mcp\\.tool" mcp-server/src | wc -l`
-- HTTP route count unchanged: `grep "createContext" burp-extension/src/main/java/com/swissknife/server/ApiServer.java | wc -l`
+- HTTP route count unchanged: `grep "createContext" burp-extension/src/main/java/com/praetor/server/ApiServer.java | wc -l`
 
 **End-state gate:**
 - All 13 tasks green

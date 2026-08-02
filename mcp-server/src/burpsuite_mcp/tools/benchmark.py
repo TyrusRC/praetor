@@ -79,7 +79,7 @@ def register(mcp: FastMCP) -> None:
             if candidate.exists():
                 challenge_path = str(candidate)
             else:
-                return {"error": f"challenge dir not found; pass challenge_path explicitly", "looked_in": str(candidate)}
+                return {"error": "challenge dir not found; pass challenge_path explicitly", "looked_in": str(candidate)}
 
         flag_file = _bench_root() / "autopenbench" / f"{challenge_id}-flag.txt"
         expected_file = Path(challenge_path) / ".flag"

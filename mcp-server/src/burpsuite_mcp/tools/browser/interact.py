@@ -148,7 +148,7 @@ def register(mcp: FastMCP):
                     await toggle.click(timeout=2000)
                     await page.wait_for_timeout(300)
                     interactions += 1
-                    results.append(f"  [toggle] expanded element")
+                    results.append("  [toggle] expanded element")
                 except Exception:
                     pass
 
@@ -160,7 +160,7 @@ def register(mcp: FastMCP):
             results.append(f"\nCompleted: {interactions} interactions")
             if skipped_oos:
                 results.append(f"Skipped {skipped_oos} out-of-scope links.")
-            results.append(f"Check Burp proxy history for all captured traffic.")
+            results.append("Check Burp proxy history for all captured traffic.")
             return "\n".join(results)
         except Exception as e:
             return f"Error during interaction sweep: {e}"

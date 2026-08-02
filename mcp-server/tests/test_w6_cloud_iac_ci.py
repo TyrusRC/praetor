@@ -2,9 +2,7 @@
 
 import asyncio
 import json
-import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from burpsuite_mcp.tools import (

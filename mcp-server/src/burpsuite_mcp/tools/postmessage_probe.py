@@ -31,7 +31,6 @@ origin check uses .includes / startsWith, origin check whitelists wildcard).
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -161,15 +160,15 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(target_url)
         if not scope.get("in_scope"):
-            return error_verdict("postmessage_listener",
-                                 "out_of_scope", f"{target_url} not in scope")
+            return error_verdict(f"{target_url} not in scope",
+                                 vuln_type="postmessage_listener", reason="out_of_scope")
 
         # 1) browser_navigate to target
         nav = await client.post("/api/browser/navigate",
                                 json={"url": target_url, "wait_ms": wait_ms})
         if nav.get("error"):
-            return error_verdict("postmessage_listener", "navigate_failed",
-                                 nav.get("error", ""))
+            return error_verdict(nav.get("error", ""),
+                                 vuln_type="postmessage_listener", reason="navigate_failed")
 
         # 2) Install instrumentation; if we couldn't pre-instrument, fall back
         # to scanning the live document for inline message-handler signatures.
@@ -212,7 +211,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary="No window.addEventListener('message') handlers detected on page",
                 logger_indices=[],
                 details={"target_url": target_url},
-                human_summary="No postMessage listeners",
+                summary="No postMessage listeners",
             )
 
         # 3) Probe each handler with malicious payloads
@@ -283,7 +282,7 @@ def register(mcp: FastMCP) -> None:
                     "probe_results": probe_results,
                     "canary": canary,
                 },
-                human_summary=(
+                summary=(
                     f"postMessage vuln: {len(no_origin)} handler(s) without origin check, "
                     f"canary fired={any_canary_fired}"
                 ),
@@ -307,7 +306,7 @@ def register(mcp: FastMCP) -> None:
                     "strict_origin_check_count": len(strict_origin),
                     "probe_results": probe_results,
                 },
-                human_summary=(
+                summary=(
                     f"postMessage SUSPECTED: {len(no_origin)} no-origin, "
                     f"{len(loose_origin)} loose-origin handlers"
                 ),
@@ -320,5 +319,5 @@ def register(mcp: FastMCP) -> None:
             logger_indices=[],
             details={"handler_count": len(handlers),
                      "strict_origin_check_count": len(strict_origin)},
-            human_summary="postMessage handlers enforce origin correctly",
+            summary="postMessage handlers enforce origin correctly",
         )

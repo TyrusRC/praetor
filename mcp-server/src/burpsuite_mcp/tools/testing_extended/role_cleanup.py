@@ -50,7 +50,7 @@ def register(mcp: FastMCP):
             return error_verdict("privileged_endpoints is empty", vuln_type="stale_privilege")
 
         lines = [
-            f"probe_role_state_cleanup",
+            "probe_role_state_cleanup",
             f"Pre session: {session_pre}",
             f"Post session: {session_post}",
             f"Endpoints: {len(privileged_endpoints)}",

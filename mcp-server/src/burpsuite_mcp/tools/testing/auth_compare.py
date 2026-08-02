@@ -105,9 +105,9 @@ def register(mcp: FastMCP):
             elif status2 in (200, 302):
                 lines.append(f"     [!] Alt auth got {status2} - review if data should be accessible.")
 
-        lines.append(f"\n--- Response 1 (first 500 chars) ---")
+        lines.append("\n--- Response 1 (first 500 chars) ---")
         lines.append(body1[:500] if body1 else "(empty)")
-        lines.append(f"\n--- Response 2 (first 500 chars) ---")
+        lines.append("\n--- Response 2 (first 500 chars) ---")
         lines.append(body2[:500] if body2 else "(empty)")
 
         identical = body1 == body2 and status1 == status2

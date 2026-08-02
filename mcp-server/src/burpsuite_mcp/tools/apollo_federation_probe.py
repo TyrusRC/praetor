@@ -61,7 +61,7 @@ def register(mcp: FastMCP) -> None:
 
         logger_indices: list[int] = []
 
-        baseline_query = f"query A {{ __schema {{ types {{ name }} }} }}"
+        baseline_query = "query A { __schema { types { name } } }"
         bypass_query = (
             f"query B {{ "
             f"node: __typename "
@@ -123,13 +123,13 @@ def register(mcp: FastMCP) -> None:
             if "Cannot query field" not in err_text and "not authorized" not in err_text.lower():
                 return make_verdict(
                     "SUSPECTED", 0.50,
-                    f"Bypass query returned errors not matching standard authz/syntax "
-                    f"messages — partial enforcement possible. Manual review.",
+                    "Bypass query returned errors not matching standard authz/syntax "
+                    "messages — partial enforcement possible. Manual review.",
                     vuln_type="apollo_interface_authz_bypass",
                     logger_indices=logger_indices,
                     reproductions=reproductions,
                     details={"errors_excerpt": err_text[:400]},
-                    summary=f"SUSPECTED Apollo interface enforcement gap",
+                    summary="SUSPECTED Apollo interface enforcement gap",
                 )
 
         return make_verdict(

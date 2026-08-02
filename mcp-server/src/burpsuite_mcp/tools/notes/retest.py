@@ -39,7 +39,7 @@ def _apply_retest(domain: str, finding_id: str, status: str, date: str,
     from ..workspace import workspace_paths
     fdir = workspace_paths(domain)["findings"] / finding_id
     fdir.mkdir(parents=True, exist_ok=True)
-    (fdir / f"v{version}_{date}_{status}.md").write_text(render_finding_md(finding))
+    (fdir / f"v{version}_{date}_{status}.md").write_text(render_finding_md(finding), encoding="utf-8")
     write_finding_projection(domain, finding)
     return entry
 

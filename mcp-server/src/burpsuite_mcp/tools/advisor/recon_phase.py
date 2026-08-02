@@ -116,7 +116,7 @@ async def run_recon_phase_impl(
     results.append(f"\n{'='*50}")
     results.append("RECON COMPLETE — Next steps:")
     results.append(f"  1. browser_crawl('{target_url}', max_pages={crawl_depth}) — populate full proxy history")
-    results.append(f"  2. get_proxy_history(limit=50) — review all endpoints")
+    results.append("  2. get_proxy_history(limit=50) — review all endpoints")
     results.append(f"  3. auto_probe(session='{session_name}', categories={vuln_priority[:3]})")
 
     return "\n".join(results)

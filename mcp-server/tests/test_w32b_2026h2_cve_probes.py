@@ -175,7 +175,6 @@ class ClaudeCodeHookScannerBehaviorTest(unittest.IsolatedAsyncioTestCase):
         # using FastMCP's internal registry.
         # Simpler: re-implement the call by importing the module function
         # directly via reflection.
-        import burpsuite_mcp.tools.claude_code_hook_scanner as mod
         # The inner function is closed over `mcp` from register(). Re-invoke
         # via the dispatcher by calling register and reading from mcp tool list.
         tools = await mcp.list_tools()
@@ -236,7 +235,7 @@ class McpStdioShellMetaBehaviorTest(unittest.TestCase):
     def test_critical_patterns_detected(self):
         # Test the classifier helper directly
         from burpsuite_mcp.tools.mcp_stdio_shell_meta_probe import (
-            _scan_value, _METACHAR_PATTERNS,
+            _scan_value,
         )
         findings: list[dict] = []
         _scan_value("safe-server --arg1 val1", "command", findings, shell=True)

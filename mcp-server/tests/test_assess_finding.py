@@ -7,7 +7,6 @@ Each test asserts a synthetic finding produces the expected verdict band.
 Catches regressions in NEVER SUBMIT matching, IDOR evidence, and dedup logic.
 """
 
-import asyncio
 import json
 import os
 import shutil

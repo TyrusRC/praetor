@@ -92,7 +92,7 @@ def register(mcp: FastMCP) -> None:
             epss = (f"{r['epss'] * 100:5.2f}%"
                     if isinstance(r["epss"], (int, float)) else "  ?  ")
             cvss = r["cvss"] if r["cvss"] is not None else "?"
-            lines.append(f"  {r['id']:<16}  CVSS {str(cvss):<5}  EPSS {epss}{kev}{rans}")
+            lines.append(f"  {r['id']:<16}  CVSS {cvss!s:<5}  EPSS {epss}{kev}{rans}")
             if r["actor"]:
                 lines.append(f"      ACTOR: {r['actor']}")
             if r["summary"]:

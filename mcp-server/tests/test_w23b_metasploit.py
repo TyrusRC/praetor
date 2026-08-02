@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from burpsuite_mcp.tools.exploit.metasploit import (
-    _MSF_HARD_DENY,
     _format_set_commands,
     _module_denied,
     _parse_check_output,

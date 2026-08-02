@@ -103,14 +103,27 @@ def to_assess_evidence(v: dict[str, Any]) -> dict[str, Any]:
     return ev
 
 
-def error_verdict(message: str, *, vuln_type: str | None = None) -> dict[str, Any]:
-    """Shortcut for a tool that could not run (scope, network, missing dep)."""
+def error_verdict(
+    message: str,
+    *,
+    vuln_type: str | None = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Shortcut for a tool that could not run (scope, network, missing dep).
+
+    `reason` is a short machine-readable class for the failure — `out_of_scope`,
+    `baseline_failed`, `bad_payload` — so a caller can branch on why a probe
+    stopped without string-matching the message.
+    """
+    details: dict[str, Any] = {"error": message}
+    if reason:
+        details["reason"] = reason
     return make_verdict(
         "ERROR",
         0.0,
         message,
         vuln_type=vuln_type,
-        details={"error": message},
+        details=details,
         summary=message,
     )
 

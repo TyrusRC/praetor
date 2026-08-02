@@ -169,8 +169,8 @@ def register(mcp: FastMCP):
             lines.append("")
             lines.append("This is the classic stateless-JWT-no-revocation pattern.")
             lines.append("Cite logger_index in save_finding:")
-            lines.append(f"  save_finding(vuln_type='session_not_invalidated',")
-            lines.append(f"               severity='high',")
+            lines.append("  save_finding(vuln_type='session_not_invalidated',")
+            lines.append("               severity='high',")
             lines.append(f"               endpoint='{protected_url}',")
             lines.append(f"               evidence={{'logger_index': {replay_idx}, "
                          f"'reproductions': []}})")

@@ -128,7 +128,7 @@ def register(mcp: FastMCP):
             max_body = 0 if full_body else 2000
             lines.append(f"\n--- Response Body ({len(resp_body)} chars) ---")
             if max_body > 0 and len(resp_body) > max_body:
-                lines.append(resp_body[:max_body] + f"\n...[truncated — use full_body=True for complete response]")
+                lines.append(resp_body[:max_body] + "\n...[truncated — use full_body=True for complete response]")
             else:
                 lines.append(resp_body)
 
@@ -234,7 +234,7 @@ def register(mcp: FastMCP):
 
         variables = resp.get("session_variables", {})
         if variables:
-            lines.append(f"\nSession variables:")
+            lines.append("\nSession variables:")
             for k, v in variables.items():
                 display = v if len(str(v)) < 80 else str(v)[:80] + "..."
                 lines.append(f"  {k} = {display}")

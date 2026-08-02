@@ -4,7 +4,6 @@ Pure stdlib (unittest + asyncio). Run with:
     uv run python -m unittest tests.test_mutate_payload -v
 """
 
-import asyncio
 import unittest
 from unittest.mock import patch
 

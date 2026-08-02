@@ -31,9 +31,7 @@ TTL=0 trick; Praetor does NOT need to operate a DNS server.
 from __future__ import annotations
 
 import hashlib
-import re
-from typing import Any
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 from mcp.server.fastmcp import FastMCP
 
@@ -159,8 +157,8 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(target_url)
         if not scope.get("in_scope"):
-            return error_verdict("dns_rebind", "out_of_scope",
-                                 f"{target_url} not in scope")
+            return error_verdict(f"{target_url} not in scope",
+                                 vuln_type="dns_rebind", reason="out_of_scope")
 
         # 1) Control baseline
         control_resp = await _send_url_param(
@@ -168,8 +166,8 @@ def register(mcp: FastMCP) -> None:
             method=method, timeout=timeout, extra_params=extra_params,
         )
         if control_resp.get("error"):
-            return error_verdict("dns_rebind", "control_failed",
-                                 control_resp.get("error", ""))
+            return error_verdict(control_resp.get("error", ""),
+                                 vuln_type="dns_rebind", reason="control_failed")
         control_status, control_len, control_hash = _shape(control_resp)
         logger_indices = []
         if "logger_index" in control_resp:
@@ -239,7 +237,7 @@ def register(mcp: FastMCP) -> None:
                                       "length": control_len,
                                       "hash": control_hash},
                 },
-                human_summary=f"DNS rebind SSRF: {confirmed_hit['internal_marker']} returned via {confirmed_hit['host']}",
+                summary=f"DNS rebind SSRF: {confirmed_hit['internal_marker']} returned via {confirmed_hit['host']}",
             )
         if suspected_hits:
             best = suspected_hits[0]
@@ -257,7 +255,7 @@ def register(mcp: FastMCP) -> None:
                                       "hash": control_hash},
                     "attempts": attempts,
                 },
-                human_summary=f"DNS rebind shape divergence on {best['host']} — manual review",
+                summary=f"DNS rebind shape divergence on {best['host']} — manual review",
             )
         return make_verdict(
             vuln_type="dns_rebind_ssrf",
@@ -268,5 +266,5 @@ def register(mcp: FastMCP) -> None:
             details={"attempts_count": len(attempts),
                      "control_shape": {"status": control_status,
                                        "length": control_len}},
-            human_summary="DNS rebind defence holds (TOCTOU not exploitable)",
+            summary="DNS rebind defence holds (TOCTOU not exploitable)",
         )

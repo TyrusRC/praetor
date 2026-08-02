@@ -130,7 +130,7 @@ def _score(probe: dict, baseline: dict, signals: dict) -> tuple[list[str], int]:
         if isinstance(targets, list) and probe["status"] in targets:
             matched.append(f"status={probe['status']}")
             score += 30
-    if "status_changed" in signals and signals["status_changed"]:
+    if signals.get("status_changed"):
         if probe["status"] != baseline["status"]:
             matched.append(f"status_changed:{baseline['status']}→{probe['status']}")
             score += 25
@@ -175,7 +175,7 @@ def _score(probe: dict, baseline: dict, signals: dict) -> tuple[list[str], int]:
         if delta >= thresh:
             matched.append(f"timing_delta={delta}ms")
             score += 30
-    if "reflected" in signals and signals["reflected"]:
+    if signals.get("reflected"):
         payload_str = signals.get("_current_payload", "")
         if payload_str and payload_str in probe["body"]:
             matched.append("reflected_raw")

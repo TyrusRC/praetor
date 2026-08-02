@@ -52,7 +52,35 @@ public class AnnotationHandler extends BaseHandler {
                 "Verify 'index' is a valid proxy-history index (0 <= index < history.size()) and 'color' is one of RED/ORANGE/YELLOW/GREEN/CYAN/BLUE/PINK/MAGENTA/GRAY.");
             return;
         }
-        sendOk(exchange, "Annotation set");
+        // Read back what Burp actually stored. Callers write the annotation
+        // into finding markdown / reports; without a read-back they can claim
+        // a comment that never landed (or landed on another entry).
+        sendJson(exchange, readBack(((Number) body.get("index")).intValue()));
+    }
+
+    /** Post-write snapshot of the entry: what a later `get_annotations` will show. */
+    private String readBack(int index) {
+        List<ProxyHttpRequestResponse> history = api.proxy().history();
+        if (index < 0 || index >= history.size()) {
+            return JsonUtil.object("status", "ok", "index", index);
+        }
+        ProxyHttpRequestResponse item = history.get(index);
+        HighlightColor color = item.annotations().highlightColor();
+        String notes = item.annotations().notes();
+        String url = "";
+        String method = "";
+        try {
+            url = item.finalRequest().url();
+            method = item.finalRequest().method();
+        } catch (Exception ignored) {}
+        return JsonUtil.object(
+            "status", "ok",
+            "index", index,
+            "color", color != null ? color.name() : "NONE",
+            "notes", notes != null ? notes : "",
+            "method", method,
+            "url", url
+        );
     }
 
     private void handleAnnotationGet(HttpExchange exchange, String path) throws Exception {
@@ -124,6 +152,19 @@ public class AnnotationHandler extends BaseHandler {
         }
 
         ProxyHttpRequestResponse item = history.get(index);
+
+        // Optional endpoint assertion — when the caller says which endpoint the
+        // annotation is about, refuse to tag an unrelated request. Stops the
+        // "comment says finding f003 on /api/orders but the tagged entry is a
+        // logo fetch" class of misattribution at the source.
+        Object endpointObj = data.get("endpoint");
+        if (endpointObj instanceof String endpoint && !endpoint.isBlank()) {
+            String mismatch = com.praetor.util.EvidenceMatch.describeMismatch(api, index, endpoint);
+            if (mismatch != null) {
+                throw new IllegalArgumentException(
+                    "Annotation target does not match the asserted endpoint: " + mismatch);
+            }
+        }
 
         Object colorObj = data.get("color");
         if (colorObj instanceof String colorStr && !colorStr.isEmpty()) {

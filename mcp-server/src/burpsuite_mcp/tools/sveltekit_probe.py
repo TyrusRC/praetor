@@ -9,7 +9,6 @@ Returns VerdictResult. Detection via elapsed_ms vs baseline + 5xx.
 
 from __future__ import annotations
 
-import json
 import time
 
 from mcp.server.fastmcp import FastMCP

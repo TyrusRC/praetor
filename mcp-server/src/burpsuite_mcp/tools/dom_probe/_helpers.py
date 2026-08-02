@@ -15,7 +15,7 @@ _INIT_JS_CACHE: str | None = None
 def _load_init_js() -> str:
     global _INIT_JS_CACHE
     if _INIT_JS_CACHE is None:
-        _INIT_JS_CACHE = _INIT_JS_PATH.read_text()
+        _INIT_JS_CACHE = _INIT_JS_PATH.read_text(encoding="utf-8")
     return _INIT_JS_CACHE
 
 

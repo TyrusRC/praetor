@@ -1,5 +1,4 @@
 # Praetor - Windows Setup Script
-# (formerly Burp Suite Swiss Knife MCP - renamed to Praetor at v1.0)
 # Usage: .\setup.ps1
 # If execution policy blocks the script, run via:
 #   powershell -ExecutionPolicy Bypass -File setup.ps1
@@ -14,6 +13,19 @@ function Fail($m)  { Write-Host "[-] $m" -ForegroundColor Red }
 function Has-Command($name) {
     $null = Get-Command $name -ErrorAction SilentlyContinue
     return $?
+}
+
+# Locate the built extension jar without hardcoding a version, so a version
+# bump never makes setup report "not found".
+function Resolve-PraetorJar([string]$root) {
+    $targetDir = Join-Path $root 'burp-extension\target'
+    if (-not (Test-Path $targetDir)) { return $null }
+    $hit = Get-ChildItem -Path $targetDir -Filter 'praetor-burp-ext-*.jar' -File -ErrorAction SilentlyContinue |
+           Where-Object { $_.Name -notmatch '-(sources|javadoc)\.jar$' } |
+           Sort-Object LastWriteTime -Descending |
+           Select-Object -First 1
+    if ($hit) { return $hit.FullName }
+    return $null
 }
 
 function Has-Winget { Has-Command 'winget' }
@@ -166,8 +178,9 @@ try {
     mvn package -q
     if ($LASTEXITCODE -ne 0) { Fail "Maven build failed" }
     else {
-        $jarPath = Join-Path $ScriptDir 'burp-extension\target\burpsuite-swiss-knife-0.3.0.jar'
-        if (Test-Path $jarPath) { Ok "Extension built: $jarPath" } else { Fail "JAR not found at $jarPath" }
+        $jarPath = Resolve-PraetorJar $ScriptDir
+        if ($jarPath) { Ok "Extension built: $jarPath" }
+        else { Fail "JAR not found under burp-extension\target\" }
     }
 } finally { Pop-Location }
 
@@ -285,10 +298,10 @@ Write-Host "Optional (recon):"
 Check 'subfinder'; Check 'httpx'; Check 'nuclei'; Check 'katana'; Check 'dalfox'; Check 'gau'; Check 'waybackurls'
 Check 'ffuf'; Check 'sqlmap'
 
-$JarPath = Join-Path $ScriptDir 'burp-extension\target\burpsuite-swiss-knife-0.3.0.jar'
+$JarPath = Resolve-PraetorJar $ScriptDir
 Write-Host ""
 Write-Host "Project:"
-if (Test-Path $JarPath)   { Write-Host "  [OK] Burp extension JAR built" -ForegroundColor Green }
+if ($JarPath)             { Write-Host "  [OK] Burp extension JAR built: $JarPath" -ForegroundColor Green }
 else                      { Write-Host "  [-]  Burp extension JAR not found" -ForegroundColor Red }
 if (Test-Path $VenvPython){ Write-Host "  [OK] Python venv ready" -ForegroundColor Green }
 else                      { Write-Host "  [-]  Python venv not found" -ForegroundColor Red }

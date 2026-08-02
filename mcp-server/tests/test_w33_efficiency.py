@@ -102,7 +102,7 @@ class RuntimeGuardTest(unittest.TestCase):
         from burpsuite_mcp.tools import _runtime_guard as rg
 
         before = len(rg._CLEANUPS)
-        sentinel = lambda: None  # noqa: E731
+        sentinel = lambda: None
         rg.register_cleanup(sentinel)
         self.assertIn(sentinel, rg._CLEANUPS)
         self.assertEqual(len(rg._CLEANUPS), before + 1)

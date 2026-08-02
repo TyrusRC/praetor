@@ -20,7 +20,6 @@ single-packet attack in its Logger / Proxy history.
 
 import asyncio
 import re
-import time
 from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP

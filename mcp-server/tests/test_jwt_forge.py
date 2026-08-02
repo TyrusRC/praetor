@@ -9,7 +9,6 @@ Run: uv run python -m unittest tests.test_jwt_forge -v
 import base64
 import hmac
 import hashlib
-import json
 import unittest
 
 from burpsuite_mcp.tools.auth._jwt_codec import (

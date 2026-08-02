@@ -82,7 +82,7 @@ def _load_realistic_headers(domain: str) -> dict:
     if not path.exists():
         return {}
     try:
-        profile = json.loads(path.read_text())
+        profile = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
     return profile.get("realistic_headers") or {}

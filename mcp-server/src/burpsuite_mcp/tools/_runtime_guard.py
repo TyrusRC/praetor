@@ -15,7 +15,7 @@ from __future__ import annotations
 import atexit
 import signal
 from collections import deque
-from typing import Callable
+from collections.abc import Callable
 
 
 # ---------------------------------------------------------------------------

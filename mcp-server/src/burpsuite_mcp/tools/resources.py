@@ -60,7 +60,7 @@ def register(mcp: FastMCP):
         already_cached = data.get("already_in_history", [])
         failed = data.get("failed", [])
 
-        lines = [f"Page Resource Fetch Results:\n"]
+        lines = ["Page Resource Fetch Results:\n"]
         lines.append(f"  Already in history: {len(already_cached)}")
         lines.append(f"  Newly fetched: {len(fetched)}")
         lines.append(f"  Failed: {len(failed)}")

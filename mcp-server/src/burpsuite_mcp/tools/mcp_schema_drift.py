@@ -33,8 +33,6 @@ import hashlib
 import json
 import re
 import time
-from pathlib import Path
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -93,7 +91,7 @@ def register(mcp: FastMCP) -> None:
         current["_inventory_hash"] = _hash_inventory(current)
 
         if not snap_path.exists():
-            snap_path.write_text(json.dumps(current, indent=2, ensure_ascii=False))
+            snap_path.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
             return make_verdict(
                 "FAILED", 0.10,
                 f"Baseline snapshot stored for `{server_id}` "
@@ -107,11 +105,11 @@ def register(mcp: FastMCP) -> None:
                 summary=f"Baseline stored for MCP server {server_id}",
             )
 
-        prior = json.loads(snap_path.read_text())
+        prior = json.loads(snap_path.read_text(encoding="utf-8"))
         drift = _diff_inventory(prior, current)
 
         if drift["high_risk"]:
-            snap_path.write_text(json.dumps(current, indent=2, ensure_ascii=False))
+            snap_path.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
             return make_verdict(
                 "CONFIRMED", 0.88,
                 f"MCP schema drift detected for `{server_id}` — "
@@ -128,7 +126,7 @@ def register(mcp: FastMCP) -> None:
             )
 
         if drift["low_risk"]:
-            snap_path.write_text(json.dumps(current, indent=2, ensure_ascii=False))
+            snap_path.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
             return make_verdict(
                 "SUSPECTED", 0.50,
                 f"Low-risk drift detected for `{server_id}` "

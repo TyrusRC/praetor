@@ -87,6 +87,7 @@ def register(mcp: FastMCP):
         ]
         findings = []
         flagged_strong = []
+        flagged_weak = []
 
         for header, value, intent in _HEADERS_AND_VALUES:
             v = pivot_value or value
@@ -124,6 +125,8 @@ def register(mcp: FastMCP):
                 findings.append((header, v, flags, intent, strong))
                 if strong:
                     flagged_strong.append((header, v, intent))
+                else:
+                    flagged_weak.append((header, v, intent))
 
         lines.append("\n--- Summary ---")
         if findings:
@@ -142,7 +145,7 @@ def register(mcp: FastMCP):
         if flagged_strong:
             verdict, confidence = "CONFIRMED", 0.8
             ev = f"edge/internal trust split: {len(flagged_strong)} strong-signal header injections"
-        elif 'flagged_weak' in dir() and flagged_weak:
+        elif flagged_weak:
             verdict, confidence = "SUSPECTED", 0.5
             ev = "weak signals only (status/length/reflection) — manual review"
         else:

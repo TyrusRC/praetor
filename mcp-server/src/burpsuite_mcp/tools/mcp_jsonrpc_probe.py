@@ -145,8 +145,8 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(endpoint_url)
         if not scope.get("in_scope"):
-            return error_verdict("mcp_jsonrpc_enum", "out_of_scope",
-                                 f"{endpoint_url} not in scope")
+            return error_verdict(f"{endpoint_url} not in scope",
+                                 vuln_type="mcp_jsonrpc_enum", reason="out_of_scope")
 
         method_list = methods or [m for m, _ in _MCP_METHODS]
         params_map = dict(_MCP_METHODS)
@@ -212,7 +212,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary=f"{len(succeeded_methods)} MCP methods callable WITHOUT auth: {', '.join(succeeded_methods[:5])}",
                 logger_indices=logger_indices,
                 details=details,
-                human_summary=f"Unauth MCP server: {len(succeeded_methods)} methods exposed",
+                summary=f"Unauth MCP server: {len(succeeded_methods)} methods exposed",
             )
         if len(succeeded_methods) >= 2 and bearer_token:
             return make_verdict(
@@ -222,7 +222,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary=f"{len(succeeded_methods)} MCP methods enumerated with provided bearer",
                 logger_indices=logger_indices,
                 details=details,
-                human_summary=f"MCP inventory: {len(succeeded_methods)} methods",
+                summary=f"MCP inventory: {len(succeeded_methods)} methods",
             )
         if initialize_ok:
             return make_verdict(
@@ -232,7 +232,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary="initialize succeeded but most methods rejected — scoped MCP exposure",
                 logger_indices=logger_indices,
                 details=details,
-                human_summary="Scoped MCP exposure (initialize only)",
+                summary="Scoped MCP exposure (initialize only)",
             )
         return make_verdict(
             vuln_type="mcp_jsonrpc_enum",
@@ -241,5 +241,5 @@ def register(mcp: FastMCP) -> None:
             evidence_summary=f"No JSON-RPC 2.0 method succeeded across {len(method_list)} attempts",
             logger_indices=logger_indices,
             details=details,
-            human_summary="Not an MCP JSON-RPC endpoint",
+            summary="Not an MCP JSON-RPC endpoint",
         )

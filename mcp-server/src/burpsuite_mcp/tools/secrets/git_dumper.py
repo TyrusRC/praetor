@@ -162,6 +162,6 @@ def register(mcp: FastMCP) -> None:
                 f"Install proper tool: pip install git-dumper  |  "
                 f"https://github.com/arthaud/git-dumper"
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             shutil.rmtree(out_dir, ignore_errors=True)
             return f"dump timed out after {timeout}s"

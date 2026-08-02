@@ -24,7 +24,7 @@ def get_mode() -> str:
     if not f.exists():
         return _DEFAULT
     try:
-        return json.loads(f.read_text()).get("mode", _DEFAULT)
+        return json.loads(f.read_text(encoding="utf-8")).get("mode", _DEFAULT)
     except (json.JSONDecodeError, OSError):
         return _DEFAULT
 
@@ -32,4 +32,4 @@ def get_mode() -> str:
 def set_mode(mode: str) -> None:
     if mode not in _VALID:
         raise ValueError(f"mode must be one of {sorted(_VALID)}, got {mode!r}")
-    _state_file().write_text(json.dumps({"mode": mode}))
+    _state_file().write_text(json.dumps({"mode": mode}), encoding="utf-8")

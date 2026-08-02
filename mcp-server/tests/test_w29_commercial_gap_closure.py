@@ -12,8 +12,6 @@ Each tool surface gets:
 
 from __future__ import annotations
 
-import asyncio
-import base64
 import json
 import struct
 import unittest
@@ -176,15 +174,17 @@ class W29PickToolRouting(unittest.IsolatedAsyncioTestCase):
 class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_csp_header_is_confirmed_misconfig(self):
-        from burpsuite_mcp.tools import csp_analyzer
-        result = await csp_analyzer.analyze_csp.__wrapped__(
-            target_url="", header_blob="",
-        ) if hasattr(csp_analyzer, "analyze_csp") else None
-        # Not exposed at module-level; use the registration path instead.
+        # analyze_csp is defined inside register(); reach it through the
+        # registry the way the other tool tests do.
+        from burpsuite_mcp import server
+        analyze_csp = server.mcp._tool_manager._tools["analyze_csp"].fn
+        result = await analyze_csp(target_url="", header_blob="")
+        self.assertEqual(result["verdict"], "CONFIRMED")
+        self.assertEqual(result["vuln_type"], "csp_missing")
 
     async def test_csp_parser_detects_wildcard(self):
         from burpsuite_mcp.tools.csp_analyzer import (
-            _parse_csp, _effective_script_src, _has_token,
+            _parse_csp, _effective_script_src,
         )
         parsed = _parse_csp("default-src *; script-src *")
         self.assertIn("default-src", parsed)
@@ -225,7 +225,7 @@ class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
 class W29GrpcFrameCodec(unittest.TestCase):
 
     def test_gframe_wraps_with_length_prefix(self):
-        from burpsuite_mcp.tools.grpc_probe import _gframe, _gunframe
+        from burpsuite_mcp.tools.grpc_probe import _gframe
         body = b"\x1a\x00"
         framed = _gframe(body)
         self.assertEqual(framed[0], 0)  # compression flag

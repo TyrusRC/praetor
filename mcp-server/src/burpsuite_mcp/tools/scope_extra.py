@@ -10,7 +10,7 @@ from burpsuite_mcp.tools import _scope_mode
 
 def _read_subfinder_txt(p: Path) -> list[str]:
     out = []
-    for line in p.read_text().splitlines():
+    for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -20,7 +20,7 @@ def _read_subfinder_txt(p: Path) -> list[str]:
 
 def _read_amass_json(p: Path) -> list[str]:
     out = []
-    for line in p.read_text().splitlines():
+    for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
@@ -36,7 +36,7 @@ def _read_amass_json(p: Path) -> list[str]:
 
 def _read_httpx_json(p: Path) -> list[str]:
     out = []
-    for line in p.read_text().splitlines():
+    for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
@@ -52,7 +52,7 @@ def _read_httpx_json(p: Path) -> list[str]:
 
 def _read_plain(p: Path) -> list[str]:
     out = []
-    for line in p.read_text().splitlines():
+    for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue

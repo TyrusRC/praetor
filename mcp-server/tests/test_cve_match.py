@@ -10,8 +10,6 @@ class TestCveShim(unittest.TestCase):
             _BROWSER_UA,
             _NVD_API_URL,
             _SHODAN_CPE_URL,
-            _SHODAN_CPES_URL,
-            _SHODAN_CVE_URL,
             _SHODAN_CVES_URL,
             _VERSION_RE,
             _extract_version,

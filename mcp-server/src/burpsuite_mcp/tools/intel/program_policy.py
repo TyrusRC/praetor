@@ -79,7 +79,7 @@ def register(mcp: FastMCP):
             if not active.exists():
                 return "No active program. Use set_program_policy(...) to create one."
             try:
-                slug = json.loads(active.read_text()).get("slug", "")
+                slug = json.loads(active.read_text(encoding="utf-8")).get("slug", "")
             except (json.JSONDecodeError, OSError):
                 return "Active marker corrupted; recreate with set_program_policy."
             target = programs_dir / f"{slug}.json"
@@ -88,7 +88,7 @@ def register(mcp: FastMCP):
             target = programs_dir / f"{slug}.json"
         if not target.exists():
             return f"No policy for '{slug or name}'."
-        return target.read_text()
+        return target.read_text(encoding="utf-8")
 
 
 # Module-level loader for advisor.py — pure read, no MCP needed.
@@ -99,12 +99,12 @@ def load_active_program_policy() -> dict:
     if not active.exists():
         return {}
     try:
-        slug = json.loads(active.read_text()).get("slug", "")
+        slug = json.loads(active.read_text(encoding="utf-8")).get("slug", "")
         if not slug:
             return {}
         path = programs_dir / f"{slug}.json"
         if not path.exists():
             return {}
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}

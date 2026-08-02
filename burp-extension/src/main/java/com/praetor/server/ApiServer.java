@@ -64,13 +64,14 @@ public class ApiServer {
         // arbitrary requests through Burp on behalf of the caller —
         // exposing it on the LAN would let any local-network attacker drive
         // Burp directly.
-        if (!isLoopback(host) && !"true".equalsIgnoreCase(System.getProperty("swissknife.allow_non_loopback_bind"))) {
+        if (!isLoopback(host)
+                && !"true".equalsIgnoreCase(System.getProperty("praetor.allow_non_loopback_bind"))) {
             throw new IOException(
                 "Refusing to bind API on non-loopback host '" + host + "'. " +
                 "The Praetor API is unauthenticated; binding it on " +
                 "a routable interface exposes Burp to anyone on the network. " +
                 "Use 127.0.0.1 / ::1 / localhost, or pass " +
-                "-Dswissknife.allow_non_loopback_bind=true to override."
+                "-Dpraetor.allow_non_loopback_bind=true to override."
             );
         }
         server = HttpServer.create(new InetSocketAddress(host, port), 0);

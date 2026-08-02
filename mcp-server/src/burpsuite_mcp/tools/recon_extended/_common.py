@@ -30,7 +30,7 @@ async def _dig(domain: str, record_type: str, timeout: int = 10) -> str:
         )
         stdout_b, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return stdout_b.decode(errors="replace").strip()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         if proc is not None and proc.returncode is None:
             try:
                 proc.kill()

@@ -138,7 +138,7 @@ def _classify_url(url: str) -> set[str]:
         # Param-name match
         name_p = patterns.get("params")
         if name_p:
-            for pname in params.keys():
+            for pname in params:
                 if name_p.search(pname):
                     hits.add(cls)
                     break
@@ -213,7 +213,7 @@ def register(mcp: FastMCP):
             lines.append("")
             total_with_class += len(urls_in_class)
 
-        lines.append(f"--- Summary ---")
+        lines.append("--- Summary ---")
         lines.append(f"URLs in ≥1 bucket: {len(urls) - len(unmatched)} / {len(urls)}")
         lines.append(f"Total (URL,class) pairs: {total_with_class}")
         if include_unmatched and unmatched:

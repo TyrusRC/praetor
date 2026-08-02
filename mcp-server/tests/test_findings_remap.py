@@ -164,7 +164,6 @@ class SaveFindingIdMaxPlusOneTest(unittest.IsolatedAsyncioTestCase):
     async def test_save_finding_does_not_refill_gap(self):
         """If on-disk store is f001, f003 (gap at f002 — e.g. raw edit bypassed
         compaction), next save MUST become f004, NOT refill f002."""
-        from burpsuite_mcp.tools.notes._helpers import _write_findings_file
 
         domain = "t.example"
         path = _safe_findings_path(domain)

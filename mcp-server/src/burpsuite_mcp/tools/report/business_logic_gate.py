@@ -107,7 +107,7 @@ def seed_matrix(domain: str, invariants: list[dict]) -> dict:
         return {"seeded": 0, "skipped": 0, "total": 0}
     try:
         data = _load(domain)
-    except Exception:  # noqa: BLE001 — never let a bad domain raise here
+    except Exception:
         data = {}
     data.setdefault("domain", domain)
     rows = data.get("invariants")
@@ -178,7 +178,7 @@ def register(mcp: FastMCP):
 
         try:
             data = _load(domain)
-        except Exception:  # noqa: BLE001 — never let a bad domain crash the tool
+        except Exception:
             data = {}
         data.setdefault("domain", domain)
         rows: list[dict] = data.get("invariants")

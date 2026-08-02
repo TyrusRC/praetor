@@ -12,7 +12,6 @@ Strix-derived. Pure black-box.
 """
 
 import re
-import time
 import uuid as _uuid
 
 from mcp.server.fastmcp import FastMCP
@@ -90,8 +89,7 @@ def _snowflake_with_new_ts(seed_snowflake: str, new_ts_ms: int, epoch_ms: int = 
     seed = int(seed_snowflake)
     lower = seed & ((1 << 22) - 1)  # worker + sequence bits
     delta_ms = new_ts_ms - epoch_ms
-    if delta_ms < 0:
-        delta_ms = 0
+    delta_ms = max(delta_ms, 0)
     return str((delta_ms << 22) | lower)
 
 

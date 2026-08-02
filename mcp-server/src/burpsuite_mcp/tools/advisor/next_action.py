@@ -46,11 +46,11 @@ async def get_next_action_impl(
                 f"  If blind vuln: auto_collaborator_test()"
             )
         return (
-            f"NEXT: No findings yet from probing. Try specialized tests:\n"
-            f"  1. discover_common_files() — sensitive file exposure\n"
-            f"  2. test_cors() — CORS misconfiguration\n"
-            f"  3. test_jwt() — JWT vulnerabilities (if tokens present)\n"
-            f"  4. fuzz_parameter() with smart_payloads=True on highest-risk params"
+            "NEXT: No findings yet from probing. Try specialized tests:\n"
+            "  1. discover_common_files() — sensitive file exposure\n"
+            "  2. test_cors() — CORS misconfiguration\n"
+            "  3. test_jwt() — JWT vulnerabilities (if tokens present)\n"
+            "  4. fuzz_parameter() with smart_payloads=True on highest-risk params"
         )
 
     from urllib.parse import urlparse

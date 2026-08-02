@@ -35,7 +35,7 @@ from __future__ import annotations
 import re
 import uuid
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from mcp.server.fastmcp import FastMCP
 
@@ -218,10 +218,8 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(base_url)
         if not scope.get("in_scope"):
-            return error_verdict(
-                "web_llm_endpoint", "out_of_scope",
-                f"{base_url} not in scope; configure_scope or operator-mode override",
-            )
+            return error_verdict(f"{base_url} not in scope; configure_scope or operator-mode override",
+                                 vuln_type="web_llm_endpoint", reason="out_of_scope")
 
         canary = _canary()
         prompt = _discovery_prompt(canary)
@@ -273,7 +271,7 @@ def register(mcp: FastMCP) -> None:
                     "suspected_paths": suspected,
                     "canary": canary,
                 },
-                human_summary=f"LLM endpoint discovered: {best['path']} ({best['shape']} body shape)",
+                summary=f"LLM endpoint discovered: {best['path']} ({best['shape']} body shape)",
             )
         if suspected:
             best = suspected[0]
@@ -289,7 +287,7 @@ def register(mcp: FastMCP) -> None:
                     "suspected_paths": suspected,
                     "canary": canary,
                 },
-                human_summary=f"Possible LLM endpoint at {best['path']} — strict system prompt suppresses canary echo",
+                summary=f"Possible LLM endpoint at {best['path']} — strict system prompt suppresses canary echo",
             )
         return make_verdict(
             vuln_type="web_llm_endpoint",
@@ -298,7 +296,7 @@ def register(mcp: FastMCP) -> None:
             evidence_summary=f"No LLM-shape response across {len(paths)} candidate paths",
             logger_indices=logger_indices,
             details={"paths_tried": len(paths), "canary": canary},
-            human_summary="No LLM endpoint discovered",
+            summary="No LLM endpoint discovered",
         )
 
     @mcp.tool()
@@ -329,10 +327,8 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(endpoint_url)
         if not scope.get("in_scope"):
-            return error_verdict(
-                "web_llm_owasp_top10", "out_of_scope",
-                f"{endpoint_url} not in scope",
-            )
+            return error_verdict(f"{endpoint_url} not in scope",
+                                 vuln_type="web_llm_owasp_top10", reason="out_of_scope")
 
         canary = _canary()
         findings: list[dict] = []
@@ -423,7 +419,7 @@ def register(mcp: FastMCP) -> None:
                 evidence_summary=f"No OWASP LLM Top-10 hits across {len(_PI_PAYLOADS) + len(_LEAK_PAYLOADS) + 1} probes",
                 logger_indices=logger_indices,
                 details={"endpoint_url": endpoint_url, "canary": canary},
-                human_summary="LLM endpoint resisted Top-10 sweep",
+                summary="LLM endpoint resisted Top-10 sweep",
             )
 
         # Severity ladder by hit count + class
@@ -449,5 +445,5 @@ def register(mcp: FastMCP) -> None:
                 "findings": findings,
                 "canary": canary,
             },
-            human_summary=f"OWASP LLM Top-10: {len(findings)} hits ({summary})",
+            summary=f"OWASP LLM Top-10: {len(findings)} hits ({summary})",
         )

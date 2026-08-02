@@ -25,7 +25,6 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from burpsuite_mcp import client
 from burpsuite_mcp.tools.mutate import generate_variants
 
 from .fuzz_feedback import _inject, _normalize, _score, _send

@@ -35,9 +35,9 @@ def register(mcp: FastMCP):
         items = data.get("items", []) or []
         if not items:
             return (
-                f"AUDIT: 0 entries in proxy history at all. Burp may be empty, "
-                f"or all recent traffic bypassed the proxy. Check HTTPS_PROXY "
-                f"is set (see get_burp_proxy_env)."
+                "AUDIT: 0 entries in proxy history at all. Burp may be empty, "
+                "or all recent traffic bypassed the proxy. Check HTTPS_PROXY "
+                "is set (see get_burp_proxy_env)."
             )
         # Heuristic: just count items; the Burp HTTP layer doesn't expose a
         # stable timestamp on every entry. We compare proxy count vs expected.

@@ -31,8 +31,6 @@ from __future__ import annotations
 
 import base64
 import re
-from typing import Any
-from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -246,24 +244,24 @@ def register(mcp: FastMCP) -> None:
         """
         scope = await client.check_scope(acs_url)
         if not scope.get("in_scope"):
-            return error_verdict("saml_xsw", "out_of_scope",
-                                 f"{acs_url} not in scope")
+            return error_verdict(f"{acs_url} not in scope",
+                                 vuln_type="saml_xsw", reason="out_of_scope")
 
         try:
             saml_xml = base64.b64decode(saml_response_b64)
         except Exception as e:
-            return error_verdict("saml_xsw", "bad_payload",
-                                 f"saml_response_b64 not valid b64: {e}")
+            return error_verdict(f"saml_response_b64 not valid b64: {e}",
+                                 vuln_type="saml_xsw", reason="bad_payload")
 
         if b"<" not in saml_xml or b"Assertion" not in saml_xml:
-            return error_verdict("saml_xsw", "bad_payload",
-                                 "decoded payload does not look like SAML XML")
+            return error_verdict("decoded payload does not look like SAML XML",
+                                 vuln_type="saml_xsw", reason="bad_payload")
 
         # First, replay the original to establish baseline
         baseline_resp = await _send_acs(acs_url, saml_xml, relay_state, timeout=timeout)
         if baseline_resp.get("error"):
-            return error_verdict("saml_xsw", "baseline_failed",
-                                 baseline_resp.get("error", ""))
+            return error_verdict(baseline_resp.get("error", ""),
+                                 vuln_type="saml_xsw", reason="baseline_failed")
         baseline_status = baseline_resp.get("status_code", 0)
         logger_indices = []
         if "logger_index" in baseline_resp:
@@ -324,7 +322,7 @@ def register(mcp: FastMCP) -> None:
                     "all_variants": variant_results,
                     "baseline_status": baseline_status,
                 },
-                human_summary=f"SAML XSW: bypassed via {confirmed_variants[0]}",
+                summary=f"SAML XSW: bypassed via {confirmed_variants[0]}",
             )
         if suspected_variants:
             return make_verdict(
@@ -338,7 +336,7 @@ def register(mcp: FastMCP) -> None:
                     "all_variants": variant_results,
                     "baseline_status": baseline_status,
                 },
-                human_summary=f"SAML XSW SUSPECTED — {suspected_variants[0]} returned baseline status",
+                summary=f"SAML XSW SUSPECTED — {suspected_variants[0]} returned baseline status",
             )
         return make_verdict(
             vuln_type="saml_xsw",
@@ -348,5 +346,5 @@ def register(mcp: FastMCP) -> None:
             logger_indices=logger_indices,
             details={"all_variants": variant_results,
                      "baseline_status": baseline_status},
-            human_summary="SAML correctly enforces signature coverage",
+            summary="SAML correctly enforces signature coverage",
         )
