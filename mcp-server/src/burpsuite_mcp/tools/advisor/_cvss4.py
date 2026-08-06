@@ -113,10 +113,59 @@ _VULN_DEFAULTS: dict[str, dict[str, str]] = {
 }
 
 
+# Common spellings that carry the same shape as an existing entry. Without
+# these, _default() silently fell through to the info_disclosure floor and
+# scored an arbitrary-file-read or a stored XSS as a low-confidentiality leak —
+# a wrong vector printed with full confidence next to the finding.
+_VULN_ALIASES = {
+    "path_traversal": "lfi",
+    "directory_traversal": "lfi",
+    "arbitrary_file_read": "lfi",
+    "file_read": "lfi",
+    "rfi": "lfi",
+    "xss_reflected": "xss",
+    "xss_stored": "xss",
+    "reflected_xss": "xss",
+    "stored_xss": "xss",
+    "sqli_error": "sqli",
+    "sqli_union": "sqli",
+    "sqli_time": "sqli_blind",
+    "nosqli": "sqli",
+    "bola": "idor",
+    "bfla": "idor",
+    "broken_object_level_auth": "idor",
+    "broken_function_level_auth": "idor",
+    "id_enumeration": "idor",
+    "account_takeover": "ato",
+    "auth_bypass_403_to_200": "auth_bypass",
+    "login_bypass": "auth_bypass",
+    "privilege_escalation": "auth_bypass",
+    "code_injection": "rce",
+    "open_redirect_no_chain": "open_redirect",
+    "verbose_error": "info_disclosure",
+    "information_disclosure": "info_disclosure",
+}
+
+
 def _default(vuln_type: str) -> dict[str, str]:
+    """Base metrics for a class, falling back to the info-disclosure floor.
+
+    Resolution order: exact entry, then the shared vocabulary's canonical name,
+    then this module's shape table, then longest-prefix. The canonical hop is
+    what keeps this table from drifting into a second, disagreeing list of
+    class spellings — the defect that had `open_redirect` and
+    `open_redirect_no_chain` behaving differently across gates.
+    """
+    from burpsuite_mcp.tools._vuln_class import canonical
+
+    for vt in dict.fromkeys([(vuln_type or "").lower(), canonical(vuln_type)]):
+        if vt in _VULN_DEFAULTS:
+            return dict(_VULN_DEFAULTS[vt])
+        alias = _VULN_ALIASES.get(vt)
+        if alias and alias in _VULN_DEFAULTS:
+            return dict(_VULN_DEFAULTS[alias])
+
     vt = (vuln_type or "").lower()
-    if vt in _VULN_DEFAULTS:
-        return dict(_VULN_DEFAULTS[vt])
     for prefix in sorted(_VULN_DEFAULTS, key=len, reverse=True):
         if vt.startswith(prefix):
             return dict(_VULN_DEFAULTS[prefix])

@@ -286,10 +286,10 @@
             {
               "type": "word",
               "words": [
-                "role",
-                "admin",
                 "XMLStreamException",
-                "DOCTYPE"
+                "SAXParseException",
+                "DOCTYPE is not allowed",
+                "xml parsing"
               ],
               "condition": "or"
             }
@@ -311,9 +311,10 @@
             {
               "type": "word",
               "words": [
-                "admin",
-                "role",
-                "is_admin"
+                "\"is_admin\":true",
+                "\"is_admin\": true",
+                "\"role\":\"admin\"",
+                "\"role\": \"admin\""
               ],
               "condition": "or"
             }

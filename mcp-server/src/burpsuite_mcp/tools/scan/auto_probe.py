@@ -9,6 +9,7 @@ from burpsuite_mcp import client
 
 from ._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
 from ._helpers import _load_all_knowledge
+from ._prioritise import prioritise, target_tech_stack
 
 
 def _rank_order_targets(targets: list[dict]) -> list[dict]:
@@ -175,6 +176,13 @@ def register(mcp: FastMCP) -> None:
         # extension's per-target iteration probes the most valuable tuples early.
         targets = _rank_order_targets(targets)
 
+        # Order the KNOWLEDGE the same way. The orchestrator walks this list and
+        # stops at max_probes_per_param, so whatever leads the list is what gets
+        # tested — and the list order was previously arbitrary. Unconstrained
+        # contexts match every parameter and were spending the whole budget
+        # before any parameter-specific class was reached.
+        knowledge = prioritise(knowledge, targets, target_tech_stack(domain))
+
         data = await client.post("/api/session/auto-probe", json={
             "session": session,
             "targets": targets,
@@ -262,11 +270,21 @@ def register(mcp: FastMCP) -> None:
                 seen: set[tuple] = set()
                 for e in cov["entries"]:
                     seen.add((e.get("endpoint", ""), e.get("parameter", ""), e.get("category", "")))
-                active_cats = list({k.get("category") for k in knowledge if k.get("category")})
-                for t in targets:
-                    ep = t.get("path", "")
-                    par = t.get("parameter", "")
-                    for cat in active_cats:
+                # Record ONLY the categories the server reports having actually
+                # probed. The previous version recorded every category in the
+                # loaded knowledge base, so a run that sent 20 probes marked
+                # ~135 classes covered — and skip_already_covered=True (the
+                # default) then made those classes permanently unreachable on
+                # this target. A coverage entry is a claim that a class was
+                # tested; writing one for an untested class is the same defect
+                # as citing evidence that was never collected.
+                probed = data.get("probed_categories") or []
+                for rec in probed:
+                    if not isinstance(rec, dict):
+                        continue
+                    ep = rec.get("path", "")
+                    par = rec.get("parameter", "")
+                    for cat in rec.get("categories") or []:
                         key = (ep, par, cat)
                         if key in seen:
                             for e in cov["entries"]:
@@ -281,7 +299,12 @@ def register(mcp: FastMCP) -> None:
                                 "knowledge_version": kv,
                             })
                             seen.add(key)
-                cov_path.write_text(json.dumps(cov, indent=2), encoding="utf-8")
+                # Compact on disk. coverage.json is re-read by load_target_intel
+                # on every session start; indent=2 on a few thousand four-key
+                # records was 65 KB of mostly whitespace and repeated keys.
+                cov_path.write_text(
+                    json.dumps(cov, separators=(",", ":")), encoding="utf-8"
+                )
             except Exception:
                 # coverage write is best-effort; failure must not break the
                 # main probe response.

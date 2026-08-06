@@ -50,6 +50,41 @@ def _lookup_finding_id(finding_id: str) -> tuple[bool, str]:
     return False, ""
 
 
+def _record_annotation_on_finding(finding_id: str, verified: dict) -> None:
+    """Append a Burp-confirmed annotation to the finding record. Best-effort.
+
+    Stores the read-back (what Burp actually holds), never the requested text.
+    Re-annotating the same index replaces the entry rather than stacking, so
+    the list always matches the live history.
+    """
+    try:
+        from burpsuite_mcp.tools.notes._helpers import _intel_dir
+        root = _intel_dir()
+        if not root.exists():
+            return
+        for d in sorted(root.iterdir()):
+            path = d / "findings.json"
+            if not path.is_file():
+                continue
+            try:
+                store = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            for f in store.get("findings", []) or []:
+                if f.get("id") != finding_id:
+                    continue
+                tags = [
+                    a for a in (f.get("annotations") or [])
+                    if isinstance(a, dict) and a.get("index") != verified.get("index")
+                ]
+                tags.append(verified)
+                f["annotations"] = tags
+                path.write_text(json.dumps(store, indent=2), encoding="utf-8")
+                return
+    except Exception:
+        pass  # annotation bookkeeping never blocks the annotate call
+
+
 def register(mcp: FastMCP):
 
     # ── Intercept Control (collapsed) ──────────────────────────────
@@ -236,6 +271,18 @@ def register(mcp: FastMCP):
         stored_notes = data.get("notes", "")
         url = data.get("url", "")
         method = data.get("method", "")
+
+        # Record the read-back on the finding. A writeup may then cite only tags
+        # that Burp confirmed storing — the "the md says I commented X but the
+        # history has no such comment" failure comes from citing the requested
+        # text instead of the stored text.
+        if finding_id:
+            _record_annotation_on_finding(
+                finding_id,
+                {"index": index, "color": stored_color, "comment": stored_notes,
+                 "url": url, "method": method},
+            )
+
         lines = [f"Annotated #{index} — verified in Burp:"]
         lines.append(f"  color:   {stored_color}")
         lines.append(f"  comment: {stored_notes or '(none)'}")
@@ -249,13 +296,53 @@ def register(mcp: FastMCP):
         return "\n".join(lines)
 
     @mcp.tool()
-    async def annotate_bulk(items: list[dict]) -> str:
-        """Annotate multiple proxy history items at once.
+    async def annotate_bulk(items: list[dict], confirm: bool = False) -> str:
+        """Annotate multiple proxy history items at once. Claim colors are gated.
+
+        RED and ORANGE assert "this entry proves finding X" exactly as they do
+        on annotate_request, so they carry the same gate here — a bulk call is
+        not a way around it. Batches of unverified claim colors are what leave a
+        history full of RED entries no finding stands behind.
 
         Args:
-            items: List of dicts: {index, color?, comment?, endpoint?}.
+            items: List of dicts: {index, color?, comment?, endpoint?, finding_id?}.
                 `endpoint` makes the server refuse to tag an unrelated request.
+            confirm: Operator override for claim colors with no saved finding.
         """
+        blocked: list[str] = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            color_upper = str(it.get("color") or "").upper()
+            if color_upper not in ("RED", "ORANGE"):
+                continue
+            fid = str(it.get("finding_id") or "").strip()
+            if fid:
+                known, _where = _lookup_finding_id(fid)
+                if not known:
+                    blocked.append(
+                        f"#{it.get('index', '?')} {color_upper}: finding_id "
+                        f"{fid!r} does not exist in .burp-intel"
+                    )
+                continue
+            if not confirm:
+                blocked.append(
+                    f"#{it.get('index', '?')} {color_upper}: no finding_id"
+                )
+
+        if blocked:
+            return (
+                "QUESTION GATE — nothing annotated. "
+                f"{len(blocked)} of {len(items)} entries make a claim "
+                "(RED/ORANGE) with nothing backing it:\n"
+                + "\n".join(f"    - {b}" for b in blocked[:10])
+                + ("\n    ..." if len(blocked) > 10 else "")
+                + "\n  Answer one:\n"
+                "    a) add finding_id='fNNN' per entry once the finding is saved;\n"
+                "    b) pass confirm=True if you verified these entries yourself;\n"
+                "    c) downgrade to YELLOW (anomaly) or CYAN (chain candidate)."
+            )
+
         data = await client.post("/api/annotations/bulk", json={"items": items})
         if "error" in data:
             return f"Error: {data['error']}"

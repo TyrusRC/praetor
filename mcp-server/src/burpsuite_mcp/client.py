@@ -1,5 +1,8 @@
 import asyncio
 
+import time
+from urllib.parse import urlsplit
+
 import httpx
 from burpsuite_mcp.config import BASE_URL, BURP_API_TIMEOUT
 
@@ -83,47 +86,100 @@ def _generic_exception_envelope(e: Exception) -> dict:
 
 async def get(path: str, params: dict | None = None) -> dict:
     """GET request to the Burp extension REST API."""
+    started = time.monotonic()
     try:
         client = await _get_client()
         resp = await client.get(path, params=params)
         resp.raise_for_status()
-        return resp.json()
+        out = resp.json()
     except httpx.ConnectError:
-        return _connect_error_envelope()
+        out = _connect_error_envelope()
     except httpx.HTTPStatusError as e:
-        return _http_status_envelope(e)
+        out = _http_status_envelope(e)
     except Exception as e:
-        return _generic_exception_envelope(e)
+        out = _generic_exception_envelope(e)
+    _log_operation("GET", path, params, out, started)
+    return out
 
 
 async def post(path: str, json: dict | None = None) -> dict:
     """POST request to the Burp extension REST API."""
+    started = time.monotonic()
     try:
         client = await _get_client()
         resp = await client.post(path, json=json or {})
         resp.raise_for_status()
-        return resp.json()
+        out = resp.json()
     except httpx.ConnectError:
-        return _connect_error_envelope()
+        out = _connect_error_envelope()
     except httpx.HTTPStatusError as e:
-        return _http_status_envelope(e)
+        out = _http_status_envelope(e)
     except Exception as e:
-        return _generic_exception_envelope(e)
+        out = _generic_exception_envelope(e)
+    _log_operation("POST", path, json, out, started)
+    return out
 
 
 async def delete(path: str) -> dict:
     """Send DELETE request to the Burp extension API."""
+    started = time.monotonic()
     try:
         client = await _get_client()
         resp = await client.delete(path)
         resp.raise_for_status()
-        return resp.json()
+        out = resp.json()
     except httpx.ConnectError:
-        return _connect_error_envelope()
+        out = _connect_error_envelope()
     except httpx.HTTPStatusError as e:
-        return _http_status_envelope(e)
+        out = _http_status_envelope(e)
     except Exception as e:
-        return _generic_exception_envelope(e)
+        out = _generic_exception_envelope(e)
+    _log_operation("DELETE", path, None, out, started)
+    return out
+
+
+def _log_operation(verb: str, api: str, payload: dict | None, out: dict, started: float) -> None:
+    """Append this call to the operation ledger. Never raises, never blocks.
+
+    Placed here rather than in each tool on purpose: every path that reaches
+    Burp — and therefore the target — funnels through these three functions, so
+    a tool cannot send traffic without being recorded, and cannot record traffic
+    it did not send.
+    """
+    try:
+        from burpsuite_mcp.tools.oplog import _store
+
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        payload = payload if isinstance(payload, dict) else {}
+        # The target URL the operation acted on, when there was one. Absent for
+        # pure reads of Burp's own state (scope, history, findings).
+        url = out.get("url") or payload.get("url") or ""
+        entry = {
+            "tool": _store_current_tool(),
+            "api": f"{verb} {api}",
+            "host": urlsplit(url).netloc if url else "",
+            "url": _store.redact_url(str(url)) if url else "",
+            "method": payload.get("method") or "",
+            "status": out.get("status_code"),
+            "bytes": out.get("response_length"),
+            "elapsed_ms": elapsed_ms,
+            "outcome": "error" if "error" in out else "ok",
+        }
+        if "error" in out:
+            entry["error"] = str(out.get("error"))[:200]
+        _store.record({k: v for k, v in entry.items() if v not in ("", None)})
+    except Exception:
+        pass
+
+
+def _store_current_tool() -> str:
+    """Name of the MCP tool driving this call, or '' outside a tool context."""
+    try:
+        from burpsuite_mcp.tools.oplog import current_tool
+
+        return current_tool.get() or ""
+    except Exception:
+        return ""
 
 
 async def aclose() -> None:

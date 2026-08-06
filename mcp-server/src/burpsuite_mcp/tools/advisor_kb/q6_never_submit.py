@@ -7,6 +7,7 @@ stage honors a 24-char negation window so prose like "not a stack trace"
 doesn't self-flag.
 """
 
+from .._vuln_class import canonical
 from ..advisor._context import AssessContext, word_boundary_pattern
 from . import (
     CheckResult,
@@ -34,9 +35,17 @@ async def check(ctx: AssessContext) -> CheckResult:
 
     matched_key = None
 
+    # Collapse the class to the spelling these tables key on. The substring
+    # scan below can never match a key longer than the value, so a finding
+    # tagged `open_redirect` slipped past the `open_redirect_no_chain` entry —
+    # along with 14 other classes the report layer already treats as
+    # ineligible. Canonicalising first is what makes the list bite.
+    canon = canonical(ctx.vuln_lower)
+    haystack = f"{ctx.vuln_lower} {canon}" if canon != ctx.vuln_lower else ctx.vuln_lower
+
     # ── Stage 1: hard NEVER SUBMIT type match ──
     for ns_key, ns_reason in ctx.never_submit_types.items():
-        if word_boundary_pattern(ns_key).search(ctx.vuln_lower):
+        if ns_key == canon or word_boundary_pattern(ns_key).search(haystack):
             if ctx.chain_provided:
                 ctx.issues.append(
                     f"Q6 NEVER SUBMIT (chained): {ns_reason}. chain_with={ctx.chain_with} — "
@@ -52,7 +61,7 @@ async def check(ctx: AssessContext) -> CheckResult:
     # Only run when verdict still REPORT (matches original short-circuit).
     if ctx.verdict == "REPORT" and matched_key is None:
         for ns_key, ns_reason in CONDITIONAL_NEVER_SUBMIT_TYPES.items():
-            if not word_boundary_pattern(ns_key).search(ctx.vuln_lower):
+            if ns_key != canon and not word_boundary_pattern(ns_key).search(haystack):
                 continue
             if ctx.chain_provided:
                 ctx.issues.append(

@@ -6,9 +6,14 @@ but in each platform's preferred order/headers.
 """
 
 from burpsuite_mcp.tools.report.severity import (
-    cvss_v4_vector,
+    cvss4_for_finding,
     honest_severity,
 )
+
+# Rendered where a section has no stored content. A visible gap is a prompt to
+# go collect the proof; an invented sentence reads as a claim and is what gets
+# a submission closed as inaccurate.
+_MISSING = "_NOT SUPPLIED — fill from the actual request/response before submitting._"
 
 
 def _list_or_str(value, joiner="\n", item_prefix="") -> str:
@@ -81,7 +86,19 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
         evidence if isinstance(evidence, str) else str(evidence),
         impact,
     )
-    cvss_vector = cvss_v4_vector(severity)
+    # The vector describes the finding, not the label on it. Prefer the vector
+    # stored at save time; derive from the class + evidence shape otherwise.
+    # Deriving it from `severity` (the old behaviour) made the two agree by
+    # construction and conveyed nothing to a triager.
+    cvss_vector, cvss_severity = cvss4_for_finding(
+        finding.get("vuln_type") or vuln_type,
+        evidence=evidence if isinstance(evidence, dict) else {},
+        explicit_vector=str(finding.get("cvss4_vector") or finding.get("cvss_vector") or ""),
+    )
+    cvss_mismatch = (
+        f" (vector scores {cvss_severity} — reconcile before submitting)"
+        if cvss_severity and cvss_severity != severity.upper() else ""
+    )
 
     confidence = finding.get("confidence")
     conf_line = f"- Confidence: {int(round(confidence * 100))}%" if isinstance(confidence, (int, float)) else ""
@@ -93,11 +110,6 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
     walkthrough_str = _numbered(finding.get("attack_walkthrough") or finding.get("walkthrough", ""))
     escalation = finding.get("escalation", "")
     reproduction_str = _numbered(finding.get("reproduction_steps") or finding.get("steps_to_reproduce", ""))
-    default_repro = (
-        f"1. Authenticate (or skip if unauth)\n"
-        f"2. Send the request below to https://{domain}{endpoint}\n"
-        f"3. Observe the response indicators listed under Evidence"
-    )
     note_line = f"- Note: {severity_note}" if severity_note else ""
     remediation_str = _list_or_str(finding.get("remediation") or finding.get("recommendation", ""), item_prefix="- ")
     references_str = _list_or_str(finding.get("references", []), item_prefix="- ")
@@ -108,7 +120,7 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 
     if platform == "hackerone":
         return f"""## Summary
-{vuln_type} in `{endpoint}` on {domain} allows an attacker to {impact or 'access unauthorized resources'}.
+{vuln_type} in `{endpoint}` on {domain} allows an attacker to {impact or '_[impact not supplied]_'}.
 
 ## Context
 {context or '_Briefly describe what this endpoint does, who can reach it, and why a vulnerability here matters._'}
@@ -117,10 +129,10 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 {description or f'{vuln_type} in the `{param}` parameter at `{endpoint}`.'}
 
 ## Steps to Reproduce (cold start)
-{reproduction_str or poc_steps or default_repro}
+{reproduction_str or poc_steps or _MISSING}
 
 ## Proof of Concept Request
-{poc_steps or '_Insert HTTP request_'}
+{poc_steps or _MISSING}
 
 ## Attack Walkthrough — How an attacker exploits this
 {walkthrough_str or '_Step-by-step exploitation: discovery → injection → control → impact._'}
@@ -129,7 +141,7 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 {escalation or '_How this finding can be chained or escalated for higher impact (account takeover, RCE, lateral movement)._'}
 
 ## Impact
-{impact or description}
+{impact or _MISSING}
 
 ## Remediation
 {remediation_str or '_Concrete fix: input validation / output encoding / parameterised queries / least-privilege IAM._'}
@@ -139,7 +151,7 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 
 ## References
 {references_str}
-- Severity: {severity}
+- Severity: {severity}{cvss_mismatch}
 {conf_line}
 - CVSS 4.0 vector (edit via https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator): {cvss_vector}
 - CWE: {cwe or '_e.g. CWE-89, CWE-79_'}
@@ -163,14 +175,14 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 - Auth state: [specify authentication state]
 
 ### PoC Request
-{poc_steps or '_Insert HTTP request_'}
+{poc_steps or _MISSING}
 
 ### Steps to Reproduce (cold start)
-{reproduction_str or '1. [Steps needed]'}
+{reproduction_str or _MISSING}
 
 ### Expected vs Actual
 - Expected: Request is handled securely
-- Actual: {impact or 'Vulnerability is exploitable'}
+- Actual: {impact or _MISSING}
 
 ## Attack Walkthrough
 {walkthrough_str or '_End-to-end exploit: discovery → trigger → control → impact._'}
@@ -179,13 +191,13 @@ def format_platform_finding(finding: dict, platform: str, domain: str) -> str:
 {escalation or '_How this can be chained: e.g. SSRF → IMDS credentials → S3 takeover; XSS → cookie theft → ATO._'}
 
 ## Impact Statement
-{impact or description}
+{impact or _MISSING}
 
 ## Remediation
 {remediation_str or '_Server-side validation, parameterised queries, output encoding, least-privilege IAM._'}
 
 ## CVSS 4.0
-Severity: {severity}
+Severity: {severity}{cvss_mismatch}
 {conf_line}
 Vector (edit via https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator): {cvss_vector}
 CWE: {cwe}
@@ -213,10 +225,10 @@ https://{domain}{endpoint}
 {description or f'{vuln_type} found in {endpoint}'}
 
 ## Proof of Concept Request
-{poc_steps or '_Insert HTTP request_'}
+{poc_steps or _MISSING}
 
 ## Steps to Reproduce (cold start)
-{reproduction_str or '1. [Steps needed]'}
+{reproduction_str or _MISSING}
 
 ## Attack Walkthrough
 {walkthrough_str or '_Step-by-step exploitation_'}
@@ -225,14 +237,14 @@ https://{domain}{endpoint}
 {escalation or '_Chain to higher-impact outcome_'}
 
 ## Impact
-{impact or description}
+{impact or _MISSING}
 Severity: {severity}
 
 ## Remediation
 {remediation_str or '_Concrete fix guidance_'}
 
 ## CVSS 4.0
-Severity: {severity}
+Severity: {severity}{cvss_mismatch}
 {conf_line}
 Vector String (edit via https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator): {cvss_vector}
 CWE: {cwe}
@@ -254,18 +266,18 @@ OWASP: {owasp}
 {context or '_Protocol component, on-chain or off-chain, who interacts with it._'}
 
 ## Impact
-{impact or 'Describe the concrete impact on the protocol — funds at risk, governance, asset loss.'}
+{impact or _MISSING}
 
 ## Risk Breakdown
 Difficulty to Exploit: [Easy/Medium/Hard]
-Severity: {severity}
+Severity: {severity}{cvss_mismatch}
 CVSS 4.0: {cvss_vector}
 
 ## Proof of Concept Request
-{poc_steps or '_Insert HTTP request / transaction_'}
+{poc_steps or _MISSING}
 
 ## Steps to Reproduce
-{reproduction_str or '1. [Steps needed]'}
+{reproduction_str or _MISSING}
 
 ## Attack Walkthrough
 {walkthrough_str or '_End-to-end exploitation including any required setup_'}

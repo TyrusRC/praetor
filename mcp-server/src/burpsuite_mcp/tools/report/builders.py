@@ -27,8 +27,16 @@ _INTERNAL_VALUE_MARKERS = (
 
 
 def _is_internal_evidence(key: str, value: object) -> bool:
-    """True when an evidence entry is a Burp/workspace bookkeeping reference."""
-    if str(key).lower() in _INTERNAL_EVIDENCE_KEYS:
+    """True when an evidence entry is a Burp/workspace bookkeeping reference.
+
+    The name list alone was not enough. Operators label evidence with keys the
+    list cannot enumerate ahead of time — `true_branch_index`, `baseline_index`,
+    `quote_break_index` — and each one is still a pointer into this operator's
+    Burp session that the reader cannot resolve. Any `*_index` / `*_indices`
+    key is bookkeeping regardless of its prefix.
+    """
+    k = str(key).lower()
+    if k in _INTERNAL_EVIDENCE_KEYS or k.endswith(("_index", "_indices")):
         return True
     s = str(value)
     return any(m in s for m in _INTERNAL_VALUE_MARKERS)
@@ -150,7 +158,8 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
     confidence = finding.get("confidence")
     cwe = finding.get("cwe", "")
     owasp = finding.get("owasp", "")
-    cvss = finding.get("cvss_vector") or finding.get("cvss", "")
+    cvss = finding.get("cvss4_vector") or finding.get("cvss_vector") or finding.get("cvss", "")
+    cvss_band = finding.get("cvss4_severity", "")
     vuln_type = finding.get("vulnerability_type") or finding.get("vuln_type", "")
 
     # Framework tagging (W34-b): MITRE ATT&CK / WSTG / OWASP / CWE from the
@@ -181,6 +190,12 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
     if cvss:
         lines.append(f"- CVSS 4.0 vector: `{cvss}`")
     lines.append(f"- Severity: **{severity}**")
+    # A label that disagrees with its own vector is the thing a reader spots
+    # first. Surface it to the operator rather than shipping it silently.
+    if internal and cvss_band and cvss_band.upper() != str(severity).upper():
+        lines.append(
+            f"- _Operator note: vector scores {cvss_band}; reconcile before delivery._"
+        )
     lines.append(f"- Status: `{status}`")
     if isinstance(confidence, (int, float)):
         pct = int(round(confidence * 100))
@@ -371,15 +386,14 @@ unauthenticated and authenticated perspective where credentials were provided.
    names, auth state, and detected tech stack. Priority categories selected
    based on framework-implied bug classes (e.g. prototype pollution on
    Node, deserialization on Java, mass assignment on Rails).
-3. **Vulnerability Analysis** — Knowledge-driven probing across 25+
-   vulnerability categories (OWASP Top 10 2021 + API Top 10 2023) with
-   server-side matchers tuned for low false-positive rates. Manual testing
-   for business-logic flaws, race conditions, IDOR matrices, and chained
-   exploits.
-4. **Exploitation** — Each suspected finding verified by reproducible PoC
-   request, baseline-vs-anomaly comparison, and (for blind/timing classes)
-   ≥3 consistent replays. Out-of-band confirmation via Burp Collaborator for
-   blind SQLi, SSRF, RCE, XXE, and deserialization classes.
+3. **Vulnerability Analysis** — Knowledge-driven probing across the OWASP
+   Top 10 2021 and API Top 10 2023 classes with server-side matchers tuned
+   for low false-positive rates. Manual testing for business-logic flaws,
+   race conditions, IDOR matrices, and chained exploits.
+4. **Exploitation** — Each reported finding verified by reproducible PoC
+   request and baseline-vs-anomaly comparison. Blind and timing classes were
+   held to repeated independent replays; out-of-band confirmation via Burp
+   Collaborator for blind SQLi, SSRF, RCE, XXE, and deserialization.
 5. **Post-Exploitation / Impact Assessment** — Concrete attacker walkthrough
    (privilege escalation, lateral movement, data exfiltration potential),
    CVSS 4.0 scoring with target-specific metrics (calculator:
@@ -390,9 +404,9 @@ unauthenticated and authenticated perspective where credentials were provided.
    Evidence, Remediation, References), and prioritised remediation roadmap.
 
 **Tooling:** Burp Suite Professional (intercepting proxy, scanner, repeater,
-intruder, collaborator), Praetor MCP integration with Claude
-Code, supplementary external recon tools (subfinder, nuclei, katana, ffuf,
-dalfox, sqlmap) routed through the Burp proxy for full traffic capture.
+intruder, collaborator) with supplementary external recon tooling (subfinder,
+nuclei, katana, ffuf, dalfox, sqlmap) routed through the Burp proxy for full
+traffic capture.
 
 **Scope discipline:** All testing constrained to the program's declared scope.
 Destructive payloads (DROP, DELETE, TRUNCATE, rm -rf), credential brute-force,
@@ -400,7 +414,13 @@ and modification of other users' data were explicitly excluded. Blind testing
 preferred Collaborator over visible side effects."""
 
 
-def build_coverage_section(coverage: dict) -> str:
+def build_coverage_section(coverage: dict, internal: bool = False) -> str:
+    """Coverage matrix.
+
+    Rule 16a: request tallies and parameter counts measure effort, not risk,
+    and read as padding to a triager or client. The client-facing version names
+    which classes were exercised; the counts stay in the internal artifact.
+    """
     entries = coverage.get("entries", [])
     if not entries:
         return ""
@@ -411,15 +431,22 @@ def build_coverage_section(coverage: dict) -> str:
             by_category[c] = by_category.get(c, 0) + 1
 
     lines = ["## Test Coverage", ""]
-    lines.append(f"**Total parameters tested:** {len(entries)}")
-    lines.append(f"**Knowledge base version:** {coverage.get('knowledge_version', 'unknown')}")
-    lines.append("")
+    if internal:
+        lines.append(f"**Total parameters tested:** {len(entries)}")
+        lines.append(f"**Knowledge base version:** {coverage.get('knowledge_version', 'unknown')}")
+        lines.append("")
 
     if by_category:
-        lines.append("| Category | Parameters Tested |")
-        lines.append("|----------|------------------|")
-        for cat, count in sorted(by_category.items(), key=lambda x: -x[1]):
-            lines.append(f"| {cat} | {count} |")
+        if internal:
+            lines.append("| Category | Parameters Tested |")
+            lines.append("|----------|------------------|")
+            for cat, count in sorted(by_category.items(), key=lambda x: -x[1]):
+                lines.append(f"| {cat} | {count} |")
+        else:
+            lines.append("Vulnerability classes exercised against the in-scope surface:")
+            lines.append("")
+            for cat in sorted(by_category):
+                lines.append(f"- {cat}")
         lines.append("")
 
     return "\n".join(lines)

@@ -31,11 +31,22 @@ def render_finding_md(finding: dict) -> str:
     conf = finding.get("confidence")
     if isinstance(conf, (int, float)):
         lines.append(f"- **Confidence:** {conf:.2f}")
+    cvss = finding.get("cvss4_vector") or ""
+    if cvss:
+        band = finding.get("cvss4_severity") or ""
+        suffix = f" (scores {band})" if band else ""
+        lines.append(f"- **CVSS 4.0:** `{cvss}`{suffix}")
+    if finding.get("cwe"):
+        lines.append(f"- **CWE:** {finding['cwe']}")
     lines.append("")
 
     desc = (finding.get("description") or "").strip()
     if desc:
         lines += ["## Description", desc, ""]
+
+    impact = (finding.get("impact") or "").strip()
+    if impact:
+        lines += ["## Impact", impact, ""]
 
     evidence = finding.get("evidence") or {}
     if evidence:
@@ -63,11 +74,33 @@ def render_finding_md(finding: dict) -> str:
             lines.append(f"- {r}")
         lines.append("")
 
-    poc_steps = finding.get("poc_steps") or []
+    poc_request = (finding.get("poc_request") or "").strip()
+    if poc_request:
+        lines += ["## PoC Request", "```http", poc_request, "```", ""]
+
+    poc_steps = finding.get("reproduction_steps") or finding.get("poc_steps") or []
     if poc_steps:
         lines.append("## PoC Steps")
         for i, step in enumerate(poc_steps, 1):
             lines.append(f"{i}. {step}")
+        lines.append("")
+
+    remediation = (finding.get("remediation") or "").strip()
+    if remediation:
+        lines += ["## Remediation", remediation, ""]
+
+    # Only annotations Burp confirmed storing. The text here is the read-back,
+    # never what the annotate call requested — citing the requested text is how
+    # a writeup ends up describing a Burp comment that the history does not have.
+    annotations = [a for a in (finding.get("annotations") or []) if isinstance(a, dict)]
+    if annotations:
+        lines.append("## Burp Annotations (read back from the live history)")
+        for a in annotations:
+            entry = f" — {a.get('method', '')} {a.get('url', '')}".rstrip()
+            lines.append(
+                f"- #{a.get('index', '?')} [{a.get('color', 'NONE')}] "
+                f"{a.get('comment') or '(no comment)'}{entry if entry.strip('— ') else ''}"
+            )
         lines.append("")
 
     chain = finding.get("chain_with") or []

@@ -74,6 +74,20 @@ _MAPPINGS = [
      "smart_js_analyze",
      "smart_js_analyze(url='https://app/_next/static/chunks/main.js', "
      "target_base_url='https://app.example.com', max_targets=10)"),
+    # ----- Version-delta reasoning — must win over a plain advisory lookup -----
+    # Operator gap: the public PoC targets version A, the target runs version B,
+    # the PoC is fired verbatim and fails on a shape change that has nothing to
+    # do with the vulnerability. The reflex is to go read another advisory; the
+    # correct move is to reason about what changed between A and B. Routed
+    # BEFORE the CVE-variant and lookup entries so the reasoning tool wins.
+    (["adapt poc", "adapt payload", "poc for different version",
+      "poc version mismatch", "different version", "version mismatch",
+      "app runs version", "target runs a different version",
+      "poc written for", "port poc", "backport poc", "forward-port poc",
+      "version delta", "does the poc still apply", "affected range"],
+     "adapt_poc_to_version",
+     "adapt_poc_to_version(component='<pkg>', poc_version='<A>', "
+     "target_version='<B>', fixed_version='<fix>')"),
     # ----- W30-a: CVE-aware variant sweep — wins on CVE-id keywords -----
     # Operator gap (2026-06-11): known CVE on target, public PoC needs payload
     # tweak. probe_cve_with_variants ships a bounded curated variant pack +

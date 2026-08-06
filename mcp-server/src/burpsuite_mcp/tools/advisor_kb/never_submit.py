@@ -38,6 +38,12 @@ CONDITIONAL_NEVER_SUBMIT_TYPES = {
     "csrf_logout": "CSRF logout alone is minimal — but CSRF-logout chained with phishing / pre-auth flow IS reportable",
     "host_header_no_cache": "Host header injection without cache effect is no exploit — UNLESS the endpoint generates emails (password reset, magic link, 2FA send), in which case host-header poisoning IS reportable",
     "cors_no_creds": "CORS reflection without Allow-Credentials usually browser-blocks — but if the endpoint serves private artefacts (signed S3 URL, presigned token, API key) without auth, the public-by-flaw exposure IS reportable",
+    # An information leak is a lead, not a result. A disclosed internal path,
+    # database error, stack trace or debug endpoint is the INPUT to the next
+    # question — what does it let you reach that you could not reach before? —
+    # and it is reportable once that question is answered and chained. Filed
+    # alone it is what programs close as Informative.
+    "info_disclosure": "Information disclosure alone (internal path, DB error, debug endpoint, directory listing) — USE it to reach a real finding, then chain; the leak itself is a lead, not a result",
     "version_disclosure": "Version disclosure alone — but a disclosed version with a known pre-auth CVE IS reportable; chain with the CVE finding",
     "options_method": "OPTIONS method enabled — normal HTTP — but OPTIONS allowing arbitrary verbs (TRACE/PUT/DELETE) on a sensitive path IS reportable",
 }

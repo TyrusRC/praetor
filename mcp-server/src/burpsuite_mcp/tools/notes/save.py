@@ -8,6 +8,15 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
+from burpsuite_mcp.tools._vuln_class import canonical
+from burpsuite_mcp.tools.report.severity import (
+    SEVERITY_RANK,
+    cvss4_for_finding,
+    severity_cap_for,
+    severity_cvss_conflict,
+    sort_findings_by_risk,
+    tier_guidance,
+)
 
 from ._helpers import (
     _compact_and_remap_findings,
@@ -22,6 +31,47 @@ from ._helpers import (
     _sanitized,
     _write_findings_file,
 )
+
+
+def _find_systemic_sibling(
+    domain: str, vuln_type: str, endpoint: str, parameter: str, title: str
+) -> dict | None:
+    """An existing live finding of the same class at a DIFFERENT endpoint.
+
+    Returns the earliest such finding (the one that would be the distinct
+    report), annotated with `_endpoints` listing every location it already
+    covers. None when the class is new to this target, or when this is the same
+    endpoint — that case is the existing exact-match dedup, not a systemic one.
+    """
+    canon = canonical(vuln_type)
+    if not canon:
+        return None
+    try:
+        path = _safe_findings_path(domain)
+        if not path.exists():
+            return None
+        findings = _load_findings_file(path).get("findings", [])
+    except (OSError, ValueError):
+        return None
+
+    same_class = [
+        f for f in findings
+        if canonical(f.get("vuln_type", "")) == canon
+        and (f.get("status") or "") not in ("likely_false_positive", "stale")
+    ]
+    if not same_class:
+        return None
+    # Same endpoint AND parameter is the ordinary duplicate the dedup key
+    # already merges — let it through to _dedupe_finding.
+    if any(f.get("endpoint", "") == endpoint and f.get("parameter", "") == parameter
+           for f in same_class):
+        return None
+
+    first = min(same_class, key=lambda f: str(f.get("created") or f.get("id") or ""))
+    return {**first, "_endpoints": sorted({
+        f"{f.get('endpoint', '')} ({f.get('parameter') or 'no parameter'})"
+        for f in same_class
+    })}
 
 
 def register(mcp: FastMCP):
@@ -41,11 +91,21 @@ def register(mcp: FastMCP):
         parameter: str = "",
         vuln_type: str = "",
         confidence: float = 0.5,
+        impact: str = "",
+        remediation: str = "",
+        poc_request: str = "",
+        reproduction_steps: list[str] | None = None,
+        cwe: str = "",
+        cvss_vector: str = "",
         force_recon_gate: bool = False,
         human_verified: bool = False,
         overrides: list[str] | None = None,
     ) -> str:
         """Save a pentest finding. Requires prior assess_finding(). Burp hard-rejects missing evidence.
+
+        The report renders only what is stored here. A field left empty is a
+        section the deliverable omits — it is never filled in later from
+        recollection, which is how reports end up describing a PoC nobody ran.
 
         Args:
             title: Short finding title.
@@ -61,6 +121,17 @@ def register(mcp: FastMCP):
             parameter: Parameter name (dedup key).
             vuln_type: Vuln class (e.g. sqli, xss, sqli_blind).
             confidence: 0.0-1.0 score.
+            impact: What an attacker GAINS — whose data, which action, what they
+                obtain that they could not get legitimately. Required for
+                MEDIUM and above: a finding that cannot state this is what
+                programs close as Informative.
+            remediation: The fix, specific to this endpoint/parameter.
+            poc_request: Raw HTTP request that demonstrates the issue.
+            reproduction_steps: Cold-start steps a triager can follow.
+            cwe: CWE id (e.g. 'CWE-89'). Blank falls back to the class map.
+            cvss_vector: Explicit CVSS 4.0 vector. Blank derives one from
+                vuln_type + evidence shape flags; the derived band is
+                cross-checked against `severity`.
             force_recon_gate: Bypass session-start recon gate (Rule 20a); only if recon is in flight and not yet persisted.
             human_verified: Operator confirmed visually in Burp/DevTools. Logged in metadata.
             overrides: Audit-trailed gate bypasses (R20), each "<gate>:<reason>".
@@ -159,15 +230,110 @@ def register(mcp: FastMCP):
                 f"  {burp_msg}"
             )
 
-        # ── Rule 20a: recon gate ──────────────────────────────────
         override_set = {(o.split(":", 1)[0] if ":" in o else o).strip().lower()
                         for o in (overrides or [])}
+
+        # ── INFO gate: a finding board starts at LOW ──
+        # An INFO observation is an input to the next question, not an output to
+        # file. Saving it makes it a "finding": it lands on the board, reloads
+        # every session, gets counted in the report, and ends up submitted and
+        # closed Informative. Leads belong in notes.md, where they cost nothing
+        # and stay available for the escalation that turns them into a finding.
+        if severity == "INFO" and "severity_info" not in override_set:
+            return (
+                "INFO GATE: findings start at LOW. INFO is a lead, not a result.\n"
+                f"  '{title}' describes something observed, not something an "
+                f"attacker gains.\n"
+                "  Ask what it ENABLES, then file the thing it enabled:\n"
+                "    - leaked path / DB error / stack trace -> read the file, reach "
+                "the host, or land the injection it points at;\n"
+                "    - disclosed version -> land a working exploit for that version;\n"
+                "    - enumeration oracle -> pair it with a working account attack.\n"
+                "  If the escalation fails, record it with save_target_notes(domain, ...) "
+                "so the next session has the lead without carrying a finding.\n"
+                "  If it genuinely belongs in the deliverable as context, chain it: "
+                "chain_with=['fNNN'].\n"
+                "  Deliberate exception: overrides=['severity_info:<reason>']."
+            )
+
+        # ── Impact gate: MEDIUM+ must say what the attacker GAINS ──
+        # Q3 in assess_finding demands this before the finding is approved; the
+        # answer was then discarded and the report rendered no Impact section at
+        # all, leaving it to be reconstructed from memory at write-up time.
+        # Capturing it here is what makes the report evidence-backed.
+        if SEVERITY_RANK.get(severity, 0) >= SEVERITY_RANK["MEDIUM"] and not impact.strip():
+            if "q3_impact" not in override_set:
+                return (
+                    f"IMPACT GATE: severity={severity} requires impact='...'.\n"
+                    f"  State what an attacker DOES with this — whose data, which "
+                    f"action, what they gain that they could not get legitimately.\n"
+                    f"  The report renders this verbatim; leaving it empty means the "
+                    f"deliverable has no impact section and the claim gets closed "
+                    f"Informative.\n"
+                    f"  If the impact genuinely comes from a chain, pass "
+                    f"chain_with=['fNNN'] and restate it here in one line.\n"
+                    f"  Deliberate exception: overrides=['q3_impact:<reason>']."
+                )
+
+        # ── Severity vs CVSS 4.0 band ─────────────────────────────
+        cvss4_vector, cvss4_severity = cvss4_for_finding(
+            vuln_type, evidence=evidence if isinstance(evidence, dict) else {},
+            explicit_vector=cvss_vector,
+        )
+        conflict = severity_cvss_conflict(
+            severity, cvss4_severity, cap=severity_cap_for(vuln_type, title)
+        )
+        if conflict and "severity_cvss" not in override_set:
+            return (
+                f"SEVERITY/CVSS GATE: {conflict}.\n"
+                f"  Vector: {cvss4_vector}\n"
+                f"  A HIGH label on a LOW vector is the inflation triagers "
+                f"downgrade on sight; a LOW label on a CRITICAL vector buries "
+                f"the finding at the bottom of the report.\n"
+                f"  Fix one of the two: set severity='{cvss4_severity}', or pass "
+                f"cvss_vector='CVSS:4.0/...' reflecting the metrics you actually "
+                f"observed (AV/AC/PR/UI and the VC/VI/VA impacts).\n"
+                f"  Tiers, rated on business impact and not on how the bug was found:\n"
+                f"{tier_guidance()}\n"
+                f"  Deliberate exception: overrides=['severity_cvss:<reason>']."
+            )
+
+        # ── Systemic-duplicate gate ───────────────────────────────
+        # The same root cause on a second endpoint is one systemic finding with
+        # two affected locations, not two findings. Platforms pay the first
+        # distinct report and discount or zero the rest, so splitting one
+        # unparameterised-query bug across every page that reaches it converts
+        # a full-value report into a pile of duplicates — and inflates the
+        # board the operator has to read.
+        if resolved_domain and status != "likely_false_positive" \
+                and "systemic_dup" not in override_set:
+            sibling = _find_systemic_sibling(
+                resolved_domain, vuln_type, endpoint, parameter, title
+            )
+            if sibling is not None:
+                others = sibling.get("_endpoints", [])
+                return (
+                    f"SYSTEMIC GATE: {sibling.get('id')} already reports "
+                    f"{vuln_type or 'this class'} on this target.\n"
+                    f"  Already covered: {', '.join(others[:5])}"
+                    f"{' ...' if len(others) > 5 else ''}\n"
+                    f"  New location:    {endpoint} ({parameter or 'no parameter'})\n"
+                    "  Same root cause on another endpoint is one systemic finding with\n"
+                    "  several affected locations — a second report is a duplicate and\n"
+                    "  earns nothing. Add this endpoint to the existing finding's\n"
+                    "  description and reproduction_steps instead.\n"
+                    "  File separately only if the root cause is genuinely different\n"
+                    "  (different code path, different sink, different fix): "
+                    "overrides=['systemic_dup:<why this is a distinct defect>']."
+                )
+
+        # ── Rule 20a: recon gate ──────────────────────────────────
         skip_recon_gate = force_recon_gate or "recon_gate" in override_set
         if resolved_domain and not skip_recon_gate:
             from burpsuite_mcp.tools.intel import recon_gate_check
             gate_err = recon_gate_check(resolved_domain)
             if gate_err is not None:
-                return f"RECON GATE: {gate_err}"
+                return gate_err  # already prefixed "RECON GATE:" by the checker
 
         # ── R25: chain_with validator ─────────────────────────────
         if chain_with and resolved_domain:
@@ -258,6 +424,13 @@ def register(mcp: FastMCP):
                 "parameter": parameter,
                 "vuln_type": vuln_type,
                 "confidence": round(confidence, 2),
+                "impact": impact,
+                "remediation": remediation,
+                "poc_request": poc_request,
+                "reproduction_steps": reproduction_steps or [],
+                "cwe": cwe,
+                "cvss4_vector": cvss4_vector,
+                "cvss4_severity": cvss4_severity,
                 "last_updated": now,
                 "burp_id": str(burp_id) if burp_id != "?" else "",
             }
@@ -276,13 +449,17 @@ def register(mcp: FastMCP):
                         max_num = max(max_num, int(fid[1:]))
                 updated_list[idx]["id"] = f"f{max_num + 1:03d}"
                 updated_list[idx]["created"] = now
-            saved_id = updated_list[idx].get("id", "")
-            store["findings"] = updated_list
+            saved_entry = updated_list[idx]
+            saved_id = saved_entry.get("id", "")
+            # Highest severity first, so re-severity of an old finding moves it to
+            # the top of the board instead of staying buried at its insertion
+            # position. IDs are stable, so reordering is safe for chain_with[].
+            store["findings"] = sort_findings_by_risk(updated_list)
             store["last_modified"] = now
             _write_findings_file(findings_path, store)
             # Projection: human-readable writeup from the canonical record (best-effort).
             from ._projection import write_finding_projection
-            write_finding_projection(resolved_domain, updated_list[idx])
+            write_finding_projection(resolved_domain, saved_entry)
 
         if not resolved_domain:
             return (
@@ -543,7 +720,7 @@ def register(mcp: FastMCP):
             )
 
         kept, id_map = _compact_and_remap_findings(keep)
-        store["findings"] = kept
+        store["findings"] = sort_findings_by_risk(kept)
         store["last_modified"] = datetime.now(timezone.utc).isoformat()
         _write_findings_file(findings_path, store)
 

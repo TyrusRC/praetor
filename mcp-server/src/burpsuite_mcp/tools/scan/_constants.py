@@ -11,6 +11,12 @@ KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
 #   tech_vulns           — pure CVE knowledge, no probes
 #   race_condition       — covered by dedicated test_race_condition tool
 #   request_smuggling    — needs per-request sequence tracking; auto_probe is single-shot
+#   http_desync          — same class as request_smuggling: CL.0 / CSD / TE.CL
+#                          desync cannot be confirmed by one request's length_diff
+#                          (any malformed raw request differs in length). Needs the
+#                          differential follow-up / socket-timing that
+#                          test_request_smuggling drives. Single-shot length_diff
+#                          fired critical/high FPs on a benign Classic-ASP endpoint.
 #   clickjacking         — needs browser context (frame-busting tests)
 #   insecure_randomness  — needs N-sample statistical analysis
 #   source_code_exposure — covered by discover_common_files
@@ -22,7 +28,7 @@ KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
 #   web_cache_poisoning_dos — DoS-class; out of safety scope per Rule 5
 # NOTE: file_upload was previously here; removed in v0.5.
 _REFERENCE_ONLY = {
-    "tech_vulns", "race_condition", "request_smuggling",
+    "tech_vulns", "race_condition", "request_smuggling", "http_desync",
     # NOTE: clickjacking promoted to active W11 (2026-05-29) — header-absence
     # matchers (not_header X-Frame-Options + not_word frame-ancestors) paired
     # with state-change keyword positives suppress FP on baseline pages.

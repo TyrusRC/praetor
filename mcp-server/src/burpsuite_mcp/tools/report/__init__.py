@@ -135,7 +135,7 @@ def register(mcp: FastMCP):
             sections.append(build_finding_section(finding, i, internal=internal))
 
         if include_coverage and coverage:
-            sections.append(build_coverage_section(coverage))
+            sections.append(build_coverage_section(coverage, internal=internal))
 
         if format == "pentest":
             sections.append("")

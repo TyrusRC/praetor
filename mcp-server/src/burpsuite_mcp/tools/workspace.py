@@ -47,24 +47,20 @@ def ensure_workspace(domain: str) -> dict[str, Path]:
 def register(mcp: FastMCP):
     @mcp.tool()
     async def scaffold_workspace(domain: str) -> str:
-        """Create the engagement workspace tree for a domain and drop a README in each subdir.
+        """Create the engagement workspace tree for a domain.
 
         Layout: findings/ artifacts/{screenshots,captures,poc}/ testcases/ reports/
         material/{wordlists,tool-output}/. Machine files (findings.json, profile.json,
         ...) stay at the domain root.
+
+        Directories only. The tree previously shipped a one-line README in each
+        subdirectory, which made placeholder files half of everything in a fresh
+        workspace and buried the real artefacts — the layout is documented in
+        CLAUDE.md, where it is actually read.
         """
         paths = ensure_workspace(domain)
-        readmes = {
-            "screenshots": "PNG evidence referenced by findings.",
-            "captures": "Saved request/response pairs.",
-            "poc": "PoC scripts and exported bundles.",
-            "testcases": "Testcase-status matrices (WSTG / API Top 10 / custom).",
-            "reports": "Imported report templates and generated reports.",
-            "wordlists": "Wordlists used against this target.",
-            "tool_output": "Raw external-tool output (ffuf/nuclei/etc.).",
-        }
-        for key, text in readmes.items():
-            readme = paths[key] / "README.md"
-            if not readme.exists():
-                readme.write_text(f"# {key}\n\n{text}\n", encoding="utf-8")
-        return f"Workspace ready at {paths['root']}"
+        return (
+            f"Workspace ready at {paths['root']}\n"
+            "  findings/  artifacts/{screenshots,captures,poc}/  testcases/  "
+            "reports/  material/{wordlists,tool-output}/"
+        )

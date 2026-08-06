@@ -46,6 +46,7 @@ from burpsuite_mcp.tools import (
     mcp_invisible_unicode,
     adhoc_probe,
     workspace,
+    oplog,
 )
 
 mcp = FastMCP(
@@ -210,8 +211,13 @@ a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2
 mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode — D1 MCP tool-metadata concealment
 adhoc_probe.register(mcp)                        # run_adhoc_probe — F1 NL->probe (validate + run, fail-closed)
 workspace.register(mcp)                          # scaffold_workspace — engagement workspace tree (Spec 1)
+oplog.register(mcp)                              # get_operation_log / verify_operation_log — server-written action ledger
 
-# Last, after every register(): drop pydantic's redundant `title` keys from the
-# assembled tool schemas. ~9k tokens off the manifest every session, no
-# information lost. See _schema_slim.
+# After every register(): tag each tool so the Burp calls it makes are attributed
+# to it in the operation ledger. Done centrally because a per-tool decorator is
+# one an author forgets on exactly the tool where attribution mattered.
+oplog.instrument_tools(mcp)
+
+# Last: drop pydantic's redundant `title` keys from the assembled tool schemas.
+# ~9k tokens off the manifest every session, no information lost. See _schema_slim.
 slim_tool_schemas(mcp)

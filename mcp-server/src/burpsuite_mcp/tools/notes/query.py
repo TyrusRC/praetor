@@ -85,6 +85,22 @@ def register(mcp: FastMCP):
         if next_offset is not None:
             lines.append(f"... {total - (offset + len(page))} more — offset={next_offset}")
 
+        # Rule 29. A board with nothing at MEDIUM or above means the target has
+        # been fingerprinted, not tested — and a pile of INFO findings is what
+        # programs close as Informative. Say so while there is still session
+        # left to change approach, not at report time.
+        if total >= 3 and not any(
+            _SEV_RANK.get((f.get("severity") or "INFO").upper(), 0) >= _SEV_RANK["MEDIUM"]
+            for f in findings
+        ):
+            lines.append("")
+            lines.append(
+                f"Rule 29: all {total} findings are LOW/INFO. Escalate before filing — "
+                "ask what each one ENABLES (propose_chains), or move to authorization "
+                "(test_auth_matrix), auth/session, and business-logic surface where "
+                "MEDIUM+ lives."
+            )
+
         return {
             "total": total,
             "returned": len(page),

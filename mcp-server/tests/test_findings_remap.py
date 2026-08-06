@@ -189,6 +189,10 @@ class SaveFindingIdMaxPlusOneTest(unittest.IsolatedAsyncioTestCase):
                 domain=domain,
                 confidence=0.4,
                 force_recon_gate=True,
+                # The seeded findings are the same class at other endpoints, so
+                # the systemic-duplicate gate would (correctly) stop this save.
+                # This test is about ID allocation; opt out to reach that path.
+                overrides=["systemic_dup:id-allocation test fixture"],
             )
         self.assertIn("f004", out)
         stored_ids = [f["id"] for f in json.loads(path.read_text())["findings"]]
