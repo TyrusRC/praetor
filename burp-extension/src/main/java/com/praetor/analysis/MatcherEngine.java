@@ -30,7 +30,106 @@ public final class MatcherEngine {
      * @param payload The payload that was sent (for reflection detection)
      * @return Map with: matched (bool), matched_matchers (list of descriptions), confidence_boost (int)
      */
+    /**
+     * True when a matcher set can actually distinguish a vulnerable response
+     * from an ordinary one.
+     *
+     * A `status` matcher listing only success codes does not: the baseline
+     * returns 200 too, so `status:200` is satisfied by an untouched page. A
+     * `status` naming an error or redirect (500, 403, 302) IS a discriminator —
+     * a 500 where the baseline gave 200 is the signal that confirms blind SQLi —
+     * and so is `not_status`, which asserts a deviation outright.
+     *
+     * A negative matcher carrying no terms (`not_word` with an empty word list,
+     * `not_header` with no header name) is a no-op that always passes. A set
+     * built only from non-discriminators is unfalsifiable.
+     */
+    static boolean isDiscriminating(List<Map<String, Object>> matchers) {
+        for (Map<String, Object> m : matchers) {
+            if (m == null) continue;
+            String type = String.valueOf(m.getOrDefault("type", ""));
+            switch (type) {
+                case "status":
+                    if (onlySuccessCodes(m)) continue;
+                    return true;
+                case "not_word":
+                case "not_words":
+                    if (isEmptyTerms(m, "words") && isEmptyTerms(m, "word")) continue;
+                    return true;
+                case "not_header":
+                    if (isBlank(m.get("header")) && isBlank(m.get("name"))) continue;
+                    return true;
+                default:
+                    return true;   // word/regex/reflection/timing/collaborator/...
+            }
+        }
+        return false;
+    }
+
+    /** True when a status matcher lists nothing but 2xx codes. */
+    private static boolean onlySuccessCodes(Map<String, Object> m) {
+        Object v = m.get("status");
+        if (v == null) v = m.get("codes");
+        if (v == null) v = m.get("value");
+        List<?> codes = (v instanceof List<?> l) ? l : (v == null ? List.of() : List.of(v));
+        if (codes.isEmpty()) return true;
+        for (Object c : codes) {
+            try {
+                int code = Integer.parseInt(String.valueOf(c).trim());
+                if (code < 200 || code > 299) return false;
+            } catch (NumberFormatException e) {
+                return false;   // unparseable — assume it means something
+            }
+        }
+        return true;
+    }
+
+    private static boolean isEmptyTerms(Map<String, Object> m, String key) {
+        Object v = m.get(key);
+        if (v == null) return true;
+        if (v instanceof List<?> list) return list.isEmpty();
+        return isBlank(v);
+    }
+
+    private static boolean isBlank(Object v) {
+        return v == null || String.valueOf(v).trim().isEmpty();
+    }
+
     public static Map<String, Object> evaluate(
+            List<Map<String, Object>> matchers,
+            HttpResponse response,
+            long responseTimeMs,
+            HttpResponse baselineResponse,
+            String payload) {
+
+        Map<String, Object> probe = runMatchers(matchers, response, responseTimeMs, baselineResponse, payload);
+
+        // Baseline-equivalence guard. isDiscriminating() judges matcher SHAPE and
+        // cannot see that the untouched baseline already satisfies the set:
+        // status:200 + not_word:[unauthorized] "looks" discriminating, but on a
+        // page that was already 200 without those words the probe changed nothing.
+        // The fail_open_on_parser_error and xff_403_bypass classes fire on every
+        // public endpoint exactly this way. Re-run the same matchers against the
+        // baseline with time=0 and payload="" so baseline-relative matchers
+        // (length_diff, timing, reflection, collaborator) can only FAIL that
+        // second pass, never spuriously suppress a genuine delta (blind-SQLi
+        // 500-vs-200, a real 403->200 ACL flip). If the baseline matches too,
+        // refuse to score — same fail-closed stance as unknown matcher types.
+        if (Boolean.TRUE.equals(probe.get("matched")) && baselineResponse != null) {
+            Map<String, Object> base = runMatchers(matchers, baselineResponse, 0L, baselineResponse, "");
+            if (Boolean.TRUE.equals(base.get("matched"))) {
+                Map<String, Object> suppressed = new LinkedHashMap<>();
+                suppressed.put("matched", false);
+                suppressed.put("matched_matchers", List.of());
+                suppressed.put("confidence_boost", 0);
+                suppressed.put("baseline_equivalent", true);
+                return suppressed;
+            }
+        }
+        return probe;
+    }
+
+    private static Map<String, Object> runMatchers(
             List<Map<String, Object>> matchers,
             HttpResponse response,
             long responseTimeMs,
@@ -45,6 +144,25 @@ public final class MatcherEngine {
             result.put("matched", false);
             result.put("matched_matchers", List.of());
             result.put("confidence_boost", 0);
+            return result;
+        }
+
+        // A matcher set that every successful response satisfies cannot be
+        // evidence of anything. Some knowledge entries ship `status:200` plus a
+        // `not_word` carrying no words — the negative match is a no-op, so the
+        // probe "hit" on any 200 and reported a HIGH finding on a page it never
+        // tested. Those entries fire on every endpoint while genuinely
+        // discriminating probes fire rarely, so they dominated the output: a
+        // live run returned 16 findings, all of them from this shape.
+        //
+        // Refusing to score them is the same fail-closed rule already applied
+        // to unknown matcher types — a matcher that cannot fail is not a
+        // matcher.
+        if (!isDiscriminating(matchers)) {
+            result.put("matched", false);
+            result.put("matched_matchers", List.of());
+            result.put("confidence_boost", 0);
+            result.put("non_discriminating", true);
             return result;
         }
 

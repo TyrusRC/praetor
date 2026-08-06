@@ -50,7 +50,16 @@ public final class AttackSurfaceDiscovery {
 
         synchronized (session) {
             Set<String> visited = new LinkedHashSet<>();
+            // Signatures already queued, keyed by (base path, param NAMES) — not
+            // by full URL. A classic forum links dozens of value-variants of the
+            // same endpoint (showforum.asp?id=0,1,2…) and Templatize.asp nests
+            // its own URL inside item=, a self-recursive trap. Keyed by full URL,
+            // those floods consumed the whole page budget and the crawl never
+            // reached Login/Register/Search — the three pages that carry forms.
+            // One representative per signature frees the budget for real pages.
+            Set<String> seenSignatures = new LinkedHashSet<>();
             Queue<String> queue = new LinkedList<>();
+            seenSignatures.add(pathSignature("/"));
             List<Map<String, Object>> endpoints = new ArrayList<>();
             List<Map<String, Object>> forms = new ArrayList<>();
             List<String> detectedTech = new ArrayList<>();
@@ -131,9 +140,11 @@ public final class AttackSurfaceDiscovery {
                     while (link.contains("/./")) link = link.replace("/./", "/");
                     if (link.startsWith("./")) link = link.substring(2);
                     try { link = new java.net.URI(link).normalize().toString(); } catch (Exception ignored) {}
-                    if (!visited.contains(link) && !queue.contains(link)) {
-                        queue.add(link);
-                    }
+                    if (visited.contains(link) || queue.contains(link)) continue;
+                    // Collapse value-variants of an endpoint to one crawl. New
+                    // parameter names are still worth a page; new values are not.
+                    if (!seenSignatures.add(pathSignature(link))) continue;
+                    queue.add(link);
                 }
 
                 Pattern formPattern = Pattern.compile(
@@ -156,14 +167,19 @@ public final class AttackSurfaceDiscovery {
                         if ("high".equals(scoreParamRisk(inputName))) highRiskParams++;
                     }
 
-                    if (!action.isEmpty()) {
-                        Map<String, Object> formInfo = new LinkedHashMap<>();
-                        formInfo.put("action", action);
-                        formInfo.put("method", formMethod);
-                        formInfo.put("inputs", inputs);
-                        formInfo.put("source_page", pagePath);
-                        forms.add(formInfo);
-                    }
+                    // An empty action means "submit to this page" — the most
+                    // common form idiom there is, and every login, register and
+                    // search form on a classic server-rendered app uses it.
+                    // Requiring a non-empty action discarded exactly those, so
+                    // a site whose only inputs were forms reported none, and
+                    // their parameters never reached the probe targets.
+                    if (inputs.isEmpty()) continue;
+                    Map<String, Object> formInfo = new LinkedHashMap<>();
+                    formInfo.put("action", action.isEmpty() ? pagePath : action);
+                    formInfo.put("method", formMethod);
+                    formInfo.put("inputs", inputs);
+                    formInfo.put("source_page", pagePath);
+                    forms.add(formInfo);
                 }
             }
 
@@ -215,6 +231,27 @@ public final class AttackSurfaceDiscovery {
             ConfigTab.log("discover: " + visited.size() + " pages, " + totalParams + " params (" + highRiskParams + " high-risk)");
             sendJson(exchange, JsonUtil.toJson(out));
         }
+    }
+
+    /**
+     * Crawl-dedup key: base path plus the SORTED set of parameter names,
+     * ignoring their values. {@code showforum.asp?id=0} and {@code ?id=2}
+     * collapse to one signature; {@code Search.asp?goButton=go} keeps its own.
+     * This is what stops value-variant floods and the Templatize self-recursion
+     * from starving the page budget.
+     */
+    String pathSignature(String path) {
+        if (path == null || path.isEmpty()) return "/";
+        int q = path.indexOf('?');
+        String base = (q >= 0 ? path.substring(0, q) : path).toLowerCase();
+        if (q < 0) return base;
+        java.util.TreeSet<String> names = new java.util.TreeSet<>();
+        for (String pair : path.substring(q + 1).split("&")) {
+            int eq = pair.indexOf('=');
+            String name = eq > 0 ? pair.substring(0, eq) : pair;
+            if (!name.isEmpty()) names.add(name.toLowerCase());
+        }
+        return base + "?" + String.join(",", names);
     }
 
     private String scoreParamRisk(String name) {

@@ -90,4 +90,144 @@ class MatcherEngineTest {
         assertTrue(descriptions.stream().anyMatch(d -> d.startsWith("unknown_matcher_type:")),
             "Drift tag 'unknown_matcher_type:' must appear in matched_matchers for diagnostics");
     }
+
+    // ── Unfalsifiable matcher sets ────────────────────────────────────────
+    // A live run returned 16 findings, 9 of them HIGH, every one from a matcher
+    // set that any 200 response satisfies. A matcher that cannot fail is not a
+    // matcher, so those sets must not score.
+
+    @Test
+    void statusSuccessPlusEmptyNegativeIsNotDiscriminating() {
+        assertFalse(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "status", "status", List.of(200)),
+            Map.of("type", "not_word", "words", List.of())
+        )), "status:200 + empty not_word is satisfied by any healthy page");
+    }
+
+    @Test
+    void statusSuccessAloneIsNotDiscriminating() {
+        assertFalse(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "status", "status", List.of(200, 204))
+        )));
+    }
+
+    @Test
+    void errorStatusIsDiscriminating() {
+        assertTrue(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "status", "status", List.of(500))
+        )), "a 500 where the baseline gave 200 is how blind SQLi is confirmed");
+    }
+
+    @Test
+    void notStatusIsDiscriminating() {
+        assertTrue(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "not_status", "status", List.of(200))
+        )));
+    }
+
+    @Test
+    void populatedNegativeMatchersAreDiscriminating() {
+        assertTrue(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "status", "status", List.of(200)),
+            Map.of("type", "not_header", "header", "Strict-Transport-Security")
+        )));
+        assertTrue(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "not_word", "words", List.of("login"))
+        )));
+    }
+
+    @Test
+    void contentMatchersAreDiscriminating() {
+        assertTrue(MatcherEngine.isDiscriminating(List.of(
+            Map.of("type", "word", "words", List.of("SQL syntax"))
+        )));
+    }
+
+    @Test
+    void emptyMatcherSetIsNotDiscriminating() {
+        assertFalse(MatcherEngine.isDiscriminating(List.of()));
+    }
+
+    // ── Baseline-equivalence guard ────────────────────────────────────────
+    // isDiscriminating() judges matcher SHAPE and cannot see that the untouched
+    // baseline already satisfies the set. status:200 + not_word:[auth-errors]
+    // and the XFF-403-bypass shape "look" discriminating yet fire on every
+    // public 200 page. The guard re-runs the matchers against the baseline; if
+    // the baseline matches too, the probe proved nothing.
+
+    @Test
+    void baselineSatisfyingMatchersIsSuppressed() {
+        // fail_open_on_parser_error shape against a public page: baseline is
+        // already 200 and already lacks the auth-error words, so the malformed-
+        // bearer probe response is indistinguishable from baseline.
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(200)),
+            Map.of("type", "not_word", "words", List.of("unauthorized", "forbidden", "invalid token"))
+        );
+        HttpResponse baseline = stubResponse(200, "<html>forum thread list</html>", List.of());
+        HttpResponse probe = stubResponse(200, "<html>forum thread list</html>", List.of());
+
+        Map<String, Object> r = MatcherEngine.evaluate(matchers, probe, 12L, baseline, "Bearer not_a_jwt");
+        assertEquals(Boolean.FALSE, r.get("matched"),
+            "a probe response identical to baseline must not score as a bypass");
+        assertEquals(Boolean.TRUE, r.get("baseline_equivalent"),
+            "suppression reason must be tagged for diagnostics");
+    }
+
+    @Test
+    void xffBypassOnAlready200EndpointIsSuppressed() {
+        // xff_403_bypass shape: status:[200,302] + not_status:[403,401].
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(200, 302)),
+            Map.of("type", "not_status", "status", List.of(403, 401))
+        );
+        HttpResponse baseline = stubResponse(200, "page", List.of());
+        HttpResponse probe = stubResponse(200, "page", List.of());
+
+        Map<String, Object> r = MatcherEngine.evaluate(matchers, probe, 5L, baseline, "1");
+        assertEquals(Boolean.FALSE, r.get("matched"),
+            "an XFF 'bypass' on an endpoint that was never 403 is a false positive");
+    }
+
+    @Test
+    void genuineXffBypassAgainst403BaselineStillFires() {
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(200, 302)),
+            Map.of("type", "not_status", "status", List.of(403, 401))
+        );
+        HttpResponse baseline = stubResponse(403, "denied", List.of());        // ACL blocks by default
+        HttpResponse probe = stubResponse(200, "admin panel", List.of());      // XFF flips it open
+
+        Map<String, Object> r = MatcherEngine.evaluate(matchers, probe, 5L, baseline, "1");
+        assertEquals(Boolean.TRUE, r.get("matched"),
+            "a real 403->200 flip is the finding the guard must preserve");
+    }
+
+    @Test
+    void errorStatusProbeNotSuppressedBy200Baseline() {
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(500))
+        );
+        HttpResponse baseline = stubResponse(200, "ok", List.of());
+        HttpResponse probe = stubResponse(500, "pg_query error", List.of());
+
+        Map<String, Object> r = MatcherEngine.evaluate(matchers, probe, 5L, baseline, "' OR 1=1");
+        assertEquals(Boolean.TRUE, r.get("matched"),
+            "blind-SQLi 500-vs-200 must survive the baseline guard");
+    }
+
+    @Test
+    void lengthDiffProbeSurvivesEvenWhenStatusMatchesBaseline() {
+        // status matches baseline, but the length delta is genuine -> keep it.
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(200)),
+            Map.of("type", "length_diff", "min_diff", 50)
+        );
+        HttpResponse baseline = stubResponse(200, "short", List.of());
+        HttpResponse probe = stubResponse(200, "x".repeat(500), List.of());
+
+        Map<String, Object> r = MatcherEngine.evaluate(matchers, probe, 5L, baseline, "p");
+        assertEquals(Boolean.TRUE, r.get("matched"),
+            "a real length delta is discriminating even when status equals baseline");
+    }
 }

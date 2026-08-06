@@ -40,15 +40,23 @@ public final class ProxyHighlight {
     private ProxyHighlight() {}
 
     /**
-     * Map a confidence score (0.0–1.0) to a highlight level.
-     *   ≥ 0.90 → RED     (high-confidence confirmed evidence)
-     *   ≥ 0.60 → ORANGE  (strong anomaly cluster, worth manual review)
-     *   ≥ 0.30 → YELLOW  (routine probe, some signal)
+     * Map a probe's confidence score (0.0–1.0) to a highlight level.
+     *
+     * RED and ORANGE are claims: annotate_request and annotate_bulk both refuse
+     * them without a resolvable finding_id, because a tag asserting "this proves
+     * finding X" needs an X. An automated probe has no finding_id — nothing has
+     * been saved or verified yet — so it must not mint those colours on its own
+     * authority. A live run tagged 16 entries RED off matcher confidence alone,
+     * and every one was a false positive.
+     *
+     * Scores therefore cap at YELLOW (anomaly worth a look), which is exactly
+     * what an unverified automated hit is. Promotion to ORANGE/RED happens
+     * through annotate_request once a finding exists to point at.
+     *
+     *   ≥ 0.30 → YELLOW  (anomaly — the ceiling for any automated tag)
      *   <  0.30 → GREEN  (baseline / near-zero signal)
      */
     public static Level levelFromConfidence(double confidence) {
-        if (confidence >= 0.90) return Level.CONFIRMED;
-        if (confidence >= 0.60) return Level.ANOMALY;
         if (confidence >= 0.30) return Level.PROBE;
         return Level.BASELINE;
     }

@@ -70,6 +70,32 @@
                     </archive>
                 </configuration>
             </plugin>
+            <!-- A bare `mvn package` buries the artifact path in plugin output, so the
+                 usual question after a green build is "where did the jar go?". Echo the
+                 absolute path as the last thing the build prints, whether the operator
+                 ran build.sh or maven directly. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>announce-jar</id>
+                        <phase>package</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <echo level="info" message=""/>
+                                <echo level="info" message="======================================================================"/>
+                                <echo level="info" message=" Praetor extension jar: ${project.build.directory}/${project.build.finalName}.jar"/>
+                                <echo level="info" message=" Load in Burp: Extensions -> Installed -> Add -> Type: Java -> that file"/>
+                                <echo level="info" message=" Already loaded? untick/retick the entry to reload the new build."/>
+                                <echo level="info" message="======================================================================"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +41,14 @@ public final class AutoProbeOrchestrator {
      *  is the canonical token; the bare form is kept for KBs authored before the
      *  canonical form existed. */
     private static final Pattern BARE_COLLABORATOR = Pattern.compile("(?<!\\{)\\bCOLLABORATOR\\b(?!\\})");
+
+    /** First non-blank value, or null. Lets a target accept either spelling. */
+    private static String firstNonBlank(Object... values) {
+        for (Object v : values) {
+            if (v instanceof String s && !s.trim().isEmpty()) return s;
+        }
+        return null;
+    }
 
     private static final Map<String, String> CWE_MAP = Map.of(
         "sqli", "CWE-89",
@@ -121,11 +130,29 @@ public final class AutoProbeOrchestrator {
             List<Map<String, Object>> findings = new ArrayList<>();
             Set<String> seenFindingKeys = new HashSet<>();
             int totalProbes = 0;
+            // Which (target, category) pairs actually had a probe sent. The
+            // budget below truncates mid-knowledge-base, so "the categories we
+            // loaded" and "the categories we tested" are different sets. Only
+            // this one may be recorded as coverage; reporting the loaded set
+            // marked ~135 classes tested after ~2 ran, and the skip-already-
+            // covered default then made those classes unreachable for good.
+            List<Map<String, Object>> probedCategories = new ArrayList<>();
 
             for (Map<String, Object> target : targets) {
                 String method = (String) target.getOrDefault("method", "GET");
-                String path = (String) target.get("path");
-                String parameter = (String) target.get("parameter");
+                // Accept `url` for `path` and `param` for `parameter`: both are
+                // natural spellings, and a caller who used them previously got
+                // a NullPointerException from deep inside injectParam rather
+                // than a message naming the key it wanted.
+                String path = firstNonBlank(target.get("path"), target.get("url"));
+                String parameter = firstNonBlank(target.get("parameter"), target.get("param"));
+                if (path == null) {
+                    sendError(exchange, 400,
+                        "each target needs a 'path' (or 'url'); got keys " + target.keySet()
+                        + ". Example: {\"path\":\"/x.asp?id=1\",\"parameter\":\"id\",\"method\":\"GET\"}");
+                    return;
+                }
+                if (parameter == null) parameter = "";
                 String baselineValue = (String) target.getOrDefault("baseline_value", "1");
                 String location = (String) target.getOrDefault("location", "query");
 
@@ -143,6 +170,7 @@ public final class AutoProbeOrchestrator {
                 List<String> detectedTech = TechFingerprint.detectFromResponse(baselineResult);
 
                 int probesRun = 0;
+                Set<String> catsProbed = new LinkedHashSet<>();
                 for (Map<String, Object> kb : knowledgeBase) {
                     if (probesRun >= maxProbes) break;
                     String category = (String) kb.get("category");
@@ -239,6 +267,7 @@ public final class AutoProbeOrchestrator {
                             long elapsedMs = (System.nanoTime() - startMs) / 1_000_000;
                             totalProbes++;
                             probesRun++;
+                            if (category != null) catsProbed.add(category);
 
                             if (probeResult == null || probeResult.response() == null) continue;
                             executor.updateCookiesFromResponse(session, probeResult);
@@ -433,11 +462,24 @@ public final class AutoProbeOrchestrator {
                         com.praetor.http.ProxyHighlight.Level.BASELINE,
                         "baseline for " + parameter);
                 }
+
+                // Report exactly what was probed for this target, and say
+                // whether the budget cut the knowledge base short. `truncated`
+                // is what stops the caller recording a clean bill of coverage
+                // for classes the budget never reached.
+                Map<String, Object> covered = new LinkedHashMap<>();
+                covered.put("path", path);
+                covered.put("parameter", parameter == null ? "" : parameter);
+                covered.put("categories", new ArrayList<>(catsProbed));
+                covered.put("probes_sent", probesRun);
+                covered.put("truncated", probesRun >= maxProbes);
+                probedCategories.add(covered);
             }
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("parameters_tested", targets.size());
             out.put("total_probes_sent", totalProbes);
+            out.put("probed_categories", probedCategories);
             out.put("findings", findings);
             out.put("auto_saved_findings", findings.size());
 
