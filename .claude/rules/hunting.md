@@ -53,7 +53,22 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 
 ## Reporting (14–17) — DEFAULT
 
-14. **Never inflate severity.** Reflected XSS is not CRITICAL. Info disclosure is not HIGH. Open redirect alone is not MEDIUM. Cap honestly.
+14. **Never inflate severity, and never file an INFO.** Reflected XSS is not CRITICAL. Open redirect alone is not MEDIUM. Cap honestly.
+    **14a. The scale starts at LOW — there is no INFO tier.** An informational
+    observation is not a low-severity finding; it is not a finding. A leaked path,
+    DB error, stack trace, debug endpoint or version banner is an INPUT: *what does
+    it let an attacker reach that they could not reach before?* Report what that
+    question yields, not the observation. A failed escalation goes to
+    `save_target_notes`, never to the board. `save_finding` refuses INFO.
+    **14b. Rate on business impact, not on how hard the bug was to find.**
+    LOW = minimal impact / hard to exploit / limited disclosure. MEDIUM = moderate
+    compromise, restricted access. HIGH = significant data exposure, privilege
+    escalation, core component bypass. CRITICAL = RCE, full system compromise,
+    direct unauthenticated access to sensitive data. CVSS gives the technical band;
+    the program's own assets decide the final tier.
+    **14c. One root cause is one finding.** The same defect on a second endpoint is
+    a systemic issue with several affected locations. First distinct report carries
+    the value; duplicates of the same pattern carry none.
 15. **Never submit findings requiring absurd victim action** ("user pastes a 500-char payload into devtools"). Self-XSS, victim-side-only DoS, etc. fail this gate.
 16. **Reports are TRUE-POSITIVES-ONLY. Delete false positives, don't track them.** `generate_report` includes only `status='confirmed'` findings AND hard-deletes `likely_false_positive` entries from `.burp-intel/<domain>/findings.json` (no tombstones, no removed-FP lists, no audit trail). Tracking dead findings re-loads them every session and burns tokens forever.
 16a. **No vanity metrics in the final report.** A report is confirmed findings and their impact — never activity counts. Do NOT write "tested 22 times", "33 test cases run", "sent 500 payloads", "N endpoints scanned", coverage percentages, or request tallies. Those measure effort, not risk, and read as padding to a triager or client. Write like a professional pentest / red-team deliverable: **executive summary** (business-impact framing, risk posture — no counts) → **per-finding technical detail** (title, severity with CVSS vector, affected endpoint/parameter, description, real-world impact, reproduction steps, evidence: request/response + screenshot + PoC, remediation) → **remediation guidance**. Reproduction counts live in `evidence.reproductions[]` for internal verification (Rule 10a), never in the customer-facing report. A red-team report is the kill-chain narrative to objective, not a log of actions attempted.

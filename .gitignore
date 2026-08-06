@@ -39,3 +39,6 @@ docs/superpowers/
 
 # Target intelligence (sensitive — never commit)
 .burp-intel/
+
+# Operator-local browser launch helper (Chrome+FoxyProxy -> Burp)
+launch-proxied-chrome.sh

@@ -6,7 +6,7 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 
 Each role below corresponds to a file in `.claude/agents/<role>.md` that the `Agent` tool auto-loads when dispatched by name. Update both this file (role overview) AND the agent file (operational detail) when changing a role.
 
-The orchestrator role is split out: `grow-agent` is the session-lifecycle orchestrator (see `docs/specs/2026-05-22-grow-agent-design.md`). When invoked, grow-agent dispatches the 9 roles below.
+The orchestrator role is split out: `grow-agent` is the session-lifecycle orchestrator, defined in `.claude/agents/grow-agent.md`. When invoked, grow-agent dispatches the 9 roles below.
 
 ## Command Tier (above grow-agent)
 

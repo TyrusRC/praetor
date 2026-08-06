@@ -14,6 +14,24 @@
 
 set -euo pipefail
 
+# Newest built extension jar, or "" when unbuilt. Version-agnostic, so a bump in
+# pom.xml never makes this report "not built".
+#
+# Pure glob on purpose. The previous `ls -t | grep -v | head -1` returned nothing
+# on any host where `grep` is a wrapper (ugrep, ripgrep shims), reporting a
+# perfectly good build as missing. No external command, nothing to shim.
+resolve_jar() {
+    local newest="" f
+    for f in "$1"/burp-extension/target/praetor-burp-ext-*.jar; do
+        [ -f "$f" ] || continue
+        case "$f" in *-sources.jar|*-javadoc.jar) continue ;; esac
+        if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
+            newest="$f"
+        fi
+    done
+    printf '%s' "$newest"
+}
+
 # ── Colors ──────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -208,17 +226,20 @@ echo "════════════════════════�
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Build Java extension ────────────────────────────────────────────
+# Delegate to build.sh: it resolves the artifact from the POM (a version bump
+# must not make setup report a failed build), prints the absolute jar path, and
+# warns about pre-rename jars that would keep Burp loading the old extension.
 info "Building Burp extension..."
 cd "$SCRIPT_DIR/burp-extension"
-if mvn package -q; then
-    JAR="target/praetor-burp-ext-1.0.0.jar"
-    if [ -f "$JAR" ]; then
+if "$SCRIPT_DIR/build.sh" --skip-tests >/dev/null 2>&1; then
+    JAR="$(resolve_jar "$SCRIPT_DIR")"
+    if [ -n "$JAR" ] && [ -f "$JAR" ]; then
         ok "Extension built: $JAR"
     else
-        fail "JAR not found at $JAR"
+        fail "build reported success but no jar under burp-extension/target/"
     fi
 else
-    fail "Maven build failed"
+    fail "Maven build failed — re-run ./build.sh to see the compiler output"
 fi
 
 # ── Install Python MCP server ──────────────────────────────────────
@@ -483,10 +504,7 @@ check wpscan
 
 echo ""
 echo "Project:"
-# Version-agnostic: a version bump in pom.xml must not make this report
-# "not built".
-JAR_PATH="$(ls -t "$SCRIPT_DIR"/burp-extension/target/praetor-burp-ext-*.jar 2>/dev/null \
-        | grep -v -e '-sources' -e '-javadoc' | head -1)"
+JAR_PATH="$(resolve_jar "$SCRIPT_DIR")"
 if [ -f "$JAR_PATH" ]; then
     echo -e "  ${GREEN}✓${NC} Burp extension JAR built"
 else

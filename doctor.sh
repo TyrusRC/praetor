@@ -8,6 +8,24 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Newest built extension jar, or "" when unbuilt. Version-agnostic, so a bump in
+# pom.xml never makes this report "not built".
+#
+# Pure glob on purpose. The previous `ls -t | grep -v | head -1` returned nothing
+# on any host where `grep` is a wrapper (ugrep, ripgrep shims), reporting a
+# perfectly good build as missing. No external command, nothing to shim.
+resolve_jar() {
+    local newest="" f
+    for f in "$1"/burp-extension/target/praetor-burp-ext-*.jar; do
+        [ -f "$f" ] || continue
+        case "$f" in *-sources.jar|*-javadoc.jar) continue ;; esac
+        if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
+            newest="$f"
+        fi
+    done
+    printf '%s' "$newest"
+}
+
 # ── Colors ──────────────────────────────────────────────────────────
 if [ -t 1 ]; then
     RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -130,15 +148,36 @@ fi
 head "Build artifacts"
 # ════════════════════════════════════════════════════════════════════
 
-# Version-agnostic: a version bump in pom.xml must not make this report
-# "not built".
-JAR="$(ls -t "$SCRIPT_DIR"/burp-extension/target/praetor-burp-ext-*.jar 2>/dev/null \
-        | grep -v -e '-sources' -e '-javadoc' | head -1)"
+JAR="$(resolve_jar "$SCRIPT_DIR")"
 if [ -f "$JAR" ]; then
     size_kb=$(($(wc -c < "$JAR") / 1024))
     pass "Extension JAR (${size_kb} KB)"
+    # Built-jar version, used below to tell a stale LOADED extension from a
+    # stale BUILT one. Derived from the filename so it survives a version bump.
+    JAR_VERSION="$(basename "$JAR" .jar | sed 's/^praetor-burp-ext-//')"
 else
-    bad "Extension JAR" "not built — cd burp-extension && mvn package"
+    bad "Extension JAR" "not built — run ./build.sh"
+fi
+
+# The extension was renamed Swiss Knife -> Praetor. Rebuilding cannot fix a Burp
+# that still points at a jar from before the rename: Burp keeps loading the old
+# path, the old name shows in the Extensions tab, and the source looks innocent.
+#
+# Scoped to where a Burp extension jar actually lives — the repo tree and Burp's
+# own directories. Scanning all of $HOME would be slow and would still miss a jar
+# parked somewhere else, so the authoritative check is the loaded-extension
+# identity under "Burp runtime" below; this only helps when Burp is not running.
+STALE_JARS=""
+for d in "$SCRIPT_DIR" "$HOME/BurpSuite" "$HOME/.BurpSuite" "$HOME/burp" "$HOME/Downloads"; do
+    [ -d "$d" ] || continue
+    found="$(find "$d" -maxdepth 4 -iname '*swiss*knife*.jar' -not -path '*/.git/*' 2>/dev/null || true)"
+    [ -n "$found" ] && STALE_JARS="$STALE_JARS$found"$'\n'
+done
+if [ -n "${STALE_JARS// /}" ] && [ -n "$(printf '%s' "$STALE_JARS" | tr -d '[:space:]')" ]; then
+    bad "Pre-rename jar on disk" \
+        "$(printf '%s' "$STALE_JARS" | tr '\n' ' ')— remove that entry in Burp: Extensions -> Installed"
+else
+    pass "No pre-rename (Swiss Knife) jars in the repo or Burp directories"
 fi
 
 VENV="$SCRIPT_DIR/mcp-server/.venv"
@@ -170,6 +209,26 @@ code=$(http_status "$API_URL")
 if [ "$code" = "200" ]; then
     info=$(curl -s --max-time 3 "$API_URL" 2>/dev/null)
     pass "Extension API reachable (${info:0:80})"
+
+    # Reachable is not the same as current. Burp answers on 8111 whichever build
+    # is loaded, so a stale extension looks healthy while behaving like an old
+    # release. Compare what actually answered against what is on disk.
+    live_name="$(printf '%s' "$info" | sed -n 's/.*"extension"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    live_version="$(printf '%s' "$info" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+
+    case "$live_name" in
+        *Praetor*) pass "Loaded extension is Praetor (\"$live_name\")" ;;
+        "")        skip "Loaded extension identity" "health response carried no 'extension' field — pre-rename build" ;;
+        *)         bad  "Loaded extension is NOT Praetor" \
+                        "Burp is running \"$live_name\". Remove it in Extensions -> Installed and add $JAR" ;;
+    esac
+
+    if [ -n "${JAR_VERSION:-}" ] && [ -n "$live_version" ] && [ "$JAR_VERSION" != "$live_version" ]; then
+        bad "Loaded extension is stale" \
+            "Burp is running v$live_version, the built jar is v$JAR_VERSION — untick/retick the entry in Extensions -> Installed to reload"
+    elif [ -n "$live_version" ]; then
+        pass "Loaded extension version matches the built jar (v$live_version)"
+    fi
 else
     bad "Extension API" "127.0.0.1:8111 unreachable (HTTP='$code') — is Burp running with the extension loaded?"
 fi

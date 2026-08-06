@@ -7,6 +7,24 @@
 # clicks needed to load it in Burp.
 set -euo pipefail
 
+# Newest built extension jar, or "" when unbuilt. Version-agnostic, so a bump in
+# pom.xml never makes this report "not built".
+#
+# Pure glob on purpose. The previous `ls -t | grep -v | head -1` returned nothing
+# on any host where `grep` is a wrapper (ugrep, ripgrep shims), reporting a
+# perfectly good build as missing. No external command, nothing to shim.
+resolve_jar() {
+    local newest="" f
+    for f in "$1"/burp-extension/target/praetor-burp-ext-*.jar; do
+        [ -f "$f" ] || continue
+        case "$f" in *-sources.jar|*-javadoc.jar) continue ;; esac
+        if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
+            newest="$f"
+        fi
+    done
+    printf '%s' "$newest"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXT_DIR="$SCRIPT_DIR/burp-extension"
 
@@ -36,7 +54,7 @@ JAR="$EXT_DIR/target/${ARTIFACT_ID}-${VERSION}.jar"
 
 if [ ! -f "$JAR" ]; then
     # Fallback: newest jar in target/, excluding sources/javadoc side artifacts.
-    JAR="$(ls -t "$EXT_DIR"/target/*.jar 2>/dev/null | grep -v -e '-sources' -e '-javadoc' | head -1 || true)"
+    JAR="$(resolve_jar "$SCRIPT_DIR")"
 fi
 
 if [ ! -f "$JAR" ]; then
