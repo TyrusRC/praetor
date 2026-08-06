@@ -20,15 +20,23 @@ public abstract class BaseHandler implements HttpHandler {
         // can't leak the previous request's fallback flag.
         com.praetor.http.ProxyTunnel.clearLastSendFellBack();
 
-        // CORS for localhost MCP/dev clients. Echo the Origin header so any
-        // localhost port (the MCP client picks an ephemeral one) is accepted;
-        // fall back to "*" for non-browser callers that omit Origin.
+        // CORS for localhost MCP/dev clients. The API is UNAUTHENTICATED, so a
+        // reflected Origin would let any website the operator is browsing read
+        // from — and drive — the local control server through the victim's
+        // browser (reflected-Origin / DNS-rebinding drive-by). Reflect ONLY
+        // loopback origins; a non-loopback browser origin gets no ACAO header
+        // at all, so the browser blocks it from reading the response.
         String origin = exchange.getRequestHeaders().getFirst("Origin");
-        exchange.getResponseHeaders().add(
-            "Access-Control-Allow-Origin",
-            (origin != null && !origin.isBlank()) ? origin : "*"
-        );
-        if (origin != null && !origin.isBlank()) {
+        if (origin == null || origin.isBlank()) {
+            // Non-browser caller (the MCP client omits Origin). Browsers always
+            // send Origin cross-origin, so "*" here only ever reaches clients
+            // that ignore CORS, and it never enables credentialed reads.
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+        } else if (isLoopbackOrigin(origin)) {
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", origin);
+            exchange.getResponseHeaders().add("Vary", "Origin");
+        } else {
+            // Non-loopback site trying to reach the local API — fail closed.
             exchange.getResponseHeaders().add("Vary", "Origin");
         }
         exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
@@ -63,6 +71,46 @@ public abstract class BaseHandler implements HttpHandler {
     }
 
     protected abstract void handleRequest(HttpExchange exchange) throws Exception;
+
+    /**
+     * True iff a CORS {@code Origin} header names a loopback host. Matches only
+     * literal loopback forms (localhost, 127.0.0.0/8, ::1) and never resolves
+     * DNS: a hostname an attacker points at 127.0.0.1 (DNS rebinding) must not
+     * be accepted. Malformed origins fail closed (return false).
+     */
+    static boolean isLoopbackOrigin(String origin) {
+        if (origin == null || origin.isBlank()) return false;
+        try {
+            String host = URI.create(origin).getHost();
+            if (host == null) return false;
+            if (host.startsWith("[") && host.endsWith("]")) {
+                host = host.substring(1, host.length() - 1);
+            }
+            return host.equalsIgnoreCase("localhost")
+                || isLoopbackIpv4(host)
+                || host.equals("::1")
+                || host.equals("0:0:0:0:0:0:0:1");
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** True iff {@code host} is a dotted-quad IPv4 literal in 127.0.0.0/8.
+     *  A plain {@code startsWith("127.")} would wrongly accept a hostname such
+     *  as {@code 127.0.0.1.evil.com}, so every octet must be numeric. */
+    private static boolean isLoopbackIpv4(String host) {
+        String[] octets = host.split("\\.", -1);
+        if (octets.length != 4) return false;
+        for (String o : octets) {
+            if (o.isEmpty() || o.length() > 3) return false;
+            for (int i = 0; i < o.length(); i++) {
+                if (!Character.isDigit(o.charAt(i))) return false;
+            }
+            int v = Integer.parseInt(o);
+            if (v < 0 || v > 255) return false;
+        }
+        return octets[0].equals("127");
+    }
 
     // ── Request helpers ────────────────────────────────────────────
 
