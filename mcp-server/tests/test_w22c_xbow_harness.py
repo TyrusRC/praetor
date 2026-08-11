@@ -185,6 +185,81 @@ class RunXbowBenchTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["level"], 3)
 
 
+    async def test_no_expected_flag_records_unverified_not_pass(self):
+        """A well-formed FLAG{} shape with no expected flag must NOT score as a
+        pass — it inflates the leaderboard. Record passed=None / unverified."""
+        from burpsuite_mcp.tools import benchmark
+        stub, captured = _stub_mcp()
+        benchmark.register(stub)
+        # win_condition is not a concrete FLAG{...}, so expected == "".
+        self._make_challenge("XBEN-004-24", 1, "dynamic-per-build")
+        flag_file = self.tmp / ".burp-intel" / "_bench" / "xbow" / "XBEN-004-24-flag.txt"
+        flag_file.parent.mkdir(parents=True, exist_ok=True)
+        flag_file.write_text("FLAG{well_formed_but_unverified}")
+        with patch("burpsuite_mcp.tools.benchmark._check_tool", return_value=True), \
+             patch("burpsuite_mcp.tools.benchmark._intel_dir",
+                   return_value=self.tmp / ".burp-intel"):
+            out = await captured["run_xbow_bench"](challenge_id="XBEN-004-24")
+        self.assertIsNone(out["passed"])
+        self.assertTrue(out["unverified"])
+        rec = json.loads(Path(out["record_path"]).read_text())
+        self.assertIsNone(rec["passed"])
+        self.assertTrue(rec["unverified"])
+        self.assertTrue(rec["well_formed"])
+
+
+class RunCaibenchScoringTest(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="praetor-cai-run-"))
+        self.prev_cwd = Path.cwd()
+        os.chdir(self.tmp)
+
+    def tearDown(self):
+        os.chdir(self.prev_cwd)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _seed_flag(self, suite: str, cid: str, value: str) -> None:
+        fp = self.tmp / ".burp-intel" / "_bench" / "caibench" / suite / f"{cid}-flag.txt"
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        fp.write_text(value)
+
+    async def test_scores_pass_on_expected_match(self):
+        from burpsuite_mcp.tools import benchmark
+        stub, captured = _stub_mcp()
+        benchmark.register(stub)
+        self._seed_flag("cybench", "c1", "flag{win}")
+        with patch("burpsuite_mcp.tools.benchmark._intel_dir",
+                   return_value=self.tmp / ".burp-intel"):
+            out = await captured["run_caibench"](suite="cybench", challenge_id="c1",
+                                                 expected_flag="flag{win}")
+        self.assertTrue(out["passed"])
+        rec = json.loads(Path(out["record_path"]).read_text())
+        self.assertTrue(rec["passed"])
+
+    async def test_scores_fail_on_mismatch(self):
+        from burpsuite_mcp.tools import benchmark
+        stub, captured = _stub_mcp()
+        benchmark.register(stub)
+        self._seed_flag("cybench", "c2", "flag{wrong}")
+        with patch("burpsuite_mcp.tools.benchmark._intel_dir",
+                   return_value=self.tmp / ".burp-intel"):
+            out = await captured["run_caibench"](suite="cybench", challenge_id="c2",
+                                                 expected_flag="flag{right}")
+        self.assertFalse(out["passed"])
+
+    async def test_unverified_when_no_expected(self):
+        from burpsuite_mcp.tools import benchmark
+        stub, captured = _stub_mcp()
+        benchmark.register(stub)
+        self._seed_flag("cybench", "c3", "flag{something}")
+        with patch("burpsuite_mcp.tools.benchmark._intel_dir",
+                   return_value=self.tmp / ".burp-intel"):
+            out = await captured["run_caibench"](suite="cybench", challenge_id="c3")
+        self.assertIsNone(out["passed"])
+        self.assertTrue(out["unverified"])
+
+
 class SummarizeBenchmarksXbowBreakdownTest(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
@@ -207,13 +282,19 @@ class SummarizeBenchmarksXbowBreakdownTest(unittest.IsolatedAsyncioTestCase):
             (bench_root / f"x{i}.json").write_text(json.dumps({
                 "benchmark": "XBOW", "level": level, "passed": passed,
             }))
+        # Plus one unverified submission (no expected flag) — must be visible,
+        # not silently dropped from the totals.
+        (bench_root / "x4.json").write_text(json.dumps({
+            "benchmark": "XBOW", "level": 2, "passed": None, "unverified": True,
+        }))
         with patch("burpsuite_mcp.tools.benchmark._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["summarize_benchmarks"]()
         xbow = out["benchmarks"]["xbow"]
         self.assertEqual(xbow["passed"], 2)
         self.assertEqual(xbow["failed"], 2)
-        self.assertEqual(xbow["total"], 4)
+        self.assertEqual(xbow["unverified"], 1)
+        self.assertEqual(xbow["total"], 5)
         self.assertIn("by_level", xbow)
         self.assertEqual(xbow["by_level"]["1"], {"passed": 1, "failed": 1})
         self.assertEqual(xbow["by_level"]["2"], {"passed": 1, "failed": 0})
