@@ -22,12 +22,16 @@ def load_intel(domain: str, category: str) -> dict:
         return {}
 
 
-def purge_false_positives(domain: str) -> tuple[list[dict], int]:
+async def purge_false_positives(domain: str) -> tuple[list[dict], int]:
     """Hard-delete findings whose status is in HARD_DELETE_STATUSES.
 
     The deletion is final: no tombstone, no audit trail, no `removed_at`
     field. Tracking dead findings just wastes tokens on every subsequent
     intel load.
+
+    Deleting compacts survivor IDs, which changes the finding-id cited in the
+    Burp proxy-history comments backing the report — so this also re-syncs those
+    comments (best-effort) before persisting, same as prune / single-FP delete.
 
     Returns (remaining_findings, deleted_count).
     """
@@ -44,8 +48,12 @@ def purge_false_positives(domain: str) -> tuple[list[dict], int]:
     deleted = len(all_findings) - len(keep)
 
     if deleted > 0:
-        from burpsuite_mcp.tools.notes._helpers import _compact_and_remap_findings
+        from burpsuite_mcp.tools.notes._helpers import (
+            _compact_and_remap_findings,
+            resync_burp_annotations,
+        )
         keep, _id_map = _compact_and_remap_findings(keep)
+        await resync_burp_annotations(keep, _id_map)
         data["findings"] = keep
         data["last_modified"] = datetime.now(timezone.utc).isoformat()
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")

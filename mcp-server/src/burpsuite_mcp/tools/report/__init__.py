@@ -59,7 +59,7 @@ def register(mcp: FastMCP):
         """
         internal = (audience or "client").strip().lower() == "internal"
         # 1) Hard-delete false positives BEFORE loading.
-        _kept, deleted_count = purge_false_positives(domain)
+        _kept, deleted_count = await purge_false_positives(domain)
 
         findings_data = load_intel(domain, "findings")
         profile = load_intel(domain, "profile")
