@@ -5,7 +5,13 @@ public/private symbol so existing imports keep working. New code SHOULD
 import from the per-backend submodules directly.
 """
 
-from ._common import _METHODOLOGY_LINKS, _VECTOR_KB
+from ._common import (
+    _LEARN_FROM_SCRATCH_HUB,
+    _METHODOLOGY_LINKS,
+    _THE_HACKER_RECIPES,
+    _VECTOR_KB,
+    learn_from_scratch_track,
+)
 from .attackerkb import _attackerkb_search
 from .exploitdb import _exploitdb_search
 from .github_advisory import _github_advisory_search
@@ -17,6 +23,9 @@ from .snyk import _snyk_db_search
 __all__ = [
     "_VECTOR_KB",
     "_METHODOLOGY_LINKS",
+    "_THE_HACKER_RECIPES",
+    "_LEARN_FROM_SCRATCH_HUB",
+    "learn_from_scratch_track",
     "_exploitdb_search",
     "_osv_search",
     "_github_advisory_search",

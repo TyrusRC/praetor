@@ -114,3 +114,47 @@ _METHODOLOGY_LINKS: dict[str, dict[str, str]] = {
         "owasp":       "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/README",
     },
 }
+
+
+# The Hacker Recipes — per-class technique pages (GitBook, verified static HTML,
+# all 200 as of 2026-08-11). Kept as a side map rather than threaded into every
+# _METHODOLOGY_LINKS entry so the added source is one reviewable block; the
+# renderer merges it in via .get(). Only classes with a confirmed page are
+# listed — an absent key renders no line, same as an empty "" in the main table.
+_THE_HACKER_RECIPES: dict[str, str] = {
+    "sqli":              "https://www.thehacker.recipes/web/inputs/sqli",
+    "xss":               "https://www.thehacker.recipes/web/inputs/xss",
+    "ssti":              "https://www.thehacker.recipes/web/inputs/ssti",
+    "ssrf":              "https://www.thehacker.recipes/web/inputs/ssrf",
+    "xxe":               "https://www.thehacker.recipes/web/inputs/xxe-injection",
+    "deserialization":   "https://www.thehacker.recipes/web/inputs/insecure-deserialization",
+    "csrf":              "https://www.thehacker.recipes/web/inputs/csrf",
+    "open_redirect":     "https://www.thehacker.recipes/web/inputs/ored",
+    "cors":              "https://www.thehacker.recipes/web/config/http-headers/cors",
+    "request_smuggling": "https://www.thehacker.recipes/web/config/http-request-smuggling",
+}
+
+
+# Learn From Scratch (tyrusrc.github.io) — zero-to-hero learning tracks. This
+# site is organised by discipline/topic, NOT one page per single vuln, so it is
+# surfaced as a learning-path pointer chosen by domain rather than per class.
+# URLs verified 200 as of 2026-08-11.
+_LEARN_FROM_SCRATCH_HUB = "https://tyrusrc.github.io/learnfromscratch/learn/"
+_LEARN_FROM_SCRATCH: dict[str, str] = {
+    "web":         "https://tyrusrc.github.io/learnfromscratch/learn/paths/web-application-security/",
+    "api":         "https://tyrusrc.github.io/learnfromscratch/learn/paths/api-security/",
+    "methodology": "https://tyrusrc.github.io/learnfromscratch/learn/paths/bug-bounty-methodology/",
+}
+
+# Classes whose learning track is the API path rather than the web-app path.
+_LFS_API_CLASSES = frozenset({
+    "graphql", "api_abuse", "mass_assignment", "bola", "bopla", "bfla", "grpc",
+})
+
+
+def learn_from_scratch_track(vuln_type: str) -> str:
+    """Return the most relevant Learn From Scratch track URL for a vuln class."""
+    v = (vuln_type or "").lower()
+    if v in _LFS_API_CLASSES:
+        return _LEARN_FROM_SCRATCH["api"]
+    return _LEARN_FROM_SCRATCH["web"]

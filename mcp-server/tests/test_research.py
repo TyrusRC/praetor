@@ -12,6 +12,9 @@ import unittest
 from burpsuite_mcp.tools.research import (
     _VECTOR_KB,
     _METHODOLOGY_LINKS,
+    _THE_HACKER_RECIPES,
+    _LEARN_FROM_SCRATCH_HUB,
+    learn_from_scratch_track,
     _exploitdb_search,
     _osv_search,
     _github_advisory_search,
@@ -100,6 +103,35 @@ class MethodologyLinks(unittest.TestCase):
                           f"{cls}: PAYLOADs URL malformed")
 
 
+class AddedMethodologySources(unittest.TestCase):
+    """The Hacker Recipes (per-class) + Learn From Scratch (learning tracks)."""
+
+    def test_the_hacker_recipes_all_https_on_domain(self):
+        self.assertTrue(_THE_HACKER_RECIPES, "THR map is empty")
+        for cls, url in _THE_HACKER_RECIPES.items():
+            self.assertTrue(url.startswith("https://www.thehacker.recipes/"),
+                            f"{cls}: not a thehacker.recipes URL: {url}")
+
+    def test_the_hacker_recipes_only_covers_known_classes(self):
+        # Every THR class must also be a known methodology class, so the side
+        # map can't drift to a class the tool never surfaces.
+        unknown = set(_THE_HACKER_RECIPES) - set(_METHODOLOGY_LINKS)
+        self.assertFalse(unknown, f"THR maps classes with no methodology entry: {unknown}")
+
+    def test_learn_from_scratch_routes_api_vs_web(self):
+        self.assertIn("api-security", learn_from_scratch_track("graphql"))
+        self.assertIn("web-application-security", learn_from_scratch_track("sqli"))
+        # Unknown class falls back to the web track, never crashes.
+        self.assertIn("web-application-security", learn_from_scratch_track("novel_xyz"))
+
+    def test_learn_from_scratch_urls_https_on_domain(self):
+        for url in (_LEARN_FROM_SCRATCH_HUB,
+                    learn_from_scratch_track("sqli"),
+                    learn_from_scratch_track("graphql")):
+            self.assertTrue(url.startswith("https://tyrusrc.github.io/learnfromscratch/"),
+                            f"not a learnfromscratch URL: {url}")
+
+
 class URLBuilders(unittest.TestCase):
     """Each builder is a verified server-rendered endpoint."""
 
@@ -166,6 +198,24 @@ class ToolEndToEnd(unittest.TestCase):
         self.assertIn("book.hacktricks.xyz", out)
         self.assertIn("swisskyrepo/PayloadsAllTheThings", out)
         self.assertIn("owasp.org/www-project-web-security-testing-guide", out)
+
+    def test_methodology_section_includes_the_hacker_recipes(self):
+        out = self._run(vuln_type="sqli")
+        self.assertIn("thehacker.recipes/web/inputs/sqli", out)
+        self.assertIn("The Hacker Recipes", out)
+
+    def test_learning_tracks_section_present(self):
+        out = self._run(vuln_type="sqli")
+        self.assertIn("LEARNING TRACKS", out)
+        self.assertIn("tyrusrc.github.io/learnfromscratch", out)
+        self.assertIn("web-application-security", out)
+
+    def test_learning_tracks_shown_even_for_unknown_class(self):
+        # THR/methodology may be absent, but the learning-track pointer still
+        # renders so a novel class isn't left with zero study links.
+        out = self._run(vuln_type="some_novel_class_xyz")
+        self.assertIn("LEARNING TRACKS", out)
+        self.assertIn("learnfromscratch", out)
 
     @staticmethod
     def _section(out: str, header_keyword: str) -> str:
