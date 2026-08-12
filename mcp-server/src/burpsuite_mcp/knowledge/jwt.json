@@ -212,9 +212,10 @@
           "note": "Rare but devastating. Confirm via Collaborator DNS hit.",
           "matchers": [
             {
-              "type": "status",
-              "status": [
-                200
+              "type": "collaborator",
+              "interaction_types": [
+                "http",
+                "dns"
               ]
             }
           ],
@@ -241,9 +242,10 @@
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
-              "type": "status",
-              "status": [
-                200
+              "type": "collaborator",
+              "interaction_types": [
+                "http",
+                "dns"
               ]
             }
           ],
@@ -679,9 +681,10 @@
           "note": "OOB confirmation via Collaborator hit.",
           "matchers": [
             {
-              "type": "status",
-              "status": [
-                200
+              "type": "collaborator",
+              "interaction_types": [
+                "http",
+                "dns"
               ]
             }
           ],
@@ -694,9 +697,10 @@
           "note": "OOB confirmation via Collaborator hit.",
           "matchers": [
             {
-              "type": "status",
-              "status": [
-                200
+              "type": "collaborator",
+              "interaction_types": [
+                "http",
+                "dns"
               ]
             }
           ],

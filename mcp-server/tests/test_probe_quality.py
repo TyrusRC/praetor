@@ -87,7 +87,9 @@ class TestKnowledgeBaseHygiene(unittest.TestCase):
     """The unfalsifiable population is capped so it shrinks, never grows."""
 
     # Measured after the fix. Lower it as probes get repaired; never raise it.
-    MAX_UNFALSIFIABLE = 62
+    # 62 -> 57: repaired 5 OOB/SSRF probes whose true signal is a Collaborator
+    # hit or leaked IMDS content, not a 200 (jwt jku/x5u/kid, graphql IMDS SSRF).
+    MAX_UNFALSIFIABLE = 57
 
     def _scan(self):
         dead = []
@@ -122,6 +124,47 @@ class TestKnowledgeBaseHygiene(unittest.TestCase):
     def test_the_vast_majority_of_probes_can_fail(self):
         total, dead = self._scan()
         self.assertGreater((total - len(dead)) / total, 0.95)
+
+
+class TestOOBProbesUseTrueSignal(unittest.TestCase):
+    """OOB/SSRF probes must not regress to a bare 200 matcher.
+
+    A jku/x5u/kid-callback probe succeeds when a Collaborator interaction
+    lands, and the IMDS remote-schema probe succeeds when metadata leaks into
+    the body — never on the clean baseline these {{baseline}} probes replay.
+    A 200-only matcher on such a probe fires on every clean response.
+    """
+
+    @staticmethod
+    def _probe(cat, ctx_name, needle):
+        d = json.loads((KNOWLEDGE_DIR / f"{cat}.json").read_text(encoding="utf-8"))
+        for p in d["contexts"][ctx_name]["probes"]:
+            if needle in p.get("description", ""):
+                return p
+        raise AssertionError(f"{cat}.{ctx_name} probe matching {needle!r} not found")
+
+    def _types(self, probe):
+        return {m.get("type") for m in probe.get("matchers", [])}
+
+    def test_jwt_jku_injection_uses_collaborator(self):
+        p = self._probe("jwt", "jku_injection", "SSRF via key URL")
+        self.assertIn("collaborator", self._types(p))
+
+    def test_jwt_jku_x5u_attacker_both_use_collaborator(self):
+        for needle in ("jku: https://COLLABORATOR", "x5u: https://COLLABORATOR"):
+            p = self._probe("jwt", "jku_x5u_attacker", needle)
+            self.assertIn("collaborator", self._types(p),
+                          f"{needle} probe lost its collaborator matcher")
+
+    def test_jwt_kid_command_injection_uses_collaborator(self):
+        p = self._probe("jwt", "kid_injection", "command injection in shelled-out key fetch")
+        self.assertIn("collaborator", self._types(p))
+
+    def test_graphql_imds_ssrf_matches_metadata_content(self):
+        p = self._probe("graphql_engines", "hasura_remote_schema_ssrf", "AWS IMDS")
+        word = next((m for m in p["matchers"] if m.get("type") == "word"), None)
+        self.assertIsNotNone(word, "IMDS SSRF probe must assert leaked metadata content")
+        self.assertTrue(any("ami-id" in w or "meta-data" in w for w in word["words"]))
 
 
 class TestPrioritisation(unittest.TestCase):
