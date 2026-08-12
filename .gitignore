@@ -13,6 +13,8 @@ dist/
 build/
 .eggs/
 *.egg
+*.whl
+*.tar.gz
 .venv/
 venv/
 
