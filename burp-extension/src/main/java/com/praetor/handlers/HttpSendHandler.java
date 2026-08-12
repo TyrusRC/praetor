@@ -224,10 +224,12 @@ public class HttpSendHandler extends BaseHandler {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status_code", resp != null ? resp.statusCode() : 0);
 
-        // Resolve proxy history index: new entry should be at preSendHistorySize
-        int postSize = api.proxy().history().size();
-        if (postSize > preSendHistorySize) {
-            out.put("history_index", postSize - 1);
+        // Resolve the proxy history index by matching the request we actually
+        // sent against the entries added since the send — not history.size()-1,
+        // which is the wrong entry whenever concurrent traffic landed after it.
+        int idx = com.praetor.util.ProxyHistoryLocator.locate(api, result.request(), preSendHistorySize);
+        if (idx >= 0) {
+            out.put("history_index", idx);
         } else {
             out.put("history_index", -1);
             out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, visible in Logger)");

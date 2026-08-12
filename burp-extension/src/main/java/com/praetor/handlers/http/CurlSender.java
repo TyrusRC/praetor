@@ -213,9 +213,14 @@ public final class CurlSender {
         HttpResponse resp = result.response();
         out.put("status_code", resp != null ? resp.statusCode() : 0);
 
-        int postSize = api.proxy().history().size();
-        if (postSize > preSize) {
-            out.put("history_index", postSize - 1);
+        // Match the ORIGINAL request (the payload-carrying PoC) against the
+        // entries added since preSize — not history.size()-1, which under
+        // redirect following points at the final hop and under concurrent
+        // traffic at another tool's request. `request` is never reassigned in
+        // the redirect loop above, so it still holds the request we sent.
+        int idx = com.praetor.util.ProxyHistoryLocator.locate(api, request, preSize);
+        if (idx >= 0) {
+            out.put("history_index", idx);
         } else {
             out.put("history_index", -1);
             out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, visible in Logger)");

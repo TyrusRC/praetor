@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from ._common import _METHODOLOGY_LINKS, _VECTOR_KB
+from ._common import (
+    _LEARN_FROM_SCRATCH_HUB,
+    _METHODOLOGY_LINKS,
+    _THE_HACKER_RECIPES,
+    _VECTOR_KB,
+    learn_from_scratch_track,
+)
 from .attackerkb import _attackerkb_search
 from .exploitdb import _exploitdb_search
 from .github_advisory import _github_advisory_search
@@ -29,7 +35,7 @@ def register(mcp: FastMCP):
     ) -> str:
         """Curated security-research bundle for a suspected attack vector.
 
-        Returns four sections: (1) deep-dive prompts + chain hypotheses, (2) verified-static methodology deep-links (PortSwigger/HackTricks/PayloadsAllTheThings/WSTG) to WebFetch, (3) pre-baked WebSearch queries for JS/bot-blocked sources (H1/Bugcrowd/writeups), (4) advisory-DB URLs (Exploit-DB/OSV/GitHub Advisory/Snyk/AttackerKB). Rule 27's creative-hunting budget lives here.
+        Returns four sections: (1) deep-dive prompts + chain hypotheses, (2) verified-static methodology deep-links (PortSwigger/HackTricks/The Hacker Recipes/PayloadsAllTheThings/WSTG) plus zero-to-hero learning tracks (Learn From Scratch) to WebFetch, (3) pre-baked WebSearch queries for JS/bot-blocked sources (H1/Bugcrowd/writeups), (4) advisory-DB URLs (Exploit-DB/OSV/GitHub Advisory/Snyk/AttackerKB). Rule 27's creative-hunting budget lives here.
 
         Args:
             vuln_type: Class (sqli/xss/ssrf/ssti/idor/rce/csrf/xxe/race_condition/request_smuggling/deserialization/open_redirect/prototype_pollution/auth_bypass/graphql/websocket/cors/business_logic). Free-form accepted.
@@ -92,17 +98,28 @@ def register(mcp: FastMCP):
 
         # ── Section 2: Methodology deep-links (verified static HTML) ─
         meth = _METHODOLOGY_LINKS.get(v)
-        if meth:
+        thr = _THE_HACKER_RECIPES.get(v)
+        if meth or thr:
             lines.append(f"── METHODOLOGY DEEP-LINKS ({v}) — WebFetch directly ──")
-            if meth.get("portswigger"):
+            if meth and meth.get("portswigger"):
                 lines.append(f"  WebFetch  {meth['portswigger']}    # PortSwigger Web Security Academy")
-            if meth.get("hacktricks"):
+            if meth and meth.get("hacktricks"):
                 lines.append(f"  WebFetch  {meth['hacktricks']}    # HackTricks book")
-            if meth.get("patt"):
+            if thr:
+                lines.append(f"  WebFetch  {thr}    # The Hacker Recipes")
+            if meth and meth.get("patt"):
                 lines.append(f"  WebFetch  {meth['patt']}    # PayloadsAllTheThings")
-            if meth.get("owasp"):
+            if meth and meth.get("owasp"):
                 lines.append(f"  WebFetch  {meth['owasp']}    # OWASP WSTG")
             lines.append("")
+
+        # ── Learning tracks (zero-to-hero, discipline-level) ────────
+        # Learn From Scratch is organised by discipline, not per single vuln,
+        # so it is a study pointer rather than a class deep-link.
+        lines.append("── LEARNING TRACKS (background / zero-to-hero) ──")
+        lines.append(f"  WebFetch  {learn_from_scratch_track(v)}    # Learn From Scratch — class track")
+        lines.append(f"  WebFetch  {_LEARN_FROM_SCRATCH_HUB}    # Learn From Scratch — all tracks")
+        lines.append("")
 
         # ── Section 3: Pre-baked WebSearch queries ──────────────────
         # Use Claude's native WebSearch for sources that are JS-SPA /

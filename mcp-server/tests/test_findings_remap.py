@@ -121,7 +121,7 @@ class HardDeleteCompactsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stored[1]["chain_with"], ["f001"])
 
 
-class PurgeFalsePositivesCompactsTest(unittest.TestCase):
+class PurgeFalsePositivesCompactsTest(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="burp-intel-purge-"))
@@ -132,7 +132,7 @@ class PurgeFalsePositivesCompactsTest(unittest.TestCase):
         os.chdir(self.prev_cwd)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_purge_compacts_survivors(self):
+    async def test_purge_compacts_survivors(self):
         domain = "t.example"
         path = _safe_findings_path(domain)
         _seed(path, [
@@ -142,7 +142,7 @@ class PurgeFalsePositivesCompactsTest(unittest.TestCase):
             _make_finding("f004", status="likely_false_positive"),
             _make_finding("f005"),
         ])
-        keep, deleted = purge_false_positives(domain)
+        keep, deleted = await purge_false_positives(domain)
         self.assertEqual(deleted, 2)
         stored = json.loads(path.read_text())["findings"]
         self.assertEqual([f["id"] for f in stored], ["f001", "f002", "f003"])
@@ -240,6 +240,135 @@ class PruneFindingsToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([f["id"] for f in stored], ["f001", "f002"])
         # f003 -> f002; chain ref to pruned f002 (suspected) dropped.
         self.assertEqual(stored[1]["chain_with"], ["f001"])
+
+
+def _ann(index: int, fid: str, extra: str = "reflected") -> dict:
+    return {"index": index, "color": "RED", "comment": f"{fid} | xss | {extra}",
+            "url": "https://t.example/x", "method": "GET"}
+
+
+class AnnotationRemapImpactTest(unittest.TestCase):
+    """Pure question-gate preview: which report comments a renumber would stale."""
+
+    def test_impact_lists_only_renumbered_findings_with_annotations(self):
+        from burpsuite_mcp.tools.notes._helpers import (
+            _annotation_remap_impact,
+            _prospective_id_map,
+        )
+        f1 = _make_finding("f001")                       # id unchanged
+        f3 = _make_finding("f003")                       # will renumber -> f002
+        f3["annotations"] = [_ann(2, "f003"), _ann(9, "f003", "second step")]
+        keep = [f1, f3]
+        id_map = _prospective_id_map(keep)
+        self.assertEqual(id_map, {"f001": "f001", "f003": "f002"})
+        impact = _annotation_remap_impact(keep, id_map)
+        self.assertEqual(len(impact), 1)
+        self.assertEqual(impact[0]["old"], "f003")
+        self.assertEqual(impact[0]["new"], "f002")
+        self.assertEqual(impact[0]["indices"], [2, 9])
+
+    def test_no_impact_when_no_annotations(self):
+        from burpsuite_mcp.tools.notes._helpers import (
+            _annotation_remap_impact,
+            _prospective_id_map,
+        )
+        keep = [_make_finding("f001"), _make_finding("f003")]
+        self.assertEqual(_annotation_remap_impact(keep, _prospective_id_map(keep)), [])
+
+
+class ResyncBurpAnnotationsTest(unittest.IsolatedAsyncioTestCase):
+
+    async def test_rewrites_id_token_and_stores_readback(self):
+        from burpsuite_mcp.tools.notes import _helpers
+        f = _make_finding("f003")
+        f["id"] = "f002"  # already renumbered by compact
+        f["annotations"] = [_ann(2, "f003")]
+
+        def fake_post(path, json=None):
+            # Burp echoes back what it stored (the read-back).
+            return {"notes": json["comment"], "color": json["color"], "index": json["index"]}
+
+        with patch.object(_helpers.client, "post", new=AsyncMock(side_effect=fake_post)):
+            summary = await _helpers.resync_burp_annotations([f], {"f003": "f002"})
+
+        self.assertEqual(summary["resynced"], 1)
+        self.assertEqual(summary["unreachable"], 0)
+        # comment token rewritten f003 -> f002, stored from read-back
+        self.assertEqual(f["annotations"][0]["comment"], "f002 | xss | reflected")
+
+    async def test_burp_unreachable_counts_and_leaves_comment(self):
+        from burpsuite_mcp.tools.notes import _helpers
+        f = _make_finding("f003")
+        f["id"] = "f002"
+        f["annotations"] = [_ann(2, "f003")]
+
+        with patch.object(_helpers.client, "post",
+                          new=AsyncMock(return_value={"error": "ConnectTimeout"})):
+            summary = await _helpers.resync_burp_annotations([f], {"f003": "f002"})
+
+        self.assertEqual(summary["resynced"], 0)
+        self.assertEqual(summary["unreachable"], 1)
+        # left as-is for a later manual re-annotate
+        self.assertEqual(f["annotations"][0]["comment"], "f003 | xss | reflected")
+
+    async def test_noop_when_nothing_renumbered(self):
+        from burpsuite_mcp.tools.notes import _helpers
+        f = _make_finding("f001")
+        f["annotations"] = [_ann(2, "f001")]
+        with patch.object(_helpers.client, "post", new=AsyncMock()) as m:
+            summary = await _helpers.resync_burp_annotations([f], {"f001": "f001"})
+        m.assert_not_awaited()
+        self.assertEqual(summary["resynced"], 0)
+
+
+class PruneResyncsBurpHistoryTest(unittest.IsolatedAsyncioTestCase):
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="burp-intel-prune-ann-"))
+        self.prev_cwd = Path.cwd()
+        os.chdir(self.tmp)
+
+    def tearDown(self):
+        os.chdir(self.prev_cwd)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    async def test_dry_run_reports_history_impact(self):
+        domain = "t.example"
+        path = _safe_findings_path(domain)
+        f3 = _make_finding("f003")
+        f3["annotations"] = [_ann(2, "f003")]
+        _seed(path, [_make_finding("f001"),
+                     _make_finding("f002", status="suspected"), f3])
+        prune_fn = server.mcp._tool_manager._tools["prune_findings"].fn
+        out = await prune_fn(domain=domain)  # dry-run
+        self.assertIn("DRY-RUN", out)
+        self.assertIn("BURP HISTORY IMPACT", out)
+        self.assertIn("f003 -> f002", out)
+        # nothing mutated
+        self.assertEqual(len(json.loads(path.read_text())["findings"]), 3)
+
+    async def test_confirm_rewrites_and_persists_comment(self):
+        from burpsuite_mcp.tools.notes import _helpers
+        domain = "t.example"
+        path = _safe_findings_path(domain)
+        f3 = _make_finding("f003")
+        f3["annotations"] = [_ann(2, "f003")]
+        _seed(path, [_make_finding("f001"),
+                     _make_finding("f002", status="suspected"), f3])
+
+        def fake_post(p, json=None):
+            return {"notes": json["comment"], "color": json["color"], "index": json["index"]}
+
+        prune_fn = server.mcp._tool_manager._tools["prune_findings"].fn
+        with patch.object(_helpers.client, "post", new=AsyncMock(side_effect=fake_post)):
+            out = await prune_fn(domain=domain, confirm=True)
+
+        self.assertIn("Pruned 1 of 3", out)
+        self.assertIn("Burp history: 1 comment(s) rewritten", out)
+        stored = json.loads(path.read_text())["findings"]
+        # f003 renumbered to f002; its stored comment now cites f002
+        f002 = next(f for f in stored if f["id"] == "f002")
+        self.assertEqual(f002["annotations"][0]["comment"], "f002 | xss | reflected")
 
 
 if __name__ == "__main__":

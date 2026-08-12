@@ -19,6 +19,7 @@ from burpsuite_mcp.tools.report.severity import (
 )
 
 from ._helpers import (
+    _annotation_remap_impact,
     _compact_and_remap_findings,
     _dedupe_finding,
     _domain_from_endpoint,
@@ -27,9 +28,11 @@ from ._helpers import (
     _hard_delete_finding,
     _intel_dir,
     _load_findings_file,
+    _prospective_id_map,
     _safe_findings_path,
     _sanitized,
     _write_findings_file,
+    resync_burp_annotations,
 )
 
 
@@ -711,15 +714,41 @@ def register(mcp: FastMCP):
                 for f in dropped[:20]
             ]
             extra = "" if len(dropped) <= 20 else f"\n  ... and {len(dropped) - 20} more"
+            # Question gate — Burp proxy-history impact. Renumbering survivors
+            # changes the finding-id cited in the annotations that back the
+            # report. Name exactly which history comments will be rewritten so
+            # the operator confirms with the report consequence in view.
+            impact = _annotation_remap_impact(keep, _prospective_id_map(keep))
+            history_lines = ""
+            if impact:
+                touched_idx = sum(len(i["indices"]) for i in impact)
+                rows = [
+                    f"    {i['old']} -> {i['new']}  (proxy history {', '.join('#' + str(x) for x in i['indices'])})"
+                    for i in impact[:10]
+                ]
+                more = "" if len(impact) <= 10 else f"\n    ... and {len(impact) - 10} more findings"
+                history_lines = (
+                    f"\n\nBURP HISTORY IMPACT — {touched_idx} annotated proxy "
+                    f"entr{'y' if touched_idx == 1 else 'ies'} across {len(impact)} "
+                    f"finding(s) back the report and cite an id that will change:\n"
+                    + "\n".join(rows) + more +
+                    "\n  On confirm these comments are rewritten in Burp to the new "
+                    "ids (best-effort — reconnect Burp first so none go stale)."
+                )
             return (
                 f"DRY-RUN: would prune {len(dropped)} of {len(all_findings)} "
                 f"findings from {domain} (keep_statuses={sorted(keep_set)}).\n"
                 + "\n".join(preview) + extra +
                 f"\n\nRe-call with confirm=True to apply. Survivors will be "
                 f"renumbered f001..f{len(keep):03d} and chain_with[] refs rewritten."
+                + history_lines
             )
 
         kept, id_map = _compact_and_remap_findings(keep)
+        # Keep the report evidence consistent: rewrite the Burp proxy-history
+        # comments that cite a renumbered id (mutates the annotation records
+        # in-place, so the write below persists the corrected text).
+        resync = await resync_burp_annotations(kept, id_map)
         store["findings"] = sort_findings_by_risk(kept)
         store["last_modified"] = datetime.now(timezone.utc).isoformat()
         _write_findings_file(findings_path, store)
@@ -729,10 +758,22 @@ def register(mcp: FastMCP):
         )
         if not remap_summary:
             remap_summary = "(no remap needed — IDs already contiguous)"
+        history_line = ""
+        if resync["resynced"] or resync["unreachable"]:
+            history_line = (
+                f"\n  Burp history: {resync['resynced']} comment(s) rewritten to new ids"
+                + (
+                    f", {resync['unreachable']} unreachable (Burp down / history "
+                    f"cleared — re-annotate after reconnect)"
+                    if resync["unreachable"]
+                    else ""
+                )
+            )
         return (
             f"Pruned {len(dropped)} of {len(all_findings)} findings from {domain}.\n"
             f"  Kept: {len(kept)} (statuses: {sorted(keep_set)})\n"
-            f"  Remap (first 10): {remap_summary}\n"
-            f"  Burp in-memory store NOT touched — run "
+            f"  Remap (first 10): {remap_summary}"
+            + history_line +
+            f"\n  Burp in-memory store NOT touched — run "
             f"hydrate_burp_findings(domain='{domain}') to sync."
         )
