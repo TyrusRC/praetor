@@ -186,7 +186,7 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
                    return_value=True), \
              patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("praetor.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit._impl.check_scope",
                    new=fake_check_scope):
             out = await captured["msf_check"](
                 module="exploit/multi/http/log4shell_header_injection",
@@ -218,7 +218,7 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
                    return_value=True), \
              patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("praetor.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit._impl.check_scope",
                    new=fake_check_scope):
             out = await captured["msf_check"](
                 module="auxiliary/scanner/http/title",
@@ -235,7 +235,7 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         metasploit.register(stub)
         with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("praetor.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit._impl.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             out = await captured["msf_check"](
                 module="exploit/multi/http/x",
@@ -286,7 +286,7 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
                    return_value=True), \
              patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("praetor.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit._impl.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             out = await captured["msf_exploit"](
                 module="exploit/multi/http/log4shell_header_injection",
@@ -313,7 +313,7 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
                    return_value=True), \
              patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("praetor.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit._impl.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             out = await captured["msf_exploit"](
                 module="exploit/multi/http/struts2_content_type_ognl",
