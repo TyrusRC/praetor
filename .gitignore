@@ -37,6 +37,7 @@ Thumbs.db
 .remember/
 .mcp.json
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 docs/superpowers/
 
 # Target intelligence (sensitive — never commit)
