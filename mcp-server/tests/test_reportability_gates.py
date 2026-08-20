@@ -165,5 +165,43 @@ class TestSystemicDuplicateGate(_SaveHarness):
         self.assertNotIn("SYSTEMIC GATE", out)
 
 
+class TestNeverSubmitCanonicalGate(_SaveHarness):
+    """The persistence layer must reject NEVER-SUBMIT classes regardless of
+    spelling. The authoritative Java gate matches raw against a differently-
+    spelled set, so a canonical Python spelling (open_redirect, missing_headers)
+    slipped past the hard-reject; save_finding now canonicalises first.
+    """
+
+    async def test_open_redirect_common_spelling_is_rejected(self):
+        # canonical('open_redirect') -> 'open_redirect_no_chain'; Java's raw
+        # set only knows the latter, so this spelling was the bypass.
+        out = await self.save(vuln_type="open_redirect", severity="LOW")
+        self.assertIn("NEVER-SUBMIT GATE", out)
+        self.assertIn("open_redirect_no_chain", out)
+
+    async def test_missing_headers_is_rejected(self):
+        out = await self.save(vuln_type="missing_security_header", severity="LOW")
+        self.assertIn("NEVER-SUBMIT GATE", out)
+
+    async def test_chain_lets_it_through_the_gate(self):
+        self.seed("t.example", [{"id": "f001", "vuln_type": "sqli",
+                                 "endpoint": "https://t.example/x", "parameter": "z",
+                                 "status": "confirmed", "title": "anchor",
+                                 "created": "2026-01-01"}])
+        out = await self.save(vuln_type="open_redirect", severity="LOW",
+                              chain_with=["f001"])
+        self.assertNotIn("NEVER-SUBMIT GATE", out)
+
+    async def test_override_bypasses_the_gate(self):
+        out = await self.save(vuln_type="open_redirect", severity="LOW",
+                              overrides=["q6_never_submit:chained in report body"])
+        self.assertNotIn("NEVER-SUBMIT GATE", out)
+
+    async def test_reportable_class_is_not_blocked(self):
+        out = await self.save(vuln_type="sqli", severity="HIGH",
+                              impact="reads other users' rows")
+        self.assertNotIn("NEVER-SUBMIT GATE", out)
+
+
 if __name__ == "__main__":
     unittest.main()

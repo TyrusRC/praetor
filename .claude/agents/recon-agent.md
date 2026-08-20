@@ -65,7 +65,7 @@ Covers Rule 20a (session-start gate). If `dns_only` signal in subdomain set → 
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The endpoint/tech/param detail stays in `## Returns`; this carries the summary + hand-off (recon produces no findings, so counts are 0):
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The endpoint/tech/param detail stays in `## Returns`; this carries the summary + hand-off (recon produces no findings, so counts are 0):
 
 ```json
 {"agent":"recon-agent","domain":"<domain>","phase":"recon","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N endpoints, tech stack, sensitive files, hidden params>","next_action":"<e.g. dispatch vuln-scanner on top-risk params>","blockers":[]}

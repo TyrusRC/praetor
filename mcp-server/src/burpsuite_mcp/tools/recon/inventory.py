@@ -13,9 +13,13 @@ def register(mcp: FastMCP):
 
     @mcp.tool()
     async def check_recon_tools() -> str:
-        """Check which external recon tools are installed on this system."""
-        # Web-focused recon tools only. Network-layer tools like nmap are excluded —
-        # their traffic can't route through Burp's HTTP proxy.
+        """Check which core web/recon tools are installed on this system.
+
+        Web/HTTP tools only. The network-lane tools (nmap, netexec, impacket,
+        responder, ...) are equally core — check them with a doctor run or
+        redteam_tool_guide(). Nothing here is optional; a missing tool is a gap
+        to install, not a feature to skip.
+        """
         tools = {
             "subfinder": "Subdomain enumeration (passive)",
             "nuclei": "Template-based vulnerability scanner",

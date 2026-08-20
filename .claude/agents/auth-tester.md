@@ -49,7 +49,7 @@ You test authorization (not authentication). You need ≥2 sessions to compare a
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The `matrix_results` + ID lists stay in `## Returns`:
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The `matrix_results` + ID lists stay in `## Returns`:
 
 ```json
 {"agent":"auth-tester","domain":"<domain>","phase":"authz","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<idor/bfla/bypass across N endpoints x M roles>","next_action":"<e.g. verify idor f-XXXX>","blockers":[]}

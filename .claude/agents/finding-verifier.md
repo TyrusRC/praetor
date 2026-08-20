@@ -95,7 +95,7 @@ For each `finding_id`:
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The per-id state transitions stay in `## Returns`; `findings_confirmed` counts findings promoted to `confirmed` this run:
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The per-id state transitions stay in `## Returns`; `findings_confirmed` counts findings promoted to `confirmed` this run:
 
 ```json
 {"agent":"finding-verifier","domain":"<domain>","phase":"verify","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N verified: promoted/stale/FP breakdown>","next_action":"<e.g. report confirmed f-XXXX / re-probe stale>","blockers":[]}

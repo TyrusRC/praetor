@@ -47,7 +47,7 @@ You fuzz hidden paths. You use `detect_tech_stack` first, then `generate_smart_w
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The `hits` list stays in `## Returns`:
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The `hits` list stays in `## Returns`:
 
 ```json
 {"agent":"fuzz-agent","domain":"<domain>","phase":"fuzz:<tier>","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<tier wordlist over host; N hidden paths, N endpoints added>","next_action":"<e.g. recon-agent to enrich new paths>","blockers":[]}

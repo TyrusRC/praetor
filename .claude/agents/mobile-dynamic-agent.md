@@ -55,7 +55,7 @@ Follow `.claude/skills/playbook-mobile-dynamic.md`. Standard cadence:
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The captured endpoints/tokens/deeplinks stay in `## Returns`:
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The captured endpoints/tokens/deeplinks stay in `## Returns`:
 
 ```json
 {"agent":"mobile-dynamic-agent","domain":"<domain>","phase":"mobile-dynamic","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<pinning bypassed? N endpoints captured; header profile saved>","next_action":"<e.g. hand backend traffic to vuln-scanner>","blockers":[]}

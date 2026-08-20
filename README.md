@@ -1,6 +1,6 @@
 # Praetor
 
-*Agentic DAST orchestrator for Burp Suite.*
+*Agentic pentest & red-team harness — web (Burp) + network/AD, one operator log.*
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/TyrusRC/praetor/releases)
@@ -11,7 +11,12 @@
 
 > **v1.0** — the repo is `github.com/TyrusRC/praetor`. Binaries: `praetor-mcp` (MCP server) and `praetor-burp-ext-<version>.jar` (Burp extension). The Python package directory is still `burpsuite_mcp/`; the import-path rename lands in v1.1.
 
-Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into a Burp-native agentic pentester. It exposes Burp's HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), an 11-agent team, and a save-finding pipeline with persistent target memory. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
+Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into an agentic pentester and red-teamer across **two co-equal lanes**:
+
+- **Web lane (Burp):** HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), and native vuln-class orchestrators. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
+- **Network / red-team lane:** advanced network recon and post-exploitation that Burp can't see — `run_network_recon` (a chained discover → service-aware enum → leads pipeline), `run_nmap`, a sanctioned runner for impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm, offline cracking (`crack_hashes`), and a reusable **credential store**. Every action is recorded in a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody** — the non-Burp evidence a red-team report cites in place of a Logger index.
+
+Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (nuclei/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core.
 
 ## Authorized Use
 
@@ -20,12 +25,18 @@ This is an offensive security tool. Use only on systems where you have explicit 
 ## Architecture
 
 ```
-LLM client  <- stdio MCP -> Python MCP server  <- HTTP -> Java Burp extension  <- Montoya API -> Burp Suite
+                                      ┌─ web lane ──> Java Burp extension <- Montoya -> Burp Suite
+LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy :8080)
+                                      └─ network lane ─> nmap / impacket / netexec / responder / ...
+                                                          (bypass Burp; operator log + loot)
+                          both lanes ─> Ghostwriter (GraphQL) : central reporting / oplog hub
 ```
 
-- The Java extension exposes a REST API on `127.0.0.1:8111` and tunnels HTTP traffic through Burp's proxy listener (`127.0.0.1:8080`) so all probes appear in Proxy history.
-- The Python MCP server is a thin client that the LLM speaks to via stdio.
-- Target intelligence is persisted to `.burp-intel/<domain>/` (gitignored).
+- **Web lane:** the Java extension exposes a REST API on `127.0.0.1:8111` and tunnels HTTP through Burp's proxy listener (`127.0.0.1:8080`), so every probe appears in Proxy history and carries a Logger index.
+- **Network lane:** external tools run directly (TCP/SMB/LDAP/Kerberos — Burp can't proxy them); each run is recorded in the operator log (`.burp-intel/<domain>/network/oplog.jsonl`, ATT&CK-tagged) with output under `material/tool-output/` and captured secrets in `network/loot/`. That operator-log id is the evidence a network finding cites.
+- The Python MCP server is a thin client the LLM speaks to via stdio.
+- Target intelligence, the operator log, loot, and the credential store all persist under `.burp-intel/<domain>/` (gitignored).
+- **Ghostwriter** (optional but core when present) is the reporting hub both lanes forward into via GraphQL.
 
 ## Features
 
@@ -35,6 +46,7 @@ LLM client  <- stdio MCP -> Python MCP server  <- HTTP -> Java Burp extension  <
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
 - Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
 - Third-party wrappers proxied through Burp: sqlmap, dalfox, commix, nuclei, ffuf, katana, subfinder, amass, wafw00f, arjun, gau, waybackurls, wpscan, nikto.
+- **Network / red-team lane**: `run_network_recon` chains nmap discovery → service-aware enumeration → prioritized leads → auto-loot, and bridges discovered web services back to Burp. A sanctioned runner drives impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm; `crack_hashes` (offline hashcat/john) plus a credential store close the capture → crack → reuse loop. Every action is logged to a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody**, and forwards to **Ghostwriter**. HARD safety (Rules 5–9) refuses destructive/brute args; scope is engagement-mode-aware.
 - **SAST + secrets layer (v1.0)**: `audit_crawled_artifacts` opengrep-over-proxy-bodies (DOM clobbering / proto pollution / postMessage), `run_opengrep_source` source-tree SAST, `run_gitleaks` + `run_trufflehog` (live verification = HIGH severity floor), `dump_exposed_git` chains with `discover_common_files` `.git/HEAD` to reconstruct repo + extract secrets. Noir OpenAPI ingest via `import_scope --format noir_json`.
 - **Active LLM/MCP probes (v1.0)**: `ai_prompt_injection`, `rag_injection`, `mcp_server_attacks`, `mcp_tool_poisoning`, `vector_db_injection`, `echoleak` (CVE-2025-32711). Declarative prompt-injection guardrail (`inspect_for_prompt_injection`).
 - **CI integration (v1.0)**: SARIF 2.1.0 + JUnit XML exporters, compliance-framework tags (OWASP / PCI-DSS / HIPAA / SOC2 / GDPR / CWE), `intensity=safe|normal|aggressive` flag, per-engagement cost cap (`set_engagement_cost_cap`), auto-PoC `generate_repro_script` rendering runnable curl from the finding's logger_index.
@@ -47,15 +59,18 @@ LLM client  <- stdio MCP -> Python MCP server  <- HTTP -> Java Burp extension  <
 
 ## Requirements
 
-- Burp Suite Professional or Community Edition
-- Java 21+
-- Python 3.11+ with [uv](https://docs.astral.sh/uv/)
+**Core (both lanes):**
+
+- Burp Suite Professional or Community Edition — web lane
+- Java 21+, Python 3.11+ with [uv](https://docs.astral.sh/uv/), Go (for the ProjectDiscovery tools)
 - An MCP-aware LLM client (Claude Code, Claude Desktop, etc.)
+- **Web tools** (core, not optional): nuclei, ffuf, sqlmap, katana, subfinder, dalfox, httpx, amass, gau, waybackurls, wpscan, nikto, opengrep, gitleaks, trufflehog
+- **Network / red-team tools** (core, not optional): nmap, netexec, impacket-scripts, responder, bloodhound-python, certipy, kerbrute, enum4linux-ng, smbmap, evil-winrm, hashcat, john, gobuster, seclists
+- **Docker + Docker Compose** — for the Ghostwriter reporting hub
 
-Optional:
+`./setup.sh` installs all of the above (Kali/Parrot via apt, other distros via apt/uv/go with clone fallbacks). `./doctor.sh` reports what's present. On Kali most tools are preinstalled or one `apt` away.
 
-- Go (for `subfinder`, `nuclei`, `katana`)
-- Burp Professional for scanner control and Collaborator
+Best with Burp Professional (scanner control + Collaborator); Community degrades gracefully — see below.
 
 ### Burp Edition Compatibility
 
@@ -181,20 +196,46 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `BURP_API_TIMEOUT` | `30` | HTTP timeout in seconds |
 | `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
 | `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
+| `GHOSTWRITER_URL` | — | Ghostwriter base URL (e.g. `https://127.0.0.1`); unset = no forwarding |
+| `GHOSTWRITER_ADMIN_SECRET` | — | Hasura admin secret (or use `GHOSTWRITER_API_TOKEN`) |
+| `GHOSTWRITER_OPLOG_ID` | — | numeric Oplog id to append entries to |
+| `GHOSTWRITER_INSECURE_TLS` | `false` | `1` to accept Ghostwriter's self-signed localhost cert |
 
-The Java extension also accepts JVM system properties `praetor.proxy.host` and `praetor.proxy.port` (highest precedence).
+The Java extension also accepts JVM system properties `praetor.proxy.host` and `praetor.proxy.port` (highest precedence). `./setup-ghostwriter.sh` writes the `GHOSTWRITER_*` values into `.env` automatically (see [Ghostwriter setup](#ghostwriter-reporting-hub)).
 
 ## Usage
 
-Once `.mcp.json` is loaded by your MCP client, the tools are available to the agent. A typical session:
+Once `.mcp.json` is loaded by your MCP client, the tools are available to the agent. Pick the lane that fits the target (or run both — a box often has web *and* network surface).
+
+**Web lane (a webapp / API):**
 
 1. `configure_scope` to set include/exclude patterns and auto-filter tracker domains.
 2. `browser_crawl` or `discover_attack_surface` to map the target.
 3. `auto_probe` to run knowledge-driven probes on parameters.
-4. `assess_finding` followed by `save_finding` for each suspected issue.
+4. `assess_finding` → `save_finding` for each suspected issue.
 5. `generate_report` to export findings.
 
+**Network / red-team lane (a host, subnet, or AD environment):**
+
+1. `run_network_recon(target, domain)` — one call: nmap discovery → per-service enum (SMB/LDAP/RPC/MSSQL/Kerberos) → **leads** (anon access, roastable hashes, SMB signing off, Pwn3d!) → auto-loots hashes → bridges any HTTP(S) service into the web lane. Add `creds='DOMAIN/user:pass'` to unlock authenticated enum.
+2. `crack_hashes(domain, 'asrep', loot_type='asrep_hash')` — offline-crack captured hashes; cracked passwords auto-land in the credential store.
+3. Re-run `run_network_recon` with the recovered `creds=` (or `run_network_tool` for a specific impacket/netexec action) to move laterally. The kill chain loops: **capture → crack → store → reuse.**
+4. `get_operator_log(domain, 'timeline'|'attack'|'loot')` — the ATT&CK-tagged evidence base for the report.
+5. `sync_to_ghostwriter(domain)` — forward both lanes' evidence into Ghostwriter.
+
+Every network action is auto-recorded in the operator log; captured secrets get chain-of-custody in the loot store; a HARD safety layer (Rules 5–9) refuses destructive/brute args in both engagement modes, and scope is mode-aware (`configure_scope(mode='operator'|'strict')`).
+
 The agent receives expert methodology through the skill files in `.claude/skills/`. Operators steer the agent by passing override flags or by editing `.burp-intel/programs/<slug>.json` per-engagement policy.
+
+### Ghostwriter reporting hub
+
+Ghostwriter is the central reporting/oplog hub both lanes forward into. It is a Docker stack; Praetor ships an auto-setup:
+
+```bash
+./setup-ghostwriter.sh     # clones + installs Ghostwriter, wires .env (GHOSTWRITER_*)
+```
+
+This downloads several GB of images and binds TCP 443 (skip in `setup.sh` with `PRAETOR_SKIP_GHOSTWRITER=1`). Afterward, open **https://127.0.0.1** (accept the self-signed cert), log in as `admin` (`cd ~/Ghostwriter && ./ghostwriter-cli-linux config get ADMIN_PASSWORD`), create a Project + its Oplog, and set `GHOSTWRITER_OPLOG_ID`. Verify with `ghostwriter_status`, then `sync_to_ghostwriter('<domain>')`. Praetor works fully without Ghostwriter — local `.burp-intel/` stores stay the source of truth.
 
 ## Tool Surface
 
@@ -223,6 +264,12 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
+| **Network recon (lane)** | `run_network_recon` (chained discover→enum→leads pipeline), `run_nmap`, `get_network_inventory` |
+| **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch) |
+| **Credential loop** | `crack_hashes` (offline hashcat/john), `record_credential`, `list_credentials` |
+| **Operator log / evidence** | `record_redteam_action`, `record_loot`, `get_operator_log` (timeline / attack / loot) |
+| **Red-team knowledge** | `lookup_gtfobins`, `lookup_lolbas`, `redteam_tool_guide` |
+| **Ghostwriter hub** | `ghostwriter_status`, `sync_to_ghostwriter` |
 
 ## MCP Prompts
 
@@ -271,16 +318,17 @@ Latest additions cover the gap surface most bug-bounty and red-team work hits in
 
 ### Scope & Non-Goals
 
-Praetor is a **web / API / cloud / LLM DAST orchestrator** driven through Burp. That lane is deliberate — the tooling, memory model, and finding pipeline are optimized for it. The following are **out of scope by design**, not gaps to be filled:
+Praetor is a **two-lane pentest & red-team harness**: web / API / cloud / LLM DAST through Burp, **and** network recon + Active Directory / post-exploitation on the network lane. Both lanes are first-class — the tooling, evidence model, and reporting pipeline serve both. Internal-network / AD is **in scope** (this changed in the network-lane release): `run_network_recon`, impacket, netexec, responder, bloodhound-python, certipy, kerbrute, offline cracking, and the credential-reuse loop are all core.
 
-- **Internal-network / Active Directory** — no BloodHound / NetExec / impacket / Kerberos-abuse / SMB tooling. `probe_kerberos_spnego_auth` is detection-only (advertises `WWW-Authenticate: Negotiate`); full GSSAPI negotiation and AD lateral movement are not covered. Reach for a dedicated AD toolkit for internal engagements.
-- **Thick-client / native desktop binaries** — Electron IPC/ASAR inspection ships as reference KB (`desktop_electron`) + skill only; there is no binary-instrumentation automation for native Windows/macOS apps.
+The following remain **out of scope by design**, not gaps to be filled:
+
+- **Binary / memory-corruption exploitation** — no ROP/pwntools/gdb/kernel/V8 exploit development. Praetor operates at the network/service and web layers, not on native-binary crash-to-exploit (e.g. ExploitGym-class tasks).
+- **Thick-client / native desktop binaries** — Electron IPC/ASAR inspection ships as reference KB (`desktop_electron`) + skill only; no binary-instrumentation automation for native Windows/macOS apps.
 - **Non-HTTP protocol / binary fuzzing** — fuzzing is HTTP/parameter-oriented; no boofuzz/AFL-class grammar or network-protocol fuzzing.
 - **Email-infrastructure security** — DNS analysis notes SPF/DMARC *presence* only; no DKIM-selector enumeration, SMTP/STARTTLS/open-relay, or BEC/spoofing assessment.
 - **Container-runtime / eBPF behavioral detection** — image scanning (Trivy/Grype/Hadolint) is covered; runtime (Falco-class) is not.
-- **Autonomous exploitation of destructive/RCE classes** — RCE is detection-gated; Metasploit integration is operator-supervised. Praetor proves impact with benign markers, never with data destruction (Rules 5–8).
-
-If an engagement genuinely needs one of these, use a purpose-built tool alongside Praetor rather than expecting Praetor to grow into it.
+- **Online credential brute-force** — dictionary brute of a live service is refused (HARD Rule 6); default/known-cred checks, single-password spray, and **offline** cracking are in scope.
+- **Autonomous destructive actions** — RCE is detection-gated; destructive/brute tool args are refused in both engagement modes. Praetor proves impact with benign markers, never with data destruction (Rules 5–8).
 
 ## Save-Finding Pipeline
 

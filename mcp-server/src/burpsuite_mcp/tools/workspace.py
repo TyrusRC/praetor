@@ -1,8 +1,7 @@
 """Engagement workspace layout — single source of per-domain artifact paths.
 
 Machine files (profile.json, findings.json, ...) stay at the domain root.
-This module owns the human-facing subdir tree only. See Spec 1:
-docs/superpowers/specs/2026-07-19-engagement-workspace-foundation-design.md
+This module owns the human-facing subdir tree only.
 """
 from pathlib import Path
 
@@ -19,6 +18,10 @@ _SUBDIRS = {
     "material": ("material",),
     "wordlists": ("material", "wordlists"),
     "tool_output": ("material", "tool-output"),
+    # Network / red-team lane — evidence that never routes through Burp
+    # (nmap/impacket/responder run records) and captured secrets.
+    "network": ("network",),
+    "loot": ("network", "loot"),
 }
 
 

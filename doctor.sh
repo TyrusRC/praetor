@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Praetor — Doctor
-# Checks environment, build artifacts, Burp connection, and optional tools.
+# Checks environment, build artifacts, Burp connection, and all core tools.
 # Non-zero exit only when something critical is missing.
 # Usage: ./doctor.sh
 
@@ -259,7 +259,7 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-head "Recon tools (optional)"
+head "Recon tools (core — web lane)"
 # ════════════════════════════════════════════════════════════════════
 
 check_recon() {
@@ -343,6 +343,70 @@ check_recon shuffledns "go install -v github.com/projectdiscovery/shuffledns/cmd
 check_recon chaos      "go install -v github.com/projectdiscovery/chaos-client/cmd/chaos@latest"
 
 # ════════════════════════════════════════════════════════════════════
+head "Red-team / network lane (core)"
+# ════════════════════════════════════════════════════════════════════
+# Powers run_nmap + run_network_tool. Traffic is TCP/SMB/LDAP/Kerberos — it
+# does NOT route through Burp; evidence lands in the operator log instead.
+check_recon nmap       "sudo apt install nmap                               # Kali: preinstalled"
+check_recon nxc        "sudo apt install netexec                            # or: uv tool install git+https://github.com/Pennyw0rth/NetExec"
+check_recon impacket-secretsdump "sudo apt install impacket-scripts        # or: uv tool install impacket"
+check_recon responder  "sudo apt install responder                          # or: git clone https://github.com/lgandx/Responder"
+check_recon bloodhound-python "sudo apt install bloodhound.py               # or: uv tool install bloodhound"
+check_recon certipy    "sudo apt install certipy-ad                         # or: uv tool install certipy-ad"
+check_recon kerbrute   "sudo apt install kerbrute                           # or: go install github.com/ropnop/kerbrute@latest"
+check_recon enum4linux-ng "sudo apt install enum4linux-ng"
+check_recon smbmap     "sudo apt install smbmap"
+check_recon evil-winrm "sudo apt install evil-winrm                         # or: gem install evil-winrm"
+check_recon gobuster   "sudo apt install gobuster                           # or: go install github.com/OJ/gobuster/v3@latest"
+check_recon feroxbuster "sudo apt install feroxbuster                        # or: cargo install feroxbuster"
+check_recon hashcat    "sudo apt install hashcat                            # offline cracking (not Rule-6 brute)"
+check_recon john       "sudo apt install john                               # offline cracking"
+check_recon sshuttle   "sudo apt install sshuttle                           # pivoting (alt: ligolo-ng / chisel)"
+# SecLists is a directory, not a binary — detect the path detect_seclists() uses.
+if [ -d /usr/share/seclists ] || [ -d /usr/share/SecLists ] || [ -d /opt/SecLists ]; then
+    pass "seclists (wordlists present)"
+else
+    skip "seclists" "sudo apt install seclists   # or: git clone https://github.com/danielmiessler/SecLists /opt/SecLists"
+fi
+
+# ════════════════════════════════════════════════════════════════════
+head "Ghostwriter (reporting / oplog hub)"
+# ════════════════════════════════════════════════════════════════════
+# Central hub both lanes forward into. Needs Docker; wired via .env
+# (GHOSTWRITER_URL / GHOSTWRITER_ADMIN_SECRET|API_TOKEN / GHOSTWRITER_OPLOG_ID).
+if has docker && docker info >/dev/null 2>&1; then
+    pass "docker daemon reachable"
+    gw_running="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -ci ghostwriter || true)"
+    if [ "${gw_running:-0}" -gt 0 ] 2>/dev/null; then
+        pass "Ghostwriter containers running ($gw_running)"
+    else
+        skip "Ghostwriter containers" "not running — ./setup-ghostwriter.sh"
+    fi
+else
+    skip "docker" "not available — install Docker, then ./setup-ghostwriter.sh"
+fi
+# Praetor-side wiring (read from repo .env if present).
+GW_ENV="$SCRIPT_DIR/.env"
+gw_url="${GHOSTWRITER_URL:-}"; gw_auth=""; gw_oplog="${GHOSTWRITER_OPLOG_ID:-}"
+if [ -f "$GW_ENV" ]; then
+    [ -z "$gw_url" ] && gw_url="$(grep -E '^GHOSTWRITER_URL=' "$GW_ENV" | tail -1 | cut -d= -f2-)"
+    [ -z "$gw_oplog" ] && gw_oplog="$(grep -E '^GHOSTWRITER_OPLOG_ID=' "$GW_ENV" | tail -1 | cut -d= -f2-)"
+    grep -qE '^GHOSTWRITER_(ADMIN_SECRET|API_TOKEN)=.+' "$GW_ENV" && gw_auth="set"
+fi
+if [ -n "$gw_url" ] && [ -n "$gw_auth" ] && [ -n "$gw_oplog" ]; then
+    pass "Praetor forwarding configured (url + auth + oplog $gw_oplog)"
+elif [ -n "$gw_url" ]; then
+    skip "Praetor forwarding" "partial — need auth + GHOSTWRITER_OPLOG_ID in .env (ghostwriter_status)"
+else
+    skip "Praetor forwarding" "unset — ./setup-ghostwriter.sh writes .env, then set GHOSTWRITER_OPLOG_ID"
+fi
+if [ -n "$gw_url" ]; then
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 4 "$gw_url/v1/graphql" 2>/dev/null || echo "")
+    [ -n "$code" ] && [ "$code" != "000" ] && pass "GraphQL endpoint reachable ($gw_url/v1/graphql -> $code)" \
+        || skip "GraphQL endpoint" "$gw_url/v1/graphql not reachable — is Ghostwriter up?"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 head "Knowledge base"
 # ════════════════════════════════════════════════════════════════════
 
@@ -412,14 +476,14 @@ done
 head "Summary"
 # ════════════════════════════════════════════════════════════════════
 
-echo "  OK: $OK   optional missing: $WARN   failures: $FAIL"
+echo "  OK: $OK   tools missing: $WARN   failures: $FAIL"
 
 if [ "$FAIL" -gt 0 ]; then
     echo -e "${RED}Doctor found $FAIL critical problem(s). Fix the [XX] items above.${NC}"
     exit 1
 fi
 if [ "$WARN" -gt 0 ]; then
-    echo -e "${YELLOW}Healthy. Optional items in [--] can be installed when needed.${NC}"
+    echo -e "${YELLOW}Healthy. Items in [--] are tools to install for full coverage.${NC}"
 else
     echo -e "${GREEN}All clear.${NC}"
 fi

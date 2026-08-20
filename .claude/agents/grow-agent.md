@@ -188,7 +188,6 @@ Final round emits a structured summary:
 
 ## References
 
-- Design spec: `docs/specs/2026-05-22-grow-agent-design.md`
 - Subagent roles: `AGENTS.md`
 - Hunting rules: `.claude/rules/hunting.md`
 - Skills: `.claude/skills/{autopilot,hunt,verify-finding,chain-findings,dispatch-agents}.md`

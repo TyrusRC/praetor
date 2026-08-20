@@ -32,16 +32,21 @@ In-conversation user instructions override this per turn.
 
 ## Project Overview
 
-**Praetor** — agentic DAST orchestrator for Burp Suite.
+**Praetor** — agentic pentest & red-team harness over two co-equal lanes: web (Burp) and network/AD.
 
 ```
-Claude Code -> praetor-mcp (Python, stdio) -> praetor-burp-ext (Java, REST 127.0.0.1:8111) -> Burp (Montoya)
+                        web lane      -> praetor-burp-ext (Java, REST 127.0.0.1:8111) -> Burp (Montoya)
+Claude Code -> praetor-mcp (stdio) ->
+                        network lane  -> nmap / impacket / netexec / ... (bypass Burp; operator log + loot)
+                        both lanes    -> Ghostwriter (GraphQL) reporting/oplog hub (optional)
 ```
 
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external runtime deps. Artifact `praetor-burp-ext`, package `com.praetor`.
 - `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package dir is still `burpsuite_mcp/` for v1.x; the rename is deferred, not forgotten.
 - **Finding a tool** — `list_tier1_tools()`, `pick_tool(task)`, or `skill.json`. Tool counts are deliberately untracked here: they go stale in a week and cost tokens every session.
-- **Default hunt loop** — `load_target_intel -> discover_attack_surface -> auto_probe`. Everything else is reachable by direct call.
+- **Two lanes, one evidence model.** Web-lane findings cite a Burp `logger_index`; network-lane actions bypass Burp and cite an operator-log id. Web tools (nuclei/ffuf/sqlmap) and network tools (nmap/netexec/impacket) are both core — nothing is optional.
+- **Web hunt loop** — `load_target_intel -> discover_attack_surface -> auto_probe`.
+- **Network lane** (`tools/network`, `tools/redteam`) — `run_network_recon` (discover → service enum → leads → auto-loot → web-lane bridge); `run_network_tool` (sanctioned impacket/netexec/...); `crack_hashes` + credential store (capture → crack → reuse). Evidence: `tools/redteam/_oplog` (ATT&CK-tagged operator log + loot chain-of-custody), forwarded to Ghostwriter via `sync_to_ghostwriter`. HARD safety (Rules 5-9) refuses destructive/brute args; scope is engagement-mode-aware.
 - **Assessment tools** return a `VerdictResult`; use `verdict_from_tally(hits)` (`tools/testing/_verdict.py`, guide `.claude/skills/verdict-tools.md`).
 - **Knowledge base** — JSON under `.../knowledge/`, index `_INDEX.md`. New probe classes merge into an existing parent file; a new sibling needs a justification that no parent fits.
 - **Headless browser** — CloakBrowser. All `browser_*` tools route through the Burp proxy; Praetor never imports `playwright` directly.

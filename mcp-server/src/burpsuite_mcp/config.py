@@ -44,3 +44,19 @@ BURP_PROXY_PORT = _intenv("BURP_PROXY_PORT", 8080)
 
 BASE_URL = f"http://{BURP_API_HOST}:{BURP_API_PORT}"
 BURP_PROXY_URL = f"http://{BURP_PROXY_HOST}:{BURP_PROXY_PORT}"
+
+# ── Ghostwriter (optional central reporting/oplog hub) ──────────────────────
+# When set, Praetor forwards both lanes into Ghostwriter: web/Burp findings and
+# the network operator log. Unset = local .burp-intel stores stay the source of
+# truth and nothing is forwarded. Never hardcode the token — env only.
+GHOSTWRITER_URL = os.environ.get("GHOSTWRITER_URL", "").rstrip("/")
+GHOSTWRITER_API_TOKEN = os.environ.get("GHOSTWRITER_API_TOKEN", "")
+# Hasura admin secret is an alternative to a JWT for self-hosted instances.
+GHOSTWRITER_ADMIN_SECRET = os.environ.get("GHOSTWRITER_ADMIN_SECRET", "")
+# Oplog id (int) to append operator-log entries to, and report id for findings.
+GHOSTWRITER_OPLOG_ID = _intenv("GHOSTWRITER_OPLOG_ID", 0)
+GHOSTWRITER_REPORT_ID = _intenv("GHOSTWRITER_REPORT_ID", 0)
+# A self-hosted Ghostwriter ships a self-signed TLS cert on https://localhost.
+# Set GHOSTWRITER_INSECURE_TLS=1 to skip cert verification (safe for loopback;
+# do NOT use for a remote Ghostwriter over an untrusted network).
+GHOSTWRITER_INSECURE_TLS = os.environ.get("GHOSTWRITER_INSECURE_TLS", "").lower() in ("1", "true", "yes")

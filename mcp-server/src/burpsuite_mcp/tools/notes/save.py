@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from burpsuite_mcp import client
 from burpsuite_mcp.tools._vuln_class import canonical
+from burpsuite_mcp.tools.advisor_kb import NEVER_SUBMIT_TYPES
 from burpsuite_mcp.tools.report.severity import (
     SEVERITY_RANK,
     cvss4_for_finding,
@@ -24,6 +25,7 @@ from ._helpers import (
     _dedupe_finding,
     _domain_from_endpoint,
     _find_by_id,
+    _findings_lock,
     _format_proof_for_review,
     _hard_delete_finding,
     _intel_dir,
@@ -117,7 +119,7 @@ def register(mcp: FastMCP):
             severity: CRITICAL/HIGH/MEDIUM/LOW/INFO. Operator-locked — wins over advisor's inferred severity.
             endpoint: Affected URL/endpoint.
             evidence_text: Freeform proof string for the report.
-            reproductions: Required for timing/blind vuln_types (>=2 dicts with logger_index/elapsed_ms/status_code).
+            reproductions: Required for timing/blind vuln_types (>=3 dicts with logger_index/elapsed_ms/status_code, per Rule 10a).
             chain_with: Required for NEVER-SUBMIT vuln_types — list of finding IDs for the chain.
             status: suspected/confirmed/stale/likely_false_positive.
             domain: Target domain for persistent .burp-intel storage.
@@ -235,6 +237,30 @@ def register(mcp: FastMCP):
 
         override_set = {(o.split(":", 1)[0] if ":" in o else o).strip().lower()
                         for o in (overrides or [])}
+
+        # ── NEVER-SUBMIT gate (canonicalized) ─────────────────────
+        # The authoritative Java gate matches vuln_type raw against a
+        # differently-spelled set (open_redirect_no_chain, missing_security_header,
+        # ...), so a finding tagged in its canonical Python spelling
+        # (open_redirect, missing_headers, cookie_flags) slips past the very
+        # hard-reject _vuln_class.canonical() exists to enforce — the same
+        # spelling bypass q6_never_submit already fixed on the advisory path.
+        # Close it here, in the layer that owns canonicalization: an
+        # unconditional NEVER-SUBMIT class is reportable only chained.
+        canon_vuln = canonical(vuln_type)
+        if (
+            canon_vuln in NEVER_SUBMIT_TYPES
+            and not chain_with
+            and "q6_never_submit" not in override_set
+            and "never_submit" not in override_set
+        ):
+            return (
+                f"NEVER-SUBMIT GATE: '{vuln_type}' ({canon_vuln}) — "
+                f"{NEVER_SUBMIT_TYPES[canon_vuln]}.\n"
+                "  Standalone it is noise a triager closes Informative. Report it\n"
+                "  only chained into real impact: pass chain_with=['fNNN'].\n"
+                "  Deliberate exception: overrides=['q6_never_submit:<reason>']."
+            )
 
         # ── INFO gate: a finding board starts at LOW ──
         # An INFO observation is an input to the next question, not an output to
@@ -392,7 +418,7 @@ def register(mcp: FastMCP):
                 "never_submit": "Either pass chain_with=[<id>] OR set_program_policy() to remove the class.",
                 "chain_unknown_id": "Run get_findings() to list valid chain anchor IDs.",
                 "evidence_missing": "Pass evidence={'logger_index': <N>}.",
-                "reproductions_required": "Pass reproductions=[{logger_index,elapsed_ms,status_code}, ...] (>=2).",
+                "reproductions_required": "Pass reproductions=[{logger_index,elapsed_ms,status_code}, ...] (>=3).",
                 "reproductions_invalid": "Each reproductions[] entry needs an integer logger_index in range.",
             }.get(err_code, "")
             parts = [f"Error (gate rejected — nothing persisted): {err_msg}"]
@@ -410,56 +436,57 @@ def register(mcp: FastMCP):
         saved_id = ""
         if resolved_domain:
             findings_path = _safe_findings_path(resolved_domain)
-            store = _load_findings_file(findings_path)
-            now = datetime.now(timezone.utc).isoformat()
-            new_entry = {
-                "title": title,
-                "description": description,
-                "severity": severity,
-                "endpoint": endpoint,
-                "evidence_text": evidence_text,
-                "evidence": evidence,
-                "human_verified": human_verified,
-                "overrides": list(overrides or []),
-                "reproductions": reproductions or [],
-                "chain_with": chain_with or [],
-                "status": status,
-                "parameter": parameter,
-                "vuln_type": vuln_type,
-                "confidence": round(confidence, 2),
-                "impact": impact,
-                "remediation": remediation,
-                "poc_request": poc_request,
-                "reproduction_steps": reproduction_steps or [],
-                "cwe": cwe,
-                "cvss4_vector": cvss4_vector,
-                "cvss4_severity": cvss4_severity,
-                "last_updated": now,
-                "burp_id": str(burp_id) if burp_id != "?" else "",
-            }
-            existing_list = store.get("findings", [])
-            updated_list, dedup_action, idx = _dedupe_finding(existing_list, new_entry)
-            if dedup_action == "created":
-                # Assign IDs monotonically (max-existing + 1), NEVER refilling
-                # gaps. Refilling a gap left by a deleted finding would silently
-                # alias old chain_with[] references to the new finding. Hard
-                # delete normally compacts IDs via _compact_and_remap_findings;
-                # this max+1 rule is defense if a delete bypassed that path.
-                max_num = 0
-                for f in updated_list:
-                    fid = f.get("id", "")
-                    if len(fid) == 4 and fid.startswith("f") and fid[1:].isdigit():
-                        max_num = max(max_num, int(fid[1:]))
-                updated_list[idx]["id"] = f"f{max_num + 1:03d}"
-                updated_list[idx]["created"] = now
-            saved_entry = updated_list[idx]
-            saved_id = saved_entry.get("id", "")
-            # Highest severity first, so re-severity of an old finding moves it to
-            # the top of the board instead of staying buried at its insertion
-            # position. IDs are stable, so reordering is safe for chain_with[].
-            store["findings"] = sort_findings_by_risk(updated_list)
-            store["last_modified"] = now
-            _write_findings_file(findings_path, store)
+            with _findings_lock(findings_path):
+                store = _load_findings_file(findings_path)
+                now = datetime.now(timezone.utc).isoformat()
+                new_entry = {
+                    "title": title,
+                    "description": description,
+                    "severity": severity,
+                    "endpoint": endpoint,
+                    "evidence_text": evidence_text,
+                    "evidence": evidence,
+                    "human_verified": human_verified,
+                    "overrides": list(overrides or []),
+                    "reproductions": reproductions or [],
+                    "chain_with": chain_with or [],
+                    "status": status,
+                    "parameter": parameter,
+                    "vuln_type": vuln_type,
+                    "confidence": round(confidence, 2),
+                    "impact": impact,
+                    "remediation": remediation,
+                    "poc_request": poc_request,
+                    "reproduction_steps": reproduction_steps or [],
+                    "cwe": cwe,
+                    "cvss4_vector": cvss4_vector,
+                    "cvss4_severity": cvss4_severity,
+                    "last_updated": now,
+                    "burp_id": str(burp_id) if burp_id != "?" else "",
+                }
+                existing_list = store.get("findings", [])
+                updated_list, dedup_action, idx = _dedupe_finding(existing_list, new_entry)
+                if dedup_action == "created":
+                    # Assign IDs monotonically (max-existing + 1), NEVER refilling
+                    # gaps. Refilling a gap left by a deleted finding would silently
+                    # alias old chain_with[] references to the new finding. Hard
+                    # delete normally compacts IDs via _compact_and_remap_findings;
+                    # this max+1 rule is defense if a delete bypassed that path.
+                    max_num = 0
+                    for f in updated_list:
+                        fid = f.get("id", "")
+                        if len(fid) == 4 and fid.startswith("f") and fid[1:].isdigit():
+                            max_num = max(max_num, int(fid[1:]))
+                    updated_list[idx]["id"] = f"f{max_num + 1:03d}"
+                    updated_list[idx]["created"] = now
+                saved_entry = updated_list[idx]
+                saved_id = saved_entry.get("id", "")
+                # Highest severity first, so re-severity of an old finding moves it to
+                # the top of the board instead of staying buried at its insertion
+                # position. IDs are stable, so reordering is safe for chain_with[].
+                store["findings"] = sort_findings_by_risk(updated_list)
+                store["last_modified"] = now
+                _write_findings_file(findings_path, store)
             # Projection: human-readable writeup from the canonical record (best-effort).
             from ._projection import write_finding_projection
             write_finding_projection(resolved_domain, saved_entry)

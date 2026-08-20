@@ -56,7 +56,7 @@ Returns priority-ordered `attack_plan` — RSC action IDs first (probe_cve_with_
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The secrets/sinks/endpoint detail stays in `## Returns`; this carries the summary + hand-off (analysis produces no findings, so counts are 0):
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The secrets/sinks/endpoint detail stays in `## Returns`; this carries the summary + hand-off (analysis produces no findings, so counts are 0):
 
 ```json
 {"agent":"js-analyst","domain":"<domain>","phase":"js-analysis","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N files; secrets, DOM sinks, hidden endpoints found>","next_action":"<e.g. probe RSC action IDs / hand endpoints to recon-agent>","blockers":[]}

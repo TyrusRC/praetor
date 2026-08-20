@@ -49,7 +49,7 @@ Browser engine: **CloakBrowser** (stealth Chromium fork, binary-level fingerprin
 
 ## Status Report (return this JSON)
 
-Your final output is one status object per `docs/agent-status-schema.md` — no surrounding prose. The `new_endpoints` list stays in `## Returns`:
+Your final output is one status object per `AGENTS.md` (Agent Status Schema section) — no surrounding prose. The `new_endpoints` list stays in `## Returns`:
 
 ```json
 {"agent":"browser-agent","domain":"<domain>","phase":"crawl","status":"done","findings_confirmed":0,"findings_suspected":0,"coverage_note":"<N pages, N xhr, N forms; proxy history populated>","next_action":"<e.g. dispatch js-analyst on captured bundles>","blockers":[]}

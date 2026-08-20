@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Praetor — Setup Script
-# Installs all required and optional dependencies for Linux and macOS.
+# Installs all dependencies (web + network lanes) for Linux and macOS.
 # Usage: chmod +x setup.sh && ./setup.sh
 #
 # Coverage policy (2026-05-22):
@@ -268,11 +268,11 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# PHASE 3: Optional — ProjectDiscovery Recon Tools
+# PHASE 3: Recon Tools (core — web lane)
 # ════════════════════════════════════════════════════════════════════
 echo ""
 echo "════════════════════════════════════════════════════"
-echo "  Phase 3: Recon Tools (optional)"
+echo "  Phase 3: Recon Tools (core — web lane)"
 echo "════════════════════════════════════════════════════"
 info "These tools enhance reconnaissance. They are NOT required."
 echo ""
@@ -287,7 +287,7 @@ install_pd_tool() {
         if eval "$install_cmd" 2>&1 | tail -1; then
             has "$name" && ok "$name installed" || warn "$name: install completed but binary not in PATH"
         else
-            warn "$name installation failed (optional — skipping)"
+            warn "$name installation failed — core tool; install manually"
         fi
     fi
 }
@@ -333,21 +333,21 @@ install_pd_tool "sqlmap" \
 install_pd_tool "commix" \
     "uv tool install commix"
 
-# nikto (legacy web scanner — optional)
+# nikto (legacy web scanner)
 if has nikto; then
     ok "nikto already installed"
 else
     info "Installing nikto..."
-    pkg_install nikto || warn "nikto install failed (optional)"
+    pkg_install nikto || warn "nikto install failed — install manually"
 fi
 
-# wpscan (WordPress — optional, Ruby gem)
+# wpscan (WordPress — Ruby gem)
 if has wpscan; then
     ok "wpscan already installed"
 else
     if has gem; then
         info "Installing wpscan..."
-        gem install --user-install wpscan 2>&1 | tail -1 || warn "wpscan install failed (optional)"
+        gem install --user-install wpscan 2>&1 | tail -1 || warn "wpscan install failed — install manually"
     else
         warn "wpscan not found and no Ruby gem available — install via: gem install wpscan"
     fi
@@ -355,7 +355,7 @@ fi
 
 # ── Praetor v1.0 SAST + secrets layer ──
 echo ""
-info "Praetor v1.0 — installing SAST + secrets layer (optional but recommended)..."
+info "Praetor v1.0 — installing SAST + secrets layer (core)..."
 
 install_pd_tool "opengrep" \
     "curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
@@ -376,6 +376,64 @@ if has noir; then
     ok "noir already installed"
 else
     warn "noir not installed — operator install: https://github.com/owasp-noir/noir (brew tap noir-cr/noir/noir on macOS)"
+fi
+
+# ════════════════════════════════════════════════════════════════════
+# Red-team / network lane (core) — powers run_nmap + run_network_recon
+# ════════════════════════════════════════════════════════════════════
+echo ""
+info "Red-team / network lane tools (core — run_nmap / run_network_recon / run_network_tool)..."
+
+IS_KALI=0
+if grep -qiE 'kali|parrot' /etc/os-release 2>/dev/null; then IS_KALI=1; fi
+
+# Most of these ship in the Kali/Parrot repos under one apt bundle. On other
+# distros install what the package manager has and print a hint for the rest.
+RT_APT_PKGS="nmap netexec impacket-scripts responder john hashcat gobuster \
+feroxbuster smbmap enum4linux-ng ldapdomaindump certipy-ad kerbrute evil-winrm \
+bloodhound.py sshuttle seclists"
+
+if [ "$IS_KALI" -eq 1 ]; then
+    info "Kali/Parrot detected — installing the red-team bundle via apt..."
+    sudo apt-get install -y $RT_APT_PKGS 2>&1 | tail -2 \
+        || warn "some red-team apt packages failed — core; install individually"
+elif has apt-get; then
+    info "Debian/Ubuntu — installing what the repos carry..."
+    sudo apt-get install -y nmap john hashcat gobuster feroxbuster smbmap sshuttle 2>&1 | tail -2 \
+        || warn "some apt packages failed — install manually"
+    # Python-side red-team tools via uv (isolated per-tool venv).
+    install_pd_tool "nxc"        "uv tool install git+https://github.com/Pennyw0rth/NetExec"
+    install_pd_tool "impacket-secretsdump" "uv tool install impacket"
+    install_pd_tool "certipy"    "uv tool install certipy-ad"
+    install_pd_tool "bloodhound-python" "uv tool install bloodhound"
+    install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
+else
+    warn "Non-apt host — install red-team tools manually. redteam_tool_guide(tool='<name>')"
+    warn "  in Praetor prints the apt/clone/go command for each."
+fi
+
+# SecLists: apt on Kali; otherwise clone to /opt/SecLists (detect_seclists finds both).
+if [ -d /usr/share/seclists ] || [ -d /usr/share/SecLists ] || [ -d /opt/SecLists ]; then
+    ok "SecLists present"
+elif [ "$IS_KALI" -eq 0 ]; then
+    info "Cloning SecLists to /opt/SecLists (large; shallow clone)..."
+    sudo git clone --depth 1 https://github.com/danielmiessler/SecLists /opt/SecLists 2>&1 | tail -1 \
+        || warn "SecLists clone failed — clone manually to /opt/SecLists"
+fi
+
+# ════════════════════════════════════════════════════════════════════
+# Ghostwriter (core reporting/oplog hub) — auto-setup
+# ════════════════════════════════════════════════════════════════════
+echo ""
+if [ "${PRAETOR_SKIP_GHOSTWRITER:-0}" = "1" ]; then
+    info "Skipping Ghostwriter (PRAETOR_SKIP_GHOSTWRITER=1)."
+elif has docker && docker info >/dev/null 2>&1; then
+    info "Ghostwriter (central reporting/oplog hub) — running auto-setup..."
+    info "  Heavy Docker install (GBs, binds 443). Skip with PRAETOR_SKIP_GHOSTWRITER=1."
+    # Non-fatal: a Ghostwriter hiccup must not abort the rest of setup.
+    "$SCRIPT_DIR/setup-ghostwriter.sh" || warn "Ghostwriter auto-setup did not finish — run ./setup-ghostwriter.sh manually."
+else
+    warn "Docker not available — skipping Ghostwriter. Install Docker, then run ./setup-ghostwriter.sh"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -487,7 +545,7 @@ check uv
 check go
 
 echo ""
-echo "Optional (recon):"
+echo "Core web / recon tools:"
 check subfinder
 check httpx
 check nuclei
@@ -501,6 +559,23 @@ check sqlmap
 check commix
 check nikto
 check wpscan
+
+echo ""
+echo "Core red-team / network lane:"
+check nmap
+check nxc
+check impacket-secretsdump
+check responder
+check bloodhound-python
+check certipy
+check kerbrute
+check hashcat
+check john
+if [ -d /usr/share/seclists ] || [ -d /usr/share/SecLists ] || [ -d /opt/SecLists ]; then
+    echo -e "  ${GREEN}✓${NC} seclists"
+else
+    echo -e "  ${YELLOW}○${NC} seclists (sudo apt install seclists / git clone SecLists)"
+fi
 
 echo ""
 echo "Project:"
