@@ -7,8 +7,8 @@ recorded as "not vulnerable".
 
 import unittest
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.version_delta import (
+from praetor import server
+from praetor.tools.version_delta import (
     assess_applicability,
     compare_versions,
     detect_ecosystem,

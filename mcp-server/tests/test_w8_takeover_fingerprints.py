@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from burpsuite_mcp.tools.recon_extended.fingerprints import TAKEOVER_FINGERPRINTS
+from praetor.tools.recon_extended.fingerprints import TAKEOVER_FINGERPRINTS
 
 
 # W8 additions (subset of full 34 — spot-check the high-yield ones).

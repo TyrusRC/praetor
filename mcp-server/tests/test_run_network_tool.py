@@ -6,8 +6,8 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.redteam._oplog import read_oplog
+from praetor import server
+from praetor.tools.redteam._oplog import read_oplog
 
 
 def _tool():
@@ -39,8 +39,8 @@ class TestRunNetworkTool(unittest.IsolatedAsyncioTestCase):
         self.assertIn("REFUSED", out)
 
     async def test_sanctioned_run_logs_with_attack(self):
-        with patch("burpsuite_mcp.tools.network.run_tool._check_tool", return_value=True), \
-             patch("burpsuite_mcp.tools.network.run_tool._run_cmd",
+        with patch("praetor.tools.network.run_tool._check_tool", return_value=True), \
+             patch("praetor.tools.network.run_tool._run_cmd",
                    new=AsyncMock(return_value=("[*] Dumping\naad3b...:31d6c...", "", 0))):
             out = await _tool()("impacket-secretsdump",
                                 "DOM/u:p@10.0.0.5", domain="box.htb", target="10.0.0.5",
@@ -52,16 +52,16 @@ class TestRunNetworkTool(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entries[0]["target"], "10.0.0.5")
 
     async def test_not_installed_points_to_guide(self):
-        with patch("burpsuite_mcp.tools.network.run_tool._check_tool", return_value=False):
+        with patch("praetor.tools.network.run_tool._check_tool", return_value=False):
             out = await _tool()("netexec", "smb 10.0.0.1", domain="box")
         self.assertIn("not installed", out)
         self.assertIn("redteam_tool_guide", out)
 
     async def test_strict_scope_blocks_with_target(self):
-        from burpsuite_mcp.tools import _scope_mode
+        from praetor.tools import _scope_mode
         _scope_mode.set_mode("strict")
         try:
-            with patch("burpsuite_mcp.tools.network.run_tool._check_tool", return_value=True):
+            with patch("praetor.tools.network.run_tool._check_tool", return_value=True):
                 out = await _tool()("netexec", "smb 10.0.0.1", domain="box", target="10.0.0.1")
             self.assertIn("SCOPE (strict)", out)
         finally:

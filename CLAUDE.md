@@ -42,7 +42,7 @@ Claude Code -> praetor-mcp (stdio) ->
 ```
 
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external runtime deps. Artifact `praetor-burp-ext`, package `com.praetor`.
-- `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package dir is still `burpsuite_mcp/` for v1.x; the rename is deferred, not forgotten.
+- `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package dir is `praetor/`.
 - **Finding a tool** — `list_tier1_tools()`, `pick_tool(task)`, or `skill.json`. Tool counts are deliberately untracked here: they go stale in a week and cost tokens every session.
 - **Two lanes, one evidence model.** Web-lane findings cite a Burp `logger_index`; network-lane actions bypass Burp and cite an operator-log id. Web tools (nuclei/ffuf/sqlmap) and network tools (nmap/netexec/impacket) are both core — nothing is optional.
 - **Web hunt loop** — `load_target_intel -> discover_attack_surface -> auto_probe`.
@@ -57,7 +57,7 @@ Claude Code -> praetor-mcp (stdio) ->
 ./build.sh                                       # build extension; ends with the absolute jar path
 ./build.sh --skip-tests                          # same, without the Java test run
 cd mcp-server && uv pip install -e .             # install
-uv run python -m burpsuite_mcp                   # run
+uv run python -m praetor                   # run
 uv run python -m unittest discover tests         # full Python suite
 ```
 

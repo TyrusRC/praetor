@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest import mock
 
-from burpsuite_mcp.tools.recon import scanning
+from praetor.tools.recon import scanning
 
 
 class SecListsDetectionTest(unittest.TestCase):

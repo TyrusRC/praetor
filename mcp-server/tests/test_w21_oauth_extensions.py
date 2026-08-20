@@ -37,26 +37,26 @@ def _make_jwt(header: dict, claims: dict) -> str:
 class OAuthHelpersExtTest(unittest.TestCase):
 
     def test_jwt_decode_unverified(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _jwt_decode_unverified
+        from praetor.tools.auth.oauth_flow import _jwt_decode_unverified
         tok = _make_jwt({"alg": "RS256"}, {"sub": "abc", "nonce": "xyz"})
         h, c, _ = _jwt_decode_unverified(tok)
         self.assertEqual(h["alg"], "RS256")
         self.assertEqual(c["nonce"], "xyz")
 
     def test_jwt_decode_rejects_malformed(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _jwt_decode_unverified
+        from praetor.tools.auth.oauth_flow import _jwt_decode_unverified
         with self.assertRaises(ValueError):
             _jwt_decode_unverified("not.a-jwt")
 
     def test_extract_fragment(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _extract_fragment
+        from praetor.tools.auth.oauth_flow import _extract_fragment
         url = "https://app.example.com/cb#code=abc&id_token=eyJ&state=s1"
         self.assertEqual(_extract_fragment(url, "code"), "abc")
         self.assertEqual(_extract_fragment(url, "id_token"), "eyJ")
         self.assertEqual(_extract_fragment(url, "missing"), "")
 
     def test_at_hash_match(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _at_hash_match
+        from praetor.tools.auth.oauth_flow import _at_hash_match
         at = "access_token_value"
         digest = hashlib.sha256(at.encode()).digest()
         good = _b64url_nopad(digest[: len(digest) // 2])
@@ -67,7 +67,7 @@ class OAuthHelpersExtTest(unittest.TestCase):
 class DeviceFlowSimulatorTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_clean_idp_failed_verdict(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
 
         async def fake_post(path, json=None):
             url = (json or {}).get("url", "")
@@ -109,7 +109,7 @@ class DeviceFlowSimulatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["details"]["defects"], [])
 
     async def test_low_entropy_user_code_flagged(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
 
         async def fake_post(path, json=None):
             url = (json or {}).get("url", "")
@@ -143,7 +143,7 @@ class DeviceFlowSimulatorTest(unittest.IsolatedAsyncioTestCase):
 class HybridFlowSimulatorTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_clean_hybrid_returns_failed(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
 
         # Build a clean id_token with proper at_hash + nonce echo.
         nonce_holder: dict = {}
@@ -187,7 +187,7 @@ class HybridFlowSimulatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["details"]["defects"], [])
 
     async def test_alg_none_and_nonce_mismatch_detected(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
 
         async def fake_post(path, json=None):
             url = (json or {}).get("url", "")
@@ -226,7 +226,7 @@ class HybridFlowSimulatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("nonce_not_bound", defects)
 
     async def test_response_type_validation(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
         stub, captured = _stub_mcp()
         oauth_flow.register(stub)
         out = await captured["oauth_hybrid_flow_simulator"](
@@ -251,7 +251,7 @@ class DpopAuditTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_htu_enforced_failed(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
         proof = self._make_proof("https://api.example.com/me")
         access_token = "opaque_token"
 
@@ -276,7 +276,7 @@ class DpopAuditTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "FAILED")
 
     async def test_htu_reuse_detected(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
         proof = self._make_proof("https://api.example.com/me")
 
         async def fake_post(path, json=None):
@@ -301,7 +301,7 @@ class DpopAuditTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(out["details"]["accepted_mismatch"]), 2)
 
     async def test_missing_resources(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
         stub, captured = _stub_mcp()
         oauth_flow.register(stub)
         out = await captured["oauth_dpop_audit"](

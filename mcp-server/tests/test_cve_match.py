@@ -5,7 +5,7 @@ import unittest
 
 class TestCveShim(unittest.TestCase):
     def test_all_symbols_importable_via_old_path(self):
-        from burpsuite_mcp.tools.cve import (
+        from praetor.tools.cve import (
             KNOWLEDGE_DIR,
             _BROWSER_UA,
             _NVD_API_URL,
@@ -40,30 +40,30 @@ class TestCveShim(unittest.TestCase):
 
 class TestCveMatchLogic(unittest.TestCase):
     def test_extract_version_apache(self):
-        from burpsuite_mcp.tools.cve import _extract_version
+        from praetor.tools.cve import _extract_version
         self.assertEqual(_extract_version("Apache/2.4.50"), "2.4.50")
         self.assertEqual(_extract_version("PHP 8.1.2"), "8.1.2")
         self.assertEqual(_extract_version("nginx"), "")
 
     def test_version_tuple_basic(self):
-        from burpsuite_mcp.tools.cve import _version_tuple
+        from praetor.tools.cve import _version_tuple
         self.assertEqual(_version_tuple("2.4.50"), (2, 4, 50))
         self.assertEqual(_version_tuple("8.1"), (8, 1))
 
     def test_version_in_range_any(self):
-        from burpsuite_mcp.tools.cve import _version_in_range
+        from praetor.tools.cve import _version_in_range
         self.assertTrue(_version_in_range("anything", "any"))
         self.assertTrue(_version_in_range("", "any"))
 
     def test_version_in_range_dashed(self):
-        from burpsuite_mcp.tools.cve import _version_in_range
+        from praetor.tools.cve import _version_in_range
         self.assertTrue(_version_in_range("2.4.50", "2.4.0-2.4.51"))
         self.assertFalse(_version_in_range("2.5.0", "2.4.0-2.4.51"))
         self.assertTrue(_version_in_range("2.4.0", "2.4.0-2.4.51"))
         self.assertTrue(_version_in_range("2.4.51", "2.4.0-2.4.51"))
 
     def test_version_in_range_prefix(self):
-        from burpsuite_mcp.tools.cve import _version_in_range
+        from praetor.tools.cve import _version_in_range
         # Exact-segment prefix match: '8.1' matches '8.1' and '8.1.3'
         self.assertTrue(_version_in_range("8.1", "8.1"))
         self.assertTrue(_version_in_range("8.1.3", "8.1"))
@@ -73,12 +73,12 @@ class TestCveMatchLogic(unittest.TestCase):
         self.assertFalse(_version_in_range("", "2.4.0"))
 
     def test_match_tech_to_vulns_empty(self):
-        from burpsuite_mcp.tools.cve import _match_tech_to_vulns
+        from praetor.tools.cve import _match_tech_to_vulns
         self.assertEqual(_match_tech_to_vulns([], {}), [])
         self.assertEqual(_match_tech_to_vulns(["nginx/1.0"], {}), [])
 
     def test_match_tech_to_vulns_basic(self):
-        from burpsuite_mcp.tools.cve import _match_tech_to_vulns
+        from praetor.tools.cve import _match_tech_to_vulns
         tech_vulns = {
             "technologies": {
                 "apache": {

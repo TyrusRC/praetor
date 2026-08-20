@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
-from burpsuite_mcp.tools.intel import save_load
+from praetor.tools.intel import save_load
 
 HEAVY_FINDING = {
     "id": "VULN-1", "title": "SQLi in id", "severity": "high", "status": "confirmed",

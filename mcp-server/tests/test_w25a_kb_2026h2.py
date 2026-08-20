@@ -10,7 +10,7 @@ import json
 import unittest
 from pathlib import Path
 
-_KB = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+_KB = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 def _load(name: str) -> dict:

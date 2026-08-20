@@ -4,7 +4,7 @@ import asyncio
 import unittest
 from unittest import mock
 
-from burpsuite_mcp.tools import recon_pd
+from praetor.tools import recon_pd
 
 
 class W3HelpersTest(unittest.TestCase):

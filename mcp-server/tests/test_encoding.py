@@ -9,7 +9,7 @@ Run: uv run python -m unittest tests.test_encoding -v
 
 import unittest
 
-from burpsuite_mcp.processing.encoding import (
+from praetor.processing.encoding import (
     SHARED_OPS,
     apply_operation,
     pad_base64,

@@ -4,8 +4,8 @@ from __future__ import annotations
 import shutil
 import unittest
 
-from burpsuite_mcp.tools.notes._helpers import _intel_dir, _sanitized
-from burpsuite_mcp.tools.intel.checkpoint import (
+from praetor.tools.notes._helpers import _intel_dir, _sanitized
+from praetor.tools.intel.checkpoint import (
     merge_checkpoint, load_checkpoint_data, stall_alert)
 
 

@@ -14,7 +14,7 @@ from unittest.mock import patch
 class CloudMetadataMatrixTest(unittest.TestCase):
 
     def test_ssrf_sweep_has_container_cred_endpoints(self):
-        from burpsuite_mcp.tools.vuln.test_ssrf import _CLOUD_METADATA
+        from praetor.tools.vuln.test_ssrf import _CLOUD_METADATA
         blob = "\n".join(_CLOUD_METADATA)
         # ECS/Fargate task-role creds + EKS Pod Identity — header-less GET.
         self.assertIn("169.254.170.2", blob)
@@ -23,7 +23,7 @@ class CloudMetadataMatrixTest(unittest.TestCase):
         self.assertIn("iam/security-credentials/", blob)
 
     def test_cred_json_indicators_present(self):
-        from burpsuite_mcp.tools.vuln.test_ssrf import _SSRF_INDICATORS
+        from praetor.tools.vuln.test_ssrf import _SSRF_INDICATORS
         # Temp-credential JSON always carries these markers.
         self.assertIn("Expiration", _SSRF_INDICATORS)
         self.assertIn("\"ASIA", _SSRF_INDICATORS)
@@ -32,7 +32,7 @@ class CloudMetadataMatrixTest(unittest.TestCase):
 class TestCloudMetadataImplTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_ecs_creds_leak_confirmed(self):
-        from burpsuite_mcp.tools.edge import test_cloud_metadata as mod
+        from praetor.tools.edge import test_cloud_metadata as mod
 
         async def fake_post(path, json=None):
             url = (json or {}).get("path", "")
@@ -54,7 +54,7 @@ class TestCloudMetadataImplTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ECS", joined)
 
     async def test_clean_target_failed(self):
-        from burpsuite_mcp.tools.edge import test_cloud_metadata as mod
+        from praetor.tools.edge import test_cloud_metadata as mod
 
         async def fake_post(path, json=None):
             return {"status": 404, "response_body": "nope"}
@@ -65,7 +65,7 @@ class TestCloudMetadataImplTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "FAILED")
 
     async def test_extra_headers_forwarded(self):
-        from burpsuite_mcp.tools.edge import test_cloud_metadata as mod
+        from praetor.tools.edge import test_cloud_metadata as mod
         seen = {}
 
         async def fake_post(path, json=None):

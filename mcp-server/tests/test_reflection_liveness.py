@@ -13,8 +13,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.advisor._liveness import reflection_liveness
+from praetor import server
+from praetor.tools.advisor._liveness import reflection_liveness
 
 
 class ReflectionLivenessUnit(unittest.TestCase):
@@ -83,8 +83,8 @@ class ReflectionLivenessGate(unittest.IsolatedAsyncioTestCase):
             if "proxy/history" in path:
                 return detail
             return {}
-        with patch("burpsuite_mcp.client.post", fake_post), \
-             patch("burpsuite_mcp.client.get", fake_get):
+        with patch("praetor.client.post", fake_post), \
+             patch("praetor.client.get", fake_get):
             return await self.assess(**kwargs)
 
     async def test_encoded_reflection_suppressed(self):

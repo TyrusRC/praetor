@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from burpsuite_mcp.tools import _scope_mode
+from praetor.tools import _scope_mode
 
 
 class ScopeModePersistenceTest(unittest.TestCase):
@@ -34,7 +34,7 @@ class ScopeModePersistenceTest(unittest.TestCase):
 
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp.tools import scope as scope_mod
+from praetor.tools import scope as scope_mod
 from mcp.server.fastmcp import FastMCP
 
 
@@ -49,7 +49,7 @@ class ConfigureScopeModeParamTest(unittest.TestCase):
         configure_scope = self._get_tool()
         with TemporaryDirectory() as tmp:
             with mock.patch.object(_scope_mode, "_intel_dir", lambda: Path(tmp)):
-                with patch("burpsuite_mcp.tools.scope.client.post",
+                with patch("praetor.tools.scope.client.post",
                            new=AsyncMock(return_value={"included": 1})) as p:
                     asyncio.run(configure_scope(
                         include=["https://x.com"], mode="strict"
@@ -63,14 +63,14 @@ class ConfigureScopeModeParamTest(unittest.TestCase):
         configure_scope = self._get_tool()
         with TemporaryDirectory() as tmp:
             with mock.patch.object(_scope_mode, "_intel_dir", lambda: Path(tmp)):
-                with patch("burpsuite_mcp.tools.scope.client.post",
+                with patch("praetor.tools.scope.client.post",
                            new=AsyncMock(return_value={"included": 1})) as p:
                     asyncio.run(configure_scope(include=["https://x.com"]))
                     self.assertEqual(_scope_mode.get_mode(), "operator")
                     self.assertEqual(p.call_args.kwargs["json"]["mode"], "operator")
 
 
-from burpsuite_mcp.tools.advisor.assess import assess_finding_impl
+from praetor.tools.advisor.assess import assess_finding_impl
 
 
 class AssessFindingQ1OperatorModeTest(unittest.TestCase):
@@ -85,10 +85,10 @@ class AssessFindingQ1OperatorModeTest(unittest.TestCase):
                 # normally cause Q1 to verdict DO NOT REPORT. Operator mode
                 # should defer before the call ever happens.
                 with patch(
-                    "burpsuite_mcp.tools.advisor.assess.client.post",
+                    "praetor.tools.advisor.assess.client.post",
                     new=AsyncMock(return_value={"in_scope": False}),
                 ) as post_mock, patch(
-                    "burpsuite_mcp.tools.advisor.assess.client.get",
+                    "praetor.tools.advisor.assess.client.get",
                     new=AsyncMock(return_value={"error": "unused"}),
                 ):
                     result = asyncio.run(assess_finding_impl(
@@ -110,10 +110,10 @@ class AssessFindingQ1OperatorModeTest(unittest.TestCase):
             with mock.patch.object(_scope_mode, "_intel_dir", lambda: Path(tmp)):
                 _scope_mode.set_mode("strict")
                 with patch(
-                    "burpsuite_mcp.tools.advisor.assess.client.post",
+                    "praetor.tools.advisor.assess.client.post",
                     new=AsyncMock(return_value={"in_scope": False}),
                 ), patch(
-                    "burpsuite_mcp.tools.advisor.assess.client.get",
+                    "praetor.tools.advisor.assess.client.get",
                     new=AsyncMock(return_value={"error": "unused"}),
                 ):
                     result = asyncio.run(assess_finding_impl(

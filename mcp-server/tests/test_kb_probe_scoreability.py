@@ -17,9 +17,9 @@ import json
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+from praetor.tools.scan._constants import _REFERENCE_ONLY
 
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 # Contexts that intentionally carry matchers but no probes: they describe
 # response patterns for a passive/manual read, not something auto_probe fires.

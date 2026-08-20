@@ -21,7 +21,7 @@ def _stub_mcp():
 class MobileFridaSnippetTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_list_without_args(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_frida_snippet"]()
@@ -39,7 +39,7 @@ class MobileFridaSnippetTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn(name, out["available"], f"missing snippet: {name}")
 
     async def test_fetch_known_snippet_returns_js(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_frida_snippet"](name="ssl_pin_universal_android")
@@ -48,7 +48,7 @@ class MobileFridaSnippetTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("run_cmd", out)
 
     async def test_unknown_snippet_errors(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_frida_snippet"](name="nonexistent_snippet")
@@ -59,7 +59,7 @@ class MobileFridaSnippetTest(unittest.IsolatedAsyncioTestCase):
 class MobileAdbPackTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_list_without_args(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_adb_pack"]()
@@ -67,7 +67,7 @@ class MobileAdbPackTest(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(out["count"], 5)
 
     async def test_substitution_works(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_adb_pack"](
@@ -78,7 +78,7 @@ class MobileAdbPackTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("{pkg}", out["command"])
 
     async def test_deep_link_substitution(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_adb_pack"](
@@ -89,7 +89,7 @@ class MobileAdbPackTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("myapp://oauth/callback?code=x", out["command"])
 
     async def test_unknown_command_errors(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         stub, captured = _stub_mcp()
         mobile_payloads.register(stub)
         out = await captured["mobile_adb_pack"](command_id="bogus_cmd")

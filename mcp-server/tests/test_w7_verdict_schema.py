@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import unittest
 
-from burpsuite_mcp.tools.testing._verdict import (
+from praetor.tools.testing._verdict import (
     error_verdict,
     is_actionable,
     make_verdict,

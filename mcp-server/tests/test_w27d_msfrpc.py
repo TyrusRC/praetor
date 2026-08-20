@@ -11,8 +11,8 @@ import base64
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.exploit.msfrpc import _pack, _TOKEN_CACHE, unpackb
+from praetor import server
+from praetor.tools.exploit.msfrpc import _pack, _TOKEN_CACHE, unpackb
 
 
 def _tool(name: str):
@@ -81,7 +81,7 @@ class MsfrpcLoginTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 1}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_login")
             out = await fn(password="pw")
@@ -97,7 +97,7 @@ class MsfrpcLoginTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 1}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_login")
             out = await fn(password="wrong")
@@ -108,7 +108,7 @@ class MsfrpcLoginTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 401, "response_body_b64": "",
                     "proxy_index": 1}
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_login")
             out = await fn(password="x")
@@ -135,7 +135,7 @@ class MsfrpcVersionTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 2}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_version")
             out = await fn()
@@ -164,7 +164,7 @@ class MsfrpcModuleSearchTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 3}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_module_search")
             out = await fn(query="log4shell")
@@ -182,7 +182,7 @@ class MsfrpcModuleSearchTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 4}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_module_search")
             out = await fn(query="CVE-2024-12345")
@@ -203,7 +203,7 @@ class MsfrpcModuleSearchTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 5}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_module_search")
             out = await fn(query="nothing")

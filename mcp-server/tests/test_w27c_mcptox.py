@@ -6,8 +6,8 @@ import json as _json
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.mcptox import (
+from praetor import server
+from praetor.tools.mcptox import (
     _audit_tool_descriptions,
     _edit_distance_le_1,
 )
@@ -121,7 +121,7 @@ class RunMcptoxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "ERROR")
 
     async def test_scope_reject_error(self):
-        with patch("burpsuite_mcp.tools.mcptox.client.check_scope",
+        with patch("praetor.tools.mcptox.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": False})):
             fn = _tool("run_mcptox")
             out = await fn(base_url="https://oos/")
@@ -130,9 +130,9 @@ class RunMcptoxTest(unittest.IsolatedAsyncioTestCase):
     async def test_status_not_200_error(self):
         async def fake_post(path, json=None):
             return {"status_code": 404, "response_body": "", "proxy_index": 1}
-        with patch("burpsuite_mcp.tools.mcptox.client.check_scope",
+        with patch("praetor.tools.mcptox.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.mcptox.client.post",
+             patch("praetor.tools.mcptox.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_mcptox")
             out = await fn(base_url="https://t.example/")
@@ -147,9 +147,9 @@ class RunMcptoxTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 200, "response_body": clean, "proxy_index": 5}
 
-        with patch("burpsuite_mcp.tools.mcptox.client.check_scope",
+        with patch("praetor.tools.mcptox.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.mcptox.client.post",
+             patch("praetor.tools.mcptox.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_mcptox")
             out = await fn(base_url="https://t.example/")
@@ -168,9 +168,9 @@ class RunMcptoxTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 200, "response_body": poisoned, "proxy_index": 10}
 
-        with patch("burpsuite_mcp.tools.mcptox.client.check_scope",
+        with patch("praetor.tools.mcptox.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.mcptox.client.post",
+             patch("praetor.tools.mcptox.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_mcptox")
             out = await fn(base_url="https://t.example/")
@@ -187,9 +187,9 @@ class RunMcptoxTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 200, "response_body": bare, "proxy_index": 20}
 
-        with patch("burpsuite_mcp.tools.mcptox.client.check_scope",
+        with patch("praetor.tools.mcptox.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.mcptox.client.post",
+             patch("praetor.tools.mcptox.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_mcptox")
             out = await fn(base_url="https://t.example/")
@@ -199,9 +199,9 @@ class RunMcptoxTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 200, "response_body": "<html>not json</html>",
                     "proxy_index": 30}
-        with patch("burpsuite_mcp.tools.mcptox.client.check_scope",
+        with patch("praetor.tools.mcptox.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.mcptox.client.post",
+             patch("praetor.tools.mcptox.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_mcptox")
             out = await fn(base_url="https://t.example/")

@@ -24,7 +24,7 @@ import shutil
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.notes._helpers import _intel_dir, _sanitized
+from praetor.tools.notes._helpers import _intel_dir, _sanitized
 
 
 class _ToolCapture:
@@ -45,7 +45,7 @@ class _ToolCapture:
 # ---------------------------------------------------------------------------
 class RaceSinglepacketTest(unittest.TestCase):
     def test_tally_race_counts_2xx_and_status_dist(self):
-        from burpsuite_mcp.tools.testing.race_singlepacket import _tally_race
+        from praetor.tools.testing.race_singlepacket import _tally_race
 
         stream_ids = [1, 3, 5]
         results = {
@@ -60,7 +60,7 @@ class RaceSinglepacketTest(unittest.TestCase):
         self.assertEqual(len(lines), 3)
 
     def test_tally_race_missing_stream_and_timeout(self):
-        from burpsuite_mcp.tools.testing.race_singlepacket import _tally_race
+        from praetor.tools.testing.race_singlepacket import _tally_race
 
         stream_ids = [1, 7]
         # stream 7 absent from results -> status 0, no time sample.
@@ -71,7 +71,7 @@ class RaceSinglepacketTest(unittest.TestCase):
         self.assertEqual(time_samples, [])          # time_ns -1 excluded
 
     def test_alt_svc_h3_regex_matches_h3(self):
-        from burpsuite_mcp.tools.testing.race_singlepacket import _ALT_SVC_H3_RE
+        from praetor.tools.testing.race_singlepacket import _ALT_SVC_H3_RE
 
         m = _ALT_SVC_H3_RE.search('h3=":443"; ma=86400')
         self.assertIsNotNone(m)
@@ -80,7 +80,7 @@ class RaceSinglepacketTest(unittest.TestCase):
         self.assertIsNotNone(_ALT_SVC_H3_RE.search('h3-29=":443"'))
 
     def test_alt_svc_h3_regex_no_match_plain(self):
-        from burpsuite_mcp.tools.testing.race_singlepacket import _ALT_SVC_H3_RE
+        from praetor.tools.testing.race_singlepacket import _ALT_SVC_H3_RE
 
         # h2-only Alt-Svc advertisement — no QUIC/h3 listener.
         self.assertIsNone(_ALT_SVC_H3_RE.search('h2=":443"; ma=3600'))
@@ -88,7 +88,7 @@ class RaceSinglepacketTest(unittest.TestCase):
 
     def test_verdict_from_tally_contract(self):
         # The canonical 0/1/2+ mapping the race success_count feeds.
-        from burpsuite_mcp.tools.testing._verdict import verdict_from_tally
+        from praetor.tools.testing._verdict import verdict_from_tally
 
         self.assertEqual(verdict_from_tally(0)[0], "FAILED")
         self.assertEqual(verdict_from_tally(1)[0], "SUSPECTED")
@@ -114,7 +114,7 @@ class SastRouteExtractionTest(unittest.TestCase):
         p.write_text(text, encoding="utf-8")
 
     def test_scan_extracts_multiframework_routes(self):
-        from burpsuite_mcp.tools.sast_handoff import _scan_source_tree
+        from praetor.tools.sast_handoff import _scan_source_tree
 
         self._write("app.py", "@app.get('/x')\ndef x():\n    return 1\n")
         self._write("routes.js", "router.post('/y', handler)\n")
@@ -133,7 +133,7 @@ class SastRouteExtractionTest(unittest.TestCase):
         self.assertRegex(spring["source"], r":\d+$")
 
     def test_scan_skips_pruned_dirs(self):
-        from burpsuite_mcp.tools.sast_handoff import _scan_source_tree
+        from praetor.tools.sast_handoff import _scan_source_tree
 
         self._write("real.py", "@app.get('/keep')\ndef k(): pass\n")
         self._write("node_modules/dep.js", "app.get('/vendor', h)\n")
@@ -144,7 +144,7 @@ class SastRouteExtractionTest(unittest.TestCase):
         self.assertNotIn("/vendor", paths)  # node_modules pruned
 
     def test_route_from_match_per_framework(self):
-        from burpsuite_mcp.tools.sast_handoff import _ROUTE_PATTERNS, _route_from_match
+        from praetor.tools.sast_handoff import _ROUTE_PATTERNS, _route_from_match
 
         patterns = dict(_ROUTE_PATTERNS)
         m_fa = patterns["fastapi"].search("@app.get('/x')")
@@ -162,7 +162,7 @@ class SastRouteExtractionTest(unittest.TestCase):
                          {"framework": "flask", "method": "POST", "path": "/f"})
 
     def test_dedupe_collapses_duplicates(self):
-        from burpsuite_mcp.tools.sast_handoff import _dedupe_routes
+        from praetor.tools.sast_handoff import _dedupe_routes
 
         routes = [
             {"method": "GET", "path": "/x", "framework": "fastapi", "source": "a.py:1"},
@@ -187,19 +187,19 @@ class BusinessLogicGateTest(unittest.TestCase):
         shutil.rmtree(_intel_dir() / _sanitized(self.DOMAIN), ignore_errors=True)
 
     def _record_tool(self):
-        from burpsuite_mcp.tools.report import business_logic_gate as mod
+        from praetor.tools.report import business_logic_gate as mod
         cap = _ToolCapture()
         mod.register(cap)
         return cap.tools["record_business_logic_test"]
 
     def test_gate_warns_when_absent(self):
-        from burpsuite_mcp.tools.report.business_logic_gate import business_logic_gate
+        from praetor.tools.report.business_logic_gate import business_logic_gate
         warn = business_logic_gate(self.DOMAIN)
         self.assertIsNotNone(warn)
         self.assertIn("no testcase matrix", warn)
 
     def test_gate_warns_on_zero_tested_then_none_after_test(self):
-        from burpsuite_mcp.tools.report.business_logic_gate import business_logic_gate
+        from praetor.tools.report.business_logic_gate import business_logic_gate
 
         record = self._record_tool()
         # Seed an UNtested row -> matrix present, 0 tested -> still warns.
@@ -214,7 +214,7 @@ class BusinessLogicGateTest(unittest.TestCase):
         self.assertIsNone(business_logic_gate(self.DOMAIN))
 
     def test_record_upsert_in_place_vs_append(self):
-        from burpsuite_mcp.tools.report.business_logic_gate import _matrix_path
+        from praetor.tools.report.business_logic_gate import _matrix_path
 
         record = self._record_tool()
         asyncio.run(record(self.DOMAIN, "refund idempotent", "/api/refund", "held", True))
@@ -232,7 +232,7 @@ class BusinessLogicGateTest(unittest.TestCase):
         self.assertEqual(first["result"], "bypassed")  # in-place overwrite
 
     def test_gate_empty_domain_returns_none(self):
-        from burpsuite_mcp.tools.report.business_logic_gate import business_logic_gate
+        from praetor.tools.report.business_logic_gate import business_logic_gate
         self.assertIsNone(business_logic_gate(""))
 
 
@@ -252,7 +252,7 @@ class SeedMatrixTest(unittest.TestCase):
         shutil.rmtree(_intel_dir() / _sanitized(self.DOMAIN), ignore_errors=True)
 
     def test_seeds_untested_rows_with_recipe(self):
-        from burpsuite_mcp.tools.report.business_logic_gate import (
+        from praetor.tools.report.business_logic_gate import (
             seed_matrix, business_logic_gate, _matrix_path)
         res = seed_matrix(self.DOMAIN, self.PROPOSALS)
         self.assertEqual(res["seeded"], 2)
@@ -268,8 +268,8 @@ class SeedMatrixTest(unittest.TestCase):
         self.assertIn("0 are tested", warn)
 
     def test_dedupe_and_preserve_tested_rows(self):
-        from burpsuite_mcp.tools.report import business_logic_gate as mod
-        from burpsuite_mcp.tools.report.business_logic_gate import (
+        from praetor.tools.report import business_logic_gate as mod
+        from praetor.tools.report.business_logic_gate import (
             seed_matrix, _matrix_path)
         # Operator already TESTED the coupon invariant.
         cap = _ToolCapture()
@@ -287,7 +287,7 @@ class SeedMatrixTest(unittest.TestCase):
         self.assertEqual(coupon["result"], "held")
 
     def test_bad_input_is_safe(self):
-        from burpsuite_mcp.tools.report.business_logic_gate import seed_matrix
+        from praetor.tools.report.business_logic_gate import seed_matrix
         self.assertEqual(seed_matrix("", self.PROPOSALS)["seeded"], 0)
         self.assertEqual(seed_matrix(self.DOMAIN, "notalist")["seeded"], 0)  # type: ignore[arg-type]
 
@@ -297,7 +297,7 @@ class SeedMatrixTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class ProofCapsuleOracleTest(unittest.TestCase):
     def test_oracle_markers_class(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _oracle_spec
+        from praetor.tools.notes.poc_bundle import _oracle_spec
         finding = {"vuln_type": "sqli", "endpoint": "https://t.example/api?q=1",
                    "evidence": {}}
         req = {"url": "https://t.example/api?q=1", "method": "GET"}
@@ -307,7 +307,7 @@ class ProofCapsuleOracleTest(unittest.TestCase):
         self.assertEqual(oracle["vuln_class"], "sqli")
 
     def test_oracle_timing_class(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _oracle_spec
+        from praetor.tools.notes.poc_bundle import _oracle_spec
         finding = {"vuln_type": "sqli_blind", "endpoint": "https://t.example/x",
                    "evidence": {}}
         oracle = _oracle_spec(finding, {"url": "https://t.example/x"})
@@ -315,7 +315,7 @@ class ProofCapsuleOracleTest(unittest.TestCase):
         self.assertEqual(oracle["timing_threshold_ms"], 4000)
 
     def test_oracle_collaborator_class(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _oracle_spec
+        from praetor.tools.notes.poc_bundle import _oracle_spec
         finding = {"vuln_type": "ssrf_blind",
                    "evidence": {"collaborator_interaction_id": "abc123.oast"}}
         oracle = _oracle_spec(finding, {"url": "https://t.example/x"})
@@ -323,7 +323,7 @@ class ProofCapsuleOracleTest(unittest.TestCase):
         self.assertEqual(oracle["collaborator_interaction_id"], "abc123.oast")
 
     def test_oracle_baseline_delta_fallback(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _oracle_spec
+        from praetor.tools.notes.poc_bundle import _oracle_spec
         # unknown class, no collab, no timing -> baseline delta oracle.
         finding = {"vuln_type": "weird_anomaly",
                    "evidence": {"baseline": {"status": 200, "length": 1000}}}
@@ -332,7 +332,7 @@ class ProofCapsuleOracleTest(unittest.TestCase):
         self.assertEqual(oracle["baseline"], {"status": 200, "length": 1000})
 
     def test_raw_request_bytes(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _raw_request
+        from praetor.tools.notes.poc_bundle import _raw_request
         raw = _raw_request({"method": "post", "url": "https://t.example/api/x?a=1",
                             "headers": {"X-Test": "v"}, "body": "hi"})
         self.assertTrue(raw.startswith(b"POST /api/x?a=1 HTTP/1.1\r\n"))
@@ -348,7 +348,7 @@ class ScopeTargetsToDiffTest(unittest.TestCase):
     DOMAIN = "w36-scopediff.test-throwaway.example"
 
     def setUp(self) -> None:
-        from burpsuite_mcp.tools.easm import findings_diff as mod
+        from praetor.tools.easm import findings_diff as mod
         cap = _ToolCapture()
         mod.register(cap)
         self.scope = cap.tools["scope_targets_to_diff"]

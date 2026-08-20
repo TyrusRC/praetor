@@ -14,7 +14,7 @@ import json
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 NEW_KB_PARENTS = ("sveltekit.json", "nuxt.json")
@@ -82,7 +82,7 @@ class NewKbParentsTest(unittest.TestCase):
         self.assertIn("chain_with", kb)
 
     def test_loader_picks_up_new_parents(self):
-        from burpsuite_mcp.tools.scan._helpers import _load_knowledge
+        from praetor.tools.scan._helpers import _load_knowledge
         self.assertIsNotNone(_load_knowledge("sveltekit"))
         self.assertIsNotNone(_load_knowledge("nuxt"))
 
@@ -118,11 +118,11 @@ class CveContextMergesTest(unittest.TestCase):
 
 class CveVariantPackTest(unittest.TestCase):
     def test_cve_2026_44578_routes_to_ws_ssrf(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _resolve_class
+        from praetor.tools.cve_variant_probe import _resolve_class
         self.assertEqual(_resolve_class("CVE-2026-44578", ""), "nextjs_ws_upgrade_ssrf")
 
     def test_ws_ssrf_variants_generated(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _nextjs_ws_ssrf_variants
+        from praetor.tools.cve_variant_probe import _nextjs_ws_ssrf_variants
         variants = _nextjs_ws_ssrf_variants("", "PRAETOR-AB12CD34", "")
         labels = [v["label"] for v in variants]
         self.assertIn("ws_ssrf.aws_imds", labels)
@@ -136,7 +136,7 @@ class CveVariantPackTest(unittest.TestCase):
             self.assertEqual(v["headers"].get("X-Praetor-Canary"), "PRAETOR-AB12CD34")
 
     def test_ws_ssrf_markers_match_aws(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _score_response
+        from praetor.tools.cve_variant_probe import _score_response
         body = (
             '{"Code":"Success","LastUpdated":"...",'
             '"Type":"AWS-HMAC","AccessKeyId":"ASIA...","SecretAccessKey":"..."}'
@@ -146,7 +146,7 @@ class CveVariantPackTest(unittest.TestCase):
         self.assertEqual(verdict, "SUSPECTED")
 
     def test_ws_ssrf_markers_match_gcp(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _score_response
+        from praetor.tools.cve_variant_probe import _score_response
         verdict, _, _ = _score_response(
             "nextjs_ws_upgrade_ssrf", "",
             200,
@@ -156,7 +156,7 @@ class CveVariantPackTest(unittest.TestCase):
         self.assertEqual(verdict, "SUSPECTED")
 
     def test_ws_ssrf_canary_echo_confirmed(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _score_response
+        from praetor.tools.cve_variant_probe import _score_response
         verdict, conf, _ = _score_response(
             "nextjs_ws_upgrade_ssrf",
             "PRAETOR-FFFFAAAA",
@@ -170,15 +170,15 @@ class CveVariantPackTest(unittest.TestCase):
 
 class NewToolsImportableTest(unittest.TestCase):
     def test_sveltekit_probe_imports(self):
-        from burpsuite_mcp.tools import sveltekit_probe
+        from praetor.tools import sveltekit_probe
         self.assertTrue(hasattr(sveltekit_probe, "register"))
 
     def test_nuxt_island_probe_imports(self):
-        from burpsuite_mcp.tools import nuxt_island_probe
+        from praetor.tools import nuxt_island_probe
         self.assertTrue(hasattr(nuxt_island_probe, "register"))
 
     def test_sveltekit_devalue_cycles_well_formed(self):
-        from burpsuite_mcp.tools.sveltekit_probe import _DEVALUE_CYCLES
+        from praetor.tools.sveltekit_probe import _DEVALUE_CYCLES
         self.assertGreaterEqual(len(_DEVALUE_CYCLES), 3)
         # All should be valid JSON arrays
         for p in _DEVALUE_CYCLES:
@@ -186,7 +186,7 @@ class NewToolsImportableTest(unittest.TestCase):
             self.assertIsInstance(parsed, list)
 
     def test_nuxt_island_path_regex(self):
-        from burpsuite_mcp.tools.nuxt_island_probe import _ISLAND_PATH_RE
+        from praetor.tools.nuxt_island_probe import _ISLAND_PATH_RE
         sample = '<div data-island-uid="/__nuxt_island/UserProfile/abc123" />'
         m = _ISLAND_PATH_RE.search(sample)
         self.assertIsNotNone(m)

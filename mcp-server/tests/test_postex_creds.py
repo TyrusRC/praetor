@@ -6,8 +6,8 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.redteam import _creds
+from praetor import server
+from praetor.tools.redteam import _creds
 
 
 def _tool(n):
@@ -64,8 +64,8 @@ class TestCrackHashes(_Base):
         # hashcat --show returns hash:password; an AS-REP username is embedded.
         asrep = "$krb5asrep$23$jdoe@CORP.LOCAL:aabbcc...ddeeff"
         show_out = f"{asrep}:Autumn2024!"
-        with patch("burpsuite_mcp.tools.redteam.postex._check_tool", return_value=True), \
-             patch("burpsuite_mcp.tools.redteam.postex._run_cmd",
+        with patch("praetor.tools.redteam.postex._check_tool", return_value=True), \
+             patch("praetor.tools.redteam.postex._run_cmd",
                    new=AsyncMock(return_value=(show_out, "", 0))):
             out = await _tool("crack_hashes")("box", "asrep", hashes=asrep,
                                               wordlist=self._wordlist())
@@ -77,8 +77,8 @@ class TestCrackHashes(_Base):
         self.assertEqual(_creds.get_secret("box", creds[0]["id"])["secret"], "Autumn2024!")
 
     async def test_no_cracks_is_clean(self):
-        with patch("burpsuite_mcp.tools.redteam.postex._check_tool", return_value=True), \
-             patch("burpsuite_mcp.tools.redteam.postex._run_cmd",
+        with patch("praetor.tools.redteam.postex._check_tool", return_value=True), \
+             patch("praetor.tools.redteam.postex._run_cmd",
                    new=AsyncMock(return_value=("", "", 0))):
             out = await _tool("crack_hashes")("box", "ntlm", hashes="deadbeef" * 4,
                                               wordlist=self._wordlist())

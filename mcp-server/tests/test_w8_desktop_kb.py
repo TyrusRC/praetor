@@ -6,7 +6,7 @@ import json
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
+from praetor.tools.scan._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
 
 
 class DesktopElectronKBTest(unittest.TestCase):

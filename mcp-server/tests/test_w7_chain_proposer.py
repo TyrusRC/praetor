@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.notes import chain_proposer
+from praetor.tools.notes import chain_proposer
 
 
 def _stub_mcp():

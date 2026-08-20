@@ -16,8 +16,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.advisor._context import AssessContext
-from burpsuite_mcp.tools.advisor_kb import (
+from praetor.tools.advisor._context import AssessContext
+from praetor.tools.advisor_kb import (
     NEVER_SUBMIT_TYPES,
     SENSITIVE_ENDPOINT_PATTERNS,
     q1_scope,

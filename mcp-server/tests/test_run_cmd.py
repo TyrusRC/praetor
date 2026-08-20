@@ -14,7 +14,7 @@ import asyncio
 import unittest
 from unittest.mock import patch, MagicMock
 
-from burpsuite_mcp.tools.recon import _common
+from praetor.tools.recon import _common
 
 
 class StdinHandling(unittest.TestCase):

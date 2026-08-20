@@ -7,14 +7,14 @@ import json
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
-from burpsuite_mcp.tools.recon_extended.fingerprints import TAKEOVER_FINGERPRINTS
+from praetor.tools.scan._constants import KNOWLEDGE_DIR
+from praetor.tools.recon_extended.fingerprints import TAKEOVER_FINGERPRINTS
 
 
 class IOSFridaSnippetsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_ios_snippets_present(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         captured: dict = {}
 
         class _Stub:
@@ -36,7 +36,7 @@ class IOSFridaSnippetsTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn(name, out["available"], f"missing W9 iOS snippet: {name}")
 
     async def test_ios_lacontext_returns_objc_code(self):
-        from burpsuite_mcp.tools import mobile_payloads
+        from praetor.tools import mobile_payloads
         captured: dict = {}
 
         class _Stub:
@@ -93,7 +93,7 @@ class CommonFilesTechSpecificTest(unittest.IsolatedAsyncioTestCase):
     async def test_rails_paths_added(self):
         """W9 added Rails-specific paths: database.yml, secrets.yml, master.key."""
         # Read the source file directly (these are inline literals).
-        path = Path("src/burpsuite_mcp/tools/edge/discover_common_files.py")
+        path = Path("src/praetor/tools/edge/discover_common_files.py")
         # The tests run from mcp-server/; resolve relative.
         if not path.exists():
             path = Path("mcp-server") / path
@@ -104,7 +104,7 @@ class CommonFilesTechSpecificTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn(marker, content, f"missing W9 Rails path: {marker}")
 
     async def test_go_pprof_paths_added(self):
-        path = Path("src/burpsuite_mcp/tools/edge/discover_common_files.py")
+        path = Path("src/praetor/tools/edge/discover_common_files.py")
         if not path.exists():
             path = Path("mcp-server") / path
         content = path.read_text(encoding="utf-8")

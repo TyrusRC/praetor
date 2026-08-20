@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from burpsuite_mcp.tools import (
+from praetor.tools import (
     httpql,
     k8s_audit,
     llm_redteam,

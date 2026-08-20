@@ -6,7 +6,7 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
-from burpsuite_mcp.tools import smart_js_analyze as sja
+from praetor.tools import smart_js_analyze as sja
 
 
 def _stub_mcp():
@@ -325,7 +325,7 @@ class RegistrationAndRoutingTest(unittest.TestCase):
         self.assertIn("smart_js_analyze", captured)
 
     def test_pick_tool_routes_analyze_js(self):
-        from burpsuite_mcp.tools.advisor.pick_tool import _MAPPINGS
+        from praetor.tools.advisor.pick_tool import _MAPPINGS
         match = None
         for keywords, tool_name, _ex in _MAPPINGS:
             if "analyze js" in keywords:
@@ -334,7 +334,7 @@ class RegistrationAndRoutingTest(unittest.TestCase):
         self.assertEqual(match, "smart_js_analyze")
 
     def test_pick_tool_routes_rsc_harvest(self):
-        from burpsuite_mcp.tools.advisor.pick_tool import _MAPPINGS
+        from praetor.tools.advisor.pick_tool import _MAPPINGS
         match = None
         for keywords, tool_name, _ex in _MAPPINGS:
             if "rsc action id harvest" in keywords:

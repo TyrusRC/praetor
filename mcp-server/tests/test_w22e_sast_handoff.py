@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from burpsuite_mcp.tools.sast_handoff import (
+from praetor.tools.sast_handoff import (
     _classify_rule,
     _walk_back_for_route,
     _aggregate_endpoints,
@@ -214,7 +214,7 @@ class SastToEndpointRiskToolTest(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_inline_json_blob_accepted(self):
-        from burpsuite_mcp.tools import sast_handoff
+        from praetor.tools import sast_handoff
         stub, captured = _stub_mcp()
         sast_handoff.register(stub)
         # Build a minimal opengrep --json blob inline.
@@ -235,7 +235,7 @@ class SastToEndpointRiskToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sqli", out["ranked_endpoints"][0]["vuln_classes"])
 
     async def test_path_to_json_file_accepted(self):
-        from burpsuite_mcp.tools import sast_handoff
+        from praetor.tools import sast_handoff
         stub, captured = _stub_mcp()
         sast_handoff.register(stub)
         (self.tmp / "v.py").write_text('@app.route("/y")\ndef v():\n    rce_sink()\n')
@@ -255,7 +255,7 @@ class SastToEndpointRiskToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["ranked_endpoints"][0]["vuln_classes"], ["rce"])
 
     async def test_missing_path_returns_error(self):
-        from burpsuite_mcp.tools import sast_handoff
+        from praetor.tools import sast_handoff
         stub, captured = _stub_mcp()
         sast_handoff.register(stub)
         out = await captured["sast_to_endpoint_risk"](
@@ -273,26 +273,26 @@ class RiskRankEndpointsToolTest(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_missing_opengrep_returns_error(self):
-        from burpsuite_mcp.tools import sast_handoff
+        from praetor.tools import sast_handoff
         stub, captured = _stub_mcp()
         sast_handoff.register(stub)
-        with patch("burpsuite_mcp.tools.sast_handoff._check_tool", return_value=False):
+        with patch("praetor.tools.sast_handoff._check_tool", return_value=False):
             out = await captured["risk_rank_endpoints"](target_path=str(self.tmp))
         self.assertIn("error", out)
         self.assertIn("opengrep", out["error"].lower())
 
     async def test_missing_target_returns_error(self):
-        from burpsuite_mcp.tools import sast_handoff
+        from praetor.tools import sast_handoff
         stub, captured = _stub_mcp()
         sast_handoff.register(stub)
-        with patch("burpsuite_mcp.tools.sast_handoff._check_tool", return_value=True):
+        with patch("praetor.tools.sast_handoff._check_tool", return_value=True):
             out = await captured["risk_rank_endpoints"](
                 target_path=str(self.tmp / "nonexistent"),
             )
         self.assertIn("error", out)
 
     async def test_end_to_end_with_mocked_opengrep(self):
-        from burpsuite_mcp.tools import sast_handoff
+        from praetor.tools import sast_handoff
         stub, captured = _stub_mcp()
         sast_handoff.register(stub)
         # Seed a source file with an inferable route.
@@ -308,8 +308,8 @@ class RiskRankEndpointsToolTest(unittest.IsolatedAsyncioTestCase):
                 }]
             }), "", 0)
 
-        with patch("burpsuite_mcp.tools.sast_handoff._check_tool", return_value=True), \
-             patch("burpsuite_mcp.tools.sast_handoff._run_cmd", new=fake_run_cmd):
+        with patch("praetor.tools.sast_handoff._check_tool", return_value=True), \
+             patch("praetor.tools.sast_handoff._run_cmd", new=fake_run_cmd):
             out = await captured["risk_rank_endpoints"](target_path=str(self.tmp))
         self.assertEqual(out["total_findings"], 1)
         self.assertEqual(out["ranked_endpoints"][0]["path"], "/api/z")
@@ -320,7 +320,7 @@ class RiskRankEndpointsToolTest(unittest.IsolatedAsyncioTestCase):
 class ToolsRegisteredTest(unittest.TestCase):
 
     def test_both_tools_in_server(self):
-        from burpsuite_mcp import server
+        from praetor import server
         tools = server.mcp._tool_manager._tools
         self.assertIn("sast_to_endpoint_risk", tools)
         self.assertIn("risk_rank_endpoints", tools)

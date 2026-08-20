@@ -24,14 +24,14 @@ def _stub_mcp():
 class VerdictHelperTest(unittest.TestCase):
 
     def test_tally_three_levels(self):
-        from burpsuite_mcp.tools.testing._verdict import verdict_from_tally
+        from praetor.tools.testing._verdict import verdict_from_tally
         self.assertEqual(verdict_from_tally(0)[0], "FAILED")
         self.assertEqual(verdict_from_tally(1)[0], "SUSPECTED")
         self.assertEqual(verdict_from_tally(2)[0], "CONFIRMED")
         self.assertEqual(verdict_from_tally(5)[0], "CONFIRMED")
 
     def test_tally_custom_threshold(self):
-        from burpsuite_mcp.tools.testing._verdict import verdict_from_tally
+        from praetor.tools.testing._verdict import verdict_from_tally
         v, c = verdict_from_tally(2, confirmed_threshold=3,
                                   confirmed_confidence=0.9,
                                   suspected_confidence=0.6)
@@ -46,7 +46,7 @@ class VerdictHelperTest(unittest.TestCase):
 class WafBypassRefactorTest(unittest.TestCase):
 
     def test_probe_40x_bypass_returns_dict(self):
-        from burpsuite_mcp.tools import waf_bypass
+        from praetor.tools import waf_bypass
         stub, captured = _stub_mcp()
         waf_bypass.register(stub)
         sig = captured["probe_40x_bypass"].__annotations__.get("return")
@@ -56,35 +56,35 @@ class WafBypassRefactorTest(unittest.TestCase):
 class TestingExtendedRefactorsTest(unittest.TestCase):
 
     def test_smuggling_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import smuggling
+        from praetor.tools.testing_extended import smuggling
         stub, captured = _stub_mcp()
         smuggling.register(stub)
         sig = captured["test_request_smuggling"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_host_header_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import host_header
+        from praetor.tools.testing_extended import host_header
         stub, captured = _stub_mcp()
         host_header.register(stub)
         sig = captured["test_host_header"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_crlf_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import crlf
+        from praetor.tools.testing_extended import crlf
         stub, captured = _stub_mcp()
         crlf.register(stub)
         sig = captured["test_crlf_injection"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_idempotency_key_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import idempotency_key
+        from praetor.tools.testing_extended import idempotency_key
         stub, captured = _stub_mcp()
         idempotency_key.register(stub)
         sig = captured["probe_idempotency_key"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_workflow_reorder_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import workflow_reorder
+        from praetor.tools.testing_extended import workflow_reorder
         stub, captured = _stub_mcp()
         workflow_reorder.register(stub)
         sig = captured["probe_workflow_reorder"].__annotations__.get("return")
@@ -94,17 +94,17 @@ class TestingExtendedRefactorsTest(unittest.TestCase):
 class KBPromotionsTest(unittest.TestCase):
 
     def test_csv_injection_active(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         self.assertNotIn("csv_injection", _REFERENCE_ONLY)
 
     def test_insecure_randomness_active(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         self.assertNotIn("insecure_randomness", _REFERENCE_ONLY)
 
     def test_csv_injection_has_w12_context(self):
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "csv_injection.json").read_text(encoding="utf-8")
         )
@@ -119,7 +119,7 @@ class KBPromotionsTest(unittest.TestCase):
     def test_insecure_randomness_has_w12_contexts(self):
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "insecure_randomness.json").read_text(encoding="utf-8")
         )
@@ -130,7 +130,7 @@ class KBPromotionsTest(unittest.TestCase):
         """W12 tightened uuid_v1_leak: was word:'-1' (FP), now full UUID regex."""
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "insecure_randomness.json").read_text(encoding="utf-8")
         )

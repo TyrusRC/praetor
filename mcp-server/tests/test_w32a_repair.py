@@ -17,8 +17,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
-TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
+TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools"
 SKILLS_DIR = ROOT / ".claude" / "skills"
 CLAUDE_MD = ROOT / "CLAUDE.md"
 

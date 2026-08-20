@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from mcp.server.fastmcp import FastMCP
 
-from burpsuite_mcp.tools import _scope_mode, scope_extra
+from praetor.tools import _scope_mode, scope_extra
 
 
 def _get_tool():
@@ -24,7 +24,7 @@ class ImportScopeTest(unittest.TestCase):
         with NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
             f.write("admin.acme.com\napi.acme.com\n\nmail.acme.com\n")
             path = f.name
-        with patch("burpsuite_mcp.tools.scope_extra.client.post",
+        with patch("praetor.tools.scope_extra.client.post",
                    new=AsyncMock(return_value={"included": 3})):
             result = asyncio.run(_get_tool()(source=path, format="subfinder_txt"))
             self.assertIn("added: 3", result)
@@ -33,7 +33,7 @@ class ImportScopeTest(unittest.TestCase):
         with NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
             f.write("https://x.com\nhttps://y.com\n")
             path = f.name
-        with patch("burpsuite_mcp.tools.scope_extra.client.post",
+        with patch("praetor.tools.scope_extra.client.post",
                    new=AsyncMock(return_value={"included": 2})):
             result = asyncio.run(_get_tool()(source=path, format="auto"))
             self.assertIn("plain", result)
@@ -43,7 +43,7 @@ class ImportScopeTest(unittest.TestCase):
             f.write(json.dumps({"url": "https://a.example"}) + "\n")
             f.write(json.dumps({"url": "https://b.example"}) + "\n")
             path = f.name
-        with patch("burpsuite_mcp.tools.scope_extra.client.post",
+        with patch("praetor.tools.scope_extra.client.post",
                    new=AsyncMock(return_value={"included": 2})):
             result = asyncio.run(_get_tool()(source=path, format="httpx_json"))
             self.assertIn("added: 2", result)
@@ -71,7 +71,7 @@ class ImportScopePreservesModeTest(unittest.TestCase):
                     captured["payload"] = json
                     return {"included": 1}
 
-                with patch("burpsuite_mcp.tools.scope_extra.client.post",
+                with patch("praetor.tools.scope_extra.client.post",
                            new=AsyncMock(side_effect=fake_post)):
                     asyncio.run(_get_tool()(source=src, format="subfinder_txt"))
 

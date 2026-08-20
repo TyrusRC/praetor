@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from burpsuite_mcp.tools.advisor import _cvss4
+from praetor.tools.advisor import _cvss4
 
 
 class CVSS4Test(unittest.TestCase):

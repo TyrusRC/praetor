@@ -4,12 +4,12 @@ import json
 import unittest
 from pathlib import Path
 
-import burpsuite_mcp.tools.shadow_repeater as shadow_repeater_mod
-from burpsuite_mcp.tools.notes import explain_finding as explain_mod
-from burpsuite_mcp.tools.notes import explore_issue as explore_mod
+import praetor.tools.shadow_repeater as shadow_repeater_mod
+from praetor.tools.notes import explain_finding as explain_mod
+from praetor.tools.notes import explore_issue as explore_mod
 
 
-KB = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 class W1KbAugmentTest(unittest.TestCase):

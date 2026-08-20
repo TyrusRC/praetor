@@ -28,7 +28,7 @@ import json
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 class _Capture:
@@ -45,7 +45,7 @@ class _Capture:
 
 
 def _capture_advisor_tools() -> dict:
-    from burpsuite_mcp.tools import advisor
+    from praetor.tools import advisor
     cap = _Capture()
     advisor.register(cap)
     return cap.tools
@@ -56,7 +56,7 @@ def _capture_advisor_tools() -> dict:
 # ---------------------------------------------------------------------------
 class FrameworkTagsTest(unittest.TestCase):
     def setUp(self):
-        from burpsuite_mcp.tools._framework_map import framework_tags
+        from praetor.tools._framework_map import framework_tags
         self.framework_tags = framework_tags
 
     def test_known_classes_map_to_real_ids(self):
@@ -109,7 +109,7 @@ class FrameworkTagsTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class FrameworkLineTest(unittest.TestCase):
     def setUp(self):
-        from burpsuite_mcp.tools.advisor.assess import _framework_line
+        from praetor.tools.advisor.assess import _framework_line
         self._framework_line = _framework_line
 
     def test_known_class_contains_framework_ids(self):
@@ -130,7 +130,7 @@ class FrameworkLineTest(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class ActorMapTest(unittest.TestCase):
     def setUp(self):
-        from burpsuite_mcp.tools.cve._register_kev_epss import _ACTOR_MAP
+        from praetor.tools.cve._register_kev_epss import _ACTOR_MAP
         self._ACTOR_MAP = _ACTOR_MAP
 
     def test_known_cve_is_attributed(self):

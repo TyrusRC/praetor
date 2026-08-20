@@ -6,8 +6,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.testing._verdict import is_actionable, to_assess_evidence
+from praetor import server
+from praetor.tools.testing._verdict import is_actionable, to_assess_evidence
 
 
 def _get_tool(name: str):
@@ -82,7 +82,7 @@ class SessionLifecycleVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.session_lifecycle.client.post",
+        with patch("praetor.tools.auth.session_lifecycle.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _get_tool("test_session_lifecycle")
             out = await fn(
@@ -106,7 +106,7 @@ class SessionLifecycleVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.session_lifecycle.client.post",
+        with patch("praetor.tools.auth.session_lifecycle.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _get_tool("test_session_lifecycle")
             out = await fn(
@@ -127,7 +127,7 @@ class SessionLifecycleVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.session_lifecycle.client.post",
+        with patch("praetor.tools.auth.session_lifecycle.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _get_tool("test_session_lifecycle")
             out = await fn(
@@ -140,14 +140,14 @@ class SessionLifecycleVerdictTest(unittest.IsolatedAsyncioTestCase):
 class AnalyzeDomVerdictTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_error_passthrough(self):
-        with patch("burpsuite_mcp.tools.dom.client.post",
+        with patch("praetor.tools.dom.client.post",
                    new=AsyncMock(return_value={"error": "no such index"})):
             fn = _get_tool("analyze_dom")
             out = await fn(index=99999)
         self.assertEqual(out["verdict"], "ERROR")
 
     async def test_clean_response_failed(self):
-        with patch("burpsuite_mcp.tools.dom.client.post",
+        with patch("praetor.tools.dom.client.post",
                    new=AsyncMock(return_value={"html_analysis": {}, "js_analysis": {}})):
             fn = _get_tool("analyze_dom")
             out = await fn(index=1)
@@ -168,7 +168,7 @@ class AnalyzeDomVerdictTest(unittest.IsolatedAsyncioTestCase):
                 "dangerous_patterns": [],
             },
         }
-        with patch("burpsuite_mcp.tools.dom.client.post",
+        with patch("praetor.tools.dom.client.post",
                    new=AsyncMock(return_value=data)):
             fn = _get_tool("analyze_dom")
             out = await fn(index=5)
@@ -180,7 +180,7 @@ class AnalyzeDomVerdictTest(unittest.IsolatedAsyncioTestCase):
 class ProbeXssExecutedScopeTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_scope_reject_returns_error(self):
-        with patch("burpsuite_mcp.client.check_scope",
+        with patch("praetor.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": False})):
             fn = _get_tool("probe_xss_executed")
             out = await fn(url="https://oos.example.com/x", param="q")
@@ -188,7 +188,7 @@ class ProbeXssExecutedScopeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("not in scope", out["evidence_summary"])
 
     async def test_scope_check_error_returns_error(self):
-        with patch("burpsuite_mcp.client.check_scope",
+        with patch("praetor.client.check_scope",
                    new=AsyncMock(return_value={"error": "no scope cfg"})):
             fn = _get_tool("probe_xss_executed")
             out = await fn(url="https://nope/", param="q")

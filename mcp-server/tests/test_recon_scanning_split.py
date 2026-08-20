@@ -5,11 +5,11 @@ import unittest
 
 class TestReconScanningShim(unittest.TestCase):
     def test_register_aggregator_callable(self):
-        from burpsuite_mcp.tools.recon import scanning
+        from praetor.tools.recon import scanning
         self.assertTrue(callable(scanning.register))
 
     def test_seclists_helpers_importable_from_package(self):
-        from burpsuite_mcp.tools.recon.scanning import (
+        from praetor.tools.recon.scanning import (
             _SECLISTS_CANDIDATES,
             _cache_seclists,
             detect_seclists,
@@ -20,19 +20,19 @@ class TestReconScanningShim(unittest.TestCase):
 
     def test_inventory_still_imports_detect_seclists(self):
         # inventory.py uses `from .scanning import detect_seclists`
-        from burpsuite_mcp.tools.recon import inventory
-        from burpsuite_mcp.tools.recon.scanning import detect_seclists
+        from praetor.tools.recon import inventory
+        from praetor.tools.recon.scanning import detect_seclists
         # Same callable resolved both ways
         self.assertIs(inventory.detect_seclists, detect_seclists)
 
     def test_wordlist_still_imports_detect_seclists(self):
-        # tools/wordlist.py imports `from burpsuite_mcp.tools.recon.scanning import detect_seclists`
-        from burpsuite_mcp.tools import wordlist
-        from burpsuite_mcp.tools.recon.scanning import detect_seclists
+        # tools/wordlist.py imports `from praetor.tools.recon.scanning import detect_seclists`
+        from praetor.tools import wordlist
+        from praetor.tools.recon.scanning import detect_seclists
         self.assertIs(wordlist.detect_seclists, detect_seclists)
 
     def test_submodules_importable(self):
-        from burpsuite_mcp.tools.recon.scanning import (
+        from praetor.tools.recon.scanning import (
             archive,
             dirbust,
             dns_intel,
@@ -52,7 +52,7 @@ class TestReconScanningShim(unittest.TestCase):
                     return fn
                 return decorator
 
-        from burpsuite_mcp.tools.recon import scanning
+        from praetor.tools.recon import scanning
         scanning.register(StubMcp())
 
         expected = {

@@ -8,7 +8,7 @@ from unittest import mock
 
 from mcp.server.fastmcp import FastMCP
 
-from burpsuite_mcp.tools import wordlist
+from praetor.tools import wordlist
 
 
 def _get_tool():
@@ -36,8 +36,8 @@ class SmartWordlistTest(unittest.TestCase):
             (seclists / "Discovery" / "Web-Content" / "common.txt").write_text(
                 "robots.txt\nsitemap.xml\n"
             )
-            with mock.patch("burpsuite_mcp.tools.wordlist._cwd", lambda: tmpp), \
-                 mock.patch("burpsuite_mcp.tools.wordlist.detect_seclists", lambda: str(seclists)):
+            with mock.patch("praetor.tools.wordlist._cwd", lambda: tmpp), \
+                 mock.patch("praetor.tools.wordlist.detect_seclists", lambda: str(seclists)):
                 out = asyncio.run(_get_tool()(domain="example.com", tier="shallow"))
                 self.assertIn("path", out)
                 p = Path(out["path"])
@@ -62,8 +62,8 @@ class SmartWordlistTest(unittest.TestCase):
             (seclists / "Discovery" / "Web-Content" / "directory-list-2.3-small.txt").write_text(
                 "\n".join(f"d-{i}" for i in range(200))
             )
-            with mock.patch("burpsuite_mcp.tools.wordlist._cwd", lambda: tmpp), \
-                 mock.patch("burpsuite_mcp.tools.wordlist.detect_seclists", lambda: str(seclists)):
+            with mock.patch("praetor.tools.wordlist._cwd", lambda: tmpp), \
+                 mock.patch("praetor.tools.wordlist.detect_seclists", lambda: str(seclists)):
                 shallow = asyncio.run(_get_tool()(domain="example.com", tier="shallow"))
                 medium = asyncio.run(_get_tool()(domain="example.com", tier="medium"))
                 self.assertLess(shallow["total"], medium["total"])
@@ -76,8 +76,8 @@ class SmartWordlistTest(unittest.TestCase):
             seclists = tmpp / "seclists"
             (seclists / "Discovery" / "Web-Content").mkdir(parents=True)
             (seclists / "Discovery" / "Web-Content" / "common.txt").write_text("robots.txt\n")
-            with mock.patch("burpsuite_mcp.tools.wordlist._cwd", lambda: tmpp), \
-                 mock.patch("burpsuite_mcp.tools.wordlist.detect_seclists", lambda: str(seclists)):
+            with mock.patch("praetor.tools.wordlist._cwd", lambda: tmpp), \
+                 mock.patch("praetor.tools.wordlist.detect_seclists", lambda: str(seclists)):
                 out = asyncio.run(_get_tool()(domain="example.com", tier="shallow"))
                 self.assertEqual(out["breakdown"]["tech"], 0)
                 self.assertGreater(out["breakdown"]["generic"], 0)
@@ -86,8 +86,8 @@ class SmartWordlistTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             tmpp = Path(tmp)
             self._setup_target(tmpp, ["PHP"], [])
-            with mock.patch("burpsuite_mcp.tools.wordlist._cwd", lambda: tmpp), \
-                 mock.patch("burpsuite_mcp.tools.wordlist.detect_seclists", lambda: None):
+            with mock.patch("praetor.tools.wordlist._cwd", lambda: tmpp), \
+                 mock.patch("praetor.tools.wordlist.detect_seclists", lambda: None):
                 out = asyncio.run(_get_tool()(domain="example.com", tier="shallow"))
                 self.assertIn("error", out)
 

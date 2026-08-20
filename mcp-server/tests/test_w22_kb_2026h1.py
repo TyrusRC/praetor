@@ -6,7 +6,7 @@ import json
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+from praetor.tools.scan._constants import KNOWLEDGE_DIR
 
 
 _W22_CONTEXTS = [

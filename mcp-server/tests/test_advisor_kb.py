@@ -9,17 +9,17 @@ Run: uv run python -m unittest tests.test_advisor_kb -v
 
 import unittest
 
-from burpsuite_mcp.tools.advisor_kb.gates import (
+from praetor.tools.advisor_kb.gates import (
     AUTH_STATE_DEPENDENT,
     LOW_IMPACT_CLASSES,
 )
-from burpsuite_mcp.tools.advisor_kb.never_submit import (
+from praetor.tools.advisor_kb.never_submit import (
     CONDITIONAL_NEVER_SUBMIT_TYPES,
     NEVER_SUBMIT_KEYWORDS,
     NEVER_SUBMIT_TYPES,
     SENSITIVE_ENDPOINT_PATTERNS,
 )
-from burpsuite_mcp.tools.advisor_kb.q5 import (
+from praetor.tools.advisor_kb.q5 import (
     Q5_ALIASES,
     Q5_KEYWORDS,
     TIMING_VULN_TYPES,

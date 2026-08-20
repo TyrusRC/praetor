@@ -250,7 +250,7 @@ uv pip install -e . 2>&1 | tail -1
 ok "MCP server installed"
 
 # Verify it loads
-TOOL_COUNT=$(uv run python -c "from burpsuite_mcp.server import mcp; print(len(mcp._tool_manager._tools))" 2>/dev/null || echo "0")
+TOOL_COUNT=$(uv run python -c "from praetor.server import mcp; print(len(mcp._tool_manager._tools))" 2>/dev/null || echo "0")
 if [ "$TOOL_COUNT" -gt 0 ]; then
     ok "MCP server verified: $TOOL_COUNT tools loaded"
 else
@@ -490,7 +490,7 @@ if [ ! -f "$MCP_JSON" ]; then
   "mcpServers": {
     "praetor": {
       "command": "$VENV_PYTHON",
-      "args": ["-m", "burpsuite_mcp"],
+      "args": ["-m", "praetor"],
       "env": {
         "BURP_API_HOST": "$WSL_HOST_IP"
       }
@@ -505,7 +505,7 @@ MCPEOF
   "mcpServers": {
     "praetor": {
       "command": "$VENV_PYTHON",
-      "args": ["-m", "burpsuite_mcp"]
+      "args": ["-m", "praetor"]
     }
   }
 }

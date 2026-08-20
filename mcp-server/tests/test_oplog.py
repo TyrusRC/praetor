@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from burpsuite_mcp.tools.oplog import _store, _verify
+from praetor.tools.oplog import _store, _verify
 
 
 class _TempLedger(unittest.TestCase):

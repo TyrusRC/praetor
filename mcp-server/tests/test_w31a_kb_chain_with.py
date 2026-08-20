@@ -3,7 +3,7 @@ import json
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).parent.parent / "src" / "praetor" / "knowledge"
 
 KB_CHAIN_SETS = {
     "open_redirect.json":   {"oauth", "dom_xss", "info_disclosure", "csrf"},
@@ -43,7 +43,7 @@ class ChainWithFieldTest(unittest.TestCase):
 
     def test_loader_still_parses(self):
         """Adding top-level chain_with must not break the KB loader."""
-        from burpsuite_mcp.tools.scan._helpers import _load_knowledge
+        from praetor.tools.scan._helpers import _load_knowledge
         for name in KB_CHAIN_SETS:
             cat = name.replace(".json", "")
             kb = _load_knowledge(cat)

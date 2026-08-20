@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
+from praetor import server
 
 
 def _tool(name: str):
@@ -20,7 +20,7 @@ class Http3ProbeErrorPathsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "ERROR")
 
     async def test_scope_reject_returns_error(self):
-        with patch("burpsuite_mcp.tools.http3_probe.client.check_scope",
+        with patch("praetor.tools.http3_probe.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": False})):
             fn = _tool("probe_http3_downgrade")
             out = await fn(url="https://oos/")
@@ -37,9 +37,9 @@ class Http3ProbeVerdictTest(unittest.IsolatedAsyncioTestCase):
                     "response_headers": [{"name": "Server", "value": "nginx"}],
                     "proxy_index": 1}
 
-        with patch("burpsuite_mcp.tools.http3_probe.client.check_scope",
+        with patch("praetor.tools.http3_probe.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.http3_probe.client.post",
+             patch("praetor.tools.http3_probe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_http3_downgrade")
             out = await fn(url="https://t.example.com/")
@@ -64,9 +64,9 @@ class Http3ProbeVerdictTest(unittest.IsolatedAsyncioTestCase):
                 "proxy_index": 10 + i,
             }
 
-        with patch("burpsuite_mcp.tools.http3_probe.client.check_scope",
+        with patch("praetor.tools.http3_probe.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.http3_probe.client.post",
+             patch("praetor.tools.http3_probe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_http3_downgrade")
             out = await fn(url="https://t.example.com/")
@@ -96,9 +96,9 @@ class Http3ProbeVerdictTest(unittest.IsolatedAsyncioTestCase):
                 "proxy_index": 21,
             }
 
-        with patch("burpsuite_mcp.tools.http3_probe.client.check_scope",
+        with patch("praetor.tools.http3_probe.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.http3_probe.client.post",
+             patch("praetor.tools.http3_probe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_http3_downgrade")
             out = await fn(url="https://t.example.com/")
@@ -130,9 +130,9 @@ class Http3ProbeVerdictTest(unittest.IsolatedAsyncioTestCase):
                 "proxy_index": 31,
             }
 
-        with patch("burpsuite_mcp.tools.http3_probe.client.check_scope",
+        with patch("praetor.tools.http3_probe.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.http3_probe.client.post",
+             patch("praetor.tools.http3_probe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_http3_downgrade")
             out = await fn(url="https://t.example.com/")
@@ -150,9 +150,9 @@ class Http3ProbeVerdictTest(unittest.IsolatedAsyncioTestCase):
                     "response_headers": [],  # no Alt-Svc advertisement
                     "proxy_index": 40 + i}
 
-        with patch("burpsuite_mcp.tools.http3_probe.client.check_scope",
+        with patch("praetor.tools.http3_probe.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.http3_probe.client.post",
+             patch("praetor.tools.http3_probe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_http3_downgrade")
             out = await fn(url="https://t.example.com/",

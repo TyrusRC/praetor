@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.intel.brief import build_brief
+from praetor.tools.intel.brief import build_brief
 
 
 class TargetBriefTest(unittest.TestCase):

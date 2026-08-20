@@ -9,7 +9,7 @@ Run: uv run python -m unittest tests.test_formatters -v
 
 import unittest
 
-from burpsuite_mcp.processing.formatters import format_findings, format_proxy_table
+from praetor.processing.formatters import format_findings, format_proxy_table
 
 
 class ProxyTableTests(unittest.TestCase):

@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
+from praetor import server
 
 
 def _tool(name: str):
@@ -26,7 +26,7 @@ class PasskeyStepupBypassErrorPathsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "ERROR")
 
     async def test_scope_reject_returns_error(self):
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": False})):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(stepup_url="https://oos/api/stepup", bearer_token="abc")
@@ -56,9 +56,9 @@ class PasskeyStepupBypassVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.auth.passkey_stepup.client.post",
+             patch("praetor.tools.auth.passkey_stepup.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(
@@ -88,9 +88,9 @@ class PasskeyStepupBypassVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.auth.passkey_stepup.client.post",
+             patch("praetor.tools.auth.passkey_stepup.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(stepup_url="https://t/api/stepup",
@@ -118,9 +118,9 @@ class PasskeyStepupBypassVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.auth.passkey_stepup.client.post",
+             patch("praetor.tools.auth.passkey_stepup.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(
@@ -150,9 +150,9 @@ class PasskeyStepupBypassVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.auth.passkey_stepup.client.post",
+             patch("praetor.tools.auth.passkey_stepup.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(stepup_url="https://t/api/stepup",
@@ -176,9 +176,9 @@ class PasskeyStepupBypassVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.auth.passkey_stepup.client.post",
+             patch("praetor.tools.auth.passkey_stepup.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(stepup_url="https://t/api/stepup",
@@ -196,9 +196,9 @@ class PasskeyStepupBypassVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.auth.passkey_stepup.client.check_scope",
+        with patch("praetor.tools.auth.passkey_stepup.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.auth.passkey_stepup.client.post",
+             patch("praetor.tools.auth.passkey_stepup.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_passkey_stepup_bypass")
             out = await fn(stepup_url="https://t/api/stepup",
@@ -217,7 +217,7 @@ class PasskeyStepupRegistrationTest(unittest.TestCase):
 class PickToolRoutingTest(unittest.IsolatedAsyncioTestCase):
 
     async def _route(self, query: str) -> str:
-        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        from praetor.tools.advisor.pick_tool import pick_tool_impl
         return await pick_tool_impl(query)
 
     async def test_passkey_stepup_routes(self):

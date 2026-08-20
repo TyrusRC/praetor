@@ -8,7 +8,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-_KB = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+_KB = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 _INDEX = _KB / "_INDEX.md"
 
 

@@ -9,7 +9,7 @@ Run: uv run python -m unittest tests.test_reset_tokens -v
 import time
 import unittest
 
-from burpsuite_mcp.tools.auth.reset_tokens import (
+from praetor.tools.auth.reset_tokens import (
     _detect_sequential,
     _detect_timestamp,
     _looks_b64,

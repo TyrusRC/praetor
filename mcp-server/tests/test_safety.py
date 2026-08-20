@@ -6,7 +6,7 @@ Run: uv run python -m unittest tests.test_safety -v
 import re
 import unittest
 
-from burpsuite_mcp.tools.exploit._safety import (
+from praetor.tools.exploit._safety import (
     HARD_DESTRUCTIVE_PATTERNS,
     SOC_LOUD_PATTERNS,
     QUIET_RCE_CMDS,

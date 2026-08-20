@@ -13,13 +13,13 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools._vuln_class import aliases_of, canonical
-from burpsuite_mcp.tools.advisor_kb.never_submit import (
+from praetor import server
+from praetor.tools._vuln_class import aliases_of, canonical
+from praetor.tools.advisor_kb.never_submit import (
     CONDITIONAL_NEVER_SUBMIT_TYPES,
     NEVER_SUBMIT_TYPES,
 )
-from burpsuite_mcp.tools.report.severity import SEVERITY_CAPS_BY_VULN_TYPE, tier_guidance
+from praetor.tools.report.severity import SEVERITY_CAPS_BY_VULN_TYPE, tier_guidance
 
 
 class TestClassVocabulary(unittest.TestCase):
@@ -89,9 +89,9 @@ class _SaveHarness(unittest.IsolatedAsyncioTestCase):
             force_recon_gate=True,
         )
         base.update(kw)
-        with patch("burpsuite_mcp.tools.notes.save.client.post",
+        with patch("praetor.tools.notes.save.client.post",
                    new=AsyncMock(return_value={"id": "burp-1"})), \
-             patch("burpsuite_mcp.tools.intel.recon_gate_check", return_value=None):
+             patch("praetor.tools.intel.recon_gate_check", return_value=None):
             fn = server.mcp._tool_manager._tools["save_finding"].fn
             return await fn(**base)
 

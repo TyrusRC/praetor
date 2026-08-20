@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.workspace import workspace_paths, ensure_workspace
+from praetor.tools.workspace import workspace_paths, ensure_workspace
 
 
 class TestWorkspace(unittest.TestCase):

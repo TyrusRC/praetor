@@ -190,7 +190,7 @@ try {
     uv venv 2>$null | Out-Null
     uv pip install -e . | Out-Null
     Ok "MCP server installed"
-    $toolCount = & uv run python -c "from burpsuite_mcp.server import mcp; print(len(mcp._tool_manager._tools))" 2>$null
+    $toolCount = & uv run python -c "from praetor.server import mcp; print(len(mcp._tool_manager._tools))" 2>$null
     if ($toolCount -and [int]$toolCount -gt 0) { Ok "MCP server verified: $toolCount tools loaded" }
     else { Fail "MCP server failed to load" }
 
@@ -264,9 +264,9 @@ if (-not (Test-Path $McpJson)) {
     $json = @"
 {
   "mcpServers": {
-    "burpsuite": {
+    "praetor": {
       "command": "$VenvPythonJson",
-      "args": ["-m", "burpsuite_mcp"]
+      "args": ["-m", "praetor"]
     }
   }
 }

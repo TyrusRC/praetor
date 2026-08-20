@@ -14,36 +14,36 @@ import json
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 class GraphqlCsrfHelpersTest(unittest.TestCase):
     def test_is_graphql_response_data(self):
-        from burpsuite_mcp.tools.graphql_csrf_probe import _is_graphql_response
+        from praetor.tools.graphql_csrf_probe import _is_graphql_response
         self.assertTrue(_is_graphql_response('{"data":{"__typename":"Query"}}'))
 
     def test_is_graphql_response_errors(self):
-        from burpsuite_mcp.tools.graphql_csrf_probe import _is_graphql_response
+        from praetor.tools.graphql_csrf_probe import _is_graphql_response
         self.assertTrue(_is_graphql_response('{"errors":[{"message":"x"}]}'))
 
     def test_is_graphql_response_non_json(self):
-        from burpsuite_mcp.tools.graphql_csrf_probe import _is_graphql_response
+        from praetor.tools.graphql_csrf_probe import _is_graphql_response
         self.assertFalse(_is_graphql_response("hello world"))
         self.assertFalse(_is_graphql_response(""))
 
     def test_is_graphql_response_unrelated_json(self):
-        from burpsuite_mcp.tools.graphql_csrf_probe import _is_graphql_response
+        from praetor.tools.graphql_csrf_probe import _is_graphql_response
         self.assertFalse(_is_graphql_response('{"status":"ok"}'))
 
 
 class Struts2OgnlTest(unittest.TestCase):
     def test_arithmetic_marker_is_canonical(self):
-        from burpsuite_mcp.tools.struts2_ognl_probe import _ARITHMETIC_MARKER
+        from praetor.tools.struts2_ognl_probe import _ARITHMETIC_MARKER
         # 1337 * 1338 = 1788706 — invariant
         self.assertEqual(_ARITHMETIC_MARKER, str(1337 * 1338))
 
     def test_payload_coverage(self):
-        from burpsuite_mcp.tools.struts2_ognl_probe import _OGNL_PAYLOADS
+        from praetor.tools.struts2_ognl_probe import _OGNL_PAYLOADS
         engines = [e for e, _ in _OGNL_PAYLOADS]
         self.assertIn("ognl_curly", engines)
         self.assertIn("ognl_at", engines)
@@ -52,7 +52,7 @@ class Struts2OgnlTest(unittest.TestCase):
         self.assertGreaterEqual(len(_OGNL_PAYLOADS), 6)
 
     def test_stack_marker_detect(self):
-        from burpsuite_mcp.tools.struts2_ognl_probe import _has_ognl_stack_marker
+        from praetor.tools.struts2_ognl_probe import _has_ognl_stack_marker
         self.assertTrue(_has_ognl_stack_marker("... ognl.OgnlException ..."))
         self.assertTrue(_has_ognl_stack_marker("org.springframework.expression.spel.SpelEvaluationException"))
         self.assertFalse(_has_ognl_stack_marker("plain old 500"))
@@ -66,26 +66,26 @@ class Struts2OgnlTest(unittest.TestCase):
 
 class McpEnumerateTest(unittest.TestCase):
     def test_parse_jsonrpc_raw_json(self):
-        from burpsuite_mcp.tools.mcp_enumerate import _parse_jsonrpc_body
+        from praetor.tools.mcp_enumerate import _parse_jsonrpc_body
         body = '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"x"}}}'
         out = _parse_jsonrpc_body(body)
         self.assertIsNotNone(out)
         self.assertEqual(out["result"]["serverInfo"]["name"], "x")
 
     def test_parse_jsonrpc_sse_wrapped(self):
-        from burpsuite_mcp.tools.mcp_enumerate import _parse_jsonrpc_body
+        from praetor.tools.mcp_enumerate import _parse_jsonrpc_body
         body = 'event: message\ndata: {"jsonrpc":"2.0","id":1,"result":{"ok":true}}\n\n'
         out = _parse_jsonrpc_body(body)
         self.assertIsNotNone(out)
         self.assertEqual(out["result"]["ok"], True)
 
     def test_parse_jsonrpc_invalid(self):
-        from burpsuite_mcp.tools.mcp_enumerate import _parse_jsonrpc_body
+        from praetor.tools.mcp_enumerate import _parse_jsonrpc_body
         self.assertIsNone(_parse_jsonrpc_body("not json"))
         self.assertIsNone(_parse_jsonrpc_body(""))
 
     def test_summarise_tool_truncates(self):
-        from burpsuite_mcp.tools.mcp_enumerate import _summarise_tool
+        from praetor.tools.mcp_enumerate import _summarise_tool
         long_desc = "x" * 1000
         out = _summarise_tool({
             "name": "do_thing",
@@ -101,7 +101,7 @@ class McpEnumerateTest(unittest.TestCase):
         self.assertEqual(out["input_schema_summary"]["param_names"], ["a", "b", "c"])
 
     def test_summarise_resource(self):
-        from burpsuite_mcp.tools.mcp_enumerate import _summarise_resource
+        from praetor.tools.mcp_enumerate import _summarise_resource
         out = _summarise_resource({
             "uri": "file:///x",
             "name": "x",
@@ -111,7 +111,7 @@ class McpEnumerateTest(unittest.TestCase):
         self.assertEqual(out["mime_type"], "text/plain")
 
     def test_summarise_prompt_arg_counting(self):
-        from burpsuite_mcp.tools.mcp_enumerate import _summarise_prompt
+        from praetor.tools.mcp_enumerate import _summarise_prompt
         out = _summarise_prompt({
             "name": "p",
             "arguments": [{"name": "x"}, {"name": "y"}, {"name": "z"}],
@@ -122,7 +122,7 @@ class McpEnumerateTest(unittest.TestCase):
 
 class PredictPathsTest(unittest.TestCase):
     def test_normalise(self):
-        from burpsuite_mcp.tools.predict_paths import _normalise
+        from praetor.tools.predict_paths import _normalise
         self.assertEqual(_normalise("/api/v1/users/123"), "/api/v1/users/<id>")
         self.assertEqual(_normalise("/api/v1/users/123?next=/"), "/api/v1/users/<id>")
         self.assertEqual(
@@ -131,7 +131,7 @@ class PredictPathsTest(unittest.TestCase):
         )
 
     def test_plural_singular_predictions(self):
-        from burpsuite_mcp.tools.predict_paths import _predict_plural_singular
+        from praetor.tools.predict_paths import _predict_plural_singular
         predictions: dict = {}
         _predict_plural_singular(
             {"/api/users"},
@@ -143,7 +143,7 @@ class PredictPathsTest(unittest.TestCase):
         self.assertTrue(any("/user/me" in p for p in paths))
 
     def test_version_siblings(self):
-        from burpsuite_mcp.tools.predict_paths import _predict_version_siblings
+        from praetor.tools.predict_paths import _predict_version_siblings
         predictions: dict = {}
         _predict_version_siblings(
             {"/api/v2/users"},
@@ -155,7 +155,7 @@ class PredictPathsTest(unittest.TestCase):
         self.assertTrue(any("/v3/" in p for p in paths))
 
     def test_high_value_counterparts(self):
-        from burpsuite_mcp.tools.predict_paths import _predict_high_value_counterparts
+        from praetor.tools.predict_paths import _predict_high_value_counterparts
         predictions: dict = {}
         _predict_high_value_counterparts(
             {"/api/users"},
@@ -167,7 +167,7 @@ class PredictPathsTest(unittest.TestCase):
         self.assertTrue(any("/internal/api/" in p for p in paths))
 
     def test_id_shape_list_counterpart(self):
-        from burpsuite_mcp.tools.predict_paths import _predict_id_shape_counterparts
+        from praetor.tools.predict_paths import _predict_id_shape_counterparts
         predictions: dict = {}
         _predict_id_shape_counterparts(
             set(),
@@ -178,7 +178,7 @@ class PredictPathsTest(unittest.TestCase):
         # the impl iterates `known` arg, not normalised. So pass paths
         # whose _normalise produces /<id> form.
         # Re-test with raw-path input:
-        from burpsuite_mcp.tools.predict_paths import _predict_id_shape_counterparts as _f
+        from praetor.tools.predict_paths import _predict_id_shape_counterparts as _f
         predictions2: dict = {}
         _f({"/api/users/123"}, {"/api/users/<id>"}, predictions2)
         paths = list(predictions2.keys())
@@ -186,7 +186,7 @@ class PredictPathsTest(unittest.TestCase):
         self.assertIn("/api/users/me", paths)
 
     def test_verb_pair_predictions(self):
-        from burpsuite_mcp.tools.predict_paths import _predict_verb_counterparts
+        from praetor.tools.predict_paths import _predict_verb_counterparts
         predictions: dict = {}
         _predict_verb_counterparts(
             {"/api/orders/get"},
@@ -201,7 +201,7 @@ class PredictPathsTest(unittest.TestCase):
 
 class W31dToolsImportableTest(unittest.TestCase):
     def test_all_imports(self):
-        from burpsuite_mcp.tools import graphql_csrf_probe, struts2_ognl_probe, mcp_enumerate, predict_paths
+        from praetor.tools import graphql_csrf_probe, struts2_ognl_probe, mcp_enumerate, predict_paths
         for mod in (graphql_csrf_probe, struts2_ognl_probe, mcp_enumerate, predict_paths):
             self.assertTrue(hasattr(mod, "register"))
 

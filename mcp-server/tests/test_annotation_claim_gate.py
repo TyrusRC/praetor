@@ -12,8 +12,8 @@ from unittest import mock
 
 from mcp.server.fastmcp import FastMCP
 
-from burpsuite_mcp.tools import proxy_control
-from burpsuite_mcp.tools.notes._projection import render_finding_md
+from praetor.tools import proxy_control
+from praetor.tools.notes._projection import render_finding_md
 
 
 def _bulk_tool():
@@ -94,7 +94,7 @@ class TestAnnotationRecording(unittest.TestCase):
             store = {"findings": [{"id": "f001", "title": "T"}]}
             (dom / "findings.json").write_text(json.dumps(store), encoding="utf-8")
 
-            with mock.patch("burpsuite_mcp.tools.notes._helpers._intel_dir", return_value=root):
+            with mock.patch("praetor.tools.notes._helpers._intel_dir", return_value=root):
                 proxy_control._record_annotation_on_finding(
                     "f001", {"index": 7, "color": "RED", "comment": "stored text"}
                 )
@@ -109,7 +109,7 @@ class TestAnnotationRecording(unittest.TestCase):
 
     def test_missing_store_is_silent(self):
         from pathlib import Path
-        with mock.patch("burpsuite_mcp.tools.notes._helpers._intel_dir",
+        with mock.patch("praetor.tools.notes._helpers._intel_dir",
                         return_value=Path("/nonexistent-praetor-test")):
             proxy_control._record_annotation_on_finding("f001", {"index": 1})
 

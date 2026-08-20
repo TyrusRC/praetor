@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest import mock
 
-from burpsuite_mcp.tools import (
+from praetor.tools import (
     ci_audit,
     cloud_audit,
     iac_scan,
@@ -212,9 +212,9 @@ class W6CosignKeylessGateTest(unittest.TestCase):
 class W6KEVEPSSEnrichTest(unittest.TestCase):
 
     def test_kev_epss_enrich_empty_list(self):
-        from burpsuite_mcp.tools.cve import register as cve_register  # noqa: F401  (shim function)
+        from praetor.tools.cve import register as cve_register  # noqa: F401  (shim function)
         import importlib
-        cve_register_mod = importlib.import_module("burpsuite_mcp.tools.cve.register")
+        cve_register_mod = importlib.import_module("praetor.tools.cve.register")
 
         async def _go():
             holders: dict = {}
@@ -233,9 +233,9 @@ class W6KEVEPSSEnrichTest(unittest.TestCase):
         self.assertIn("no CVE IDs", out)
 
     def test_kev_epss_enrich_sorts_kev_first(self):
-        from burpsuite_mcp.tools.cve import register as cve_register  # noqa: F401  (shim function)
+        from praetor.tools.cve import register as cve_register  # noqa: F401  (shim function)
         import importlib
-        cve_register_mod = importlib.import_module("burpsuite_mcp.tools.cve.register")
+        cve_register_mod = importlib.import_module("praetor.tools.cve.register")
 
         async def fake_lookup(cve_id):
             table = {
@@ -263,7 +263,7 @@ class W6KEVEPSSEnrichTest(unittest.TestCase):
 
             cve_register_mod.register(_Stub())
             kev_epss_mod = importlib.import_module(
-                "burpsuite_mcp.tools.cve._register_kev_epss")
+                "praetor.tools.cve._register_kev_epss")
             with mock.patch.object(kev_epss_mod, "_shodan_cve_lookup",
                                    side_effect=fake_lookup):
                 return await holders["kev_epss_enrich"](
@@ -282,7 +282,7 @@ class W6KEVEPSSEnrichTest(unittest.TestCase):
 class W6CIActionsKBTest(unittest.TestCase):
 
     def test_ci_actions_kb_loads(self):
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
         path = KNOWLEDGE_DIR / "ci_actions_injection.json"
         self.assertTrue(path.exists(), f"missing: {path}")
         data = json.loads(path.read_text(encoding="utf-8"))

@@ -16,13 +16,13 @@ import json
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
-TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
+TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools"
 
 
 class ImportableTest(unittest.TestCase):
     def test_modules_have_register(self):
-        from burpsuite_mcp.tools import (
+        from praetor.tools import (
             rre_chain_finder, unicode_normalize_split_probe, bopla_probe,
             clean_room_confirm, owasp_asi_top10, a2a_agent_card_probe,
         )
@@ -93,7 +93,7 @@ class RreDagBehaviorTest(unittest.TestCase):
     """Pure-logic helpers — tested directly without MCP wiring."""
 
     def test_normalise_collapses_ids(self):
-        from burpsuite_mcp.tools.rre_chain_finder import _normalise_endpoint
+        from praetor.tools.rre_chain_finder import _normalise_endpoint
         self.assertEqual(
             _normalise_endpoint("https://x/api/users/42/orders/7"),
             "https://x/api/users/<id>/orders/<id>",
@@ -104,12 +104,12 @@ class RreDagBehaviorTest(unittest.TestCase):
         )
 
     def test_classify_trust_public(self):
-        from burpsuite_mcp.tools.rre_chain_finder import _classify_trust
+        from praetor.tools.rre_chain_finder import _classify_trust
         self.assertEqual(_classify_trust("https://x/api/public/info", {}), "public")
         self.assertEqual(_classify_trust("https://x/health", {}), "public")
 
     def test_classify_trust_authed_when_auth_header(self):
-        from burpsuite_mcp.tools.rre_chain_finder import _classify_trust
+        from praetor.tools.rre_chain_finder import _classify_trust
         self.assertEqual(
             _classify_trust("https://x/api/users", {
                 "request_headers": "Host: x\nAuthorization: Bearer abc\n",
@@ -118,7 +118,7 @@ class RreDagBehaviorTest(unittest.TestCase):
         )
 
     def test_classify_trust_privileged(self):
-        from burpsuite_mcp.tools.rre_chain_finder import _classify_trust
+        from praetor.tools.rre_chain_finder import _classify_trust
         self.assertEqual(
             _classify_trust("https://x/admin/users", {
                 "request_headers": "Authorization: Bearer abc\n",
@@ -127,7 +127,7 @@ class RreDagBehaviorTest(unittest.TestCase):
         )
 
     def test_trust_delta(self):
-        from burpsuite_mcp.tools.rre_chain_finder import _trust_delta
+        from praetor.tools.rre_chain_finder import _trust_delta
         self.assertEqual(_trust_delta(["public", "authed"]), 1)
         self.assertEqual(_trust_delta(["public", "privileged"]), 2)
         self.assertEqual(_trust_delta(["authed", "authed"]), 0)
@@ -135,14 +135,14 @@ class RreDagBehaviorTest(unittest.TestCase):
 
 class UnicodeVariantsBehaviorTest(unittest.TestCase):
     def test_variants_include_all_labels(self):
-        from burpsuite_mcp.tools.unicode_normalize_split_probe import _build_variants
+        from praetor.tools.unicode_normalize_split_probe import _build_variants
         labels = [lbl for lbl, _ in _build_variants("<script>alert(1)</script>")]
         self.assertIn("ascii_canonical", labels)
         self.assertIn("fullwidth_ascii", labels)
         self.assertIn("zero_width_joiner", labels)
 
     def test_fullwidth_translation(self):
-        from burpsuite_mcp.tools.unicode_normalize_split_probe import _build_variants
+        from praetor.tools.unicode_normalize_split_probe import _build_variants
         variants = dict(_build_variants("<a>"))
         fw = variants["fullwidth_ascii"]
         self.assertIn("＜", fw)
@@ -153,7 +153,7 @@ class UnicodeVariantsBehaviorTest(unittest.TestCase):
 
 class BoplaBehaviorTest(unittest.TestCase):
     def test_flat_keys_extracts_dotted_paths(self):
-        from burpsuite_mcp.tools.bopla_probe import _flat_keys
+        from praetor.tools.bopla_probe import _flat_keys
         body = json.dumps({
             "user": {"id": 1, "email": "x@x", "address": {"city": "Hanoi"}},
             "items": [{"price": 10}, {"price": 20}],
@@ -167,14 +167,14 @@ class BoplaBehaviorTest(unittest.TestCase):
         self.assertIn("price", keys)
 
     def test_flat_keys_handles_invalid_json(self):
-        from burpsuite_mcp.tools.bopla_probe import _flat_keys
+        from praetor.tools.bopla_probe import _flat_keys
         self.assertEqual(_flat_keys("not json"), set())
         self.assertEqual(_flat_keys(""), set())
 
 
 class A2aCardBehaviorTest(unittest.TestCase):
     def test_audit_flags_missing_signature(self):
-        from burpsuite_mcp.tools.a2a_agent_card_probe import _audit_card
+        from praetor.tools.a2a_agent_card_probe import _audit_card
         card = {
             "name": "test", "version": "1.0",
             "capabilities": ["read:files"],
@@ -185,7 +185,7 @@ class A2aCardBehaviorTest(unittest.TestCase):
         self.assertIn("missing_signature", cats)
 
     def test_audit_flags_capability_overclaim(self):
-        from burpsuite_mcp.tools.a2a_agent_card_probe import _audit_card
+        from praetor.tools.a2a_agent_card_probe import _audit_card
         card = {
             "name": "evil", "version": "1.0",
             "capabilities": ["*"], "signature": "abc",
@@ -199,7 +199,7 @@ class A2aCardBehaviorTest(unittest.TestCase):
         self.assertEqual(overclaim["severity"], "critical")
 
     def test_audit_flags_unbounded_recursive_delegation(self):
-        from burpsuite_mcp.tools.a2a_agent_card_probe import _audit_card
+        from praetor.tools.a2a_agent_card_probe import _audit_card
         card = {
             "name": "dos", "version": "1.0", "signature": "abc",
             "capabilities": ["scoped:read"],
@@ -211,7 +211,7 @@ class A2aCardBehaviorTest(unittest.TestCase):
         self.assertIn("recursive_delegation_unbounded", cats)
 
     def test_audit_flags_internal_url(self):
-        from burpsuite_mcp.tools.a2a_agent_card_probe import _audit_card
+        from praetor.tools.a2a_agent_card_probe import _audit_card
         card = {
             "name": "ssrf", "version": "1.0", "signature": "abc",
             "capabilities": ["scoped:read"],
@@ -223,7 +223,7 @@ class A2aCardBehaviorTest(unittest.TestCase):
         self.assertIn("internal_url_in_card", cats)
 
     def test_audit_flags_tool_desc_prompt_injection(self):
-        from burpsuite_mcp.tools.a2a_agent_card_probe import _audit_card
+        from praetor.tools.a2a_agent_card_probe import _audit_card
         card = {
             "name": "pi", "version": "1.0", "signature": "abc",
             "capabilities": ["scoped:read"],
@@ -238,7 +238,7 @@ class A2aCardBehaviorTest(unittest.TestCase):
         self.assertIn("risky_tool_description", cats)
 
     def test_looks_like_card_heuristic(self):
-        from burpsuite_mcp.tools.a2a_agent_card_probe import _looks_like_card
+        from praetor.tools.a2a_agent_card_probe import _looks_like_card
         self.assertTrue(_looks_like_card({"name": "x", "capabilities": []}))
         self.assertTrue(_looks_like_card({"agent_id": "x", "version": "1"}))
         self.assertFalse(_looks_like_card({"foo": "bar"}))
@@ -270,9 +270,10 @@ class A2aKbTest(unittest.TestCase):
 
     def test_kb_count_incremented(self):
         # 137 → 138 (a2a_protocol added); → 150 (W34-a +12 edge-appliance packs);
-        # → 151 (W38/Spec D: ssti_elixir.json new Elixir SSTI parent)
+        # → 151 (W38/Spec D: ssti_elixir.json new Elixir SSTI parent);
+        # → 153 (DanglingTree class: smartermail.json + windows_admin_center.json)
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 151, f"KB count expected 151, got {count}")
+        self.assertEqual(count, 153, f"KB count expected 153, got {count}")
 
 
 if __name__ == "__main__":

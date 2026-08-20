@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp.tools.exploit.metasploit import (
+from praetor.tools.exploit.metasploit import (
     _format_set_commands,
     _module_denied,
     _parse_check_output,
@@ -118,10 +118,10 @@ class CheckOutputParserTest(unittest.TestCase):
 class MsfSearchToolTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_msfconsole(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=False):
             out = await captured["msf_search"](query="log4shell")
         self.assertIn("error", out)
@@ -129,7 +129,7 @@ class MsfSearchToolTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_cve_query_rewritten(self):
         """CVE-XXXX-YYYY -> cve:XXXX-YYYY for MSF search syntax."""
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
 
@@ -139,9 +139,9 @@ class MsfSearchToolTest(unittest.IsolatedAsyncioTestCase):
             cmds_seen.append(cmds)
             return ("Matching Modules\n================\n\n", "", 0)
 
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit._msfconsole",
+             patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole):
             await captured["msf_search"](query="CVE-2021-44228")
         self.assertTrue(any("cve:2021-44228" in c for c in cmds_seen))
@@ -159,10 +159,10 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_denylist_refuses_dos_module(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True):
             out = await captured["msf_check"](
                 module="auxiliary/dos/http/apache_range_dos",
@@ -172,7 +172,7 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("hard-deny", out["reason"])
 
     async def test_vulnerable_verdict(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
 
@@ -182,11 +182,11 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         async def fake_check_scope(url):
             return {"in_scope": True, "url": url}
 
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit._msfconsole",
+             patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=fake_check_scope):
             out = await captured["msf_check"](
                 module="exploit/multi/http/log4shell_header_injection",
@@ -204,7 +204,7 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rec["transport"], "msf-direct")
 
     async def test_out_of_scope_logged(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
 
@@ -214,11 +214,11 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         async def fake_check_scope(url):
             return {"in_scope": False, "url": url}
 
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit._msfconsole",
+             patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=fake_check_scope):
             out = await captured["msf_check"](
                 module="auxiliary/scanner/http/title",
@@ -230,12 +230,12 @@ class MsfCheckToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out_of_scope_rec["kind"], "msf_check_out_of_scope")
 
     async def test_shell_meta_in_option_refused(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             out = await captured["msf_check"](
                 module="exploit/multi/http/x",
@@ -256,10 +256,10 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_denylist_refuses(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True):
             out = await captured["msf_exploit"](
                 module="post/windows/manage/persistence_exe",
@@ -269,7 +269,7 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(out["fired"])
 
     async def test_check_first_blocks_when_not_vulnerable(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
 
@@ -282,11 +282,11 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
                 return ("[-] The target is not vulnerable.\n", "", 0)
             return ("[*] exploit ran\n", "", 0)
 
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit._msfconsole",
+             patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             out = await captured["msf_exploit"](
                 module="exploit/multi/http/log4shell_header_injection",
@@ -299,7 +299,7 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(call_count["n"], 1)
 
     async def test_session_detection(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
 
@@ -309,11 +309,11 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
             return ("[+] Meterpreter session 1 opened (10.0.0.5:4444 -> 10.0.0.1:55211)\n",
                     "", 0)
 
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit._msfconsole",
+             patch("praetor.tools.exploit.metasploit._msfconsole",
                    side_effect=fake_msfconsole), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             out = await captured["msf_exploit"](
                 module="exploit/multi/http/struts2_content_type_ognl",
@@ -335,10 +335,10 @@ class MsfExploitToolTest(unittest.IsolatedAsyncioTestCase):
 class MsfPayloadGenTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_destructive_payload_denied(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True):
             out = await captured["msf_payload_gen"](
                 payload="linux/x64/wipe_disk",
@@ -346,7 +346,7 @@ class MsfPayloadGenTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("destructive", out["error"])
 
     async def test_msfvenom_invocation_shape(self):
-        from burpsuite_mcp.tools.exploit import metasploit
+        from praetor.tools.exploit import metasploit
         stub, captured = _stub_mcp()
         metasploit.register(stub)
         seen_cmd: list[list[str]] = []
@@ -355,9 +355,9 @@ class MsfPayloadGenTest(unittest.IsolatedAsyncioTestCase):
             seen_cmd.append(cmd)
             return ("payload-bytes-here", "", 0)
 
-        with patch("burpsuite_mcp.tools.exploit.metasploit._check_tool",
+        with patch("praetor.tools.exploit.metasploit._check_tool",
                    return_value=True), \
-             patch("burpsuite_mcp.tools.exploit.metasploit._run_cmd",
+             patch("praetor.tools.exploit.metasploit._run_cmd",
                    new=fake_run_cmd):
             out = await captured["msf_payload_gen"](
                 payload="linux/x64/shell_reverse_tcp",
@@ -376,7 +376,7 @@ class MsfPayloadGenTest(unittest.IsolatedAsyncioTestCase):
 class ToolsRegisteredTest(unittest.TestCase):
 
     def test_all_msf_tools_in_server(self):
-        from burpsuite_mcp import server
+        from praetor import server
         tools = server.mcp._tool_manager._tools
         for n in ("msf_search", "msf_module_info", "msf_check", "msf_exploit",
                   "msf_payload_gen"):

@@ -7,8 +7,8 @@ Pure stdlib (unittest + asyncio). Run with:
 import unittest
 from unittest.mock import patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.mutate import generate_variants
+from praetor import server
+from praetor.tools.mutate import generate_variants
 
 
 class MutatePayloadTests(unittest.TestCase):
@@ -97,7 +97,7 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
                 return dict(hit)
             return dict(baseline)
 
-        with patch("burpsuite_mcp.tools.testing.fuzz_feedback.client.post", fake_post):
+        with patch("praetor.tools.testing.fuzz_feedback.client.post", fake_post):
             out = await self.tool(
                 url="https://example.com/q",
                 parameter="q",
@@ -117,7 +117,7 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status": 200, "body": "ok", "headers": {}, "_elapsed_ms": 50}
 
-        with patch("burpsuite_mcp.tools.testing.fuzz_feedback.client.post", fake_post):
+        with patch("praetor.tools.testing.fuzz_feedback.client.post", fake_post):
             out = await self.tool(
                 url="https://example.com/q",
                 parameter="q",
@@ -138,7 +138,7 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"error": "Connection refused"}
 
-        with patch("burpsuite_mcp.tools.testing.fuzz_feedback.client.post", fake_post):
+        with patch("praetor.tools.testing.fuzz_feedback.client.post", fake_post):
             out = await self.tool(
                 url="https://example.com/q",
                 parameter="q",

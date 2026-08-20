@@ -6,8 +6,8 @@ import json as _json
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.local_llm import _is_local_url
+from praetor import server
+from praetor.tools.local_llm import _is_local_url
 
 
 def _tool(name: str):
@@ -67,7 +67,7 @@ class ProbeLocalLlmTest(unittest.IsolatedAsyncioTestCase):
                         "proxy_index": 1}
             return {"status_code": 404, "response_body": "", "proxy_index": 2}
 
-        with patch("burpsuite_mcp.tools.local_llm.client.post",
+        with patch("praetor.tools.local_llm.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_local_llm")
             out = await fn(endpoint="", scan_defaults=True)
@@ -90,7 +90,7 @@ class ProbeLocalLlmTest(unittest.IsolatedAsyncioTestCase):
                         "proxy_index": 5}
             return {"status_code": 404, "response_body": "", "proxy_index": 6}
 
-        with patch("burpsuite_mcp.tools.local_llm.client.post",
+        with patch("praetor.tools.local_llm.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_local_llm")
             out = await fn(endpoint="", scan_defaults=True)
@@ -100,7 +100,7 @@ class ProbeLocalLlmTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 404, "response_body": "", "proxy_index": 9}
 
-        with patch("burpsuite_mcp.tools.local_llm.client.post",
+        with patch("praetor.tools.local_llm.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("probe_local_llm")
             out = await fn(endpoint="", scan_defaults=True)
@@ -129,7 +129,7 @@ class RunLocalLlmPromptInjectionTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 200, "response_body": body, "proxy_index": 20}
 
-        with patch("burpsuite_mcp.tools.local_llm.client.post",
+        with patch("praetor.tools.local_llm.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_local_llm_prompt_injection")
             out = await fn(endpoint="http://127.0.0.1:11434",
@@ -144,7 +144,7 @@ class RunLocalLlmPromptInjectionTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"status_code": 200, "response_body": body, "proxy_index": 30}
 
-        with patch("burpsuite_mcp.tools.local_llm.client.post",
+        with patch("praetor.tools.local_llm.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("run_local_llm_prompt_injection")
             out = await fn(endpoint="http://127.0.0.1:11434",

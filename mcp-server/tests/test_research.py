@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from burpsuite_mcp.tools.research import (
+from praetor.tools.research import (
     _VECTOR_KB,
     _METHODOLOGY_LINKS,
     _THE_HACKER_RECIPES,

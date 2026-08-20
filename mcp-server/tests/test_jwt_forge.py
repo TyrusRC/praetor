@@ -11,7 +11,7 @@ import hmac
 import hashlib
 import unittest
 
-from burpsuite_mcp.tools.auth._jwt_codec import (
+from praetor.tools.auth._jwt_codec import (
     b64url_decode,
     b64url_encode,
     decode_header,
@@ -23,7 +23,7 @@ from burpsuite_mcp.tools.auth._jwt_codec import (
     split_jwt,
     verify_hmac,
 )
-from burpsuite_mcp.tools.auth.forge_jwt import (
+from praetor.tools.auth.forge_jwt import (
     _forge_alg_none,
     _forge_claim_swap,
     _forge_hs_confusion,
@@ -31,7 +31,7 @@ from burpsuite_mcp.tools.auth.forge_jwt import (
     _forge_kid_inject,
     _forge_url_header,
 )
-from burpsuite_mcp.tools.auth._jwt_wordlist import JWT_DEFAULT_WORDLIST
+from praetor.tools.auth._jwt_wordlist import JWT_DEFAULT_WORDLIST
 
 
 # A baseline HS256 token signed with secret="secret".

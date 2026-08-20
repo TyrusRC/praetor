@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.network import _routing
+from praetor import server
+from praetor.tools.network import _routing
 
 
 def _tool():
@@ -71,9 +71,9 @@ class TestPipeline(unittest.IsolatedAsyncioTestCase):
         san = AsyncMock(return_value={
             "ok": True, "error": "", "oplog_id": "op0002", "rc": 0,
             "output": "[+] shares\n$krb5asrep$23$u@D:deadbeef", "output_path": "", "tool": "nxc", "target": "10.0.0.5"})
-        with patch("burpsuite_mcp.tools.network.pipeline.nmap_scan",
+        with patch("praetor.tools.network.pipeline.nmap_scan",
                    new=AsyncMock(return_value=_scan(hosts, http=["http://10.0.0.5"]))), \
-             patch("burpsuite_mcp.tools.network.pipeline.run_sanctioned", new=san):
+             patch("praetor.tools.network.pipeline.run_sanctioned", new=san):
             out = await _tool()("10.0.0.5", domain="box")
         self.assertIn("discovery: 1 hosts", out)
         self.assertIn("LEADS", out)
@@ -87,9 +87,9 @@ class TestPipeline(unittest.IsolatedAsyncioTestCase):
         hosts = [_host("10.0.0.5", [(445, "microsoft-ds")])]
         san = AsyncMock(return_value={"ok": True, "error": "", "oplog_id": "op0002",
                                       "rc": 0, "output": "ok", "output_path": "", "tool": "nxc", "target": "10.0.0.5"})
-        with patch("burpsuite_mcp.tools.network.pipeline.nmap_scan",
+        with patch("praetor.tools.network.pipeline.nmap_scan",
                    new=AsyncMock(return_value=_scan(hosts))), \
-             patch("burpsuite_mcp.tools.network.pipeline.run_sanctioned", new=san):
+             patch("praetor.tools.network.pipeline.run_sanctioned", new=san):
             await _tool()("10.0.0.5", domain="box")
             first = san.await_count
             out2 = await _tool()("10.0.0.5", domain="box")
@@ -97,7 +97,7 @@ class TestPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertIn("skipped (covered)", out2)
 
     async def test_discovery_failure_reported(self):
-        with patch("burpsuite_mcp.tools.network.pipeline.nmap_scan",
+        with patch("praetor.tools.network.pipeline.nmap_scan",
                    new=AsyncMock(return_value={"ok": False, "error": "nmap not installed"})):
             out = await _tool()("10.0.0.5", domain="box")
         self.assertIn("discovery failed", out)

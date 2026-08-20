@@ -17,7 +17,7 @@ import struct
 import unittest
 from pathlib import Path
 
-_KB = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+_KB = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 # ───────────────────────── W29-i KB-org cleanup ─────────────────────────
@@ -65,7 +65,7 @@ class W29iKbOrgCleanup(unittest.TestCase):
                           f"context {ctx} missing from webauthn_passkey.json after merge")
 
     def test_saml_xsw_not_in_reference_only_set(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         self.assertNotIn("saml_xsw", _REFERENCE_ONLY,
                          "saml_xsw merged into saml — must drop from _REFERENCE_ONLY")
 
@@ -83,7 +83,7 @@ class W29iKbOrgCleanup(unittest.TestCase):
 class W29ToolRegistration(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_w29_tools_registered(self):
-        from burpsuite_mcp import server
+        from praetor import server
         tools = await server.mcp.list_tools()
         names = {t.name for t in tools}
         expected = {
@@ -108,7 +108,7 @@ class W29ToolRegistration(unittest.IsolatedAsyncioTestCase):
 class W29PickToolRouting(unittest.IsolatedAsyncioTestCase):
 
     async def _route(self, q: str) -> str:
-        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        from praetor.tools.advisor.pick_tool import pick_tool_impl
         return await pick_tool_impl(q)
 
     async def test_llm_discover_routes(self):
@@ -176,14 +176,14 @@ class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
     async def test_no_csp_header_is_confirmed_misconfig(self):
         # analyze_csp is defined inside register(); reach it through the
         # registry the way the other tool tests do.
-        from burpsuite_mcp import server
+        from praetor import server
         analyze_csp = server.mcp._tool_manager._tools["analyze_csp"].fn
         result = await analyze_csp(target_url="", header_blob="")
         self.assertEqual(result["verdict"], "CONFIRMED")
         self.assertEqual(result["vuln_type"], "csp_missing")
 
     async def test_csp_parser_detects_wildcard(self):
-        from burpsuite_mcp.tools.csp_analyzer import (
+        from praetor.tools.csp_analyzer import (
             _parse_csp, _effective_script_src,
         )
         parsed = _parse_csp("default-src *; script-src *")
@@ -191,7 +191,7 @@ class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(_effective_script_src(parsed), ["*"])
 
     async def test_csp_parser_detects_unsafe_inline(self):
-        from burpsuite_mcp.tools.csp_analyzer import (
+        from praetor.tools.csp_analyzer import (
             _parse_csp, _effective_script_src, _has_token,
         )
         parsed = _parse_csp("script-src 'self' 'unsafe-inline'")
@@ -199,7 +199,7 @@ class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(_has_token(sources, "'unsafe-inline'"))
 
     async def test_csp_parser_detects_risky_cdn(self):
-        from burpsuite_mcp.tools.csp_analyzer import (
+        from praetor.tools.csp_analyzer import (
             _parse_csp, _effective_script_src, _detect_risky_cdns,
         )
         parsed = _parse_csp(
@@ -212,7 +212,7 @@ class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn("unpkg.com", risky_hosts)
 
     async def test_csp_parser_recognises_nonce(self):
-        from burpsuite_mcp.tools.csp_analyzer import (
+        from praetor.tools.csp_analyzer import (
             _parse_csp, _effective_script_src, _has_nonce_or_hash,
         )
         parsed = _parse_csp("script-src 'self' 'nonce-abc123'")
@@ -225,7 +225,7 @@ class W29CspParserUnit(unittest.IsolatedAsyncioTestCase):
 class W29GrpcFrameCodec(unittest.TestCase):
 
     def test_gframe_wraps_with_length_prefix(self):
-        from burpsuite_mcp.tools.grpc_probe import _gframe
+        from praetor.tools.grpc_probe import _gframe
         body = b"\x1a\x00"
         framed = _gframe(body)
         self.assertEqual(framed[0], 0)  # compression flag
@@ -234,7 +234,7 @@ class W29GrpcFrameCodec(unittest.TestCase):
         self.assertEqual(framed[5:], body)
 
     def test_gunframe_round_trips(self):
-        from burpsuite_mcp.tools.grpc_probe import _gframe, _gunframe
+        from praetor.tools.grpc_probe import _gframe, _gunframe
         a = b"abc"
         b = b"defghi"
         blob = _gframe(a) + _gframe(b)
@@ -242,14 +242,14 @@ class W29GrpcFrameCodec(unittest.TestCase):
         self.assertEqual(out, [a, b])
 
     def test_mutate_first_varint_bumps_field1(self):
-        from burpsuite_mcp.tools.grpc_probe import _mutate_first_varint
+        from praetor.tools.grpc_probe import _mutate_first_varint
         # Tag 0x08 (field 1 varint), value 5 → bump to 6
         frame = b"\x08\x05\x12\x03foo"
         mutated = _mutate_first_varint(frame)
         self.assertEqual(mutated, b"\x08\x06\x12\x03foo")
 
     def test_extract_services_finds_dotted_names(self):
-        from burpsuite_mcp.tools.grpc_probe import _extract_services
+        from praetor.tools.grpc_probe import _extract_services
         # Mock a ServerReflectionResponse-ish blob with embedded service names
         frames = [b"\x00grpc.health.v1.Health\x00user.v1.UserService"]
         services = _extract_services(frames)
@@ -269,13 +269,13 @@ class W29SamlXswMutators(unittest.TestCase):
 </saml:Assertion></samlp:Response>"""
 
     def test_signature_exclusion_strips_signature(self):
-        from burpsuite_mcp.tools.saml_xsw_probe import _xsw_signature_exclusion
+        from praetor.tools.saml_xsw_probe import _xsw_signature_exclusion
         out = _xsw_signature_exclusion(self.SAML_FIXTURE)
         self.assertNotIn(b"ds:Signature", out)
         self.assertIn(b"Assertion", out)
 
     def test_wrap_assertion_inserts_clone_before_original(self):
-        from burpsuite_mcp.tools.saml_xsw_probe import _xsw_wrap_assertion
+        from praetor.tools.saml_xsw_probe import _xsw_wrap_assertion
         out = _xsw_wrap_assertion(self.SAML_FIXTURE, "admin")
         # Original NameID kept; attacker NameID inserted before
         self.assertEqual(out.count(b"<saml:Assertion"), 2)
@@ -287,7 +287,7 @@ class W29SamlXswMutators(unittest.TestCase):
         self.assertLess(clone_idx, orig_idx)
 
     def test_sibling_wrap_inserts_clone_after_original(self):
-        from burpsuite_mcp.tools.saml_xsw_probe import _xsw_sibling_wrap
+        from praetor.tools.saml_xsw_probe import _xsw_sibling_wrap
         out = _xsw_sibling_wrap(self.SAML_FIXTURE, "admin")
         self.assertEqual(out.count(b"<saml:Assertion"), 2)
         clone_idx = out.find(b"<saml:NameID>admin</saml:NameID>")
@@ -295,12 +295,12 @@ class W29SamlXswMutators(unittest.TestCase):
         self.assertLess(orig_idx, clone_idx)
 
     def test_comment_injection_splits_nameid(self):
-        from burpsuite_mcp.tools.saml_xsw_probe import _xsw_comment_injection
+        from praetor.tools.saml_xsw_probe import _xsw_comment_injection
         out = _xsw_comment_injection(self.SAML_FIXTURE, "victim", "attacker.tld")
         self.assertIn(b"victim<!---->@attacker.tld", out)
 
     def test_keyinfo_swap_returns_none_without_cert(self):
-        from burpsuite_mcp.tools.saml_xsw_probe import _xsw_keyinfo_swap
+        from praetor.tools.saml_xsw_probe import _xsw_keyinfo_swap
         out = _xsw_keyinfo_swap(self.SAML_FIXTURE, "")
         self.assertIsNone(out)
 
@@ -311,21 +311,21 @@ class W29SamlXswMutators(unittest.TestCase):
 class W29DnsRebindHelpers(unittest.TestCase):
 
     def test_internal_marker_detection_ami_id(self):
-        from burpsuite_mcp.tools.dns_rebind_probe import _internal_marker_hit
+        from praetor.tools.dns_rebind_probe import _internal_marker_hit
         body = '{"ami-id":"ami-0123","instance-type":"t3.medium"}'
         hit, marker = _internal_marker_hit(body)
         self.assertTrue(hit)
         self.assertEqual(marker, "ami-id")
 
     def test_internal_marker_detection_gcp(self):
-        from burpsuite_mcp.tools.dns_rebind_probe import _internal_marker_hit
+        from praetor.tools.dns_rebind_probe import _internal_marker_hit
         body = "Metadata-Flavor: Google\n"
         hit, marker = _internal_marker_hit(body)
         self.assertTrue(hit)
         self.assertEqual(marker, "Metadata-Flavor")
 
     def test_no_internal_marker_in_clean_body(self):
-        from burpsuite_mcp.tools.dns_rebind_probe import _internal_marker_hit
+        from praetor.tools.dns_rebind_probe import _internal_marker_hit
         body = "<html><body>Hello world</body></html>"
         hit, _ = _internal_marker_hit(body)
         self.assertFalse(hit)
@@ -337,25 +337,25 @@ class W29DnsRebindHelpers(unittest.TestCase):
 class W29WebLlmHelpers(unittest.TestCase):
 
     def test_canary_is_unique_per_call(self):
-        from burpsuite_mcp.tools.web_llm_sweep import _canary
+        from praetor.tools.web_llm_sweep import _canary
         a = _canary()
         b = _canary()
         self.assertNotEqual(a, b)
         self.assertTrue(a.startswith("PRAETOR-"))
 
     def test_marker_echoed_case_insensitive(self):
-        from burpsuite_mcp.tools.web_llm_sweep import _marker_echoed
+        from praetor.tools.web_llm_sweep import _marker_echoed
         self.assertTrue(_marker_echoed("hello PRAETOR-AB12 world", "praetor-AB12"))
         self.assertFalse(_marker_echoed("hello world", "praetor-AB12"))
 
     def test_llm_response_heuristic_recognises_json_shape(self):
-        from burpsuite_mcp.tools.web_llm_sweep import _looks_like_llm_response
+        from praetor.tools.web_llm_sweep import _looks_like_llm_response
         self.assertTrue(_looks_like_llm_response(
             '{"choices":[{"message":{"content":"hi"}}]}'))
         self.assertFalse(_looks_like_llm_response(""))
 
     def test_html_unescaped_check(self):
-        from burpsuite_mcp.tools.web_llm_sweep import _looks_like_html_unescaped
+        from praetor.tools.web_llm_sweep import _looks_like_html_unescaped
         canary = "CANARYABC"
         good = f"<script>window.__praetor__='{canary}'</script>"
         bad = "&lt;script&gt;window.__praetor__='CANARYABC'&lt;/script&gt;"
@@ -363,7 +363,7 @@ class W29WebLlmHelpers(unittest.TestCase):
         self.assertFalse(_looks_like_html_unescaped(bad, canary))
 
     def test_system_prompt_leak_check(self):
-        from burpsuite_mcp.tools.web_llm_sweep import _looks_like_system_prompt_leak
+        from praetor.tools.web_llm_sweep import _looks_like_system_prompt_leak
         leak = "You are a helpful AI assistant. Your task is to ..."
         self.assertTrue(_looks_like_system_prompt_leak(leak))
         self.assertFalse(_looks_like_system_prompt_leak("Sorry, I can't help with that."))
@@ -375,28 +375,28 @@ class W29WebLlmHelpers(unittest.TestCase):
 class W29McpJsonRpcParser(unittest.TestCase):
 
     def test_valid_jsonrpc_2_0_object(self):
-        from burpsuite_mcp.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
+        from praetor.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
         body = '{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'
         is_jrpc, parsed = _is_valid_jsonrpc(body)
         self.assertTrue(is_jrpc)
         self.assertEqual(parsed["result"]["tools"], [])
 
     def test_jsonrpc_error_object_recognised(self):
-        from burpsuite_mcp.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
+        from praetor.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
         body = '{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found"}}'
         is_jrpc, parsed = _is_valid_jsonrpc(body)
         self.assertTrue(is_jrpc)
         self.assertEqual(parsed["error"]["code"], -32601)
 
     def test_non_jsonrpc_body_rejected(self):
-        from burpsuite_mcp.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
+        from praetor.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
         is_jrpc, _ = _is_valid_jsonrpc('{"foo":"bar"}')
         self.assertFalse(is_jrpc)
         is_jrpc, _ = _is_valid_jsonrpc("plain text")
         self.assertFalse(is_jrpc)
 
     def test_sse_wrapped_jsonrpc_recognised(self):
-        from burpsuite_mcp.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
+        from praetor.tools.mcp_jsonrpc_probe import _is_valid_jsonrpc
         body = 'data: {"jsonrpc":"2.0","id":1,"result":{"tools":[]}}\n\n'
         is_jrpc, parsed = _is_valid_jsonrpc(body)
         self.assertTrue(is_jrpc)
@@ -408,7 +408,7 @@ class W29McpJsonRpcParser(unittest.TestCase):
 class W29SseProbeShape(unittest.TestCase):
 
     def test_is_event_stream_recognises_content_type(self):
-        from burpsuite_mcp.tools.sse_probe import _is_event_stream
+        from praetor.tools.sse_probe import _is_event_stream
         self.assertTrue(_is_event_stream({
             "response_headers": {"content-type": "text/event-stream; charset=utf-8"},
         }))

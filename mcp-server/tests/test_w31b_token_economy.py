@@ -17,7 +17,7 @@ class GetRequestDetailFieldsTest(unittest.TestCase):
     """Unit-test the pure helpers; signature gets a smoke check."""
 
     def test_slice_status_codes_and_redirect(self):
-        from burpsuite_mcp.tools.read import _slice_request_detail
+        from praetor.tools.read import _slice_request_detail
         data = {
             "method": "GET", "url": "https://app.test/login?next=/x",
             "status_code": 302,
@@ -45,13 +45,13 @@ class GetRequestDetailFieldsTest(unittest.TestCase):
         self.assertEqual(out["query_params"], {"next": "/x"})
 
     def test_error_markers_sqli(self):
-        from burpsuite_mcp.tools.read import _slice_request_detail
+        from praetor.tools.read import _slice_request_detail
         data = {"response_body": "pg_query() failed: ERROR pg_query SQLSTATE[42P01]"}
         out = _slice_request_detail(data, ["error_markers"], 1024, 0)
         self.assertIn("sqli", out["error_markers"])
 
     def test_trim_head_tail(self):
-        from burpsuite_mcp.tools.read import _trim_body
+        from praetor.tools.read import _trim_body
         body = "x" * 5000
         head_only = _trim_body(body, 100, 0)
         self.assertTrue(head_only.startswith("x" * 100))
@@ -61,20 +61,20 @@ class GetRequestDetailFieldsTest(unittest.TestCase):
         self.assertTrue(both.endswith("x" * 100))
 
     def test_unknown_field_skipped(self):
-        from burpsuite_mcp.tools.read import _slice_request_detail
+        from praetor.tools.read import _slice_request_detail
         out = _slice_request_detail({}, ["bogus_field", "status_code"], 1024, 0)
         self.assertIn("status_code", out)
         self.assertNotIn("bogus_field", out)
 
     def test_no_recognised_fields(self):
-        from burpsuite_mcp.tools.read import _slice_request_detail
+        from praetor.tools.read import _slice_request_detail
         out = _slice_request_detail({}, ["bogus_only"], 1024, 0)
         self.assertIn("error", out)
 
 
 class FindTargetsForClassMappingTest(unittest.TestCase):
     def test_token_map_basic(self):
-        from burpsuite_mcp.tools.scan.rank_targets import _vuln_class_to_risk_token
+        from praetor.tools.scan.rank_targets import _vuln_class_to_risk_token
         self.assertEqual(_vuln_class_to_risk_token("sqli"), "SQLI")
         self.assertEqual(_vuln_class_to_risk_token("open_redirect"), "REDIRECT")
         self.assertEqual(_vuln_class_to_risk_token("rce"), "CMDI")
@@ -82,11 +82,11 @@ class FindTargetsForClassMappingTest(unittest.TestCase):
         self.assertEqual(_vuln_class_to_risk_token("web_llm"), "WEB/LLM")
 
     def test_token_map_fallback(self):
-        from burpsuite_mcp.tools.scan.rank_targets import _vuln_class_to_risk_token
+        from praetor.tools.scan.rank_targets import _vuln_class_to_risk_token
         self.assertEqual(_vuln_class_to_risk_token("unknown_class"), "UNKNOWN/CLASS")
 
     def test_matches_vuln_class(self):
-        from burpsuite_mcp.tools.scan.rank_targets import _matches_vuln_class
+        from praetor.tools.scan.rank_targets import _matches_vuln_class
         self.assertTrue(_matches_vuln_class(["SQLI/IDOR"], "SQLI"))
         self.assertTrue(_matches_vuln_class(["REDIRECT/SSRF"], "REDIRECT"))
         self.assertTrue(_matches_vuln_class(["MASS/ASSIGNMENT"], "MASS"))
@@ -96,7 +96,7 @@ class FindTargetsForClassMappingTest(unittest.TestCase):
 
 class ExtractBatchTest(unittest.TestCase):
     def test_normalize_indices_dedup_and_cap(self):
-        from burpsuite_mcp.tools.extract_batch import _normalize_indices, _BATCH_HARD_CAP
+        from praetor.tools.extract_batch import _normalize_indices, _BATCH_HARD_CAP
         out, err = _normalize_indices([1, 2, 3, 2, 1])
         self.assertIsNone(err)
         self.assertEqual(out, [1, 2, 3])
@@ -118,7 +118,7 @@ class SignaturesTest(unittest.TestCase):
 
     def test_get_request_detail_has_fields(self):
         from pathlib import Path
-        src = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "read.py"
+        src = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "read.py"
         text = src.read_text()
         self.assertIn("fields: list[str] | None = None", text)
         self.assertIn("body_first: int = 1024", text)
@@ -126,30 +126,30 @@ class SignaturesTest(unittest.TestCase):
 
     def test_smart_analyze_has_summary_only(self):
         from pathlib import Path
-        src = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "analyze.py"
+        src = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "analyze.py"
         self.assertIn("summary_only: bool = False", src.read_text())
 
     def test_discover_attack_surface_has_summary_only(self):
         from pathlib import Path
-        src = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "scan" / "discovery.py"
+        src = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "scan" / "discovery.py"
         self.assertIn("summary_only: bool = False", src.read_text())
 
     def test_full_recon_has_summary_only(self):
         from pathlib import Path
-        src = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "scan" / "recon_full.py"
+        src = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "scan" / "recon_full.py"
         self.assertIn("summary_only: bool = False", src.read_text())
 
     def test_tightened_defaults(self):
         from pathlib import Path
-        read = (Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "read.py").read_text()
+        read = (Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "read.py").read_text()
         self.assertIn("async def get_sitemap(url_prefix: str = \"\", limit: int = 30)", read)
         # get_scanner_findings default — multi-line signature
         self.assertIn("limit: int = 20", read)
 
-        analyze = (Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "analyze.py").read_text()
+        analyze = (Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "analyze.py").read_text()
         self.assertIn("async def get_unique_endpoints(url_prefix: str = \"\", limit: int = 30)", analyze)
 
-        wayback = (Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools" / "recon_extended" / "wayback.py").read_text()
+        wayback = (Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "recon_extended" / "wayback.py").read_text()
         self.assertIn("limit: int = 30", wayback)
 
 

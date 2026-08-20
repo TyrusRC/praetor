@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from burpsuite_mcp import server
+from praetor import server
 
 
 class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
@@ -40,8 +40,8 @@ class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
             return {"in_scope": True}
         async def fake_get(path, params=None):
             return {}
-        with patch("burpsuite_mcp.client.post", fake_post), \
-             patch("burpsuite_mcp.client.get", fake_get):
+        with patch("praetor.client.post", fake_post), \
+             patch("praetor.client.get", fake_get):
             return await self.assess(**kwargs)
 
     async def test_self_xss_blocked(self):

@@ -25,35 +25,35 @@ def _stub_mcp():
 class W13TestingRefactorsTest(unittest.TestCase):
 
     def test_hpp_returns_dict(self):
-        from burpsuite_mcp.tools.testing import hpp
+        from praetor.tools.testing import hpp
         stub, captured = _stub_mcp()
         hpp.register(stub)
         sig = captured["test_parameter_pollution"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_rate_limit_returns_dict(self):
-        from burpsuite_mcp.tools.testing import rate_limit
+        from praetor.tools.testing import rate_limit
         stub, captured = _stub_mcp()
         rate_limit.register(stub)
         sig = captured["test_rate_limit"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_auth_compare_returns_dict(self):
-        from burpsuite_mcp.tools.testing import auth_compare
+        from praetor.tools.testing import auth_compare
         stub, captured = _stub_mcp()
         auth_compare.register(stub)
         sig = captured["compare_auth_states"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_id_monotonic_returns_dict(self):
-        from burpsuite_mcp.tools.testing import id_monotonic
+        from praetor.tools.testing import id_monotonic
         stub, captured = _stub_mcp()
         id_monotonic.register(stub)
         sig = captured["probe_id_monotonic"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_cross_transport_returns_dict(self):
-        from burpsuite_mcp.tools.testing import cross_transport
+        from praetor.tools.testing import cross_transport
         stub, captured = _stub_mcp()
         cross_transport.register(stub)
         sig = captured["probe_cross_transport_idor"].__annotations__.get("return")
@@ -63,11 +63,11 @@ class W13TestingRefactorsTest(unittest.TestCase):
 class WebCacheDeceptionPromotionTest(unittest.TestCase):
 
     def test_now_active(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         self.assertNotIn("web_cache_deception", _REFERENCE_ONLY)
 
     def test_w13_context_added(self):
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "web_cache_deception.json").read_text(encoding="utf-8")
         )
@@ -81,7 +81,7 @@ class WebCacheDeceptionPromotionTest(unittest.TestCase):
 
     def test_path_confusion_schema_normalised(self):
         """W13 normalised plural `headers:[X]` to per-header `name:X` probes."""
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "web_cache_deception.json").read_text(encoding="utf-8")
         )

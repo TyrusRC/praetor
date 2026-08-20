@@ -3,7 +3,7 @@ import json
 import unittest
 from pathlib import Path
 
-KB = Path(__file__).parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB = Path(__file__).parent.parent / "src" / "praetor" / "knowledge"
 
 
 def _load(name):
@@ -42,14 +42,14 @@ class SsrfRedirectLoopTest(unittest.TestCase):
 
 class NextjsMiddlewareVariantTest(unittest.TestCase):
     def test_cve_maps_to_class(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _resolve_class
+        from praetor.tools.cve_variant_probe import _resolve_class
         self.assertEqual(_resolve_class("CVE-2026-44575", ""),
                          "nextjs_middleware_bypass")
         self.assertEqual(_resolve_class("CVE-2026-44574", ""),
                          "nextjs_middleware_bypass")
 
     def test_generator_emits_variants(self):
-        from burpsuite_mcp.tools.cve_variant_probe import _GENERATORS
+        from praetor.tools.cve_variant_probe import _GENERATORS
         gen = _GENERATORS["nextjs_middleware_bypass"]
         variants = gen("/admin", "CANARY123", "")
         labels = {v["label"] for v in variants}

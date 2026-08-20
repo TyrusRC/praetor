@@ -9,12 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.notes._helpers import (
+from praetor import server
+from praetor.tools.notes._helpers import (
     _compact_and_remap_findings,
     _safe_findings_path,
 )
-from burpsuite_mcp.tools.report.lifecycle import purge_false_positives
+from praetor.tools.report.lifecycle import purge_false_positives
 
 
 def _make_finding(fid: str, status: str = "confirmed", chain=None, conf: float = 0.5) -> dict:
@@ -100,7 +100,7 @@ class HardDeleteCompactsTest(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_hard_delete_compacts_and_remaps_chain(self):
-        from burpsuite_mcp.tools.notes._helpers import _hard_delete_finding
+        from praetor.tools.notes._helpers import _hard_delete_finding
         domain = "t.example"
         path = _safe_findings_path(domain)
         _seed(path, [
@@ -110,7 +110,7 @@ class HardDeleteCompactsTest(unittest.IsolatedAsyncioTestCase):
         ])
         target = json.loads(path.read_text())["findings"][1]
         with patch(
-            "burpsuite_mcp.tools.notes._helpers.client.delete",
+            "praetor.tools.notes._helpers.client.delete",
             new=AsyncMock(return_value={"ok": True}),
         ):
             deleted, _ = await _hard_delete_finding(domain, target)
@@ -171,10 +171,10 @@ class SaveFindingIdMaxPlusOneTest(unittest.IsolatedAsyncioTestCase):
 
         # Bypass recon gate + Burp API.
         with patch(
-            "burpsuite_mcp.tools.notes.save.client.post",
+            "praetor.tools.notes.save.client.post",
             new=AsyncMock(return_value={"id": "burp-99"}),
         ), patch(
-            "burpsuite_mcp.tools.intel.recon_gate_check",
+            "praetor.tools.intel.recon_gate_check",
             return_value=None,
         ):
             save_fn = server.mcp._tool_manager._tools["save_finding"].fn
@@ -251,7 +251,7 @@ class AnnotationRemapImpactTest(unittest.TestCase):
     """Pure question-gate preview: which report comments a renumber would stale."""
 
     def test_impact_lists_only_renumbered_findings_with_annotations(self):
-        from burpsuite_mcp.tools.notes._helpers import (
+        from praetor.tools.notes._helpers import (
             _annotation_remap_impact,
             _prospective_id_map,
         )
@@ -268,7 +268,7 @@ class AnnotationRemapImpactTest(unittest.TestCase):
         self.assertEqual(impact[0]["indices"], [2, 9])
 
     def test_no_impact_when_no_annotations(self):
-        from burpsuite_mcp.tools.notes._helpers import (
+        from praetor.tools.notes._helpers import (
             _annotation_remap_impact,
             _prospective_id_map,
         )
@@ -279,7 +279,7 @@ class AnnotationRemapImpactTest(unittest.TestCase):
 class ResyncBurpAnnotationsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_rewrites_id_token_and_stores_readback(self):
-        from burpsuite_mcp.tools.notes import _helpers
+        from praetor.tools.notes import _helpers
         f = _make_finding("f003")
         f["id"] = "f002"  # already renumbered by compact
         f["annotations"] = [_ann(2, "f003")]
@@ -297,7 +297,7 @@ class ResyncBurpAnnotationsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(f["annotations"][0]["comment"], "f002 | xss | reflected")
 
     async def test_burp_unreachable_counts_and_leaves_comment(self):
-        from burpsuite_mcp.tools.notes import _helpers
+        from praetor.tools.notes import _helpers
         f = _make_finding("f003")
         f["id"] = "f002"
         f["annotations"] = [_ann(2, "f003")]
@@ -312,7 +312,7 @@ class ResyncBurpAnnotationsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(f["annotations"][0]["comment"], "f003 | xss | reflected")
 
     async def test_noop_when_nothing_renumbered(self):
-        from burpsuite_mcp.tools.notes import _helpers
+        from praetor.tools.notes import _helpers
         f = _make_finding("f001")
         f["annotations"] = [_ann(2, "f001")]
         with patch.object(_helpers.client, "post", new=AsyncMock()) as m:
@@ -348,7 +348,7 @@ class PruneResyncsBurpHistoryTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(json.loads(path.read_text())["findings"]), 3)
 
     async def test_confirm_rewrites_and_persists_comment(self):
-        from burpsuite_mcp.tools.notes import _helpers
+        from praetor.tools.notes import _helpers
         domain = "t.example"
         path = _safe_findings_path(domain)
         f3 = _make_finding("f003")

@@ -6,7 +6,7 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
-from burpsuite_mcp.tools import smart_request_triage as srt
+from praetor.tools import smart_request_triage as srt
 
 
 def _stub_mcp():
@@ -342,7 +342,7 @@ class RegistrationAndRoutingTest(unittest.TestCase):
         self.assertIn("smart_request_triage", captured)
 
     def test_pick_tool_routes_triage_request(self):
-        from burpsuite_mcp.tools.advisor.pick_tool import _MAPPINGS
+        from praetor.tools.advisor.pick_tool import _MAPPINGS
         match = None
         for keywords, tool_name, _ex in _MAPPINGS:
             if "triage request" in keywords:
@@ -351,7 +351,7 @@ class RegistrationAndRoutingTest(unittest.TestCase):
         self.assertEqual(match, "smart_request_triage")
 
     def test_pick_tool_routes_what_to_do_next(self):
-        from burpsuite_mcp.tools.advisor.pick_tool import _MAPPINGS
+        from praetor.tools.advisor.pick_tool import _MAPPINGS
         match = None
         for keywords, tool_name, _ex in _MAPPINGS:
             if "what to do next" in keywords:

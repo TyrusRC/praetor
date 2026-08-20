@@ -27,7 +27,7 @@ def _stub_mcp():
 class AuthComparePublicGuard(unittest.IsolatedAsyncioTestCase):
 
     def _register(self):
-        from burpsuite_mcp.tools.testing import auth_compare
+        from praetor.tools.testing import auth_compare
         stub, captured = _stub_mcp()
         auth_compare.register(stub)
         return auth_compare, captured["compare_auth_states"]

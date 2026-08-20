@@ -103,7 +103,7 @@ class PocVerifyClassTemplatesTest(unittest.TestCase):
     """W19-T5 — _VERIFY_HINTS extended with class-specific markers."""
 
     def test_new_class_keys_present(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _VERIFY_HINTS
+        from praetor.tools.notes.poc_bundle import _VERIFY_HINTS
         for cls in ("ssrf_cloud_metadata", "ssrf_internal_service",
                     "idor", "bola", "jwt", "oauth",
                     "request_smuggling", "sspp", "cspp",
@@ -113,14 +113,14 @@ class PocVerifyClassTemplatesTest(unittest.TestCase):
                           f"W19 verify hint class missing: {cls}")
 
     def test_ssrf_cloud_metadata_markers(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _VERIFY_HINTS
+        from praetor.tools.notes.poc_bundle import _VERIFY_HINTS
         markers = _VERIFY_HINTS["ssrf_cloud_metadata"]
         for required in ("AccessKeyId", "ami-id", "computeMetadata"):
             self.assertIn(required, markers,
                           f"SSRF cloud markers missing: {required}")
 
     def test_ssrf_internal_service_markers(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _VERIFY_HINTS
+        from praetor.tools.notes.poc_bundle import _VERIFY_HINTS
         markers = _VERIFY_HINTS["ssrf_internal_service"]
         # At least one internal-service banner.
         self.assertTrue(any("SSH" in m or "OpenSSH" in m for m in markers),
@@ -129,7 +129,7 @@ class PocVerifyClassTemplatesTest(unittest.TestCase):
                         "SSRF internal markers should include Redis banner")
 
     def test_sspp_admin_marker(self):
-        from burpsuite_mcp.tools.notes.poc_bundle import _VERIFY_HINTS
+        from praetor.tools.notes.poc_bundle import _VERIFY_HINTS
         # SSPP markers should look for admin-flag responses
         sspp = " ".join(_VERIFY_HINTS["sspp"])
         self.assertTrue("admin" in sspp.lower(),

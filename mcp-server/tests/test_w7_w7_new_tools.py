@@ -27,7 +27,7 @@ def _stub_mcp():
 class CVSSToolTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_compute_cvss_returns_vectors(self):
-        from burpsuite_mcp.tools import advisor
+        from praetor.tools import advisor
         stub, captured = _stub_mcp()
         advisor.register(stub)
         cvss = captured["compute_cvss"]
@@ -41,7 +41,7 @@ class CVSSToolTest(unittest.IsolatedAsyncioTestCase):
 class RankTargetsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_endpoints_returns_note(self):
-        from burpsuite_mcp.tools.scan import rank_targets
+        from praetor.tools.scan import rank_targets
         with tempfile.TemporaryDirectory() as td:
             cwd = os.getcwd()
             os.chdir(td)
@@ -55,7 +55,7 @@ class RankTargetsTest(unittest.IsolatedAsyncioTestCase):
                 os.chdir(cwd)
 
     async def test_inline_endpoints_scored(self):
-        from burpsuite_mcp.tools.scan import rank_targets
+        from praetor.tools.scan import rank_targets
         stub, captured = _stub_mcp()
         rank_targets.register(stub)
         out = await captured["rank_attack_targets"](
@@ -74,7 +74,7 @@ class RankTargetsTest(unittest.IsolatedAsyncioTestCase):
 class InvariantsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_inline_schema_endpoints(self):
-        from burpsuite_mcp.tools.testing_extended import business_invariants
+        from praetor.tools.testing_extended import business_invariants
         stub, captured = _stub_mcp()
         business_invariants.register(stub)
         out = await captured["infer_business_invariants"](
@@ -97,7 +97,7 @@ class InvariantsTest(unittest.IsolatedAsyncioTestCase):
 class BenchmarkTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_autopenbench_awaits_flag(self):
-        from burpsuite_mcp.tools import benchmark
+        from praetor.tools import benchmark
         with tempfile.TemporaryDirectory() as td:
             cwd = os.getcwd()
             os.chdir(td)
@@ -115,7 +115,7 @@ class BenchmarkTest(unittest.IsolatedAsyncioTestCase):
                 os.chdir(cwd)
 
     async def test_summarize_empty(self):
-        from burpsuite_mcp.tools import benchmark
+        from praetor.tools import benchmark
         with tempfile.TemporaryDirectory() as td:
             cwd = os.getcwd()
             os.chdir(td)
@@ -131,7 +131,7 @@ class BenchmarkTest(unittest.IsolatedAsyncioTestCase):
 class SourceAwareTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_xvulnhuntr_missing_path(self):
-        from burpsuite_mcp.tools import source_aware
+        from praetor.tools import source_aware
         stub, captured = _stub_mcp()
         source_aware.register(stub)
         out = await captured["run_xvulnhuntr"](repo_path="/nonexistent/xyz")
@@ -139,7 +139,7 @@ class SourceAwareTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("not found", out["error"])
 
     async def test_xvulnhuntr_install_hint(self):
-        from burpsuite_mcp.tools import source_aware
+        from praetor.tools import source_aware
         with tempfile.TemporaryDirectory() as td:
             with patch.object(source_aware, "_check_tool", return_value=False):
                 stub, captured = _stub_mcp()
@@ -153,7 +153,7 @@ class SourceAwareTest(unittest.IsolatedAsyncioTestCase):
 class PocBundleTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_findings_returns_error(self):
-        from burpsuite_mcp.tools.notes import poc_bundle
+        from praetor.tools.notes import poc_bundle
         with tempfile.TemporaryDirectory() as td:
             cwd = os.getcwd()
             os.chdir(td)
@@ -171,7 +171,7 @@ class PocBundleTest(unittest.IsolatedAsyncioTestCase):
 class FuzzEvoTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_seed_returns_error_verdict(self):
-        from burpsuite_mcp.tools.testing import fuzz_evolutionary
+        from praetor.tools.testing import fuzz_evolutionary
         stub, captured = _stub_mcp()
         fuzz_evolutionary.register(stub)
         out = await captured["fuzz_evolutionary"](

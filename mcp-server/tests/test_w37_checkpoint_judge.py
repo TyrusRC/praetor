@@ -18,7 +18,7 @@ import json
 import shutil
 import unittest
 
-from burpsuite_mcp.tools.notes._helpers import _intel_dir, _sanitized
+from praetor.tools.notes._helpers import _intel_dir, _sanitized
 
 
 class _ToolCapture:
@@ -44,24 +44,24 @@ class CheckpointMergeTest(unittest.TestCase):
         shutil.rmtree(_intel_dir() / _sanitized(self.DOMAIN), ignore_errors=True)
 
     def _path(self):
-        from burpsuite_mcp.tools.intel.checkpoint import _checkpoint_path
+        from praetor.tools.intel.checkpoint import _checkpoint_path
         return _checkpoint_path(self.DOMAIN)
 
     def test_absent_returns_empty(self):
-        from burpsuite_mcp.tools.intel.checkpoint import load_checkpoint_data
+        from praetor.tools.intel.checkpoint import load_checkpoint_data
         self.assertEqual(load_checkpoint_data(self.DOMAIN), {})
 
     def test_bad_domain_is_safe(self):
         # Traversal-shaped domains that _sanitized rejects (contain '..' or empty)
         # must return {} without writing, never raise.
-        from burpsuite_mcp.tools.intel.checkpoint import (
+        from praetor.tools.intel.checkpoint import (
             load_checkpoint_data, merge_checkpoint)
         for bad in ("..", "a/../../etc", ""):
             self.assertEqual(load_checkpoint_data(bad), {})
             self.assertEqual(merge_checkpoint(bad, phase="scan"), {})
 
     def test_scalars_overwrite_only_when_supplied(self):
-        from burpsuite_mcp.tools.intel.checkpoint import (
+        from praetor.tools.intel.checkpoint import (
             merge_checkpoint, load_checkpoint_data)
         merge_checkpoint(self.DOMAIN, phase="recon", round=1,
                          next_action="crawl", objective="broad coverage")
@@ -74,7 +74,7 @@ class CheckpointMergeTest(unittest.TestCase):
         self.assertEqual(d["objective"], "broad coverage")
 
     def test_tasks_merge_by_id_field_level(self):
-        from burpsuite_mcp.tools.intel.checkpoint import (
+        from praetor.tools.intel.checkpoint import (
             merge_checkpoint, load_checkpoint_data)
         merge_checkpoint(self.DOMAIN, tasks=[
             {"id": "T1", "title": "recon surface", "status": "in_progress", "note": "start"},
@@ -96,14 +96,14 @@ class CheckpointMergeTest(unittest.TestCase):
         self.assertEqual([t["id"] for t in d["tasks"]], ["T1", "T1.1", "T2"])
 
     def test_invalid_status_normalises_to_pending(self):
-        from burpsuite_mcp.tools.intel.checkpoint import (
+        from praetor.tools.intel.checkpoint import (
             merge_checkpoint, load_checkpoint_data)
         merge_checkpoint(self.DOMAIN, tasks=[{"id": "T1", "status": "wat"}])
         d = load_checkpoint_data(self.DOMAIN)
         self.assertEqual(d["tasks"][0]["status"], "pending")
 
     def test_open_threads_dedupe_and_explicit_clear(self):
-        from burpsuite_mcp.tools.intel.checkpoint import (
+        from praetor.tools.intel.checkpoint import (
             merge_checkpoint, load_checkpoint_data)
         merge_checkpoint(self.DOMAIN, open_threads=["a", "b"])
         merge_checkpoint(self.DOMAIN, open_threads=["b", "c"])  # b is dup
@@ -118,7 +118,7 @@ class CheckpointMergeTest(unittest.TestCase):
 
     def test_tool_wrappers_roundtrip(self):
         import asyncio
-        from burpsuite_mcp.tools.intel import checkpoint as mod
+        from praetor.tools.intel import checkpoint as mod
         cap = _ToolCapture()
         mod.register(cap)
         write = cap.tools["write_checkpoint"]
@@ -157,20 +157,20 @@ class CompletionJudgeTest(unittest.TestCase):
         shutil.rmtree(_intel_dir() / _sanitized(self.DOMAIN), ignore_errors=True)
 
     def _write_json(self, name: str, payload: dict) -> None:
-        from burpsuite_mcp.tools.workspace import workspace_paths
+        from praetor.tools.workspace import workspace_paths
         root = workspace_paths(self.DOMAIN)["root"]
         root.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(json.dumps(payload), encoding="utf-8")
 
     def test_no_checkpoint_is_incomplete(self):
-        from burpsuite_mcp.tools.report.completion_judge import judge_completion_data
+        from praetor.tools.report.completion_judge import judge_completion_data
         v = judge_completion_data(self.DOMAIN)
         self.assertFalse(v["complete"])
         self.assertTrue(any("no checkpoint" in g for g in v["gaps"]))
 
     def test_open_task_blocks_completion(self):
-        from burpsuite_mcp.tools.intel.checkpoint import merge_checkpoint
-        from burpsuite_mcp.tools.report.completion_judge import judge_completion_data
+        from praetor.tools.intel.checkpoint import merge_checkpoint
+        from praetor.tools.report.completion_judge import judge_completion_data
         merge_checkpoint(self.DOMAIN, phase="scan",
                          tasks=[{"id": "T1", "title": "sqli", "status": "in_progress"}])
         v = judge_completion_data(self.DOMAIN)
@@ -179,8 +179,8 @@ class CompletionJudgeTest(unittest.TestCase):
         self.assertTrue(any("open task T1" in g for g in v["gaps"]))
 
     def test_open_thread_blocks_completion(self):
-        from burpsuite_mcp.tools.intel.checkpoint import merge_checkpoint
-        from burpsuite_mcp.tools.report.completion_judge import judge_completion_data
+        from praetor.tools.intel.checkpoint import merge_checkpoint
+        from praetor.tools.report.completion_judge import judge_completion_data
         merge_checkpoint(self.DOMAIN, tasks=[{"id": "T1", "status": "done"}],
                          open_threads=["500 on /api/export — revisit SSTI"])
         v = judge_completion_data(self.DOMAIN)
@@ -188,8 +188,8 @@ class CompletionJudgeTest(unittest.TestCase):
         self.assertTrue(any("unresolved thread" in g for g in v["gaps"]))
 
     def test_complete_when_all_gates_clear(self):
-        from burpsuite_mcp.tools.intel.checkpoint import merge_checkpoint
-        from burpsuite_mcp.tools.report.completion_judge import judge_completion_data
+        from praetor.tools.intel.checkpoint import merge_checkpoint
+        from praetor.tools.report.completion_judge import judge_completion_data
         # All tasks done, no threads.
         merge_checkpoint(self.DOMAIN, phase="done",
                          tasks=[{"id": "T1", "status": "done"},
@@ -200,7 +200,7 @@ class CompletionJudgeTest(unittest.TestCase):
         self._write_json("findings.json", {"findings": [
             {"id": "f-1", "status": "confirmed", "severity": "HIGH"}]})
         # Business-logic pass proven (>=1 tested invariant).
-        from burpsuite_mcp.tools.report import business_logic_gate as blg
+        from praetor.tools.report import business_logic_gate as blg
         cap = _ToolCapture()
         blg.register(cap)
         import asyncio
@@ -213,8 +213,8 @@ class CompletionJudgeTest(unittest.TestCase):
         self.assertIn("generate_report", v["recommended_next"])
 
     def test_missing_coverage_and_bizlogic_are_gaps(self):
-        from burpsuite_mcp.tools.intel.checkpoint import merge_checkpoint
-        from burpsuite_mcp.tools.report.completion_judge import judge_completion_data
+        from praetor.tools.intel.checkpoint import merge_checkpoint
+        from praetor.tools.report.completion_judge import judge_completion_data
         merge_checkpoint(self.DOMAIN, phase="done",
                          tasks=[{"id": "T1", "status": "done"}])
         v = judge_completion_data(self.DOMAIN)
@@ -223,7 +223,7 @@ class CompletionJudgeTest(unittest.TestCase):
         self.assertTrue(any("business-logic" in g for g in v["gaps"]))
 
     def test_empty_domain_safe(self):
-        from burpsuite_mcp.tools.report.completion_judge import judge_completion_data
+        from praetor.tools.report.completion_judge import judge_completion_data
         v = judge_completion_data("")
         self.assertFalse(v["complete"])
 

@@ -1,0 +1,376 @@
+"""auto_probe — knowledge-driven vulnerability probing with server-side matchers."""
+
+import asyncio
+import json
+
+from mcp.server.fastmcp import FastMCP
+
+from praetor import client
+
+from ._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
+from ._helpers import _load_all_knowledge
+from ._prioritise import prioritise, target_tech_stack
+
+
+def _rank_order_targets(targets: list[dict]) -> list[dict]:
+    """Order probe targets highest-risk-first (W36-P5, Burp 2026.6 parity).
+
+    Reuses the exact scoring engine behind rank_attack_targets — no
+    reimplemented math — so early probes hit the most valuable surface.
+    Safe default: any failure falls back to the caller's original order.
+    """
+    try:
+        from .rank_targets import (
+            _METHOD_WEIGHT,
+            _LOCATION_WEIGHT,
+            _endpoint_score,
+            _param_score,
+        )
+
+        def _score(t: dict) -> int:
+            ep_s, _ = _endpoint_score(t.get("path") or t.get("url") or "")
+            p_s, _ = _param_score(t.get("parameter") or "")
+            m_s = _METHOD_WEIGHT.get((t.get("method") or "GET").upper(), 5)
+            loc_s = _LOCATION_WEIGHT.get(t.get("location") or "", 5)
+            return ep_s + p_s + m_s + loc_s
+
+        return sorted(targets, key=_score, reverse=True)
+    except Exception:
+        return targets
+
+
+def register(mcp: FastMCP) -> None:
+
+    @mcp.tool()
+    async def auto_probe(  # cost: expensive
+        session: str,
+        targets: list[dict],
+        categories: list[str] | None = None,
+        max_probes_per_param: int = 20,
+        domain: str = "",
+        force_recon_gate: bool = False,
+        skip_already_covered: bool = True,
+    ) -> str:
+        """Knowledge-driven vulnerability probing with server-side matchers.
+
+        Cost class: EXPENSIVE — sends N probes per parameter × multiple categories.
+        Run discover_attack_surface first to scope `targets` instead of probing
+        everything. Honors Rule 20a recon gate when `domain` is supplied.
+
+        Args:
+            session: Session name
+            targets: Parameters to test (from discover_attack_surface)
+            categories: Filter probe categories (empty = all)
+            max_probes_per_param: Max probes per parameter (default 20). Real
+                JWT/GraphQL/proto-pollution bypasses sit at variant 6+. Lower
+                only if you explicitly want a fast first pass.
+            domain: Target domain (enables recon-gate + coverage skip)
+            force_recon_gate: Bypass recon gate for in-flight recon
+            skip_already_covered: Skip (endpoint, param, category) tuples whose knowledge_version in coverage.json matches current. Eliminates re-test cycle (R13). Default True. Set False after knowledge base updates.
+        """
+        # ── Runtime guards: cost cap (hard stop) + loop detection ──
+        from praetor.tools._runtime_guard import note_call
+        from praetor.tools.intel.cost_cap import budget_gate
+        _over = budget_gate(domain)
+        if _over:
+            return _over
+        _cats = ",".join(sorted(categories)) if categories else "all"
+        _tsig = "|".join(sorted(str(t.get("endpoint", t)) for t in targets))[:200]
+        _loop = note_call("auto_probe", f"{session}:{_cats}:{hash(_tsig)}")
+        if _loop:
+            return _loop
+
+        # ── Pre-flight session-auth assertion ─────────────────────────
+        try:
+            sess_info = await client.get("/api/session/list")
+            if "error" not in sess_info:
+                resp_text = str(sess_info)
+                if session in resp_text and "Auth: no" in resp_text and "Cookies: 0" in resp_text:
+                    pass  # warning surfaced via lines below if probe finds nothing
+        except Exception:
+            pass
+
+        # ── Rule 20a: recon gate ──
+        if domain and not force_recon_gate:
+            from praetor.tools.intel import recon_gate_check
+            gate_err = recon_gate_check(domain)
+            if gate_err is not None:
+                try:
+                    import json as _json_b
+                    from praetor.tools.intel import _intel_path
+                    profile_path = _intel_path(domain) / "profile.json"
+                    profile_path.parent.mkdir(parents=True, exist_ok=True)
+                    if not profile_path.exists():
+                        profile_path.write_text(_json_b.dumps({
+                            "domain": domain,
+                            "auto_created": True,
+                            "auto_created_by": "auto_probe",
+                            "note": "Minimal stub. Run full_recon / discover_attack_surface to enrich.",
+                        }, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+        # Load knowledge once; reused for coverage filter and the probe call.
+        _knowledge = _load_all_knowledge(categories)
+
+        # ── R13: filter targets against existing coverage ──
+        skipped_count = 0
+        kb_drift_hint = ""
+        if domain and skip_already_covered:
+            try:
+                from praetor.tools.intel import _knowledge_version, _intel_path
+                cov_path = _intel_path(domain) / "coverage.json"
+                if cov_path.exists():
+                    cov = json.loads(cov_path.read_text(encoding="utf-8"))
+                    cur_kv = _knowledge_version()
+                    recorded_kv = cov.get("knowledge_version")
+                    covered_keys: set[tuple] = set()
+                    stale_tuples = 0
+                    for entry in cov.get("entries", []):
+                        if entry.get("knowledge_version") == cur_kv:
+                            covered_keys.add((
+                                entry.get("endpoint", ""),
+                                entry.get("parameter", ""),
+                                entry.get("category", ""),
+                            ))
+                        else:
+                            stale_tuples += 1
+                    if recorded_kv is not None and recorded_kv != cur_kv and stale_tuples:
+                        kb_drift_hint = (
+                            f"  [hint] knowledge_version drift: {stale_tuples} tuple(s) tested at "
+                            f"v{recorded_kv} are eligible for re-test at v{cur_kv}. "
+                            f"Re-run with skip_already_covered=False to pick them up.\n"
+                        )
+                    if covered_keys:
+                        active_cats = set(categories or [
+                            k.get("category") for k in _knowledge
+                        ])
+                        new_targets = []
+                        for t in targets:
+                            ep = t.get("path", "")
+                            par = t.get("parameter", "")
+                            cats_to_run = [c for c in active_cats if (ep, par, c) not in covered_keys]
+                            if cats_to_run:
+                                new_targets.append(t)
+                            else:
+                                skipped_count += 1
+                        targets = new_targets
+            except (OSError, json.JSONDecodeError, ValueError):
+                pass
+
+        knowledge = _knowledge
+        if not knowledge:
+            available = [f.stem for f in KNOWLEDGE_DIR.glob("*.json") if f.stem not in _REFERENCE_ONLY]
+            return f"No knowledge base found. Available: {', '.join(sorted(available))}"
+        if not targets:
+            msg = (
+                f"All requested targets already covered (knowledge_version match). "
+                f"Skipped {skipped_count} tuples. Pass skip_already_covered=False to re-probe."
+            )
+            if kb_drift_hint:
+                msg += "\n" + kb_drift_hint
+            return msg
+
+        # ── W36-P5: audit highest-value surface first ──
+        # Order surviving targets by the rank_attack_targets risk engine so the
+        # extension's per-target iteration probes the most valuable tuples early.
+        targets = _rank_order_targets(targets)
+
+        # Order the KNOWLEDGE the same way. The orchestrator walks this list and
+        # stops at max_probes_per_param, so whatever leads the list is what gets
+        # tested — and the list order was previously arbitrary. Unconstrained
+        # contexts match every parameter and were spending the whole budget
+        # before any parameter-specific class was reached.
+        knowledge = prioritise(knowledge, targets, target_tech_stack(domain))
+
+        data = await client.post("/api/session/auto-probe", json={
+            "session": session,
+            "targets": targets,
+            "knowledge": knowledge,
+            "max_probes_per_param": max_probes_per_param,
+        })
+        if "error" in data:
+            return f"Error: {data['error']}"
+
+        lines = [f"Auto-Probe: {data.get('parameters_tested', 0)} params, {data.get('total_probes_sent', 0)} probes\n"]
+        if kb_drift_hint:
+            lines.append(kb_drift_hint)
+
+        findings = data.get("findings", [])
+        for f in findings:
+            raw = f.get("confidence", f.get("score", 0) / 100.0)
+            f["confidence"] = max(0.0, min(1.0, raw))
+        findings_sorted = sorted(
+            findings,
+            key=lambda f: (f["confidence"], f.get("score", 0)),
+            reverse=True,
+        )
+
+        # Auto-annotate proxy history (Rule 31). Run gather concurrently — sequential
+        # awaits cost ~50ms each, compounded to 1-2s on 30-finding runs.
+        async def _annotate(finding: dict) -> bool:
+            idx = finding.get("history_index") or finding.get("proxy_index") or finding.get("logger_index")
+            if idx is None:
+                return False
+            conf = finding.get("confidence", 0) or 0
+            # Capped at ORANGE on purpose. Per the Rule 18 colour convention
+            # RED means "confirmed critical/high" — a claim only verification
+            # can make. auto_probe's confidence is a matcher score, so painting
+            # it RED produced a history full of red entries that no finding
+            # backed, and every later reader had to re-derive which were real.
+            color = (
+                "ORANGE" if conf >= 0.60 else
+                "YELLOW" if conf >= 0.30 else
+                "GRAY"
+            )
+            cat = finding.get("category", "?")
+            ctx = finding.get("context", "?")
+            param = finding.get("parameter", "?")
+            # Self-identifying as unverified: the comment states what produced
+            # it and what it is not, so it is never mistaken for PoC evidence.
+            comment = (
+                f"auto_probe UNVERIFIED | {cat}/{ctx} | param={param} | "
+                f"match_confidence={conf:.2f} | verify before citing"
+            )
+            try:
+                await client.post("/api/annotations/set", json={
+                    "index": int(idx),
+                    "color": color,
+                    "comment": comment[:300],
+                    "endpoint": finding.get("endpoint", "") or "",
+                })
+                return True
+            except Exception:
+                return False
+
+        ann_results = await asyncio.gather(*(_annotate(f) for f in findings_sorted), return_exceptions=True)
+        annotated = sum(1 for r in ann_results if r is True)
+
+        # R20 economy lever — record every (endpoint, parameter, category)
+        # tuple we just probed so a follow-on auto_probe with
+        # skip_already_covered=True doesn't re-test them. Previously
+        # auto_probe READ coverage.json but never wrote it, so the skip
+        # gate was a no-op across sessions.
+        if domain:
+            try:
+                from praetor.tools.intel import _knowledge_version, _intel_path
+                cov_path = _intel_path(domain) / "coverage.json"
+                cov_path.parent.mkdir(parents=True, exist_ok=True)
+                cov = {"entries": []}
+                if cov_path.exists():
+                    try:
+                        cov = json.loads(cov_path.read_text(encoding="utf-8")) or {"entries": []}
+                    except (OSError, json.JSONDecodeError):
+                        cov = {"entries": []}
+                if "entries" not in cov or not isinstance(cov["entries"], list):
+                    cov["entries"] = []
+                kv = _knowledge_version()
+                # Index existing entries so we update kv in place rather than
+                # appending duplicates each run.
+                seen: set[tuple] = set()
+                for e in cov["entries"]:
+                    seen.add((e.get("endpoint", ""), e.get("parameter", ""), e.get("category", "")))
+                # Record ONLY the categories the server reports having actually
+                # probed. The previous version recorded every category in the
+                # loaded knowledge base, so a run that sent 20 probes marked
+                # ~135 classes covered — and skip_already_covered=True (the
+                # default) then made those classes permanently unreachable on
+                # this target. A coverage entry is a claim that a class was
+                # tested; writing one for an untested class is the same defect
+                # as citing evidence that was never collected.
+                probed = data.get("probed_categories") or []
+                for rec in probed:
+                    if not isinstance(rec, dict):
+                        continue
+                    ep = rec.get("path", "")
+                    par = rec.get("parameter", "")
+                    for cat in rec.get("categories") or []:
+                        key = (ep, par, cat)
+                        if key in seen:
+                            for e in cov["entries"]:
+                                if (e.get("endpoint"), e.get("parameter"), e.get("category")) == key:
+                                    e["knowledge_version"] = kv
+                                    break
+                        else:
+                            cov["entries"].append({
+                                "endpoint": ep,
+                                "parameter": par,
+                                "category": cat,
+                                "knowledge_version": kv,
+                            })
+                            seen.add(key)
+                # Compact on disk. coverage.json is re-read by load_target_intel
+                # on every session start; indent=2 on a few thousand four-key
+                # records was 65 KB of mostly whitespace and repeated keys.
+                cov_path.write_text(
+                    json.dumps(cov, separators=(",", ":")), encoding="utf-8"
+                )
+            except Exception:
+                # coverage write is best-effort; failure must not break the
+                # main probe response.
+                pass
+
+        if findings_sorted:
+            lines.append(f"Findings ({len(findings_sorted)}):\n")
+            for finding in findings_sorted:
+                sev = finding.get("severity", "?")
+                score = finding.get("score", 0)
+                conf = finding.get("confidence")
+                anomaly = finding.get("anomaly_score", 0)
+                color = (
+                    "RED" if conf is not None and conf >= 0.90 else
+                    "ORA" if conf is not None and conf >= 0.60 else
+                    "YEL" if conf is not None and conf >= 0.30 else
+                    "GRN"
+                )
+                conf_str = f"c={conf:.2f} [{color}]" if conf is not None else f"score={score}"
+                lines.append(f"  [{sev:>8s}] {conf_str}  {finding.get('endpoint', '?')} -> {finding.get('parameter', '?')}")
+                lines.append(f"           {finding.get('category', '?')}/{finding.get('context', '?')}: {finding.get('description', '?')}")
+                lines.append(f"           Payload: {finding.get('probe', '?')}")
+                matched = finding.get("matched_matchers", [])
+                if matched:
+                    lines.append(f"           Matchers: {', '.join(str(m) for m in matched)}")
+                anomalies = finding.get("anomalies", [])
+                if anomalies:
+                    lines.append(f"           Anomalies: {', '.join(anomalies)} (anomaly_score: {anomaly})")
+                lines.append("")
+        else:
+            lines.append("No vulnerabilities detected.")
+
+        saved = data.get("auto_saved_findings", 0)
+        if saved:
+            lines.append(f"\n{saved} findings detected. Pass the confidence value to save_finding(confidence=...) or export_report() for report.")
+        if annotated:
+            lines.append(f"Auto-annotated {annotated} proxy-history entries with severity colours (Rule 31).")
+
+        # ── Partial-signal escalation hints ──
+        # When a probe records anomalies (status/length/timing/header deltas)
+        # but no matcher fired (or confidence < 0.30), the canonical payload
+        # likely got filtered. Surface a copy-pasteable fuzz_with_feedback
+        # invocation so the operator can mutate the payload and try again.
+        partial = []
+        for f in findings_sorted:
+            conf = f.get("confidence", 0) or 0
+            anomalies = f.get("anomalies", []) or []
+            matched = f.get("matched_matchers", []) or []
+            if anomalies and conf < 0.30 and not matched:
+                partial.append(f)
+        if partial:
+            lines.append(f"\nPartial-signal escalation candidates ({len(partial)}):")
+            lines.append("Anomaly seen but no matcher fired — payload likely filtered. Try mutation.")
+            for f in partial[:5]:
+                ep = f.get("endpoint", "?")
+                param = f.get("parameter", "?")
+                cat = f.get("category", "?")
+                probe = f.get("probe", "")
+                ans = f.get("anomalies", [])
+                lines.append(
+                    f"  • {cat}: {ep} param={param} anomalies={','.join(ans[:3])}"
+                )
+                if probe:
+                    lines.append(
+                        f"    → fuzz_with_feedback(url='{ep}', parameter='{param}', "
+                        f"seed={probe!r}, signals={{'length_delta_min': 100, 'status_changed': True}})"
+                    )
+
+        return "\n".join(lines)

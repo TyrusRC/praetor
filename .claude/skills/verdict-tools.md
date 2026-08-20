@@ -46,7 +46,7 @@ This is the canonical mapping for tools whose verdict is "did any of N probe axe
 ## Authoring a new tool
 
 ```python
-from burpsuite_mcp.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
+from praetor.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
 
 @mcp.tool()
 async def my_probe(...) -> dict:
@@ -72,7 +72,7 @@ async def my_probe(...) -> dict:
 ## Consuming a verdict
 
 ```python
-from burpsuite_mcp.tools.testing._verdict import is_actionable, to_assess_evidence
+from praetor.tools.testing._verdict import is_actionable, to_assess_evidence
 
 result = await test_ssrf(url="...", parameter="url")
 if is_actionable(result):

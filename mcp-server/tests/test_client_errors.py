@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock
 
 import httpx
 
-from burpsuite_mcp import client
+from praetor import client
 
 
 class ClientErrorEnvelope(unittest.TestCase):

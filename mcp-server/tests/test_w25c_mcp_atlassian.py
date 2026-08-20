@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
+from praetor import server
 
 
 def _tool(name: str):
@@ -21,7 +21,7 @@ class McpServerAttacksErrorPathsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "ERROR")
 
     async def test_scope_reject_returns_error(self):
-        with patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.check_scope",
+        with patch("praetor.tools.exploit.mcp_atlassian.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": False})):
             fn = _tool("probe_mcp_server_attacks")
             out = await fn(base_url="https://oos/")
@@ -48,11 +48,11 @@ class McpServerAttacksVerdictTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 404, "response_body": "not found",
                     "proxy_index": 100 + i}
 
-        with patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.check_scope",
+        with patch("praetor.tools.exploit.mcp_atlassian.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.post",
+             patch("praetor.tools.exploit.mcp_atlassian.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.get",
+             patch("praetor.tools.exploit.mcp_atlassian.client.get",
                    new=AsyncMock(return_value={"interactions": []})):
             fn = _tool("probe_mcp_server_attacks")
             out = await fn(base_url="https://t.example/",
@@ -79,11 +79,11 @@ class McpServerAttacksVerdictTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 404, "response_body": "not found",
                     "proxy_index": 200 + i}
 
-        with patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.check_scope",
+        with patch("praetor.tools.exploit.mcp_atlassian.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.post",
+             patch("praetor.tools.exploit.mcp_atlassian.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.get",
+             patch("praetor.tools.exploit.mcp_atlassian.client.get",
                    new=AsyncMock(return_value={"interactions": []})):
             fn = _tool("probe_mcp_server_attacks")
             out = await fn(base_url="https://t.example/",
@@ -108,11 +108,11 @@ class McpServerAttacksVerdictTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body": "ok",
                     "proxy_index": 300 + i}
 
-        with patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.check_scope",
+        with patch("praetor.tools.exploit.mcp_atlassian.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.post",
+             patch("praetor.tools.exploit.mcp_atlassian.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.get",
+             patch("praetor.tools.exploit.mcp_atlassian.client.get",
                    new=AsyncMock(return_value={"interactions": []})):
             fn = _tool("probe_mcp_server_attacks")
             out = await fn(base_url="https://t.example/",
@@ -132,11 +132,11 @@ class McpServerAttacksVerdictTest(unittest.IsolatedAsyncioTestCase):
                  "raw": "mcp-ssrf-canary received"}
             ]}
 
-        with patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.check_scope",
+        with patch("praetor.tools.exploit.mcp_atlassian.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.post",
+             patch("praetor.tools.exploit.mcp_atlassian.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.get",
+             patch("praetor.tools.exploit.mcp_atlassian.client.get",
                    new=AsyncMock(side_effect=fake_get)):
             fn = _tool("probe_mcp_server_attacks")
             out = await fn(base_url="https://t.example/",
@@ -152,11 +152,11 @@ class McpServerAttacksVerdictTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 404, "response_body": "Not Found",
                     "proxy_index": 1}
 
-        with patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.check_scope",
+        with patch("praetor.tools.exploit.mcp_atlassian.client.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.post",
+             patch("praetor.tools.exploit.mcp_atlassian.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.mcp_atlassian.client.get",
+             patch("praetor.tools.exploit.mcp_atlassian.client.get",
                    new=AsyncMock(return_value={"interactions": []})):
             fn = _tool("probe_mcp_server_attacks")
             out = await fn(base_url="https://t.example/")

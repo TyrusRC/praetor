@@ -24,7 +24,7 @@ def _stub_mcp():
 class SSRFRefactorTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools.vuln import test_ssrf
+        from praetor.tools.vuln import test_ssrf
         stub, captured = _stub_mcp()
         test_ssrf.register(stub)
         sig = captured["test_ssrf"].__annotations__.get("return")
@@ -34,7 +34,7 @@ class SSRFRefactorTest(unittest.TestCase):
 class SSTIRefactorTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools.vuln import test_ssti
+        from praetor.tools.vuln import test_ssti
         stub, captured = _stub_mcp()
         test_ssti.register(stub)
         sig = captured["test_ssti"].__annotations__.get("return")
@@ -44,7 +44,7 @@ class SSTIRefactorTest(unittest.TestCase):
 class XXERefactorTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools.vuln import test_xxe
+        from praetor.tools.vuln import test_xxe
         stub, captured = _stub_mcp()
         test_xxe.register(stub)
         sig = captured["test_xxe"].__annotations__.get("return")
@@ -55,7 +55,7 @@ class EdgeWrappersRefactorTest(unittest.TestCase):
 
     def test_all_three_edge_wrappers_return_dict(self):
         """test_open_redirect, test_lfi, test_graphql wrappers in edge/__init__."""
-        from burpsuite_mcp.tools import edge
+        from praetor.tools import edge
         stub, captured = _stub_mcp()
         edge.register(stub)
         for name in ("test_open_redirect", "test_lfi", "test_graphql"):
@@ -68,13 +68,13 @@ class EdgeWrappersRefactorTest(unittest.TestCase):
 class WebViewPromotionTest(unittest.TestCase):
 
     def test_webview_no_longer_reference_only(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         self.assertNotIn("webview_injection", _REFERENCE_ONLY)
 
     def test_w10_http_observable_contexts_present(self):
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "webview_injection.json").read_text(encoding="utf-8")
         )
@@ -87,7 +87,7 @@ class WebViewPromotionTest(unittest.TestCase):
     def test_remote_url_context_uses_collaborator(self):
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "webview_injection.json").read_text(encoding="utf-8")
         )

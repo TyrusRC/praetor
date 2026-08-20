@@ -21,14 +21,14 @@ def _stub_mcp():
 class W15TestingRefactorsTest(unittest.TestCase):
 
     def test_fuzz_parameter_returns_dict(self):
-        from burpsuite_mcp.tools.testing import fuzz
+        from praetor.tools.testing import fuzz
         stub, captured = _stub_mcp()
         fuzz.register(stub)
         sig = captured["fuzz_parameter"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_fuzz_with_feedback_returns_dict(self):
-        from burpsuite_mcp.tools.testing import fuzz_feedback
+        from praetor.tools.testing import fuzz_feedback
         stub, captured = _stub_mcp()
         fuzz_feedback.register(stub)
         sig = captured["fuzz_with_feedback"].__annotations__.get("return")
@@ -38,28 +38,28 @@ class W15TestingRefactorsTest(unittest.TestCase):
 class W15TestingExtendedRefactorsTest(unittest.TestCase):
 
     def test_internal_headers_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import internal_headers
+        from praetor.tools.testing_extended import internal_headers
         stub, captured = _stub_mcp()
         internal_headers.register(stub)
         sig = captured["probe_internal_headers"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_quota_window_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import quota_window
+        from praetor.tools.testing_extended import quota_window
         stub, captured = _stub_mcp()
         quota_window.register(stub)
         sig = captured["probe_quota_window_edge"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_decimal_rounding_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import decimal_rounding
+        from praetor.tools.testing_extended import decimal_rounding
         stub, captured = _stub_mcp()
         decimal_rounding.register(stub)
         sig = captured["probe_float_decimal_rounding"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_cron_backfill_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import cron_backfill
+        from praetor.tools.testing_extended import cron_backfill
         stub, captured = _stub_mcp()
         cron_backfill.register(stub)
         sig = captured["probe_cron_backfill"].__annotations__.get("return")
@@ -97,7 +97,7 @@ class RefOnlyKBStabilityTest(unittest.TestCase):
     }
 
     def test_ref_only_set_matches_audit(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         # Allow superset so adding new ref-only KBs doesn't break the test —
         # but any REMOVAL from expected must be deliberate and documented.
         missing = self.EXPECTED_REF_ONLY - _REFERENCE_ONLY

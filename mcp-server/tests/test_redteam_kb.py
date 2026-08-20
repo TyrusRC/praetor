@@ -7,10 +7,10 @@ and .exe suffixes, and fail helpfully on a miss.
 
 import unittest
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.redteam._gtfobins import GTFOBINS
-from burpsuite_mcp.tools.redteam._lolbas import LOLBAS
-from burpsuite_mcp.tools.redteam._tooling import REDTEAM_TOOLS
+from praetor import server
+from praetor.tools.redteam._gtfobins import GTFOBINS
+from praetor.tools.redteam._lolbas import LOLBAS
+from praetor.tools.redteam._tooling import REDTEAM_TOOLS
 
 
 def _tool(name):

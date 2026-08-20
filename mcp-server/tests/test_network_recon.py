@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.network._nmap_parse import (
+from praetor import server
+from praetor.tools.network._nmap_parse import (
     http_targets,
     is_http_service,
     parse_nmap_xml,
@@ -102,7 +102,7 @@ class TestRunNmapGuards(unittest.IsolatedAsyncioTestCase):
         self.assertIn("illegal character", out)
 
     async def test_strict_mode_blocks(self):
-        from burpsuite_mcp.tools import _scope_mode
+        from praetor.tools import _scope_mode
         _scope_mode.set_mode("strict")
         try:
             out = await _tool("run_nmap")("10.10.11.5")
@@ -112,8 +112,8 @@ class TestRunNmapGuards(unittest.IsolatedAsyncioTestCase):
 
     async def test_full_run_parses_persists_and_bridges(self):
         # operator mode (default). Mock the subprocess to return the fixture XML.
-        with patch("burpsuite_mcp.tools.network.nmap._check_tool", return_value=True), \
-             patch("burpsuite_mcp.tools.network.nmap._run_cmd",
+        with patch("praetor.tools.network.nmap._check_tool", return_value=True), \
+             patch("praetor.tools.network.nmap._run_cmd",
                    new=AsyncMock(return_value=(FIXTURE, "", 0))):
             out = await _tool("run_nmap")("10.10.11.5", domain="box.htb")
         self.assertIn("1 hosts up", out)

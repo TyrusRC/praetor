@@ -10,7 +10,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from burpsuite_mcp.tools.testing._verdict import (
+from praetor.tools.testing._verdict import (
     error_verdict,
     is_actionable,
     make_verdict,
@@ -84,7 +84,7 @@ class FullPipelineTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_verdict_feeds_assess_finding(self):
         """End-to-end: VerdictResult -> assess_finding_impl returns advisor verdict."""
-        from burpsuite_mcp.tools.advisor.assess import assess_finding_impl
+        from praetor.tools.advisor.assess import assess_finding_impl
 
         v = make_verdict(
             "CONFIRMED", 0.85,
@@ -109,7 +109,7 @@ class FullPipelineTest(unittest.IsolatedAsyncioTestCase):
             }
 
         with patch(
-            "burpsuite_mcp.tools.advisor._evidence_augment.client.get",
+            "praetor.tools.advisor._evidence_augment.client.get",
             side_effect=_fake_get,
         ):
             result = await assess_finding_impl(

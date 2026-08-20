@@ -1,7 +1,7 @@
 """F1 — run_adhoc_probe validation (matcher allowlist + Rule-5 fail-closed)."""
 import unittest
 
-from burpsuite_mcp.tools.adhoc_probe import validate_probe_context, KNOWN_MATCHER_TYPES
+from praetor.tools.adhoc_probe import validate_probe_context, KNOWN_MATCHER_TYPES
 
 
 class ValidateProbeContextTest(unittest.TestCase):

@@ -33,7 +33,7 @@ import re
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).resolve().parents[1] / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).resolve().parents[1] / "src" / "praetor" / "knowledge"
 
 NEW_KB_FILES = [
     "state_machine_race",

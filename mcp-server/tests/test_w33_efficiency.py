@@ -43,7 +43,7 @@ def _capture(register_fn) -> dict:
 # --------------------------------------------------------------------------
 class PickToolTest(unittest.TestCase):
     def _pick(self, task: str) -> str:
-        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        from praetor.tools.advisor.pick_tool import pick_tool_impl
 
         return asyncio.run(pick_tool_impl(task))
 
@@ -77,7 +77,7 @@ class PickToolTest(unittest.TestCase):
 # --------------------------------------------------------------------------
 class RuntimeGuardTest(unittest.TestCase):
     def test_note_call_warns_once_at_limit(self):
-        from burpsuite_mcp.tools import _runtime_guard as rg
+        from praetor.tools import _runtime_guard as rg
 
         key = "w33-unittest-unique-key"
         self.assertIsNone(rg.note_call("t", key, limit=3))  # 1
@@ -89,7 +89,7 @@ class RuntimeGuardTest(unittest.TestCase):
         self.assertIsNone(rg.note_call("t", key, limit=3))  # 4
 
     def test_wrap_untrusted_fences_text(self):
-        from burpsuite_mcp.tools._runtime_guard import wrap_untrusted
+        from praetor.tools._runtime_guard import wrap_untrusted
 
         payload = "target-controlled INSTRUCTIONS here"
         out = wrap_untrusted(payload, source="nuclei")
@@ -99,7 +99,7 @@ class RuntimeGuardTest(unittest.TestCase):
         self.assertIn('source="nuclei"', out)
 
     def test_register_cleanup_records_callback(self):
-        from burpsuite_mcp.tools import _runtime_guard as rg
+        from praetor.tools import _runtime_guard as rg
 
         before = len(rg._CLEANUPS)
         sentinel = lambda: None
@@ -115,32 +115,32 @@ class BudgetGateTest(unittest.TestCase):
     DOMAIN = "unittest-w33-cost.local"
 
     def tearDown(self):
-        from burpsuite_mcp.tools.intel import cost_cap
+        from praetor.tools.intel import cost_cap
 
         shutil.rmtree(cost_cap._cost_path(self.DOMAIN).parent, ignore_errors=True)
 
     def _write(self, data: dict):
         import json
 
-        from burpsuite_mcp.tools.intel import cost_cap
+        from praetor.tools.intel import cost_cap
 
         cost_cap._cost_path(self.DOMAIN).write_text(json.dumps(data))
 
     def test_no_cap_returns_none(self):
-        from burpsuite_mcp.tools.intel.cost_cap import budget_gate
+        from praetor.tools.intel.cost_cap import budget_gate
 
         # No cost.json written -> unbounded engagement.
         self.assertIsNone(budget_gate(self.DOMAIN))
 
     def test_under_cap_returns_none(self):
-        from burpsuite_mcp.tools.intel.cost_cap import budget_gate
+        from praetor.tools.intel.cost_cap import budget_gate
 
         self._write({"max_usd": 25.0, "spent_usd": 1.0,
                      "max_tokens": 1_000_000, "spent_tokens": 10})
         self.assertIsNone(budget_gate(self.DOMAIN))
 
     def test_exceeded_cap_returns_message(self):
-        from burpsuite_mcp.tools.intel.cost_cap import budget_gate
+        from praetor.tools.intel.cost_cap import budget_gate
 
         self._write({"max_usd": 25.0, "spent_usd": 30.0,
                      "max_tokens": 1_000_000, "spent_tokens": 10})
@@ -154,7 +154,7 @@ class BudgetGateTest(unittest.TestCase):
 # --------------------------------------------------------------------------
 class RankOrderTargetsTest(unittest.TestCase):
     def test_higher_risk_first(self):
-        from burpsuite_mcp.tools.scan.auto_probe import _rank_order_targets
+        from praetor.tools.scan.auto_probe import _rank_order_targets
 
         low = {"path": "/static/app.js", "method": "GET", "location": "query"}
         high = {"path": "/admin/payment/transfer", "parameter": "amount",
@@ -164,14 +164,14 @@ class RankOrderTargetsTest(unittest.TestCase):
         self.assertEqual(ranked[1], low)
 
     def test_non_list_returns_input_unchanged(self):
-        from burpsuite_mcp.tools.scan.auto_probe import _rank_order_targets
+        from praetor.tools.scan.auto_probe import _rank_order_targets
 
         # A bare string is iterable but its elements have no .get -> scorer
         # raises -> except branch returns the input verbatim.
         self.assertEqual(_rank_order_targets("notalist"), "notalist")
 
     def test_ranker_failure_returns_input_unchanged(self):
-        from burpsuite_mcp.tools.scan.auto_probe import _rank_order_targets
+        from praetor.tools.scan.auto_probe import _rank_order_targets
 
         bad = [123, "x"]  # non-dict elements crash the scorer
         self.assertEqual(_rank_order_targets(bad), bad)
@@ -186,7 +186,7 @@ class NextUntestedTargetsTest(unittest.TestCase):
     def setUp(self):
         import json
 
-        from burpsuite_mcp.tools.intel._internals import _ensure_dir
+        from praetor.tools.intel._internals import _ensure_dir
 
         d = _ensure_dir(self.DOMAIN)
         (d / "endpoints.json").write_text(json.dumps({"endpoints": [
@@ -196,12 +196,12 @@ class NextUntestedTargetsTest(unittest.TestCase):
         (d / "coverage.json").write_text(json.dumps({"entries": []}))
 
     def tearDown(self):
-        from burpsuite_mcp.tools.intel._internals import _intel_path
+        from praetor.tools.intel._internals import _intel_path
 
         shutil.rmtree(_intel_path(self.DOMAIN), ignore_errors=True)
 
     def _run(self) -> str:
-        from burpsuite_mcp.tools.intel import save_load
+        from praetor.tools.intel import save_load
 
         fn = _capture(save_load.register)["next_untested_targets"]
         return asyncio.run(fn(self.DOMAIN))
@@ -222,12 +222,12 @@ class EpisodesTest(unittest.TestCase):
     DOMAIN = "unittest-w33-epi.local"
 
     def tearDown(self):
-        from burpsuite_mcp.tools.intel._internals import _intel_path
+        from praetor.tools.intel._internals import _intel_path
 
         shutil.rmtree(_intel_path(self.DOMAIN), ignore_errors=True)
 
     def test_redact_strips_credential_shapes(self):
-        from burpsuite_mcp.tools.intel.episodes import _redact
+        from praetor.tools.intel.episodes import _redact
 
         bearer = "authorization: Bearer abc123DEFsecretVALUE"
         self.assertNotIn("abc123DEFsecretVALUE", _redact(bearer))
@@ -239,7 +239,7 @@ class EpisodesTest(unittest.TestCase):
         self.assertNotIn("SuperSecretHunter2", _redact(pw))
 
     def test_record_recall_round_trip(self):
-        from burpsuite_mcp.tools.intel import episodes
+        from praetor.tools.intel import episodes
 
         tools = _capture(episodes.register)
         record = tools["record_probe_outcome"]
@@ -257,7 +257,7 @@ class EpisodesTest(unittest.TestCase):
         self.assertIn("dead_end", out)
 
     def test_recall_redacts_persisted_secret(self):
-        from burpsuite_mcp.tools.intel import episodes
+        from praetor.tools.intel import episodes
 
         tools = _capture(episodes.register)
         asyncio.run(tools["record_probe_outcome"](

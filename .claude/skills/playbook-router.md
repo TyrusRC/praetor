@@ -215,6 +215,8 @@ These are exempt from the "never load more than 2 playbooks" cap because they're
 | Target behind CDN/WAF + origin (≥2 HTTP parsers); Kettle 2025 endgame variants applicable | `playbook-request-smuggling.md` | W17 |
 | Node.js (Express/Fastify/Hapi/Koa) + JSON body merge; client-side options-merge libraries (jQuery extend, lodash merge); CSPP gadgets in framework | `playbook-prototype-pollution.md` | W17 |
 | Subdomain takeover hunt — wildcard scope or subdomain list harvested | `recon-takeover.md` | W9 |
+| **Shell on a Linux host** (reverse shell / SSH / web-RCE foothold) — non-root, want root or a lateral pivot | `playbook-linux-privesc.md` | W38 |
+| **AD foothold / domain creds** — DC + MSSQL / Kerberos / LDAP; BloodHound shows delegation, linked-server, dangerous-ACL (WriteOwner/GenericAll), cross-forest trust, or AD CS ESC (vulnerable certificate template) edges; looted creds to reuse-spray | `playbook-ad-lateral-delegation.md` | W38 |
 
 **Loading rule:** Deep-dives are reference material. Load when investigating a specific finding-class. Unload immediately when the investigation is done.
 

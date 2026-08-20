@@ -21,21 +21,21 @@ def _stub_mcp():
 class W14TestingRefactorsTest(unittest.TestCase):
 
     def test_race_singlepacket_returns_dict(self):
-        from burpsuite_mcp.tools.testing import race_singlepacket
+        from praetor.tools.testing import race_singlepacket
         stub, captured = _stub_mcp()
         race_singlepacket.register(stub)
         sig = captured["probe_race_singlepacket"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_race_lastbyte_returns_dict(self):
-        from burpsuite_mcp.tools.testing import race_lastbyte
+        from praetor.tools.testing import race_lastbyte
         stub, captured = _stub_mcp()
         race_lastbyte.register(stub)
         sig = captured["probe_race_lastbyte"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_timeless_timing_returns_dict(self):
-        from burpsuite_mcp.tools.testing import timeless_timing
+        from praetor.tools.testing import timeless_timing
         stub, captured = _stub_mcp()
         timeless_timing.register(stub)
         sig = captured["probe_timeless_timing"].__annotations__.get("return")
@@ -45,21 +45,21 @@ class W14TestingRefactorsTest(unittest.TestCase):
 class W14TestingExtendedRefactorsTest(unittest.TestCase):
 
     def test_role_cleanup_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import role_cleanup
+        from praetor.tools.testing_extended import role_cleanup
         stub, captured = _stub_mcp()
         role_cleanup.register(stub)
         sig = captured["probe_role_state_cleanup"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_content_type_switch_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import content_type_switch
+        from praetor.tools.testing_extended import content_type_switch
         stub, captured = _stub_mcp()
         content_type_switch.register(stub)
         sig = captured["probe_content_type_switch"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_line_item_mutation_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import line_item_mutation
+        from praetor.tools.testing_extended import line_item_mutation
         stub, captured = _stub_mcp()
         line_item_mutation.register(stub)
         sig = captured["probe_line_item_mutation"].__annotations__.get("return")

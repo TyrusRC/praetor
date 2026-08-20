@@ -20,15 +20,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-KB_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
-TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "tools"
+KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
+TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools"
 
 
 class ImportableTest(unittest.TestCase):
     """Every new tool module must import + expose register()."""
 
     def test_all_modules_have_register(self):
-        from burpsuite_mcp.tools import (
+        from praetor.tools import (
             grpc_path_canonicalization_probe,
             fastmcp_openapi_ssrf_probe,
             apollo_federation_probe,
@@ -167,7 +167,7 @@ class ClaudeCodeHookScannerBehaviorTest(unittest.IsolatedAsyncioTestCase):
     """Static scanner — execute against synthetic .claude/settings.json fixtures."""
 
     async def _run_scan(self, root: Path):
-        from burpsuite_mcp.tools.claude_code_hook_scanner import register
+        from praetor.tools.claude_code_hook_scanner import register
         from mcp.server.fastmcp import FastMCP
         mcp = FastMCP("test")
         register(mcp)
@@ -234,7 +234,7 @@ class McpStdioShellMetaBehaviorTest(unittest.TestCase):
 
     def test_critical_patterns_detected(self):
         # Test the classifier helper directly
-        from burpsuite_mcp.tools.mcp_stdio_shell_meta_probe import (
+        from praetor.tools.mcp_stdio_shell_meta_probe import (
             _scan_value,
         )
         findings: list[dict] = []
@@ -260,11 +260,11 @@ class McpSchemaDriftBehaviorTest(unittest.IsolatedAsyncioTestCase):
     """Snapshot + diff logic — verify baseline/drift detection."""
 
     async def _call(self, server_id: str, inventory: dict, intel_dir: Path):
-        from burpsuite_mcp.tools.mcp_schema_drift import register
+        from praetor.tools.mcp_schema_drift import register
         from mcp.server.fastmcp import FastMCP
         mcp = FastMCP("test")
         # Patch _intel_dir to point at our temp
-        with patch("burpsuite_mcp.tools.mcp_schema_drift._intel_dir",
+        with patch("praetor.tools.mcp_schema_drift._intel_dir",
                    return_value=intel_dir):
             register(mcp)
             for t in await mcp.list_tools():

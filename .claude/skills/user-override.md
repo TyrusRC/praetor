@@ -109,7 +109,7 @@ Substring-matched against the auto-filter list. Use case: testing OAuth-via-Goog
 Use when an entire knowledge file should NOT be skipped by `auto_probe` for this engagement.
 
 ```python
-# Edit mcp-server/src/burpsuite_mcp/tools/scan.py:
+# Edit mcp-server/src/praetor/tools/scan.py:
 # _REFERENCE_ONLY = { ... }   ← remove the file from this set
 ```
 
@@ -168,7 +168,7 @@ When the bug doesn't fit a catalogued class:
 
 1. Pick the closest known class for `vuln_type` (e.g. "auth_bypass" for novel auth flaws). The advisor will skip Q5 (unknown vuln_type → DEFAULT REPORT, R2).
 2. Put the actual technique in `evidence_text` and `description` — this is what the report uses, not the class label.
-3. If the class is genuinely new and you'll see it again on this engagement, add a knowledge file under `mcp-server/src/burpsuite_mcp/knowledge/<class>.json` with at least one context + matchers. `auto_probe` will pick it up next run.
+3. If the class is genuinely new and you'll see it again on this engagement, add a knowledge file under `mcp-server/src/praetor/knowledge/<class>.json` with at least one context + matchers. `auto_probe` will pick it up next run.
 
 ## What you CANNOT override
 

@@ -79,7 +79,7 @@
     ],
     "alternative_installs": {
       "pipx": "pipx install 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server'",
-      "uv": "uv pip install -e ./mcp-server && uv run python -m burpsuite_mcp"
+      "uv": "uv pip install -e ./mcp-server && uv run python -m praetor"
     },
     "env": {
       "BURP_API_HOST": {

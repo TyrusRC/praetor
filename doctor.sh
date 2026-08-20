@@ -189,7 +189,7 @@ elif [ -x "$VENV/bin/python" ]; then
 fi
 if [ -n "$VENV_PY" ]; then
     pass "Python venv at mcp-server/.venv"
-    tool_count=$("$VENV_PY" -c "from burpsuite_mcp.server import mcp; print(len(mcp._tool_manager._tools))" 2>/dev/null || echo "0")
+    tool_count=$("$VENV_PY" -c "from praetor.server import mcp; print(len(mcp._tool_manager._tools))" 2>/dev/null || echo "0")
     if [ "${tool_count:-0}" -gt 0 ] 2>/dev/null; then
         pass "MCP server imports, $tool_count tools registered"
     else
@@ -414,7 +414,7 @@ head "Knowledge base"
 # reference-only set is consistent with the on-disk files. A drift between
 # the constants module and the directory listing means new KBs aren't being
 # routed through the prefix-loader.
-KB_DIR="$SCRIPT_DIR/mcp-server/src/burpsuite_mcp/knowledge"
+KB_DIR="$SCRIPT_DIR/mcp-server/src/praetor/knowledge"
 if [ -d "$KB_DIR" ]; then
     # JSON file count (exclude underscore-prefixed meta files)
     kb_total=$(find "$KB_DIR" -maxdepth 1 -name '*.json' ! -name '_*' 2>/dev/null | wc -l | tr -d ' ')
@@ -423,7 +423,7 @@ if [ -d "$KB_DIR" ]; then
     if [ -n "$VENV_PY" ]; then
         # Use the venv python to ask the scan module how many KBs are
         # reference-only — this is the same source of truth auto_probe uses.
-        ref_count=$("$VENV_PY" -c "from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY; print(len(_REFERENCE_ONLY))" 2>/dev/null || echo "?")
+        ref_count=$("$VENV_PY" -c "from praetor.tools.scan._constants import _REFERENCE_ONLY; print(len(_REFERENCE_ONLY))" 2>/dev/null || echo "?")
         if [ "$ref_count" != "?" ] && [ "$ref_count" -gt 0 ] 2>/dev/null; then
             auto_count=$((kb_total - ref_count))
             pass "KB routing: $auto_count auto-probe + $ref_count reference-only"
@@ -434,7 +434,7 @@ if [ -d "$KB_DIR" ]; then
         # Verify every reference-only entry corresponds to a real .json
         orphan=$("$VENV_PY" -c "
 from pathlib import Path
-from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+from praetor.tools.scan._constants import _REFERENCE_ONLY
 files = {p.stem for p in Path('$KB_DIR').glob('*.json')}
 print(','.join(sorted(r for r in _REFERENCE_ONLY if r not in files)))
 " 2>/dev/null)

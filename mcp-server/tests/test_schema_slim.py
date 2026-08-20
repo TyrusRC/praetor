@@ -3,7 +3,7 @@
 import asyncio
 import unittest
 
-from burpsuite_mcp._schema_slim import strip_titles
+from praetor._schema_slim import strip_titles
 
 
 class StripTitlesTest(unittest.TestCase):
@@ -56,7 +56,7 @@ class ServerManifestTest(unittest.TestCase):
     """The slimming runs at import time in server.py — assert it took effect."""
 
     def test_no_title_metadata_remains_and_tools_still_run(self):
-        from burpsuite_mcp.server import mcp
+        from praetor.server import mcp
 
         tools = asyncio.run(mcp.list_tools())
         self.assertGreater(len(tools), 100)

@@ -6,8 +6,8 @@ import base64
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.exploit.msfrpc import (
+from praetor import server
+from praetor.tools.exploit.msfrpc import (
     _module_type_for,
     _pack,
     _TOKEN_CACHE,
@@ -75,7 +75,7 @@ class MsfrpcModuleInfoTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 1}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("msfrpc_module_info")
             out = await fn(module_name="exploit/multi/http/log4shell_header_injection")
@@ -83,7 +83,7 @@ class MsfrpcModuleInfoTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["details"]["rank"], "excellent")
 
         # RPC body must contain module.info + type='exploit' + short name
-        from burpsuite_mcp.tools.exploit.msfrpc import unpackb
+        from praetor.tools.exploit.msfrpc import unpackb
         body = unpackb(base64.b64decode(sent[0]["data_b64"]))
         self.assertEqual(body[0], "module.info")
         self.assertEqual(body[2], "exploit")
@@ -120,9 +120,9 @@ class MsfrpcModuleCheckTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 5}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             fn = _tool("msfrpc_module_check")
             out = await fn(
@@ -142,9 +142,9 @@ class MsfrpcModuleCheckTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 6}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             fn = _tool("msfrpc_module_check")
             out = await fn(
@@ -163,9 +163,9 @@ class MsfrpcModuleCheckTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 7}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             fn = _tool("msfrpc_module_check")
             out = await fn(module_name="exploit/multi/http/x",
@@ -201,9 +201,9 @@ class MsfrpcModuleExecuteTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 10}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             fn = _tool("msfrpc_module_execute")
             out = await fn(
@@ -224,9 +224,9 @@ class MsfrpcModuleExecuteTest(unittest.IsolatedAsyncioTestCase):
             return {"status_code": 200, "response_body_b64": body_b64,
                     "proxy_index": 11}
 
-        with patch("burpsuite_mcp.tools.exploit.msfrpc.client.post",
+        with patch("praetor.tools.exploit.msfrpc.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.metasploit.check_scope",
+             patch("praetor.tools.exploit.metasploit.check_scope",
                    new=AsyncMock(return_value={"in_scope": True})):
             fn = _tool("msfrpc_module_execute")
             out = await fn(module_name="exploit/multi/http/x",

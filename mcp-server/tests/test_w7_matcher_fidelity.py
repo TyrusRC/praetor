@@ -22,7 +22,7 @@ import re
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
+from praetor.tools.scan._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
 
 
 # (category, positive_response_dict, expected_match_atleast)

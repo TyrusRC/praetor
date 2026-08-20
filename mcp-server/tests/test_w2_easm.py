@@ -7,12 +7,12 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from burpsuite_mcp.tools.easm import findings_diff as fd_mod
-from burpsuite_mcp.tools.easm import format_pr_comment as pr_mod
-from burpsuite_mcp.tools.easm import monitor_loop as ml_mod
-from burpsuite_mcp.tools.easm import recorded_login as rl_mod
-from burpsuite_mcp.tools.notes import _helpers as nh
-from burpsuite_mcp.tools.recon_extended import TAKEOVER_FINGERPRINTS
+from praetor.tools.easm import findings_diff as fd_mod
+from praetor.tools.easm import format_pr_comment as pr_mod
+from praetor.tools.easm import monitor_loop as ml_mod
+from praetor.tools.easm import recorded_login as rl_mod
+from praetor.tools.notes import _helpers as nh
+from praetor.tools.recon_extended import TAKEOVER_FINGERPRINTS
 
 
 class W2TakeoverFingerprintsTest(unittest.TestCase):

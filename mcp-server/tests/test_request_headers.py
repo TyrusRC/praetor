@@ -6,7 +6,7 @@ Run: uv run python -m unittest tests.test_request_headers -v
 import unittest
 from unittest.mock import patch
 
-from burpsuite_mcp.tools._request_headers import (
+from praetor.tools._request_headers import (
     _DEFAULT_BROWSER_HEADERS,
     _domain_from_url,
     apply_realistic_headers,
@@ -31,7 +31,7 @@ class DomainExtractionTests(unittest.TestCase):
 class ApplyRealisticHeadersTests(unittest.TestCase):
     def test_no_caller_no_profile_injects_defaults(self):
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={},
         ):
             out = apply_realistic_headers("https://example.com/", None)
@@ -43,7 +43,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
 
     def test_caller_user_agent_wins_over_default(self):
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={},
         ):
             out = apply_realistic_headers(
@@ -53,7 +53,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
 
     def test_caller_case_insensitive_overrides_default(self):
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={},
         ):
             out = apply_realistic_headers(
@@ -71,7 +71,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
             "Authorization": "Bearer xyz",
         }
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers("https://example.com/", None)
@@ -84,7 +84,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
     def test_caller_overrides_profile(self):
         profile = {"User-Agent": "profile-ua", "Cookie": "profile-cookie"}
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers(
@@ -98,7 +98,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
     def test_bare_skips_everything(self):
         profile = {"User-Agent": "profile-ua"}
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers(
@@ -112,7 +112,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
 
     def test_bare_with_no_headers_returns_empty(self):
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={"User-Agent": "ua"},
         ):
             out = apply_realistic_headers("https://example.com/", None, bare=True)
@@ -128,7 +128,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
             "Connection": "keep-alive",
         }
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers("https://new.example.com/", None)
@@ -141,7 +141,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
 
     def test_empty_url_no_profile_lookup_defaults_apply(self):
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={},
         ) as m:
             out = apply_realistic_headers("", None)
@@ -152,7 +152,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
 
     def test_all_default_headers_present_with_clean_request(self):
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={},
         ):
             out = apply_realistic_headers("https://example.com/", None)
@@ -168,7 +168,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
             "Content-Type": "application/x-www-form-urlencoded",
         }
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers(
@@ -182,7 +182,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
     def test_unsafe_caller_still_wins(self):
         profile = {"Host": "profile-host.com", "Content-Length": "999"}
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers(
@@ -196,7 +196,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
     def test_unsafe_bare_takes_priority(self):
         profile = {"Host": "profile-host.com"}
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value=profile,
         ):
             out = apply_realistic_headers(
@@ -207,7 +207,7 @@ class ApplyRealisticHeadersTests(unittest.TestCase):
     def test_does_not_mutate_caller_dict(self):
         caller = {"X-Custom": "val"}
         with patch(
-            "burpsuite_mcp.tools._request_headers._load_realistic_headers",
+            "praetor.tools._request_headers._load_realistic_headers",
             return_value={},
         ):
             out = apply_realistic_headers("https://example.com/", caller)

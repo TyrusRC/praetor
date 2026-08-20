@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.notes import triager_review
+from praetor.tools.notes import triager_review
 
 
 def _stub_mcp():

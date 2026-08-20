@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import unittest
 
-from burpsuite_mcp.tools.vuln.test_ssti import (
+from praetor.tools.vuln.test_ssti import (
     _POLYGLOT,
     _POLYGLOT_HINTS,
     _DISTINGUISHERS,

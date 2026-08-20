@@ -17,10 +17,10 @@ import os
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.scan._helpers import _load_all_knowledge
-from burpsuite_mcp.tools.scan._prioritise import class_value, prioritise, score_entry
+from praetor.tools.scan._helpers import _load_all_knowledge
+from praetor.tools.scan._prioritise import class_value, prioritise, score_entry
 
-KNOWLEDGE_DIR = Path(__file__).resolve().parents[1] / "src" / "burpsuite_mcp" / "knowledge"
+KNOWLEDGE_DIR = Path(__file__).resolve().parents[1] / "src" / "praetor" / "knowledge"
 
 
 # ── Mirror of MatcherEngine.isDiscriminating (Java) ────────────────────────

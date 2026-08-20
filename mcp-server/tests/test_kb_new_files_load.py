@@ -3,7 +3,7 @@ import json
 import unittest
 from pathlib import Path
 
-KB_DIR = Path(__file__).parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB_DIR = Path(__file__).parent.parent / "src" / "praetor" / "knowledge"
 
 NEW_FILES = [
     "state_machine_race.json",
@@ -42,12 +42,12 @@ class KbNewFilesLoadTest(unittest.TestCase):
 class ReferenceOnlySkipsAutoProbeTest(unittest.TestCase):
     def test_dos_reference_only_in_set(self):
         # DoS-class KBs stay reference-only per Rule 5.
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         for name in ("h2_continuation_flood",):
             self.assertIn(name, _REFERENCE_ONLY, f"{name} should be reference-only")
 
     def test_seven_auto_probe_NOT_in_reference_only(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         # As of Praetor v1.0 (Wave 5) mcp_server_attacks + rag_injection were
         # promoted out of reference-only into active auto_probe. Verify here.
         # W29-i (2026-06-11): webauthn_passkey_attacks contexts merged INTO

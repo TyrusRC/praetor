@@ -9,7 +9,7 @@
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io/)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows%20%7C%20wsl-blue)](#supported-platforms)
 
-> **v1.0** — the repo is `github.com/TyrusRC/praetor`. Binaries: `praetor-mcp` (MCP server) and `praetor-burp-ext-<version>.jar` (Burp extension). The Python package directory is still `burpsuite_mcp/`; the import-path rename lands in v1.1.
+> **v1.0** — the repo is `github.com/TyrusRC/praetor`. Binaries: `praetor-mcp` (MCP server) and `praetor-burp-ext-<version>.jar` (Burp extension). The Python package directory is `praetor/` (import-path rename completed in v1.1).
 
 Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into an agentic pentester and red-teamer across **two co-equal lanes**:
 
@@ -104,7 +104,7 @@ Or in `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "burpsuite": {
+    "praetor": {
       "command": "uvx",
       "args": [
         "--from",
@@ -158,9 +158,9 @@ Create `.mcp.json` in the project root. The file is gitignored; each developer m
 ```json
 {
   "mcpServers": {
-    "burpsuite": {
+    "praetor": {
       "command": "/absolute/path/to/praetor/mcp-server/.venv/bin/python",
-      "args": ["-m", "burpsuite_mcp"]
+      "args": ["-m", "praetor"]
     }
   }
 }
@@ -299,7 +299,7 @@ Read-only context the agent can attach without spending tool budget. URIs:
 
 ## Knowledge Base
 
-The adaptive scan engine reads JSON files from `mcp-server/src/burpsuite_mcp/knowledge/`. Each file declares contexts, server-side matchers, and optional craft guidance for dynamic payload generation. Add a new `.json` file to extend coverage; `auto_probe` picks it up at runtime. The full per-category breakdown lives in [`mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md`](mcp-server/src/burpsuite_mcp/knowledge/_INDEX.md).
+The adaptive scan engine reads JSON files from `mcp-server/src/praetor/knowledge/`. Each file declares contexts, server-side matchers, and optional craft guidance for dynamic payload generation. Add a new `.json` file to extend coverage; `auto_probe` picks it up at runtime. The full per-category breakdown lives in [`mcp-server/src/praetor/knowledge/_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
 
 ### Coverage
 

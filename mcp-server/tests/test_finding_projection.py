@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.notes._projection import (
+from praetor.tools.notes._projection import (
     render_finding_md, write_finding_projection, remove_finding_projection)
 
 FINDING = {
@@ -45,7 +45,7 @@ class TestProjection(unittest.TestCase):
     def test_hard_delete_removes_projection(self):
         # Exercises the wired delete path in _helpers._hard_delete_finding.
         import asyncio
-        from burpsuite_mcp.tools.notes._helpers import (
+        from praetor.tools.notes._helpers import (
             _safe_findings_path, _write_findings_file, _hard_delete_finding)
         rec = dict(FINDING)
         path = _safe_findings_path("x.test")
@@ -56,9 +56,9 @@ class TestProjection(unittest.TestCase):
         self.assertFalse(Path(".burp-intel/x.test/findings/VULN-001").exists())
 
     def test_record_retest_versions(self):
-        from burpsuite_mcp.tools.notes._helpers import (
+        from praetor.tools.notes._helpers import (
             _safe_findings_path, _write_findings_file, _load_findings_file)
-        from burpsuite_mcp.tools.notes.retest import _apply_retest
+        from praetor.tools.notes.retest import _apply_retest
         path = _safe_findings_path("x.test")
         _write_findings_file(path, {"findings": [dict(FINDING)], "last_modified": ""})
         _apply_retest("x.test", "VULN-001", "reopened", "2026-09-01", "", "still vuln")
@@ -70,8 +70,8 @@ class TestProjection(unittest.TestCase):
         self.assertTrue(Path(".burp-intel/x.test/findings/VULN-001/v2_2026-10-15_fixed.md").exists())
 
     def test_record_retest_bad_status(self):
-        from burpsuite_mcp.tools.notes._helpers import _safe_findings_path, _write_findings_file
-        from burpsuite_mcp.tools.notes.retest import _apply_retest
+        from praetor.tools.notes._helpers import _safe_findings_path, _write_findings_file
+        from praetor.tools.notes.retest import _apply_retest
         _write_findings_file(_safe_findings_path("x.test"),
                              {"findings": [dict(FINDING)], "last_modified": ""})
         with self.assertRaises(ValueError):

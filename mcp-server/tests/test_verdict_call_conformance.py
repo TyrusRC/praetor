@@ -13,7 +13,7 @@ import inspect
 import unittest
 from pathlib import Path
 
-from burpsuite_mcp.tools.testing import _verdict
+from praetor.tools.testing import _verdict
 
 SRC = Path(_verdict.__file__).resolve().parents[3]
 

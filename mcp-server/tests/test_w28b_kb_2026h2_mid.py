@@ -10,7 +10,7 @@ import json
 import unittest
 from pathlib import Path
 
-_KB = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+_KB = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 def _load(name: str) -> dict:
@@ -168,7 +168,7 @@ class W28cPickToolRoutingTest(unittest.IsolatedAsyncioTestCase):
     (sqli / xss / etc) must NOT regress."""
 
     async def _route(self, q: str) -> str:
-        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        from praetor.tools.advisor.pick_tool import pick_tool_impl
         return await pick_tool_impl(q)
 
     async def test_marimo_routes_to_websocket(self):

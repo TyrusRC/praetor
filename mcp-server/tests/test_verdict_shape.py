@@ -1,7 +1,7 @@
 """Token-lean verdict shape (Spec E1.2): no duplicate summary, no empty lists."""
 import unittest
 
-from burpsuite_mcp.tools.testing._verdict import make_verdict, to_assess_evidence
+from praetor.tools.testing._verdict import make_verdict, to_assess_evidence
 
 
 class VerdictShapeTest(unittest.TestCase):

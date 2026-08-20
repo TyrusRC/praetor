@@ -22,45 +22,45 @@ def _stub_mcp():
 class OAuthFlowHelpersTest(unittest.TestCase):
 
     def test_gen_state_random(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _gen_state
+        from praetor.tools.auth.oauth_flow import _gen_state
         s1 = _gen_state()
         s2 = _gen_state()
         self.assertNotEqual(s1, s2)
         self.assertGreater(len(s1), 16)
 
     def test_gen_pkce_pair_s256(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _gen_pkce_pair
+        from praetor.tools.auth.oauth_flow import _gen_pkce_pair
         verifier, challenge = _gen_pkce_pair("S256")
         # S256 base64url SHA-256 yields 43 chars (no padding).
         self.assertEqual(len(challenge), 43)
         self.assertNotEqual(verifier, challenge)
 
     def test_gen_pkce_pair_plain(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _gen_pkce_pair
+        from praetor.tools.auth.oauth_flow import _gen_pkce_pair
         verifier, challenge = _gen_pkce_pair("plain")
         # Plain: challenge == verifier.
         self.assertEqual(verifier, challenge)
 
     def test_gen_pkce_pair_rejects_unknown(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _gen_pkce_pair
+        from praetor.tools.auth.oauth_flow import _gen_pkce_pair
         with self.assertRaises(ValueError):
             _gen_pkce_pair("MD5")
 
     def test_extract_query_present(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _extract_query
+        from praetor.tools.auth.oauth_flow import _extract_query
         url = "https://app.example.com/cb?code=abc&state=xyz&foo=bar"
         self.assertEqual(_extract_query(url, "code"), "abc")
         self.assertEqual(_extract_query(url, "state"), "xyz")
 
     def test_extract_query_missing(self):
-        from burpsuite_mcp.tools.auth.oauth_flow import _extract_query
+        from praetor.tools.auth.oauth_flow import _extract_query
         self.assertEqual(_extract_query("https://x.com/", "code"), "")
 
 
 class OAuthFlowSimulatorContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
         stub, captured = _stub_mcp()
         oauth_flow.register(stub)
         self.assertIn("oauth_flow_simulator", captured)
@@ -68,7 +68,7 @@ class OAuthFlowSimulatorContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(sig, (dict, "dict"))
 
     async def test_missing_required_args_error_verdict(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
         stub, captured = _stub_mcp()
         oauth_flow.register(stub)
         out = await captured["oauth_flow_simulator"](
@@ -86,7 +86,7 @@ class OAuthFlowSimulatorMockedFlowTest(unittest.IsolatedAsyncioTestCase):
     perfectly-defended IdP — should return FAILED (clean)."""
 
     async def test_clean_idp_returns_failed_verdict(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
 
         call_log: list[dict] = []
 
@@ -156,7 +156,7 @@ class OAuthFlowSimulatorMockedFlowTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(out["details"]["pkce_used"])
 
     async def test_redirect_uri_bypass_detected(self):
-        from burpsuite_mcp.tools.auth import oauth_flow
+        from praetor.tools.auth import oauth_flow
 
         async def fake_post(path, json=None):
             url = (json or {}).get("url", "")

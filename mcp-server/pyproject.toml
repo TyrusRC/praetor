@@ -3,7 +3,7 @@ name = "praetor-mcp"
 version = "1.0.0"
 description = "Praetor — agentic DAST orchestrator for Burp Suite. MCP server with persistent target memory, KB-driven probes, save-finding pipeline, and 11-agent team."
 license = "Apache-2.0"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "Tyrus"}]
 keywords = ["mcp", "burp-suite", "pentest", "security", "bug-bounty", "praetor", "dast", "agentic-security"]
@@ -31,17 +31,15 @@ Repository = "https://github.com/TyrusRC/praetor"
 Issues = "https://github.com/TyrusRC/praetor/issues"
 
 [project.scripts]
-praetor-mcp = "burpsuite_mcp.__main__:main"
-# Backwards-compatible aliases — kept for v1.x release line.
-burpsuite-mcp = "burpsuite_mcp.__main__:main"
+praetor-mcp = "praetor.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/burpsuite_mcp"]
+packages = ["src/praetor"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/burpsuite_mcp/data" = "burpsuite_mcp/data"
-"src/burpsuite_mcp/tools/analysis/rulesets" = "burpsuite_mcp/tools/analysis/rulesets"
+"src/praetor/data" = "praetor/data"
+"src/praetor/tools/analysis/rulesets" = "praetor/tools/analysis/rulesets"

@@ -8,9 +8,9 @@ nothing may be stated that was not actually captured."
 
 import unittest
 
-from burpsuite_mcp.tools.notes._projection import render_finding_md
-from burpsuite_mcp.tools.report.platforms import format_platform_finding
-from burpsuite_mcp.tools.report.severity import (
+from praetor.tools.notes._projection import render_finding_md
+from praetor.tools.report.platforms import format_platform_finding
+from praetor.tools.report.severity import (
     cvss4_for_finding,
     severity_cap_for,
     severity_cvss_conflict,
@@ -191,7 +191,7 @@ class TestReportCountHygiene(unittest.TestCase):
     }
 
     def test_client_coverage_names_classes_without_counts(self):
-        from burpsuite_mcp.tools.report.builders import build_coverage_section
+        from praetor.tools.report.builders import build_coverage_section
         out = build_coverage_section(self.COVERAGE, internal=False)
         self.assertIn("sqli", out)
         self.assertNotIn("Total parameters tested", out)
@@ -199,17 +199,17 @@ class TestReportCountHygiene(unittest.TestCase):
         self.assertNotIn("Knowledge base version", out)
 
     def test_internal_coverage_keeps_the_tallies(self):
-        from burpsuite_mcp.tools.report.builders import build_coverage_section
+        from praetor.tools.report.builders import build_coverage_section
         out = build_coverage_section(self.COVERAGE, internal=True)
         self.assertIn("Total parameters tested: 2", out.replace("**", ""))
         self.assertIn("Knowledge base version", out)
 
     def test_empty_coverage_renders_nothing(self):
-        from burpsuite_mcp.tools.report.builders import build_coverage_section
+        from praetor.tools.report.builders import build_coverage_section
         self.assertEqual(build_coverage_section({}, internal=True), "")
 
     def test_methodology_carries_no_capability_tallies(self):
-        from burpsuite_mcp.tools.report.builders import build_methodology_section
+        from praetor.tools.report.builders import build_methodology_section
         out = build_methodology_section()
         self.assertNotIn("25+", out)
         self.assertNotIn("Claude", out)
@@ -220,7 +220,7 @@ class TestFieldTestRegressions(unittest.TestCase):
 
     def test_custom_index_keys_are_stripped_from_client_reports(self):
         """An operator's own *_index labels are still Burp bookkeeping."""
-        from burpsuite_mcp.tools.report.builders import build_finding_section
+        from praetor.tools.report.builders import build_finding_section
         out = build_finding_section({
             "title": "SQLi", "severity": "CRITICAL", "vuln_type": "sqli",
             "endpoint": "/x", "impact": "dumps users",
@@ -231,7 +231,7 @@ class TestFieldTestRegressions(unittest.TestCase):
             self.assertNotIn(k, out)
 
     def test_internal_report_keeps_them(self):
-        from burpsuite_mcp.tools.report.builders import build_finding_section
+        from praetor.tools.report.builders import build_finding_section
         out = build_finding_section({
             "title": "SQLi", "severity": "CRITICAL", "vuln_type": "sqli",
             "endpoint": "/x", "evidence": {"true_branch_index": 118},

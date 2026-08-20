@@ -6,8 +6,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.testing._verdict import is_actionable, to_assess_evidence
+from praetor import server
+from praetor.tools.testing._verdict import is_actionable, to_assess_evidence
 
 
 def _tool(name: str):
@@ -38,9 +38,9 @@ class ConfirmSqliVerdictTest(unittest.IsolatedAsyncioTestCase):
                 "status_code": 200,
                 "proxy_index": 42,
             }
-        with patch("burpsuite_mcp.tools.exploit.confirm_sqli.client.post",
+        with patch("praetor.tools.exploit.confirm_sqli.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_sqli.make_marker",
+             patch("praetor.tools.exploit.confirm_sqli.make_marker",
                    return_value="m-deadbeef"):
             fn = _tool("confirm_sqli")
             out = await fn(endpoint="https://t/x", parameter="id",
@@ -53,7 +53,7 @@ class ConfirmSqliVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"response_body": "no marker here", "status_code": 200,
                     "proxy_index": 7}
-        with patch("burpsuite_mcp.tools.exploit.confirm_sqli.client.post",
+        with patch("praetor.tools.exploit.confirm_sqli.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_sqli")
             out = await fn(endpoint="https://t/x", parameter="id")
@@ -79,9 +79,9 @@ class ConfirmSqliVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.exploit.confirm_sqli.client.post",
+        with patch("praetor.tools.exploit.confirm_sqli.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_sqli.time.monotonic",
+             patch("praetor.tools.exploit.confirm_sqli.time.monotonic",
                    side_effect=fake_monotonic):
             fn = _tool("confirm_sqli")
             out = await fn(endpoint="https://t/x", parameter="id",
@@ -111,9 +111,9 @@ class ConfirmSqliVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return next(responses)
 
-        with patch("burpsuite_mcp.tools.exploit.confirm_sqli.client.post",
+        with patch("praetor.tools.exploit.confirm_sqli.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_sqli.time.monotonic",
+             patch("praetor.tools.exploit.confirm_sqli.time.monotonic",
                    side_effect=fake_monotonic):
             fn = _tool("confirm_sqli")
             out = await fn(endpoint="https://t/x", parameter="id",
@@ -144,7 +144,7 @@ class ConfirmSstiVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"response_body": "user submitted: 392", "status_code": 200,
                     "proxy_index": 11}
-        with patch("burpsuite_mcp.tools.exploit.confirm_ssti.client.post",
+        with patch("praetor.tools.exploit.confirm_ssti.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_ssti")
             out = await fn(endpoint="https://t/x", parameter="q", engine="freemarker")
@@ -155,7 +155,7 @@ class ConfirmSstiVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"response_body": "no rendering here", "status_code": 200,
                     "proxy_index": 3}
-        with patch("burpsuite_mcp.tools.exploit.confirm_ssti.client.post",
+        with patch("praetor.tools.exploit.confirm_ssti.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_ssti")
             out = await fn(endpoint="https://t/x", parameter="q", engine="freemarker")
@@ -172,7 +172,7 @@ class ConfirmSsrfVerdictTest(unittest.IsolatedAsyncioTestCase):
             if path == "/api/collaborator/payload":
                 return {"error": "Community edition"}
             return {}
-        with patch("burpsuite_mcp.tools.exploit.confirm_ssrf.client.post",
+        with patch("praetor.tools.exploit.confirm_ssrf.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_ssrf")
             out = await fn(endpoint="https://t/fetch", parameter="url")
@@ -194,13 +194,13 @@ class ConfirmSsrfVerdictTest(unittest.IsolatedAsyncioTestCase):
                                        "raw": "ssrf-deadbeef.xyz.oastify.com"}]}
 
         # Force the marker so we can ensure poll matches
-        with patch("burpsuite_mcp.tools.exploit.confirm_ssrf.client.post",
+        with patch("praetor.tools.exploit.confirm_ssrf.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_ssrf.client.get",
+             patch("praetor.tools.exploit.confirm_ssrf.client.get",
                    new=AsyncMock(side_effect=fake_get)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_ssrf.make_marker",
+             patch("praetor.tools.exploit.confirm_ssrf.make_marker",
                    return_value="ssrf-deadbeef"), \
-             patch("burpsuite_mcp.tools.exploit.confirm_ssrf.asyncio.sleep",
+             patch("praetor.tools.exploit.confirm_ssrf.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
             fn = _tool("confirm_ssrf")
             out = await fn(endpoint="https://t/fetch", parameter="url",
@@ -222,11 +222,11 @@ class ConfirmSsrfVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_get(path):
             return {"interactions": []}
 
-        with patch("burpsuite_mcp.tools.exploit.confirm_ssrf.client.post",
+        with patch("praetor.tools.exploit.confirm_ssrf.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_ssrf.client.get",
+             patch("praetor.tools.exploit.confirm_ssrf.client.get",
                    new=AsyncMock(side_effect=fake_get)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_ssrf.asyncio.sleep",
+             patch("praetor.tools.exploit.confirm_ssrf.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
             fn = _tool("confirm_ssrf")
             out = await fn(endpoint="https://t/fetch", parameter="url", poll_seconds=1)
@@ -253,7 +253,7 @@ class ConfirmXxeVerdictTest(unittest.IsolatedAsyncioTestCase):
                 "status_code": 200,
                 "proxy_index": 99,
             }
-        with patch("burpsuite_mcp.tools.exploit.confirm_xxe.client.post",
+        with patch("praetor.tools.exploit.confirm_xxe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_xxe")
             out = await fn(endpoint="https://t/xml", mode="inband")
@@ -263,7 +263,7 @@ class ConfirmXxeVerdictTest(unittest.IsolatedAsyncioTestCase):
     async def test_inband_no_extract_failed(self):
         async def fake_post(path, json=None):
             return {"response_body": "<r></r>", "status_code": 200, "proxy_index": 1}
-        with patch("burpsuite_mcp.tools.exploit.confirm_xxe.client.post",
+        with patch("praetor.tools.exploit.confirm_xxe.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_xxe")
             out = await fn(endpoint="https://t/xml", mode="inband")
@@ -298,9 +298,9 @@ class ConfirmRceVerdictTest(unittest.IsolatedAsyncioTestCase):
             body = "junk before M-deadbeef-START\nuid=1000(testuser)\nM-deadbeef-END more junk"
             return {"response_body": body, "status_code": 200, "proxy_index": 77}
 
-        with patch("burpsuite_mcp.tools.exploit.confirm_rce.client.post",
+        with patch("praetor.tools.exploit.confirm_rce.client.post",
                    new=AsyncMock(side_effect=fake_post)), \
-             patch("burpsuite_mcp.tools.exploit.confirm_rce.make_marker",
+             patch("praetor.tools.exploit.confirm_rce.make_marker",
                    return_value="m-deadbeef"):
             fn = _tool("confirm_rce")
             out = await fn(endpoint="https://t/x", parameter="cmd",
@@ -313,7 +313,7 @@ class ConfirmRceVerdictTest(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"response_body": "no marker here", "status_code": 200,
                     "proxy_index": 5}
-        with patch("burpsuite_mcp.tools.exploit.confirm_rce.client.post",
+        with patch("praetor.tools.exploit.confirm_rce.client.post",
                    new=AsyncMock(side_effect=fake_post)):
             fn = _tool("confirm_rce")
             out = await fn(endpoint="https://t/x", parameter="cmd")
@@ -339,7 +339,7 @@ class PickToolRoutesConfirmStarTest(unittest.IsolatedAsyncioTestCase):
     point of these audited exploit-confirmation tools."""
 
     async def _route(self, query):
-        from burpsuite_mcp.tools.advisor.pick_tool import pick_tool_impl
+        from praetor.tools.advisor.pick_tool import pick_tool_impl
         return await pick_tool_impl(query)
 
     async def test_routes_confirm_sqli(self):

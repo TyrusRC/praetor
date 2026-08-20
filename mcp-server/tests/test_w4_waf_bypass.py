@@ -5,10 +5,10 @@ import unittest
 from pathlib import Path
 from urllib.parse import urlparse
 
-from burpsuite_mcp.tools import waf_bypass
+from praetor.tools import waf_bypass
 
 
-KB = Path(__file__).resolve().parent.parent / "src" / "burpsuite_mcp" / "knowledge"
+KB = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 
 
 class W4SplitBuildTest(unittest.TestCase):

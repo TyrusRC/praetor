@@ -1,0 +1,463 @@
+"""save_target_intel + load_target_intel + save_target_notes."""
+
+import json
+from datetime import datetime, timezone
+
+from mcp.server.fastmcp import FastMCP
+
+from praetor.tools.workspace import ensure_workspace
+from ._internals import (
+    VALID_CATEGORIES,
+    _atomic_write_json,
+    _deduplicate_finding,
+    _empty_structure,
+    _ensure_dir,
+    _intel_path,
+    _knowledge_version,
+    _utcnow_iso,
+)
+
+
+def register(mcp: FastMCP):
+
+    @mcp.tool()
+    async def save_target_intel(
+        domain: str,
+        category: str,
+        data: dict,
+    ) -> str:
+        """Save persistent target intelligence for a domain.
+
+        Args:
+            domain: Target domain
+            category: One of: profile, endpoints, coverage, findings, fingerprint, patterns
+            data: Category-specific data dict to save
+        """
+        if category not in VALID_CATEGORIES:
+            return f"Error: invalid category '{category}'. Must be one of: {', '.join(VALID_CATEGORIES)}"
+
+        dir_path = _ensure_dir(domain)
+        try:
+            ensure_workspace(domain)  # Spec 1: scaffold the engagement tree on the intel gate
+        except ValueError:
+            pass  # invalid domain handled by downstream path guards
+        file_path = dir_path / f"{category}.json"
+        now = _utcnow_iso()
+
+        if category == "patterns":
+            existing = _empty_structure("patterns")
+            if file_path.exists():
+                try:
+                    existing = json.loads(file_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    existing = _empty_structure("patterns")
+            patterns_list = existing.get("patterns", [])
+
+            new_patterns = data.get("patterns", [data] if "vuln_class" in data else [])
+            for pattern in new_patterns:
+                if "timestamp" not in pattern:
+                    pattern["timestamp"] = now
+                key = (pattern.get("vuln_class"), pattern.get("technique"))
+                found = False
+                for i, existing_p in enumerate(patterns_list):
+                    if (existing_p.get("vuln_class"), existing_p.get("technique")) == key:
+                        patterns_list[i] = {**existing_p, **pattern}
+                        found = True
+                        break
+                if not found:
+                    patterns_list.append(pattern)
+
+            existing["patterns"] = patterns_list
+            existing["last_modified"] = now
+            _atomic_write_json(file_path, existing)
+            return f"Saved pattern(s) for {domain} ({len(patterns_list)} total patterns)"
+
+        if category == "findings":
+            existing = _empty_structure("findings")
+            if file_path.exists():
+                try:
+                    existing = json.loads(file_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    existing = _empty_structure("findings")
+            findings_list = existing.get("findings", [])
+
+            new_findings = data.get("findings", [data] if "endpoint" in data else [])
+            for finding in new_findings:
+                if "timestamp" not in finding:
+                    finding["timestamp"] = now
+                findings_list = _deduplicate_finding(findings_list, finding)
+
+            existing_ids = {f.get("id") for f in findings_list if f.get("id")}
+            next_num = max((int(fid[1:]) for fid in existing_ids if fid.startswith("f") and fid[1:].isdigit()), default=0) + 1
+            for f in findings_list:
+                if not f.get("id"):
+                    f["id"] = f"f{next_num:03d}"
+                    next_num += 1
+
+            existing["findings"] = findings_list
+            existing["last_modified"] = now
+            _atomic_write_json(file_path, existing)
+            return f"Saved {len(new_findings)} finding(s) for {domain} ({len(findings_list)} total)"
+
+        if category == "coverage":
+            existing = _empty_structure("coverage")
+            if file_path.exists():
+                try:
+                    existing = json.loads(file_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    existing = _empty_structure("coverage")
+            entries = existing.get("entries", [])
+
+            new_entries = data.get("entries", [])
+            for new_entry in new_entries:
+                key = (new_entry.get("endpoint"), new_entry.get("parameter"))
+                found = False
+                for i, entry in enumerate(entries):
+                    if (entry.get("endpoint"), entry.get("parameter")) == key:
+                        entries[i] = {**entry, **new_entry}
+                        found = True
+                        break
+                if not found:
+                    entries.append(new_entry)
+
+            existing["entries"] = entries
+            existing["knowledge_version"] = _knowledge_version()
+            existing["last_modified"] = now
+            _atomic_write_json(file_path, existing)
+            return f"Coverage updated for {domain}: {len(entries)} entries (knowledge v{existing['knowledge_version']})"
+
+        # profile, endpoints, fingerprint: simple overwrite
+        data["last_modified"] = now
+        _atomic_write_json(file_path, data)
+        return f"Saved {category} for {domain}"
+
+    @mcp.tool()
+    async def load_target_intel(
+        domain: str,
+        category: str = "all",
+        limit: int = 0,
+        offset: int = 0,
+        sort_by: str = "",
+        status_filter: str = "",
+        chain_with_open: bool = False,
+        fields: str = "",
+    ) -> str:
+        """Load persistent target intelligence for a domain.
+
+        Args:
+            domain: Target domain
+            category: 'all' for summary, 'notes' for markdown, or a specific category
+            fields: For findings — comma-separated whitelist to project each finding
+                to (e.g. 'id,title,severity,status,endpoint,vuln_type'). Empty = full
+                objects. Token-lean session-start recall (Spec E1.1); the heavy
+                poc_request/evidence/reproductions/description fields are dropped
+                unless named.
+            limit: For findings/endpoints/coverage — paginate to N entries (0 = all). R24.
+            offset: Pagination offset.
+            sort_by: For findings — 'severity' (CRITICAL>HIGH>MEDIUM>LOW>INFO) or 'recency' (newest first).
+            status_filter: For findings — comma-separated statuses to keep (e.g. 'confirmed,suspected'). Empty = all.
+            chain_with_open: For findings — only return findings whose status is suspected/confirmed (chain-relevant).
+        """
+        dir_path = _intel_path(domain)
+        try:
+            ensure_workspace(domain)  # Spec 1: scaffold the engagement tree on the intel gate
+        except ValueError:
+            pass
+
+        if category == "notes":
+            notes_path = dir_path / "notes.md"
+            if notes_path.exists():
+                return notes_path.read_text(encoding="utf-8")
+            return "No notes saved for this target."
+
+        if category == "all":
+            summary_lines = [f"Target intel for {domain}:"]
+            for cat in VALID_CATEGORIES:
+                cat_path = dir_path / f"{cat}.json"
+                if not cat_path.exists():
+                    summary_lines.append(f"  {cat}: (none)")
+                    continue
+                try:
+                    data = json.loads(cat_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    summary_lines.append(f"  {cat}: (corrupted)")
+                    continue
+                if cat == "profile":
+                    tech = data.get("tech_stack", [])
+                    summary_lines.append(f"  profile: tech={', '.join(tech) if tech else 'unknown'}")
+                elif cat == "endpoints":
+                    endpoints = data.get("endpoints", [])
+                    summary_lines.append(f"  endpoints: {len(endpoints)} discovered")
+                elif cat == "coverage":
+                    entries = data.get("entries", [])
+                    kv = data.get("knowledge_version", "?")
+                    summary_lines.append(f"  coverage: {len(entries)} entries (knowledge v{kv})")
+                elif cat == "findings":
+                    findings = data.get("findings", [])
+                    by_status: dict[str, int] = {}
+                    for f in findings:
+                        status = f.get("status", "open")
+                        by_status[status] = by_status.get(status, 0) + 1
+                    status_str = ", ".join(f"{k}={v}" for k, v in by_status.items())
+                    summary_lines.append(f"  findings: {len(findings)} total ({status_str or 'none'})")
+                elif cat == "fingerprint":
+                    pages = data.get("pages", [])
+                    summary_lines.append(f"  fingerprint: {len(pages)} pages tracked")
+                elif cat == "patterns":
+                    patterns = data.get("patterns", [])
+                    summary_lines.append(f"  patterns: {len(patterns)} learned techniques")
+
+            notes_path = dir_path / "notes.md"
+            if notes_path.exists():
+                summary_lines.append("  notes: saved")
+            return "\n".join(summary_lines)
+
+        if category not in VALID_CATEGORIES:
+            return f"Error: invalid category '{category}'. Must be one of: all, notes, {', '.join(VALID_CATEGORIES)}"
+
+        cat_path = dir_path / f"{category}.json"
+        if not cat_path.exists():
+            return json.dumps(_empty_structure(category), separators=(",", ":"))
+
+        data = json.loads(cat_path.read_text(encoding="utf-8"))
+        stat = cat_path.stat()
+        if "_meta" not in data:
+            data["_meta"] = {}
+        data["_meta"]["last_modified"] = datetime.fromtimestamp(
+            stat.st_mtime, tz=timezone.utc
+        ).isoformat()
+
+        # ── R24: filter + sort + paginate findings/endpoints/coverage ──
+        if category == "findings":
+            findings = data.get("findings", []) or []
+            if chain_with_open:
+                findings = [f for f in findings if f.get("status", "") in ("suspected", "confirmed")]
+            if status_filter:
+                allowed = {s.strip() for s in status_filter.split(",") if s.strip()}
+                findings = [f for f in findings if f.get("status", "") in allowed]
+            if sort_by == "severity":
+                sev_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+                findings.sort(key=lambda f: sev_order.get(str(f.get("severity", "INFO")).upper(), 5))
+            elif sort_by == "recency":
+                findings.sort(
+                    key=lambda f: str(f.get("last_updated") or f.get("created") or ""),
+                    reverse=True,
+                )
+            data["_meta"]["filtered_count"] = len(findings)
+            if limit > 0:
+                findings = findings[offset:offset + limit]
+                data["_meta"]["offset"] = offset
+                data["_meta"]["limit"] = limit
+            if fields:
+                keep = [f.strip() for f in fields.split(",") if f.strip()]
+                findings = [{k: f.get(k) for k in keep if k in f} for f in findings]
+                data["_meta"]["projected_fields"] = keep
+            data["findings"] = findings
+        elif category in ("endpoints", "coverage") and limit > 0:
+            key = "endpoints" if category == "endpoints" else "entries"
+            items = data.get(key, []) or []
+            data["_meta"]["filtered_count"] = len(items)
+            data[key] = items[offset:offset + limit]
+            data["_meta"]["offset"] = offset
+            data["_meta"]["limit"] = limit
+
+        # Token-lean (Spec E1.3): compact separators — this is machine-consumed
+        # (Rule 20a runs it every session); no human reads the indentation.
+        return json.dumps(data, separators=(",", ":"), default=str)
+
+    @mcp.tool()
+    async def coverage_summary(
+        domain: str,
+        vuln_classes: str = "",
+    ) -> str:
+        """Coverage gap dashboard — "N endpoints untested for SQLi" breakdown.
+
+        Cross-references endpoints.json (discovered URLs+params) against
+        coverage.json (tested tuples) and reports per-vuln-class gaps. The
+        default vuln class list is the top 10 reportable web classes; pass
+        a comma-separated list to narrow.
+
+        Args:
+            domain: Target domain
+            vuln_classes: Comma-separated vuln classes to check. Empty = sqli,xss,
+                ssrf,idor,ssti,command_injection,path_traversal,xxe,open_redirect,
+                auth_bypass.
+        """
+        dir_path = _intel_path(domain)
+        endpoints_path = dir_path / "endpoints.json"
+        coverage_path = dir_path / "coverage.json"
+
+        if not endpoints_path.exists():
+            return (
+                f"No endpoints recorded for {domain}. "
+                "Run discover_attack_surface or full_recon first."
+            )
+
+        try:
+            endpoints_data = json.loads(endpoints_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            return f"endpoints.json unreadable: {e}"
+
+        endpoints = endpoints_data.get("endpoints", []) or []
+        if not endpoints:
+            return f"endpoints.json present but empty for {domain}."
+
+        coverage_entries: list[dict] = []
+        kv_recorded = None
+        if coverage_path.exists():
+            try:
+                cov = json.loads(coverage_path.read_text(encoding="utf-8"))
+                coverage_entries = cov.get("entries", []) or []
+                kv_recorded = cov.get("knowledge_version")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if vuln_classes.strip():
+            classes = [c.strip() for c in vuln_classes.split(",") if c.strip()]
+        else:
+            classes = [
+                "sqli", "xss", "ssrf", "idor", "ssti",
+                "command_injection", "path_traversal", "xxe",
+                "open_redirect", "auth_bypass",
+            ]
+
+        # Build (endpoint, parameter) -> set(tested_classes)
+        tested: dict[tuple[str, str], set[str]] = {}
+        for e in coverage_entries:
+            key = (e.get("endpoint", ""), e.get("parameter", ""))
+            cls = e.get("vuln_class") or e.get("class") or ""
+            if cls:
+                tested.setdefault(key, set()).add(cls)
+
+        # Enumerate (endpoint, parameter) tuples from endpoints.json
+        tuples: list[tuple[str, str]] = []
+        for ep in endpoints:
+            url = ep.get("url") or ep.get("endpoint") or ""
+            params = ep.get("parameters") or ep.get("params") or []
+            if not params:
+                tuples.append((url, ""))
+                continue
+            for p in params:
+                pname = p if isinstance(p, str) else (p.get("name") or "")
+                tuples.append((url, pname))
+
+        total_tuples = len(tuples)
+        lines = [
+            f"Coverage summary for {domain}",
+            f"  total (endpoint, param) tuples: {total_tuples}",
+            f"  tuples with any test recorded: {len(tested)}",
+        ]
+        if kv_recorded is not None:
+            current_kv = _knowledge_version()
+            drift = " (DRIFT — re-run auto_probe(skip_already_covered=False))" if kv_recorded != current_kv else ""
+            lines.append(f"  knowledge_version recorded: {kv_recorded} / current: {current_kv}{drift}")
+        lines.append("")
+        lines.append("Per-class untested counts:")
+        for cls in classes:
+            untested = sum(1 for key in tuples if cls not in tested.get(key, set()))
+            pct = (1 - untested / total_tuples) * 100 if total_tuples else 0
+            lines.append(f"  {cls:20} {untested:4} untested  ({pct:5.1f}% covered)")
+
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def next_untested_targets(
+        domain: str,
+        vuln_classes: str = "",
+        top_n: int = 10,
+    ) -> str:
+        """Rank the highest-value UNTESTED (endpoint, param, class) tuples as fire-ready next moves.
+
+        Where coverage_summary reports per-class counts, this surfaces the
+        specific tuples to hit next — ranked by parameter-name risk signal and
+        by how many classes remain untested — each with a ready auto_probe call.
+        Prevents rework and points the operator (or grow-agent) straight at the
+        gaps. Reads the same endpoints.json / coverage.json as coverage_summary.
+
+        Args:
+            domain: Target domain
+            vuln_classes: Comma-separated classes to consider (empty = default top-10 web classes)
+            top_n: Max tuples to return (default 10)
+        """
+        dir_path = _intel_path(domain)
+        endpoints_path = dir_path / "endpoints.json"
+        coverage_path = dir_path / "coverage.json"
+        if not endpoints_path.exists():
+            return f"No endpoints recorded for {domain}. Run discover_attack_surface or full_recon first."
+        try:
+            endpoints = (json.loads(endpoints_path.read_text(encoding="utf-8")).get("endpoints", []) or [])
+        except (json.JSONDecodeError, OSError) as e:
+            return f"endpoints.json unreadable: {e}"
+        if not endpoints:
+            return f"endpoints.json present but empty for {domain}."
+
+        tested: dict[tuple[str, str], set[str]] = {}
+        if coverage_path.exists():
+            try:
+                for e in json.loads(coverage_path.read_text(encoding="utf-8")).get("entries", []) or []:
+                    cls = e.get("vuln_class") or e.get("class") or ""
+                    if cls:
+                        tested.setdefault((e.get("endpoint", ""), e.get("parameter", "")), set()).add(cls)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if vuln_classes.strip():
+            classes = [c.strip() for c in vuln_classes.split(",") if c.strip()]
+        else:
+            classes = ["sqli", "xss", "ssrf", "idor", "ssti",
+                       "command_injection", "path_traversal", "xxe",
+                       "open_redirect", "auth_bypass"]
+
+        # Param-name → likely-class signal, reused from the scan risk map.
+        from praetor.tools.scan._constants import _PARAM_RISK_MAP
+        param_signals: dict[str, set[str]] = {}
+        for risk_key, names in _PARAM_RISK_MAP.items():
+            for n in names:
+                param_signals.setdefault(n.lower(), set()).update(risk_key.split("_"))
+
+        ranked = []
+        for ep in endpoints:
+            url = ep.get("url") or ep.get("endpoint") or ""
+            params = ep.get("parameters") or ep.get("params") or [""]
+            for p in params:
+                pname = p if isinstance(p, str) else (p.get("name") or "")
+                done = tested.get((url, pname), set())
+                untested = [c for c in classes if c not in done]
+                if not untested:
+                    continue
+                signals = param_signals.get(pname.lower(), set())
+                # Score: param-name signal for an untested class is highest-value;
+                # break ties by breadth of untested surface.
+                signal_hit = sum(1 for c in untested if any(s in c for s in signals))
+                score = signal_hit * 100 + len(untested)
+                ranked.append((score, url, pname, untested, signal_hit))
+
+        if not ranked:
+            return f"All ({len(classes)}) classes covered for every known tuple on {domain}. Expand endpoints or classes."
+        ranked.sort(key=lambda r: r[0], reverse=True)
+
+        lines = [f"Next untested targets for {domain} (top {min(top_n, len(ranked))} of {len(ranked)}):", ""]
+        for score, url, pname, untested, signal_hit in ranked[:top_n]:
+            flag = " ⚑ param-name signal" if signal_hit else ""
+            top_classes = untested[:3]
+            lines.append(f"  {url}  param={pname or '(none)'}{flag}")
+            lines.append(f"      untested: {', '.join(untested[:6])}{' …' if len(untested) > 6 else ''}")
+            lines.append(f"      → auto_probe(session='hunt', domain='{domain}', "
+                         f"targets=[{{'endpoint':'{url}','parameter':'{pname}'}}], categories={top_classes})")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def save_target_notes(
+        domain: str,
+        notes: str,
+    ) -> str:
+        """Save freeform markdown notes for a target.
+
+        Args:
+            domain: Target domain
+            notes: Markdown text to save (overwrites existing)
+        """
+        dir_path = _ensure_dir(domain)
+        notes_path = dir_path / "notes.md"
+        notes_path.write_text(notes, encoding="utf-8")
+        return f"Notes saved for {domain} ({len(notes)} chars)"

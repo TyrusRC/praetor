@@ -10,13 +10,13 @@ from __future__ import annotations
 import base64
 import unittest
 
-from burpsuite_mcp.tools.testing._verdict import is_actionable
+from praetor.tools.testing._verdict import is_actionable
 
 
 class JWTRefactorTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_alg_none_confirmed(self):
-        from burpsuite_mcp.tools.edge.test_jwt import test_jwt_impl
+        from praetor.tools.edge.test_jwt import test_jwt_impl
         hdr = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
         payload = base64.urlsafe_b64encode(b'{"sub":"x","role":"admin"}').rstrip(b"=").decode()
         token = f"{hdr}.{payload}."
@@ -27,7 +27,7 @@ class JWTRefactorTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("human_summary", r)
 
     async def test_clean_hs256_failed(self):
-        from burpsuite_mcp.tools.edge.test_jwt import test_jwt_impl
+        from praetor.tools.edge.test_jwt import test_jwt_impl
         hdr = base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b"=").decode()
         payload = base64.urlsafe_b64encode(b'{"sub":"user"}').rstrip(b"=").decode()
         token = f"{hdr}.{payload}.fakesig"
@@ -37,7 +37,7 @@ class JWTRefactorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r["vuln_type"], "jwt")
 
     async def test_invalid_jwt_returns_error_verdict(self):
-        from burpsuite_mcp.tools.edge.test_jwt import test_jwt_impl
+        from praetor.tools.edge.test_jwt import test_jwt_impl
         r = await test_jwt_impl("not-a-jwt")
         self.assertEqual(r["verdict"], "ERROR")
         self.assertEqual(r["vuln_type"], "jwt")
@@ -48,7 +48,7 @@ class AuthMatrixContractTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
         """Type signature check — auth_matrix declares dict return."""
-        from burpsuite_mcp.tools.testing import auth_matrix
+        from praetor.tools.testing import auth_matrix
         # Ensure the module imports and registers without error.
         captured: dict = {}
 
@@ -68,7 +68,7 @@ class AuthMatrixContractTest(unittest.TestCase):
 class CSRFContractTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools.vuln import test_csrf
+        from praetor.tools.vuln import test_csrf
         captured: dict = {}
 
         class _Stub:
@@ -87,7 +87,7 @@ class CSRFContractTest(unittest.TestCase):
 class LoginBypassContractTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools.auth import login_bypass
+        from praetor.tools.auth import login_bypass
         captured: dict = {}
 
         class _Stub:
@@ -105,7 +105,7 @@ class LoginBypassContractTest(unittest.TestCase):
 class MFABypassContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_session_returns_error_verdict(self):
-        from burpsuite_mcp.tools.auth import mfa_bypass
+        from praetor.tools.auth import mfa_bypass
         captured: dict = {}
 
         class _Stub:
@@ -126,7 +126,7 @@ class MFABypassContractTest(unittest.IsolatedAsyncioTestCase):
 class DOMSinksContractTest(unittest.TestCase):
 
     def test_signature_returns_dict(self):
-        from burpsuite_mcp.tools import dom_probe
+        from praetor.tools import dom_probe
         captured: dict = {}
 
         class _Stub:

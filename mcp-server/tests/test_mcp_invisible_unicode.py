@@ -1,7 +1,7 @@
 """D1 — invisible-unicode MCP tool-metadata detector."""
 import unittest
 
-from burpsuite_mcp.tools.mcp_invisible_unicode import (
+from praetor.tools.mcp_invisible_unicode import (
     find_hidden_unicode,
     scan_tool_metadata,
 )
@@ -54,7 +54,7 @@ class ScanToolMetadataTest(unittest.TestCase):
 class RegistrationTest(unittest.TestCase):
     def test_registers_and_detectors_callable(self):
         from mcp.server.fastmcp import FastMCP
-        from burpsuite_mcp.tools import mcp_invisible_unicode as m
+        from praetor.tools import mcp_invisible_unicode as m
         mcp = FastMCP("t")
         m.register(mcp)  # must not raise
         self.assertTrue(callable(m.find_hidden_unicode))

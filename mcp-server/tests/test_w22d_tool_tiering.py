@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from burpsuite_mcp.tools.advisor.pick_tool import (
+from praetor.tools.advisor.pick_tool import (
     TIER1_HUNT_LOOP,
     pick_tool_impl,
 )
@@ -91,14 +91,14 @@ class PickToolRoutingW22Test(unittest.IsolatedAsyncioTestCase):
 class ListTier1ToolsRegisteredTest(unittest.TestCase):
 
     def test_list_tier1_tools_registered(self):
-        from burpsuite_mcp import server
+        from praetor import server
         self.assertIn("list_tier1_tools", server.mcp._tool_manager._tools)
 
 
 class ListTier1ToolsReturnTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_returns_full_listing(self):
-        from burpsuite_mcp import server
+        from praetor import server
         fn = server.mcp._tool_manager._tools["list_tier1_tools"].fn
         out = await fn()
         self.assertEqual(out["tier"], 1)

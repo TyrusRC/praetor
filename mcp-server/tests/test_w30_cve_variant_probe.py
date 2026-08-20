@@ -6,7 +6,7 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
-from burpsuite_mcp.tools import cve_variant_probe as cvp
+from praetor.tools import cve_variant_probe as cvp
 
 
 def _stub_mcp():
@@ -231,7 +231,7 @@ class RegistrationAndRoutingTest(unittest.TestCase):
         self.assertIn("probe_cve_with_variants", captured)
 
     def test_pick_tool_routes_react2shell(self):
-        from burpsuite_mcp.tools.advisor.pick_tool import _MAPPINGS
+        from praetor.tools.advisor.pick_tool import _MAPPINGS
         match = None
         for keywords, tool_name, _ex in _MAPPINGS:
             if any(k == "react2shell" for k in keywords):
@@ -240,7 +240,7 @@ class RegistrationAndRoutingTest(unittest.TestCase):
         self.assertEqual(match, "probe_cve_with_variants")
 
     def test_pick_tool_routes_cve_id(self):
-        from burpsuite_mcp.tools.advisor.pick_tool import _MAPPINGS
+        from praetor.tools.advisor.pick_tool import _MAPPINGS
         match = None
         for keywords, tool_name, _ex in _MAPPINGS:
             if "cve-2025-55182" in keywords:

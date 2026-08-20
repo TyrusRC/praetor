@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from burpsuite_mcp.tools.notes._helpers import (
+from praetor.tools.notes._helpers import (
     _findings_lock,
     _load_findings_file,
     _write_findings_file,

@@ -62,7 +62,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
             ]
         }), encoding="utf-8")
 
-        from burpsuite_mcp.tools.scan import rank_targets
+        from praetor.tools.scan import rank_targets
         stub, captured = _stub_mcp()
         rank_targets.register(stub)
         ranked = await captured["rank_attack_targets"](domain="happy.example.com", top_k=5)
@@ -93,7 +93,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
         )
 
         # 3. Triager review — should pass.
-        from burpsuite_mcp.tools.notes import triager_review
+        from praetor.tools.notes import triager_review
         stub2, captured2 = _stub_mcp()
         triager_review.register(stub2)
         review = await captured2["review_finding_for_submission"](
@@ -103,7 +103,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
                         f"clean finding blocked: {review.get('blockers')}")
 
         # 4. PoC bundle — patch the Burp HTTP client + tar should land.
-        from burpsuite_mcp.tools.notes import poc_bundle
+        from praetor.tools.notes import poc_bundle
 
         async def _fake_get(path, **kwargs):
             assert path.startswith("/api/proxy/42")
@@ -140,7 +140,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
             "impact": "logs user out cross-origin",
         }]}), encoding="utf-8")
 
-        from burpsuite_mcp.tools.notes import triager_review
+        from praetor.tools.notes import triager_review
         stub, captured = _stub_mcp()
         triager_review.register(stub)
         review = await captured["review_finding_for_submission"](
@@ -159,7 +159,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
             "impact": "attacker redirects victim to evil.com",
         }]}), encoding="utf-8")
 
-        from burpsuite_mcp.tools.notes import triager_review
+        from praetor.tools.notes import triager_review
         stub, captured = _stub_mcp()
         triager_review.register(stub)
         review = await captured["review_finding_for_submission"](
@@ -177,7 +177,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
              "endpoint": "/api/proxy", "confidence": 0.85},
         ]}), encoding="utf-8")
 
-        from burpsuite_mcp.tools.notes import chain_proposer
+        from praetor.tools.notes import chain_proposer
         stub, captured = _stub_mcp()
         chain_proposer.register(stub)
         result = await captured["propose_chains"](domain="happy.example.com")

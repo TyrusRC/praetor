@@ -24,14 +24,14 @@ def _stub_mcp():
 class VulnRefactorsTest(unittest.TestCase):
 
     def test_websocket_returns_dict(self):
-        from burpsuite_mcp.tools.vuln import test_websocket
+        from praetor.tools.vuln import test_websocket
         stub, captured = _stub_mcp()
         test_websocket.register(stub)
         sig = captured["test_websocket"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_prototype_pollution_returns_dict(self):
-        from burpsuite_mcp.tools.vuln import test_prototype_pollution
+        from praetor.tools.vuln import test_prototype_pollution
         stub, captured = _stub_mcp()
         test_prototype_pollution.register(stub)
         sig = captured["test_prototype_pollution"].__annotations__.get("return")
@@ -41,7 +41,7 @@ class VulnRefactorsTest(unittest.TestCase):
 class EdgeRefactorsTest(unittest.TestCase):
 
     def test_cors_cloud_metadata_file_upload_return_dict(self):
-        from burpsuite_mcp.tools import edge
+        from praetor.tools import edge
         stub, captured = _stub_mcp()
         edge.register(stub)
         for name in ("test_cors", "test_cloud_metadata", "test_file_upload"):
@@ -54,21 +54,21 @@ class EdgeRefactorsTest(unittest.TestCase):
 class TestingExtendedRefactorsTest(unittest.TestCase):
 
     def test_business_logic_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import business_logic
+        from praetor.tools.testing_extended import business_logic
         stub, captured = _stub_mcp()
         business_logic.register(stub)
         sig = captured["test_business_logic"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_mass_assignment_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import mass_assignment
+        from praetor.tools.testing_extended import mass_assignment
         stub, captured = _stub_mcp()
         mass_assignment.register(stub)
         sig = captured["test_mass_assignment"].__annotations__.get("return")
         self.assertIn(sig, (dict, "dict"))
 
     def test_cache_poisoning_returns_dict(self):
-        from burpsuite_mcp.tools.testing_extended import cache_poisoning
+        from praetor.tools.testing_extended import cache_poisoning
         stub, captured = _stub_mcp()
         cache_poisoning.register(stub)
         sig = captured["test_cache_poisoning"].__annotations__.get("return")
@@ -78,7 +78,7 @@ class TestingExtendedRefactorsTest(unittest.TestCase):
 class ClickjackingPromotionTest(unittest.TestCase):
 
     def test_clickjacking_no_longer_reference_only(self):
-        from burpsuite_mcp.tools.scan._constants import _REFERENCE_ONLY
+        from praetor.tools.scan._constants import _REFERENCE_ONLY
         self.assertNotIn("clickjacking", _REFERENCE_ONLY)
 
     def test_clickjacking_matchers_normalised(self):
@@ -86,7 +86,7 @@ class ClickjackingPromotionTest(unittest.TestCase):
         instead of `headers` (array). Production MatcherEngine schema."""
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "clickjacking.json").read_text(encoding="utf-8")
         )
@@ -103,7 +103,7 @@ class ClickjackingPromotionTest(unittest.TestCase):
         """W11 tightened missing_frameguard with word matcher (settings/account/...)."""
         import json
         from pathlib import Path
-        from burpsuite_mcp.tools.scan._constants import KNOWLEDGE_DIR
+        from praetor.tools.scan._constants import KNOWLEDGE_DIR
         data = json.loads(
             (Path(KNOWLEDGE_DIR) / "clickjacking.json").read_text(encoding="utf-8")
         )

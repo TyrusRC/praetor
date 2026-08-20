@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import AsyncMock, patch
 
-from burpsuite_mcp import server
-from burpsuite_mcp.tools.redteam import _ghostwriter, _oplog
+from praetor import server
+from praetor.tools.redteam import _ghostwriter, _oplog
 
 
 def _tool(name):
@@ -125,7 +125,7 @@ class TestGhostwriterSync(_Base):
         self.assertIn("not configured", out)
 
     async def test_status_reports_unconfigured(self):
-        from burpsuite_mcp.tools.redteam import _ghostwriter as gw
+        from praetor.tools.redteam import _ghostwriter as gw
         with patch.object(gw.config, "GHOSTWRITER_URL", ""), \
              patch.object(gw.config, "GHOSTWRITER_OPLOG_ID", 0):
             out = await _tool("ghostwriter_status")("box")

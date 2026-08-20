@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from burpsuite_mcp import server
+from praetor import server
 
 
 SCENARIOS = [
@@ -269,8 +269,8 @@ async def run_scenario(name, kwargs):
     async def fake_get(path, params=None):
         return {}
 
-    with patch("burpsuite_mcp.client.post", fake_post), \
-         patch("burpsuite_mcp.client.get", fake_get):
+    with patch("praetor.client.post", fake_post), \
+         patch("praetor.client.get", fake_get):
         return await fn(**kwargs)
 
 
