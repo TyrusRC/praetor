@@ -513,11 +513,42 @@ MCPEOF
         ok "Created $MCP_JSON"
     fi
 else
-    ok ".mcp.json already exists — skipping"
+    # Migrate a config written before the burpsuite_mcp -> praetor rename;
+    # a stale `-m burpsuite_mcp` launch fails silently (module gone) so the
+    # server never connects. Rewrite in place rather than skip.
+    if grep -q 'burpsuite_mcp' "$MCP_JSON" 2>/dev/null; then
+        python3 - "$MCP_JSON" <<'PYEOF'
+import sys
+p = sys.argv[1]
+open(p, "w").write(open(p).read().replace("burpsuite_mcp", "praetor"))
+PYEOF
+        ok ".mcp.json migrated: burpsuite_mcp -> praetor (stale pre-rename launch)"
+    else
+        ok ".mcp.json already exists — keeping"
+    fi
     if [ "$IS_WSL" = "1" ] && [ "$WSL_MODE" = "nat" ] && [ -n "$WSL_HOST_IP" ]; then
         warn "WSL NAT: .mcp.json must set env BURP_API_HOST=$WSL_HOST_IP (Windows host) — or switch to mirrored networking (see 'WSL → Windows Burp' below)"
     fi
 fi
+
+# Ensure Claude Code is allowed to start the praetor server: drop it from any
+# disabledMcpjsonServers list and add it to enabledMcpjsonServers. Without this,
+# a project MCP server can sit disabled and never connect.
+SETTINGS_LOCAL="$SCRIPT_DIR/.claude/settings.local.json"
+mkdir -p "$SCRIPT_DIR/.claude"
+python3 - "$SETTINGS_LOCAL" <<'PYEOF'
+import json, os, sys
+p = sys.argv[1]
+try:
+    d = json.load(open(p)) if os.path.exists(p) else {}
+except Exception:
+    d = {}
+d["disabledMcpjsonServers"] = [s for s in d.get("disabledMcpjsonServers", []) if s != "praetor"]
+if "praetor" not in d.get("enabledMcpjsonServers", []):
+    d["enabledMcpjsonServers"] = d.get("enabledMcpjsonServers", []) + ["praetor"]
+json.dump(d, open(p, "w"), indent=2)
+PYEOF
+ok "praetor MCP server enabled in .claude/settings.local.json"
 
 # ════════════════════════════════════════════════════════════════════
 # SUMMARY

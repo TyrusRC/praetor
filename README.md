@@ -86,6 +86,46 @@ Best with Burp Professional (scanner control + Collaborator); Community degrades
 
 Run `check_pro_features()` at session start to confirm which Pro capabilities the operator's instance exposes — the MCP server detects them at runtime, so Community users get a clear "not available" message instead of a silent hang.
 
+## First-Time Setup
+
+The shortest path from a fresh clone to a working agent. Each step links to its
+detailed section below.
+
+```sh
+# 1. Clone
+git clone https://github.com/TyrusRC/praetor.git && cd praetor
+
+# 2. One-shot install — Java/Maven/Python/uv, builds the extension, installs the
+#    MCP server, writes .mcp.json. (Manual steps are under Installation.)
+./setup.sh            # Linux/macOS   ·   ./setup.ps1 / ./setup.bat on Windows
+
+# 3. Verify the install
+./doctor.sh
+```
+
+4. **Load the Burp extension.** In Burp: *Extensions → Add → Java →*
+   `target/praetor-burp-ext-<version>.jar` (path printed by the build). On the
+   Praetor config tab, defaults `127.0.0.1:8111` already match the server — no
+   change needed on a single host ([WSL is different](#wsl-burp-on-the-windows-host)).
+
+5. **Point your MCP client at the server.** `setup.sh` writes `.mcp.json` for
+   you; confirm it launches `python -m praetor` (see [Configuration](#configuration)).
+   Reload your MCP client so the tools appear.
+
+6. **Session smoke test.** Ask the agent to run `check_pro_features()` and
+   `list_tier1_tools()` — that confirms the MCP ↔ Burp link and shows the tool
+   entry points.
+
+7. **(Optional) Reporting hub.** Stand up Ghostwriter for centralized
+   oplog/findings — [one script, default `praetor` login](#ghostwriter-reporting-hub).
+   Praetor works fully without it; local `.burp-intel/` stays the source of truth.
+
+8. **(Optional) Tune env.** Copy `.env.example` to `.env` and edit only what you
+   need ([Environment Variables](#environment-variables)); every value has a
+   working default.
+
+You're ready — pick a lane in [Usage](#usage).
+
 ## Installation
 
 Pick the level of automation you want.
@@ -197,9 +237,14 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
 | `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
 | `GHOSTWRITER_URL` | — | Ghostwriter base URL (e.g. `https://127.0.0.1`); unset = no forwarding |
-| `GHOSTWRITER_ADMIN_SECRET` | — | Hasura admin secret (or use `GHOSTWRITER_API_TOKEN`) |
 | `GHOSTWRITER_OPLOG_ID` | — | numeric Oplog id to append entries to |
+| `GHOSTWRITER_ADMIN_SECRET` | — | Hasura admin secret (highest-precedence auth) |
+| `GHOSTWRITER_API_TOKEN` | — | static JWT (second-precedence auth) |
+| `GHOSTWRITER_USERNAME` | `praetor` | login user when no admin-secret/token is set |
+| `GHOSTWRITER_PASSWORD` | `praetor` | login password — **change for any shared/remote instance** |
 | `GHOSTWRITER_INSECURE_TLS` | `false` | `1` to accept Ghostwriter's self-signed localhost cert |
+
+Ghostwriter auth precedence: **admin-secret → API token → username/password login**. With neither secret set, Praetor logs in to Ghostwriter's `login` action with `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` (default `praetor`/`praetor`) and mints/refreshes a JWT itself — so a fresh instance with a `praetor` account works with only `GHOSTWRITER_URL` + `GHOSTWRITER_OPLOG_ID` set.
 
 The Java extension also accepts JVM system properties `praetor.proxy.host` and `praetor.proxy.port` (highest precedence). `./setup-ghostwriter.sh` writes the `GHOSTWRITER_*` values into `.env` automatically (see [Ghostwriter setup](#ghostwriter-reporting-hub)).
 
@@ -235,7 +280,11 @@ Ghostwriter is the central reporting/oplog hub both lanes forward into. It is a 
 ./setup-ghostwriter.sh     # clones + installs Ghostwriter, wires .env (GHOSTWRITER_*)
 ```
 
-This downloads several GB of images and binds TCP 443 (skip in `setup.sh` with `PRAETOR_SKIP_GHOSTWRITER=1`). Afterward, open **https://127.0.0.1** (accept the self-signed cert), log in as `admin` (`cd ~/Ghostwriter && ./ghostwriter-cli-linux config get ADMIN_PASSWORD`), create a Project + its Oplog, and set `GHOSTWRITER_OPLOG_ID`. Verify with `ghostwriter_status`, then `sync_to_ghostwriter('<domain>')`. Praetor works fully without Ghostwriter — local `.burp-intel/` stores stay the source of truth.
+This downloads several GB of images and binds TCP 443 (skip in `setup.sh` with `PRAETOR_SKIP_GHOSTWRITER=1`). Afterward, open **https://127.0.0.1** (accept the self-signed cert), log in as `admin` (`cd ~/Ghostwriter && ./ghostwriter-cli-linux config get ADMIN_PASSWORD`), create a Project + its Oplog, and set `GHOSTWRITER_OPLOG_ID`.
+
+**Auth on first setup.** Praetor authenticates to Ghostwriter with the precedence *admin-secret → API token → username/password login*. The simplest path is username/password: in Ghostwriter create a user named `praetor` (any role that can write the oplog), and Praetor logs in with the default `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` = `praetor`/`praetor` — no token to copy. **Set a real password on that account and mirror it in `.env` (`GHOSTWRITER_PASSWORD=`) for any shared or remote instance; the default is a local-first-run convenience only.** Prefer a static `GHOSTWRITER_API_TOKEN` or `GHOSTWRITER_ADMIN_SECRET` for unattended/CI use.
+
+Verify with `ghostwriter_status` (it reports the active auth mode), then `sync_to_ghostwriter('<domain>')`. Praetor works fully without Ghostwriter — local `.burp-intel/` stores stay the source of truth.
 
 ## Tool Surface
 

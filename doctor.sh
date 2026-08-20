@@ -456,9 +456,19 @@ head "Project files"
 
 if [ -f "$SCRIPT_DIR/.mcp.json" ]; then
     pass ".mcp.json present"
+    # Stale pre-rename launch command: `-m burpsuite_mcp` no longer exists, so
+    # the MCP server fails to start and never connects.
+    if grep -q 'burpsuite_mcp' "$SCRIPT_DIR/.mcp.json" 2>/dev/null; then
+        bad ".mcp.json launches the removed 'burpsuite_mcp' module" "re-run ./setup.sh to migrate it to '-m praetor'"
+    fi
     # Sanity-check that .mcp.json points at a reachable interpreter
     if grep -q '/mnt/c/' "$SCRIPT_DIR/.mcp.json" 2>/dev/null && [ "$PLATFORM" = "windows" ]; then
         skip ".mcp.json uses /mnt/c/... WSL paths but platform is native Windows" "re-generate with Windows-style paths"
+    fi
+    # Server disabled in Claude Code = present but never started.
+    if grep -q '"praetor"' "$SCRIPT_DIR/.claude/settings.local.json" 2>/dev/null \
+       && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if 'praetor' in d.get('disabledMcpjsonServers',[]) else 1)" "$SCRIPT_DIR/.claude/settings.local.json" 2>/dev/null; then
+        bad "praetor MCP server is disabled in .claude/settings.local.json" "re-run ./setup.sh (or remove it from disabledMcpjsonServers) and reload Claude Code"
     fi
 else
     skip ".mcp.json" "create from .mcp.json.example or re-run setup"

@@ -22,15 +22,17 @@ def register(mcp: FastMCP) -> None:
         """
         if not _ghostwriter.is_configured():
             return (
-                "Ghostwriter: NOT configured. Set GHOSTWRITER_URL, "
-                "GHOSTWRITER_API_TOKEN (or GHOSTWRITER_ADMIN_SECRET), and "
-                "GHOSTWRITER_OPLOG_ID. Local .burp-intel stores remain the "
-                "source of truth; nothing is forwarded until configured."
+                f"Ghostwriter: NOT configured ({_ghostwriter.config_hint()}). "
+                "Set GHOSTWRITER_URL and GHOSTWRITER_OPLOG_ID; auth is a static "
+                "GHOSTWRITER_API_TOKEN / GHOSTWRITER_ADMIN_SECRET, else Praetor "
+                "logs in with GHOSTWRITER_USERNAME/PASSWORD (default praetor/"
+                "praetor). Local .burp-intel stores remain the source of truth; "
+                "nothing is forwarded until configured."
             )
         from praetor import config
         lines = [
             f"Ghostwriter: configured -> {config.GHOSTWRITER_URL} "
-            f"(oplog {config.GHOSTWRITER_OPLOG_ID})",
+            f"(oplog {config.GHOSTWRITER_OPLOG_ID}, auth {_ghostwriter.auth_mode()})",
         ]
         if domain:
             from ._ghostwriter import _load_marker

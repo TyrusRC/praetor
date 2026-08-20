@@ -53,6 +53,14 @@ GHOSTWRITER_URL = os.environ.get("GHOSTWRITER_URL", "").rstrip("/")
 GHOSTWRITER_API_TOKEN = os.environ.get("GHOSTWRITER_API_TOKEN", "")
 # Hasura admin secret is an alternative to a JWT for self-hosted instances.
 GHOSTWRITER_ADMIN_SECRET = os.environ.get("GHOSTWRITER_ADMIN_SECRET", "")
+# First-setup fallback: with no admin secret / static token set, Praetor logs in
+# to Ghostwriter's `login` GraphQL action with these to mint a JWT itself.
+# Defaults are praetor/praetor so a fresh self-hosted instance works with zero
+# config. NOTE: default credential — fine for a local first run; CHANGE
+# GHOSTWRITER_PASSWORD in .env for any shared or remote Ghostwriter.
+# Auth precedence: admin secret > static API token > username/password login.
+GHOSTWRITER_USERNAME = os.environ.get("GHOSTWRITER_USERNAME", "praetor")
+GHOSTWRITER_PASSWORD = os.environ.get("GHOSTWRITER_PASSWORD", "praetor")
 # Oplog id (int) to append operator-log entries to, and report id for findings.
 GHOSTWRITER_OPLOG_ID = _intenv("GHOSTWRITER_OPLOG_ID", 0)
 GHOSTWRITER_REPORT_ID = _intenv("GHOSTWRITER_REPORT_ID", 0)

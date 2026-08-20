@@ -36,6 +36,7 @@ def register(mcp: FastMCP) -> None:
         operator: str = "",
         tactic: str = "",
         technique: str = "",
+        tags: list[str] | None = None,
         detected: bool = False,
         returncode: int = 0,
     ) -> str:
@@ -54,6 +55,8 @@ def register(mcp: FastMCP) -> None:
             output: short result; large output -> a file, pass output_path.
             user_context: the account/cred used ('DOMAIN\\svc_sql', 'root').
             operator: who ran it. tactic/technique: ATT&CK override.
+            tags: freeform labels (kept in the entry's extraFields, forwarded to
+                Ghostwriter) — e.g. ['dcsync','loud'].
             detected: blue-team detected this action (purple-team tracking).
             returncode: process exit code.
 
@@ -63,7 +66,7 @@ def register(mcp: FastMCP) -> None:
             domain, tool, command, description=description, source=source,
             target=target, output=output, output_path=output_path,
             user_context=user_context, operator=operator, tactic=tactic,
-            technique=technique, detected=detected, returncode=returncode,
+            technique=technique, tags=tags, detected=detected, returncode=returncode,
         )
         from ._oplog import attack_for
         t, tech, name = attack_for(tool)
