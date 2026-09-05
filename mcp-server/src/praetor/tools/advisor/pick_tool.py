@@ -56,6 +56,24 @@ _MAPPINGS = [
      "generate_compliance_report(domain='app.example.com', standard='pci_dss_v4')  "
      "# or soc2_t2 / hipaa / gdpr / owasp"),
 
+    # ----- Findings hub: remediation lifecycle + multi-scanner import -----
+    (["set remediation", "assign owner", "remediation owner", "set due date",
+      "mark resolved", "remediation sla", "track remediation", "close finding",
+      "finding owner"],
+     "set_remediation",
+     "set_remediation(domain='app.example.com', finding_id='f001', owner='team', "
+     "remediation_status='in_progress')"),
+    (["remediation status", "overdue findings", "mttr", "sla status",
+      "remediation rollup", "aging findings", "time to remediate", "sla report"],
+     "remediation_status",
+     "remediation_status(domain='app.example.com')  # open/resolved, overdue, MTTR"),
+    (["import scan results", "import nessus", "import nuclei", "import scanner output",
+      "ingest scan", "consolidate scanner findings", "load nessus file",
+      "import findings", "merge scanner results"],
+     "import_scan_results",
+     "import_scan_results(source='./scan.nessus', domain='app.example.com')  "
+     "# nuclei JSONL or nessus XML; dedup-merged as suspected"),
+
     # ----- W37: durable checkpoint + completion judge -----
     (["write checkpoint", "save checkpoint", "engagement checkpoint",
       "task ledger", "record task state", "update task tree",
