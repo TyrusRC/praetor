@@ -145,6 +145,7 @@ LOOP:
       "recon":
         run Phase 1 + Phase 2 from hunt skill
         save all intel
+        route_signals(domain) → fire plan.auto, queue plan.ask   // auto-trigger skill
         phase = "hypothesize"
         CHECKPOINT(mode)
 
@@ -163,6 +164,7 @@ LOOP:
           phase = "chain"
           continue
         run the probe/tool for that hypothesis
+        route_signals(domain, signals=[<new markers from this probe>]) → fire auto / queue ask
         if suspected finding: run VALIDATION GATE (below) before appending
         save coverage + findings
         CHECKPOINT(mode)
