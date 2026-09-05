@@ -59,3 +59,31 @@ class TestEngine(unittest.TestCase):
                                        target="https://x")])
         self.assertTrue(any("DROP TABLE" in d.get("reason", "") for d in out["dropped"]))
         self.assertNotIn("run_dalfox", [a["tool"] for a in out["auto"]])
+
+
+import os
+
+from praetor.tools.router import _signals
+
+RFIX = os.path.join(os.path.dirname(__file__), "fixtures", "router")
+
+
+class TestSignals(unittest.TestCase):
+    def test_collect_tech_from_profile(self):
+        sigs = _signals.collect_signals("demo.local", base_dir=RFIX)
+        techs = {s["value"].lower() for s in sigs if s["type"] == "tech"}
+        self.assertIn("wordpress", techs)
+        self.assertIn("php", techs)
+
+    def test_collect_params_present_from_endpoints(self):
+        sigs = _signals.collect_signals("demo.local", base_dir=RFIX)
+        self.assertTrue(any(s["type"] == "params_present" for s in sigs))
+
+    def test_missing_domain_returns_empty_not_crash(self):
+        self.assertEqual(_signals.collect_signals("nope.invalid", base_dir=RFIX), [])
+
+    def test_normalize_fills_keys(self):
+        out = _signals.normalize_signals([{"type": "reflection", "value": "q"}])
+        self.assertEqual(out[0]["type"], "reflection")
+        self.assertIn("target", out[0])
+        self.assertIn("source", out[0])
