@@ -4,14 +4,28 @@
     "credentials_over_cleartext": {
       "description": "WSTG-ATHN-01 -- login form submits credentials over http:// instead of https:// (form action attribute, mixed content, http-only auth host)",
       "tech_match": [],
-      "param_match": ["password", "passwd", "pwd", "pass", "login", "username"],
+      "param_match": [
+        "password",
+        "passwd",
+        "pwd",
+        "pass",
+        "login",
+        "username"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Inspect login response for form action -- if action attribute begins with http:// or omits scheme on a non-HTTPS page, credentials transit cleartext",
           "matchers": [
-            {"type": "regex", "pattern": "<form[^>]*action=[\"']http://"},
-            {"type": "header", "name": "Content-Type", "contains": "html"}
+            {
+              "type": "regex",
+              "pattern": "<form[^>]*action=[\"']http://"
+            },
+            {
+              "type": "header",
+              "name": "Content-Type",
+              "contains": "html"
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -20,8 +34,19 @@
           "payload": "{{baseline}}",
           "description": "Login endpoint reachable on http:// -- TLS not enforced for credential POST",
           "matchers": [
-            {"type": "status", "status": [200, 301, 302]},
-            {"type": "not_header", "name": "Strict-Transport-Security", "contains": "max-age"}
+            {
+              "type": "status",
+              "status": [
+                200,
+                301,
+                302
+              ]
+            },
+            {
+              "type": "not_header",
+              "name": "Strict-Transport-Security",
+              "contains": "max-age"
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -37,9 +62,28 @@
           "payload": "{{baseline}}",
           "description": "Authenticated response cacheable -- missing Cache-Control: no-store on a response that contains user data leaks via shared-cache / browser-back",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_header", "name": "Cache-Control", "contains": "no-store"},
-            {"type": "word", "words": ["email", "username", "logout", "account", "profile"], "condition": "or"}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_header",
+              "name": "Cache-Control",
+              "contains": "no-store"
+            },
+            {
+              "type": "word",
+              "words": [
+                "email",
+                "username",
+                "logout",
+                "account",
+                "profile"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -55,7 +99,10 @@
           "payload": "{{baseline}}",
           "description": "Session cookie issued without Secure flag -- transits over http:// if site downgrade is possible",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token|access_token|refresh_token)[^\\n;]+(?!.*;\\s*secure)"}
+            {
+              "type": "regex",
+              "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token|access_token|refresh_token)[^\\n;]+(?!.*;\\s*secure)"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -64,7 +111,10 @@
           "payload": "{{baseline}}",
           "description": "Session cookie issued without HttpOnly -- accessible to document.cookie / XSS exfil",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token|access_token|refresh_token)[^\\n;]+(?!.*;\\s*httponly)"}
+            {
+              "type": "regex",
+              "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token|access_token|refresh_token)[^\\n;]+(?!.*;\\s*httponly)"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -73,7 +123,10 @@
           "payload": "{{baseline}}",
           "description": "Session cookie issued without SameSite (or SameSite=None without Secure) -- CSRF + cross-site request leakage",
           "matchers": [
-            {"type": "regex", "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token)[^\\n;]+(?!.*;\\s*samesite)"}
+            {
+              "type": "regex",
+              "pattern": "(?i)set-cookie:\\s*(session|sess|sid|jsessionid|phpsessid|connect\\.sid|auth|token)[^\\n;]+(?!.*;\\s*samesite)"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35
@@ -89,8 +142,22 @@
           "payload": "{{baseline}}",
           "description": "Capture session token, POST /logout, replay protected endpoint with same token -- 200 = no server-side revocation. Run with run_flow: login -> action -> logout -> replay-action.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["unauthorized", "expired", "invalid", "session", "login required"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "expired",
+                "invalid",
+                "session",
+                "login required"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -106,8 +173,20 @@
           "payload": "{{baseline}}",
           "description": "Capture session A, login again -> session B, replay protected endpoint with session A -- 200 = old session still alive. Useful chain anchor for stolen-token persistence.",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "not_word", "words": ["unauthorized", "expired", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "expired",
+                "invalid"
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
@@ -117,17 +196,138 @@
     "session_token_in_url": {
       "description": "WSTG-SESS-04 -- session ID / auth token transmitted in URL (query string, path segment) -- logged in proxy/server access logs, leaks via Referer, browser history",
       "tech_match": [],
-      "param_match": ["session_id", "sid", "sessionid", "token", "auth_token", "access_token", "jwt"],
+      "param_match": [
+        "session_id",
+        "sid",
+        "sessionid",
+        "token",
+        "auth_token",
+        "access_token",
+        "jwt"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Authenticated request carries token in query/path -- if endpoint accepts and processes the request, token is logged in every upstream",
           "matchers": [
-            {"type": "status", "status": [200]},
-            {"type": "regex", "pattern": "[?&](session_?id|sid|token|access_?token|jwt|auth)="}
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "regex",
+              "pattern": "[?&](session_?id|sid|token|access_?token|jwt|auth)="
+            }
           ],
           "severity": "medium",
           "confidence_boost": 40
+        }
+      ]
+    },
+    "session_persists_after_password_change": {
+      "description": "WSTG-SESS-07 -- after the user changes their password, OTHER active sessions must be invalidated. Test: log in on two clients A+B, change password on A, replay B's protected request -- 200 = the pre-change session survives. A hijacked session outlives the victim's remediation. Run with run_flow: loginA -> loginB -> change-pw(A) -> replay-protected(B).",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "200 = the pre-change session survives. A hijacked session outlives the victim's remediation. Run with run_flow: loginA -> loginB -> change-pw(A) -> replay-protected(B).",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "expired",
+                "invalid",
+                "session",
+                "login required",
+                "forbidden",
+                "please log in",
+                "sign in"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "session_not_rotated_after_privilege_change": {
+      "description": "WSTG-SESS-03 -- the session ID must rotate on a privilege increase (org join, plan upgrade, 2FA enable, admin invite accept). Test: note session ID as a low-priv user, trigger the upgrade, compare the ID; unchanged = an attacker who stole the pre-upgrade session inherits the new privileges. Session-fixation variant on escalation.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "the session ID must rotate on a privilege increase (org join, plan upgrade, 2FA enable, admin invite accept). Test: note session ID as a low-priv user, trigger the upgrade, compare the ID; unchanged = an attacker who stole the pre-upgrade session inherits the new privileges. Session-fixation variant on escalation.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "expired",
+                "invalid",
+                "session",
+                "login required",
+                "forbidden",
+                "please log in",
+                "sign in"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        }
+      ]
+    },
+    "unbounded_session_lifetime": {
+      "description": "WSTG-SESS-07 -- server keeps a session valid indefinitely regardless of cookie expiry. Test: capture a session token, replay it after a long idle gap (hours/days); still 200 = a stolen cookie is a long-term key. Also flags static/non-rotating 'remember me' tokens that re-auth after logout+password-change.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "server keeps a session valid indefinitely regardless of cookie expiry. Test: capture a session token, replay it after a long idle gap (hours/days); still 200 = a stolen cookie is a long-term key. Also flags static/non-rotating 'remember me' tokens that re-auth after logout+password-change.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "expired",
+                "invalid",
+                "session",
+                "login required",
+                "forbidden",
+                "please log in",
+                "sign in"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
         }
       ]
     }

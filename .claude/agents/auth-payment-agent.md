@@ -22,6 +22,19 @@ if surface == 'apple_pay' / 'google_pay' / 'samsung_pay' / 'iap' / '3ds':
     2. follow playbook-payment-and-auth.md §<surface>
 if surface == 'recovery':
     walk every "forgot X" path — chain with email-change CSRF / SSO mix-up
+if surface == 'session':
+    # 14-point session-management checklist (auto_probe categories=["session_security"]
+    # covers the stateful contexts; run_flow drives the multi-client ones)
+    1. test_session_lifecycle(login,logout,protected) — token still valid post-logout? (#2)
+    2. JWT not revoked on logout — replay the JWT after logout (#14, test_jwt + replay)
+    3. session survives PASSWORD CHANGE — run_flow: loginA→loginB→change-pw(A)→replay(B) 200? (#1)
+    4. session ID NOT rotated on privilege gain (org-join/upgrade/2FA/admin-accept) (#11)
+    5. session fixation — pre-set ID unchanged after login? (#9)
+    6. unbounded lifetime / static remember-me — stale cookie still 200 after long idle (#12/#13)
+    7. reset token: reuse after success, and old token valid after a new request (analyze_reset_tokens) (#6/#7)
+    8. sensitive endpoint checks cookie PRESENCE not validity — replay a logged-out req in Repeater (#8)
+    9. concurrent-session cap bypass; back-button cache of sensitive pages (no-store) (#10/#3)
+    10. email-verification bypass/swap — verify-link for email A validates email B → pre-ATO (#4/#5)
 ```
 
 State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone — chain with open_redirect/csrf per Rule 17.
@@ -29,12 +42,12 @@ State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone �
 ## Inputs
 
 - `domain` (required)
-- `surface` (required) — one of `oauth`, `oidc`, `webauthn`, `passkey`, `apple_pay`, `google_pay`, `samsung_pay`, `iap`, `3ds`, `recovery`
+- `surface` (required) — one of `oauth`, `oidc`, `webauthn`, `passkey`, `apple_pay`, `google_pay`, `samsung_pay`, `iap`, `3ds`, `recovery`, `session`
 - `session_name` (optional but recommended)
 
 ## Tools You Use
 
-`session_request`, `run_flow`, `auto_probe(categories=["oauth","oauth_device_flow","webauthn_passkey","payment_flow"])`, `test_jwt`, `auto_collaborator_test`, `compare_auth_states`, `concurrent_requests` (recovery-code probes), `resend_with_modification`, `search_history`, `extract_regex`, `assess_finding`, `save_finding`
+`session_request`, `run_flow`, `auto_probe(categories=["oauth","oauth_device_flow","webauthn_passkey","payment_flow","session_security"])`, `test_jwt`, `test_session_lifecycle`, `analyze_reset_tokens`, `auto_collaborator_test`, `compare_auth_states`, `concurrent_requests` (recovery-code probes), `resend_with_modification`, `search_history`, `extract_regex`, `assess_finding`, `save_finding`
 
 ## Workflow
 
