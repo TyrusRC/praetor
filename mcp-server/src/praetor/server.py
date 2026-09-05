@@ -53,6 +53,7 @@ from praetor.tools import (
     router,
     evidence,
     assurance,
+    hub,
 )
 
 mcp = FastMCP(
@@ -138,6 +139,7 @@ offline.register(mcp)  # analyze_artifact — offline artifact analysis (raw req
 router.register(mcp)   # signal->tool auto-routing (Balanced policy; ask-gates red-team/cloud/exploit)
 evidence.register(mcp) # curate_evidence / audit_history_noise (history is read-only; curate+audit, not prune)
 assurance.register(mcp) # standards_coverage heatmap, generate_posture_dashboard, generate_compliance_report
+hub.register(mcp)       # set_remediation / remediation_status (SLA+MTTR) + import_scan_results (nuclei/nessus dedup-merge)
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction
