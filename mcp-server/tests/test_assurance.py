@@ -93,6 +93,55 @@ class TestHeatmap(unittest.TestCase):
         self.assertEqual(hm["coverage_pct"], 20)
 
 
+class TestCoverageDiskSchema(unittest.TestCase):
+    """Guards the real on-disk coverage.json schema: entries[].category."""
+
+    def setUp(self):
+        import json
+        self.domain = "cov-schema.test"
+        self.dir = Path(".burp-intel") / self.domain
+        self.dir.mkdir(parents=True, exist_ok=True)
+        # Real shape written by intel/save_load.py — entries + category
+        (self.dir / "coverage.json").write_text(json.dumps({"entries": [
+            {"endpoint": "/a?id=1", "parameter": "", "category": "sqli"},
+            {"endpoint": "/b", "parameter": "q", "category": "reflected_xss"},
+        ]}))
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_tested_classes_reads_entries_category(self):
+        from praetor.tools.assurance.coverage_map import _tested_classes
+        classes = _tested_classes(self.domain)
+        self.assertIn("sqli", classes)          # category -> class
+        self.assertTrue(classes)                # not empty (the regression)
+
+
+class TestTrendFromSnapshots(unittest.TestCase):
+    def setUp(self):
+        import json
+        self.domain = "trend.test"
+        self.snap = Path(".burp-intel") / self.domain / "_snapshots"
+        self.snap.mkdir(parents=True, exist_ok=True)
+        (self.snap / "findings-2026-01-01T00-00-00.json").write_text(
+            json.dumps({"findings": [{"status": "confirmed"}]}))
+        (self.snap / "findings-2026-02-01T00-00-00.json").write_text(
+            json.dumps({"findings": [{"status": "confirmed"}, {"status": "confirmed"}]}))
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(Path(".burp-intel") / self.domain, ignore_errors=True)
+
+    def test_trend_counts_and_delta(self):
+        from praetor.tools.assurance.dashboard import _trend_from_snapshots
+        t = _trend_from_snapshots(self.domain)
+        self.assertEqual(len(t), 2)
+        self.assertEqual(t[0]["total"], 1)
+        self.assertEqual(t[1]["total"], 2)
+        self.assertEqual(t[1]["delta"], 1)      # 2 - 1
+
+
 class TestDashboard(unittest.TestCase):
     def setUp(self):
         from praetor.tools.assurance.dashboard import render_dashboard_html

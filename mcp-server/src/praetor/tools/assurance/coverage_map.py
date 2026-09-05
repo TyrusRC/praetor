@@ -70,11 +70,17 @@ def build_heatmap(
 
 
 def _tested_classes(domain: str) -> set[str]:
-    """Distinct vuln classes with at least one tested tuple in coverage.json."""
+    """Distinct vuln classes with at least one tested tuple in coverage.json.
+
+    On-disk coverage.json is {"entries":[{endpoint, parameter, category, ...}]}
+    where `category` is the vuln class (see intel/save_load.py). Older/pattern
+    shapes (vuln_class/class) are accepted as fallbacks.
+    """
     cov = load_intel(domain, "coverage")
+    rows = cov.get("entries") or cov.get("patterns") or []
     classes: set[str] = set()
-    for e in cov.get("patterns", cov.get("entries", [])) or []:
-        cls = e.get("vuln_class") or e.get("class") or ""
+    for e in rows:
+        cls = e.get("category") or e.get("vuln_class") or e.get("class") or ""
         if cls:
             classes.add(canonical(cls))
     return classes

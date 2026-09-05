@@ -126,6 +126,36 @@ th{{color:var(--muted);font-weight:600;font-size:12px}}
 _SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
+def _trend_from_snapshots(domain: str, limit: int = 10) -> list[dict]:
+    """Posture trend from .burp-intel/<domain>/_snapshots/findings-<iso>.json.
+
+    Each snapshot is an archived findings.json (written by findings_diff on
+    read). total = confirmed findings in that snapshot; delta vs the prior one.
+    """
+    import json
+
+    snap_dir = Path(".burp-intel") / domain / "_snapshots"
+    if not snap_dir.is_dir():
+        return []
+    files = sorted(snap_dir.glob("findings-*.json"))
+    trend: list[dict] = []
+    prev: int | None = None
+    for f in files:
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        total = sum(
+            1 for x in data.get("findings", []) if x.get("status") == "confirmed"
+        )
+        when = f.stem.replace("findings-", "")
+        trend.append(
+            {"when": when, "total": total, "delta": "" if prev is None else total - prev}
+        )
+        prev = total
+    return trend[-limit:]
+
+
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def generate_posture_dashboard(
@@ -158,12 +188,9 @@ def register(mcp: FastMCP) -> None:
             findings, key=lambda f: _SEV_ORDER.get(str(f.get("severity", "")).lower(), 9)
         )[:10]
 
-        trend: list[dict] = []
-        snaps = load_intel(domain, "findings").get("_snapshots", [])
-        if isinstance(snaps, list):
-            trend = snaps[-10:]
-
-        html_str = render_dashboard_html(domain, sev_counts, heatmap, trend, top)
+        html_str = render_dashboard_html(
+            domain, sev_counts, heatmap, _trend_from_snapshots(domain), top
+        )
 
         out = Path(".burp-intel") / domain / "reports" / "dashboard.html"
         out.parent.mkdir(parents=True, exist_ok=True)
