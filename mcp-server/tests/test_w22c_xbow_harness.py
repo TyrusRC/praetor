@@ -50,7 +50,7 @@ class XbowPullBenchmarksTest(unittest.IsolatedAsyncioTestCase):
         from praetor.tools import benchmark
         stub, captured = _stub_mcp()
         benchmark.register(stub)
-        with patch("praetor.tools.benchmark._check_tool", return_value=False):
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=False):
             out = await captured["xbow_pull_benchmarks"](target_dir=str(self.tmp / "x"))
         self.assertIn("error", out)
         self.assertIn("git", out["error"].lower())
@@ -72,8 +72,8 @@ class XbowPullBenchmarksTest(unittest.IsolatedAsyncioTestCase):
             return ("", "", 0)
 
         target = self.tmp / "xb"
-        with patch("praetor.tools.benchmark._check_tool", return_value=True), \
-             patch("praetor.tools.benchmark._run_cmd", new=fake_run_cmd):
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=True), \
+             patch("praetor.tools.benchmark._core._run_cmd", new=fake_run_cmd):
             out = await captured["xbow_pull_benchmarks"](target_dir=str(target))
         self.assertEqual(out["benchmark"], "XBOW")
         self.assertEqual(out["challenges_discovered"], 0)
@@ -102,8 +102,8 @@ class XbowPullBenchmarksTest(unittest.IsolatedAsyncioTestCase):
             calls.append(cmd)
             return ("", "", 0)
 
-        with patch("praetor.tools.benchmark._check_tool", return_value=True), \
-             patch("praetor.tools.benchmark._run_cmd", new=fake_run_cmd):
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=True), \
+             patch("praetor.tools.benchmark._core._run_cmd", new=fake_run_cmd):
             out = await captured["xbow_pull_benchmarks"](target_dir=str(target))
         self.assertEqual(out["action"], "pulled")
         self.assertEqual(out["challenges_discovered"], 2)
@@ -135,7 +135,7 @@ class RunXbowBenchTest(unittest.IsolatedAsyncioTestCase):
         from praetor.tools import benchmark
         stub, captured = _stub_mcp()
         benchmark.register(stub)
-        with patch("praetor.tools.benchmark._check_tool", return_value=False):
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=False):
             out = await captured["run_xbow_bench"](challenge_id="XBEN-001-24")
         self.assertIn("error", out)
         self.assertIn("docker", out["error"].lower())
@@ -145,7 +145,7 @@ class RunXbowBenchTest(unittest.IsolatedAsyncioTestCase):
         stub, captured = _stub_mcp()
         benchmark.register(stub)
         self._make_challenge("XBEN-001-24", 1, "FLAG{expected_value}")
-        with patch("praetor.tools.benchmark._check_tool", return_value=True):
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=True):
             out = await captured["run_xbow_bench"](challenge_id="XBEN-001-24")
         self.assertEqual(out["status"], "awaiting_grow_agent")
         self.assertEqual(out["level"], 1)
@@ -159,8 +159,8 @@ class RunXbowBenchTest(unittest.IsolatedAsyncioTestCase):
         flag_file = self.tmp / ".burp-intel" / "_bench" / "xbow" / "XBEN-002-24-flag.txt"
         flag_file.parent.mkdir(parents=True, exist_ok=True)
         flag_file.write_text("FLAG{match_me_now}")
-        with patch("praetor.tools.benchmark._check_tool", return_value=True), \
-             patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=True), \
+             patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["run_xbow_bench"](challenge_id="XBEN-002-24")
         self.assertTrue(out["passed"])
@@ -177,8 +177,8 @@ class RunXbowBenchTest(unittest.IsolatedAsyncioTestCase):
         flag_file = self.tmp / ".burp-intel" / "_bench" / "xbow" / "XBEN-003-24-flag.txt"
         flag_file.parent.mkdir(parents=True, exist_ok=True)
         flag_file.write_text("FLAG{wrong_value}")
-        with patch("praetor.tools.benchmark._check_tool", return_value=True), \
-             patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=True), \
+             patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["run_xbow_bench"](challenge_id="XBEN-003-24")
         self.assertFalse(out["passed"])
@@ -196,8 +196,8 @@ class RunXbowBenchTest(unittest.IsolatedAsyncioTestCase):
         flag_file = self.tmp / ".burp-intel" / "_bench" / "xbow" / "XBEN-004-24-flag.txt"
         flag_file.parent.mkdir(parents=True, exist_ok=True)
         flag_file.write_text("FLAG{well_formed_but_unverified}")
-        with patch("praetor.tools.benchmark._check_tool", return_value=True), \
-             patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._check_tool", return_value=True), \
+             patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["run_xbow_bench"](challenge_id="XBEN-004-24")
         self.assertIsNone(out["passed"])
@@ -229,7 +229,7 @@ class RunCaibenchScoringTest(unittest.IsolatedAsyncioTestCase):
         stub, captured = _stub_mcp()
         benchmark.register(stub)
         self._seed_flag("cybench", "c1", "flag{win}")
-        with patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["run_caibench"](suite="cybench", challenge_id="c1",
                                                  expected_flag="flag{win}")
@@ -242,7 +242,7 @@ class RunCaibenchScoringTest(unittest.IsolatedAsyncioTestCase):
         stub, captured = _stub_mcp()
         benchmark.register(stub)
         self._seed_flag("cybench", "c2", "flag{wrong}")
-        with patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["run_caibench"](suite="cybench", challenge_id="c2",
                                                  expected_flag="flag{right}")
@@ -253,7 +253,7 @@ class RunCaibenchScoringTest(unittest.IsolatedAsyncioTestCase):
         stub, captured = _stub_mcp()
         benchmark.register(stub)
         self._seed_flag("cybench", "c3", "flag{something}")
-        with patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["run_caibench"](suite="cybench", challenge_id="c3")
         self.assertIsNone(out["passed"])
@@ -287,7 +287,7 @@ class SummarizeBenchmarksXbowBreakdownTest(unittest.IsolatedAsyncioTestCase):
         (bench_root / "x4.json").write_text(json.dumps({
             "benchmark": "XBOW", "level": 2, "passed": None, "unverified": True,
         }))
-        with patch("praetor.tools.benchmark._intel_dir",
+        with patch("praetor.tools.benchmark._core._intel_dir",
                    return_value=self.tmp / ".burp-intel"):
             out = await captured["summarize_benchmarks"]()
         xbow = out["benchmarks"]["xbow"]

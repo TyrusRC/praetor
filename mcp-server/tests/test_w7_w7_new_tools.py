@@ -102,7 +102,7 @@ class BenchmarkTest(unittest.IsolatedAsyncioTestCase):
             cwd = os.getcwd()
             os.chdir(td)
             try:
-                with patch.object(benchmark, "_check_tool", return_value=True):
+                with patch.object(benchmark._core, "_check_tool", return_value=True):
                     stub, captured = _stub_mcp()
                     benchmark.register(stub)
                     out = await captured["run_autopenbench"](
