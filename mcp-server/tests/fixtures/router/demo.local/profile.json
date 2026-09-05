@@ -1,0 +1,2 @@
+{"tech_stack": ["WordPress", "PHP", "nginx"],
+ "high_value_endpoints": ["https://demo.local/wp-login.php", "https://demo.local/api/orders"]}

@@ -50,6 +50,7 @@ from praetor.tools import (
     redteam,
     network,
     offline,
+    router,
 )
 
 mcp = FastMCP(
@@ -132,6 +133,7 @@ recon_extended.register(mcp)  # Python-only recon: crt.sh, wayback, DNS, takeove
 redteam.register(mcp)  # red-team knowledge: lookup_gtfobins / lookup_lolbas / redteam_tool_guide
 network.register(mcp)  # network recon lane: run_nmap / get_network_inventory (non-Burp evidence + web-lane bridge)
 offline.register(mcp)  # analyze_artifact — offline artifact analysis (raw request / JS / project) — no Burp
+router.register(mcp)   # signal->tool auto-routing (Balanced policy; ask-gates red-team/cloud/exploit)
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction

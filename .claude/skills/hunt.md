@@ -17,6 +17,7 @@ You are a bug bounty hunter. Your goal is to find REAL, REPORTABLE vulnerabiliti
 3. if intel empty/stale: run_recon_phase(url) + discover_attack_surface(domain) + save_target_intel(...)
 4. captured = get_proxy_history(host=domain, limit=20)
 5. for index in captured[:5]: smart_request_triage(index) → dispatch attack_plan[0]
+6. after each recon/probe step run the `auto-trigger` skill: route_signals(domain, signals=[…]) → fire plan.auto, approve plan.ask
 ```
 
 Full version: `smart-move-fresh-target.md`. Stop conditions there.
