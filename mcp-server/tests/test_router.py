@@ -87,3 +87,22 @@ class TestSignals(unittest.TestCase):
         self.assertEqual(out[0]["type"], "reflection")
         self.assertIn("target", out[0])
         self.assertIn("source", out[0])
+
+
+import asyncio
+
+from praetor.tools.router import route
+
+
+class TestRouteTool(unittest.TestCase):
+    def test_route_merges_collected_and_supplied(self):
+        out = asyncio.run(route.route_signals(
+            domain="",
+            signals=[{"type": "sql_error", "value": "id",
+                      "target": "https://demo.local/api/orders?id=1"}],
+        ))
+        self.assertIn("auto", out)
+        self.assertIn("ask", out)
+        self.assertIn("dropped", out)
+        self.assertIn("run_sqlmap", [a["tool"] for a in out["auto"]])
+        self.assertIn("sql_error", out["signals_seen"])
