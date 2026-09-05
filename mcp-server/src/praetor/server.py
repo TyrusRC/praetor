@@ -41,6 +41,7 @@ from praetor.tools import (
     unicode_normalize_split_probe,
     bopla_probe,
     clean_room_confirm,
+    gallery,
     owasp_asi_top10,
     a2a_agent_card_probe,
     mcp_invisible_unicode,
@@ -220,6 +221,7 @@ rre_chain_finder.register(mcp)                  # build_api_dag + find_rre_chain
 unicode_normalize_split_probe.register(mcp)     # probe_unicode_normalize_split — BH USA 2026 WAF↔origin normalisation split
 bopla_probe.register(mcp)                       # probe_bopla — Rapid7 per-property authz read-leak matrix
 clean_room_confirm.register(mcp)                # confirm_with_clean_room — XBOW second-pass replay agent
+gallery.register(mcp)                           # screenshot_gallery — offline visual-triage contact sheet
 owasp_asi_top10.register(mcp)                   # run_owasp_asi_top10 — OWASP Agentic Top 10 (ASI01-10) sweep dispatcher
 a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2A v1.0 agent card audit
 mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode — D1 MCP tool-metadata concealment
