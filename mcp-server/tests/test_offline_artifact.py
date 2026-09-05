@@ -96,3 +96,21 @@ class TestJsExtract(unittest.TestCase):
             ])
         eps = [e["endpoint"] for e in merged["api_inventory"]]
         self.assertEqual(eps.count("/api/shared/resource"), 1)
+
+
+class TestDetectAndProject(unittest.TestCase):
+    def test_detect_kind(self):
+        from praetor.tools.offline import _detect
+        self.assertEqual(_detect.detect_kind("https://x/app.js"), "js_url")
+        self.assertEqual(_detect.detect_kind(os.path.join(FIX, "signup.txt")), "raw_request")
+        self.assertEqual(_detect.detect_kind(os.path.join(FIX, "app.js")), "js")
+        self.assertEqual(_detect.detect_kind(os.path.join(FIX, "dir")), "js_dir")
+        self.assertEqual(_detect.detect_kind(os.path.join(FIX, "project")), "project")
+
+    def test_project_correlates_and_plans(self):
+        from praetor.tools.offline import _project
+        out = _project.correlate_project(os.path.join(FIX, "project"))
+        eps = {e["endpoint"] for e in out["api_inventory"]}
+        self.assertIn("/api/shared/resource", eps)
+        self.assertTrue(out["hypotheses"])
+        self.assertTrue(out["priority_test_plan"])

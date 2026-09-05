@@ -1,0 +1,5 @@
+POST /login HTTP/1.1
+Host: demo.local
+Content-Type: application/x-www-form-urlencoded
+
+username=admin&password=admin&role=user
