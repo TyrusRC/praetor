@@ -44,6 +44,7 @@ from praetor.tools import (
     gallery,
     gcp_key_audit,
     secret_audit,
+    nmap_report,
     owasp_asi_top10,
     a2a_agent_card_probe,
     mcp_invisible_unicode,
@@ -226,6 +227,7 @@ clean_room_confirm.register(mcp)                # confirm_with_clean_room — XB
 gallery.register(mcp)                           # screenshot_gallery — offline visual-triage contact sheet
 gcp_key_audit.register(mcp)                     # audit_google_api_key — validate exposed AIza key + impact (safe, no billing)
 secret_audit.register(mcp)                       # audit_exposed_secret — classify + safe read-only validate (github/gitlab/slack/npm); financial keys manual-only
+nmap_report.register(mcp)                        # nmap_report_html — nmap XML -> offline HTML exposure report (non-standard ports flagged)
 owasp_asi_top10.register(mcp)                   # run_owasp_asi_top10 — OWASP Agentic Top 10 (ASI01-10) sweep dispatcher
 a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2A v1.0 agent card audit
 mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode — D1 MCP tool-metadata concealment
