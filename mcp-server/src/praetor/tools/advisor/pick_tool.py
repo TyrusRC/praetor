@@ -6,6 +6,36 @@
 # (e.g. "token" which could match CSRF tokens). When ambiguous words
 # appear, use multi-word anchors like "csrf token" rather than bare "token".
 _MAPPINGS = [
+    # ----- session additions: router / offline / evidence / azure -----
+    (["route signals", "auto trigger", "auto-trigger", "signal to tool",
+      "which tool for this signal", "auto fire scanner", "reactive scan",
+      "what should i fire", "routing plan", "auto route tools"],
+     "route_signals",
+     "route_signals(domain='app.example.com', "
+     "signals=[{'type':'sql_error','value':'id','target':'https://app/api?id=1'}])"),
+    (["analyze raw request", "raw request file", "analyze request file",
+      "analyze js file", "js file", "js url", "javascript file",
+      "analyze javascript file", "offline analysis", "analyze without burp",
+      "analyze project folder", "correlate project", "artifact analysis"],
+     "analyze_artifact",
+     "analyze_artifact(source='./requests/login.txt')  # or a .js file/URL/dir "
+     "or a project/ tree; kind auto-detected"),
+    (["curate evidence", "save evidence", "record evidence index",
+      "annotate finding evidence", "bookmark evidence", "organizer finding",
+      "evidence to organizer"],
+     "curate_evidence",
+     "curate_evidence(finding_id='f001', index=42, domain='app.example.com', color='RED')"),
+    (["audit history noise", "burp history bloat", "reduce history noise",
+      "proxy history composition", "lean burp project", "clean up history",
+      "history audit"],
+     "audit_history_noise",
+     "audit_history_noise(domain='app.example.com')"),
+    (["azurehound", "azure ad collection", "entra id bloodhound",
+      "azure bloodhound", "collect azure ad", "azure graph collection"],
+     "run_azurehound",
+     "run_azurehound(tenant='<guid-or-domain>', refresh_token='<token>')  "
+     "# or jwt=, or username+password"),
+
     # ----- W37: durable checkpoint + completion judge -----
     (["write checkpoint", "save checkpoint", "engagement checkpoint",
       "task ledger", "record task state", "update task tree",
