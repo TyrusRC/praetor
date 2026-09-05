@@ -114,3 +114,39 @@ class TestDetectAndProject(unittest.TestCase):
         self.assertIn("/api/shared/resource", eps)
         self.assertTrue(out["hypotheses"])
         self.assertTrue(out["priority_test_plan"])
+
+
+import asyncio
+
+from praetor.tools.offline import entry
+
+
+class TestAnalyzeArtifact(unittest.TestCase):
+    def _run(self, **kw):
+        return asyncio.run(entry.analyze_artifact(**kw))
+
+    def test_routes_raw_request(self):
+        out = self._run(source=os.path.join(FIX, "signup.txt"))
+        self.assertEqual(out["kind"], "raw_request")
+        self.assertTrue(out["inputs"])
+
+    def test_routes_js_dir_with_dedupe(self):
+        out = self._run(source=os.path.join(FIX, "dir"))
+        self.assertEqual(out["kind"], "js_dir")
+        eps = [e["endpoint"] for e in out["api_inventory"]]
+        self.assertEqual(eps.count("/api/shared/resource"), 1)
+
+    def test_oversized_file_skipped_gracefully(self):
+        from praetor.tools.offline import _report
+        original = _report.MAX_FILE_BYTES
+        _report.MAX_FILE_BYTES = 10
+        try:
+            out = self._run(source=os.path.join(FIX, "app.js"), kind="js")
+            self.assertEqual(out["kind"], "js")
+            self.assertIn("skipped", json.dumps(out).lower())
+        finally:
+            _report.MAX_FILE_BYTES = original
+
+    def test_missing_source_returns_error_not_crash(self):
+        out = self._run(source="/nonexistent/path.js")
+        self.assertIn("error", out)
