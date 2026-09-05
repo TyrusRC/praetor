@@ -1,6 +1,11 @@
 {
   "category": "cors",
-  "chain_with": ["csrf", "account_takeover", "idor", "info_disclosure"],
+  "chain_with": [
+    "csrf",
+    "account_takeover",
+    "idor",
+    "info_disclosure"
+  ],
   "contexts": {
     "origin_reflect": {
       "description": "CORS origin reflection — server reflects any Origin header",
@@ -10,18 +15,34 @@
         {
           "payload": "{{baseline}}",
           "description": "Send request with Origin: https://evil.com, check if reflected in Access-Control-Allow-Origin",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 45,
-          "variables": {"test_origin": "https://evil.com"}
+          "variables": {
+            "test_origin": "https://evil.com"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Suffix match bypass: Origin: https://target.com.evil.com — regex checks if ends with target.com",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "target.com.evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "target.com.evil.com"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40,
-          "variables": {"test_origin": "https://target.com.evil.com"}
+          "variables": {
+            "test_origin": "https://target.com.evil.com"
+          }
         }
       ]
     },
@@ -33,26 +54,56 @@
         {
           "payload": "{{baseline}}",
           "description": "Send with Origin: null — accepted by some CORS configs",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "null"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40,
-          "variables": {"test_origin": "null"}
+          "variables": {
+            "test_origin": "null"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Null origin from data: URI context — browsers send null Origin for data: URI navigations",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "null"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 35,
-          "variables": {"test_origin": "null", "note": "Deliver via <iframe sandbox src='data:text/html,...'>"}
+          "variables": {
+            "test_origin": "null",
+            "note": "Deliver via <iframe sandbox src='data:text/html,...'>"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Null origin from sandboxed iframe — sandbox attribute causes null Origin",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "null"}, {"type": "header", "name": "Access-Control-Allow-Credentials", "contains": "true"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "null"
+            },
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Credentials",
+              "contains": "true"
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50,
-          "variables": {"test_origin": "null"}
+          "variables": {
+            "test_origin": "null"
+          }
         }
       ]
     },
@@ -65,8 +116,16 @@
           "payload": "{{baseline}}",
           "description": "Check if Access-Control-Allow-Credentials: true with wildcard origin",
           "matchers": [
-            {"type": "header", "name": "Access-Control-Allow-Origin", "contains": "*"},
-            {"type": "header", "name": "Access-Control-Allow-Credentials", "contains": "true"}
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "*"
+            },
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Credentials",
+              "contains": "true"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 50
@@ -81,7 +140,13 @@
         {
           "payload": "{{baseline}}",
           "description": "Origin: https://evil.target.com — test if subdomains trusted",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30
         }
@@ -95,10 +160,18 @@
         {
           "payload": "{{baseline}}",
           "description": "Origin: https://targetcom.evil.com — server regex checks if origin ends with 'target.com' but misses dot",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40,
-          "variables": {"test_origin": "https://targetcom.evil.com"}
+          "variables": {
+            "test_origin": "https://targetcom.evil.com"
+          }
         }
       ]
     },
@@ -110,10 +183,18 @@
         {
           "payload": "{{baseline}}",
           "description": "Origin: https://evil.target.com — server trusts *.target.com wildcard, attacker controls subdomain",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.target.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil.target.com"
+            }
+          ],
           "severity": "high",
           "confidence_boost": 38,
-          "variables": {"test_origin": "https://evil.target.com"}
+          "variables": {
+            "test_origin": "https://evil.target.com"
+          }
         }
       ]
     },
@@ -125,67 +206,153 @@
         {
           "payload": "{{baseline}}",
           "description": "Origin with underscore: https://target_com.evil.com — Safari treats underscore differently (CVE-style parser quirk)",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 25,
-          "variables": {"test_origin": "https://target_com.evil.com"}
+          "variables": {
+            "test_origin": "https://target_com.evil.com"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Backtick bypass: Origin https://target.com%60.evil.com — URL encoded backtick in origin parsing",
-          "matchers": [{"type": "header", "name": "Access-Control-Allow-Origin", "contains": "evil.com"}],
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil.com"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 20,
-          "variables": {"test_origin": "https://target.com%60.evil.com"}
+          "variables": {
+            "test_origin": "https://target.com%60.evil.com"
+          }
         }
       ]
     },
     "preflight_cache_poisoning": {
       "description": "Browsers cache CORS preflight responses for `Access-Control-Max-Age` seconds (up to 7200 in Chromium, 86400 in spec). If a CORS bug is patched but Max-Age is high, browsers continue serving the poisoned preflight allowing exploitation in the cache window. Server-side: per-origin or per-path cache collisions.",
-      "tech_match": ["cors"],
+      "tech_match": [
+        "cors"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Send OPTIONS preflight, observe Access-Control-Max-Age. Values >= 600 = exploitation window for browser-side cache poisoning if any vulnerable variant exists.",
           "matchers": [
-            {"type": "status", "status": [200, 204]},
-            {"type": "header", "name": "Access-Control-Max-Age", "contains": ""}
+            {
+              "type": "status",
+              "status": [
+                200,
+                204
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Access-Control-Max-Age",
+              "contains": ""
+            }
           ],
           "severity": "low",
           "confidence_boost": 25,
-          "variables": {"method": "OPTIONS"}
+          "variables": {
+            "method": "OPTIONS"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Cross-path preflight cache — request OPTIONS on /api/public, then attempt CORS request to /api/admin. Browsers cache by origin+method+headers, NOT by path. If preflight covers admin via wildcard / loose policy, attacker reuses cached approval.",
           "matchers": [
-            {"type": "header", "name": "Access-Control-Allow-Origin", "contains": ""}
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": ""
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35,
-          "variables": {"method": "OPTIONS", "manual_chain": true}
+          "variables": {
+            "method": "OPTIONS",
+            "manual_chain": true
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Vary header missing on preflight. Server should `Vary: Origin` so caches discriminate. Without it, intermediary cache may serve attacker-origin response to victim.",
           "matchers": [
-            {"type": "header", "name": "Access-Control-Allow-Origin", "contains": ""},
-            {"type": "not_word", "words": ["Vary: Origin", "vary: origin"]}
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": ""
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "Vary: Origin",
+                "vary: origin"
+              ]
+            }
           ],
           "severity": "medium",
           "confidence_boost": 30,
-          "variables": {"method": "OPTIONS"}
+          "variables": {
+            "method": "OPTIONS"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Access-Control-Allow-Headers reflection — preflight reflects requested headers without filtering. Combined with credentialed-wildcard, expands cross-origin attack surface.",
           "matchers": [
-            {"type": "header", "name": "Access-Control-Allow-Headers", "contains": "swk-test"}
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Headers",
+              "contains": "swk-test"
+            }
           ],
           "severity": "medium",
           "confidence_boost": 35,
-          "variables": {"method": "OPTIONS", "extra_headers": {"Access-Control-Request-Headers": "swk-test"}}
+          "variables": {
+            "method": "OPTIONS",
+            "extra_headers": {
+              "Access-Control-Request-Headers": "swk-test"
+            }
+          }
+        }
+      ]
+    },
+    "credentialed_reflect": {
+      "description": "Arbitrary Origin reflected in ACAO WITH Access-Control-Allow-Credentials: true — the reportable credentialed-CORS bar (reflection alone is not a finding)",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Send Origin: https://evil.com; report only if ACAO reflects it AND ACAC is true (credentialed cross-origin read of authed responses)",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Origin",
+              "contains": "evil.com"
+            },
+            {
+              "type": "header",
+              "name": "Access-Control-Allow-Credentials",
+              "contains": "true"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "test_origin": "https://evil.com"
+          }
         }
       ]
     }
