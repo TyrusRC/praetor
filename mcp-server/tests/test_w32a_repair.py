@@ -19,6 +19,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 KB_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "knowledge"
 TOOLS_DIR = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools"
+
+
+def _tool_src(name: str) -> str:
+    """Read a tool's source, whether it is name.py or a name/ package."""
+    py = TOOLS_DIR / f"{name}.py"
+    if py.exists():
+        return py.read_text()
+    return "\n".join(p.read_text() for p in sorted((TOOLS_DIR / name).glob("*.py")))
 SKILLS_DIR = ROOT / ".claude" / "skills"
 CLAUDE_MD = ROOT / "CLAUDE.md"
 
@@ -147,7 +155,7 @@ class StrToDictContractTest(unittest.TestCase):
         self.assertIn('"error": data["error"]', src)
 
     def test_check_scope_returns_dict(self):
-        src = (TOOLS_DIR / "read.py").read_text()
+        src = _tool_src("read")
         self.assertIn("async def check_scope(url: str) -> dict:", src)
         block = src.split("async def check_scope")[1].split("async def")[0]
         self.assertIn('"in_scope"', block)
@@ -156,7 +164,7 @@ class StrToDictContractTest(unittest.TestCase):
         self.assertIn('"error":', block)
 
     def test_extract_api_endpoints_returns_dict(self):
-        src = (TOOLS_DIR / "analyze.py").read_text()
+        src = _tool_src("analyze")
         self.assertIn("async def extract_api_endpoints(index: int) -> dict:", src)
         block = src.split("async def extract_api_endpoints")[1].split("async def")[0]
         self.assertIn('"human_summary"', block)
@@ -164,7 +172,7 @@ class StrToDictContractTest(unittest.TestCase):
         self.assertIn('"error":', block)
 
     def test_extract_js_secrets_returns_dict(self):
-        src = (TOOLS_DIR / "analyze.py").read_text()
+        src = _tool_src("analyze")
         self.assertIn("async def extract_js_secrets(index: int) -> dict:", src)
         block = src.split("async def extract_js_secrets")[1].split("async def")[0]
         self.assertIn('"human_summary"', block)

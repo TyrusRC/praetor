@@ -18,7 +18,7 @@ from praetor.tools.notes._projection import render_finding_md
 
 def _bulk_tool():
     mcp = FastMCP("t")
-    with mock.patch.object(proxy_control, "client"):
+    with mock.patch.object(proxy_control._annotate, "client"):
         proxy_control.register(mcp)
     return mcp._tool_manager.get_tool("annotate_bulk").fn
 
@@ -31,7 +31,7 @@ class TestBulkClaimGate(unittest.TestCase):
         return asyncio.run(self.bulk(items, **kw))
 
     def test_unbacked_claim_color_blocks_the_whole_batch(self):
-        with mock.patch.object(proxy_control, "client") as c:
+        with mock.patch.object(proxy_control._annotate, "client") as c:
             out = self._run([{"index": 1, "color": "RED", "comment": "sqli"}])
             c.post.assert_not_called()
         self.assertIn("QUESTION GATE", out)
@@ -40,7 +40,7 @@ class TestBulkClaimGate(unittest.TestCase):
     def test_nonclaim_colors_pass_through(self):
         async def fake_post(*_a, **_k):
             return {"applied": 2, "errors": []}
-        with mock.patch.object(proxy_control, "client") as c:
+        with mock.patch.object(proxy_control._annotate, "client") as c:
             c.post = fake_post
             out = self._run([
                 {"index": 1, "color": "YELLOW"},
@@ -51,14 +51,14 @@ class TestBulkClaimGate(unittest.TestCase):
     def test_confirm_true_allows_claim_colors(self):
         async def fake_post(*_a, **_k):
             return {"applied": 1, "errors": []}
-        with mock.patch.object(proxy_control, "client") as c:
+        with mock.patch.object(proxy_control._annotate, "client") as c:
             c.post = fake_post
             out = self._run([{"index": 1, "color": "RED"}], confirm=True)
         self.assertIn("Annotated 1 of 1", out)
 
     def test_unknown_finding_id_blocks_even_with_confirm(self):
-        with mock.patch.object(proxy_control, "_lookup_finding_id", return_value=(False, "")):
-            with mock.patch.object(proxy_control, "client") as c:
+        with mock.patch.object(proxy_control._annotate, "_lookup_finding_id", return_value=(False, "")):
+            with mock.patch.object(proxy_control._annotate, "client") as c:
                 out = self._run(
                     [{"index": 1, "color": "RED", "finding_id": "f999"}], confirm=True
                 )
@@ -68,8 +68,8 @@ class TestBulkClaimGate(unittest.TestCase):
     def test_resolvable_finding_id_passes_without_confirm(self):
         async def fake_post(*_a, **_k):
             return {"applied": 1, "errors": []}
-        with mock.patch.object(proxy_control, "_lookup_finding_id", return_value=(True, "ex.com T")):
-            with mock.patch.object(proxy_control, "client") as c:
+        with mock.patch.object(proxy_control._annotate, "_lookup_finding_id", return_value=(True, "ex.com T")):
+            with mock.patch.object(proxy_control._annotate, "client") as c:
                 c.post = fake_post
                 out = self._run([{"index": 1, "color": "RED", "finding_id": "f001"}])
         self.assertIn("Annotated 1 of 1", out)
@@ -77,7 +77,7 @@ class TestBulkClaimGate(unittest.TestCase):
     def test_non_dict_items_do_not_crash_the_gate(self):
         async def fake_post(*_a, **_k):
             return {"applied": 0, "errors": []}
-        with mock.patch.object(proxy_control, "client") as c:
+        with mock.patch.object(proxy_control._annotate, "client") as c:
             c.post = fake_post
             self._run(["garbage", None])  # must not raise
 

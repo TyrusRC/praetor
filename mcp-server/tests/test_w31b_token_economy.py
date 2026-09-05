@@ -12,6 +12,17 @@ from __future__ import annotations
 
 import unittest
 
+from pathlib import Path as _P
+_TOOLS = _P(__file__).resolve().parent.parent / "src" / "praetor" / "tools"
+
+
+def _tool_src(name: str) -> str:
+    py = _TOOLS / f"{name}.py"
+    if py.exists():
+        return py.read_text()
+    return "\n".join(p.read_text() for p in sorted((_TOOLS / name).glob("*.py")))
+
+
 
 class GetRequestDetailFieldsTest(unittest.TestCase):
     """Unit-test the pure helpers; signature gets a smoke check."""
@@ -118,16 +129,14 @@ class SignaturesTest(unittest.TestCase):
 
     def test_get_request_detail_has_fields(self):
         from pathlib import Path
-        src = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "read.py"
-        text = src.read_text()
+        text = _tool_src("read")
         self.assertIn("fields: list[str] | None = None", text)
         self.assertIn("body_first: int = 1024", text)
         self.assertIn("body_last: int = 0", text)
 
     def test_smart_analyze_has_summary_only(self):
         from pathlib import Path
-        src = Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "analyze.py"
-        self.assertIn("summary_only: bool = False", src.read_text())
+        self.assertIn("summary_only: bool = False", _tool_src("analyze"))
 
     def test_discover_attack_surface_has_summary_only(self):
         from pathlib import Path
@@ -141,12 +150,12 @@ class SignaturesTest(unittest.TestCase):
 
     def test_tightened_defaults(self):
         from pathlib import Path
-        read = (Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "read.py").read_text()
+        read = _tool_src("read")
         self.assertIn("async def get_sitemap(url_prefix: str = \"\", limit: int = 30)", read)
         # get_scanner_findings default — multi-line signature
         self.assertIn("limit: int = 20", read)
 
-        analyze = (Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "analyze.py").read_text()
+        analyze = _tool_src("analyze")
         self.assertIn("async def get_unique_endpoints(url_prefix: str = \"\", limit: int = 30)", analyze)
 
         wayback = (Path(__file__).resolve().parent.parent / "src" / "praetor" / "tools" / "recon_extended" / "wayback.py").read_text()
