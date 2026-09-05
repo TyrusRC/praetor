@@ -95,7 +95,21 @@ cannot exceed it.
 
 Smart/Autonomous never relax Rules 1–10. The mode only governs *how often the loop stops to check in* on already-permitted actions — it cannot grant a permission the tool layer denies.
 
+### Impact-First Category Order (Rule 29)
+
+Test in this order; earlier classes pay more and are where MEDIUM+ concentrates:
+1. Authorization — IDOR/BOLA/BFLA/BOPLA (test_auth_matrix, probe_* idor family)
+2. AuthN & session (test_login_bypass, test_mfa_bypass, test_session_lifecycle, jwt/oauth/saml)
+3. Business logic & race (test_business_logic, test_race_condition, probe_* logic family)
+4. Injection reaching a sink (auto_probe + test_* : sqli/rce/ssti/ssrf/xxe)
+5. Mass assignment (test_mass_assignment)
+6. Recon-shaped classes (headers/TLS/version) — RECORD, do not hunt (Rule 29)
+
 ## Autopilot Loop
+
+> **Definition of Done per finding:** verified (replayed) → assessed
+> (assess_finding passed) → saved with impact + evidence. Rules 10, 14, 29.
+> An unescalated LOW or an unassessed suspicion is a note, never a report entry.
 
 ```
 INITIALIZE:
@@ -131,21 +145,35 @@ LOOP:
       "recon":
         run Phase 1 + Phase 2 from hunt skill
         save all intel
+        phase = "hypothesize"
+        CHECKPOINT(mode)
+
+      "hypothesize":
+        // Rule 4 / article Phase 2 — no testing yet, intel → falsifiable claims.
+        derive 5-8 attack hypotheses from recon intel, each as:
+          { endpoint, param, vuln_class, expected_evidence, score }
+          where score = (impact × likelihood) ÷ effort
+        persist to notes.md under "## Hypotheses" (survives compaction, Rule 31)
         phase = "test"
         CHECKPOINT(mode)
 
       "test":
-        select next untested category from priority list
-        if no categories left:
+        pick highest-scored untested hypothesis (fallback: next class in Impact-First order)
+        if none left:
           phase = "chain"
           continue
-        run testing for selected category
+        run the probe/tool for that hypothesis
+        if suspected finding: run VALIDATION GATE (below) before appending
         save coverage + findings
         CHECKPOINT(mode)
 
       "chain":
+        // Every LOW/observation gets ONE escalation cycle — even a single finding.
+        for each finding of severity <= LOW (and each escalation-worthy note):
+          ask "what does this ENABLE?"; run propose_chains / chain-findings.md
+          success → chained finding with chain_with[]; failure → note in notes.md
         if findings.length >= 2:
-          attempt chain-findings skill on low/medium findings
+          attempt cross-finding chains (chain-findings.md)
         phase = "report"
 
       "report":
@@ -181,6 +209,19 @@ LOOP:
             PAUSE("CRITICAL finding: {finding.summary}. Review before continuing.")
           // Otherwise continue
 ```
+
+## Validation Gate (Rule 10 — every suspected finding, no exceptions)
+
+Before a finding may enter findings[] / the board:
+1. verify — replay the confirming request (verify-finding.md Step 0).
+   For *_blind / sqli_time / race_condition / request_smuggling: replay ≥3×,
+   capture {logger_index, elapsed_ms, status_code} per replay → reproductions[].
+2. assess_finding(vuln_type, evidence, endpoint, parameter, domain).
+   Verdict DO NOT REPORT / NEEDS MORE EVIDENCE → do NOT save; route to
+   save_target_notes. It is a note, never a report entry (Rule 14a).
+3. save_finding(...) only on a passing assess.
+
+A finding that never clears assess is a note, not a submission.
 
 ## Checkpoint Behavior
 

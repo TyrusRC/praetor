@@ -1,0 +1,2 @@
+https://demo.local/login
+https://demo.local/api/shared/resource
