@@ -62,7 +62,7 @@ class W2FindingsDiffTest(unittest.TestCase):
     def test_snapshot_archive_creates_file(self):
         live = self.tmp / "ex.com" / "findings.json"
         live.write_text(json.dumps({"findings": [{"id": "f-1"}]}), encoding="utf-8")
-        with mock.patch.object(fd_mod, "_safe_findings_path", return_value=live):
+        with mock.patch("praetor.tools.easm._diff_helpers._safe_findings_path", return_value=live):
             p = fd_mod._archive_current("ex.com")
         self.assertIsNotNone(p)
         self.assertTrue(p.exists())
