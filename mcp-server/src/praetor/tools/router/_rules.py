@@ -12,6 +12,8 @@ ALWAYS_ASK_TOOLS = {
     "msf_search", "msf_check", "msf_exploit", "msfrpc_module_execute",
     # expensive active scan
     "scan_url",
+    # azure AD collector (needs creds; red-team)
+    "run_azurehound",
 }
 
 HARD_DENY = ["DROP TABLE", "rm -rf", "shutdown", "format ", "DELETE FROM",
@@ -21,7 +23,7 @@ IMPACT_WEIGHT = {
     "run_sqlmap": 90, "test_ssti": 90, "run_commix": 88, "run_dalfox": 70,
     "run_wpscan": 60, "run_nuclei": 55, "crack_jwt_secret": 50,
     "auto_probe": 40, "scan_url": 80, "run_network_tool": 85,
-    "run_prowler": 80, "run_scout_suite": 75,
+    "run_prowler": 80, "run_scout_suite": 75, "run_azurehound": 82,
 }
 
 # nuclei tag mapping by detected tech (targeted, not all templates)
@@ -102,4 +104,12 @@ ROUTING_TABLE = [
      "rationale": "cloud creds -> prowler/scoutsuite (CLOUD: approve)",
      "when": lambda s: [x for x in s if x["type"] == "creds" and x["value"] == "cloud"],
      "fire": lambda s: [{"tool": "run_prowler", "args": {}}]},
+    {"id": "azure_ad_creds", "policy": "ask",
+     "rationale": "Azure AD creds -> azurehound collection for BloodHound (RED-TEAM: approve)",
+     "when": lambda s: [x for x in s if x["type"] == "creds" and x["value"] == "azure_ad"],
+     "fire": lambda s: [{"tool": "run_azurehound", "args": {"tenant": s.get("target", "")}}]},
+    {"id": "burp_active", "policy": "ask",
+     "rationale": "specific suspicious request -> targeted Burp active audit (per-request, not mass crawl; EXPENSIVE: approve)",
+     "when": lambda s: [x for x in s if x["type"] == "scan_candidate"],
+     "fire": lambda s: [{"tool": "scan_url", "args": {"index": s.get("value", "")}}]},
 ]

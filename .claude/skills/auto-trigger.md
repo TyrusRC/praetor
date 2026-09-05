@@ -12,7 +12,9 @@ step, route the new signals and act on the plan.
 
 1. Gather new signals since the last routing: tech from fingerprint, reflections,
    SQL/error markers, cmdi/ssti markers, JWT/GraphQL presence, live services,
-   captured creds.
+   captured creds (creds:cloud / creds:azure_ad), and a `scan_candidate` (a
+   specific proxy index worth a targeted Burp active audit — fires
+   scan_url(index=), ask-gated).
 2. `route_signals(domain, signals=[<new signals>])`.
 3. Fire EVERY action in `plan.auto` immediately (Balanced: web/passive scanners
    on strong signals — nuclei/sqlmap-safe/dalfox/wpscan/commix-detect, plus the

@@ -1,6 +1,8 @@
 """Multi-cloud config posture + AWS post-exploit wrappers.
 
 - prowler / scout_suite / cloudsploit — read-only config audit (multi-cloud).
+- azurehound — Azure AD / Entra ID graph collector (BloodHound data). Needs
+  operator-supplied Azure credentials; never logs them.
 - pacu — AWS post-exploitation framework (Rhino Security Labs). Active. Run
   ONLY against accounts the operator owns / has authorization for. Rule 5
   destructive denylist enforced at tool layer.
@@ -139,6 +141,56 @@ def register(mcp: FastMCP) -> None:
             lines.append(f"  [{r['sev']:<8}] {r['id']}  ({r['region']})  {r['title']}")
         if rc != 0 and not rows:
             lines.append(f"[rc={rc}] {err[:200]}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_azurehound(
+        tenant: str = "",
+        refresh_token: str = "",
+        username: str = "",
+        password: str = "",
+        jwt: str = "",
+        output: str = "azurehound-output.json",
+        timeout: int = 1800,
+    ) -> str:
+        """Collect Azure AD / Entra ID graph data with azurehound (BloodHound ingest).
+
+        Provide EXACTLY ONE auth method: refresh_token, jwt, or username+password.
+        Credentials are passed to the process only — never echoed back.
+
+        Args:
+            tenant: Azure tenant ID (GUID) or domain.
+            refresh_token / jwt / username+password: one auth method.
+            output: file azurehound writes the collected JSON to.
+            timeout: seconds.
+        """
+        if not _check_tool("azurehound"):
+            return _hint("azurehound",
+                         "go install github.com/bloodhoundad/azurehound@latest  |  "
+                         "https://github.com/BloodHoundAD/AzureHound")
+        if not tenant:
+            return "Error: tenant (GUID or domain) is required."
+        auth: list[str] = []
+        if refresh_token:
+            auth = ["-r", refresh_token]
+        elif jwt:
+            auth = ["--jwt", jwt]
+        elif username and password:
+            auth = ["-u", username, "-p", password]
+        else:
+            return ("Error: provide one auth method — refresh_token, jwt, or "
+                    "username+password. azurehound needs Azure credentials the "
+                    "operator is authorized to use.")
+        cmd = ["azurehound", *auth, "list", "--tenant", tenant, "-o", output]
+        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
+        # Never surface credentials; report only outcome + counts.
+        n = out.count('"kind"') or out.count('"data"')
+        lines = [f"azurehound [tenant={tenant}]: rc={rc}, output -> {output}"]
+        if n:
+            lines.append(f"  collected ~{n} graph objects (ingest {output} into BloodHound)")
+        if rc != 0:
+            safe_err = err.replace(refresh_token or "\x00", "***").replace(password or "\x00", "***")
+            lines.append(f"  [rc={rc}] {safe_err[:200]}")
         return "\n".join(lines)
 
     @mcp.tool()
