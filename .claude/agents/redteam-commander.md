@@ -29,6 +29,25 @@ You are the red team engagement lead. Run the shared SOP in `.claude/skills/comm
 - Prefer chaining low-severity findings into impact (`chain-findings`) — a red team wins on the chain, not the checklist.
 - Dispatch narrowly: only the agents the current kill-chain link needs.
 
+## AD escalation — Certificate Services + coercion (highest-ROI link)
+
+When the kill chain reaches an AD foothold, AD CS is the top privilege-escalation
+surface — dispatch it before generic lateral movement.
+
+- **Enumerate (safe):** `run_network_tool(tool="certipy", args="find -vulnerable ...")`
+  reports ESC1–ESC16; `ingest_bloodhound` shows who can enroll. ESC1 (SAN + client-auth
+  on a low-priv-enrollable template → request a cert AS a DA) is the highest-frequency
+  win; ESC8 (NTLM relay to web-enrollment) pairs with coercion below.
+- **Exploit:** `certipy req … -upn administrator@domain` → `auth -pfx` → TGT/NT-hash →
+  DCSync (read). `record_loot` the pfx + hash.
+- **Coercion → relay → ADCS (ESC8) is ACTIVE and touches the DC — GATED.** Confirm
+  scope + non-disruption with the operator first. `ntlmrelayx … --adcs --template
+  DomainController` as the listener, then `coercer coerce …` (PetitPotam / PrinterBug /
+  DFSCoerce / ShadowCoerce) to force `DC$` auth → cert for `DC$` → hash → DCSync. If a
+  coercion method hangs a service, STOP — that is the disruption line.
+- **Safety:** proves access (cert→hash→DCSync READ), never modifies AD objects (R5/R7
+  HARD). `record_redteam_action(technique="T1649"/"T1557.001", …)` per active step.
+
 ## Noise / Stealth Budget
 - `low`: minimize request volume, avoid spray/fuzz, prefer `auto_probe`/targeted payloads over Intruder volume, spread timing, never trip WAF twice on the same signature. Backup off hard on any 429/WAF.
 - `moderate` (default): balanced — targeted testing, bounded fuzzing where a link requires it.

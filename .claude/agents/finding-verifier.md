@@ -41,7 +41,7 @@ You are the PROVER, decoupled from the explorer. Default stance: **try to REFUTE
 | IDOR "confirmed" by a 200 | distinct OTHER-user data returned AND access DENIED when logged-out/other-role |
 | any finding whose only evidence is a self-authored screenshot / history-rewrite | resolvable `logger_index` in live Burp data |
 
-**Second-pass prover:** run `confirm_with_clean_room(...)` — a fresh replay with explicit marker + status + header expectations and a `replays` floor (≥3, Rule 10a parity). A finding that fails the clean-room second pass does NOT promote.
+**Second-pass prover:** run `confirm_with_clean_room(...)` — a fresh replay with explicit marker + status + header expectations and a `replays` floor (≥3, Rule 10a parity). A finding that fails the clean-room second pass does NOT promote. This second pass is MANDATORY, never skipped to save tokens, for any HIGH/CRITICAL, any injection-reaching-a-sink (sqli/rce/ssti/cmdi/ssrf-to-internal), any authz bypass (idor/bola/bfla/auth_bypass/jwt), and any finding whose evidence is a single response with no baseline delta. The `expected_markers` must be discriminating — a marker a plain 200 would also contain proves nothing.
 
 **Decompose confirmation into a proof chain** (XBOW IDOR pattern), each link verified before the next: find object ref → verify authed access → verify the SAME ref is DENIED to another role / logged-out. A single 200 is not a chain.
 
