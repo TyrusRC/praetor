@@ -1,12 +1,13 @@
 """Vulnerability scanners: nuclei, dalfox, commix, sqlmap, nikto, wpscan, ysoserial."""
 
 from mcp.server.fastmcp import FastMCP
-from . import _g1, _g2
+from . import _g1, _g2, _g3
 
 
 def register(mcp: FastMCP):
     _g1.register(mcp)
     _g2.register(mcp)
+    _g3.register(mcp)
 
 
 # Re-export _shared surface for package-path patches/access.

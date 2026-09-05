@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from praetor import config
 from praetor.tools.redteam import _ghostwriter as gw
+from praetor.tools.redteam import _gw_auth  # login state lives here after the split
 
 
 class _Resp:
@@ -50,7 +51,7 @@ class GhostwriterAuth(unittest.TestCase):
     def setUp(self):
         _FakeClient.calls = []
         _FakeClient.queue = []
-        gw._LOGIN_JWT = ""
+        _gw_auth._LOGIN_JWT = ""
         # Baseline config: URL + oplog set, no static auth, default creds.
         self._saved = {k: getattr(config, k) for k in (
             "GHOSTWRITER_URL", "GHOSTWRITER_OPLOG_ID", "GHOSTWRITER_API_TOKEN",
@@ -67,7 +68,7 @@ class GhostwriterAuth(unittest.TestCase):
     def tearDown(self):
         for k, v in self._saved.items():
             setattr(config, k, v)
-        gw._LOGIN_JWT = ""
+        _gw_auth._LOGIN_JWT = ""
 
     # ── config / precedence ────────────────────────────────────────────────
     def test_configured_with_only_url_oplog_and_default_creds(self):
@@ -118,7 +119,7 @@ class GhostwriterAuth(unittest.TestCase):
         self.assertEqual(_FakeClient.calls[1][1].get("Authorization"), "Bearer JWT1")
 
     def test_gql_relogins_once_on_expired_jwt(self):
-        gw._LOGIN_JWT = "STALE"                                   # cached, expired
+        _gw_auth._LOGIN_JWT = "STALE"                                   # cached, expired
         _FakeClient.queue = [
             _Resp(body={"errors": [{"message": "Could not verify JWT: expired"}]}),  # 1st gql
             _Resp(body={"data": {"login": {"token": "FRESH"}}}),  # re-login
