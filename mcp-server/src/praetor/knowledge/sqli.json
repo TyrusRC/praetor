@@ -76,6 +76,33 @@
           "severity": "high",
           "confidence_boost": 70,
           "variables": {}
+        },
+        {
+          "payload": "{{baseline}}'",
+          "description": "Single-quote error trigger \u2014 DB error strings with Adminer negative-match to suppress the admin-tool FP",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "You have an error in your SQL syntax",
+                "Warning: mysqli",
+                "supplied argument is not a valid MySQL",
+                "SQLSTATE[",
+                "ORA-01756",
+                "PG::SyntaxError"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "Adminer"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
         }
       ]
     },
