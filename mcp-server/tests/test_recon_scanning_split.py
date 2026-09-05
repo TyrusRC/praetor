@@ -60,6 +60,7 @@ class TestReconScanningShim(unittest.TestCase):
             "run_dalfox",
             "run_commix",
             "run_sqlmap",
+            "run_ghauri",
             "run_wpscan",
             "run_nikto",
             "generate_deserialization_gadget",

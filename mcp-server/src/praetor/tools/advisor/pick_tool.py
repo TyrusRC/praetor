@@ -88,6 +88,16 @@ _MAPPINGS = [
      "audit_google_api_key",
      "audit_google_api_key(key='AIza...', referer='')  "
      "# validates Gemini access + frames impact; safe, no billable generation"),
+    (["sqlmap", "sql injection tool", "waf bypass sqli", "tamper script",
+      "dump database sqli", "sqli behind waf", "sqlmap tamper"],
+     "run_sqlmap",
+     "run_sqlmap(target='http://t/?id=1', tamper='space2comment,randomcase', "
+     "dbms='mysql', ignore_code='403,500')  # WAF-bypass via tamper (<=3), hex, random-agent"),
+    (["ghauri", "adaptive sqli", "sqli cloud waf", "cloudflare sqli", "blind sqli waf",
+      "sqlmap alternative", "sqli akamai"],
+     "run_ghauri",
+     "run_ghauri(target='http://t/?id=1', confirm=True, dbms='mysql', time_sec=10)  "
+     "# adaptive SQLi for cloud WAFs; test alongside run_sqlmap"),
     (["exposed secret", "validate leaked key", "leaked token", "aws key found",
       "github token found", "slack token", "stripe key", "what can this key do",
       "secret impact", "classify secret", "leaked credential"],
