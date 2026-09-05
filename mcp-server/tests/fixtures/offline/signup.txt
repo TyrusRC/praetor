@@ -1,0 +1,21 @@
+POST /api/v1/auth/signup HTTP/2
+Host: demo.local
+Cookie: session=eyJhbGciOiJIUzI1NiJ9.demo.session
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/139.0.0.0 Safari/537.36
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+Origin: https://demo.local
+Referer: https://demo.local/register
+X-CSRF-Token: demo-csrf-token
+X-Forwarded-For: 127.0.0.1
+Connection: keep-alive
+
+{
+  "username": "john.doe",
+  "email": "john@example.com",
+  "password": "Password123!",
+  "confirmPassword": "Password123!",
+  "role": "user",
+  "inviteCode": "",
+  "referrer": "newsletter"
+}
