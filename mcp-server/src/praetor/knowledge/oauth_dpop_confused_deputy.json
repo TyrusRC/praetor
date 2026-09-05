@@ -1,41 +1,107 @@
 {
-  "category": "oauth_dpop_confused_deputy",
-  "description": "DPoP token replay across resource servers — RFC 9449 + 2024 disclosures",
-  "contexts": {
-    "rs_audience_missing": {
-      "description": "Resource server does not validate DPoP 'htu' (HTTP URI) or 'htm' (HTTP method) — token usable on any RS",
-      "tech_match": ["oauth", "openid", "dpop"],
-      "param_match": [],
-      "probes": [
-        {
-          "payload": "<replay DPoP proof from RS-A to RS-B>",
-          "description": "If RS-B accepts a proof minted for RS-A's htu, audience binding is broken",
-          "matchers": [
-            {"type": "not_status", "status": [401, 403], "condition": "and"},
-            {"type": "word", "words": ["DPoP-Nonce", "dpop"], "condition": "or"}
-          ],
-          "severity": "high",
-          "confidence_boost": 60,
-          "variables": {}
-        }
-      ]
+ "category": "oauth_dpop_confused_deputy",
+ "description": "DPoP token replay across resource servers \u2014 RFC 9449 + 2024 disclosures",
+ "contexts": {
+  "rs_audience_missing": {
+   "description": "Resource server does not validate DPoP 'htu' (HTTP URI) or 'htm' (HTTP method) \u2014 token usable on any RS",
+   "tech_match": [
+    "oauth",
+    "openid",
+    "dpop"
+   ],
+   "param_match": [],
+   "probes": [
+    {
+     "payload": "<replay DPoP proof from RS-A to RS-B>",
+     "description": "If RS-B accepts a proof minted for RS-A's htu, audience binding is broken",
+     "matchers": [
+      {
+       "type": "not_status",
+       "status": [
+        401,
+        403
+       ],
+       "condition": "and"
+      },
+      {
+       "type": "word",
+       "words": [
+        "DPoP-Nonce",
+        "dpop"
+       ],
+       "condition": "or"
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 60,
+     "variables": {}
     },
-    "jti_replay": {
-      "description": "Server does not cache DPoP jti — same proof reusable",
-      "tech_match": ["oauth"],
-      "param_match": [],
-      "probes": [
-        {
-          "payload": "<replay same DPoP proof twice within iat+60s window>",
-          "description": "Second replay succeeds → no jti cache",
-          "matchers": [
-            {"type": "status", "status": [200], "condition": "and"}
-          ],
-          "severity": "medium",
-          "confidence_boost": 50,
-          "variables": {}
-        }
-      ]
+    {
+     "payload": "{{baseline}}",
+     "description": "DPoP jkt binding not checked \u2014 access accepted without a matching cnf/jkt thumbprint means the token is not sender-constrained (a stolen bearer works), defeating DPoP's purpose.",
+     "matchers": [
+      {
+       "type": "not_word",
+       "words": [
+        "jkt",
+        "cnf",
+        "invalid_dpop_proof"
+       ]
+      },
+      {
+       "type": "status",
+       "status": [
+        200
+       ]
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 45
     }
+   ]
+  },
+  "jti_replay": {
+   "description": "Server does not cache DPoP jti \u2014 same proof reusable",
+   "tech_match": [
+    "oauth"
+   ],
+   "param_match": [],
+   "probes": [
+    {
+     "payload": "<replay same DPoP proof twice within iat+60s window>",
+     "description": "Second replay succeeds \u2192 no jti cache",
+     "matchers": [
+      {
+       "type": "status",
+       "status": [
+        200
+       ],
+       "condition": "and"
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 50,
+     "variables": {}
+    },
+    {
+     "payload": "{{baseline}}",
+     "description": "DPoP nonce not enforced \u2014 the RS/AS does not challenge with DPoP-Nonce (no use_dpop_nonce error, no DPoP-Nonce header), so a captured proof can be replayed within its iat window (RFC 9449 replay).",
+     "matchers": [
+      {
+       "type": "not_header",
+       "name": "DPoP-Nonce"
+      },
+      {
+       "type": "not_word",
+       "words": [
+        "use_dpop_nonce"
+       ]
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
+    }
+   ]
   }
+ }
 }

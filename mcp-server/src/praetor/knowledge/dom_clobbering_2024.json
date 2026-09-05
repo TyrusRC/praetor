@@ -1,42 +1,120 @@
 {
-  "category": "dom_clobbering_2024",
-  "description": "DOM clobbering 2024 — id/name → property collision + HTMLCollection clobbering",
-  "contexts": {
-    "id_name_property_clobber": {
-      "description": "Form/anchor element with id matching a JS global property hijacks document.X reference",
-      "tech_match": ["html", "spa"],
-      "param_match": ["html", "content", "body", "description", "bio", "note"],
-      "probes": [
-        {
-          "payload": "<form id=test_global><input id=value name=value value=hijacked></form>",
-          "description": "If document.test_global is read by client JS, the form clobbers it",
-          "matchers": [
-            {"type": "reflection", "in": "body"},
-            {"type": "literal", "needle": "id=test_global", "condition": "and"}
-          ],
-          "severity": "medium",
-          "confidence_boost": 55,
-          "variables": {}
-        }
-      ]
+ "category": "dom_clobbering_2024",
+ "description": "DOM clobbering 2024 \u2014 id/name \u2192 property collision + HTMLCollection clobbering",
+ "contexts": {
+  "id_name_property_clobber": {
+   "description": "Form/anchor element with id matching a JS global property hijacks document.X reference",
+   "tech_match": [
+    "html",
+    "spa"
+   ],
+   "param_match": [
+    "html",
+    "content",
+    "body",
+    "description",
+    "bio",
+    "note"
+   ],
+   "probes": [
+    {
+     "payload": "<form id=test_global><input id=value name=value value=hijacked></form>",
+     "description": "If document.test_global is read by client JS, the form clobbers it",
+     "matchers": [
+      {
+       "type": "reflection",
+       "in": "body"
+      },
+      {
+       "type": "literal",
+       "needle": "id=test_global",
+       "condition": "and"
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 55,
+     "variables": {}
     },
-    "htmlcollection_clobber": {
-      "description": "Two elements with same name → HTMLCollection — clobbers single-value property reads",
-      "tech_match": ["html", "spa"],
-      "param_match": ["html", "content"],
-      "probes": [
-        {
-          "payload": "<a id=x><a id=x>",
-          "description": "Two id=x → document.x is HTMLCollection, not a single element",
-          "matchers": [
-            {"type": "reflection", "in": "body"},
-            {"type": "literal", "needle": "id=x", "condition": "and"}
-          ],
-          "severity": "medium",
-          "confidence_boost": 50,
-          "variables": {}
-        }
-      ]
+    {
+     "payload": "<form id=\"x\"><input name=\"y\" value=\"clobbered\"></form>",
+     "description": "form parent-child clobbering \u2014 an injected <form> clobbers a same-named JS variable; the nested input clobbers a sub-property (config.y) used as a gadget sink.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      },
+      {
+       "type": "literal",
+       "value": "name=\"y\""
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
+    },
+    {
+     "payload": "<img name=\"url\" src=\"x\"><img name=\"url\">",
+     "description": "import.meta.url / rollup DOM-clobbering gadget (CVE-2024-38354 class) \u2014 clobbering `url` diverts a bundler base URL to attacker markup, reaching an XSS sink.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      },
+      {
+       "type": "literal",
+       "value": "name=\"url\""
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
     }
+   ]
+  },
+  "htmlcollection_clobber": {
+   "description": "Two elements with same name \u2192 HTMLCollection \u2014 clobbers single-value property reads",
+   "tech_match": [
+    "html",
+    "spa"
+   ],
+   "param_match": [
+    "html",
+    "content"
+   ],
+   "probes": [
+    {
+     "payload": "<a id=x><a id=x>",
+     "description": "Two id=x \u2192 document.x is HTMLCollection, not a single element",
+     "matchers": [
+      {
+       "type": "reflection",
+       "in": "body"
+      },
+      {
+       "type": "literal",
+       "needle": "id=x",
+       "condition": "and"
+      }
+     ],
+     "severity": "medium",
+     "confidence_boost": 50,
+     "variables": {}
+    },
+    {
+     "payload": "<a id=\"x\"></a><a id=\"x\" name=\"attributes\"></a>",
+     "description": "HTMLCollection + named-property clobbering (CVE-2024-38354 hackmd/codimd class) \u2014 two same-id anchors form a collection whose named member overrides a DOM property read as a gadget.",
+     "matchers": [
+      {
+       "type": "reflection",
+       "check_variants": true
+      },
+      {
+       "type": "literal",
+       "value": "id=\"x\""
+      }
+     ],
+     "severity": "high",
+     "confidence_boost": 50
+    }
+   ]
   }
+ }
 }
