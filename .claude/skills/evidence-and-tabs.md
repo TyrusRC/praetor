@@ -154,3 +154,18 @@ This is why **Workflow A's `annotate_request` + `send_to_organizer` step is mand
 - **Annotate-and-organize rule:** `.claude/rules/hunting.md` Rule 31
 - **Header / parameter / pollution / smuggling probes:** still use `test_*` or `auto_probe` — those wrap the right Burp surface internally
 - **Tool selection cheatsheet:** `pick_tool('<task>')`
+
+## Keep the .burp project lean (capture-time, not deletion)
+
+Burp history is read-only to the extension — it cannot be pruned programmatically.
+Control bloat at capture and curate what matters:
+- **Scope first.** `configure_scope` tightly before crawling; out-of-scope traffic
+  you never capture is the only traffic you never store.
+- **Volume off-proxy.** Fuzz/brute/rate/race via `fuzz_parameter` /
+  `send_to_intruder_configured` / `concurrent_requests` / `test_race_condition`,
+  not repeated proxied `curl_request` — keeps thousands of variants out of history.
+- **Curate evidence in one call.** On a confirmed finding:
+  `curate_evidence(finding_id, index, domain, color='RED')` — annotates + sends to
+  Organizer + records the canonical evidence index (Rule 18) in one step.
+- **Audit before reporting.** `audit_history_noise(domain)` reports static/dup/
+  out-of-scope composition and what to tighten next time.
