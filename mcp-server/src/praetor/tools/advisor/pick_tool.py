@@ -78,6 +78,19 @@ _MAPPINGS = [
       "review captured pages"],
      "screenshot_gallery",
      "screenshot_gallery(domain='app.example.com')  # offline HTML grid of captured screenshots"),
+    (["exposed google api key", "gemini api key", "aiza key", "validate api key",
+      "google api key impact", "leaked gemini key", "check google key",
+      "api key abuse", "firebase maps key"],
+     "audit_google_api_key",
+     "audit_google_api_key(key='AIza...', referer='')  "
+     "# validates Gemini access + frames impact; safe, no billable generation"),
+    (["exposed secret", "validate leaked key", "leaked token", "aws key found",
+      "github token found", "slack token", "stripe key", "what can this key do",
+      "secret impact", "classify secret", "leaked credential"],
+     "audit_exposed_secret",
+     "audit_exposed_secret(secret='<value>')  "
+     "# classify + safe read-only validate (github/gitlab/slack/npm/google); "
+     "financial keys (stripe/aws/twilio) classified manual-only"),
 
     # ----- W37: durable checkpoint + completion judge -----
     (["write checkpoint", "save checkpoint", "engagement checkpoint",

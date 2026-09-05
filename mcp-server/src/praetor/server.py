@@ -42,6 +42,8 @@ from praetor.tools import (
     bopla_probe,
     clean_room_confirm,
     gallery,
+    gcp_key_audit,
+    secret_audit,
     owasp_asi_top10,
     a2a_agent_card_probe,
     mcp_invisible_unicode,
@@ -222,6 +224,8 @@ unicode_normalize_split_probe.register(mcp)     # probe_unicode_normalize_split 
 bopla_probe.register(mcp)                       # probe_bopla — Rapid7 per-property authz read-leak matrix
 clean_room_confirm.register(mcp)                # confirm_with_clean_room — XBOW second-pass replay agent
 gallery.register(mcp)                           # screenshot_gallery — offline visual-triage contact sheet
+gcp_key_audit.register(mcp)                     # audit_google_api_key — validate exposed AIza key + impact (safe, no billing)
+secret_audit.register(mcp)                       # audit_exposed_secret — classify + safe read-only validate (github/gitlab/slack/npm); financial keys manual-only
 owasp_asi_top10.register(mcp)                   # run_owasp_asi_top10 — OWASP Agentic Top 10 (ASI01-10) sweep dispatcher
 a2a_agent_card_probe.register(mcp)              # probe_a2a_agent_card — LF A2A v1.0 agent card audit
 mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode — D1 MCP tool-metadata concealment
