@@ -106,3 +106,24 @@ class TestRouteTool(unittest.TestCase):
         self.assertIn("dropped", out)
         self.assertIn("run_sqlmap", [a["tool"] for a in out["auto"]])
         self.assertIn("sql_error", out["signals_seen"])
+
+
+class TestBatch2Rules(unittest.TestCase):
+    def _sig(self, **kw):
+        return {"type": kw["type"], "value": kw.get("value", ""),
+                "target": kw.get("target", "https://x"), "source": "t"}
+
+    def test_scan_candidate_targets_index_and_is_ask(self):
+        from praetor.tools.router import _engine
+        out = _engine.match([self._sig(type="scan_candidate", value=57)])
+        ask = out["ask"]
+        su = next((a for a in ask if a["tool"] == "scan_url"), None)
+        self.assertIsNotNone(su)
+        self.assertEqual(su["args"].get("index"), 57)
+        self.assertNotIn("scan_url", [a["tool"] for a in out["auto"]])
+
+    def test_azure_ad_creds_fire_azurehound_ask(self):
+        from praetor.tools.router import _engine
+        out = _engine.match([self._sig(type="creds", value="azure_ad", target="tenant-123")])
+        self.assertIn("run_azurehound", [a["tool"] for a in out["ask"]])
+        self.assertNotIn("run_azurehound", [a["tool"] for a in out["auto"]])
