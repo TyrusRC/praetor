@@ -73,6 +73,11 @@ _MAPPINGS = [
      "import_scan_results",
      "import_scan_results(source='./scan.nessus', domain='app.example.com')  "
      "# nuclei JSONL or nessus XML; dedup-merged as suspected"),
+    (["screenshot gallery", "visual triage", "contact sheet", "aquatone",
+      "screenshot grid", "browse screenshots", "gallery of screenshots",
+      "review captured pages"],
+     "screenshot_gallery",
+     "screenshot_gallery(domain='app.example.com')  # offline HTML grid of captured screenshots"),
 
     # ----- W37: durable checkpoint + completion judge -----
     (["write checkpoint", "save checkpoint", "engagement checkpoint",
