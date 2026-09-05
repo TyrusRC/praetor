@@ -52,6 +52,7 @@ from praetor.tools import (
     offline,
     router,
     evidence,
+    assurance,
 )
 
 mcp = FastMCP(
@@ -136,6 +137,7 @@ network.register(mcp)  # network recon lane: run_nmap / get_network_inventory (n
 offline.register(mcp)  # analyze_artifact — offline artifact analysis (raw request / JS / project) — no Burp
 router.register(mcp)   # signal->tool auto-routing (Balanced policy; ask-gates red-team/cloud/exploit)
 evidence.register(mcp) # curate_evidence / audit_history_noise (history is read-only; curate+audit, not prune)
+assurance.register(mcp) # standards_coverage heatmap, generate_posture_dashboard, generate_compliance_report
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction

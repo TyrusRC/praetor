@@ -36,6 +36,26 @@ _MAPPINGS = [
      "run_azurehound(tenant='<guid-or-domain>', refresh_token='<token>')  "
      "# or jwt=, or username+password"),
 
+    # ----- Assurance & reporting: coverage heatmap, dashboard, compliance -----
+    (["standards coverage", "coverage heatmap", "what did we not test",
+      "owasp coverage", "wstg coverage", "api top 10 coverage",
+      "test coverage against standard", "coverage assurance", "untested categories"],
+     "standards_coverage",
+     "standards_coverage(domain='app.example.com', standard='owasp_top10')  "
+     "# or api_top10 / wstg"),
+    (["posture dashboard", "executive dashboard", "security posture", "html dashboard",
+      "posture report", "generate dashboard", "engagement dashboard",
+      "severity overview", "coverage dashboard"],
+     "generate_posture_dashboard",
+     "generate_posture_dashboard(domain='app.example.com')  "
+     "# self-contained offline HTML under reports/"),
+    (["compliance report", "pci report", "soc2 report", "hipaa report",
+      "gdpr report", "map findings to controls", "compliance mapping report",
+      "framework compliance", "regulatory report"],
+     "generate_compliance_report",
+     "generate_compliance_report(domain='app.example.com', standard='pci_dss_v4')  "
+     "# or soc2_t2 / hipaa / gdpr / owasp"),
+
     # ----- W37: durable checkpoint + completion judge -----
     (["write checkpoint", "save checkpoint", "engagement checkpoint",
       "task ledger", "record task state", "update task tree",
