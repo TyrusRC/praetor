@@ -65,6 +65,31 @@ non-standard ports and forgotten hosts. Discipline:
    80/443. Route 403s to `probe_40x_bypass`. This is hand-off intel; network
    scanning itself is operator-gated (Rule 1 + ALWAYS-ASK tools).
 
+## IIS / ASP.NET target
+
+`Server: Microsoft-IIS` (or `X-Powered-By: ASP.NET`, `.aspx`/`.asmx`/`.ashx`
+routes) unlocks an IIS-specific track. Version drives focus: 6.0/7.x → shortname
++ WebDAV + legacy ASP + weak TLS + ViewState; 8.x → handler/upload misconfig +
+leftover legacy; 10.x → app-logic + access control + debug/backup exposure.
+
+1. **8.3 shortname (tilde) enumeration** — the signature IIS recon win.
+   `run_nuclei` with the `iis-shortname-detect` template (or `-tags iis`); if
+   enabled, the operator's `shortscan` reconstructs names (`ADMINI~1` →
+   `administrator`). Discovered shortnames are high-value fuzzing seeds.
+2. **IIS-tuned content discovery** — `generate_smart_wordlist(tech="iis")`
+   (IIS.fuzz.txt + ASP-aspx.txt) with high-value extensions
+   `.aspx .asmx .ashx .svc .asp .config .bak .old .zip .rar .7z .dll .xml`, fed
+   to `run_ffuf`. Seed the filename from shortname hits; treat every hit as a new
+   directory to re-fuzz.
+3. **Debug/config exposure** — `discover_common_files` already probes
+   `/trace.axd`, `/elmah.axd`, `/web.config`; flag any that return 200.
+4. **Bypass + deserialization classes via `auto_probe`** — cookieless
+   `(S(...))` WAF bypass and Request.Path `/x.aspx/PathInfo` auth bypass
+   (`waf_bypass_40x` / `access_control` KB), WebDAV methods (`test_host_header` /
+   OPTIONS → PUT/MOVE/PROPFIND), and weak-MachineKey ViewState
+   (`weak_viewstate_known_key_2025`). These are hand-off leads for the
+   orchestrator, not exploitation.
+
 ## Returns
 
 ```json
