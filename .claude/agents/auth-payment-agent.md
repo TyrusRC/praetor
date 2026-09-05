@@ -35,6 +35,24 @@ if surface == 'session':
     8. sensitive endpoint checks cookie PRESENCE not validity — replay a logged-out req in Repeater (#8)
     9. concurrent-session cap bypass; back-button cache of sensitive pages (no-store) (#10/#3)
     10. email-verification bypass/swap — verify-link for email A validates email B → pre-ATO (#4/#5)
+if surface == 'registration':
+    # 22-point signup checklist — most classes route through auto_probe; the
+    # signup-specific logic bugs are called out.
+    1. duplicate registration / account overwrite — re-register existing email w/ new pw;
+       case-sensitivity shadow account (authentication:duplicate_registration_overwrite)
+    2. username -> route collision — register admin/login/api/index.php (access_control:username_route_collision)
+    3. weak password policy — password==username/email, top-10 weak (authentication:weak_password_policy)
+    4. server-side validation bypass — empty/short/malformed fields past the client rules (Repeater)
+    5. hidden/legacy signup endpoints — /api/v1/register /auth/create /mobile/register skip checks
+    6. mass assignment — auto_probe categories=["mass_assignment"] (isAdmin/role/plan/org/state/provider_id)
+    7. HPP — email=victim&email=attacker (test_parameter_pollution / hpp)
+    8. stored XSS in name/username/email fields (auto_probe xss stored)
+    9. rate-limit / OTP brute during signup (test_rate_limit); null-byte (%00) truncation in inputs
+    10. punycode/IDN-homograph email -> normalization ATO (unicode_normalization)
+    11. email-verification bypass (response/status manipulation, forced-browsing, stale-token swap)
+    12. session fixation / non-rotating token across signup->verify->login (surface 'session')
+    13. cross-account IDOR on onboarding endpoints — two fresh accounts, swap IDs (auth-tester)
+    14. large-input DoS; disposable-email allowed; signup form served over HTTP
 ```
 
 State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone — chain with open_redirect/csrf per Rule 17.
@@ -42,7 +60,7 @@ State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone �
 ## Inputs
 
 - `domain` (required)
-- `surface` (required) — one of `oauth`, `oidc`, `webauthn`, `passkey`, `apple_pay`, `google_pay`, `samsung_pay`, `iap`, `3ds`, `recovery`, `session`
+- `surface` (required) — one of `oauth`, `oidc`, `webauthn`, `passkey`, `apple_pay`, `google_pay`, `samsung_pay`, `iap`, `3ds`, `recovery`, `session`, `registration`
 - `session_name` (optional but recommended)
 
 ## Tools You Use

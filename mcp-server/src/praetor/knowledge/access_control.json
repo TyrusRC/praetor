@@ -240,6 +240,38 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "username_route_collision": {
+      "description": "Profiles hosted on the root path (site.com/{username}) let an attacker register a username matching a system route/file (admin, login, api, dashboard, index.php, login.php, admin.aspx). The attacker's profile then shadows/overwrites the real page.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{\"username\":\"admin\"}",
+          "description": "Register reserved names (admin/login/signup/api/dashboard, or *.php/*.aspx on legacy) then GET site.com/<name>; your profile loading instead of the system page = route collision. Try login/admin/api/dashboard/index.php/login.php.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "reserved",
+                "not allowed",
+                "invalid username",
+                "taken"
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {}
+        }
+      ]
     }
   }
 }

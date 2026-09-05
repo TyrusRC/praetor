@@ -24,10 +24,20 @@ Browser engine: **CloakBrowser** (stealth Chromium fork, binary-level fingerprin
 1. `check_scope(entry_url)` — abort if out of scope
 2. `browser_navigate(entry_url)` — initial load
 3. `browser_get_page_info` — read DOM state
-4. `browser_interact_all` with `action_budget` — auto-click, auto-fill (per page-bounded budget)
-5. On forms: `browser_fill` with test values; `browser_submit_form`
-6. Capture: every interaction populates Proxy history (visible to subsequent analysis tools)
-7. `browser_close` at end
+4. **Reveal client-side-hidden surface FIRST** — devs disable/hide admin controls
+   client-side but leave the backend live. `browser_execute_js` to re-enable them,
+   then re-read the DOM:
+   ```js
+   document.querySelectorAll('[disabled],[readonly]').forEach(e=>{e.removeAttribute('disabled');e.removeAttribute('readonly')});
+   document.querySelectorAll('[style*="display:none"],[style*="display: none"],.hidden').forEach(e=>e.style.display='block');
+   document.querySelectorAll('[style*="pointer-events:none"],[style*="pointer-events: none"],.grayed').forEach(e=>{e.style.pointerEvents='auto';e.style.opacity='1'});
+   ```
+   Unhidden buttons/inputs/sections often expose forgotten admin functionality
+   still wired to the backend — test them like any other control.
+5. `browser_interact_all` with `action_budget` — auto-click, auto-fill (per page-bounded budget)
+6. On forms: `browser_fill` with test values; `browser_submit_form`
+7. Capture: every interaction populates Proxy history (visible to subsequent analysis tools)
+8. `browser_close` at end
 
 ## Returns
 
