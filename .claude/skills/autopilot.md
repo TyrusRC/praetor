@@ -105,6 +105,18 @@ Test in this order; earlier classes pay more and are where MEDIUM+ concentrates:
 5. Mass assignment (test_mass_assignment)
 6. Recon-shaped classes (headers/TLS/version) — RECORD, do not hunt (Rule 29)
 
+Within the order, break ties by **(impact × likelihood) ÷ effort** — a
+high-impact endpoint with a strong signal and a cheap test outranks a
+speculative one. On e-commerce/fintech, business-logic and access-control sit
+above generic injection because that is where the money is.
+
+**Time-box every class: ≤2 clean exploitation tries, then stop.** Record the
+negative (`record_probe_outcome`) and move to the next class — dead ends are
+normal, and rabbit-holing one class while others go untested is the top cause
+of missed MEDIUM+ and blown token budget. Before testing a hypothesis, state
+its expected evidence (a falsifiable claim); if two clean tries don't produce
+it, it is a logged negative, not a maybe.
+
 ## Autopilot Loop
 
 > **Definition of Done per finding:** verified (replayed) → assessed
