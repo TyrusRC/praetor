@@ -57,3 +57,42 @@ class TestRawRequest(unittest.TestCase):
     def test_no_raw_secret_in_output(self):
         out = self._parse()
         self.assertNotIn("eyJhbGciOiJIUzI1NiJ9.demo.session", json.dumps(out))
+
+
+class TestJsExtract(unittest.TestCase):
+    def _scan_app(self):
+        from praetor.tools.offline import _js_extract
+        with open(os.path.join(FIX, "app.js"), encoding="utf-8") as fh:
+            return _js_extract.scan_js(fh.read(), "app.js")
+
+    def test_extracts_endpoints(self):
+        eps = {e["endpoint"] for e in self._scan_app()["api_inventory"]}
+        self.assertIn("/api/admin/users", eps)
+        self.assertIn("/api/orders", eps)
+
+    def test_secret_detected_and_redacted(self):
+        secs = self._scan_app()["secrets"]
+        shapes = {s["shape"] for s in secs}
+        self.assertTrue(any(sh.startswith("AKIA") for sh in shapes))
+        blob = json.dumps(secs)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", blob)
+        self.assertNotIn("sk-abc123def456ghi789jkl012mno345pqr678stu9", blob)
+
+    def test_admin_route_flagged_in_attack_surface(self):
+        surf = " ".join(a["why"].lower() for a in self._scan_app()["attack_surface"])
+        self.assertIn("admin", surf)
+
+    def test_dom_sink_source_captured(self):
+        ss = json.dumps(self._scan_app()["sources_sinks"]).lower()
+        self.assertIn("innerhtml", ss)
+
+    def test_merge_dedupes_shared_endpoint(self):
+        from praetor.tools.offline import _js_extract
+        with open(os.path.join(FIX, "dir", "a.js")) as fa, \
+                open(os.path.join(FIX, "dir", "b.js")) as fb:
+            merged = _js_extract.merge_js_results([
+                _js_extract.scan_js(fa.read(), "a.js"),
+                _js_extract.scan_js(fb.read(), "b.js"),
+            ])
+        eps = [e["endpoint"] for e in merged["api_inventory"]]
+        self.assertEqual(eps.count("/api/shared/resource"), 1)
