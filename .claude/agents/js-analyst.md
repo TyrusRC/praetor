@@ -25,7 +25,7 @@ Returns priority-ordered `attack_plan` — RSC action IDs first (probe_cve_with_
 
 ## Tools You Use
 
-`fetch_page_resources`, `extract_js_secrets`, `analyze_dom`, `extract_api_endpoints`, `fetch_resource`, `extract_regex`, `search_history`
+`fetch_page_resources`, `extract_js_secrets`, `analyze_dom`, `extract_api_endpoints`, `fetch_resource`, `extract_regex`, `search_history`, `audit_exposed_secret`, `audit_google_api_key`
 
 ## Workflow
 
@@ -35,8 +35,13 @@ Returns priority-ordered `attack_plan` — RSC action IDs first (probe_cve_with_
    - `extract_js_secrets(url)` — TruffleHog/Gitleaks-quality scan
    - `analyze_dom(url)` — source → sink mapping
    - `extract_api_endpoints(url)` — pull URL patterns
-4. Aggregate + dedupe
-5. Return to orchestrator
+4. **Validate every exposed key — a raw key is a lead, a live one is impact (Rule 29).**
+   `AIza…` → `audit_google_api_key(key)` (Gemini access + financial-impact estimate);
+   any other (`AKIA`/`ghp_`/`glpat-`/`xox…`/`sk_live_`/`SG.`/…) → `audit_exposed_secret(secret)`.
+   Both redact to shape — return the REDACTED result + service + impact, NEVER the raw
+   value. Financial keys (Stripe/AWS/Twilio) are classify-only; never auto-hit them.
+5. Aggregate + dedupe
+6. Return to orchestrator
 
 ## Returns
 

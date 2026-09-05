@@ -44,6 +44,27 @@ Covers Rule 20a (session-start gate). If `dns_only` signal in subdomain set → 
 5. `discover_hidden_parameters(<top-N endpoints by risk score>)`
 6. `save_target_intel(domain, "all", merged_results)`
 
+## Network / IP-range scope
+
+When the scope includes raw IPs / CIDRs (not just web apps), the wins hide on
+non-standard ports and forgotten hosts. Discipline:
+
+1. Subdomains/hosts → live check with `run_httpx` (collect IPs). **Dedup to
+   UNIQUE IPs** — many names share one backend; scanning each re-scans the host.
+2. **Drop CDN/WAF edges before scanning** — `run_cdncheck`; a Cloudflare/Akamai/
+   Fastly IP is not the origin (pointless + gets you banned). Confirm an origin
+   by title.
+3. **One port scanner by default, not two.** Fast/mass port discovery across many
+   hosts → `run_naabu` (top-ports, verify). Reserve `run_nmap` (`-sV`/`-sC`/NSE)
+   for service+version depth on the handful of interesting hosts — don't run both
+   on everything. For a SINGLE target, `run_network_recon` already does the nmap
+   discovery+enum+bridge in one call; use it instead of hand-chaining.
+4. `nmap_report_html(xml_path)` → offline HTML exposure report (flags
+   non-standard ports) for at-a-glance triage.
+5. Feed the discovered port set into `run_nuclei` — every open port, not only
+   80/443. Route 403s to `probe_40x_bypass`. This is hand-off intel; network
+   scanning itself is operator-gated (Rule 1 + ALWAYS-ASK tools).
+
 ## Returns
 
 ```json
