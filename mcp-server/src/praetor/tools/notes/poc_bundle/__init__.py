@@ -1,6 +1,9 @@
 """poc_bundle — export_poc_bundle / export_proof_capsule (impl in _impl.py)."""
 
 from mcp.server.fastmcp import FastMCP
+
+from praetor import client
+
 from ._impl import (
     _CAPSULE_SCHEMA_VERSION,
     _curl_for_request,
