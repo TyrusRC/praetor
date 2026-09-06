@@ -1,8 +1,10 @@
 """MCP tools over the red-team operator log + loot store.
 
-  record_redteam_action - append an operator-log entry (any non-Burp action)
-  record_loot           - record a captured artifact with chain-of-custody
-  get_operator_log      - read the log as a kill-chain timeline or ATT&CK view
+  record_redteam_action  - append an operator-log entry (any non-Burp action)
+  record_loot            - record a captured artifact with chain-of-custody
+  get_operator_log       - read the log as a kill-chain timeline or ATT&CK view
+  get_cleanup_checklist  - end-of-engagement "did we put everything back" list
+  mark_cleanup_reconciled- check off one reconciled cleanup line
 
 These are the evidence a network/AD/post-ex finding cites (oplog id) in place
 of a Burp logger_index, and what the kill-chain report renders from.
@@ -12,6 +14,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from ._cleanup import build_checklist, mark_reconciled
 from ._oplog import (
     read_loot,
     read_oplog,
@@ -153,3 +156,46 @@ def register(mcp: FastMCP) -> None:
                 lines.append(f"       {e['description']}")
             lines.append(f"       $ {e['command']}")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def get_cleanup_checklist(domain: str) -> dict:
+        """End-of-engagement reconciliation checklist — "did we put everything back".
+
+        Reads the operator log and surfaces every state-changing action whose
+        effect outlives the test (test account created, config value changed,
+        file dropped, background process/service started, listener opened),
+        grouped into artifact categories. Run it before the final report so no
+        propped-open door is left behind. Reads records of actions already
+        taken; it plants nothing.
+
+        Args:
+            domain: engagement key (.burp-intel/<domain>/network/oplog.jsonl).
+
+        Returns a dict with `total` / `reconciled` / `outstanding` counts and an
+        `items` list; each item has `item_id` (the oplog id — pass to
+        `mark_cleanup_reconciled`), `category`, `action`, `where`, `technique`,
+        `suggested` (reconciliation step) and `reconciled` (default false).
+        Reconciliation state persists across calls in
+        .burp-intel/<domain>/network/cleanup.json. An un-reconciled line is a
+        note in the final report, not a hard block.
+        """
+        return build_checklist(domain)
+
+    @mcp.tool()
+    async def mark_cleanup_reconciled(
+        domain: str,
+        item_id: str,
+        evidence: str = "",
+    ) -> dict:
+        """Check off one cleanup checklist line as reconciled to baseline.
+
+        Args:
+            domain: engagement key.
+            item_id: the oplog id from get_cleanup_checklist (e.g. 'op0007').
+            evidence: how it was reverted ("deleted account svc_tmp on DC01").
+
+        Returns the updated `outstanding` count, or `{'error': ...}` if item_id
+        is not an open cleanup item. State persists in
+        .burp-intel/<domain>/network/cleanup.json.
+        """
+        return mark_reconciled(domain, item_id, evidence)
