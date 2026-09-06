@@ -63,19 +63,19 @@ class W3MissingBinaryFallsThroughTest(unittest.TestCase):
         return asyncio.run(_async())
 
     def test_dnsx_returns_install_hint(self):
-        with mock.patch.object(recon_pd, "_check_tool", return_value=False):
+        with mock.patch.object(recon_pd._impl, "_check_tool", return_value=False):
             out = self._call("run_dnsx", ["example.com"])
         self.assertIn("dnsx not installed", out)
         self.assertIn("go install", out)
 
     def test_graphw00f_returns_install_hint(self):
-        with mock.patch.object(recon_pd, "_check_tool", return_value=False):
+        with mock.patch.object(recon_pd._impl, "_check_tool", return_value=False):
             out = self._call("run_graphw00f", "https://example.com/graphql")
         self.assertIn("graphw00f", out)
         self.assertIn("install", out.lower())
 
     def test_naabu_returns_install_hint(self):
-        with mock.patch.object(recon_pd, "_check_tool", return_value=False):
+        with mock.patch.object(recon_pd._impl, "_check_tool", return_value=False):
             out = self._call("run_naabu", "1.1.1.1")
         self.assertIn("naabu not installed", out)
 

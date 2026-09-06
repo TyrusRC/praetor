@@ -177,12 +177,12 @@ class W6InstallHintTest(unittest.TestCase):
         self.assertIn("gowitness not installed", out)
 
     def test_dnsgen_hint(self):
-        with mock.patch.object(recon_pd, "_check_tool", return_value=False):
+        with mock.patch.object(recon_pd._gen, "_check_tool", return_value=False):
             out = _call(recon_pd, "run_dnsgen", "/tmp/seed.txt")
         self.assertIn("dnsgen not installed", out)
 
     def test_shuffledns_resolvers_required(self):
-        with mock.patch.object(recon_pd, "_check_tool", return_value=True):
+        with mock.patch.object(recon_pd._gen, "_check_tool", return_value=True):
             out = _call(recon_pd, "run_shuffledns", "/tmp/words.txt",
                         domain="example.com", resolvers_path="")
         self.assertIn("resolvers list", out)
@@ -191,7 +191,7 @@ class W6InstallHintTest(unittest.TestCase):
         import os
         prior = os.environ.pop("CHAOS_KEY", None)
         try:
-            with mock.patch.object(recon_pd, "_check_tool", return_value=True):
+            with mock.patch.object(recon_pd._gen, "_check_tool", return_value=True):
                 out = _call(recon_pd, "run_chaos", "example.com")
         finally:
             if prior is not None:

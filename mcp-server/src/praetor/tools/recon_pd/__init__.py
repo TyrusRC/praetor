@@ -1,6 +1,12 @@
-"""recon_pd — ProjectDiscovery recon tool wrappers (helpers in _shared.py)."""
+"""recon_pd — ProjectDiscovery recon tool wrappers.
+
+Thin register() + @mcp.tool() wrappers delegating to the tool bodies in
+_impl.py / _gen.py; shared helpers (_not_installed / _parse_jsonl) in _shared.py.
+"""
 
 from mcp.server.fastmcp import FastMCP
+
+from . import _gen, _impl
 
 
 def register(mcp: FastMCP):
@@ -19,30 +25,7 @@ def register(mcp: FastMCP):
             bruteforce_wordlist: optional path to wordlist for subdomain brute.
             timeout: seconds.
         """
-        if not _check_tool("dnsx"):
-            return _not_installed("dnsx", "go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest")
-        if not targets:
-            return "Error: targets list empty."
-        cmd = ["dnsx", "-silent", "-json", "-resp", "-" + record_type.lower()]
-        if bruteforce_wordlist:
-            cmd += ["-w", bruteforce_wordlist]
-        import tempfile, pathlib
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
-            fh.write("\n".join(targets))
-            inp = fh.name
-        try:
-            cmd += ["-l", inp]
-            out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-        finally:
-            try: pathlib.Path(inp).unlink()
-            except OSError: pass
-        rows = _parse_jsonl(out)
-        lines = [f"dnsx: {len(rows)} resolved ({record_type.upper()})"]
-        for r in rows[:50]:
-            lines.append(f"  {r.get('host','?')} -> {','.join(r.get(record_type, []))[:120]}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _impl.run_dnsx(targets, record_type, bruteforce_wordlist, timeout)
 
     @mcp.tool()
     async def run_naabu(target: str, ports: str = "top-100", timeout: int = 300) -> str:
@@ -53,25 +36,7 @@ def register(mcp: FastMCP):
             ports: 'top-100' | 'top-1000' | 'full' | '80,443,8080'.
             timeout: seconds.
         """
-        if not _check_tool("naabu"):
-            return _not_installed("naabu", "go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest")
-        cmd = ["naabu", "-host", target, "-silent", "-json"]
-        if ports == "top-100":
-            cmd += ["-top-ports", "100"]
-        elif ports == "top-1000":
-            cmd += ["-top-ports", "1000"]
-        elif ports == "full":
-            cmd += ["-p", "-"]
-        else:
-            cmd += ["-p", ports]
-        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-        rows = _parse_jsonl(out)
-        lines = [f"naabu: {len(rows)} open ports on {target}"]
-        for r in rows[:60]:
-            lines.append(f"  {r.get('host','?')}:{r.get('port','?')}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _impl.run_naabu(target, ports, timeout)
 
     @mcp.tool()
     async def run_tlsx(targets: list[str], timeout: int = 120) -> str:
@@ -81,33 +46,7 @@ def register(mcp: FastMCP):
             targets: list of host:port (default 443).
             timeout: seconds.
         """
-        if not _check_tool("tlsx"):
-            return _not_installed("tlsx", "go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest")
-        if not targets:
-            return "Error: targets list empty."
-        import tempfile, pathlib
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
-            fh.write("\n".join(targets))
-            inp = fh.name
-        try:
-            out, err, rc = await _run_cmd(
-                ["tlsx", "-l", inp, "-silent", "-json", "-san", "-cn", "-jarm", "-expired"],
-                timeout=timeout, bypass_proxy=True,
-            )
-        finally:
-            try: pathlib.Path(inp).unlink()
-            except OSError: pass
-        rows = _parse_jsonl(out)
-        lines = [f"tlsx: {len(rows)} certs"]
-        for r in rows[:30]:
-            host = r.get("host", "")
-            cn = r.get("subject_cn") or r.get("cn") or ""
-            jarm = r.get("jarm_hash", "")[:30]
-            sans = ",".join((r.get("subject_an") or [])[:5])
-            lines.append(f"  {host}  cn={cn}  jarm={jarm}  san={sans}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _impl.run_tlsx(targets, timeout)
 
     @mcp.tool()
     async def run_asnmap(target: str, timeout: int = 60) -> str:
@@ -117,26 +56,7 @@ def register(mcp: FastMCP):
             target: 'AS13335' | 'cloudflare' | '1.1.1.1' | 'example.com'.
             timeout: seconds.
         """
-        if not _check_tool("asnmap"):
-            return _not_installed("asnmap", "go install github.com/projectdiscovery/asnmap/cmd/asnmap@latest")
-        flag = "-d"
-        t = target.strip()
-        if t.upper().startswith("AS") and t[2:].isdigit():
-            flag = "-a"
-        elif t.replace(".", "").isdigit():
-            flag = "-i"
-        out, err, rc = await _run_cmd(
-            ["asnmap", flag, t, "-silent", "-json"], timeout=timeout, bypass_proxy=True,
-        )
-        rows = _parse_jsonl(out)
-        lines = [f"asnmap: {len(rows)} ranges for {target}"]
-        for r in rows[:30]:
-            cidrs = ",".join(r.get("ranges") or r.get("range") or [])[:120]
-            org = r.get("org", "")
-            lines.append(f"  AS{r.get('asn','?')} {org}  {cidrs}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _impl.run_asnmap(target, timeout)
 
     @mcp.tool()
     async def run_uncover(query: str, engine: str = "shodan", limit: int = 50, timeout: int = 60) -> str:
@@ -148,19 +68,7 @@ def register(mcp: FastMCP):
             limit: max results.
             timeout: seconds.
         """
-        if not _check_tool("uncover"):
-            return _not_installed("uncover", "go install github.com/projectdiscovery/uncover/cmd/uncover@latest")
-        out, err, rc = await _run_cmd(
-            ["uncover", "-q", query, "-e", engine, "-l", str(limit), "-silent"],
-            timeout=timeout, bypass_proxy=True,
-        )
-        hosts = [ln.strip() for ln in out.splitlines() if ln.strip()]
-        lines = [f"uncover [{engine}]: {len(hosts)} hits for {query!r}"]
-        for h in hosts[:limit]:
-            lines.append(f"  {h}")
-        if rc != 0 and not hosts:
-            lines.append(f"[rc={rc}] {err[:200]} (API key required for most engines)")
-        return "\n".join(lines)
+        return await _impl.run_uncover(query, engine, limit, timeout)
 
     @mcp.tool()
     async def run_cloudlist(provider: str = "", timeout: int = 300) -> str:
@@ -170,19 +78,7 @@ def register(mcp: FastMCP):
             provider: '' (all configured) | aws | azure | gcp | digitalocean | scaleway | linode | hetzner | namecheap | terraform.
             timeout: seconds.
         """
-        if not _check_tool("cloudlist"):
-            return _not_installed("cloudlist", "go install github.com/projectdiscovery/cloudlist/cmd/cloudlist@latest")
-        cmd = ["cloudlist", "-silent", "-json"]
-        if provider:
-            cmd += ["-provider", provider]
-        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-        rows = _parse_jsonl(out)
-        lines = [f"cloudlist: {len(rows)} assets" + (f" [{provider}]" if provider else "")]
-        for r in rows[:40]:
-            lines.append(f"  {r.get('provider','?')} {r.get('host') or r.get('ip') or '?'}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]} (provider config required at ~/.config/cloudlist/config.yaml)")
-        return "\n".join(lines)
+        return await _impl.run_cloudlist(provider, timeout)
 
     @mcp.tool()
     async def run_notify(message: str, provider: str = "", timeout: int = 30) -> str:
@@ -193,17 +89,7 @@ def register(mcp: FastMCP):
             provider: '' (all configured) | slack | discord | teams | telegram | pushover | smtp.
             timeout: seconds.
         """
-        if not _check_tool("notify"):
-            return _not_installed("notify", "go install github.com/projectdiscovery/notify/cmd/notify@latest")
-        cmd = ["notify", "-silent", "-bulk"]
-        if provider:
-            cmd += ["-provider", provider]
-        # notify dispatches to Slack/Discord/etc — must NOT route through Burp.
-        _out, err, rc = await _run_cmd(
-            cmd, timeout=timeout, bypass_proxy=True, stdin_input=message.encode("utf-8"))
-        if rc != 0:
-            return f"notify failed [rc={rc}]: {err[:300]}"
-        return f"notify: dispatched ({len(message)} bytes)" + (f" via {provider}" if provider else "")
+        return await _gen.run_notify(message, provider, timeout)
 
     @mcp.tool()
     async def run_mapcves(query: str = "", year: str = "", severity: str = "", timeout: int = 60) -> str:
@@ -215,23 +101,7 @@ def register(mcp: FastMCP):
             severity: low|medium|high|critical.
             timeout: seconds.
         """
-        if not _check_tool("mapcves"):
-            return _not_installed("mapcves", "go install github.com/projectdiscovery/mapcves@latest")
-        cmd = ["mapcves", "-silent", "-json"]
-        if query: cmd += ["-q", query]
-        if year:  cmd += ["-y", year]
-        if severity: cmd += ["-s", severity]
-        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-        rows = _parse_jsonl(out)
-        lines = [f"mapcves: {len(rows)} CVEs"]
-        for r in rows[:30]:
-            cve = r.get("cve_id") or r.get("id", "?")
-            sev = r.get("severity", "?")
-            tpl = r.get("nuclei_template") or r.get("template", "")
-            lines.append(f"  {cve} [{sev}] {tpl}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _gen.run_mapcves(query, year, severity, timeout)
 
     @mcp.tool()
     async def run_cdncheck(targets: list[str], timeout: int = 60) -> str:
@@ -241,34 +111,7 @@ def register(mcp: FastMCP):
             targets: list of hosts/IPs.
             timeout: seconds.
         """
-        if not _check_tool("cdncheck"):
-            return _not_installed("cdncheck", "go install github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest")
-        if not targets:
-            return "Error: targets list empty."
-        import tempfile, pathlib
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
-            fh.write("\n".join(targets))
-            inp = fh.name
-        try:
-            out, err, rc = await _run_cmd(
-                ["cdncheck", "-l", inp, "-silent", "-json"],
-                timeout=timeout, bypass_proxy=True,
-            )
-        finally:
-            try: pathlib.Path(inp).unlink()
-            except OSError: pass
-        rows = _parse_jsonl(out)
-        lines = [f"cdncheck: {len(rows)} classifications"]
-        for r in rows[:40]:
-            kinds = []
-            for k in ("cdn", "waf", "cloud"):
-                v = r.get(k)
-                if v:
-                    kinds.append(f"{k}={v}")
-            lines.append(f"  {r.get('host') or r.get('ip','?')}  {' '.join(kinds) or 'none'}")
-        if rc != 0 and not rows:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _impl.run_cdncheck(targets, timeout)
 
     @mcp.tool()
     async def run_alterx(roots: list[str], pattern: str = "", timeout: int = 60) -> str:
@@ -279,25 +122,7 @@ def register(mcp: FastMCP):
             pattern: optional alterx pattern DSL ('{{word}}-{{number}}.{{root}}').
             timeout: seconds.
         """
-        if not _check_tool("alterx"):
-            return _not_installed("alterx", "go install github.com/projectdiscovery/alterx/cmd/alterx@latest")
-        if not roots:
-            return "Error: roots list empty."
-        cmd = ["alterx", "-silent"]
-        for r in roots:
-            cmd += ["-l", r]
-        if pattern:
-            cmd += ["-p", pattern]
-        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-        hosts = [ln.strip() for ln in out.splitlines() if ln.strip()]
-        lines = [f"alterx: {len(hosts)} permutations"]
-        for h in hosts[:60]:
-            lines.append(f"  {h}")
-        if len(hosts) > 60:
-            lines.append(f"  ... +{len(hosts) - 60} more")
-        if rc != 0 and not hosts:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _gen.run_alterx(roots, pattern, timeout)
 
     @mcp.tool()
     async def run_chaos(
@@ -310,29 +135,7 @@ def register(mcp: FastMCP):
             domain: target apex (e.g. example.com).
             timeout: seconds.
         """
-        import os
-        if not _check_tool("chaos"):
-            return _not_installed(
-                "chaos",
-                "go install github.com/projectdiscovery/chaos-client/cmd/chaos@latest  |  "
-                "https://github.com/projectdiscovery/chaos-client",
-            )
-        if not os.environ.get("CHAOS_KEY"):
-            return ("Error: CHAOS_KEY env var unset. Get a free key at "
-                    "https://cloud.projectdiscovery.io and `export CHAOS_KEY=...`")
-        out, err, rc = await _run_cmd(
-            ["chaos", "-d", domain, "-silent"],
-            timeout=timeout, bypass_proxy=True,
-        )
-        hosts = sorted({line.strip() for line in out.splitlines() if line.strip()})
-        lines = [f"chaos: {len(hosts)} subdomains for {domain}"]
-        for h in hosts[:60]:
-            lines.append(f"  {h}")
-        if len(hosts) > 60:
-            lines.append(f"  ... +{len(hosts) - 60} more")
-        if rc != 0 and not hosts:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _gen.run_chaos(domain, timeout)
 
     @mcp.tool()
     async def run_dnsgen(
@@ -347,25 +150,7 @@ def register(mcp: FastMCP):
             max_outputs: max permutations returned.
             timeout: seconds.
         """
-        if not _check_tool("dnsgen"):
-            return _not_installed(
-                "dnsgen",
-                "pipx install dnsgen  |  https://github.com/AlephNullSK/dnsgen",
-            )
-        out, err, rc = await _run_cmd(
-            ["dnsgen", wordlist_path],
-            timeout=timeout, bypass_proxy=True,
-        )
-        perms = [ln.strip() for ln in out.splitlines() if ln.strip()]
-        perms = perms[:max_outputs]
-        lines = [f"dnsgen: {len(perms)} permutations from {wordlist_path}"]
-        for p in perms[:40]:
-            lines.append(f"  {p}")
-        if len(perms) > 40:
-            lines.append(f"  ... +{len(perms) - 40} more")
-        if rc != 0 and not perms:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _gen.run_dnsgen(wordlist_path, max_outputs, timeout)
 
     @mcp.tool()
     async def run_shuffledns(
@@ -384,35 +169,7 @@ def register(mcp: FastMCP):
             mode: bruteforce | resolve.
             timeout: seconds.
         """
-        if not _check_tool("shuffledns"):
-            return _not_installed(
-                "shuffledns",
-                "go install github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest  |  "
-                "https://github.com/projectdiscovery/shuffledns",
-            )
-        if not resolvers_path:
-            return ("Error: shuffledns needs an explicit resolvers list "
-                    "(-r). Common: https://github.com/trickest/resolvers")
-        if mode == "bruteforce":
-            if not domain:
-                return "Error: bruteforce mode needs domain."
-            cmd = ["shuffledns", "-d", domain, "-w", wordlist_path,
-                   "-r", resolvers_path, "-mode", "bruteforce", "-silent"]
-        elif mode == "resolve":
-            cmd = ["shuffledns", "-list", wordlist_path,
-                   "-r", resolvers_path, "-mode", "resolve", "-silent"]
-        else:
-            return f"Error: mode must be bruteforce|resolve (got {mode!r})."
-        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-        hosts = sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
-        lines = [f"shuffledns [{mode}]: {len(hosts)} resolved"]
-        for h in hosts[:60]:
-            lines.append(f"  {h}")
-        if len(hosts) > 60:
-            lines.append(f"  ... +{len(hosts) - 60} more")
-        if rc != 0 and not hosts:
-            lines.append(f"[rc={rc}] {err[:200]}")
-        return "\n".join(lines)
+        return await _gen.run_shuffledns(wordlist_path, domain, resolvers_path, mode, timeout)
 
     @mcp.tool()
     async def run_graphw00f(target: str, timeout: int = 60) -> str:
@@ -422,24 +179,12 @@ def register(mcp: FastMCP):
             target: GraphQL endpoint URL (e.g. https://example.com/graphql).
             timeout: seconds.
         """
-        if not _check_tool("graphw00f"):
-            return _not_installed(
-                "graphw00f",
-                "pip install graphw00f  |  https://github.com/dolevf/graphw00f",
-            )
-        out, err, rc = await _run_cmd(
-            ["graphw00f", "-t", target, "-d", "-f"],
-            timeout=timeout, bypass_proxy=True,
-        )
-        lines = ["graphw00f scan:"]
-        clipped = out.strip()
-        if not clipped:
-            return f"graphw00f: no output [rc={rc}] {err[:200]}"
-        lines.extend("  " + ln for ln in clipped.splitlines()[:40])
-        return "\n".join(lines)
+        return await _impl.run_graphw00f(target, timeout)
 
 
-# Re-export _shared so helper names (and package-level patches such as
-# patch.object(recon_pd, '_check_tool')) resolve for the tools above.
+# Re-export _shared so helper names (recon_pd._not_installed / ._parse_jsonl and
+# package-level patches such as patch.object(recon_pd, '_check_tool')) resolve
+# from the package path. Tool bodies live in _impl / _gen and resolve _check_tool
+# against THOSE modules — tests patch recon_pd._impl._check_tool accordingly.
 from . import _shared as _shared  # noqa: E402
 globals().update({_k: getattr(_shared, _k) for _k in dir(_shared) if not _k.startswith("__")})
