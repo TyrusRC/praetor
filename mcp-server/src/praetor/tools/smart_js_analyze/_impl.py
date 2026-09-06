@@ -44,7 +44,7 @@ from ._js_patterns import *  # noqa: F401,F403
 
 async def _fetch_index(idx: int) -> tuple[str, str, str]:
     """Returns (body, url, status_str)."""
-    resp = await client.post("/api/proxy/request-detail", json={"index": idx})
+    resp = await client.get(f"/api/proxy/history/{int(idx)}")
     if isinstance(resp, dict) and "error" in resp:
         return ("", "", f"ERROR: {resp['error']}")
     body = resp.get("response_body", "") or ""
