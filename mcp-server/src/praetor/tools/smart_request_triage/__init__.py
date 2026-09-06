@@ -1,6 +1,9 @@
 """smart_request_triage — MCP tool (impl split into _impl.py)."""
 
 from mcp.server.fastmcp import FastMCP
+
+from praetor import client
+
 from ._impl import (
     _AUTH_HEADERS,
     _classify_body,

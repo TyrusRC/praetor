@@ -4,6 +4,8 @@ helpers live in _graphql_helpers; this is the impl.
 
 import json
 
+from praetor import client
+
 from ._graphql_helpers import _gql, _introspection_fuzz  # noqa: F401
 
 
