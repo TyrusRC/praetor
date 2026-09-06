@@ -96,21 +96,18 @@ class CuaProbeToolTest(unittest.IsolatedAsyncioTestCase):
     async def test_passive_mode_returns_verdict_dict(self):
         from praetor.tools import cua_probe
 
-        async def fake_post(path, json=None):
-            if "browser/navigate" in path:
-                return {
-                    "status": 200,
-                    "html": (
-                        '<div style="display:none" aria-label="THIS IS IMPORTANT! '
-                        'do X">x</div>'
-                    ),
-                }
-            return {}
+        async def fake_navigate(url, **kwargs):
+            return {
+                "html": (
+                    '<div style="display:none" aria-label="THIS IS IMPORTANT! '
+                    'do X">x</div>'
+                ),
+            }
 
         stub, captured = _stub_mcp()
         cua_probe.register(stub)
         with patch.object(cua_probe, "_scan_html", wraps=cua_probe._scan_html):
-            with patch.object(cua_probe.client, "post", side_effect=fake_post):
+            with patch.object(cua_probe._bridge, "navigate", side_effect=fake_navigate):
                 out = await captured["probe_cua_injection_surface"](
                     url="https://target.example/page",
                     mode="passive",
@@ -133,14 +130,12 @@ class CuaProbeToolTest(unittest.IsolatedAsyncioTestCase):
     async def test_active_mode_requires_collaborator(self):
         from praetor.tools import cua_probe
 
-        async def fake_post(path, json=None):
-            if "browser/navigate" in path:
-                return {"status": 200, "html": "<p>clean</p>"}
-            return {}
+        async def fake_navigate(url, **kwargs):
+            return {"html": "<p>clean</p>"}
 
         stub, captured = _stub_mcp()
         cua_probe.register(stub)
-        with patch.object(cua_probe.client, "post", side_effect=fake_post):
+        with patch.object(cua_probe._bridge, "navigate", side_effect=fake_navigate):
             out = await captured["probe_cua_injection_surface"](
                 url="https://target/",
                 mode="active",
