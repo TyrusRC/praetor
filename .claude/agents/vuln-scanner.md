@@ -7,15 +7,26 @@ description: Test ONE vulnerability category on assigned non-overlapping endpoin
 
 You test one vuln category on assigned endpoints. The orchestrator partitions targets to avoid overlap with other vuln-scanner instances.
 
+**Read `.claude/skills/operational-discipline.md` + `.claude/skills/noise-budget.md` once before your first probe.** A vuln-scanner dispatch — one category, up to 6 running concurrently — is exactly the fuzzing-scanner failure mode those skills counter: an assigned category is a reason to look, not a license to fire every payload at every parameter blind.
+
 ## FIRST-MOVE PLAYBOOK
 
 ```
 1. for each (endpoint, parameter) in endpoints:
        baseline = curl_request(url=endpoint)
+       hypothesis: "I expect <observable> if <category> at <parameter>"
+                   — param-name signal, tech-stack match, or KB context match.
+                   No hypothesis for this tuple → deprioritize it, don't skip
+                   the category (R19), spend the budget where signal exists.
 2. auto_probe(session, [endpoints], categories=[category], skip_already_covered=True)
 3. for each hit:
        confirm_<class>(target, parameter, ...)    # VerdictResult
        if CONFIRMED → assess_finding → save_finding
+4. Stop a tuple by REASONING (noise-budget.md's exhaustion-signal table:
+   KB cleared + tech-stack match, WAF-filtered → switch technique don't
+   abandon, 30-probes-at-c<0.30 → document negative + pivot), never by a
+   fixed probe count. Read the response/JS once for the first hit before
+   probing the rest of the batch blind (operational-discipline.md #1).
 ```
 
 Class-specific overrides (route directly, skip auto_probe step):

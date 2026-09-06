@@ -43,10 +43,11 @@ Locking into one mode after session start is a primary cause of missed findings.
 
 ## Phase 0: Edition Gate + State Hydration (once per session)
 
-Two calls at the start of every hunt session:
+Three things at the start of every hunt session:
 
 1. `check_pro_features()` — confirms Pro vs Community. On Community, route to MCP-side equivalents (auto_probe + run_nuclei + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
 2. `hydrate_burp_findings(domain="all")` — Burp's in-memory FindingsStore empties on every extension reload. This re-populates the UI Findings tab from `.burp-intel/<domain>/findings.json` so what's on disk matches what's visible. Safe to run repeatedly (duplicate-skips). If skipped: previously-saved findings disappear from the Burp UI even though they're still on disk.
+3. **Read `.claude/skills/operational-discipline.md` once.** It governs every probe you send this session — the difference between a pentester and a fuzzing scanner is reading the response before the next payload, stating a hypothesis before probing, and replaying before saving. Phase 3 below assumes you've read it; it is not restated there.
 
 Sessions (cookies, auth tokens, extracted variables) DO NOT auto-restore on extension reload — they're in-memory only with no on-disk mirror yet. Re-establish via `create_session` + `session_request` (login flow) or `run_flow`.
 
@@ -189,7 +190,8 @@ Choose the right attack order based on detected technology. Test in this order �
 ### For each priority category:
 
 1. Select untested high-risk parameters from memory
-2. Run the appropriate test tool:
+2. **State a one-line hypothesis before you probe**: "I expect `<observable>` if `<vuln-class>` at `<param>`" — param-name signal, tech-stack match, or a KB context match. A category on the priority table is a reason to look, not a license to fire every payload at every parameter blind.
+3. Run the appropriate test tool:
    - **SQLi/XSS/SSTI/SSRF/CMDi/LFI:** `auto_probe(session, targets, categories=[category])` or `bulk_test(session, vulnerability)`
    - **IDOR/Broken Access Control:** `test_auth_matrix(endpoints, auth_states)` or `compare_auth_states`
    - **LFI/Path Traversal:** `test_lfi(session, path, parameter)`
@@ -205,12 +207,13 @@ Choose the right attack order based on detected technology. Test in this order �
    - **CRLF:** Test redirect/header params with `%0d%0a` payloads
    - **Deserialization:** Look for serialized objects in cookies/params (base64 starting with `rO0AB`, `O:`, `gASV`)
    - **Hidden params:** `discover_hidden_parameters(session, method, path)` on interesting endpoints
-3. **If anomaly detected** — immediately verify:
+4. **If anomaly detected** — immediately verify:
    - Re-send the exact payload to confirm reproducibility
    - Check evidence requirements (see verify-finding skill)
    - If confirmed: `save_target_intel(domain, "findings", finding_data)`
    - If not confirmed: note as suspected, move on
-4. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})`
+5. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})`
+6. **Stop the category by reasoning, not by counting.** `noise-budget.md`'s exhaustion-signal table (KB cleared + tech-stack match, WAF-filtered → switch technique don't abandon, 30-probes-at-c<0.30 → document the negative and pivot) replaces any fixed "N probes then quit" heuristic.
 
 **CHECKPOINT after each category:**
 - Show: X parameters tested, Y anomalies found, Z confirmed

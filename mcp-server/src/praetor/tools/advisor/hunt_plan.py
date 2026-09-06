@@ -95,4 +95,13 @@ async def get_hunt_plan_impl(
     lines.append("")
     lines.append("TOKEN TIP: Use extract_regex/extract_headers instead of get_request_detail to save tokens on large responses.")
 
+    lines.append("")
+    lines.append("DISCIPLINE (read operational-discipline.md + noise-budget.md once — this plan does not restate them):")
+    lines.append("  - A phase-2 line is a reason to look, not a license to fire every payload blind.")
+    lines.append("    State a one-line hypothesis first: \"I expect <observable> if <vuln> at <param>\".")
+    lines.append("  - Stop a category by REASONING (KB cleared + tech-stack match, WAF-filtered -> switch")
+    lines.append("    technique don't abandon, 30-probes-at-c<0.30 -> document negative + pivot), not by")
+    lines.append("    a fixed probe count.")
+    lines.append("  - Replay before save (Rule 10a). One verified bug beats ten anomalies.")
+
     return "\n".join(lines)

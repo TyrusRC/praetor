@@ -46,6 +46,7 @@ the pivot choice itself escalates to Opus per Rule 33, it is not a guess.
 2. `check_target_freshness(domain, session_name)`
 3. `load_checkpoint(domain)` — restore the task ledger + `next_action` from a prior run (survives compaction). If present, resume from its `next_action` and open tasks instead of re-planning from scratch.
 4. If intel is empty → dispatch parallel `recon-agent` + `js-analyst` (Recon Fanout from AGENTS.md). Merge results. Save intel. `write_checkpoint(domain, phase='recon', round=0, tasks=[...])`. Round 0 ends.
+5. Read `.claude/skills/operational-discipline.md` + `.claude/skills/noise-budget.md` once — this loop's EXECUTE hypothesis line and PROMOTE/stop logic below assume both, not restated here.
 
 ### Round N — single atomic decision
 
