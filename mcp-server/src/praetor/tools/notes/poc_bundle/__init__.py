@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 
+from .._proxy_entry import _normalize_entry
 from ._impl import (
     _CAPSULE_SCHEMA_VERSION,
     _curl_for_request,
@@ -57,9 +58,10 @@ def register(mcp: FastMCP):
         if idx is None or int(idx) < 0:
             return {"error": "no logger_index / proxy_history_index in evidence"}
 
-        req = await client.get(f"/api/proxy/{int(idx)}", params={"include_body": "true"})
-        if "error" in req:
-            return {"error": f"fetch proxy entry {idx}: {req['error']}"}
+        detail = await client.get(f"/api/proxy/history/{int(idx)}", params={"include_body": "true"})
+        if "error" in detail:
+            return {"error": f"fetch proxy entry {idx}: {detail['error']}"}
+        req = _normalize_entry(detail)
         resp = req.get("response") or {}
 
         if output_dir:
@@ -168,9 +170,10 @@ def register(mcp: FastMCP):
                 )
             }
 
-        req = await client.get(f"/api/proxy/{int(idx)}", params={"include_body": "true"})
-        if "error" in req:
-            return {"error": f"fetch proxy entry {idx}: {req['error']}"}
+        detail = await client.get(f"/api/proxy/history/{int(idx)}", params={"include_body": "true"})
+        if "error" in detail:
+            return {"error": f"fetch proxy entry {idx}: {detail['error']}"}
+        req = _normalize_entry(detail)
         resp = req.get("response") or {}
 
         if output_dir:

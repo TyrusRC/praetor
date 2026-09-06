@@ -48,13 +48,20 @@ def register(mcp: FastMCP) -> None:
 
         steps: list[dict] = []
         for i, idx in enumerate(indices):
-            entry = await client.get(f"/api/proxy/{idx}")
+            entry = await client.get(f"/api/proxy/history/{idx}")
             if "error" in entry:
                 return f"Error fetching index {idx}: {entry['error']}"
+            # handleDetail returns request_headers as [{name, value}, ...];
+            # macro/create expects a {name: value} map.
+            hdrs = {
+                h["name"]: h.get("value", "")
+                for h in (entry.get("request_headers") or [])
+                if isinstance(h, dict) and "name" in h
+            }
             step = {
                 "method": entry.get("method", "GET"),
                 "url": entry.get("url", ""),
-                "headers": entry.get("request_headers", []),
+                "headers": hdrs,
                 "body": entry.get("request_body", ""),
             }
             if i == len(indices) - 1:

@@ -83,7 +83,7 @@ def register(mcp: FastMCP) -> None:
             concurrency: in-flight count (default 4).
         """
         classes = mutation_classes or _DEFAULT_CLASSES
-        baseline = await client.get(f"/api/proxy/{index}")
+        baseline = await client.get(f"/api/proxy/history/{index}")
         if "error" in baseline:
             return f"Error fetching index {index}: {baseline['error']}"
 
@@ -107,6 +107,13 @@ def register(mcp: FastMCP) -> None:
 
         baseline_status = baseline.get("status_code", 0)
         baseline_len = len(baseline.get("response_body") or "")
+        # handleDetail returns request_headers as [{name, value}, ...];
+        # /api/http/curl expects a {name: value} map.
+        base_headers = {
+            h["name"]: h.get("value", "")
+            for h in (baseline.get("request_headers") or [])
+            if isinstance(h, dict) and "name" in h
+        }
 
         sem = asyncio.Semaphore(max(1, concurrency))
         results: list[dict[str, Any]] = [{} for _ in variants]
@@ -116,7 +123,7 @@ def register(mcp: FastMCP) -> None:
                 start = time.perf_counter()
                 req = {
                     "url": url, "method": method,
-                    "headers": baseline.get("request_headers", []),
+                    "headers": base_headers,
                     "body": body, "follow_redirects": False,
                 }
                 if parameter in (query or ""):

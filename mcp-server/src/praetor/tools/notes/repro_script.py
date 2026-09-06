@@ -22,6 +22,8 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 
+from ._proxy_entry import _normalize_entry
+
 
 def _curl_for_request(req: dict[str, Any]) -> str:
     method = (req.get("method") or "GET").upper()
@@ -121,8 +123,8 @@ def register(mcp: FastMCP):
                 "proxy_history_index — cannot reproduce"
             )
 
-        req = await client.get(f"/api/proxy/{int(idx)}", params={"include_body": "true"})
-        if "error" in req:
-            return f"Error fetching proxy entry {idx}: {req['error']}"
+        detail = await client.get(f"/api/proxy/history/{int(idx)}", params={"include_body": "true"})
+        if "error" in detail:
+            return f"Error fetching proxy entry {idx}: {detail['error']}"
 
-        return _render_repro(target, req)
+        return _render_repro(target, _normalize_entry(detail))
