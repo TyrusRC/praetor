@@ -7,6 +7,7 @@ from unittest import mock
 from unittest.mock import AsyncMock, patch
 
 from praetor import server
+from praetor.tools.network.run_tool import _SANCTIONED
 from praetor.tools.redteam._oplog import read_oplog
 
 
@@ -56,6 +57,17 @@ class TestRunNetworkTool(unittest.IsolatedAsyncioTestCase):
             out = await _tool()("netexec", "smb 10.0.0.1", domain="box")
         self.assertIn("not installed", out)
         self.assertIn("redteam_tool_guide", out)
+
+    def test_new_recon_binaries_sanctioned(self):
+        for b in ("showmount", "snmpwalk", "snmp-check", "smtp-user-enum"):
+            self.assertIn(b, _SANCTIONED)
+
+    async def test_new_binary_destructive_args_refused(self):
+        # A newly-sanctioned binary still goes through validate_payload on the
+        # full command line — a shell-injection / destructive tail is refused.
+        out = await _tool()("showmount", "-e 10.0.0.1; rm -rf /var", domain="box")
+        self.assertIn("REFUSED", out)
+        self.assertIn("destructive", out)
 
     async def test_strict_scope_blocks_with_target(self):
         from praetor.tools import _scope_mode

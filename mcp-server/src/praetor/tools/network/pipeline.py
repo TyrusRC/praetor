@@ -11,7 +11,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from ._routing import extract_leads, extract_loot, is_web, plans_for
+from ._routing import DEFAULT_USERLIST, extract_leads, extract_loot, is_web, plans_for
 from .nmap import nmap_scan
 from .run_tool import run_sanctioned
 
@@ -103,6 +103,10 @@ def register(mcp: FastMCP) -> None:
         # Phase 2-4: route + enumerate + leads, per host/service.
         for host in scan["parsed"]["hosts"]:
             ip = host["ip"]
+            # Per-host interpolation context: base vars plus any value a step
+            # captures for a chained follow-up (e.g. SNMP community -> snmp-check).
+            ctx = {"ip": ip, "domain": cdom, "user": cuser, "password": cpass,
+                   "creds": creds, "userlist": DEFAULT_USERLIST}
             for port in host["ports"]:
                 svc, pnum = port.get("service", ""), port.get("port", 0)
                 if is_web(svc, pnum):
@@ -113,8 +117,11 @@ def register(mcp: FastMCP) -> None:
                     if skip_covered and sig in covered:
                         skipped += 1
                         continue
-                    args = step["args"].format(ip=ip, domain=cdom, user=cuser,
-                                               password=cpass, creds=creds)
+                    # Chained follow-up: run only once an earlier step on this
+                    # host captured its prerequisite value — never fires blind.
+                    if step.get("needs") and step["needs"] not in ctx:
+                        continue
+                    args = step["args"].format(**ctx)
                     res = await run_sanctioned(
                         tool, args, resolved, target=ip,
                         description=f"{step['why']} ({svc}/{pnum})", timeout=300)
@@ -124,6 +131,11 @@ def register(mcp: FastMCP) -> None:
                                           "ok": False, "error": res["error"]})
                         continue
                     out = res["output"]
+                    # Feed a captured value into the per-host context so a
+                    # chained follow-up step can interpolate it.
+                    cap = step.get("captures")
+                    if cap and (m := cap[1].search(out)):
+                        ctx[cap[0]] = m.group(1)
                     step_leads = extract_leads(out)
                     for ld in step_leads:
                         ld.update({"ip": ip, "svc": svc, "tool": tool, "oplog_id": res["oplog_id"]})

@@ -48,6 +48,10 @@ _SANCTIONED = {
     "bloodyad", "rusthound-ce", "rusthound",
     # Targeted Kerberoasting (WriteSPN) + gMSA managed-password dump.
     "targetedkerberoast", "targetedkerberoast.py", "gmsadumper", "gmsadumper.py",
+    # Service enumeration (unauthenticated foothold): NFS exports, SNMP MIB
+    # walk, SMTP user enum (VRFY/EXPN). Read-only recon; validate_payload
+    # still refuses shell-injection / destructive args on the full command.
+    "showmount", "snmpwalk", "snmp-check", "smtp-user-enum",
 }
 # Online credential brute — HARD Rule 6. Blocked regardless of mode.
 _ONLINE_BRUTE = {"hydra", "medusa", "ncrack", "patator"}

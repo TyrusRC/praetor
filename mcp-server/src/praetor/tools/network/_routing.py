@@ -5,9 +5,13 @@ The efficiency win: only run the tool that fits an open service. A box with no
 triggers user-enum / AS-REP. Each plan is unauthenticated by default (foothold
 phase); cred-gated steps run only when creds are supplied.
 
-A plan step: (tool, args_template, why, needs_creds). Templates interpolate
-{ip} {domain} {user} {password} {creds} {userlist}. Missing tools are skipped
-by the pipeline (it checks availability), so a partial toolset still runs.
+A plan step: {tool, args, why, creds}. Templates interpolate {ip} {domain}
+{user} {password} {creds} {userlist}. Two optional keys chain steps within a
+host: "captures": (name, regex) stores a match from this step's output; "needs":
+name skips the step until an earlier step on the same host captured that value
+(e.g. SNMP community from onesixtyone -> snmp-check {ip} -c {community}). Missing
+tools are skipped by the pipeline (it checks availability), so a partial toolset
+still runs.
 
 Lead matchers turn raw output into candidate findings — the things worth an
 operator's attention (anon access, roastable hashes, signing disabled).
@@ -16,6 +20,14 @@ operator's attention (anon access, roastable hashes, signing disabled).
 from __future__ import annotations
 
 import re
+
+# Discovered-value extractors used by chained steps (see the "captures" key).
+# onesixtyone prints `<ip> [<community>] <sysDescr>` on a hit.
+_SNMP_COMMUNITY_RX = re.compile(r"\[([^\]]+)\]")
+
+# Default username list for SMTP VRFY enum ({userlist} in a plan). SecLists
+# shortlist; pre-seed the file or edit the step to point elsewhere.
+DEFAULT_USERLIST = "/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
 
 # service-name substrings / ports -> list of plan steps.
 # Keys are matched against BOTH the nmap service name and str(port).
@@ -51,10 +63,34 @@ SERVICE_PLANS: dict[str, list[dict]] = {
         {"tool": "nxc", "args": "mssql {ip} -u {user} -p {password} -M enum_links", "why": "MSSQL linked-server enum (lateral-movement links)", "creds": True},
     ],
     "snmp": [
-        {"tool": "onesixtyone", "args": "{ip} public", "why": "SNMP public community", "creds": False},
+        {"tool": "onesixtyone", "args": "{ip} public", "why": "SNMP public community", "creds": False,
+         "captures": ("community", _SNMP_COMMUNITY_RX)},
+        {"tool": "snmp-check", "args": "{ip} -c {community}", "why": "SNMP MIB walk with the discovered community", "creds": False,
+         "needs": "community"},
     ],
     "161": [
-        {"tool": "onesixtyone", "args": "{ip} public", "why": "SNMP public community", "creds": False},
+        {"tool": "onesixtyone", "args": "{ip} public", "why": "SNMP public community", "creds": False,
+         "captures": ("community", _SNMP_COMMUNITY_RX)},
+        {"tool": "snmp-check", "args": "{ip} -c {community}", "why": "SNMP MIB walk with the discovered community", "creds": False,
+         "needs": "community"},
+    ],
+    "nfs": [
+        {"tool": "showmount", "args": "-e {ip}", "why": "NFS export list (world-readable / no_root_squash mounts)", "creds": False},
+    ],
+    "rpcbind": [
+        {"tool": "showmount", "args": "-e {ip}", "why": "NFS export list via portmapper", "creds": False},
+    ],
+    "111": [
+        {"tool": "showmount", "args": "-e {ip}", "why": "NFS export list via portmapper", "creds": False},
+    ],
+    "2049": [
+        {"tool": "showmount", "args": "-e {ip}", "why": "NFS export list", "creds": False},
+    ],
+    "smtp": [
+        {"tool": "smtp-user-enum", "args": "-M VRFY -U {userlist} -t {ip}", "why": "SMTP VRFY user enumeration", "creds": False},
+    ],
+    "25": [
+        {"tool": "smtp-user-enum", "args": "-M VRFY -U {userlist} -t {ip}", "why": "SMTP VRFY user enumeration", "creds": False},
     ],
     "winrm": [
         {"tool": "nxc", "args": "winrm {ip} -u {user} -p {password}", "why": "WinRM exec check", "creds": True},

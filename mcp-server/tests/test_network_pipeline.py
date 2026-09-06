@@ -45,6 +45,17 @@ class TestRouting(unittest.TestCase):
         self.assertTrue(len(yes) > len(no))
         self.assertTrue(any(s["tool"] == "certipy" for s in yes))
 
+    def test_nfs_smtp_snmp_chain_plans(self):
+        self.assertTrue(any(s["tool"] == "showmount"
+                            for s in _routing.plans_for("nfs", 2049, have_creds=False)))
+        self.assertTrue(any(s["tool"] == "showmount"
+                            for s in _routing.plans_for("rpcbind", 111, have_creds=False)))
+        self.assertTrue(any(s["tool"] == "smtp-user-enum"
+                            for s in _routing.plans_for("smtp", 25, have_creds=False)))
+        snmp = _routing.plans_for("snmp", 161, have_creds=False)
+        self.assertTrue(any(s["tool"] == "snmp-check" and s.get("needs") == "community"
+                            for s in snmp))
+
     def test_lead_and_loot_extraction(self):
         out = "user@dom: $krb5asrep$23$user@DOM:aabb...\nsigning: False"
         leads = {l["type"] for l in _routing.extract_leads(out)}
@@ -95,6 +106,42 @@ class TestPipeline(unittest.IsolatedAsyncioTestCase):
             out2 = await _tool()("10.0.0.5", domain="box")
         self.assertEqual(san.await_count, first)      # nothing re-run
         self.assertIn("skipped (covered)", out2)
+
+    async def test_snmp_community_chain(self):
+        hosts = [_host("10.0.0.9", [(161, "snmp")])]
+        outputs = {"onesixtyone": "10.0.0.9 [public] Linux box 5.15",
+                   "snmp-check": "[*] System information"}
+
+        async def fake_san(tool, args, *a, **k):
+            return {"ok": True, "error": "", "oplog_id": "op0003", "rc": 0,
+                    "output": outputs.get(tool, ""), "output_path": "",
+                    "tool": tool, "target": "10.0.0.9"}
+        san = AsyncMock(side_effect=fake_san)
+        with patch("praetor.tools.network.pipeline.nmap_scan",
+                   new=AsyncMock(return_value=_scan(hosts))), \
+             patch("praetor.tools.network.pipeline.run_sanctioned", new=san):
+            await _tool()("10.0.0.9", domain="box")
+        called = [c.args[0] for c in san.await_args_list]
+        self.assertIn("onesixtyone", called)
+        self.assertIn("snmp-check", called)
+        # snmp-check ran with the community captured from onesixtyone output
+        chk = next(c for c in san.await_args_list if c.args[0] == "snmp-check")
+        self.assertIn("-c public", chk.args[1])
+
+    async def test_snmp_no_community_skips_check(self):
+        hosts = [_host("10.0.0.9", [(161, "snmp")])]
+
+        async def fake_san(tool, args, *a, **k):
+            return {"ok": True, "error": "", "oplog_id": "op0003", "rc": 0,
+                    "output": "", "output_path": "", "tool": tool, "target": "10.0.0.9"}
+        san = AsyncMock(side_effect=fake_san)
+        with patch("praetor.tools.network.pipeline.nmap_scan",
+                   new=AsyncMock(return_value=_scan(hosts))), \
+             patch("praetor.tools.network.pipeline.run_sanctioned", new=san):
+            await _tool()("10.0.0.9", domain="box")
+        called = [c.args[0] for c in san.await_args_list]
+        self.assertIn("onesixtyone", called)
+        self.assertNotIn("snmp-check", called)   # no community -> no blind run
 
     async def test_discovery_failure_reported(self):
         with patch("praetor.tools.network.pipeline.nmap_scan",
