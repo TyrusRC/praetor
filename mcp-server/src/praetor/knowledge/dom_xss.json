@@ -179,6 +179,23 @@
           "confidence_boost": 50
         }
       ]
+    },
+    "eval_json_response_sink": {
+      "description": "Reflected DOM XSS where a value is echoed into a JSON response that client-side code then feeds to eval / Function instead of JSON.parse (e.g. eval('var x = ' + responseText) or eval('('+responseText+')')). PRECONDITION: confirm the reflected response flows into an eval/Function call, not JSON.parse — inspect the JS with test_dom_sinks / smart_js_analyze first; if it is JSON.parse there is no sink. The server escapes the double-quote (\" -> \\\") but does NOT escape a backslash the attacker supplies, so a leading backslash cancels the server's own escaping and the quote closes the JS string, breaking into executable JS.",
+      "tech_match": ["JavaScript"],
+      "param_match": ["search", "q", "query", "term", "name", "value"],
+      "probes": [
+        {
+          "payload": "\\\"-alert(1)}//",
+          "description": "Backslash-cancels-escaping breakout: server reflects the leading \\ unescaped and escapes the following \" to \\\", yielding \\\\\" in the response — a literal backslash then a string-closing quote. The remainder -alert(1)} runs as JS and // comments out the trailing bytes. Only fires when the response is eval'd, not JSON.parse'd (see context precondition).",
+          "matchers": [
+            {"type": "reflection", "check_variants": true}
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"manual_chain": true}
+        }
+      ]
     }
   }
 }

