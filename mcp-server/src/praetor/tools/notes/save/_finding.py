@@ -447,10 +447,44 @@ def register(mcp: FastMCP):
                 "Finding will be lost on Burp reload. Pass `domain=...` to persist."
             )
 
+        # ── Rule 18 (BSCP operator workflow): auto-annotate the confirming
+        # request and send it to Burp's Organizer the instant a finding is
+        # confirmed — exactly what a practitioner does by hand. The colour
+        # encodes severity (RED=crit/high, ORANGE=medium, YELLOW=low) and the
+        # comment carries the finding id so the annotation is a resolvable
+        # claim. Best-effort: the finding is already persisted above, so a Burp
+        # hiccup here must never fail the save.
+        organizer_note = ""
+        if status == "confirmed" and isinstance(evidence, dict):
+            ev_idx = evidence.get("logger_index")
+            if ev_idx is None:
+                ev_idx = evidence.get("proxy_history_index")
+            if isinstance(ev_idx, int) and ev_idx >= 0:
+                color = {
+                    "CRITICAL": "RED", "HIGH": "RED", "MEDIUM": "ORANGE",
+                    "LOW": "YELLOW",
+                }.get(str(severity).upper(), "CYAN")
+                comment = f"{saved_id} | {vuln_type or 'finding'} | {title}"[:200]
+                try:
+                    ann = await client.post("/api/annotations/set", json={
+                        "index": ev_idx, "color": color,
+                        "comment": comment, "endpoint": endpoint,
+                    })
+                    if isinstance(ann, dict) and "error" not in ann:
+                        await client.post(
+                            "/api/organizer/send", json={"index": ev_idx})
+                        organizer_note = (
+                            f"\n  Burp: annotated #{ev_idx} {color} "
+                            f"+ sent to Organizer ({comment})"
+                        )
+                except Exception:
+                    organizer_note = ""  # never block the save on Burp I/O
+
         action_label = "Updated" if dedup_action == "updated" else "Saved"
         return (
             f"{action_label} [{severity}] c={confidence:.2f} {title}\n"
             f"  Persistent ID: {saved_id} ({resolved_domain})\n"
             f"  Burp ID: {burp_id}\n"
             f"  Location: .burp-intel/{_sanitized(resolved_domain)}/findings.json"
+            f"{organizer_note}"
         )
