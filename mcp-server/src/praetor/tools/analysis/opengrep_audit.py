@@ -69,7 +69,7 @@ async def _proxy_bodies(domain: str, mimes: tuple[str, ...], max_bodies: int) ->
                 continue
 
         detail = await client.get(
-            f"/api/proxy/{int(idx)}", params={"include_body": "true"}
+            f"/api/proxy/history/{int(idx)}", params={"include_body": "true"}
         )
         if "error" in detail:
             continue

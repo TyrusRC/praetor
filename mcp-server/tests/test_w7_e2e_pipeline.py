@@ -106,17 +106,20 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
         from praetor.tools.notes import poc_bundle
 
         async def _fake_get(path, **kwargs):
-            assert path.startswith("/api/proxy/42")
+            # Mirror the real ProxyHandler.handleDetail contract: the only
+            # proxy-detail route is /api/proxy/history/{n}, with list-form
+            # headers and flat body/status keys.
+            assert path.startswith("/api/proxy/history/42")
             return {
+                "index": 42,
                 "method": "POST",
                 "url": "https://happy.example.com/admin/users",
-                "headers": {"Content-Type": "application/json"},
-                "body": '{"email":"x@x","is_admin":true}',
-                "response": {
-                    "status": 200,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": '{"id":1,"is_admin":true}',
-                },
+                "request_headers": [{"name": "Content-Type", "value": "application/json"}],
+                "request_body": '{"email":"x@x","is_admin":true}',
+                "status_code": 200,
+                "response_headers": [{"name": "Content-Type", "value": "application/json"}],
+                "response_body": '{"id":1,"is_admin":true}',
+                "response_length": 24,
             }
 
         with patch.object(poc_bundle.client, "get", side_effect=_fake_get):
