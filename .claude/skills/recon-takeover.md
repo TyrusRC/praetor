@@ -49,6 +49,15 @@ Workflow for `dns_only=True`:
 
 Save with `vuln_type='subdomain_takeover'`. For chain reporting use `chain_with=[<takeover_finding_id>]` and reference cookie-scope hijack from `chain-findings.md`.
 
+## SNI vs non-SNI cert comparison (hidden-origin lead)
+
+Compare the cert served with and without SNI — a mismatch reveals a default/fallback backend vhost behind the same IP:
+```
+openssl s_client -connect <host>:443 -servername <host> </dev/null 2>/dev/null | openssl x509 -noout -subject   # SNI
+openssl s_client -connect <host>:443                    </dev/null 2>/dev/null | openssl x509 -noout -subject   # no SNI → default vhost
+```
+Different subjects/SANs = a hidden-origin app or shared-hosting default sitting behind the same IP — a lead for host-header routing attacks (`test_host_header`) and origin discovery. Praetor's `run_tlsx` is currently SNI-only, so run this raw `openssl` comparison manually.
+
 ## Related
 
 - `query_crtsh(domain)` — bulk-harvest subdomains from cert logs

