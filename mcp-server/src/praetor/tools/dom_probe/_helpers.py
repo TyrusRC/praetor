@@ -5,7 +5,12 @@ import time
 from pathlib import Path
 from urllib.parse import urlencode, urlparse, parse_qsl
 
-from ._constants import _DESTRUCTIVE_HREFS, _FRAGMENT_SHAPES
+from ._constants import (
+    _CSPP_DEFAULT_KEYS,
+    _DESTRUCTIVE_HREFS,
+    _FRAGMENT_SHAPES,
+    _POLYGLOTS,
+)
 
 
 _INIT_JS_PATH = Path(__file__).parent / "dom_probe_init.js"
@@ -22,6 +27,43 @@ def _load_init_js() -> str:
 def _make_marker(suffix: str = "") -> str:
     seq = int(time.time() * 1000) % 100_000_000
     return f"swk{seq:x}{suffix}"
+
+
+def _validate_probe_inputs(
+    source_kinds: list[str] | None,
+    polyglots: list[str] | None,
+    fragment_shapes: list[str] | None,
+    cspp_known_keys: list[str] | None,
+):
+    """Resolve + validate the probe knobs.
+
+    Returns a 4-tuple (kinds, active_polys, active_shapes, active_cspp_keys) on
+    success, or an error string on the first invalid value.
+    """
+    kinds = source_kinds or ["query", "fragment", "fragment_kv", "fragment_shapes", "referrer"]
+    valid_kinds = {"query", "fragment", "fragment_kv", "fragment_shapes", "referrer"}
+    bad = [k for k in kinds if k not in valid_kinds]
+    if bad:
+        return f"Error: unknown source_kind(s) {bad}. Choose from {sorted(valid_kinds)}."
+
+    active_polys = polyglots or ["plain", "angular_csti", "proto_pollute", "xss_svg"]
+    bad_p = [p for p in active_polys if p not in _POLYGLOTS]
+    if bad_p:
+        return f"Error: unknown polyglot(s) {bad_p}. Choose from {sorted(_POLYGLOTS)}."
+
+    active_shapes = fragment_shapes or [
+        "bare", "param", "qs_in_hash", "hash_route", "hash_route_kv", "hashbang_kv",
+    ]
+    bad_s = [s for s in active_shapes if s not in _FRAGMENT_SHAPES]
+    if bad_s:
+        return f"Error: unknown fragment_shape(s) {bad_s}. Choose from {sorted(_FRAGMENT_SHAPES)}."
+
+    if cspp_known_keys is None:
+        active_cspp_keys = list(_CSPP_DEFAULT_KEYS)
+    else:
+        active_cspp_keys = [str(k) for k in cspp_known_keys if isinstance(k, str) and k]
+
+    return kinds, active_polys, active_shapes, active_cspp_keys
 
 
 def _build_target_url(
