@@ -34,6 +34,10 @@ UNSERVED_ROUTES = {
     "tools/httpql.py": ["/api/proxy?"],
     "tools/clean_room_confirm.py": ["/api/logger/resend"],
     "tools/smart_js_analyze/_impl.py": ["/api/proxy/request-detail"],
+    # No /api/browser HTTP route exists — the headless page is in-process
+    # (browser/_bridge); collaborator polling is GET /api/collaborator/interactions.
+    "tools/cua_probe.py": ["/api/browser/navigate", "/api/collaborator/poll"],
+    "tools/postmessage_probe.py": ["/api/browser/navigate", "/api/browser/execute_js"],
 }
 
 

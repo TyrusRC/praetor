@@ -21,6 +21,7 @@ supply or generate a Collaborator URL.
 
 from __future__ import annotations
 
+import json
 import re
 import secrets
 from typing import Any
@@ -28,6 +29,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools.browser import _bridge
 from praetor.tools.testing._verdict import verdict_from_tally
 
 
@@ -122,11 +124,7 @@ def register(mcp: FastMCP) -> None:
 
         # ---------- Step 1: fetch rendered HTML through browser (Burp-proxied) ----------
         try:
-            nav = await client.post("/api/browser/navigate", json={
-                "url": url,
-                "wait_until": "networkidle",
-                "timeout_ms": 15000,
-            })
+            nav = await _bridge.navigate(url, wait_until="networkidle", timeout_ms=15000)
         except Exception as e:
             return _err(f"browser_navigate failed: {e}")
 
@@ -199,25 +197,17 @@ def register(mcp: FastMCP) -> None:
 
         # Re-navigate to the consumer URL with the planted canary live.
         try:
-            await client.post("/api/browser/navigate", json={
-                "url": url,
-                "wait_until": "networkidle",
-                "timeout_ms": 15000,
-            })
+            await _bridge.navigate(url, wait_until="networkidle", timeout_ms=15000)
         except Exception as e:
             return _err(f"second navigate failed: {e}")
 
         # Poll Collaborator for the marker.
         collab_hits: list[dict[str, Any]] = []
         try:
-            poll = await client.post("/api/collaborator/poll", json={
-                "url": collaborator_url,
-                "timeout_s": 10,
-            })
+            poll = await client.get("/api/collaborator/interactions")
             if isinstance(poll, dict):
                 for inter in poll.get("interactions", []) or []:
-                    req_blob = (inter.get("request") or "") + " " + (inter.get("query") or "")
-                    if marker in req_blob:
+                    if marker in json.dumps(inter, default=str):
                         collab_hits.append(inter)
         except Exception:
             pass  # polling failure is not fatal — fall through to passive verdict

@@ -35,6 +35,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools.browser import _bridge
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 
 
@@ -75,18 +76,14 @@ def register(mcp: FastMCP) -> None:
                                  vuln_type="postmessage_listener", reason="out_of_scope")
 
         # 1) browser_navigate to target
-        nav = await client.post("/api/browser/navigate",
-                                json={"url": target_url, "wait_ms": wait_ms})
+        nav = await _bridge.navigate(target_url)
         if nav.get("error"):
             return error_verdict(nav.get("error", ""),
                                  vuln_type="postmessage_listener", reason="navigate_failed")
 
         # 2) Install instrumentation; if we couldn't pre-instrument, fall back
         # to scanning the live document for inline message-handler signatures.
-        instrument = await client.post(
-            "/api/browser/execute_js",
-            json={"script": _INSTRUMENT_JS},
-        )
+        instrument = await _bridge.execute_js(_INSTRUMENT_JS)
         handlers_blob = instrument.get("result") or "[]"
         try:
             handlers = json.loads(handlers_blob) if isinstance(handlers_blob, str) else handlers_blob
@@ -96,17 +93,14 @@ def register(mcp: FastMCP) -> None:
         # Fallback inline scan: look at all <script> tags for
         # addEventListener('message', …) blocks.
         if not handlers:
-            inline_scan = await client.post(
-                "/api/browser/execute_js",
-                json={"script": (
-                    "JSON.stringify(Array.from(document.scripts)"
-                    ".map(s => s.textContent || '')"
-                    ".filter(t => /addEventListener\\(['\"]message['\"]/.test(t))"
-                    ".map(t => ({source_excerpt: t.slice(0, 800),"
-                    "has_origin_strict: /\\.origin\\s*===|\\.origin\\s*!==/.test(t),"
-                    "has_origin_loose: /\\.origin\\.(includes|startsWith|endsWith|indexOf|match)/.test(t),"
-                    "has_any_origin: /\\.origin/.test(t)})))"
-                )},
+            inline_scan = await _bridge.execute_js(
+                "JSON.stringify(Array.from(document.scripts)"
+                ".map(s => s.textContent || '')"
+                ".filter(t => /addEventListener\\(['\"]message['\"]/.test(t))"
+                ".map(t => ({source_excerpt: t.slice(0, 800),"
+                "has_origin_strict: /\\.origin\\s*===|\\.origin\\s*!==/.test(t),"
+                "has_origin_loose: /\\.origin\\.(includes|startsWith|endsWith|indexOf|match)/.test(t),"
+                "has_any_origin: /\\.origin/.test(t)})))"
             )
             blob = inline_scan.get("result") or "[]"
             try:
@@ -134,10 +128,7 @@ def register(mcp: FastMCP) -> None:
         for pl in payloads:
             pl_js = json.dumps(pl)
             script = _PROBE_TEMPLATE.replace("__PAYLOAD__", pl_js)
-            probe = await client.post(
-                "/api/browser/execute_js",
-                json={"script": script},
-            )
+            probe = await _bridge.execute_js(script)
             blob = probe.get("result") or "{}"
             try:
                 rec = json.loads(blob) if isinstance(blob, str) else blob
@@ -146,12 +137,9 @@ def register(mcp: FastMCP) -> None:
             probe_results.append({"payload": pl, **(rec if isinstance(rec, dict) else {})})
 
         # Check for canary execution evidence
-        canary_check = await client.post(
-            "/api/browser/execute_js",
-            json={"script": (
-                "JSON.stringify({eval_canary: !!window.__praetor_eval_canary__,"
-                " img_canary: !!window.__praetor_canary__})"
-            )},
+        canary_check = await _bridge.execute_js(
+            "JSON.stringify({eval_canary: !!window.__praetor_eval_canary__,"
+            " img_canary: !!window.__praetor_canary__})"
         )
         canary_blob = canary_check.get("result") or "{}"
         try:
