@@ -107,15 +107,15 @@ def register(mcp: FastMCP):
         if scan_proxy:
             params = {"limit": 500}
             if url_prefix:
-                params["url_prefix"] = url_prefix
-            history = await client.get("/api/proxy-history", params=params)
+                params["filter_url"] = url_prefix
+            history = await client.get("/api/proxy/history", params=params)
             if "error" in history:
                 return f"Error reading proxy history: {history['error']}"
-            for item in history.get("history", history.get("entries", [])):
+            for item in history.get("items", []):
                 idx = item.get("index")
                 if idx is None:
                     continue
-                detail = await client.get(f"/api/request-detail/{idx}")
+                detail = await client.get(f"/api/proxy/history/{idx}")
                 if "error" in detail:
                     continue
                 body = detail.get("response_body", "") or detail.get("body", "")

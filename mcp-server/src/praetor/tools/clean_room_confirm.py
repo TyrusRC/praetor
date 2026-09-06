@@ -13,7 +13,7 @@ Inputs:
   - Expected markers (substring(s) that must appear in response body).
   - Optional: status_code expectation, header substring expectations.
 
-The replay uses `/api/logger/resend/<index>` so it carries the same method,
+The replay uses `/api/http/resend` so it carries the same method,
 URL, headers, body — verbatim. No path is taken from the exploration's
 internal reasoning.
 
@@ -76,10 +76,10 @@ def register(mcp: FastMCP) -> None:
         confirmed_count = 0
 
         for attempt in range(max(1, replays)):
-            resp = await client.post("/api/logger/resend", json={
+            resp = await client.post("/api/http/resend", json={
                 "index": logger_index,
             })
-            new_li = resp.get("logger_index", -1)
+            new_li = resp.get("history_index", -1)
             status = resp.get("status_code") or resp.get("status")
             body = resp.get("response_body") or ""
             headers = resp.get("response_headers") or {}

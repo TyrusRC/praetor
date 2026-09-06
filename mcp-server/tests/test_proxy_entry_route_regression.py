@@ -27,6 +27,15 @@ CALLERS = [
     "tools/notes/poc_bundle/__init__.py",
 ]
 
+# Routes the Burp extension does not serve, found by the client-route audit.
+# Each maps a tool source file to substrings that must not reappear in it.
+UNSERVED_ROUTES = {
+    "tools/harvest.py": ["/api/proxy-history", "/api/request-detail/"],
+    "tools/httpql.py": ["/api/proxy?"],
+    "tools/clean_room_confirm.py": ["/api/logger/resend"],
+    "tools/smart_js_analyze/_impl.py": ["/api/proxy/request-detail"],
+}
+
 
 class ProxyRouteRegressionTest(unittest.TestCase):
     def test_no_bare_proxy_route(self):
@@ -40,6 +49,16 @@ class ProxyRouteRegressionTest(unittest.TestCase):
                 f"{rel} still fetches the bare /api/proxy/{{idx}} route (404s); "
                 f"use /api/proxy/history/{{idx}}",
             )
+
+    def test_no_unserved_routes(self):
+        for rel, bad_routes in UNSERVED_ROUTES.items():
+            src = (SRC / rel).read_text()
+            for bad in bad_routes:
+                self.assertNotIn(
+                    bad, src,
+                    f"{rel} still calls unserved route {bad!r} "
+                    f"(ProxyHandler/ApiServer never registers it)",
+                )
 
     def test_normalize_entry_shape(self):
         detail = {

@@ -61,8 +61,8 @@ class SourceContractTest(unittest.TestCase):
         self.assertIn("async def confirm_with_clean_room(", src)
         self.assertIn("XBOW", src)
         self.assertIn("expected_markers", src)
-        # Replay must use /api/logger/resend (no exploration shortcut)
-        self.assertIn("/api/logger/resend", src)
+        # Replay must re-fire the captured request verbatim via the resend route
+        self.assertIn("/api/http/resend", src)
 
     def test_asi_top10_signature(self):
         src = (TOOLS_DIR / "owasp_asi_top10.py").read_text()

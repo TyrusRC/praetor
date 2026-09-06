@@ -58,7 +58,8 @@ def _eval_clause(field: str, op: str, val: str, entry: dict) -> bool:
                 flat.append(f"{h.get('name','')}: {h.get('value','')}")
         fv = "\n".join(flat)
     elif field == "length":
-        fv = len(entry.get("response_body") or "")
+        rl = entry.get("response_length")
+        fv = rl if rl is not None else len(entry.get("response_body") or "")
         try: val = int(val)
         except ValueError: pass
     else:
@@ -126,10 +127,22 @@ def register(mcp: FastMCP) -> None:
             method = POST AND body ~ token
             url ~ /admin AND status = 200
         """
-        data = await client.get(f"/api/proxy?limit={max(limit, offset + limit) + 50}")
+        data = await client.get(f"/api/proxy/history?limit={max(limit, offset + limit) + 50}")
         if "error" in data:
             return f"Error: {data['error']}"
-        entries = data.get("entries") or data.get("history") or []
+        entries = data.get("items") or []
+        # The list view omits request/response bodies and headers; fetch detail
+        # per entry only when the query actually references them.
+        if re.search(r"\b(body|header)\b", query, re.I):
+            enriched = []
+            for e in entries:
+                idx = e.get("index")
+                if idx is not None:
+                    d = await client.get(f"/api/proxy/history/{int(idx)}")
+                    if isinstance(d, dict) and "error" not in d:
+                        e = {**e, **d}
+                enriched.append(e)
+            entries = enriched
         hits = [e for e in entries if _eval_query(query, e)]
         sliced = hits[offset:offset + limit]
         lines = [
@@ -141,6 +154,6 @@ def register(mcp: FastMCP) -> None:
             lines.append(
                 f"  [{e.get('index','?')}]  {e.get('method','?')} "
                 f"{e.get('status_code') or e.get('status','?')} "
-                f"len={len(e.get('response_body') or '')}  {e.get('url','')[:120]}"
+                f"len={e.get('response_length', 0)}  {e.get('url','')[:120]}"
             )
         return "\n".join(lines)
