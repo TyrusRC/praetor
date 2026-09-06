@@ -203,5 +203,45 @@ class TestNeverSubmitCanonicalGate(_SaveHarness):
         self.assertNotIn("NEVER-SUBMIT GATE", out)
 
 
+class TestAutoOrganizeOnConfirm(_SaveHarness):
+    """Rule 18 / BSCP: a confirmed finding auto-annotates its evidence request
+    and sends it to Burp's Organizer; a suspected one does not."""
+
+    async def _save_capturing(self, **kw):
+        base = dict(
+            title="t", description="d", evidence={"logger_index": 7},
+            endpoint="https://t.example/a", domain="t.example",
+            parameter="p", vuln_type="xss", severity="LOW",
+            status="confirmed", force_recon_gate=True,
+        )
+        base.update(kw)
+        mock_post = AsyncMock(return_value={"id": "burp-1"})
+        with patch("praetor.tools.notes.save.client.post", new=mock_post), \
+             patch("praetor.tools.intel.recon_gate_check", return_value=None):
+            fn = server.mcp._tool_manager._tools["save_finding"].fn
+            out = await fn(**base)
+        routes = [c.args[0] for c in mock_post.call_args_list]
+        return out, mock_post, routes
+
+    async def test_confirmed_finding_is_annotated_and_organized(self):
+        out, _, routes = await self._save_capturing()
+        self.assertIn("/api/annotations/set", routes)
+        self.assertIn("/api/organizer/send", routes)
+        self.assertIn("sent to Organizer", out)
+
+    async def test_suspected_finding_is_not_auto_organized(self):
+        _, _, routes = await self._save_capturing(status="suspected")
+        self.assertNotIn("/api/organizer/send", routes)
+        self.assertNotIn("/api/annotations/set", routes)
+
+    async def test_annotation_colour_encodes_severity(self):
+        _, mock_post, _ = await self._save_capturing(
+            severity="HIGH", vuln_type="rce", impact="RCE as root")
+        ann = next(c for c in mock_post.call_args_list
+                   if c.args[0] == "/api/annotations/set")
+        self.assertEqual(ann.kwargs["json"]["color"], "RED")
+        self.assertIn("f001", ann.kwargs["json"]["comment"])
+
+
 if __name__ == "__main__":
     unittest.main()
