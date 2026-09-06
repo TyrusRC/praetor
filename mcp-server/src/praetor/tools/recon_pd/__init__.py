@@ -182,9 +182,9 @@ def register(mcp: FastMCP):
         return await _impl.run_graphw00f(target, timeout)
 
 
-# Re-export _shared so helper names (recon_pd._not_installed / ._parse_jsonl and
-# package-level patches such as patch.object(recon_pd, '_check_tool')) resolve
-# from the package path. Tool bodies live in _impl / _gen and resolve _check_tool
-# against THOSE modules — tests patch recon_pd._impl._check_tool accordingly.
-from . import _shared as _shared  # noqa: E402
-globals().update({_k: getattr(_shared, _k) for _k in dir(_shared) if not _k.startswith("__")})
+# Re-export only the public helpers the package exposes. _check_tool / _run_cmd
+# are deliberately NOT re-exported here: the tool bodies live in _impl / _gen and
+# resolve those names against THOSE modules, so patch them at
+# recon_pd._impl._check_tool / recon_pd._gen._check_tool — a package-level alias
+# would patch silently with no effect.
+from ._shared import _not_installed, _parse_jsonl  # noqa: F401,E402
