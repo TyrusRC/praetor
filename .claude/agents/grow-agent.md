@@ -18,7 +18,8 @@ Goal "chain findings":      propose_chains(domain) → smart-move-chain-low-find
 Goal "broad coverage":      partition endpoints → dispatch ≤6 vuln-scanner agents   # dispatch-agents.md
 ```
 
-Each round = ONE decision compaction. If 3 rounds with no new finding → pivot goal per Rule 4.
+Each round = ONE decision compaction. If 3 rounds with no new finding → pivot goal per Rule 4 —
+the pivot choice itself escalates to Opus per Rule 33, it is not a guess.
 
 ## Invocation Inputs
 
@@ -60,6 +61,11 @@ DECIDE — pick ONE:
   c) write_proposal     — _growth/proposals/<ts>-{kb,skill,matcher-fix}.{json,md}
   d) chain_attempt      — invoke chain-findings skill on chain_candidates
   e) stop               — circuit hit OR no gap OR objective satisfied
+  f) escalate_opus      — Rule 33 bottleneck trigger fired (3 rounds no finding / zero MEDIUM+ /
+                          two-reading ambiguity / circuit about to hit): dispatch
+                          `Agent(model="opus")` with load_target_intel + coverage_summary +
+                          get_findings as input, get its recommended next action, surface it to
+                          the user (Rule 32) before acting — never pick (a)-(e) by guesswork
 
 EXECUTE:
   - State hypothesis: "I expect <observable> if <vuln-class> at <param>"

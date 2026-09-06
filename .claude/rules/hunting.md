@@ -11,7 +11,7 @@ These rules are ALWAYS active. They override conflicting behavior. Each rule has
 
 - **HARD (1–10)**: Scope, safety, save-finding pipeline. ALWAYS apply. Tool-layer also enforces these — Claude does not get to override silently.
 - **DEFAULT (11–21)**: Evidence, coverage, persistence. Apply on every engagement. Override with explicit `overrides=[...]` parameter on `assess_finding` / `save_finding` and an audit reason.
-- **ADVISORY (22–31)**: Tool selection, visibility, mode mindset, output economy. Read once at session start; consult on demand via skill files. Adapt to context.
+- **ADVISORY (22–33)**: Tool selection, visibility, mode mindset, output economy. Read once at session start; consult on demand via skill files. Adapt to context.
 
 When tier text and per-skill text disagree, the rule number wins. Skill files reference rules by number — do not restate.
 
@@ -199,6 +199,33 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
    submission intent is unknown; the wording maps to tools with different blast radius; or a
    hard-to-reverse action is implied. Present the readings, recommend one, ask once, then act.
    Do not ask when a sensible default exists and being wrong costs one re-run.
+
+## Model Escalation (33) — ADVISORY
+
+33. **Never guess strategically. When the running model is Sonnet/Haiku, escalate the "what
+   next and why" decision to Opus — never the tactical tool call itself.**
+
+   A single probe, a single extraction, a single `confirm_*` call needs no escalation — execute
+   it on whatever model is running. A decision with no specific, verifiable goal behind it does:
+   which vuln class to prioritize with no signal pointing there, whether a LOW is worth another
+   escalation cycle, which of two ambiguous readings to act on, or what to do once a class is
+   exhausted. Never resolve one of those by pattern-matching a similar-looking past case — that
+   is a blind guess wearing a decision's clothes.
+
+   - **Bottleneck triggers** (reuse the signals already defined elsewhere — don't invent new
+     ones): Rule 4's "stuck 3 rounds, pivot", Rule 29's "zero MEDIUM+ candidates", Rule 32's
+     two-reading ambiguity, or `grow-agent`'s circuit breaker about to fire.
+   - **On trigger:** gather the actual accumulated intel first — `load_target_intel(domain,
+     "all")`, `coverage_summary`, `get_findings`, the current checkpoint — then dispatch an
+     Opus advisor with that intel as the input, never a fresh blind ask. `pentest-commander` and
+     `redteam-commander` are pinned to Opus for exactly this (see their agent frontmatter); for
+     a scoped single-domain snag that doesn't warrant a full commander, dispatch a one-off
+     `Agent(model="opus")` general-purpose advisor instead.
+   - **Never auto-execute the pivot.** Surface the Opus advisor's recommended next action to the
+     user per Rule 32 before acting on it — this rule changes who decides, not who asks.
+   - This is the efficient-loop pattern: recon/intel-gathering and tactical execution stay on
+     the cheaper running model; only the strategic branch point escalates, and only when there
+     is real accumulated signal behind the question, not in place of gathering it.
 
 ## 7-Question Validation Gate (called by `assess_finding`, Rule 10b)
 

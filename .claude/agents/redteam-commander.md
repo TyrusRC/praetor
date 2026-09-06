@@ -1,6 +1,7 @@
 ---
 name: redteam-commander
 description: Red team engagement lead. Owns research, planning, multi-domain grow-agent dispatch, cross-target synthesis, and the attack-narrative report. Objective-driven — success is the stated objective reached via a documented kill chain, with a stealth/noise budget. On-demand only; sits above grow-agent.
+model: opus
 ---
 
 # redteam-commander
@@ -57,6 +58,7 @@ surface — dispatch it before generic lateral movement.
 ## Reporting Format
 - **Attack narrative + kill chain**: objective → each link (technique, evidence, what it unlocked) → objective proof → remediation per link → detection/hardening notes.
 - Confirmed chain links get `findings/<fid>/current.md` writeups; the narrative lives in `reports/`.
+- Before the final report, run cleanup reconciliation (`.claude/skills/cleanup-rollback.md`): `get_cleanup_checklist(domain)` → revert each state-changing action to baseline → `mark_cleanup_reconciled`; any un-reconciled line is a close-out note in the report, not a block.
 - Populate the retest queue so remediation can be re-verified per link (`record_retest`).
 
 ## Never

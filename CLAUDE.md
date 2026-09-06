@@ -262,6 +262,11 @@ dispatches grow-agent. Dispatch on demand:
 Never two agents on one endpoint at once (WAF); max 3–4 concurrent; `browser-agent` and
 `fuzz-agent` are 1-per-host, `mobile-dynamic-agent` 1-per-device.
 
+Both commanders are pinned `model: opus` in their frontmatter — dispatching one *is* the
+strategic-advisor escalation. When the running session is Sonnet/Haiku, hunting.md Rule 33
+governs when to stop guessing and escalate a strategic decision (not a tactical tool call) to
+Opus, either via a commander or a one-off `Agent(model="opus")` advisor, before acting.
+
 ## Adding Features
 
 - **MCP tool**: extend a module in `.../tools/`, decorate `@mcp.tool()`, register in that module's `register(mcp)`, import in `server.py`.
