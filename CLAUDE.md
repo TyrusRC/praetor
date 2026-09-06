@@ -272,7 +272,7 @@ Opus, either via a commander or a one-off `Agent(model="opus")` advisor, before 
 - **MCP tool**: extend a module in `.../tools/`, decorate `@mcp.tool()`, register in that module's `register(mcp)`, import in `server.py`.
 - **API endpoint**: handler in `burp-extension/.../handlers/` extending `BaseHandler`, registered in `ApiServer.java` via `createContext`.
 - **Payload set**: JSON in `.../payloads/` — `{category, contexts: {ctx: {description, payloads:[...]}}}`.
-- **KB probes**: JSON in `.../knowledge/` with `contexts` + matchers. Matcher types are enumerated in `MatcherEngine.java` and fail closed when unknown. Files in `_REFERENCE_ONLY` (`tools/scan/_constants.py`) are excluded from `auto_probe`.
+- **KB probes**: JSON in `.../knowledge/` with `contexts` + matchers. Matcher types are enumerated in `MatcherEngine.java` and fail closed when unknown. Files in `_REFERENCE_ONLY` (`tools/scan/_constants.py`) are excluded from `auto_probe`. Declare `param_match` / `tech_match` on every context that has one — `tools/scan/_prioritise.py` sorts targeted contexts ahead of unconstrained ones precisely because an unconstrained context once burned an entire probe budget before a targeted class was reached (an integer `id` param got 20 generic probes, zero of them SQLi). A context with neither field is a "universal" probe that still fires on every parameter, just last — don't add one where a real constraint exists.
 
 ## Commits and PRs
 
