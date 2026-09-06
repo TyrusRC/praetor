@@ -213,7 +213,7 @@ These are exempt from the "never load more than 2 playbooks" cap because they're
 | Param contains an ID (numeric / UUID / slug / hash) AND ≥2 auth states available | `playbook-idor-bola.md` | W16 |
 | `Authorization: Bearer <jwt>` observed; `harvest_identifiers` flagged a JWT; OAuth/OIDC auth model | `playbook-jwt-deep-dive.md` | W16 |
 | `/oauth/authorize`, `/oauth/token`, `/.well-known/openid-configuration` reachable; federated identity in scope | `playbook-oauth-flow-attacks.md` | W17 |
-| Target behind CDN/WAF + origin (≥2 HTTP parsers); Kettle 2025 endgame variants applicable | `playbook-request-smuggling.md` | W17 |
+| Target behind CDN/WAF + origin (≥2 HTTP parsers); 2025 desync endgame variants applicable | `playbook-request-smuggling.md` | W17 |
 | Node.js (Express/Fastify/Hapi/Koa) + JSON body merge; client-side options-merge libraries (jQuery extend, lodash merge); CSPP gadgets in framework | `playbook-prototype-pollution.md` | W17 |
 | Subdomain takeover hunt — wildcard scope or subdomain list harvested | `recon-takeover.md` | W9 |
 | **Shell on a Linux host** (reverse shell / SSH / web-RCE foothold) — non-root, want root or a lateral pivot | `playbook-linux-privesc.md` | W38 |

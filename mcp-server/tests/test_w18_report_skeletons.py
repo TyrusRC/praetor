@@ -45,7 +45,7 @@ class PerClassReportSkeletonTest(unittest.TestCase):
 
     def test_smuggling_skeleton_present(self):
         for marker in ("vuln_type: request_smuggling", "CWE-444",
-                       "CL.TE", "Kettle 2025", "CVE-2025-32094"):
+                       "CL.TE", "CVE-2025-32094"):
             self.assertIn(marker, self.content, f"smuggling skeleton missing: {marker}")
 
     def test_pp_skeleton_present(self):

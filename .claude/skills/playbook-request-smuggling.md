@@ -1,5 +1,5 @@
 ---
-description: HTTP request smuggling — CL.TE / TE.CL / TE.TE classics + Kettle 2025 endgame (0.CL / CL.0 / V-H / Expect / double-desync). Detection workflow, safe payloads, evidence ladder. Load when a Pro chain (CDN / WAF / origin) is in scope.
+description: HTTP request smuggling — CL.TE / TE.CL / TE.TE classics + 2025 desync endgame (0.CL / CL.0 / V-H / Expect / double-desync). Detection workflow, safe payloads, evidence ladder. Load when a Pro chain (CDN / WAF / origin) is in scope.
 globs:
 ---
 
@@ -17,7 +17,7 @@ Load when: target is behind a CDN / WAF / reverse proxy AND has an origin server
 | **TE.CL** | uses `Transfer-Encoding` | uses `Content-Length` | `TE: chunked\r\nCL: 4\r\n\r\n5c\r\nGPOST...0\r\n\r\n` |
 | **TE.TE** | both honour TE; one fooled by header obfuscation | one fooled | `Transfer-Encoding: chunked\r\nTransfer-encoding: identity\r\n...` |
 
-### Kettle 2025 endgame (HTTP/1.1 Must Die)
+### 2025 desync endgame
 
 | Variant | Trigger | Severity |
 |---|---|---|
@@ -37,7 +37,7 @@ Load when: target is behind a CDN / WAF / reverse proxy AND has an origin server
 
 1. **Confirm two-parser pipeline** — fetch a benign URL and look at `Server:` / `Via:` / `X-Cache:` / `X-Akamai-*` / `X-Amz-Cf-Id:` / `CF-RAY` headers. ≥2 distinct identifiers = two parsers.
 2. **Safe timing probe (default)** — `test_request_smuggling(session, path)` runs CL.TE / TE.CL / TE.TE timing-based detection. Returns VerdictResult SUSPECTED on any timing-confirmed finding; CONFIRMED only after Collaborator verification.
-3. **Binary tool wrapper** — `run_smuggle(target_url, ...)` shells out to the smuggle CLI for Kettle 2025 0.CL / CL.0 / V-H / Expect / RQP / double-desync. Wider coverage than the in-process probe.
+3. **Binary tool wrapper** — `run_smuggle(target_url, ...)` shells out to the smuggle CLI for the 2025 0.CL / CL.0 / V-H / Expect / RQP / double-desync. Wider coverage than the in-process probe.
 4. **Verify with Collaborator** — for any candidate, smuggle a request whose backend processing fires a Collaborator interaction. Three replays minimum (Rule 10a).
 
 ## Safe vs unsafe payloads
@@ -105,7 +105,7 @@ save_finding(
 
 ## Related
 
-- `knowledge/http_desync.json` — Kettle 2025 0.CL / CL.0 / V-H / Expect / RQP / double-desync contexts (W1-W5)
+- `knowledge/http_desync.json` — 2025 0.CL / CL.0 / V-H / Expect / RQP / double-desync contexts (W1-W5)
 - `test_request_smuggling` — timing-based detection (W14 VerdictResult)
 - `run_smuggle` — smuggle CLI wrapper (W5 binary tool integration)
 - `chain-findings.md` — `smuggling_to_internal_route` progression

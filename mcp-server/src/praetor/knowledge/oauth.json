@@ -1413,7 +1413,7 @@
       ]
     },
     "webauthn_api_hijack_jsinjection_2026": {
-      "description": "DEF CON 33 'Passkeys Pwned' (Allthenticate) \u2014 WebAuthn API hijacking via JavaScript injection. Attacker XSSes the target (or installs a malicious browser extension using Chrome's webAuthenticationProxy API) and overrides navigator.credentials.create / navigator.credentials.get to forge registration + login. Real-time prompt spoofing means cloud-synced passkeys (Apple/Google/Microsoft) are NOT 100% phishing-resistant. Detection is XSS-prerequisite \u2014 any XSS on a passkey-protected origin is a path to full WebAuthn bypass.",
+      "description": "WebAuthn API hijacking via JavaScript injection. Attacker XSSes the target (or installs a malicious browser extension using Chrome's webAuthenticationProxy API) and overrides navigator.credentials.create / navigator.credentials.get to forge registration + login. Real-time prompt spoofing means cloud-synced passkeys (Apple/Google/Microsoft) are NOT 100% phishing-resistant. Detection is XSS-prerequisite \u2014 any XSS on a passkey-protected origin is a path to full WebAuthn bypass.",
       "tech_match": [
         "webauthn",
         "passkey",
@@ -1559,5 +1559,5 @@
       ]
     }
   },
-  "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879) + WebAuthn API hijacking JS-injection (DEF CON 33)."
+  "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879) + WebAuthn API hijacking JS-injection."
 }

@@ -301,7 +301,7 @@ _MAPPINGS = [
       "beyond normalization", "unicode bypass waf", "unicode jailbreak llm"],
      "auto_probe",
      "auto_probe(session='hunt', categories=['ai_prompt_injection'])  "
-     "# idpi_illegal_utf8_normalization_2026 (Black Hat USA 2026)"),
+     "# idpi_illegal_utf8_normalization_2026"),
     (["graphql mutation aliasing", "graphql aliased mutation", "graphql rate limit bypass",
       "graphql otp brute", "graphql sms bomb", "aliased mutation account recovery"],
      "auto_probe",

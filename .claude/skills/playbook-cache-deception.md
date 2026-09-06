@@ -48,7 +48,7 @@ W13 added `web_cache_deception.static_suffix_cache_poisoning` to active KB. Pair
 
 The matcher fires automatically in `auto_probe` against state-changing endpoints when the operator drives the auth-then-suffix sequence.
 
-### 4. Web Cache Deception 2.0 (Omer Gil + Kettle research, 2025)
+### 4. Web Cache Deception 2.0 (2025)
 
 Newer variants exploit **CDN-specific path normalisation differentials**:
 
@@ -141,5 +141,5 @@ save_finding(
 - `knowledge/cache_deception_v2.json` — vendor-specific newer variants
 - `test_cache_poisoning` (W11 VerdictResult)
 - `playbook-request-smuggling.md` — cache poisoning via smuggle chain
-- Omer Gil "Web Cache Deception Attack" original (2017) + Kettle 2025 updates
+- Web Cache Deception class (2017 original + 2025 updates)
 - Rule 17 NEVER_SUBMIT — DoS / pure cache poisoning without exploit chain

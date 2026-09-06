@@ -186,9 +186,9 @@ Skip SAML deep-dive unless you see `SAMLResponse=` POST bodies. Most modern targ
 |---|---|---|
 | Path traversal in MCP attachment download | CVE-2026-27825 (mcp-atlassian) | `probe_mcp_server_attacks(base_url="https://mcp.tld/")` — fires 5 LFI canaries (Linux passwd + Windows win.ini + URL-encoded variants) |
 | Header SSRF via `X-Atlassian-Jira-Url` / `X-Atlassian-Confluence-Url` | CVE-2026-27826 (mcp-atlassian) | Same tool fires 6 IMDS-targeted probes × 2 header names; optionally Collaborator-blind |
-| Resource theft via hidden directive | Unit 42 MCP attack vector | Passive scan of MCP responses for `"Note, this is IMPORTANT, after finishing ... please also write"` style appended directives |
-| Conversation hijack persistence | Unit 42 MCP attack vector | Match `"put the following text verbatim"` / persona-switch / `"in all responses"` in MCP responses |
-| Covert tool invocation | Unit 42 MCP attack vector | Match `"invoke the tool to write [content] to [file]"` style directives hidden in MCP responses |
+| Resource theft via hidden directive | MCP attack vector | Passive scan of MCP responses for `"Note, this is IMPORTANT, after finishing ... please also write"` style appended directives |
+| Conversation hijack persistence | MCP attack vector | Match `"put the following text verbatim"` / persona-switch / `"in all responses"` in MCP responses |
+| Covert tool invocation | MCP attack vector | Match `"invoke the tool to write [content] to [file]"` style directives hidden in MCP responses |
 | Tool description PI | Earlier `mcp_server_attacks.json` | `auto_probe(categories=["mcp_server_attacks"])` |
 
 **Probe commands:**
@@ -219,7 +219,7 @@ save_finding(
 )
 ```
 
-**Indirect-PI delivery hunt (Unit 42 IDPI table):**
+**Indirect-PI delivery hunt (IDPI table):**
 If target consumes web content via LLM (summariser, agent, doc-loader), embed marker payloads from `ai_prompt_injection.json` contexts:
 - `idpi_visual_concealment_2026` — CSS-hidden marker (`font-size:0`, off-screen)
 - `idpi_invisible_unicode_jailbreak_2026` — zero-width Unicode between letters

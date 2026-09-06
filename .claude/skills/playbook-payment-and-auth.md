@@ -135,7 +135,7 @@ Recovery:        usually weaker — email/SMS code, security questions, backup c
 | 13 | Authenticator delete without re-auth | DELETE /webauthn/credentials/<id> succeeds with only session cookie, no re-auth | CRITICAL — attacker removes victim's 2FA |
 | 14 | Token-binding skip | Steal session cookie → use without passkey assertion | CRITICAL |
 | 15 | **Step-up bypass via `{"method":"passkey"}`** (CVE-2026-32879) | POST step-up endpoint with `{"method":"passkey"}` — vuln server marks session verified without ANY WebAuthn assertion roundtrip | HIGH — opens any gate protected by step-up (key issuance, settings, payment confirm) |
-| 16 | **WebAuthn API hijack via JS injection** (DEF CON 33 'Passkeys Pwned') | XSS sink → override `navigator.credentials.get/.create` to exfil challenges or forge assertions. Same path via malicious extension using `chrome.webAuthenticationProxy` | CRITICAL — cloud-synced passkeys (Apple/Google/Microsoft) NOT 100% phishing-resistant |
+| 16 | **WebAuthn API hijack via JS injection** | XSS sink → override `navigator.credentials.get/.create` to exfil challenges or forge assertions. Same path via malicious extension using `chrome.webAuthenticationProxy` | CRITICAL — cloud-synced passkeys (Apple/Google/Microsoft) NOT 100% phishing-resistant |
 
 ### Probe commands
 

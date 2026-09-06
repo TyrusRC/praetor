@@ -43,7 +43,7 @@ async def _run_tool_misuse(
             f"probe_mcp_server_attacks(target_url=\"{endpoint}\") "
             "# path traversal + header SSRF + DNS rebind"
         )
-    # RPE (Black Hat USA 2026) — assistant with an upload/code-interpreter
+    # RPE — assistant with an upload/code-interpreter
     # surface: the tool is misused by a payload carried inside an UPLOADED file.
     dispatched.append(
         f"auto_probe(endpoint=\"{endpoint}\", categories=[\"ai_prompt_injection\"]) "

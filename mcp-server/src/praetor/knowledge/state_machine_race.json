@@ -1,6 +1,6 @@
 {
   "category": "state_machine_race",
-  "description": "Multi-step state-machine desync — limit-overrun via timing-of-checks, two-window edges (Kettle 2024)",
+  "description": "Multi-step state-machine desync — limit-overrun via timing-of-checks, two-window edges",
   "contexts": {
     "limit_overrun": {
       "description": "Resource creation / quota / counter increment fires before validation latch closes the window",

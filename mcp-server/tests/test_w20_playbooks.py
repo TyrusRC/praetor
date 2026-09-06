@@ -65,10 +65,10 @@ class CacheDeceptionPlaybookTest(unittest.TestCase):
         self.assertIn("static_suffix_cache_poisoning", content)  # W13
         self.assertIn("nextjs_15_cache_key_confusion", content)  # W18
 
-    def test_references_omer_gil_kettle(self):
+    def test_references_present(self):
         content = _read_skill("playbook-cache-deception.md")
-        self.assertIn("Omer Gil", content)
-        self.assertIn("Kettle", content)
+        self.assertIn("2017 original", content)
+        self.assertIn("2025 updates", content)
 
 
 class ServerActionRSCPlaybookTest(unittest.TestCase):

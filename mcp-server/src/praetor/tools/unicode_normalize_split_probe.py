@@ -1,4 +1,4 @@
-"""probe_unicode_normalize_split — Black Hat USA 2026 "Beyond Normalization".
+"""probe_unicode_normalize_split — Unicode normalization WAF-bypass split.
 
 Many WAFs match payloads against ASCII / UTF-8-canonical signatures. The
 origin server, by contrast, often runs `.lower()`, `.casefold()`, NFC, or

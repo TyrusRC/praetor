@@ -531,7 +531,7 @@ Remediation:
   - Front-end and origin MUST agree on Content-Length / Transfer-Encoding parsing.
   - Reject ambiguous requests (both CL and TE present) at the front-end.
   - HTTP/2 termination at the front-end is the strategic mitigation (HTTP/1.1 desync endgame).
-References: CWE-444, James Kettle 2025 "HTTP/1.1 Must Die" research, CVE-2025-32094 (Akamai class)
+References: CWE-444, CVE-2025-32094 (Akamai class)
 ```
 
 ### Prototype Pollution (per `playbook-prototype-pollution.md`)
@@ -853,7 +853,7 @@ Remediation:
   - Configure CDN to honour origin Cache-Control (no rule-override on extension).
   - Strip / 404 unrecognised path segments before cache key computation.
   - Use `Vary: Cookie` strictly + ensure cache key includes session cookie.
-References: CWE-525, Omer Gil "Web Cache Deception" (2017), Kettle 2025 updates, `playbook-cache-deception.md`
+References: CWE-525, Web Cache Deception class (2017 original + 2025 updates), `playbook-cache-deception.md`
 ```
 
 ### Server Action / RSC (per `playbook-server-action-rsc.md`)

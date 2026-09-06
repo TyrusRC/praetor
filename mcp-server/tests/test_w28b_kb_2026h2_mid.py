@@ -125,7 +125,7 @@ class W28bAiPromptInjectionAddition(unittest.TestCase):
     def test_context_present(self):
         self.assertIn("idpi_illegal_utf8_normalization_2026", self.kb["contexts"])
         ctx = self.kb["contexts"]["idpi_illegal_utf8_normalization_2026"]
-        self.assertIn("Black Hat USA 2026", ctx["description"])
+        self.assertIn("overlong", ctx["description"])
 
     def test_overlong_utf8_payload_present(self):
         ctx = self.kb["contexts"]["idpi_illegal_utf8_normalization_2026"]
@@ -137,7 +137,7 @@ class W28bAiPromptInjectionAddition(unittest.TestCase):
 
     def test_index_referenced(self):
         self.assertIn("idpi_illegal_utf8_normalization_2026", _index())
-        self.assertIn("Black Hat USA 2026", _index())
+        self.assertIn("remote_prompt_execution_upload_2026", _index())
 
 
 class W28bGraphqlAddition(unittest.TestCase):

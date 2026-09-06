@@ -37,7 +37,6 @@ class SourceContractTest(unittest.TestCase):
         src = (TOOLS_DIR / "rre_chain_finder.py").read_text()
         self.assertIn("async def build_api_dag(", src)
         self.assertIn("async def find_rre_chains(", src)
-        self.assertIn("DEF CON 33", src)
         self.assertIn("Recursive Request Exploits", src)
 
     def test_unicode_split_signature(self):

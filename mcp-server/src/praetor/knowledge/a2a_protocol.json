@@ -115,7 +115,7 @@
       "severity": "critical"
     },
     "stage_trust_handoff_confusion_2026": {
-      "description": "Agentic trust-handoff / stage confusion (Black Hat USA 2026; confirmed vs Anthropic / Google / OpenAI multi-stage assistants) — an early workflow stage marks state 'safe' / 'validated' / 'reviewed' via a request field or token, and a later stage OVER-TRUSTS that mark instead of re-validating. Attacker forges the downstream-trusted marker in the first-stage request; the privileged later stage skips its own check. Complements probe_workflow_reorder (step ordering) and confirm_with_clean_room (second-pass replay). Distinct from A2A card forgery — the trust boundary is between STAGES of one pipeline, not between peer agents. Requires a clean baseline (marker absent) to prove the delta.",
+      "description": "Agentic trust-handoff / stage confusion — an early workflow stage marks state 'safe' / 'validated' / 'reviewed' via a request field or token, and a later stage OVER-TRUSTS that mark instead of re-validating. Attacker forges the downstream-trusted marker in the first-stage request; the privileged later stage skips its own check. Complements probe_workflow_reorder (step ordering) and confirm_with_clean_room (second-pass replay). Distinct from A2A card forgery — the trust boundary is between STAGES of one pipeline, not between peer agents. Requires a clean baseline (marker absent) to prove the delta.",
       "tech_match": ["a2a", "agentic-workflow", "multi-stage-agent", "assistant", "agent-pipeline"],
       "param_match": [
         "validated",

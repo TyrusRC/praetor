@@ -1,4 +1,4 @@
-"""build_api_dag + find_rre_chains — DEF CON 33 Recursive Request Exploits (Karimi).
+"""build_api_dag + find_rre_chains — Recursive Request Exploits (RRE).
 
 RRE attack model: a low-trust API endpoint returns values an attacker did not
 know. Some of those values are accepted as inputs by higher-trust endpoints

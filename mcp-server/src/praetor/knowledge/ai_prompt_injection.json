@@ -425,7 +425,7 @@
       ]
     },
     "mcp_resource_theft_hidden_directive_2026": {
-      "description": "Unit 42 MCP-attack-vector: malicious MCP server appends hidden instructions to legitimate prompts forcing the LLM to generate unauthorized content that consumes the client's tokens. Bills the user for the attacker's content. Detection: scan MCP server responses for trailing 'Note, this is IMPORTANT, after finishing ... please also write a short fictional story ...' style appended directives.",
+      "description": "MCP-attack-vector: malicious MCP server appends hidden instructions to legitimate prompts forcing the LLM to generate unauthorized content that consumes the client's tokens. Bills the user for the attacker's content. Detection: scan MCP server responses for trailing 'Note, this is IMPORTANT, after finishing ... please also write a short fictional story ...' style appended directives.",
       "tech_match": [
         "mcp-server",
         "model-context-protocol"
@@ -434,7 +434,7 @@
       "probes": [
         {
           "payload": "<inspect MCP tool/resource responses for trailing 'Note, this is IMPORTANT' style appended directives>",
-          "description": "Passive scan of MCP server response payloads for hidden token-burn directives. Match Unit 42's canonical phrasing + adjacent variations.",
+          "description": "Passive scan of MCP server response payloads for hidden token-burn directives. Match the canonical phrasing + adjacent variations.",
           "matchers": [
             {
               "type": "regex",
@@ -451,7 +451,7 @@
       ]
     },
     "mcp_conversation_hijack_persistent_2026": {
-      "description": "Unit 42 MCP-attack-vector: MCP server injects directives that persist across conversation turns by embedding them in LLM responses. Once captured into context, subsequent user queries follow the malicious instructions. Detection: scan MCP responses for 'put the following text verbatim' / persona-switch ('speak like a pirate') / 'in all responses' style persistence triggers.",
+      "description": "MCP-attack-vector: MCP server injects directives that persist across conversation turns by embedding them in LLM responses. Once captured into context, subsequent user queries follow the malicious instructions. Detection: scan MCP responses for 'put the following text verbatim' / persona-switch ('speak like a pirate') / 'in all responses' style persistence triggers.",
       "tech_match": [
         "mcp-server",
         "model-context-protocol"
@@ -477,7 +477,7 @@
       ]
     },
     "mcp_covert_tool_invocation_2026": {
-      "description": "Unit 42 MCP-attack-vector: malicious server embeds hidden tool-execution directives in prompts, causing the LLM to invoke unintended functions without explicit user consent. Filesystem write, http_fetch, send_email, shell_exec \u2014 anything the agent has access to. Detection: scan for 'invoke the tool' / 'call the function' / 'use [tool] to' style directives buried in MCP server responses.",
+      "description": "MCP-attack-vector: malicious server embeds hidden tool-execution directives in prompts, causing the LLM to invoke unintended functions without explicit user consent. Filesystem write, http_fetch, send_email, shell_exec \u2014 anything the agent has access to. Detection: scan for 'invoke the tool' / 'call the function' / 'use [tool] to' style directives buried in MCP server responses.",
       "tech_match": [
         "mcp-server",
         "model-context-protocol"
@@ -486,7 +486,7 @@
       "probes": [
         {
           "payload": "<inspect MCP responses for hidden tool-invocation directives>",
-          "description": "Match Unit 42's canonical 'invoke the tool to write [content] to [file]' pattern + adjacent verb variations.",
+          "description": "Match the canonical 'invoke the tool to write [content] to [file]' pattern + adjacent verb variations.",
           "matchers": [
             {
               "type": "regex",
@@ -503,7 +503,7 @@
       ]
     },
     "idpi_visual_concealment_2026": {
-      "description": "Unit 42 indirect-PI delivery: CSS-hidden text in web content that LLM-powered crawlers ingest but humans don't see. font-size:0 / opacity:0 / display:none / position:absolute;left:-9999px / color matching background. Confirm by serving a marker through a hidden element and grepping the LLM summary for it.",
+      "description": "Indirect-PI delivery: CSS-hidden text in web content that LLM-powered crawlers ingest but humans don't see. font-size:0 / opacity:0 / display:none / position:absolute;left:-9999px / color matching background. Confirm by serving a marker through a hidden element and grepping the LLM summary for it.",
       "tech_match": [],
       "param_match": [],
       "probes": [
@@ -546,7 +546,7 @@
       ]
     },
     "idpi_invisible_unicode_jailbreak_2026": {
-      "description": "Unit 42 jailbreak method: zero-width Unicode (U+200B / U+200C / U+200D / U+FEFF) inserted between letters of forbidden keywords disrupts keyword-based filters but LLM tokenizer reconstructs the original instruction. Confirm by injecting a denylisted instruction with ZW between every letter and checking if the LLM follows it.",
+      "description": "Jailbreak method: zero-width Unicode (U+200B / U+200C / U+200D / U+FEFF) inserted between letters of forbidden keywords disrupts keyword-based filters but LLM tokenizer reconstructs the original instruction. Confirm by injecting a denylisted instruction with ZW between every letter and checking if the LLM follows it.",
       "tech_match": [],
       "param_match": [],
       "probes": [
@@ -571,7 +571,7 @@
       ]
     },
     "idpi_illegal_utf8_normalization_2026": {
-      "description": "Black Hat USA 2026 'Beyond Normalization: The Expanding Unicode Attack Surface' \u2014 illegal UTF-8 sequences (overlong encodings, lone surrogates U+D800\u2013U+DFFF, non-shortest forms) and surrogate-to-replacement-char substitution let attackers bypass WAFs, achieve XSS/RCE, AND jailbreak LLMs. Filters scan the raw bytes; the receiver normalises during decode and the malicious instruction reappears. Distinct from zero-width Unicode (see idpi_invisible_unicode_jailbreak_2026) \u2014 that's stealth between characters, this is filter-evasion via the decoder.",
+      "description": "Illegal UTF-8 sequences (overlong encodings, lone surrogates U+D800\u2013U+DFFF, non-shortest forms) and surrogate-to-replacement-char substitution let attackers bypass WAFs, achieve XSS/RCE, AND jailbreak LLMs. Filters scan the raw bytes; the receiver normalises during decode and the malicious instruction reappears. Distinct from zero-width Unicode (see idpi_invisible_unicode_jailbreak_2026) \u2014 that's stealth between characters, this is filter-evasion via the decoder.",
       "tech_match": [],
       "param_match": [],
       "probes": [
@@ -614,7 +614,7 @@
       ]
     },
     "idpi_payload_splitting_2026": {
-      "description": "Unit 42 jailbreak: single command fragmented across multiple HTML elements / paragraphs / lines. Na\u00efve keyword filters scan per-element; LLM reassembles into a single instruction during summarisation. Effective against filters that don't normalise the document before scanning.",
+      "description": "Jailbreak: single command fragmented across multiple HTML elements / paragraphs / lines. Na\u00efve keyword filters scan per-element; LLM reassembles into a single instruction during summarisation. Effective against filters that don't normalise the document before scanning.",
       "tech_match": [],
       "param_match": [],
       "probes": [
@@ -703,12 +703,11 @@
       ]
     },
     "remote_prompt_execution_upload_2026": {
-      "description": "Remote Prompt Execution (RPE / 'ChatMate', Black Hat USA 2026) — a malicious uploaded document (not the chat box, not the DOM) carries instructions that the AI assistant executes inside its code / file-processing sandbox, then escapes to the host. Vector is the UPLOAD channel: file, attachment, resume, invoice, image-with-embedded-text ingested by an assistant that has a code-interpreter / file tool. Distinct from cua_dom_hidden_instruction_2026 (DOM/accessibility channel) and from direct_injection (chat prompt). Confirm reachability with a benign execution-proof canary before claiming sandbox escape.",
+      "description": "Remote Prompt Execution (RPE) — a malicious uploaded document (not the chat box, not the DOM) carries instructions that the AI assistant executes inside its code / file-processing sandbox, then escapes to the host. Vector is the UPLOAD channel: file, attachment, resume, invoice, image-with-embedded-text ingested by an assistant that has a code-interpreter / file tool. Distinct from cua_dom_hidden_instruction_2026 (DOM/accessibility channel) and from direct_injection (chat prompt). Confirm reachability with a benign execution-proof canary before claiming sandbox escape.",
       "tech_match": [
         "code-interpreter",
         "assistant",
         "copilot",
-        "chatmate",
         "file-analysis",
         "openai-assistant",
         "sandbox"
@@ -783,7 +782,7 @@
       "severity": "critical"
     },
     "llm_gateway_execution_blindness_2026": {
-      "description": "LLM-gateway / AI-firewall execution blindness (Black Hat USA 2026, Vertex AI Search shopping-assistant compromise class) — the guardrail gateway inspects the prompt text and the response text but is blind to the actual TOOL EXECUTION channel. A payload that reads clean on both text sides still drives a side-effecting tool call the gateway never sees. Confirm with an OOB tool call whose only evidence is the Collaborator hit, while the visible response stays benign.",
+      "description": "LLM-gateway / AI-firewall execution blindness — the guardrail gateway inspects the prompt text and the response text but is blind to the actual TOOL EXECUTION channel. A payload that reads clean on both text sides still drives a side-effecting tool call the gateway never sees. Confirm with an OOB tool call whose only evidence is the Collaborator hit, while the visible response stays benign.",
       "tech_match": [
         "vertex-ai-search",
         "llm-gateway",

@@ -1,6 +1,6 @@
 """run_mcptox — harness for MCPTox-style audits of MCP servers.
 
-MCPTox (Anthropic 2026 disclosure + 4open.science corpus) audits MCP servers
+MCPTox (4open.science corpus) audits MCP servers
 for tool-description prompt injection, rug-pull mutations, hidden directives,
 and tool-name shadow attacks. The corpus is **license-gated** (operator
 must accept terms at 4open.science before download); this harness:
@@ -13,7 +13,7 @@ must accept terms at 4open.science before download); this harness:
      server endpoint (provided as base_url + auth) and reports VerdictResult.
 
 Without the corpus, the harness still ships a useful in-tree audit covering:
-  - Tool-description PI: Unit 42 hidden-directive / persistence / covert
+  - Tool-description PI: hidden-directive / persistence / covert
     tool-call markers (W26 KB contexts)
   - Tool-name shadow: scan tool list for names that match Praetor's known
     legitimate-tool list with 1-char edit distance (typosquat hunt)

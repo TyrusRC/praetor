@@ -23,7 +23,7 @@ class W26AiPromptInjectionAdditionsTest(unittest.TestCase):
     def test_mcp_resource_theft_present(self):
         self.assertIn("mcp_resource_theft_hidden_directive_2026", self.kb["contexts"])
         ctx = self.kb["contexts"]["mcp_resource_theft_hidden_directive_2026"]
-        self.assertIn("Unit 42", ctx["description"])
+        self.assertIn("hidden instructions", ctx["description"])
         self.assertIn("mcp-server", ctx["tech_match"])
 
     def test_mcp_conversation_hijack_present(self):
@@ -73,7 +73,7 @@ class W26OauthWebauthnHijackTest(unittest.TestCase):
     def test_webauthn_hijack_context_present(self):
         self.assertIn("webauthn_api_hijack_jsinjection_2026", self.kb["contexts"])
         ctx = self.kb["contexts"]["webauthn_api_hijack_jsinjection_2026"]
-        self.assertIn("DEF CON 33", ctx["description"])
+        self.assertIn("WebAuthn API hijacking", ctx["description"])
         self.assertIn("webauthn", ctx["tech_match"])
 
     def test_navigator_credentials_override_probe(self):

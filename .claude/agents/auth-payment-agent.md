@@ -16,7 +16,7 @@ if surface == 'oauth' / 'oidc':
     3. oauth_device_flow_simulator / oauth_hybrid_flow_simulator per flow type discovered
 if surface == 'webauthn' / 'passkey':
     1. probe_passkey_stepup_bypass(...)              # CVE-2026-32879 class
-    2. parse JS for navigator.credentials.get/create override (DEF CON 33 hijack class)
+    2. parse JS for navigator.credentials.get/create override (WebAuthn API hijack class)
 if surface == 'apple_pay' / 'google_pay' / 'samsung_pay' / 'iap' / '3ds':
     1. capture token in proxy history → smart_request_triage(index)
     2. follow playbook-payment-and-auth.md §<surface>

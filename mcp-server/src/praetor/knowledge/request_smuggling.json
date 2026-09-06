@@ -2,7 +2,7 @@
   "category": "request_smuggling",
   "craft_guidance": [
     "1. CLASSIC: CL.TE / TE.CL / TE.TE on HTTP/1.1 between front-end (CDN/LB) and origin.",
-    "2. 2024 CLASSES (Smashing the State Machine, J. Kettle): TE.0 (back-end ignores chunked, expects 0-byte body); CL.0 (server reads 0 bytes regardless of CL); H2.CL / H2.TE (HTTP/2 frame plus HTTP/1 header confuses h2c proxies); 0.CL (client uses CL but TLS terminator strips it).",
+    "2. 2024 CLASSES: TE.0 (back-end ignores chunked, expects 0-byte body); CL.0 (server reads 0 bytes regardless of CL); H2.CL / H2.TE (HTTP/2 frame plus HTTP/1 header confuses h2c proxies); 0.CL (client uses CL but TLS terminator strips it).",
     "3. H2->H1 DOWNGRADE: cleartext h2c (HTTP/2 cleartext) terminating to HTTP/1.1 origin is the 2024 hot zone. Inject `Content-Length: 0` in HTTP/2 :method = POST + body; some h2c proxies pass body to origin which sees 0-byte body and reads next request.",
     "4. CONNECTION-KEEP-ALIVE: send `Connection: close` on outer; some HTTP/2 stacks keep connection open and reuse for the next request, smuggling the previous body.",
     "5. EARLY-RESPONSE: trigger 4xx on the first request; if connection stays open, smuggled tail becomes start of next victim request.",
@@ -85,7 +85,7 @@
       ]
     },
     "te_zero": {
-      "description": "TE.0 — front-end uses Transfer-Encoding chunked, back-end ignores TE entirely and treats body as 0 bytes (because no Content-Length). Body bytes become the start of the NEXT request (Smashing the State Machine 2024 class).",
+      "description": "TE.0 — front-end uses Transfer-Encoding chunked, back-end ignores TE entirely and treats body as 0 bytes (because no Content-Length). Body bytes become the start of the NEXT request (2024 desync class).",
       "tech_match": ["Apache", "Nginx", "IIS", "h2c"],
       "param_match": [],
       "probes": [
@@ -102,7 +102,7 @@
       ]
     },
     "cl_zero": {
-      "description": "CL.0 — back-end ignores Content-Length and reads 0 bytes (e.g. some HTTP/2 origins terminating from h2c). Body becomes start of next request (Smashing the State Machine 2024 class).",
+      "description": "CL.0 — back-end ignores Content-Length and reads 0 bytes (e.g. some HTTP/2 origins terminating from h2c). Body becomes start of next request (2024 desync class).",
       "tech_match": ["h2c", "Envoy", "HAProxy"],
       "param_match": [],
       "probes": [

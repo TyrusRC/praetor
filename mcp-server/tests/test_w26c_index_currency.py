@@ -89,7 +89,7 @@ class IndexReferencesW22Through26AdditionsTest(unittest.TestCase):
 
     def test_webauthn_api_hijack_referenced(self):
         self.assertIn("webauthn_api_hijack_jsinjection_2026", self.idx)
-        self.assertIn("DEF CON 33", self.idx)
+        self.assertIn("passkey_stepup_no_assertion_2026", self.idx)
 
 
 class IndexKbOrgComplianceTest(unittest.TestCase):

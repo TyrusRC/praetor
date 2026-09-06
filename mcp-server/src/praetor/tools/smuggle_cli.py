@@ -1,4 +1,4 @@
-"""smuggle CLI wrapper — HTTP/1.1 desync detector (Kettle 2025 family).
+"""smuggle CLI wrapper — HTTP/1.1 desync detector (2025 desync family).
 
 Covers 0.CL, CL.0, V-H, Expect-100, RQP, double-desync. Complements
 in-process probes under http_desync KB.
@@ -15,7 +15,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def run_smuggle(target: str, timeout: int = 600) -> str:
-        """Run smuggle (Kettle 2025 0.CL/CL.0/V-H/Expect/RQP/double-desync).
+        """Run smuggle (2025 desync: 0.CL/CL.0/V-H/Expect/RQP/double-desync).
 
         Args:
             target: target URL.
@@ -25,7 +25,7 @@ def register(mcp: FastMCP) -> None:
             return (
                 "Error: smuggle not installed.\n"
                 "Install: pipx install smuggle  |  https://github.com/defparam/smuggler "
-                "(or the Kettle 2025 'smuggle' Python tool)"
+                "(or the 'smuggle' Python tool)"
             )
         out, err, rc = await _run_cmd(
             ["smuggle", "-u", target, "-x", "http://127.0.0.1:8080"],
