@@ -204,7 +204,7 @@ if [ "$code" = "200" ]; then
 
     if [ -n "${JAR_VERSION:-}" ] && [ -n "$live_version" ] && [ "$JAR_VERSION" != "$live_version" ]; then
         bad "Loaded extension is stale" \
-            "Burp is running v$live_version, the built jar is v$JAR_VERSION — untick/retick the entry in Extensions -> Installed to reload"
+            "Burp is running v$live_version, the built jar is v$JAR_VERSION — REMOVE the entry in Extensions -> Installed and ADD the jar again (untick/re-tick does NOT re-read a rebuilt jar file)"
     elif [ -n "$live_version" ]; then
         pass "Loaded extension version matches the built jar (v$live_version)"
     fi
