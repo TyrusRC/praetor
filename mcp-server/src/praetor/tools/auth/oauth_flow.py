@@ -34,7 +34,7 @@ def register(mcp: FastMCP) -> None:
         cookies: dict | None = None,
         bearer_token: str = "",
     ) -> dict:
-        """Drive an Authorization Code / PKCE flow through Burp and audit 4 canonical defences.
+        """Drive an Authorization Code / PKCE flow through Burp and audit 6 defences.
 
         Probes:
           1. State CSRF — re-issue callback with mutated state; AS should reject.
@@ -42,8 +42,13 @@ def register(mcp: FastMCP) -> None:
           3. Code single-use — re-exchange same code; /token should reject.
           4. redirect_uri strict — re-issue authorize with suffix-bypass URL;
              AS should reject (not redirect to attacker URL).
+          5. Authorization code injection — redeem a PKCE-minted code with NO
+             verifier; acceptance means the code is not session-bound (injectable
+             into a victim flow → ATO). PortSwigger 2025 class.
+          6. Cookie tossing — flag OAuth state/session cookies without __Host- but
+             with Domain= (toss-able from a sibling subdomain). PortSwigger 2025.
 
-        Returns VerdictResult (W7 schema).
+        Returns VerdictResult (W7 schema); details.tossable_cookies lists #6 hits.
 
         Args:
             authorize_url: AS /authorize endpoint

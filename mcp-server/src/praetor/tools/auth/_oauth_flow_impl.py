@@ -12,6 +12,32 @@ from praetor.tools.auth._oauth_common import (
 )
 
 
+_STATEFUL_COOKIE_HINTS = ("state", "session", "sess", "sid", "auth", "oauth", "csrf", "login")
+
+
+def _scan_tossable_cookies(resp: dict) -> list[str]:
+    """Set-Cookie names for state/session cookies a sibling subdomain can toss.
+
+    Signal (OAuth Cookie Tossing, PortSwigger 2025): a stateful cookie WITHOUT
+    the ``__Host-`` prefix and WITH an explicit ``Domain=`` attribute is
+    overwritable from any sibling subdomain — enabling login fixation / linking.
+    """
+    out: list[str] = []
+    for h in resp.get("response_headers", []) or []:
+        if not isinstance(h, dict) or h.get("name", "").lower() != "set-cookie":
+            continue
+        raw = h.get("value", "") or ""
+        name = raw.split("=", 1)[0].strip()
+        low = raw.lower()
+        if name.startswith("__Host-") or name.startswith("__Secure-"):
+            continue
+        if "domain=" not in low:
+            continue
+        if any(hint in name.lower() for hint in _STATEFUL_COOKIE_HINTS):
+            out.append(name)
+    return out
+
+
 async def _run_oauth_flow_simulator(
     authorize_url: str,
     token_url: str,
@@ -33,6 +59,7 @@ async def _run_oauth_flow_simulator(
     notes: list[str] = []
     defects: list[str] = []
     logger_indices: list[int] = []
+    tossable_cookies: list[str] = []
 
     # --- Phase 1: canonical flow ---
     state = _gen_state()
@@ -60,6 +87,7 @@ async def _run_oauth_flow_simulator(
     idx = authorize_resp.get("history_index")
     if isinstance(idx, int) and idx >= 0:
         logger_indices.append(idx)
+    tossable_cookies.extend(_scan_tossable_cookies(authorize_resp))
     status = int(authorize_resp.get("status", 0) or 0)
     if status not in (301, 302, 303, 307, 308):
         return error_verdict(
@@ -106,6 +134,7 @@ async def _run_oauth_flow_simulator(
     idx = token_resp.get("history_index")
     if isinstance(idx, int) and idx >= 0:
         logger_indices.append(idx)
+    tossable_cookies.extend(_scan_tossable_cookies(token_resp))
     token_ok = "error" not in token_resp and int(token_resp.get("status", 0) or 0) == 200
     if not token_ok:
         err = token_resp.get("error") or _extract_query(
@@ -171,6 +200,30 @@ async def _run_oauth_flow_simulator(
                 if int(pkce_bad.get("status", 0) or 0) == 200:
                     defects.append("pkce_not_enforced")
                     notes.append("PKCE verifier not validated — wrong verifier accepted")
+                else:
+                    # --- Defence #5: authorization code injection enabler ---
+                    # Wrong verifier was rejected (good). Now drop the verifier
+                    # entirely: a code minted under a PKCE challenge must NOT be
+                    # redeemable with no verifier. If it is, the code is not bound
+                    # to the initiating session and can be injected into a victim's
+                    # flow (PortSwigger 2025 authorization_code_injection).
+                    inject = await _token_request(
+                        token_url,
+                        client_id=client_id,
+                        client_secret=client_secret,
+                        redirect_uri=redirect_uri,
+                        code=bad_code,
+                        code_verifier="",
+                    )
+                    idx = inject.get("history_index")
+                    if isinstance(idx, int) and idx >= 0:
+                        logger_indices.append(idx)
+                    if int(inject.get("status", 0) or 0) == 200:
+                        defects.append("code_injection_binding_droppable")
+                        notes.append(
+                            "Code minted under PKCE redeemed with NO verifier — "
+                            "not session-bound; attacker code injectable into victim flow (ATO)"
+                        )
 
     # --- Defence #4: redirect_uri strict ---
     suffix_uri = redirect_uri + ".attacker.tld"
@@ -203,12 +256,23 @@ async def _run_oauth_flow_simulator(
                 f"({suffix_uri[:60]}...) — code would deliver to attacker"
             )
 
+    # --- Defence #6: cookie tossing (state/session cookie scope) ---
+    tossable_cookies = sorted(set(tossable_cookies))
+    if tossable_cookies:
+        defects.append("cookie_tossable_state_cookie")
+        notes.append(
+            "State/session cookie(s) without __Host- but with Domain= "
+            f"({', '.join(tossable_cookies)}) — toss-able from a sibling subdomain "
+            "(login fixation / account linking; chain with subdomain_takeover or subdomain XSS)"
+        )
+
     # --- Verdict synthesis ---
     critical_subset = {
         "redirect_uri_suffix_bypass",
         "state_not_echoed",
         "code_replay_accepted",
         "pkce_not_enforced",
+        "code_injection_binding_droppable",
     }
     critical_hits = sum(1 for d in defects if any(d.startswith(k) for k in critical_subset))
     if critical_hits >= 2:
@@ -252,6 +316,7 @@ async def _run_oauth_flow_simulator(
             "pkce_method": code_challenge_method if verifier else None,
             "defects": defects,
             "notes": notes,
+            "tossable_cookies": tossable_cookies,
         },
         summary="\n".join(human_lines),
     )
