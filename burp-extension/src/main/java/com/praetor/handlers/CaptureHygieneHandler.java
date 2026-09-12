@@ -76,7 +76,7 @@ public class CaptureHygieneHandler extends BaseHandler {
             api.burpSuite().importProjectOptionsFromJson(options);
             imported = true;
             if (recordInScopeOnly) applied.add("HTTP-history view filtered to in-scope-only (display filter)");
-            if (excludeStatic) applied.add("HTTP-history view hides static-asset extensions + images/css");
+            if (excludeStatic && !staticExts.isEmpty()) applied.add("HTTP-history view hides static-asset extensions + images/css");
         } catch (RuntimeException e) {
             importErr = e.getClass().getSimpleName() + ": " + e.getMessage();
         }
