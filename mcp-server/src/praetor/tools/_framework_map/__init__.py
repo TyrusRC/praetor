@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ._capec import capec_for_cwe
 from ._data import FRAMEWORK_MAP, _ALIASES, _DEFAULT_ROW, _STRIP_SUFFIXES
 
 
@@ -93,6 +94,7 @@ def _copy_row(row: dict[str, Any]) -> dict[str, Any]:
         "wstg": row["wstg"],
         "owasp": row["owasp"],
         "cwe": row["cwe"],
+        "capec": capec_for_cwe(row["cwe"]),
         "detection": dict(row["detection"]),
     }
 
@@ -105,6 +107,8 @@ def attack_tag_list(vuln_type: str) -> list[str]:
         tags.append(f"wstg:{row['wstg']}")
     if row["cwe"]:
         tags.append(f"cwe:{row['cwe']}")
+    if row.get("capec"):
+        tags.append(f"capec:{row['capec']}")
     return tags
 
 __all__ = ["framework_tags", "attack_tag_list", "FRAMEWORK_MAP"]

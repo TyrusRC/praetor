@@ -14,7 +14,7 @@ Round 1 (always):           smart-move-fresh-target.md gate (Rule 20a)
 Goal "captured something":  smart_request_triage(index) → dispatch attack_plan[0]
 Goal "analyze js":          smart_js_analyze(url|urls|index) → dispatch top-5
 Goal "known CVE PoC fails": probe_cve_with_variants(cve_id, target)
-Goal "chain findings":      propose_chains(domain) → smart-move-chain-low-findings  # Rule 27
+Goal "chain findings":      propose_chains(domain) + plan_attack_paths(domain) → smart-move-chain-low-findings  # Rule 27; planner adds near-misses (next proof to hunt)
 Goal "broad coverage":      partition endpoints → dispatch ≤6 vuln-scanner agents   # dispatch-agents.md
 ```
 

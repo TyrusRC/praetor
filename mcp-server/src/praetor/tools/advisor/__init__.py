@@ -19,6 +19,7 @@ Submodules:
 from mcp.server.fastmcp import FastMCP
 
 from praetor.tools.advisor import _cvss4
+from praetor.tools.advisor import attack_path
 from praetor.tools.advisor.assess import assess_finding_impl
 from praetor.tools.advisor.hunt_plan import get_hunt_plan_impl
 from praetor.tools.advisor.next_action import get_next_action_impl
@@ -30,6 +31,7 @@ from praetor.tools.advisor._scoring import (
 
 
 def register(mcp: FastMCP):
+    attack_path.register(mcp)
 
     @mcp.tool()
     async def get_hunt_plan(

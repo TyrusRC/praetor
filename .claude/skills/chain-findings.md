@@ -14,10 +14,15 @@ Take low/medium findings that aren't worth reporting alone and chain them into h
 ```
 1. findings = get_findings(domain, status='confirmed')
 2. graph = build_findings_graph(domain)
-3. chains = propose_chains(domain)
-4. for chain in chains: assess_finding(chain_with=[ids], ...) → save_finding
-5. format_finding_for_platform(id, platform='hackerone')
+3. chains = propose_chains(domain)          # rulebook: known progressions
+4. paths  = plan_attack_paths(domain)       # beam search: novel chains + near-misses
+5. for chain in chains|paths: assess_finding(chain_with=[ids], ...) → save_finding
+6. format_finding_for_platform(id, platform='hackerone')
 ```
+
+`propose_chains` and `plan_attack_paths` are complementary, not redundant:
+- **`propose_chains`** matches findings against ~16 known progressions (open_redirect→ATO, SSRF→IAM, …). High precision, fixed catalogue.
+- **`plan_attack_paths`** beam-searches the capability graph, so it finds multi-hop chains no rule enumerated, and — the part the rulebook can't do — returns **near-misses**: an objective (RCE/ATO/cloud-creds/mass-PII) blocked by *exactly one* missing capability, naming the vuln class that would grant it. That missing capability is the next proof to hunt (Rule 29's one escalation cycle per LOW).
 
 Full version: `smart-move-chain-low-findings.md`.
 
