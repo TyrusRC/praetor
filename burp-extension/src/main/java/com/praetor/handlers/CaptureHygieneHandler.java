@@ -69,46 +69,70 @@ public class CaptureHygieneHandler extends BaseHandler {
             applied.add("excluded static assets (" + staticExts.size() + " extensions) from scope");
         }
 
-        String options = buildOptionsJson(recordInScopeOnly, excludeRules);
+        String options = buildOptionsJson(recordInScopeOnly, excludeStatic, staticExts, excludeRules);
         boolean imported = false;
         String importErr = "";
         try {
             api.burpSuite().importProjectOptionsFromJson(options);
             imported = true;
-            if (recordInScopeOnly) applied.add("requested record-Proxy-history-only-in-scope (verify toggle)");
+            if (recordInScopeOnly) applied.add("HTTP-history view filtered to in-scope-only (display filter)");
+            if (excludeStatic) applied.add("HTTP-history view hides static-asset extensions + images/css");
         } catch (RuntimeException e) {
             importErr = e.getClass().getSimpleName() + ": " + e.getMessage();
         }
 
         String proxyOpts = "";
         try {
-            proxyOpts = api.burpSuite().exportProjectOptionsAsJson("proxy");
-            if (proxyOpts != null && proxyOpts.length() > 4000) proxyOpts = proxyOpts.substring(0, 4000) + "…";
+            proxyOpts = api.burpSuite().exportProjectOptionsAsJson("proxy.http_history_display_filter");
+            if (proxyOpts != null && proxyOpts.length() > 3000) proxyOpts = proxyOpts.substring(0, 3000) + "…";
         } catch (RuntimeException ignore) { /* older Burp */ }
 
         Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("applied", applied);
         out.put("options_imported", imported);
         if (!importErr.isEmpty()) out.put("import_error", importErr);
-        out.put("proxy_options_excerpt", proxyOpts);
-        out.put("note", "Burp cannot delete existing history/issues — this only affects NEW capture. "
-            + "If history still grows, enable Burp: Settings → Tools → Proxy → \"Don't send items to "
-            + "Proxy history … if out of scope\" (one-time). Scanner issues from Burp's audit and other "
-            + "extensions cannot be deleted via API — filter them with get_issues_dashboard (Certain/Firm, High+).");
+        out.put("history_display_filter", proxyOpts);
+        out.put("note", "Two different problems: (1) NOISE — this sets Burp's HTTP-history DISPLAY "
+            + "filter to show only in-scope items and hide static/media, so the view is clean (verify "
+            + "the excerpt: by_request_type.show_only_in_scope_items should be true). (2) FILE SIZE — "
+            + "Burp still RECORDS all proxied traffic to the project regardless of the display filter, and "
+            + "Montoya cannot delete it; shrink the .burp file with snapshot_and_rotate (export signal, "
+            + "start a fresh project). Scanner issues from Burp's audit + other extensions can't be "
+            + "deleted via API — filter with get_issues_dashboard (Certain/Firm, High+).");
         sendJson(exchange, JsonUtil.toJson(out));
     }
 
-    private String buildOptionsJson(boolean recordInScopeOnly, List<Map<String, Object>> excludeRules) {
-        // Hand-built to match Burp's project-options schema (JsonUtil has no
-        // nested-builder sugar; a literal is clearest and stays under review).
+    private String buildOptionsJson(boolean inScopeOnly, boolean hideStatic,
+                                    List<String> staticExts, List<Map<String, Object>> excludeRules) {
+        // Real keys confirmed from a live Burp exportProjectOptionsAsJson("proxy"):
+        // proxy.http_history_display_filter controls the HTTP-history VIEW; the
+        // target.scope.exclude entries also keep Praetor's own tools off the noise.
         StringBuilder ex = new StringBuilder("[");
         for (int i = 0; i < excludeRules.size(); i++) {
             if (i > 0) ex.append(",");
             ex.append(JsonUtil.toJson(excludeRules.get(i)));
         }
         ex.append("]");
+
+        String extFilter = "";
+        if (hideStatic && !staticExts.isEmpty()) {
+            StringBuilder hide = new StringBuilder("[");
+            for (int i = 0; i < staticExts.size(); i++) {
+                if (i > 0) hide.append(",");
+                hide.append("\"").append(extToken(staticExts.get(i))).append("\"");
+            }
+            hide.append("]");
+            extFilter = "\"by_file_extension\":{\"hide_specific\":true,\"hide_items\":" + hide + "},"
+                      + "\"by_mime_type\":{\"show_images\":false,\"show_css\":false},";
+        }
+
+        String displayFilter = "\"http_history_display_filter\":{"
+            + "\"filter_disabled\":false,\"filter_mode\":\"SETTINGS\","
+            + extFilter
+            + "\"by_request_type\":{\"show_only_in_scope_items\":" + inScopeOnly + "}}";
+
         return "{\"target\":{\"scope\":{\"advanced_mode\":true,\"exclude\":" + ex + "}},"
-             + "\"proxy\":{\"http_history\":{\"record_only_in_scope\":" + recordInScopeOnly + "}}}";
+             + "\"proxy\":{" + displayFilter + "}}";
     }
 
     private Map<String, Object> scopeRule(String field, String regex) {

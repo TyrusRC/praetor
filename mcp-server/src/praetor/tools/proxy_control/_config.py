@@ -34,24 +34,27 @@ def register(mcp: FastMCP):
         static_extensions: list[str] | None = None,
         noise_hosts: list[str] | None = None,
     ) -> dict:
-        """Keep the .burp project lean at CAPTURE time — exclude static assets + noise hosts from scope and request in-scope-only Proxy history.
+        """Cut proxy-history NOISE — filter the HTTP-history view to in-scope only, hide static/media, and exclude tracker/CDN hosts from scope.
 
-        Burp cannot delete history or scanner issues after the fact (Montoya has
-        no delete), so the only real lever is to stop recording noise. This
-        excludes static-asset URLs and known analytics/tracker/CDN hosts from
-        Burp scope (which also stops Praetor's own tools annotating them) and
-        best-effort enables "record Proxy history only for in-scope items".
+        Two separate problems, and this addresses NOISE (findability):
+        - Sets Burp's HTTP-history DISPLAY filter (proxy.http_history_display_filter,
+          keys confirmed from a live Burp) to show only in-scope items and hide
+          static-asset extensions + images/css — so the view is signal, not noise.
+        - Excludes static URLs + analytics/tracker/CDN hosts from Burp scope, which
+          also stops Praetor's own tools annotating them.
 
-        Returns the applied rules, whether the option import succeeded, and an
-        excerpt of Burp's live proxy options so you can VERIFY the effect (the
-        exact project-option key varies by Burp version — if `record_only_in_scope`
-        isn't reflected, flip the one-time toggle named in the response `note`).
-        Scanner issues from Burp's audit + other extensions can't be deleted;
-        filter them with `get_issues_dashboard` (Certain/Firm, High+).
+        It does NOT shrink the .burp FILE — Burp still records all proxied traffic
+        to the project regardless of the display filter, and Montoya cannot delete
+        it. For FILE SIZE use `snapshot_and_rotate` (export the signal, start a fresh
+        project). Scanner issues from Burp's audit + other extensions can't be
+        deleted either — filter with `get_issues_dashboard` (Certain/Firm, High+).
+
+        Returns the applied rules and the resulting history_display_filter excerpt so
+        you can VERIFY (by_request_type.show_only_in_scope_items should be true).
 
         Args:
-            record_in_scope_only: request Burp record Proxy history only for in-scope items.
-            exclude_static: exclude static-asset extensions from scope.
+            record_in_scope_only: filter the HTTP-history view to in-scope items only.
+            exclude_static: hide static-asset extensions + images/css from the view.
             exclude_noise: exclude analytics/tracker/CDN hosts from scope.
             static_extensions: override the default static-extension list.
             noise_hosts: override the default noise-host list.
