@@ -13,7 +13,7 @@ from praetor.tools import (
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
-    source_aware, benchmark, mobile_payloads, cua_probe, sast_handoff, pyexploit,
+    source_aware, benchmark, mobile, cua_probe, sast_handoff, pyexploit,
     http3_probe, local_llm, mcptox,
     web_llm_sweep, grpc_probe, saml_xsw_probe, dns_rebind_probe,
     postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
@@ -184,7 +184,7 @@ ci_audit.register(mcp)         # poutine / octoscan — GitHub Actions / GitLab 
 visual_easm.register(mcp)      # visual_easm_diff — gowitness screenshot + hash delta vs prior run
 source_aware.register(mcp)     # xvulnhuntr / vulnhuntr — LLM-chain SAST input→sink (white-box mode)
 benchmark.register(mcp)        # run_autopenbench / run_caibench — publishable AI-pentest benchmarks (W7)
-mobile_payloads.register(mcp)  # mobile_frida_snippet / mobile_adb_pack — payload delivery for mobile-mastg (W8)
+mobile.register(mcp)  # mobile lane — device control (adb/idb/frida) + payload corpus
 cua_probe.register(mcp)        # probe_cua_injection_surface — detects CUA-hijack vectors (W22-b)
 sast_handoff.register(mcp)     # sast_to_endpoint_risk / risk_rank_endpoints — SAST → DAST handoff (W22-e)
 pyexploit.register(mcp)        # run_pyexploit — Python exploit-dev sandbox (W23-a / Strix-parity)
