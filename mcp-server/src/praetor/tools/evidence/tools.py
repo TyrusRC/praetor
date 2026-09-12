@@ -175,8 +175,11 @@ async def verify_capture_hygiene(domain: str = "", baseline: dict | None = None,
             }
             out["verdict"] = (
                 "WORKING — new traffic is clean (static/out-of-scope near zero)" if working
-                else "NOT EFFECTIVE — new traffic is still noisy. Enable Burp's "
-                     "record-Proxy-history-only-in-scope toggle and confirm the scope excludes."
+                else f"NOT EFFECTIVE for CAPTURE — {new_static_pct}% of new traffic is static/media, "
+                     f"{new_oos_pct}% out-of-scope, still RECORDED. Burp records everything regardless of "
+                     "the display filter (set_capture_hygiene only cleans the VIEW), so shrink the .burp file "
+                     "with snapshot_and_rotate + a fresh project. NOTE: browser crawls always pull static "
+                     "sub-resources — this high % is expected for browser traffic; API/tool traffic stays clean."
             )
         elif d_total < 0:
             out["verdict"] = "history shrank vs baseline — a project rotation happened; re-baseline."
