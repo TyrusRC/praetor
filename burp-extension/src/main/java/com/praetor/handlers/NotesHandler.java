@@ -222,52 +222,11 @@ public class NotesHandler extends BaseHandler {
             }
         }
 
-        // ── reproductions for timing/blind ──
-        // Type-guard: callers may send a non-list shape (e.g. null, scalar) — coerce
-        // only when the JSON value is actually a List.
-        Object reproductionsObj = body.get("reproductions");
-        List<Map<String, Object>> reproductions = null;
-        if (reproductionsObj instanceof List<?> rawList) {
-            reproductions = new java.util.ArrayList<>();
-            for (Object item : rawList) {
-                if (item instanceof Map<?, ?> rawMap) {
-                    reproductions.add(toStringObjectMap(rawMap));
-                }
-            }
-        }
-        if (com.praetor.store.FindingsStore.requiresReproductions(vulnType)) {
-            if (reproductions == null || reproductions.size() < 3) {
-                sendError(exchange, 400,
-                    "'" + vulnType + "' requires reproductions[] with >= 3 verified Logger entries (Rule 10a)",
-                    "reproductions_required",
-                    "Replay the timing/blind probe 2 more times so the array totals 3 entries; pass reproductions=[{logger_index, elapsed_ms, status_code}, ...].");
-                return;
-            }
-            for (Map<String, Object> rep : reproductions) {
-                Object ridx = rep.get("logger_index");
-                if (!(ridx instanceof Number)) {
-                    sendError(exchange, 400, "reproductions[].logger_index must be a number",
-                        "reproductions_invalid",
-                        "Each entry in reproductions[] must include logger_index as an integer.");
-                    return;
-                }
-                int ri = ((Number) ridx).intValue();
-                if (ri < 0 || ri >= proxyHistorySize) {
-                    sendError(exchange, 400, "reproductions[].logger_index not found: " + ri,
-                        "reproductions_invalid",
-                        "Logger index " + ri + " is out of range (history size = " + proxyHistorySize + ").");
-                    return;
-                }
-                String repMismatch = describeEndpointMismatch(ri, findingEndpoint);
-                if (repMismatch != null) {
-                    sendError(exchange, 400,
-                        "reproductions[].logger_index " + ri + " is a different request: " + repMismatch,
-                        "reproductions_invalid",
-                        "Every replay in reproductions[] must hit the endpoint the finding describes. "
-                        + "A replay of unrelated traffic is not a reproduction.");
-                    return;
-                }
-            }
+        // ── reproductions for timing/blind (Rule 10a) ──
+        List<Map<String, Object>> reproductions = ReproHelper.parse(body.get("reproductions"));
+        if (!ReproHelper.validate(exchange, reproductions, vulnType, proxyHistorySize,
+                                  findingEndpoint, this::describeEndpointMismatch)) {
+            return;
         }
 
         // ── dedup against in-memory store by (endpoint, vuln_type, title) ──
@@ -324,7 +283,7 @@ public class NotesHandler extends BaseHandler {
      * JsonUtil only ever emits string keys, so this is purely a type-system
      * adapter — no runtime data conversion needed.
      */
-    private static Map<String, Object> toStringObjectMap(Map<?, ?> raw) {
+    static Map<String, Object> toStringObjectMap(Map<?, ?> raw) {
         Map<String, Object> out = new java.util.LinkedHashMap<>();
         for (Map.Entry<?, ?> e : raw.entrySet()) {
             out.put(String.valueOf(e.getKey()), e.getValue());
