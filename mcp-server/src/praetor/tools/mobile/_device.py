@@ -175,6 +175,42 @@ class AndroidBackend(_Backend):
     async def key(self, dev, key):
         await self.run(dev, ["shell", "input", "keyevent", key])
 
+    async def device_info(self, dev):
+        model, _, _ = await self.run(dev, ["shell", "getprop", "ro.product.model"])
+        ver, _, _ = await self.run(dev, ["shell", "getprop", "ro.build.version.release"])
+        su, _, rc = await self.run(dev, ["shell", "which", "su"])
+        return {"model": model.strip(), "os_version": ver.strip(),
+                "rooted_hint": bool(su.strip())}
+
+    async def app_list(self, dev, third_party_only):
+        args = ["shell", "pm", "list", "packages"] + (["-3"] if third_party_only else [])
+        out, _, _ = await self.run(dev, args)
+        return sorted(l.split(":", 1)[1].strip() for l in out.splitlines()
+                      if l.startswith("package:"))
+
+    async def app_control(self, dev, action, package):
+        if action == "start":
+            out, _, _ = await self.run(dev, ["shell", "monkey", "-p", package,
+                                             "-c", "android.intent.category.LAUNCHER", "1"])
+        elif action == "stop":
+            out, _, _ = await self.run(dev, ["shell", "am", "force-stop", package])
+        elif action == "clear":
+            out, _, _ = await self.run(dev, ["shell", "pm", "clear", package])
+        elif action == "info":
+            out, _, _ = await self.run(dev, ["shell", "dumpsys", "package", package], timeout=30)
+        else:
+            raise DeviceError(f"unknown action {action!r} (start|stop|clear|info)")
+        return out
+
+    async def deeplink(self, dev, uri, package):
+        args = ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", uri]
+        if package:
+            args += [package]
+        out, err, rc = await self.run(dev, args)
+        if rc != 0:
+            raise DeviceError(f"deeplink failed: {err.strip()}")
+        return out
+
 
 class IOSBackend(_Backend):
     platform = "ios"
@@ -205,6 +241,38 @@ class IOSBackend(_Backend):
 
     async def key(self, dev, key):
         await self.run(dev, ["ui", "key", key])
+
+    async def device_info(self, dev):
+        return {"model": dev.model, "os_version": dev.os_version, "rooted_hint": None}
+
+    async def app_list(self, dev, third_party_only):
+        out, _, _ = await self.run(dev, ["list-apps", "--json"])
+        pkgs = []
+        for line in out.splitlines():
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not third_party_only or row.get("install_type") == "user":
+                pkgs.append(row.get("bundle_id", ""))
+        return sorted(p for p in pkgs if p)
+
+    async def app_control(self, dev, action, package):
+        if action == "start":
+            out, _, _ = await self.run(dev, ["launch", package])
+        elif action == "stop":
+            out, _, _ = await self.run(dev, ["terminate", package])
+        elif action == "info":
+            out, _, _ = await self.run(dev, ["list-apps", "--json"])
+        else:
+            raise DeviceError(f"action {action!r} unsupported on iOS (start|stop|info)")
+        return out
+
+    async def deeplink(self, dev, uri, package):
+        out, err, rc = await self.run(dev, ["open", uri])
+        if rc != 0:
+            raise DeviceError(f"idb open failed: {err.strip()}")
+        return out
 
 
 def backend_for(dev: Device) -> AndroidBackend | IOSBackend:

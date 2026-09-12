@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
-from ._device import DeviceError, backend_for, resolve_device
+from ._device import DeviceError, backend_for, list_devices, resolve_device
 from ._guards import check_command
 from ._store import artifact_dir, log_action
 
@@ -178,3 +178,68 @@ def register(mcp: FastMCP) -> None:
             return {"error": str(e)}
         oid = log_action(domain, dev.id, f"key {key}", description="key event")
         return {"key": key, "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_devices() -> dict:
+        """List connected Android (adb) + iOS (idb) devices and their state."""
+        devs = await list_devices()
+        return {"count": len(devs),
+                "devices": [{"id": d.id, "platform": d.platform, "model": d.model,
+                             "os_version": d.os_version, "authorized": d.authorized}
+                            for d in devs]}
+
+    @mcp.tool()
+    async def mobile_device_info(device: str = "", domain: str = "") -> dict:
+        """Model, OS version, and a root/jailbreak hint for the target device."""
+        try:
+            dev = await resolve_device(device)
+            info = await backend_for(dev).device_info(dev)
+        except DeviceError as e:
+            return {"error": str(e)}
+        return {"device": dev.id, "platform": dev.platform, **info}
+
+    @mcp.tool()
+    async def mobile_app_list(device: str = "", third_party_only: bool = True,
+                              domain: str = "") -> dict:
+        """List installed packages (third-party by default)."""
+        try:
+            dev = await resolve_device(device)
+            pkgs = await backend_for(dev).app_list(dev, third_party_only)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, "app_list", description=f"{len(pkgs)} packages")
+        return {"packages": pkgs, "count": len(pkgs), "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_app_control(action: str = "", package: str = "", device: str = "",
+                                 domain: str = "") -> dict:
+        """Control an app: start | stop | clear | info. `info` returns the
+        manifest / permissions / exported components dump. `clear` (data wipe)
+        is refused by the guard — mobile pentest proves impact by READ."""
+        ok, why = check_command(f"pm {action} {package}")
+        if not ok:
+            return {"error": why}
+        try:
+            dev = await resolve_device(device)
+            out = await backend_for(dev).app_control(dev, action, package)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"app {action} {package}", description=action,
+                         output=out[:2000])
+        return {"action": action, "package": package, "output": out,
+                "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_deeplink(uri: str = "", package: str = "", device: str = "",
+                              domain: str = "") -> dict:
+        """Fire a deep link / URL scheme at the app. Traffic the app makes in
+        response is captured in Burp (route the device through the Burp proxy);
+        the mobile_deeplink / webview_injection KBs match on it."""
+        try:
+            dev = await resolve_device(device)
+            out = await backend_for(dev).deeplink(dev, uri, package)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"deeplink {uri}", description="deep link")
+        return {"uri": uri, "output": out, "oplog_id": oid, "device": dev.id,
+                "note": "check Burp Proxy history for the app's resulting requests"}
