@@ -274,14 +274,7 @@ if (-not (Test-Path $McpJson)) {
     Set-Content -Path $McpJson -Value $json -Encoding UTF8
     Ok "Created $McpJson"
 } else {
-    # Migrate a config written before the burpsuite_mcp -> praetor rename; a
-    # stale `-m burpsuite_mcp` launch fails (module gone) so it never connects.
-    if (Select-String -Path $McpJson -Pattern 'burpsuite_mcp' -Quiet) {
-        ((Get-Content $McpJson -Raw) -replace 'burpsuite_mcp','praetor') | Set-Content -Path $McpJson -Encoding UTF8
-        Ok ".mcp.json migrated: burpsuite_mcp -> praetor (stale pre-rename launch)"
-    } else {
-        Ok ".mcp.json already exists - keeping"
-    }
+    Ok ".mcp.json already exists - keeping"
 }
 
 # Ensure Claude Code is allowed to start the praetor server (drop from

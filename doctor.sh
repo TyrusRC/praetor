@@ -159,27 +159,6 @@ else
     bad "Extension JAR" "not built — run ./build.sh"
 fi
 
-# The extension was renamed Swiss Knife -> Praetor. Rebuilding cannot fix a Burp
-# that still points at a jar from before the rename: Burp keeps loading the old
-# path, the old name shows in the Extensions tab, and the source looks innocent.
-#
-# Scoped to where a Burp extension jar actually lives — the repo tree and Burp's
-# own directories. Scanning all of $HOME would be slow and would still miss a jar
-# parked somewhere else, so the authoritative check is the loaded-extension
-# identity under "Burp runtime" below; this only helps when Burp is not running.
-STALE_JARS=""
-for d in "$SCRIPT_DIR" "$HOME/BurpSuite" "$HOME/.BurpSuite" "$HOME/burp" "$HOME/Downloads"; do
-    [ -d "$d" ] || continue
-    found="$(find "$d" -maxdepth 4 -iname '*swiss*knife*.jar' -not -path '*/.git/*' 2>/dev/null || true)"
-    [ -n "$found" ] && STALE_JARS="$STALE_JARS$found"$'\n'
-done
-if [ -n "${STALE_JARS// /}" ] && [ -n "$(printf '%s' "$STALE_JARS" | tr -d '[:space:]')" ]; then
-    bad "Pre-rename jar on disk" \
-        "$(printf '%s' "$STALE_JARS" | tr '\n' ' ')— remove that entry in Burp: Extensions -> Installed"
-else
-    pass "No pre-rename (Swiss Knife) jars in the repo or Burp directories"
-fi
-
 VENV="$SCRIPT_DIR/mcp-server/.venv"
 VENV_PY=""
 if [ -x "$VENV/Scripts/python.exe" ]; then
@@ -218,7 +197,7 @@ if [ "$code" = "200" ]; then
 
     case "$live_name" in
         *Praetor*) pass "Loaded extension is Praetor (\"$live_name\")" ;;
-        "")        skip "Loaded extension identity" "health response carried no 'extension' field — pre-rename build" ;;
+        "")        skip "Loaded extension identity" "health response carried no 'extension' field — rebuild and reload the jar" ;;
         *)         bad  "Loaded extension is NOT Praetor" \
                         "Burp is running \"$live_name\". Remove it in Extensions -> Installed and add $JAR" ;;
     esac
@@ -456,11 +435,6 @@ head "Project files"
 
 if [ -f "$SCRIPT_DIR/.mcp.json" ]; then
     pass ".mcp.json present"
-    # Stale pre-rename launch command: `-m burpsuite_mcp` no longer exists, so
-    # the MCP server fails to start and never connects.
-    if grep -q 'burpsuite_mcp' "$SCRIPT_DIR/.mcp.json" 2>/dev/null; then
-        bad ".mcp.json launches the removed 'burpsuite_mcp' module" "re-run ./setup.sh to migrate it to '-m praetor'"
-    fi
     # Sanity-check that .mcp.json points at a reachable interpreter
     if grep -q '/mnt/c/' "$SCRIPT_DIR/.mcp.json" 2>/dev/null && [ "$PLATFORM" = "windows" ]; then
         skip ".mcp.json uses /mnt/c/... WSL paths but platform is native Windows" "re-generate with Windows-style paths"

@@ -227,8 +227,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Build Java extension ────────────────────────────────────────────
 # Delegate to build.sh: it resolves the artifact from the POM (a version bump
-# must not make setup report a failed build), prints the absolute jar path, and
-# warns about pre-rename jars that would keep Burp loading the old extension.
+# must not make setup report a failed build) and prints the absolute jar path.
 info "Building Burp extension..."
 cd "$SCRIPT_DIR/burp-extension"
 if "$SCRIPT_DIR/build.sh" --skip-tests >/dev/null 2>&1; then
@@ -333,7 +332,7 @@ install_pd_tool "sqlmap" \
 install_pd_tool "commix" \
     "uv tool install commix"
 
-# nikto (legacy web scanner)
+# nikto — web server scanner (backs run_nikto)
 if has nikto; then
     ok "nikto already installed"
 else
@@ -377,6 +376,102 @@ if has noir; then
 else
     warn "noir not installed — operator install: https://github.com/owasp-noir/noir (brew tap noir-cr/noir/noir on macOS)"
 fi
+
+# dig — DNS lookups used across recon (dnsutils / bind-tools)
+if has dig; then
+    ok "dig already installed"
+elif [ "$PLATFORM" = "linux" ]; then
+    pkg_install dnsutils || pkg_install bind-tools || warn "dig not installed — install dnsutils/bind-tools manually"
+elif [ "$PLATFORM" = "macos" ]; then
+    pkg_install bind || warn "dig not installed — brew install bind"
+fi
+
+# ── ProjectDiscovery expansion — recon_pd tools (run_dnsx / run_naabu / ...) ──
+echo ""
+info "ProjectDiscovery expansion (DNS / ports / TLS / ASN / OSINT recon)..."
+install_pd_tool "dnsx"      "go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+install_pd_tool "naabu"     "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+install_pd_tool "tlsx"      "go install -v github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
+install_pd_tool "asnmap"    "go install -v github.com/projectdiscovery/asnmap/cmd/asnmap@latest"
+install_pd_tool "uncover"   "go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest"
+install_pd_tool "cloudlist" "go install -v github.com/projectdiscovery/cloudlist/cmd/cloudlist@latest"
+install_pd_tool "notify"    "go install -v github.com/projectdiscovery/notify/cmd/notify@latest"
+install_pd_tool "mapcves"   "go install -v github.com/projectdiscovery/mapcves@latest"
+install_pd_tool "cdncheck"  "go install -v github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest"
+install_pd_tool "alterx"    "go install -v github.com/projectdiscovery/alterx/cmd/alterx@latest"
+install_pd_tool "shuffledns" "go install -v github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest"
+install_pd_tool "chaos"     "go install -v github.com/projectdiscovery/chaos-client/cmd/chaos@latest"
+install_pd_tool "graphw00f" "uv tool install graphw00f"
+install_pd_tool "dnsgen"    "uv tool install dnsgen"
+
+# ── 40x / 403 bypass (run_dontgo403 / run_byp4xx) ──
+echo ""
+info "40x access-control bypass tools..."
+install_pd_tool "dontgo403" "go install -v github.com/devploit/dontgo403@latest"
+install_pd_tool "byp4xx"    "go install -v github.com/lobuhi/byp4xx@latest"
+
+# ── SCA / containers / SBOM (run_osv_scanner / run_trivy / run_grype / run_syft / run_cosign_verify) ──
+echo ""
+info "SCA + container + SBOM tools..."
+install_pd_tool "osv-scanner" "go install -v github.com/google/osv-scanner/cmd/osv-scanner@v2"
+install_pd_tool "cosign"    "go install -v github.com/sigstore/cosign/v2/cmd/cosign@latest"
+install_pd_tool "trivy"     "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b \"$HOME/go/bin\""
+install_pd_tool "grype"     "curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b \"$HOME/go/bin\""
+install_pd_tool "syft"      "curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b \"$HOME/go/bin\""
+
+# ── LLM / MCP security (run_garak / run_mcp_scan) ──
+echo ""
+info "LLM + MCP security tools..."
+install_pd_tool "garak"     "uv tool install garak"
+install_pd_tool "mcp-scan"  "uv tool install mcp-scan"
+
+# ── HTTP request smuggling (run_smuggle) ──
+install_pd_tool "smuggle"   "uv tool install smuggle"
+
+# ── Kubernetes (run_kubescape / run_kube_hunter / run_peirates / run_kdigger / run_kubeletctl) ──
+echo ""
+info "Kubernetes audit + attack tools..."
+install_pd_tool "peirates"   "go install -v github.com/inguardians/peirates@latest"
+install_pd_tool "kubeletctl" "go install -v github.com/cyberark/kubeletctl/cmd/kubeletctl@latest"
+install_pd_tool "kube-hunter" "uv tool install kube-hunter"
+install_pd_tool "kubescape"  "curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash"
+if has kdigger; then
+    ok "kdigger already installed"
+else
+    warn "kdigger not installed — operator install: release binary from https://github.com/quarkslab/kdigger/releases (brew: mtardy/tap/kdigger)"
+fi
+
+# ── Cloud posture (run_prowler / run_scout_suite / run_cloudsploit / run_pacu) ──
+echo ""
+info "Cloud posture tools..."
+install_pd_tool "prowler"   "uv tool install prowler"
+install_pd_tool "scout"     "uv tool install scoutsuite"
+install_pd_tool "pacu"      "uv tool install pacu"
+if has cloudsploit; then
+    ok "cloudsploit already installed"
+elif has npm; then
+    info "Installing cloudsploit (npm)..."
+    npm i -g cloudsploit 2>&1 | tail -1 || warn "cloudsploit install failed — install manually: npm i -g cloudsploit"
+else
+    warn "cloudsploit not installed — needs npm: npm i -g cloudsploit"
+fi
+
+# ── IaC / CI (run_checkov / run_tfsec / run_terrascan / run_hadolint / run_poutine / run_octoscan) ──
+echo ""
+info "IaC + CI/CD audit tools..."
+install_pd_tool "checkov"   "uv tool install checkov"
+install_pd_tool "tfsec"     "go install -v github.com/aquasecurity/tfsec/cmd/tfsec@latest"
+install_pd_tool "terrascan" "go install -v github.com/tenable/terrascan/cmd/terrascan@latest"
+install_pd_tool "poutine"   "go install -v github.com/boostsecurityio/poutine@latest"
+install_pd_tool "octoscan"  "go install -v github.com/synacktiv/octoscan@latest"
+if has hadolint; then
+    ok "hadolint already installed"
+else
+    warn "hadolint not installed — operator install: release binary from https://github.com/hadolint/hadolint/releases (brew install hadolint)"
+fi
+
+# ── Visual EASM (visual_easm_diff) ──
+install_pd_tool "gowitness"  "go install -v github.com/sensepost/gowitness@latest"
 
 # ════════════════════════════════════════════════════════════════════
 # Red-team / network lane (core) — powers run_nmap + run_network_recon
@@ -513,19 +608,7 @@ MCPEOF
         ok "Created $MCP_JSON"
     fi
 else
-    # Migrate a config written before the burpsuite_mcp -> praetor rename;
-    # a stale `-m burpsuite_mcp` launch fails silently (module gone) so the
-    # server never connects. Rewrite in place rather than skip.
-    if grep -q 'burpsuite_mcp' "$MCP_JSON" 2>/dev/null; then
-        python3 - "$MCP_JSON" <<'PYEOF'
-import sys
-p = sys.argv[1]
-open(p, "w").write(open(p).read().replace("burpsuite_mcp", "praetor"))
-PYEOF
-        ok ".mcp.json migrated: burpsuite_mcp -> praetor (stale pre-rename launch)"
-    else
-        ok ".mcp.json already exists — keeping"
-    fi
+    ok ".mcp.json already exists — keeping"
     if [ "$IS_WSL" = "1" ] && [ "$WSL_MODE" = "nat" ] && [ -n "$WSL_HOST_IP" ]; then
         warn "WSL NAT: .mcp.json must set env BURP_API_HOST=$WSL_HOST_IP (Windows host) — or switch to mirrored networking (see 'WSL → Windows Burp' below)"
     fi
@@ -590,6 +673,22 @@ check sqlmap
 check commix
 check nikto
 check wpscan
+
+echo ""
+echo "Extended coverage (cloud / k8s / SCA / IaC / CI / LLM / PD-extras):"
+check dnsx
+check naabu
+check gowitness
+check osv-scanner
+check trivy
+check grype
+check syft
+check garak
+check mcp-scan
+check prowler
+check checkov
+check kubescape
+echo "  (run ./doctor.sh for the full per-tool inventory)"
 
 echo ""
 echo "Core red-team / network lane:"
