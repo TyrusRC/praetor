@@ -207,12 +207,12 @@ class CookieTossingScanTest(unittest.TestCase):
         return {"response_headers": [{"name": "Set-Cookie", "value": c} for c in cookies]}
 
     def test_domain_scoped_state_cookie_is_tossable(self):
-        from praetor.tools.auth._oauth_flow_impl import _scan_tossable_cookies
+        from praetor.tools.auth._oauth_flow_helpers import scan_tossable_cookies as _scan_tossable_cookies
         hits = _scan_tossable_cookies(self._resp("oauth_state=abc; Domain=.target.com; Secure"))
         self.assertEqual(hits, ["oauth_state"])
 
     def test_host_prefixed_and_hostonly_cookies_are_safe(self):
-        from praetor.tools.auth._oauth_flow_impl import _scan_tossable_cookies
+        from praetor.tools.auth._oauth_flow_helpers import scan_tossable_cookies as _scan_tossable_cookies
         self.assertEqual(_scan_tossable_cookies(self._resp("__Host-session=x; Secure")), [])
         self.assertEqual(_scan_tossable_cookies(self._resp("sid=1; Path=/; Secure")), [])  # no Domain
         self.assertEqual(_scan_tossable_cookies(self._resp("theme=dark; Domain=.t.com")), [])  # not stateful

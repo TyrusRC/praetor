@@ -10,32 +10,7 @@ from praetor.tools.testing._verdict import error_verdict, make_verdict
 from praetor.tools.auth._oauth_common import (
     _gen_state, _gen_pkce_pair, _extract_query, _authorize_request, _token_request,
 )
-
-
-_STATEFUL_COOKIE_HINTS = ("state", "session", "sess", "sid", "auth", "oauth", "csrf", "login")
-
-
-def _scan_tossable_cookies(resp: dict) -> list[str]:
-    """Set-Cookie names for state/session cookies a sibling subdomain can toss.
-
-    Signal (OAuth Cookie Tossing, PortSwigger 2025): a stateful cookie WITHOUT
-    the ``__Host-`` prefix and WITH an explicit ``Domain=`` attribute is
-    overwritable from any sibling subdomain — enabling login fixation / linking.
-    """
-    out: list[str] = []
-    for h in resp.get("response_headers", []) or []:
-        if not isinstance(h, dict) or h.get("name", "").lower() != "set-cookie":
-            continue
-        raw = h.get("value", "") or ""
-        name = raw.split("=", 1)[0].strip()
-        low = raw.lower()
-        if name.startswith("__Host-") or name.startswith("__Secure-"):
-            continue
-        if "domain=" not in low:
-            continue
-        if any(hint in name.lower() for hint in _STATEFUL_COOKIE_HINTS):
-            out.append(name)
-    return out
+from praetor.tools.auth._oauth_flow_helpers import scan_tossable_cookies
 
 
 async def _run_oauth_flow_simulator(
@@ -87,7 +62,7 @@ async def _run_oauth_flow_simulator(
     idx = authorize_resp.get("history_index")
     if isinstance(idx, int) and idx >= 0:
         logger_indices.append(idx)
-    tossable_cookies.extend(_scan_tossable_cookies(authorize_resp))
+    tossable_cookies.extend(scan_tossable_cookies(authorize_resp))
     status = int(authorize_resp.get("status", 0) or 0)
     if status not in (301, 302, 303, 307, 308):
         return error_verdict(
@@ -134,7 +109,7 @@ async def _run_oauth_flow_simulator(
     idx = token_resp.get("history_index")
     if isinstance(idx, int) and idx >= 0:
         logger_indices.append(idx)
-    tossable_cookies.extend(_scan_tossable_cookies(token_resp))
+    tossable_cookies.extend(scan_tossable_cookies(token_resp))
     token_ok = "error" not in token_resp and int(token_resp.get("status", 0) or 0) == 200
     if not token_ok:
         err = token_resp.get("error") or _extract_query(
