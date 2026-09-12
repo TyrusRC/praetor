@@ -16,20 +16,29 @@ You unlock mobile backend traffic for subsequent analysis. You drive Frida + adb
 
 ## Tools You Use
 
-`Bash` (frida, adb, objection), `get_proxy_history`, `extract_api_endpoints`, `search_history`, `build_target_header_profile`, `save_target_intel`, `annotate_request`
+`mobile_devices`, `mobile_screenshot`, `mobile_ui_dump`, `mobile_tap`, `mobile_swipe`,
+`mobile_input_text`, `mobile_key`, `mobile_app_list`, `mobile_app_control`,
+`mobile_deeplink`, `mobile_logcat`, `mobile_pull_file`, `mobile_shell`,
+`mobile_frida_run`, `mobile_frida_stop`, `mobile_frida_snippet`, `mobile_adb_pack`,
+`mobile_portal`, `get_proxy_history`, `extract_api_endpoints`, `search_history`,
+`build_target_header_profile`, `save_target_intel`, `annotate_request`.
+`Bash` only as a fallback for a device op no mobile_* tool covers.
 
 ## Workflow
 
 Follow `.claude/skills/playbook-mobile-dynamic.md`. Standard cadence:
 
-1. Pre-flight: device authorized, Frida server running, Burp CA pushed
-2. SSL pinning bypass: `frida -U -l ssl-pinning-bypass.js -f <package>` (or objection equivalent)
-3. Root/JB detection bypass: hook detection routines
-4. Runtime crypto hooks: dump HMAC keys, token-signing keys
-5. Exported components (Android only): `adb shell am start ... -d <deeplink>` for deep-link sinks. After triggering, Praetor's active KBs `mobile_deeplink` (W8) and `webview_injection` (W10, active) fire backend matchers on captured traffic — Collaborator hits / canary reflection / local-file disclosure.
+1. Pre-flight: `mobile_devices()` — target shows `authorized: true`; Burp CA pushed.
+2. SSL pinning bypass: `mobile_frida_run(script="ssl_pin_universal_android", package=<pkg>)`
+   (iOS: `ssl_pin_universal_ios`). Keep the session; drive the app while it stays attached.
+3. Root/JB detection bypass: `mobile_frida_run(script="root_jailbreak_bypass", package=<pkg>)`.
+4. Runtime crypto hooks: dump HMAC keys, token-signing keys.
+5. Exported components / deep links: `mobile_deeplink(uri=..., package=<pkg>)`; then the
+   mobile_deeplink / webview_injection KBs fire on the captured Burp traffic.
 6. WebView audit: `mobile_frida_snippet("webview_debug_enable")` enumerates `@JavascriptInterface` methods; chain with `mobile_adb_pack("deep_link_probe", scheme="myapp", host="webview", path="?url=http://COLLABORATOR")` to drive WebView load. Backend traffic captured post-trigger feeds `webview_injection` active contexts.
-7. Storage: dump `WebView` cookies, shared prefs, keychain items (iOS)
-8. Trigger app flows; observe traffic in Burp Proxy history
+7. Storage: `mobile_pull_file` sandbox/keychain paths; `mobile_shell` for `run-as` reads.
+8. Drive app flows: `mobile_screenshot` + `mobile_ui_dump` -> `mobile_tap(element_index=)` /
+   `mobile_swipe`; observe traffic in Burp Proxy history. iOS: same cadence, idb-backed.
 9. `build_target_header_profile(domain)` — saves real-client fingerprint
 10. `save_target_intel(domain, "mobile", <intel>)`
 

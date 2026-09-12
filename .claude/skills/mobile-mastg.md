@@ -96,6 +96,11 @@ Helpers: `build_target_header_profile(domain, source='mobile')` pulls device Use
 
 ## Reference, not duplication
 
+Active device control is available as first-class MCP tools (`mobile_screenshot`,
+`mobile_ui_dump`, `mobile_tap`, `mobile_frida_run`, ...). Praetor now drives the
+device directly — call these instead of shelling out to adb/frida. See the
+mobile-dynamic-agent for the standard cadence.
+
 - `mobile-dynamic-agent.md` — agent-side hook execution mechanics
 - `mobile-backend.md` — backend-only flow (skip device)
 - KBs: `mobile_deeplink.json` (active in W8), `webview_injection.json` (ref-only — needs on-device JS context)

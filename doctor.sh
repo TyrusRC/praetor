@@ -349,6 +349,16 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+head "Mobile lane (optional — device control)"
+# ════════════════════════════════════════════════════════════════════
+# Powers mobile_* tools (mobile_screenshot/mobile_ui_dump/mobile_tap/mobile_frida_run/...).
+# None of these are required for the web/network lanes — missing one degrades
+# the mobile lane only, never a hard failure.
+check_recon adb   "sudo apt install adb                                # or: brew install android-platform-tools — mobile lane degraded (no Android control)"
+check_recon frida "uv tool install frida-tools                         # mobile lane degraded (no SSL-pin/root bypass, no Frida hooks)"
+check_recon idb   "brew install idb-companion && pip install fb-idb    # macOS only — mobile lane degraded (no iOS control)"
+
+# ════════════════════════════════════════════════════════════════════
 head "Ghostwriter (reporting / oplog hub)"
 # ════════════════════════════════════════════════════════════════════
 # Central hub both lanes forward into. Needs Docker; wired via .env
