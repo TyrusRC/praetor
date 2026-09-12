@@ -48,8 +48,17 @@ Three things at the start of every hunt session:
 1. `check_pro_features()` — confirms Pro vs Community. On Community, route to MCP-side equivalents (auto_probe + run_nuclei + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
 2. `hydrate_burp_findings(domain="all")` — Burp's in-memory FindingsStore empties on every extension reload. This re-populates the UI Findings tab from `.burp-intel/<domain>/findings.json` so what's on disk matches what's visible. Safe to run repeatedly (duplicate-skips). If skipped: previously-saved findings disappear from the Burp UI even though they're still on disk.
 3. **Read `.claude/skills/operational-discipline.md` once.** It governs every probe you send this session — the difference between a pentester and a fuzzing scanner is reading the response before the next payload, stating a hypothesis before probing, and replaying before saving. Phase 3 below assumes you've read it; it is not restated there.
+4. `set_capture_hygiene()` — filter the HTTP-history VIEW to in-scope-only and hide static/media (js/css/images/fonts) + exclude tracker/CDN hosts from scope, so the Proxy tab stays signal, not noise. One-time per session.
 
 Sessions (cookies, auth tokens, extracted variables) DO NOT auto-restore on extension reload — they're in-memory only with no on-disk mirror yet. Re-establish via `create_session` + `session_request` (login flow) or `run_flow`.
+
+### Noise & project hygiene — three problems, three levers
+
+Burp's Montoya API cannot DELETE proxy history or scanner issues, so you prevent/filter, never clean up after:
+
+- **History noise (findability)** → `set_capture_hygiene()` (above) sets the display filter so you see only in-scope, non-static traffic. Measure it with `verify_capture_hygiene(domain)` → generate traffic → `verify_capture_hygiene(domain, baseline=<the returned 'current'>)`; a browser crawl legitimately reads ~60% static sub-resources, so a high static % is expected there, low for API/tool traffic.
+- **`.burp` file size** → the display filter does NOT stop recording; Burp writes every proxied request to the project. When the file gets heavy, `snapshot_and_rotate(domain)` exports the Burp-side signal (sitemap + scanner issues) to `.burp-intel/<domain>/snapshots/` — your findings/coverage/intel already survive on disk — then start a fresh Burp project (File → New project).
+- **Scanner false positives** → Burp's passive/active audit + other extensions flood the Issues tab with INFO/LOW/FP (clickjacking, cross-domain includes, "file upload form present", header nags). Treat them as LEADS, not findings: `get_issues_dashboard` collapses + dedups to the actionable few, and `assess_finding` refuses the non-reportable ones (INFO gate, NEVER_SUBMIT gate). Never file a Burp issue directly.
 
 ## Phase 1: Context Load
 
