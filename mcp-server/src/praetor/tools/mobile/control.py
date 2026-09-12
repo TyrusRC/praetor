@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ._device import DeviceError, backend_for, list_devices, resolve_device
 from ._guards import check_command
-from ._store import artifact_dir, log_action
+from ._store import artifact_dir, log_action, log_loot
 
 _BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
@@ -243,3 +243,54 @@ def register(mcp: FastMCP) -> None:
         oid = log_action(domain, dev.id, f"deeplink {uri}", description="deep link")
         return {"uri": uri, "output": out, "oplog_id": oid, "device": dev.id,
                 "note": "check Burp Proxy history for the app's resulting requests"}
+
+    @mcp.tool()
+    async def mobile_logcat(device: str = "", filter: str = "", lines: int = 200,
+                            domain: str = "") -> dict:
+        """Fetch the last N log lines (Android logcat / iOS syslog). Use to spot
+        sensitive data written to logs (a MASTG check)."""
+        try:
+            dev = await resolve_device(device)
+            logs = await backend_for(dev).logs(dev, filter, lines)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"logcat -t {lines} {filter}".strip(),
+                         description="log capture")
+        return {"logs": logs, "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_pull_file(remote: str = "", device: str = "", package: str = "",
+                               label: str = "", domain: str = "") -> dict:
+        """Pull a file off the device (shared_prefs, sqlite, keychain export) into
+        the loot store with chain-of-custody. iOS needs package=<bundle_id>."""
+        try:
+            dev = await resolve_device(device)
+        except DeviceError as e:
+            return {"error": str(e)}
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        safe = re.sub(r"[^A-Za-z0-9._-]", "_", remote.rsplit("/", 1)[-1] or "pull")
+        out = artifact_dir(domain) / f"{safe}-{ts}"
+        try:
+            await backend_for(dev).pull(dev, remote, out, package)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"pull {remote}", description="file pull",
+                         output=str(out))
+        loot = log_loot(domain, label or "mobile_file", str(out), dev.id, oplog_id=oid)
+        return {"path": str(out), "loot": loot, "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_shell(command: str = "", device: str = "", domain: str = "") -> dict:
+        """Guarded escape hatch: run an adb shell command (Android). Destructive
+        commands are refused (see the mobile denylist). iOS: use mobile_frida_run."""
+        ok, why = check_command(command)
+        if not ok:
+            return {"error": why}
+        try:
+            dev = await resolve_device(device)
+            out, err, rc = await backend_for(dev).shell(dev, command)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"shell {command}", description="adb shell",
+                         output=out[:2000], rc=rc)
+        return {"stdout": out, "stderr": err, "rc": rc, "oplog_id": oid, "device": dev.id}

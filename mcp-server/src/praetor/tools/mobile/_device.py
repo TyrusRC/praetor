@@ -211,6 +211,21 @@ class AndroidBackend(_Backend):
             raise DeviceError(f"deeplink failed: {err.strip()}")
         return out
 
+    async def logs(self, dev, filter_expr, lines):
+        args = ["logcat", "-d", "-t", str(lines)]
+        if filter_expr:
+            args += filter_expr.split()
+        out, _, _ = await self.run(dev, args, timeout=30)
+        return out
+
+    async def pull(self, dev, remote, out_path, package=""):
+        _o, err, rc = await self.run(dev, ["pull", remote, str(out_path)], timeout=120)
+        if rc != 0:
+            raise DeviceError(f"adb pull failed: {err.strip()}")
+
+    async def shell(self, dev, command):
+        return await self.run(dev, ["shell", *command.split()])
+
 
 class IOSBackend(_Backend):
     platform = "ios"
@@ -273,6 +288,23 @@ class IOSBackend(_Backend):
         if rc != 0:
             raise DeviceError(f"idb open failed: {err.strip()}")
         return out
+
+    async def logs(self, dev, filter_expr, lines):
+        out, _, _ = await self.run(dev, ["log", "--", "show", "--last", "5m"], timeout=30)
+        tail = out.splitlines()[-lines:] if lines else out.splitlines()
+        return "\n".join(tail)
+
+    async def pull(self, dev, remote, out_path, package=""):
+        if not package:
+            raise DeviceError("iOS pull needs package=<bundle_id> (idb file pull --bundle-id)")
+        _o, err, rc = await self.run(dev, ["file", "pull", "--bundle-id", package,
+                                           remote, str(out_path)], timeout=120)
+        if rc != 0:
+            raise DeviceError(f"idb file pull failed: {err.strip()}")
+
+    async def shell(self, dev, command):
+        raise DeviceError("iOS has no adb-style shell — use mobile_frida_run for "
+                          "on-device runtime ops")
 
 
 def backend_for(dev: Device) -> AndroidBackend | IOSBackend:
