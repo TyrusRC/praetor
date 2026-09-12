@@ -312,8 +312,11 @@ public final class AutoProbeOrchestrator {
                                 }
                             }
 
+                            String matchersCondition = String.valueOf(
+                                probe.getOrDefault("matchers_condition", "and"));
                             Map<String, Object> matchResult = com.praetor.analysis.MatcherEngine.evaluate(
-                                matchers, probeResult.response(), elapsedMs, baselineResult.response(), payload
+                                matchers, probeResult.response(), elapsedMs, baselineResult.response(),
+                                payload, matchersCondition
                             );
 
                             int probeStatus = probeResult.response().statusCode();

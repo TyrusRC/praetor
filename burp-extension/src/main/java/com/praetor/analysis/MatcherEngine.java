@@ -101,8 +101,27 @@ public final class MatcherEngine {
             long responseTimeMs,
             HttpResponse baselineResponse,
             String payload) {
+        return evaluate(matchers, response, responseTimeMs, baselineResponse, payload, "and");
+    }
 
-        Map<String, Object> probe = runMatchers(matchers, response, responseTimeMs, baselineResponse, payload);
+    /**
+     * As {@link #evaluate(List, HttpResponse, long, HttpResponse, String)} but with an
+     * explicit combining condition (nuclei-style {@code matchers-condition}).
+     *
+     * @param condition "or" → the set matches when ANY matcher matches; anything
+     *                  else (default "and") → ALL must match. Per-matcher internal
+     *                  OR/AND over its own values is unchanged. Unknown matcher
+     *                  types never count as a match under either condition.
+     */
+    public static Map<String, Object> evaluate(
+            List<Map<String, Object>> matchers,
+            HttpResponse response,
+            long responseTimeMs,
+            HttpResponse baselineResponse,
+            String payload,
+            String condition) {
+
+        Map<String, Object> probe = runMatchers(matchers, response, responseTimeMs, baselineResponse, payload, condition);
 
         // Baseline-equivalence guard. isDiscriminating() judges matcher SHAPE and
         // cannot see that the untouched baseline already satisfies the set:
@@ -116,7 +135,7 @@ public final class MatcherEngine {
         // 500-vs-200, a real 403->200 ACL flip). If the baseline matches too,
         // refuse to score — same fail-closed stance as unknown matcher types.
         if (Boolean.TRUE.equals(probe.get("matched")) && baselineResponse != null) {
-            Map<String, Object> base = runMatchers(matchers, baselineResponse, 0L, baselineResponse, "");
+            Map<String, Object> base = runMatchers(matchers, baselineResponse, 0L, baselineResponse, "", condition);
             if (Boolean.TRUE.equals(base.get("matched"))) {
                 Map<String, Object> suppressed = new LinkedHashMap<>();
                 suppressed.put("matched", false);
@@ -134,11 +153,14 @@ public final class MatcherEngine {
             HttpResponse response,
             long responseTimeMs,
             HttpResponse baselineResponse,
-            String payload) {
+            String payload,
+            String setCondition) {
 
+        boolean orCondition = "or".equalsIgnoreCase(setCondition);
         Map<String, Object> result = new LinkedHashMap<>();
         List<String> matchedDescriptions = new ArrayList<>();
         boolean allMatched = true;
+        int matchedCount = 0;
 
         if (matchers == null || matchers.isEmpty() || response == null) {
             result.put("matched", false);
@@ -540,12 +562,15 @@ public final class MatcherEngine {
                 continue;
             }
 
-            if (!matched) allMatched = false;
+            if (matched) matchedCount++;
+            else allMatched = false;
         }
 
-        result.put("matched", allMatched);
+        // AND (default): every evaluable matcher matched. OR: at least one did.
+        boolean overall = orCondition ? matchedCount > 0 : allMatched;
+        result.put("matched", overall);
         result.put("matched_matchers", matchedDescriptions);
-        result.put("confidence_boost", allMatched ? matchedDescriptions.size() * 15 : 0);
+        result.put("confidence_boost", overall ? matchedCount * 15 : 0);
         return result;
     }
 

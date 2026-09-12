@@ -230,4 +230,36 @@ class MatcherEngineTest {
         assertEquals(Boolean.TRUE, r.get("matched"),
             "a real length delta is discriminating even when status equals baseline");
     }
+
+    @Test
+    void matchersConditionOrMatchesWhenOnlyOneMatcherHits() {
+        // A: error status hits. B: word absent -> misses.
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(500)),
+            Map.of("type", "word", "words", List.of("sqlerror"))
+        );
+        HttpResponse probe = stubResponse(500, "ok", List.of());
+
+        // default AND: B fails -> whole set fails.
+        Map<String, Object> andResult = MatcherEngine.evaluate(matchers, probe, 5L, null, "");
+        assertEquals(Boolean.FALSE, andResult.get("matched"),
+            "AND (default) must fail when any matcher misses");
+
+        // OR: A hits -> set matches.
+        Map<String, Object> orResult = MatcherEngine.evaluate(matchers, probe, 5L, null, "", "or");
+        assertEquals(Boolean.TRUE, orResult.get("matched"),
+            "OR must match when at least one matcher hits");
+    }
+
+    @Test
+    void matchersConditionOrStillFailsWhenNoMatcherHits() {
+        List<Map<String, Object>> matchers = List.of(
+            Map.of("type", "status", "status", List.of(500)),
+            Map.of("type", "word", "words", List.of("sqlerror"))
+        );
+        HttpResponse probe = stubResponse(200, "ok", List.of());  // 200, no sqlerror
+        Map<String, Object> orResult = MatcherEngine.evaluate(matchers, probe, 5L, null, "", "or");
+        assertEquals(Boolean.FALSE, orResult.get("matched"),
+            "OR must fail when no matcher hits");
+    }
 }
