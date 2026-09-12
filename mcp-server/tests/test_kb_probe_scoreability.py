@@ -112,14 +112,24 @@ class ProbeScoreabilityTest(unittest.TestCase):
 
     def test_matcher_types_are_all_supported_by_the_engine(self):
         """An unknown matcher type fails closed — the probe silently never fires."""
-        engine = (
+        analysis = (
             Path(__file__).resolve().parent.parent.parent
-            / "burp-extension/src/main/java/com/praetor/analysis/MatcherEngine.java"
+            / "burp-extension/src/main/java/com/praetor/analysis"
         )
-        if not engine.exists():          # Python-only checkout
-            self.skipTest("MatcherEngine.java not present")
+        # The matcher-type switch was split out of MatcherEngine into
+        # MatcherTypes / MatcherTypesB, so scan all three for case labels.
+        engine_files = [
+            analysis / "MatcherEngine.java",
+            analysis / "MatcherTypes.java",
+            analysis / "MatcherTypesB.java",
+        ]
+        present = [f for f in engine_files if f.exists()]
+        if not present:                  # Python-only checkout
+            self.skipTest("MatcherEngine sources not present")
         import re
-        supported = set(re.findall(r'case\s+"([a-z_0-9]+)"', engine.read_text()))
+        supported: set[str] = set()
+        for f in present:
+            supported |= set(re.findall(r'case\s+"([a-z_0-9]+)"', f.read_text()))
         unknown: dict[str, list[str]] = {}
         for path in _active_kb_files():
             data = json.loads(path.read_text())

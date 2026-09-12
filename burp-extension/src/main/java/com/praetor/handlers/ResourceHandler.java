@@ -25,24 +25,14 @@ public class ResourceHandler extends BaseHandler {
 
     private final MontoyaApi api;
 
-    private static final int MAX_RESOURCE_SIZE = com.praetor.server.ResponseLimits.MAX_RESOURCE_BODY;
+    static final int MAX_RESOURCE_SIZE = com.praetor.server.ResponseLimits.MAX_RESOURCE_BODY;
 
-    private static final Set<String> JS_EXTENSIONS = Set.of(".js", ".mjs", ".jsx", ".ts", ".tsx");
-    private static final Set<String> CSS_EXTENSIONS = Set.of(".css");
-    private static final Set<String> MAP_EXTENSIONS = Set.of(".js.map", ".css.map", ".map");
-    private static final Set<String> JS_MIME_TYPES = Set.of(
-            "application/javascript", "application/x-javascript", "text/javascript",
-            "application/ecmascript", "text/ecmascript"
-    );
-    private static final Set<String> CSS_MIME_TYPES = Set.of("text/css");
+    static final Set<String> JS_EXTENSIONS = Set.of(".js", ".mjs", ".jsx", ".ts", ".tsx");
+    static final Set<String> CSS_EXTENSIONS = Set.of(".css");
+    static final Set<String> MAP_EXTENSIONS = Set.of(".js.map", ".css.map", ".map");
+    static final Set<String> CSS_MIME_TYPES = Set.of("text/css");
 
-    private static final Pattern SCRIPT_SRC_PATTERN = Pattern.compile(
-            "<script[^>]+src=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-    private static final Pattern LINK_HREF_PATTERN = Pattern.compile(
-            "<link[^>]+rel=[\"']stylesheet[\"'][^>]+href=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-    private static final Pattern LINK_HREF_ALT_PATTERN = Pattern.compile(
-            "<link[^>]+href=[\"']([^\"']+)[\"'][^>]+rel=[\"']stylesheet[\"']", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SOURCEMAP_PATTERN = Pattern.compile(
+    static final Pattern SOURCEMAP_PATTERN = Pattern.compile(
             "//[#@]\\s*sourceMappingURL=([^\\s]+)", Pattern.CASE_INSENSITIVE);
 
     public ResourceHandler(MontoyaApi api) {
@@ -92,7 +82,7 @@ public class ResourceHandler extends BaseHandler {
 
             if (!urlPrefix.isEmpty() && !url.startsWith(urlPrefix)) continue;
 
-            String resourceType = classifyResource(url, resp);
+            String resourceType = ResourceFetcher.classifyResource(url, resp);
             if (resourceType == null) continue;
             if (!"all".equals(type) && !type.equals(resourceType)) continue;
 
@@ -125,14 +115,14 @@ public class ResourceHandler extends BaseHandler {
         if (!requireInScope(api, exchange, url)) return;
 
         // Check proxy history first
-        String content = findInHistory(url);
+        String content = ResourceFetcher.findInHistory(api, url);
         if (content != null) {
             sendResourceResponse(exchange, url, content, "proxy_history");
             return;
         }
 
         // Fetch through Burp
-        HttpRequestResponse result = fetchUrl(url);
+        HttpRequestResponse result = ResourceFetcher.fetchUrl(api, url);
         if (result == null || result.response() == null) {
             String why = com.praetor.http.ProxyTunnel.lastSendError();
             sendError(exchange, 502,
@@ -175,12 +165,12 @@ public class ResourceHandler extends BaseHandler {
             if (!requireInScope(api, exchange, urlStr)) return;
 
             // Try history first, then fetch
-            String fromHistory = findInHistory(urlStr);
+            String fromHistory = ResourceFetcher.findInHistory(api, urlStr);
             if (fromHistory != null) {
                 pageBody = fromHistory;
                 pageUrl = urlStr;
             } else {
-                HttpRequestResponse result = fetchUrl(urlStr);
+                HttpRequestResponse result = ResourceFetcher.fetchUrl(api, urlStr);
                 if (result == null || result.response() == null) {
                     sendError(exchange, 502, "Failed to fetch page: " + urlStr);
                     return;
@@ -194,7 +184,7 @@ public class ResourceHandler extends BaseHandler {
         }
 
         // Extract resource URLs from HTML
-        Set<String> resourceUrls = extractResourceUrls(pageBody, pageUrl);
+        Set<String> resourceUrls = ResourceFetcher.extractResourceUrls(pageBody, pageUrl);
 
         // Also look for source maps in JS/CSS bodies
         Set<String> sourceMapUrls = new LinkedHashSet<>();
@@ -202,7 +192,7 @@ public class ResourceHandler extends BaseHandler {
         List<Map<String, Object>> resources = new ArrayList<>();
         for (String resUrl : resourceUrls) {
             // Check history first
-            String content = findInHistory(resUrl);
+            String content = ResourceFetcher.findInHistory(api, resUrl);
             String source;
             if (content != null) {
                 source = "proxy_history";
@@ -218,7 +208,7 @@ public class ResourceHandler extends BaseHandler {
                     continue;
                 }
                 // Fetch through Burp
-                HttpRequestResponse result = fetchUrl(resUrl);
+                HttpRequestResponse result = ResourceFetcher.fetchUrl(api, resUrl);
                 if (result == null || result.response() == null) {
                     Map<String, Object> entry = new LinkedHashMap<>();
                     entry.put("url", resUrl);
@@ -234,7 +224,7 @@ public class ResourceHandler extends BaseHandler {
             Matcher mapMatcher = SOURCEMAP_PATTERN.matcher(content);
             if (mapMatcher.find()) {
                 String mapRef = mapMatcher.group(1);
-                String mapUrl = resolveUrl(mapRef, resUrl);
+                String mapUrl = ResourceFetcher.resolveUrl(mapRef, resUrl);
                 if (mapUrl != null) {
                     sourceMapUrls.add(mapUrl);
                 }
@@ -242,7 +232,7 @@ public class ResourceHandler extends BaseHandler {
 
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("url", resUrl);
-            entry.put("type", classifyByUrl(resUrl));
+            entry.put("type", ResourceFetcher.classifyByUrl(resUrl));
             entry.put("source", source);
             entry.put("size", content.length());
             if (content.length() > MAX_RESOURCE_SIZE) {
@@ -257,13 +247,13 @@ public class ResourceHandler extends BaseHandler {
         for (String mapUrl : sourceMapUrls) {
             if (resourceUrls.contains(mapUrl)) continue;
 
-            String content = findInHistory(mapUrl);
+            String content = ResourceFetcher.findInHistory(api, mapUrl);
             String source;
             if (content != null) {
                 source = "proxy_history";
             } else {
                 if (!isInScopeQuiet(api, mapUrl)) continue;
-                HttpRequestResponse result = fetchUrl(mapUrl);
+                HttpRequestResponse result = ResourceFetcher.fetchUrl(api, mapUrl);
                 if (result == null || result.response() == null) continue;
                 content = result.response().bodyToString();
                 source = "fetched";
@@ -294,149 +284,6 @@ public class ResourceHandler extends BaseHandler {
     /**
      * Classify a proxy history entry as js, css, sourcemap, or null (not a static resource).
      */
-    private String classifyResource(String url, HttpResponse resp) {
-        String urlLower = url.toLowerCase();
-
-        // Check by URL extension
-        for (String ext : MAP_EXTENSIONS) {
-            if (urlLower.contains(ext + "?") || urlLower.endsWith(ext)) return "sourcemap";
-        }
-        for (String ext : JS_EXTENSIONS) {
-            if (urlLower.contains(ext + "?") || urlLower.endsWith(ext)) return "js";
-        }
-        for (String ext : CSS_EXTENSIONS) {
-            if (urlLower.contains(ext + "?") || urlLower.endsWith(ext)) return "css";
-        }
-
-        // Check by MIME type from response
-        if (resp != null) {
-            String mimeType = getMimeType(resp);
-            if (JS_MIME_TYPES.contains(mimeType)) return "js";
-            if (CSS_MIME_TYPES.contains(mimeType)) return "css";
-        }
-
-        return null;
-    }
-
-    private String classifyByUrl(String url) {
-        String lower = url.toLowerCase();
-        for (String ext : MAP_EXTENSIONS) {
-            if (lower.contains(ext + "?") || lower.endsWith(ext)) return "sourcemap";
-        }
-        for (String ext : JS_EXTENSIONS) {
-            if (lower.contains(ext + "?") || lower.endsWith(ext)) return "js";
-        }
-        for (String ext : CSS_EXTENSIONS) {
-            if (lower.contains(ext + "?") || lower.endsWith(ext)) return "css";
-        }
-        return "unknown";
-    }
-
-    private String getMimeType(HttpResponse resp) {
-        for (HttpHeader h : resp.headers()) {
-            if ("Content-Type".equalsIgnoreCase(h.name())) {
-                return h.value().split(";")[0].trim().toLowerCase();
-            }
-        }
-        return "";
-    }
-
-    // ── History search ────────────────────────────────────────────
-
-    /**
-     * Search proxy history for a URL and return the response body, or null if not found.
-     */
-    private String findInHistory(String url) {
-        List<ProxyHttpRequestResponse> history = api.proxy().history();
-        for (int i = history.size() - 1; i >= 0; i--) {
-            ProxyHttpRequestResponse item = history.get(i);
-            if (item.finalRequest().url().equals(url)) {
-                HttpResponse resp = item.originalResponse();
-                if (resp != null) {
-                    return resp.bodyToString();
-                }
-            }
-        }
-        return null;
-    }
-
-    // ── HTTP fetch ────────────────────────────────────────────────
-
-    private HttpRequestResponse fetchUrl(String url) {
-        try {
-            HttpService service = HttpService.httpService(url);
-            String path = extractPath(url);
-
-            HttpRequest request = HttpRequest.httpRequest()
-                    .withMethod("GET")
-                    .withPath(path)
-                    .withService(service)
-                    .withHeader("Host", service.host())
-                    .withHeader("User-Agent", "Mozilla/5.0 (compatible; Praetor)");
-
-            return com.praetor.http.ProxyTunnel.sendOrFallback(api, request);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String extractPath(String url) {
-        try {
-            URI uri = new URI(url);
-            String path = uri.getRawPath();
-            if (path == null || path.isEmpty()) path = "/";
-            if (uri.getRawQuery() != null) path += "?" + uri.getRawQuery();
-            return path;
-        } catch (Exception e) {
-            return "/";
-        }
-    }
-
-    // ── HTML parsing for resource references ──────────────────────
-
-    private Set<String> extractResourceUrls(String html, String pageUrl) {
-        Set<String> urls = new LinkedHashSet<>();
-
-        // Extract <script src="...">
-        Matcher scriptMatcher = SCRIPT_SRC_PATTERN.matcher(html);
-        while (scriptMatcher.find()) {
-            String resolved = resolveUrl(scriptMatcher.group(1), pageUrl);
-            if (resolved != null) urls.add(resolved);
-        }
-
-        // Extract <link rel="stylesheet" href="...">
-        Matcher linkMatcher = LINK_HREF_PATTERN.matcher(html);
-        while (linkMatcher.find()) {
-            String resolved = resolveUrl(linkMatcher.group(1), pageUrl);
-            if (resolved != null) urls.add(resolved);
-        }
-
-        // Handle reversed attribute order: <link href="..." rel="stylesheet">
-        Matcher linkAltMatcher = LINK_HREF_ALT_PATTERN.matcher(html);
-        while (linkAltMatcher.find()) {
-            String resolved = resolveUrl(linkAltMatcher.group(1), pageUrl);
-            if (resolved != null) urls.add(resolved);
-        }
-
-        return urls;
-    }
-
-    /**
-     * Resolve a potentially relative URL against a base URL.
-     */
-    private String resolveUrl(String ref, String baseUrl) {
-        if (ref == null || ref.isEmpty() || ref.startsWith("data:")) return null;
-        try {
-            URI base = new URI(baseUrl);
-            URI resolved = base.resolve(ref);
-            return resolved.toString();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    // ── Response helpers ──────────────────────────────────────────
-
     private void sendResourceResponse(HttpExchange exchange, String url, String content, String source) throws Exception {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("url", url);

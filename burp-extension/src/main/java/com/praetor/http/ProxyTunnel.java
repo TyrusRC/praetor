@@ -121,7 +121,7 @@ public final class ProxyTunnel {
         }
 
         // Force Connection: close so the server closes after the response and
-        // our readAll() terminates cleanly. Keeps the tunnel logic simple and
+        // our ProxyWire.readAll() terminates cleanly. Keeps the tunnel logic simple and
         // avoids needing a full HTTP/1.1 framing parser on our side — Burp's
         // proxy + the response parser in Montoya already handle the content.
         HttpRequest outgoing = request.withUpdatedHeader("Connection", "close");
@@ -162,13 +162,13 @@ public final class ProxyTunnel {
         out.write(connect.getBytes(StandardCharsets.US_ASCII));
         out.flush();
 
-        String statusLine = readLine(in);
-        if (statusLine == null || !isHttp200(statusLine)) {
+        String statusLine = ProxyWire.readLine(in);
+        if (statusLine == null || !ProxyWire.isHttp200(statusLine)) {
             throw new IOException("Burp proxy refused CONNECT: " + statusLine);
         }
         // drain CONNECT headers until blank line
         while (true) {
-            String ln = readLine(in);
+            String ln = ProxyWire.readLine(in);
             if (ln == null || ln.isEmpty()) break;
         }
 
@@ -190,7 +190,7 @@ public final class ProxyTunnel {
                 tls.startHandshake();
                 tls.getOutputStream().write(request.toByteArray().getBytes());
                 tls.getOutputStream().flush();
-                return readAll(tls.getInputStream());
+                return ProxyWire.readAll(tls.getInputStream());
             }
         } catch (Exception e) {
             throw new IOException("TLS tunnel failed: " + e.getMessage(), e);
@@ -199,10 +199,10 @@ public final class ProxyTunnel {
 
     private static byte[] tunnelHttp(Socket socket, HttpRequest request, HttpService service) throws IOException {
         byte[] raw = request.toByteArray().getBytes();
-        byte[] proxied = rewriteAsProxyRequest(raw, service.host(), service.port());
+        byte[] proxied = ProxyWire.rewriteAsProxyRequest(raw, service.host(), service.port());
         socket.getOutputStream().write(proxied);
         socket.getOutputStream().flush();
-        return readAll(socket.getInputStream());
+        return ProxyWire.readAll(socket.getInputStream());
     }
 
     /**
@@ -212,65 +212,6 @@ public final class ProxyTunnel {
      * line (ASCII), then concatenate the original byte array's remainder
      * unchanged. This preserves UTF-8 / binary bodies.
      */
-    private static byte[] rewriteAsProxyRequest(byte[] raw, String host, int port) {
-        int lf = -1;
-        for (int i = 0; i < raw.length; i++) {
-            if (raw[i] == '\n') { lf = i; break; }
-        }
-        if (lf < 0) return raw;
-        // Request line bytes (without trailing '\n', stripping CR if present).
-        int lineEnd = (lf > 0 && raw[lf - 1] == '\r') ? lf - 1 : lf;
-        String requestLine = new String(raw, 0, lineEnd, StandardCharsets.US_ASCII);
-        int first = requestLine.indexOf(' ');
-        int second = requestLine.indexOf(' ', first + 1);
-        if (first < 0 || second < 0) return raw;
-        String method = requestLine.substring(0, first);
-        String path = requestLine.substring(first + 1, second);
-        String rest = requestLine.substring(second);
-        String authority = (port == 80) ? host : host + ":" + port;
-        String newLine = method + " http://" + authority + path + rest + "\r\n";
-        byte[] newLineBytes = newLine.getBytes(StandardCharsets.US_ASCII);
-        int restStart = lf + 1;
-        int restLen = raw.length - restStart;
-        byte[] out = new byte[newLineBytes.length + restLen];
-        System.arraycopy(newLineBytes, 0, out, 0, newLineBytes.length);
-        if (restLen > 0) {
-            System.arraycopy(raw, restStart, out, newLineBytes.length, restLen);
-        }
-        return out;
-    }
-
-    /** True when the HTTP/x.y response status line indicates 200. Splits on space rather than substring-matching " 200". */
-    private static boolean isHttp200(String statusLine) {
-        if (statusLine == null) return false;
-        String[] parts = statusLine.split(" ", 3);
-        return parts.length >= 2 && "200".equals(parts[1]);
-    }
-
-    private static String readLine(InputStream in) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        int b;
-        while ((b = in.read()) != -1) {
-            if (b == '\n') {
-                int len = sb.length();
-                if (len > 0 && sb.charAt(len - 1) == '\r') sb.setLength(len - 1);
-                return sb.toString();
-            }
-            sb.append((char) b);
-        }
-        return sb.length() == 0 ? null : sb.toString();
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        int n;
-        while ((n = in.read(buf)) != -1) {
-            bos.write(buf, 0, n);
-        }
-        return bos.toByteArray();
-    }
-
     /** Set true by {@link #sendOrFallback} when the most recent send fell through to a non-proxied path. */
     private static final ThreadLocal<Boolean> LAST_FELL_BACK = ThreadLocal.withInitial(() -> Boolean.FALSE);
 

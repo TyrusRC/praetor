@@ -40,9 +40,9 @@ public class ScannerHandler extends BaseHandler {
         String method = exchange.getRequestMethod();
 
         if (path.equals("/api/scanner/scan") && "POST".equalsIgnoreCase(method)) {
-            handleStartScan(exchange);
+            new ScanLauncher(api, activeScans, scanIdCounter).startScan(exchange, readJsonBody(exchange));
         } else if (path.equals("/api/scanner/crawl") && "POST".equalsIgnoreCase(method)) {
-            handleStartCrawl(exchange);
+            new ScanLauncher(api, activeScans, scanIdCounter).startCrawl(exchange, readJsonBody(exchange));
         } else if (path.equals("/api/scanner/status") && "GET".equalsIgnoreCase(method)) {
             handleStatus(exchange);
         } else if (path.equals("/api/scanner/findings")) {
@@ -60,147 +60,6 @@ public class ScannerHandler extends BaseHandler {
      * Start an active scan/audit on specific requests.
      * Body: {"url": "https://target.com/path"} or {"index": 42} or {"urls": ["url1","url2"]}
      */
-    private void handleStartScan(HttpExchange exchange) throws Exception {
-        Map<String, Object> body = readJsonBody(exchange);
-
-        try {
-            // Collect request-responses BEFORE creating audit (avoid leaked audits on validation failure)
-            List<HttpRequestResponse> targets = new ArrayList<>();
-            String description;
-
-            // Option 1: Scan by proxy history index
-            Object indexObj = body.get("index");
-            if (indexObj instanceof Number n) {
-                int index = n.intValue();
-                List<ProxyHttpRequestResponse> history = api.proxy().history();
-                if (index < 0 || index >= history.size()) {
-                    sendError(exchange, 404, "Index out of range");
-                    return;
-                }
-                ProxyHttpRequestResponse item = history.get(index);
-                targets.add(HttpRequestResponse.httpRequestResponse(
-                    item.finalRequest(), item.originalResponse()));
-                description = "Audit of proxy item #" + index + " (" + item.finalRequest().url() + ")";
-            }
-            // Option 2: Scan by single URL
-            else if (body.containsKey("url")) {
-                String url = (String) body.get("url");
-                if (url == null || url.isEmpty()) {
-                    sendError(exchange, 400, "Missing 'url' field");
-                    return;
-                }
-                if (!api.scope().isInScope(url)) {
-                    sendError(exchange, 403, "URL is out of scope: " + url, "out_of_scope",
-                        "Use configure_scope/add_to_scope to include the host before scanning.");
-                    return;
-                }
-                HttpService service = HttpService.httpService(url);
-                HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                HttpRequestResponse seed = com.praetor.http.ProxyTunnel.sendOrFallback(api, request);
-                if (seed == null) {
-                    String why = com.praetor.http.ProxyTunnel.lastSendError();
-                    sendError(exchange, 502,
-                        "Failed to fetch seed request for scan" + (why.isEmpty() ? "" : " — " + why),
-                        "send_failed",
-                        "Verify the target is reachable and Burp proxy listener is up.");
-                    return;
-                }
-                targets.add(seed);
-                description = "Audit of " + url;
-            }
-            // Option 3: Scan multiple URLs
-            else if (body.containsKey("urls")) {
-                @SuppressWarnings("unchecked")
-                List<String> urls = (List<String>) body.get("urls");
-                List<String> oos = new ArrayList<>();
-                for (String url : urls) {
-                    if (!api.scope().isInScope(url)) { oos.add(url); continue; }
-                    HttpService service = HttpService.httpService(url);
-                    HttpRequest request = HttpRequest.httpRequest(service, buildGetRequest(url, service.host()));
-                    HttpRequestResponse seed = com.praetor.http.ProxyTunnel.sendOrFallback(api, request);
-                    // Skip unreachable seeds — don't NPE inside audit.addRequestResponse.
-                    if (seed != null) targets.add(seed);
-                }
-                if (!oos.isEmpty() && targets.isEmpty()) {
-                    sendError(exchange, 403, "All URLs are out of scope: " + oos.size(), "out_of_scope", "");
-                    return;
-                }
-                description = "Audit of " + urls.size() + " URLs (" + oos.size() + " skipped, out of scope)";
-            } else {
-                sendError(exchange, 400, "Provide 'url', 'urls', or 'index'");
-                return;
-            }
-
-            // Create audit AFTER validation — prevents leaked audits on error paths
-            AuditConfiguration config = AuditConfiguration.auditConfiguration(
-                BuiltInAuditConfiguration.LEGACY_ACTIVE_AUDIT_CHECKS
-            );
-            Audit audit = api.scanner().startAudit(config);
-            for (HttpRequestResponse rr : targets) {
-                audit.addRequestResponse(rr);
-            }
-
-            int scanId = scanIdCounter.incrementAndGet();
-            activeScans.add(new ScanRecord(scanId, description, audit, System.currentTimeMillis()));
-
-            sendJson(exchange, JsonUtil.object(
-                "status", "ok",
-                "scan_id", scanId,
-                "message", "Scan started: " + description
-            ));
-
-        } catch (Exception e) {
-            sendError(exchange, 500, "Failed to start scan (requires Burp Professional): " + e.getMessage());
-        }
-    }
-
-    /**
-     * Start a crawl on seed URLs.
-     * Body: {"urls": ["https://target.com"]} or {"url": "https://target.com"}
-     */
-    private void handleStartCrawl(HttpExchange exchange) throws Exception {
-        Map<String, Object> body = readJsonBody(exchange);
-
-        try {
-            List<String> seedUrls = new ArrayList<>();
-
-            if (body.containsKey("url")) {
-                seedUrls.add((String) body.get("url"));
-            } else if (body.containsKey("urls")) {
-                @SuppressWarnings("unchecked")
-                List<String> urls = (List<String>) body.get("urls");
-                seedUrls.addAll(urls);
-            } else {
-                sendError(exchange, 400, "Provide 'url' or 'urls'");
-                return;
-            }
-
-            // Rule 1 (HARD) — Burp Pro will actively crawl whatever we hand it,
-            // so every seed must be in scope. Reject the whole batch on the
-            // first OOS hit; surfacing the bad URL is better than silently
-            // crawling out-of-scope assets.
-            for (String u : seedUrls) {
-                if (!requireInScope(api, exchange, u)) return;
-            }
-
-            api.scanner().startCrawl(
-                CrawlConfiguration.crawlConfiguration(seedUrls.toArray(new String[0]))
-            );
-
-            int scanId = scanIdCounter.incrementAndGet();
-            String description = "Crawl of " + String.join(", ", seedUrls);
-            activeScans.add(new ScanRecord(scanId, description, null, System.currentTimeMillis()));
-
-            sendJson(exchange, JsonUtil.object(
-                "status", "ok",
-                "scan_id", scanId,
-                "message", "Crawl started: " + description,
-                "seed_urls", seedUrls
-            ));
-        } catch (Exception e) {
-            sendError(exchange, 500, "Failed to start crawl (requires Burp Professional): " + e.getMessage());
-        }
-    }
 
     /**
      * Get status of active and completed scans.
@@ -308,18 +167,6 @@ public class ScannerHandler extends BaseHandler {
         return s.substring(0, max) + "... (truncated)";
     }
 
-    private String buildGetRequest(String url, String host) {
-        String path;
-        try {
-            java.net.URI uri = new java.net.URI(url);
-            path = uri.getRawPath();
-            if (path == null || path.isEmpty()) path = "/";
-            if (uri.getRawQuery() != null) path += "?" + uri.getRawQuery();
-        } catch (Exception e) {
-            path = "/";
-        }
-        return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\n\r\n";
-    }
 
     /**
      * Cancel/remove an active scan from tracking.
@@ -408,5 +255,5 @@ public class ScannerHandler extends BaseHandler {
         return null;
     }
 
-    private record ScanRecord(int id, String description, Audit audit, long startedAt) {}
+    record ScanRecord(int id, String description, Audit audit, long startedAt) {}
 }

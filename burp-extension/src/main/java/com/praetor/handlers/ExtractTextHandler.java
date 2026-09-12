@@ -185,9 +185,9 @@ public class ExtractTextHandler extends BaseHandler {
             String outerHtml = elementMatcher.group(0);
 
             // Apply filters
-            if (className != null && !matchesAttribute(attrs, "class", className, true)) continue;
-            if (idValue != null && !matchesAttribute(attrs, "id", idValue, false)) continue;
-            if (attrName != null && attrValue != null && !matchesAttribute(attrs, attrName, attrValue, false)) continue;
+            if (className != null && !HtmlExtractHelpers.matchesAttribute(attrs, "class", className, true)) continue;
+            if (idValue != null && !HtmlExtractHelpers.matchesAttribute(attrs, "id", idValue, false)) continue;
+            if (attrName != null && attrValue != null && !HtmlExtractHelpers.matchesAttribute(attrs, attrName, attrValue, false)) continue;
             if (attrName != null && attrValue == null && !attrs.contains(attrName)) continue;
 
             Map<String, Object> elem = new LinkedHashMap<>();
@@ -196,7 +196,7 @@ public class ExtractTextHandler extends BaseHandler {
 
             // Extract requested attribute value
             if (attribute != null) {
-                String val = extractAttribute(attrs, attribute);
+                String val = HtmlExtractHelpers.extractAttribute(attrs, attribute);
                 elem.put("attribute_value", val != null ? val : "");
             }
 
@@ -205,30 +205,6 @@ public class ExtractTextHandler extends BaseHandler {
 
         sendJson(exchange, JsonUtil.object("elements", elements, "count", elements.size()));
     }
-
-    private boolean matchesAttribute(String attrs, String name, String value, boolean partialMatch) {
-        Pattern p = Pattern.compile(name + "\\s*=\\s*[\"']([^\"']*)[\"']", Pattern.CASE_INSENSITIVE);
-        Matcher m = p.matcher(attrs);
-        if (!m.find()) return false;
-        String attrVal = m.group(1);
-        if (partialMatch) {
-            // For class, check if any class token matches
-            for (String cls : attrVal.split("\\s+")) {
-                if (cls.equals(value)) return true;
-            }
-            return false;
-        }
-        return attrVal.equals(value);
-    }
-
-    private String extractAttribute(String attrs, String name) {
-        Pattern p = Pattern.compile(name + "\\s*=\\s*[\"']([^\"']*)[\"']", Pattern.CASE_INSENSITIVE);
-        Matcher m = p.matcher(attrs);
-        if (m.find()) return m.group(1);
-        return null;
-    }
-
-    // ── 3. Links extraction ─────────────────────────────────────
 
     private void handleLinks(HttpExchange exchange) throws Exception {
         Map<String, Object> body = readJsonBody(exchange);
@@ -248,7 +224,7 @@ public class ExtractTextHandler extends BaseHandler {
         }
 
         String responseBody = resp.bodyToString();
-        String requestHost = extractHost(item.finalRequest().url());
+        String requestHost = HtmlExtractHelpers.extractHost(item.finalRequest().url());
 
         List<Map<String, Object>> links = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -284,7 +260,7 @@ public class ExtractTextHandler extends BaseHandler {
                 if (seen.contains(key)) continue;
                 seen.add(key);
 
-                boolean internal = isInternal(url, requestHost);
+                boolean internal = HtmlExtractHelpers.isInternal(url, requestHost);
 
                 if ("internal".equals(filter) && !internal) continue;
                 if ("external".equals(filter) && internal) continue;
@@ -300,24 +276,4 @@ public class ExtractTextHandler extends BaseHandler {
         sendJson(exchange, JsonUtil.object("links", links, "count", links.size()));
     }
 
-    private String extractHost(String url) {
-        try {
-            if (url.contains("://")) {
-                String afterProto = url.substring(url.indexOf("://") + 3);
-                int slashIdx = afterProto.indexOf('/');
-                String hostPort = slashIdx >= 0 ? afterProto.substring(0, slashIdx) : afterProto;
-                int colonIdx = hostPort.indexOf(':');
-                return colonIdx >= 0 ? hostPort.substring(0, colonIdx) : hostPort;
-            }
-        } catch (Exception ignored) {}
-        return "";
-    }
-
-    private boolean isInternal(String url, String requestHost) {
-        if (url.startsWith("/") || url.startsWith("./") || url.startsWith("../") || !url.contains("://")) {
-            return true;
-        }
-        String linkHost = extractHost(url);
-        return linkHost.equalsIgnoreCase(requestHost);
-    }
 }

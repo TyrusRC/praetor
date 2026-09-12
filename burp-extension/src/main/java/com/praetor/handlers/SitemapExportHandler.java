@@ -54,7 +54,7 @@ public class SitemapExportHandler extends BaseHandler {
         Map<String, EndpointData> endpoints = collectEndpoints(prefix);
 
         if ("openapi".equalsIgnoreCase(format)) {
-            String yaml = buildOpenApiYaml(prefix, endpoints);
+            String yaml = OpenApiYamlBuilder.buildOpenApiYaml(prefix, endpoints);
             byte[] bytes = yaml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "text/yaml; charset=utf-8");
             exchange.sendResponseHeaders(200, bytes.length);
@@ -204,112 +204,7 @@ public class SitemapExportHandler extends BaseHandler {
 
     // ── OpenAPI 3.0 YAML format ───────────────────────────────────
 
-    private String buildOpenApiYaml(String prefix, Map<String, EndpointData> endpoints) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("openapi: \"3.0.3\"\n");
-        sb.append("info:\n");
-        sb.append("  title: \"API Export from Burp Suite\"\n");
-        sb.append("  version: \"1.0.0\"\n");
-        sb.append("  description: \"Auto-generated from proxy history\"\n");
-        sb.append("servers:\n");
-        sb.append("  - url: ").append(yamlEscape(prefix)).append("\n");
-        sb.append("paths:\n");
-
-        for (EndpointData ep : endpoints.values()) {
-            sb.append("  ").append(yamlEscape(ep.path)).append(":\n");
-
-            for (String method : ep.methods) {
-                String lowerMethod = method.toLowerCase();
-                sb.append("    ").append(lowerMethod).append(":\n");
-                sb.append("      summary: \"").append(method).append(" ").append(yamlEscapeInline(ep.path)).append("\"\n");
-
-                if (ep.authRequired) {
-                    sb.append("      security:\n");
-                    sb.append("        - bearerAuth: []\n");
-                }
-
-                // Parameters (query, path, cookie — not body)
-                List<ParamData> nonBodyParams = new ArrayList<>();
-                List<ParamData> bodyParams = new ArrayList<>();
-                for (ParamData pd : ep.parameters.values()) {
-                    if ("body".equals(pd.location)) {
-                        bodyParams.add(pd);
-                    } else {
-                        nonBodyParams.add(pd);
-                    }
-                }
-
-                if (!nonBodyParams.isEmpty()) {
-                    sb.append("      parameters:\n");
-                    for (ParamData pd : nonBodyParams) {
-                        String example = pd.examples.isEmpty() ? "" : pd.examples.iterator().next();
-                        String type = inferType(example);
-                        sb.append("        - name: ").append(yamlEscape(pd.name)).append("\n");
-                        sb.append("          in: ").append(pd.location).append("\n");
-                        sb.append("          schema:\n");
-                        sb.append("            type: ").append(openApiType(type)).append("\n");
-                        if (!example.isEmpty()) {
-                            sb.append("          example: ").append(yamlEscape(example)).append("\n");
-                        }
-                    }
-                }
-
-                // Request body for body params
-                if (!bodyParams.isEmpty() && ("post".equals(lowerMethod) || "put".equals(lowerMethod) || "patch".equals(lowerMethod))) {
-                    sb.append("      requestBody:\n");
-                    sb.append("        content:\n");
-                    sb.append("          application/x-www-form-urlencoded:\n");
-                    sb.append("            schema:\n");
-                    sb.append("              type: object\n");
-                    sb.append("              properties:\n");
-                    for (ParamData pd : bodyParams) {
-                        String example = pd.examples.isEmpty() ? "" : pd.examples.iterator().next();
-                        String type = inferType(example);
-                        sb.append("                ").append(yamlEscape(pd.name)).append(":\n");
-                        sb.append("                  type: ").append(openApiType(type)).append("\n");
-                        if (!example.isEmpty()) {
-                            sb.append("                  example: ").append(yamlEscape(example)).append("\n");
-                        }
-                    }
-                }
-
-                // Responses
-                sb.append("      responses:\n");
-                Set<Integer> seenStatuses = new HashSet<>();
-                boolean hasResponses = false;
-                for (ResponseData rd : ep.responses) {
-                    if (seenStatuses.add(rd.statusCode)) {
-                        hasResponses = true;
-                        sb.append("        \"").append(rd.statusCode).append("\":\n");
-                        sb.append("          description: \"HTTP ").append(rd.statusCode).append("\"\n");
-                        if (rd.contentType != null && !rd.contentType.isEmpty()) {
-                            sb.append("          content:\n");
-                            sb.append("            ").append(yamlEscape(rd.contentType)).append(":\n");
-                            sb.append("              schema:\n");
-                            sb.append("                type: object\n");
-                        }
-                    }
-                }
-                if (!hasResponses) {
-                    sb.append("        \"200\":\n");
-                    sb.append("          description: \"OK\"\n");
-                }
-            }
-        }
-
-        // Security schemes
-        sb.append("components:\n");
-        sb.append("  securitySchemes:\n");
-        sb.append("    bearerAuth:\n");
-        sb.append("      type: http\n");
-        sb.append("      scheme: bearer\n");
-
-        return sb.toString();
-    }
-
-    // ── Type inference ────────────────────────────────────────────
-
-    private String inferType(String value) {
+    static String inferType(String value) {
         if (value == null || value.isEmpty()) return "string";
         if (BOOLEAN_PATTERN.matcher(value).matches()) return "boolean";
         if (NUMBER_PATTERN.matcher(value).matches()) {
@@ -321,36 +216,9 @@ public class SitemapExportHandler extends BaseHandler {
         return "string";
     }
 
-    private String openApiType(String inferredType) {
-        return switch (inferredType) {
-            case "integer" -> "integer";
-            case "number" -> "number";
-            case "boolean" -> "boolean";
-            default -> "string";
-        };
-    }
-
-    // ── YAML helpers ──────────────────────────────────────────────
-
-    private String yamlEscape(String value) {
-        if (value == null) return "\"\"";
-        if (value.contains(":") || value.contains("#") || value.contains("\"")
-                || value.contains("'") || value.contains("{") || value.contains("}")
-                || value.contains("[") || value.contains("]") || value.contains("@")
-                || value.contains("&") || value.contains("*")) {
-            return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
-        }
-        return value;
-    }
-
-    private String yamlEscapeInline(String value) {
-        if (value == null) return "";
-        return value.replace("\"", "\\\"");
-    }
-
     // ── Data classes ──────────────────────────────────────────────
 
-    private static class EndpointData {
+    static class EndpointData {
         final String path;
         final Set<String> methods = new LinkedHashSet<>();
         final Map<ParamKey, ParamData> parameters = new LinkedHashMap<>();
@@ -362,9 +230,9 @@ public class SitemapExportHandler extends BaseHandler {
         }
     }
 
-    private record ParamKey(String name, String location) {}
+    record ParamKey(String name, String location) {}
 
-    private static class ParamData {
+    static class ParamData {
         final String name;
         final String location;
         final Set<String> examples = new LinkedHashSet<>();
@@ -375,7 +243,7 @@ public class SitemapExportHandler extends BaseHandler {
         }
     }
 
-    private static class ResponseData {
+    static class ResponseData {
         final int statusCode;
         String contentType = "";
         int size = 0;

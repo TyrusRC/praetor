@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  *   <li>cluster_bomb — cartesian product of payloads</li>
  * </ul>
  *
- * Mutates the base request via {@link #modifyRequest(HttpRequest, String, String, String)}
+ * Mutates the base request via {@link #RequestMutator.modifyRequest(HttpRequest, String, String, String)}
  * which dispatches by position (query / body / header / path / cookie).
  */
 public final class VariantBuilder {
@@ -58,11 +58,11 @@ public final class VariantBuilder {
             String name = (String) param.get("name");
             String position = (String) param.getOrDefault("position", "query");
             @SuppressWarnings("unchecked")
-            List<String> payloads = toStringList((List<Object>) param.get("payloads"));
+            List<String> payloads = RequestMutator.toStringList((List<Object>) param.get("payloads"));
 
             for (String payload : payloads) {
                 if (variants.size() >= maxRequests) return;
-                HttpRequest modified = modifyRequest(baseRequest, name, position, payload);
+                HttpRequest modified = RequestMutator.modifyRequest(baseRequest, name, position, payload);
                 variants.add(new FuzzVariant(modified, name, payload));
             }
         }
@@ -75,7 +75,7 @@ public final class VariantBuilder {
         Set<String> allPayloads = new LinkedHashSet<>();
         for (Map<String, Object> param : parameters) {
             @SuppressWarnings("unchecked")
-            List<String> payloads = toStringList((List<Object>) param.get("payloads"));
+            List<String> payloads = RequestMutator.toStringList((List<Object>) param.get("payloads"));
             allPayloads.addAll(payloads);
         }
 
@@ -86,7 +86,7 @@ public final class VariantBuilder {
             for (Map<String, Object> param : parameters) {
                 String name = (String) param.get("name");
                 String position = (String) param.getOrDefault("position", "query");
-                modified = modifyRequest(modified, name, position, payload);
+                modified = RequestMutator.modifyRequest(modified, name, position, payload);
                 if (paramNames.length() > 0) paramNames.append(",");
                 paramNames.append(name);
             }
@@ -102,7 +102,7 @@ public final class VariantBuilder {
         List<List<String>> allPayloads = new ArrayList<>();
         for (Map<String, Object> param : parameters) {
             @SuppressWarnings("unchecked")
-            List<String> payloads = toStringList((List<Object>) param.get("payloads"));
+            List<String> payloads = RequestMutator.toStringList((List<Object>) param.get("payloads"));
             allPayloads.add(payloads);
             minLen = Math.min(minLen, payloads.size());
         }
@@ -117,7 +117,7 @@ public final class VariantBuilder {
                 String name = (String) parameters.get(p).get("name");
                 String position = (String) parameters.get(p).getOrDefault("position", "query");
                 String payload = allPayloads.get(p).get(i);
-                modified = modifyRequest(modified, name, position, payload);
+                modified = RequestMutator.modifyRequest(modified, name, position, payload);
                 if (p > 0) { paramNames.append(","); payloadDesc.append(","); }
                 paramNames.append(name);
                 payloadDesc.append(payload);
@@ -133,7 +133,7 @@ public final class VariantBuilder {
         List<List<String>> allPayloads = new ArrayList<>();
         for (Map<String, Object> param : parameters) {
             @SuppressWarnings("unchecked")
-            List<String> payloads = toStringList((List<Object>) param.get("payloads"));
+            List<String> payloads = RequestMutator.toStringList((List<Object>) param.get("payloads"));
             allPayloads.add(payloads);
         }
 
@@ -157,7 +157,7 @@ public final class VariantBuilder {
                 String name = (String) parameters.get(p).get("name");
                 String position = (String) parameters.get(p).getOrDefault("position", "query");
                 String payload = allPayloads.get(p).get(indices[p]);
-                modified = modifyRequest(modified, name, position, payload);
+                modified = RequestMutator.modifyRequest(modified, name, position, payload);
                 if (p > 0) { paramNames.append(","); payloadDesc.append(","); }
                 paramNames.append(name);
                 payloadDesc.append(payload);
@@ -175,163 +175,4 @@ public final class VariantBuilder {
 
     // ── Request modification ──────────────────────────────────
 
-    private HttpRequest modifyRequest(HttpRequest request, String paramName, String position, String payload) {
-        return switch (position) {
-            case "query" -> modifyQueryParam(request, paramName, payload);
-            case "body" -> modifyBodyParam(request, paramName, payload);
-            case "header" -> request.withHeader(paramName, payload);
-            case "path" -> modifyPathParam(request, paramName, payload);
-            case "cookie" -> modifyCookie(request, paramName, payload);
-            default -> modifyQueryParam(request, paramName, payload);
-        };
-    }
-
-    private HttpRequest modifyQueryParam(HttpRequest request, String paramName, String payload) {
-        String path = request.path();
-        int qIdx = path.indexOf('?');
-        String basePath = qIdx >= 0 ? path.substring(0, qIdx) : path;
-        String queryString = qIdx >= 0 ? path.substring(qIdx + 1) : "";
-
-        String encodedPayload = URLEncoder.encode(payload, StandardCharsets.UTF_8);
-        String encodedName = URLEncoder.encode(paramName, StandardCharsets.UTF_8);
-
-        if (queryString.isEmpty()) {
-            return request.withPath(basePath + "?" + encodedName + "=" + encodedPayload);
-        }
-
-        String[] pairs = queryString.split("&");
-        boolean replaced = false;
-        StringBuilder newQuery = new StringBuilder();
-        for (String pair : pairs) {
-            if (newQuery.length() > 0) newQuery.append("&");
-            int eq = pair.indexOf('=');
-            String key = eq >= 0 ? pair.substring(0, eq) : pair;
-            if (key.equals(encodedName) || key.equals(paramName)) {
-                newQuery.append(encodedName).append("=").append(encodedPayload);
-                replaced = true;
-            } else {
-                newQuery.append(pair);
-            }
-        }
-        if (!replaced) {
-            newQuery.append("&").append(encodedName).append("=").append(encodedPayload);
-        }
-
-        return request.withPath(basePath + "?" + newQuery);
-    }
-
-    private HttpRequest modifyBodyParam(HttpRequest request, String paramName, String payload) {
-        String bodyStr = request.bodyToString();
-
-        String contentType = "";
-        for (HttpHeader h : request.headers()) {
-            if ("Content-Type".equalsIgnoreCase(h.name())) {
-                contentType = h.value().toLowerCase();
-                break;
-            }
-        }
-
-        if (contentType.contains("application/json")) {
-            return modifyJsonBody(request, paramName, payload, bodyStr);
-        }
-
-        String encodedPayload = URLEncoder.encode(payload, StandardCharsets.UTF_8);
-        String encodedName = URLEncoder.encode(paramName, StandardCharsets.UTF_8);
-
-        if (bodyStr == null || bodyStr.isEmpty()) {
-            return request.withBody(encodedName + "=" + encodedPayload);
-        }
-
-        String[] pairs = bodyStr.split("&");
-        boolean replaced = false;
-        StringBuilder newBody = new StringBuilder();
-        for (String pair : pairs) {
-            if (newBody.length() > 0) newBody.append("&");
-            int eq = pair.indexOf('=');
-            String key = eq >= 0 ? pair.substring(0, eq) : pair;
-            if (key.equals(encodedName) || key.equals(paramName)) {
-                newBody.append(encodedName).append("=").append(encodedPayload);
-                replaced = true;
-            } else {
-                newBody.append(pair);
-            }
-        }
-        if (!replaced) {
-            newBody.append("&").append(encodedName).append("=").append(encodedPayload);
-        }
-
-        return request.withBody(newBody.toString());
-    }
-
-    private HttpRequest modifyJsonBody(HttpRequest request, String paramName, String payload, String bodyStr) {
-        String escaped = JsonUtil.escape(payload);
-        String pattern = "\"" + Pattern.quote(paramName) + "\"\\s*:\\s*(?:\"[^\"]*\"|\\d+(?:\\.\\d+)?|true|false|null)";
-        String replacement = "\"" + paramName + "\": \"" + escaped + "\"";
-
-        String newBody = bodyStr.replaceFirst(pattern, Matcher.quoteReplacement(replacement));
-        if (newBody.equals(bodyStr)) {
-            int lastBrace = newBody.lastIndexOf('}');
-            if (lastBrace > 0) {
-                newBody = newBody.substring(0, lastBrace).stripTrailing();
-                if (!newBody.endsWith("{")) newBody += ", ";
-                newBody += "\"" + paramName + "\": \"" + escaped + "\"}";
-            }
-        }
-        return request.withBody(newBody);
-    }
-
-    private HttpRequest modifyPathParam(HttpRequest request, String paramName, String payload) {
-        String path = request.path();
-        String modified = path.replace("{" + paramName + "}", URLEncoder.encode(payload, StandardCharsets.UTF_8));
-        if (modified.equals(path)) {
-            modified = path.replaceFirst(
-                "(?i)/" + Pattern.quote(paramName) + "/([^/?]+)",
-                "/" + paramName + "/" + URLEncoder.encode(payload, StandardCharsets.UTF_8)
-            );
-        }
-        return request.withPath(modified);
-    }
-
-    private HttpRequest modifyCookie(HttpRequest request, String paramName, String payload) {
-        String cookieHeader = "";
-        for (HttpHeader h : request.headers()) {
-            if ("Cookie".equalsIgnoreCase(h.name())) {
-                cookieHeader = h.value();
-                break;
-            }
-        }
-
-        if (cookieHeader.isEmpty()) {
-            return request.withHeader("Cookie", paramName + "=" + payload);
-        }
-
-        String[] cookies = cookieHeader.split(";\\s*");
-        boolean replaced = false;
-        StringBuilder newCookies = new StringBuilder();
-        for (String cookie : cookies) {
-            if (newCookies.length() > 0) newCookies.append("; ");
-            int eq = cookie.indexOf('=');
-            String name = eq >= 0 ? cookie.substring(0, eq).trim() : cookie.trim();
-            if (name.equals(paramName)) {
-                newCookies.append(paramName).append("=").append(payload);
-                replaced = true;
-            } else {
-                newCookies.append(cookie.trim());
-            }
-        }
-        if (!replaced) {
-            newCookies.append("; ").append(paramName).append("=").append(payload);
-        }
-
-        return request.withHeader("Cookie", newCookies.toString());
-    }
-
-    static List<String> toStringList(List<Object> list) {
-        if (list == null) return Collections.emptyList();
-        List<String> result = new ArrayList<>();
-        for (Object o : list) {
-            result.add(String.valueOf(o));
-        }
-        return result;
-    }
 }
