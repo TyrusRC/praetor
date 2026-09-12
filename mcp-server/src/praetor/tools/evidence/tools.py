@@ -48,13 +48,13 @@ async def snapshot_and_rotate(domain: str, scanner_limit: int = 500,
     written: dict[str, int] = {}
 
     scanner = await client.get("/api/scanner/findings", params={"limit": scanner_limit})
-    issues = scanner.get("findings", scanner) if isinstance(scanner, dict) else scanner
+    issues = scanner.get("items", scanner.get("findings", scanner)) if isinstance(scanner, dict) else scanner
     if isinstance(issues, list):
         (snap_dir / "scanner_findings.json").write_text(json.dumps(issues, indent=2), encoding="utf-8")
         written["scanner_findings"] = len(issues)
 
     sm = await client.get("/api/sitemap", params={"limit": sitemap_limit})
-    sm_entries = sm.get("sitemap", sm) if isinstance(sm, dict) else sm
+    sm_entries = sm.get("items", sm.get("sitemap", sm)) if isinstance(sm, dict) else sm
     if isinstance(sm_entries, list):
         (snap_dir / "sitemap.json").write_text(json.dumps(sm_entries, indent=2), encoding="utf-8")
         written["sitemap_entries"] = len(sm_entries)
@@ -110,13 +110,10 @@ async def audit_history_noise(domain: str = "", limit: int = 1000) -> dict:
     """Report proxy-history composition (in-scope / static / duplicates / noisy
     hosts) and recommendations. Burp cannot delete history — this guides
     capture-time scope + off-proxy routing to keep the .burp project lean."""
-    params = {"limit": limit}
-    if domain:
-        params["host"] = domain
-    data = await client.get("/api/proxy/history", params=params)
+    data = await client.get("/api/proxy/history", params={"limit": limit})
     if isinstance(data, dict) and "error" in data:
         return {"error": data["error"]}
-    entries = data.get("history", data) if isinstance(data, dict) else data
+    entries = data.get("items", data.get("history", data)) if isinstance(data, dict) else data
     scope = {domain} if domain else None
     return _audit.analyze_noise(entries if isinstance(entries, list) else [], scope)
 
@@ -143,13 +140,12 @@ async def verify_capture_hygiene(domain: str = "", baseline: dict | None = None,
         baseline: the `current` object from a prior call, to diff against.
         limit: max history entries to read for the composition counts.
     """
-    params: dict = {"limit": limit}
-    if domain:
-        params["host"] = domain
-    data = await client.get("/api/proxy/history", params=params)
+    # Fetch all history; scope filtering is done in analyze_noise (the server-side
+    # host filter is exact-match and entries carry host in the url, not a field).
+    data = await client.get("/api/proxy/history", params={"limit": limit})
     if isinstance(data, dict) and "error" in data:
         return {"error": data["error"]}
-    entries = data.get("history", data) if isinstance(data, dict) else data
+    entries = data.get("items", data.get("history", data)) if isinstance(data, dict) else data
     scope = {domain} if domain else None
     snap = _audit.analyze_noise(entries if isinstance(entries, list) else [], scope)
 

@@ -57,9 +57,9 @@ class SnapshotAndRotateTest(unittest.IsolatedAsyncioTestCase):
 
         async def fake_get(path, params=None):
             if "scanner" in path:
-                return {"findings": [{"name": "info-leak"}]}
+                return {"items": [{"name": "info-leak"}]}
             if "sitemap" in path:
-                return {"sitemap": [{"url": "/a"}, {"url": "/b"}]}
+                return {"items": [{"url": "/a"}, {"url": "/b"}]}
             if "count" in path:
                 return {"count": 4200}
             return {}
@@ -98,7 +98,7 @@ def _hist(n_clean, n_static=0, n_oos=0, host="example.com"):
     e = [{"url": f"https://{host}/p{i}", "host": host} for i in range(n_clean)]
     e += [{"url": f"https://{host}/a{i}.js", "host": host} for i in range(n_static)]
     e += [{"url": f"https://cdn.other.com/x{i}.js", "host": "cdn.other.com"} for i in range(n_oos)]
-    return {"history": e}
+    return {"items": e}
 
 
 class VerifyCaptureHygieneTest(unittest.IsolatedAsyncioTestCase):

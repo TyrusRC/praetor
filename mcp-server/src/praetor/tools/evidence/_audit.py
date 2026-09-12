@@ -32,7 +32,8 @@ def analyze_noise(history: list[dict], scope_hosts: set[str] | None = None) -> d
         host = e.get("host") or urlparse(e.get("url", "")).netloc
         host_counts[host] = host_counts.get(host, 0) + 1
         if scope_hosts is not None:
-            if any(host == h or host.endswith("." + h) for h in scope_hosts):
+            hp = host.split(":", 1)[0]  # strip :port — entries carry host in the url
+            if any(hp == h or hp.endswith("." + h) for h in scope_hosts):
                 in_scope += 1
             else:
                 out_scope += 1
