@@ -94,5 +94,45 @@ class SnapshotAndRotateTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("error", out)
 
 
+def _hist(n_clean, n_static=0, n_oos=0, host="example.com"):
+    e = [{"url": f"https://{host}/p{i}", "host": host} for i in range(n_clean)]
+    e += [{"url": f"https://{host}/a{i}.js", "host": host} for i in range(n_static)]
+    e += [{"url": f"https://cdn.other.com/x{i}.js", "host": "cdn.other.com"} for i in range(n_oos)]
+    return {"history": e}
+
+
+class VerifyCaptureHygieneTest(unittest.IsolatedAsyncioTestCase):
+
+    async def _run(self, history, baseline=None):
+        from praetor.tools.evidence import tools
+
+        async def fake_get(path, params=None):
+            return history
+
+        with patch.object(tools.client, "get", side_effect=fake_get):
+            return await tools.verify_capture_hygiene("example.com", baseline=baseline)
+
+    async def test_baseline_then_working(self):
+        base = await self._run(_hist(10, n_static=2, n_oos=1))
+        self.assertEqual(base["current"]["proxy_count"], 13)
+        self.assertIn("note", base)
+        # +10 new entries, all clean
+        after = await self._run(_hist(20, n_static=2, n_oos=1), baseline=base["current"])
+        self.assertEqual(after["delta"]["new_entries"], 10)
+        self.assertEqual(after["delta"]["new_static"], 0)
+        self.assertIn("WORKING", after["verdict"])
+
+    async def test_not_effective(self):
+        base = await self._run(_hist(10))
+        after = await self._run(_hist(10, n_static=10, n_oos=5), baseline=base["current"])
+        self.assertGreater(after["delta"]["new_static"], 0)
+        self.assertIn("NOT EFFECTIVE", after["verdict"])
+
+    async def test_no_new_traffic(self):
+        base = await self._run(_hist(10))
+        after = await self._run(_hist(10), baseline=base["current"])
+        self.assertIn("no new traffic", after["verdict"])
+
+
 if __name__ == "__main__":
     unittest.main()

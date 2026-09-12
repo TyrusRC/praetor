@@ -121,7 +121,79 @@ async def audit_history_noise(domain: str = "", limit: int = 1000) -> dict:
     return _audit.analyze_noise(entries if isinstance(entries, list) else [], scope)
 
 
+async def verify_capture_hygiene(domain: str = "", baseline: dict | None = None,
+                                 limit: int = 5000) -> dict:
+    """Measure whether set_capture_hygiene is actually working — the noise rate of
+    NEW capture, not assumed.
+
+    Burp cannot delete old history, so total-history noise never drops; the fix
+    only affects newly-recorded traffic. This reads the cumulative static /
+    out-of-scope counts, and when given a prior `baseline` computes the DELTA —
+    the composition of just the traffic captured since — so you see whether new
+    entries are clean.
+
+    Workflow:
+      1. base = verify_capture_hygiene(domain)          # snapshot BEFORE
+      2. set_capture_hygiene()                            # apply
+      3. browser_crawl(...) / normal testing             # generate traffic
+      4. verify_capture_hygiene(domain, baseline=base["current"])   # measure
+
+    Args:
+        domain: restrict to one host (empty = all history).
+        baseline: the `current` object from a prior call, to diff against.
+        limit: max history entries to read for the composition counts.
+    """
+    params: dict = {"limit": limit}
+    if domain:
+        params["host"] = domain
+    data = await client.get("/api/proxy/history", params=params)
+    if isinstance(data, dict) and "error" in data:
+        return {"error": data["error"]}
+    entries = data.get("history", data) if isinstance(data, dict) else data
+    scope = {domain} if domain else None
+    snap = _audit.analyze_noise(entries if isinstance(entries, list) else [], scope)
+
+    current = {
+        "proxy_count": snap["total"],
+        "static": snap["static_assets"],
+        "out_of_scope": snap["out_of_scope"],
+    }
+    out: dict = {
+        "domain": domain or "(all)",
+        "current": current,
+        "static_pct": snap["static_pct"],
+        "top_noisy_hosts": snap.get("top_noisy_hosts", [])[:5],
+    }
+
+    if baseline:
+        d_total = current["proxy_count"] - int(baseline.get("proxy_count", 0))
+        d_static = current["static"] - int(baseline.get("static", 0))
+        d_oos = current["out_of_scope"] - int(baseline.get("out_of_scope", 0))
+        if d_total > 0:
+            new_static_pct = round(100 * d_static / d_total, 1)
+            new_oos_pct = round(100 * d_oos / d_total, 1)
+            working = new_static_pct < 5.0 and d_oos == 0
+            out["delta"] = {
+                "new_entries": d_total, "new_static": d_static, "new_out_of_scope": d_oos,
+                "new_static_pct": new_static_pct, "new_out_of_scope_pct": new_oos_pct,
+            }
+            out["verdict"] = (
+                "WORKING — new traffic is clean (static/out-of-scope near zero)" if working
+                else "NOT EFFECTIVE — new traffic is still noisy. Enable Burp's "
+                     "record-Proxy-history-only-in-scope toggle and confirm the scope excludes."
+            )
+        elif d_total < 0:
+            out["verdict"] = "history shrank vs baseline — a project rotation happened; re-baseline."
+        else:
+            out["verdict"] = "no new traffic since baseline — generate some (browser_crawl) then re-run."
+    else:
+        out["note"] = ("Baseline captured. Now: set_capture_hygiene() → generate traffic → "
+                       "verify_capture_hygiene(domain, baseline=<this 'current'>).")
+    return out
+
+
 def register(mcp: FastMCP) -> None:
     mcp.tool()(curate_evidence)
     mcp.tool()(audit_history_noise)
     mcp.tool()(snapshot_and_rotate)
+    mcp.tool()(verify_capture_hygiene)
