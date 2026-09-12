@@ -88,6 +88,19 @@ class PickToolRoutingW22Test(unittest.IsolatedAsyncioTestCase):
         self.assertIn("discover_attack_surface", out)
 
 
+class MobileDiscoverabilityTest(unittest.IsolatedAsyncioTestCase):
+    """Task 9 fix round 1 — mobile lane must be reachable via pick_tool /
+    list_tier1_tools, not just by direct tool-name invocation."""
+
+    async def test_pick_tool_routes_mobile_query(self):
+        out = await pick_tool_impl("control android device")
+        self.assertIn("mobile_", out)
+
+    def test_tier1_includes_mobile_devices(self):
+        names = {n for n, _ in TIER1_HUNT_LOOP}
+        self.assertIn("mobile_devices", names)
+
+
 class ListTier1ToolsRegisteredTest(unittest.TestCase):
 
     def test_list_tier1_tools_registered(self):

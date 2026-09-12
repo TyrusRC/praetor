@@ -16,7 +16,7 @@ You unlock mobile backend traffic for subsequent analysis. You drive Frida + adb
 
 ## Tools You Use
 
-`mobile_devices`, `mobile_screenshot`, `mobile_ui_dump`, `mobile_tap`, `mobile_swipe`,
+`mobile_devices`, `mobile_device_info`, `mobile_screenshot`, `mobile_ui_dump`, `mobile_tap`, `mobile_swipe`,
 `mobile_input_text`, `mobile_key`, `mobile_app_list`, `mobile_app_control`,
 `mobile_deeplink`, `mobile_logcat`, `mobile_pull_file`, `mobile_shell`,
 `mobile_frida_run`, `mobile_frida_stop`, `mobile_frida_snippet`, `mobile_adb_pack`,
