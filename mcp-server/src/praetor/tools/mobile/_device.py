@@ -147,6 +147,34 @@ class AndroidBackend(_Backend):
     def _target_flag(self, dev: Device) -> list[str]:
         return ["-s", dev.id] if dev.id else []
 
+    async def screenshot(self, dev, out_path):
+        data, err, rc = await self.run_binary(dev, ["exec-out", "screencap", "-p"])
+        if rc != 0:
+            raise DeviceError(f"screencap failed: {err.strip()}")
+        out_path.write_bytes(data)
+
+    async def ui_dump_raw(self, dev):
+        _o, err, rc = await self.run(dev, ["shell", "uiautomator", "dump", "/sdcard/praetor_ui.xml"])
+        if rc != 0:
+            raise DeviceError(f"uiautomator dump failed: {err.strip()}")
+        out, err2, rc2 = await self.run(dev, ["shell", "cat", "/sdcard/praetor_ui.xml"])
+        if rc2 != 0:
+            raise DeviceError(f"reading ui dump failed: {err2.strip()}")
+        return out
+
+    async def tap(self, dev, x, y):
+        await self.run(dev, ["shell", "input", "tap", str(x), str(y)])
+
+    async def swipe(self, dev, x1, y1, x2, y2, duration_ms):
+        await self.run(dev, ["shell", "input", "swipe", str(x1), str(y1),
+                             str(x2), str(y2), str(duration_ms)])
+
+    async def input_text(self, dev, text):
+        await self.run(dev, ["shell", "input", "text", text.replace(" ", "%s")])
+
+    async def key(self, dev, key):
+        await self.run(dev, ["shell", "input", "keyevent", key])
+
 
 class IOSBackend(_Backend):
     platform = "ios"
@@ -154,6 +182,29 @@ class IOSBackend(_Backend):
 
     def _target_flag(self, dev: Device) -> list[str]:
         return ["--udid", dev.id] if dev.id else []
+
+    async def screenshot(self, dev, out_path):
+        _o, err, rc = await self.run(dev, ["screenshot", str(out_path)])
+        if rc != 0:
+            raise DeviceError(f"idb screenshot failed: {err.strip()}")
+
+    async def ui_dump_raw(self, dev):
+        out, err, rc = await self.run(dev, ["ui", "describe-all", "--json"])
+        if rc != 0:
+            raise DeviceError(f"idb ui describe-all failed: {err.strip()}")
+        return out
+
+    async def tap(self, dev, x, y):
+        await self.run(dev, ["ui", "tap", str(x), str(y)])
+
+    async def swipe(self, dev, x1, y1, x2, y2, duration_ms):
+        await self.run(dev, ["ui", "swipe", str(x1), str(y1), str(x2), str(y2)])
+
+    async def input_text(self, dev, text):
+        await self.run(dev, ["ui", "text", text])
+
+    async def key(self, dev, key):
+        await self.run(dev, ["ui", "key", key])
 
 
 def backend_for(dev: Device) -> AndroidBackend | IOSBackend:
