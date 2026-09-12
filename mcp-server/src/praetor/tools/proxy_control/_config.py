@@ -7,8 +7,66 @@ import json
 from praetor import client
 from ._helpers import _DANGEROUS_HEADER_PATTERNS
 
+# Defaults for set_capture_hygiene — the assets/hosts that bloat a .burp project
+# without ever carrying a finding. Overridable per call.
+_DEFAULT_STATIC_EXTS = [
+    "js", "mjs", "css", "map", "png", "jpg", "jpeg", "gif", "svg", "ico", "webp",
+    "avif", "bmp", "woff", "woff2", "ttf", "eot", "otf", "mp4", "webm", "mp3",
+    "wav", "ogg", "pdf", "wasm",
+]
+_DEFAULT_NOISE_HOSTS = [
+    "google-analytics.com", "analytics.google.com", "googletagmanager.com",
+    "doubleclick.net", "google-analytics.l.google.com", "stats.g.doubleclick.net",
+    "connect.facebook.net", "facebook.com", "fbcdn.net", "hotjar.com",
+    "mixpanel.com", "segment.com", "segment.io", "sentry.io", "bugsnag.com",
+    "newrelic.com", "nr-data.net", "cloudflareinsights.com", "gstatic.com",
+    "fonts.googleapis.com", "fonts.gstatic.com", "clarity.ms", "bing.com",
+]
+
 
 def register(mcp: FastMCP):
+
+    @mcp.tool()
+    async def set_capture_hygiene(
+        record_in_scope_only: bool = True,
+        exclude_static: bool = True,
+        exclude_noise: bool = True,
+        static_extensions: list[str] | None = None,
+        noise_hosts: list[str] | None = None,
+    ) -> dict:
+        """Keep the .burp project lean at CAPTURE time — exclude static assets + noise hosts from scope and request in-scope-only Proxy history.
+
+        Burp cannot delete history or scanner issues after the fact (Montoya has
+        no delete), so the only real lever is to stop recording noise. This
+        excludes static-asset URLs and known analytics/tracker/CDN hosts from
+        Burp scope (which also stops Praetor's own tools annotating them) and
+        best-effort enables "record Proxy history only for in-scope items".
+
+        Returns the applied rules, whether the option import succeeded, and an
+        excerpt of Burp's live proxy options so you can VERIFY the effect (the
+        exact project-option key varies by Burp version — if `record_only_in_scope`
+        isn't reflected, flip the one-time toggle named in the response `note`).
+        Scanner issues from Burp's audit + other extensions can't be deleted;
+        filter them with `get_issues_dashboard` (Certain/Firm, High+).
+
+        Args:
+            record_in_scope_only: request Burp record Proxy history only for in-scope items.
+            exclude_static: exclude static-asset extensions from scope.
+            exclude_noise: exclude analytics/tracker/CDN hosts from scope.
+            static_extensions: override the default static-extension list.
+            noise_hosts: override the default noise-host list.
+        """
+        body = {
+            "record_in_scope_only": record_in_scope_only,
+            "exclude_static": exclude_static,
+            "exclude_noise": exclude_noise,
+            "static_extensions": static_extensions if static_extensions is not None else _DEFAULT_STATIC_EXTS,
+            "noise_hosts": noise_hosts if noise_hosts is not None else _DEFAULT_NOISE_HOSTS,
+        }
+        data = await client.post("/api/proxy/capture-hygiene", json=body)
+        if isinstance(data, dict) and "error" in data:
+            return {"error": data["error"]}
+        return data
 
     @mcp.tool()
     async def intercept(action: str = "status") -> str:

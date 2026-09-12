@@ -89,6 +89,9 @@ public class ApiServer {
         // Health
         server.createContext("/api/health", new HealthHandler(version));
 
+        // Capture hygiene (more specific than /api/proxy — longest-prefix wins)
+        server.createContext("/api/proxy/capture-hygiene", new CaptureHygieneHandler(api));
+
         // Proxy history
         server.createContext("/api/proxy", new ProxyHandler(api));
 
