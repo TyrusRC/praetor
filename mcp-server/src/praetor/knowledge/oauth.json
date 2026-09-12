@@ -5,7 +5,8 @@
     "csrf",
     "passkey_stepup_bypass",
     "account_takeover",
-    "saml_xsw"
+    "saml_xsw",
+    "subdomain_takeover"
   ],
   "contexts": {
     "redirect_uri_bypass": {
@@ -1555,6 +1556,70 @@
           ],
           "severity": "high",
           "confidence_boost": 55
+        }
+      ]
+    },
+    "authorization_code_injection_2025": {
+      "description": "Authorization Code Injection (PortSwigger 2025 Top-10 class). Attacker obtains a valid authorization `code` \u2014 from their own IdP session, or harvested via a same-origin script that breaks the redirect and reads the RP's server-set pre-auth cookie out-of-band \u2014 then injects it into the victim's session at the RP callback. If the RP does not bind the code to the initiating session via PKCE `code_verifier` or `state`, the victim is authenticated as (or account-linked to) the attacker's identity. Bypasses BFF + PKCE. Distinct from pkce_downgrade/state_bypass: the code is minted in a DIFFERENT session and replayed into the victim's. Needs a same-origin script/XSS or a leaky redirect to harvest the code/cookie \u2014 manual chain.",
+      "tech_match": [
+        "oauth",
+        "oidc",
+        "openid"
+      ],
+      "param_match": [
+        "code",
+        "code_verifier",
+        "state"
+      ],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Replay a callback carrying a `code` minted under a different browser/session with no matching code_verifier; 200 + auth Set-Cookie or 302 to an authenticated area means the code is not bound to PKCE/session \u2192 injection.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "header",
+              "name": "Set-Cookie"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {
+            "manual_chain": true
+          }
+        }
+      ]
+    },
+    "oauth_cookie_tossing_2025": {
+      "description": "OAuth Cookie Tossing (Elliot Ward, PortSwigger 2025 Top-10). A sibling / attacker-controlled subdomain (subdomain takeover, self-XSS on a subdomain, or a user-content subdomain) sets a cookie scoped to the parent (Domain=.target.com) that shadows the OAuth `state`/session cookie the RP relies on. When the victim completes the flow the tossed cookie fixes the state/session \u2192 login CSRF / account linking. Signal: the RP stores OAuth `state` or the post-login session in a domain-scoped cookie WITHOUT the `__Host-` prefix, so a subdomain can overwrite it. Pairs with subdomain_takeover or subdomain XSS \u2014 manual chain.",
+      "tech_match": [
+        "oauth",
+        "oidc"
+      ],
+      "param_match": [
+        "state"
+      ],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Inspect the RP's OAuth state/session cookie: a name without the `__Host-` prefix and with an explicit Domain attribute is toss-able from any sibling subdomain. Confirm by setting Domain=.target for that cookie from a sibling origin and running the flow \u2014 if the RP honours the tossed value the state/session is fixable.",
+          "matchers": [
+            {
+              "type": "header",
+              "name": "Set-Cookie"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {
+            "manual_chain": true
+          }
         }
       ]
     }

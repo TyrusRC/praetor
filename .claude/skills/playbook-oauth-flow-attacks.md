@@ -19,6 +19,11 @@ Load when: target uses OAuth 2.0 / OIDC (Sign in with Google / Apple / GitHub / 
 
 State CSRF / PKCE-not-enforced / redirect_uri-too-loose are NEVER_SUBMIT alone — chain with `open_redirect` or `csrf` to escalate (Rule 17).
 
+**2025 Top-10 classes (ATO-tier, in `oauth.json`):**
+- `authorization_code_injection_2025` — code minted in the attacker's session injected into the victim's callback; wins when the RP doesn't bind the code to PKCE `code_verifier` / `state`. Bypasses BFF + PKCE. Needs a same-origin script/XSS or a leaky redirect to harvest the code/pre-auth cookie — manual chain.
+- `oauth_cookie_tossing_2025` — a sibling subdomain sets `Domain=.target` cookies that shadow the RP's `state`/session cookie (no `__Host-` prefix) → login fixation / account linking. Chains with `subdomain_takeover` or subdomain XSS.
+Load via `auto_probe(categories=['oauth'])`; both are `manual_chain` leads, not blind-fireable.
+
 ## Flow inventory
 
 Identify which flow(s) the target uses BEFORE attacking — payload + severity ceiling change per flow.
