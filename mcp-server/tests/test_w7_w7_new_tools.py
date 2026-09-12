@@ -35,7 +35,9 @@ class CVSSToolTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("cvss4_vector", out)
         self.assertIn("cvss31_vector", out)
         self.assertIn("cvss4_band", out)
-        self.assertEqual(out["cvss4_band"], "High")
+        # Real FIRST.org CVSS 4.0: unauth SQLi (VC:H/VI:H) scores 9.3 -> Critical.
+        self.assertEqual(out["cvss4_band"], "Critical")
+        self.assertEqual(out["cvss4_base_score"], 9.3)
 
 
 class RankTargetsTest(unittest.IsolatedAsyncioTestCase):

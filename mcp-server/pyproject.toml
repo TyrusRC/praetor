@@ -26,6 +26,9 @@ dependencies = [
     # defusedxml: XXE/billion-laughs-safe parsing of untrusted scanner output
     # (Nessus / OpenVAS / Burp XML) in import_scan_results.
     "defusedxml>=0.7.1",
+    # cvss: real FIRST.org base-score computation (2.0/3.x/4.0) — replaces the
+    # in-repo MacroVector band approximation in advisor/_cvss4.py.
+    "cvss>=3.4",
 ]
 
 [project.urls]

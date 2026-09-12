@@ -14,11 +14,24 @@ class CVSS4Test(unittest.TestCase):
         self.assertTrue(v.startswith("CVSS:4.0/"))
         self.assertIn("AV:N", v)
         self.assertIn("VC:H", v)
-        self.assertEqual(_cvss4.severity_band(v), "High")
+        # Real FIRST.org CVSS 4.0: unauth SQLi (VC:H/VI:H) is 9.3 -> Critical
+        # (the prior MacroVector approximation under-rated it as High).
+        self.assertEqual(_cvss4.severity_band(v), "Critical")
 
     def test_build_rce_critical(self):
         v = _cvss4.build_vector("rce")
         self.assertEqual(_cvss4.severity_band(v), "Critical")
+
+    def test_real_base_score_from_lib(self):
+        # Exact FIRST.org reference values, not the MacroVector approximation.
+        v = _cvss4.build_vector("sqli")
+        self.assertEqual(_cvss4.base_score(v), 9.3)
+        self.assertEqual(_cvss4.band_from_score(9.3), "Critical")
+        self.assertEqual(_cvss4.band_from_score(0.0), "None")
+        self.assertEqual(_cvss4.band_from_score(5.5), "Medium")
+        # 3.1 projection also scores via the lib.
+        v31 = _cvss4.to_cvss31_vector(_cvss4.parse_vector(v))
+        self.assertIsInstance(_cvss4.cvss31_score(v31), float)
 
     def test_unknown_vuln_falls_back(self):
         v = _cvss4.build_vector("totally_made_up_class")

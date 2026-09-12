@@ -10,6 +10,11 @@ from ._cvss4_data import (  # noqa: F401
     _VULN_DEFAULTS, _VULN_ALIASES,
 )
 
+try:
+    from cvss import CVSS3 as _CVSS3, CVSS4 as _CVSS4
+except ImportError:  # pragma: no cover - cvss is a declared dependency
+    _CVSS3 = _CVSS4 = None
+
 
 def _default(vuln_type: str) -> dict[str, str]:
     """Base metrics for a class, falling back to the info-disclosure floor.
@@ -158,9 +163,45 @@ def macrovector(parsed: dict[str, str]) -> str:
     return f"{_eq1(parsed)}{_eq2(parsed)}{_eq3(parsed)}{_eq4(parsed)}{_eq5(parsed)}"
 
 
-# Boundary bands derived from FIRST.org reference: averaging cluster scores per
-# macrovector prefix yields tight bands. This is APPROXIMATE — exact numeric
-# scoring needs the full reference table (cvss pip lib).
+def base_score(vector: str) -> float | None:
+    """Real CVSS 4.0 base score via the FIRST.org reference (cvss lib).
+
+    Returns None when the lib is unavailable or the vector will not parse, so
+    callers fall back to the MacroVector band approximation below.
+    """
+    if _CVSS4 is None:
+        return None
+    try:
+        return float(_CVSS4(vector).base_score)
+    except Exception:
+        return None
+
+
+def cvss31_score(vector: str) -> float | None:
+    """Real CVSS 3.1 base score for a 3.1 vector string (None on failure)."""
+    if _CVSS3 is None:
+        return None
+    try:
+        return float(_CVSS3(vector).base_score)
+    except Exception:
+        return None
+
+
+def band_from_score(score: float) -> str:
+    """FIRST.org qualitative band for a numeric base score (shared 3.x/4.0 bands)."""
+    if score <= 0:
+        return "None"
+    if score < 4.0:
+        return "Low"
+    if score < 7.0:
+        return "Medium"
+    if score < 9.0:
+        return "High"
+    return "Critical"
+
+
+# Fallback only: averaging cluster scores per MacroVector prefix yields tight
+# bands. APPROXIMATE — used solely when the cvss lib cannot score a vector.
 def band_from_macrovector(mv: str) -> str:
     eq1, eq2, eq3, eq4, eq5 = (int(c) for c in mv)
     impact = eq3 + eq4  # 0..4 (lower = worse)
@@ -178,6 +219,10 @@ def band_from_macrovector(mv: str) -> str:
 
 
 def severity_band(vector: str) -> str:
+    """Qualitative band from the REAL base score, MacroVector as fallback."""
+    score = base_score(vector)
+    if score is not None:
+        return band_from_score(score)
     return band_from_macrovector(macrovector(parse_vector(vector)))
 
 

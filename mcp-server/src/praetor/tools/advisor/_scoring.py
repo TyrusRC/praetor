@@ -51,18 +51,22 @@ async def compute_cvss_impl(
         v4 = _cvss4.build_vector(vuln_type, evidence=evidence, env=env)
         parsed = _cvss4.parse_vector(v4)
         mv = _cvss4.macrovector(parsed)
-        band = _cvss4.band_from_macrovector(mv)
         v31 = _cvss4.to_cvss31_vector(parsed)
+        score4 = _cvss4.base_score(v4)
+        if score4 is not None:
+            band = _cvss4.band_from_score(score4)
+            note = "Exact CVSS 4.0 base score via the FIRST.org reference (cvss lib)."
+        else:
+            band = _cvss4.band_from_macrovector(mv)
+            note = "cvss lib unavailable — cvss4_band is the MacroVector approximation."
         return {
             "cvss4_vector": v4,
             "cvss4_macrovector": mv,
+            "cvss4_base_score": score4,
             "cvss4_band": band,
             "cvss31_vector": v31,
-            "note": (
-                "cvss4_band is APPROXIMATE — derived from MacroVector "
-                "equivalence classes. For exact numeric score, install "
-                "the `cvss` pip package and call cvss.CVSS4(vector).base_score."
-            ),
+            "cvss31_base_score": _cvss4.cvss31_score(v31),
+            "note": note,
         }
     except ValueError as exc:
         return {"error": str(exc), "vuln_type": vuln_type}
@@ -103,7 +107,8 @@ async def validate_severity_impl(
     }
     try:
         v4 = _cvss4.build_vector(vuln_type, evidence=evidence, env={})
-        band = _cvss4.band_from_macrovector(_cvss4.macrovector(_cvss4.parse_vector(v4)))
+        band = _cvss4.severity_band(v4)
+        score4 = _cvss4.base_score(v4)
     except ValueError as exc:
         return {"error": str(exc), "vuln_type": vuln_type}
 
@@ -121,7 +126,8 @@ async def validate_severity_impl(
                   f"{computed}. Consider raising it if impact supports it.")
     return {
         "vuln_type": vuln_type, "claimed": claimed, "cvss_band": computed,
-        "verdict": verdict, "cvss4_vector": v4, "advice": advice,
+        "cvss4_base_score": score4, "verdict": verdict, "cvss4_vector": v4,
+        "advice": advice,
     }
 
 async def debate_triage_impl(
