@@ -16,6 +16,19 @@ Load when: a parameter accepts a URL / hostname / file path AND the server fetch
 - generic 5-axis survey → `test_ssrf(url, parameter, use_collaborator=True)`
 - edge-worker class (Cloudflare Worker / Lambda@Edge / Fastly) → KB `edge_worker_ssrf.json` matchers via `auto_probe`
 
+## Where it hides — params to fuzz first
+
+Any param that looks like it takes a URL, host, or path is a candidate — and SSRF hides behind webhook/callback/import/preview/PDF/avatar-by-URL features even when the value isn't an obvious URL. Prioritise these names (from real reports):
+
+```
+url  uri  u  link  src  href  dest  destination  redirect  redirect_uri  redirect_url
+return  returnUrl  next  continue  data  reference  site  html  domain  callback
+webhook  feed  host  port  path  proxy  fwd  forward  load  fetch  file  document
+image  imageUrl  img  avatar  preview  page  view  show  open  out  to  target  api
+```
+
+Also check: JSON body fields (not just query), `Referer`/`X-Forwarded-Host` headers, XML entities (→ XXE-SSRF), and any "fetch from URL"/"import" upload that accepts a remote path.
+
 ## SSRF classification matrix
 
 Identify the class first — payload + evidence bar + severity all change.

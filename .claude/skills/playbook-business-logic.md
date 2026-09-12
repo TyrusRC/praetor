@@ -104,6 +104,19 @@ every state-changing endpoint where the `kill_switches` list intersects:
 
 - coupon claim, vote, like, refund request, balance withdraw, role grant,
   password reset request, friend request, follow, comment delete
+- gift-card / promo-code redemption, subscription or trial start, invite/join,
+  unfollow, group add/remove, upvote/downvote, CTF-style one-off submit, any
+  "N per account" limit (referral bonus, free-tier quota, one-vote-per-poll)
+
+**Two shapes:** single-endpoint (fire the same request in parallel — the limit
+check and the write straddle a TOCTOU window) and multi-endpoint (e.g.
+add-to-cart → apply-coupon → checkout raced so the discount lands twice).
+Use `test_race_condition`; for a hard latch, HTTP/2 single-packet or last-byte
+sync (`probe_race_singlepacket` / `probe_race_lastbyte`) removes network jitter.
+
+Indicators worth escalating: the same confirmation link mailed to two addresses,
+identical response times across parallel requests, or duplicate rows in the
+account's records after a burst.
 
 Confirmed = action runs MORE times than expected (3 coupons claimed by 1 user, balance debited 3×).
 

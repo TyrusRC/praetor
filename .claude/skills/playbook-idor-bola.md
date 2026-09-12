@@ -54,6 +54,23 @@ For everything except UUIDv4 / cryptographic hash: enumeration is in play.
 4. **Monotonic enumeration** — `probe_id_monotonic(path_template, seed_id, window=50)` for sequential / UUIDv1 / ULID / Snowflake.
 5. **Compare-and-flag** — `compare_auth_states(index, original_cookies, alt_cookies)` for one-off CRUD operations.
 
+## When a plain ID swap is blocked — mutation techniques
+
+A bare-param swap returning 403 does NOT clear the endpoint. Cycle these before recording a negative — each hits a different back-end code path:
+
+- **Add the ID** to a request that omits it — the server may honour `?user_id=<victim>` even when the UI never sends it.
+- **Rename the param** — `id` → `user_id`/`uid`/`account_id`/`pid`; a sibling handler may skip the ACL.
+- **Parameter pollution** — send it twice: `id=<me>&id=<victim>` (and reversed). Front-end validates the first copy, back-end reads the second.
+- **Method swap** — GET→POST/PUT/DELETE and POST↔PUT; REST handlers routinely gate reads but not writes on the same path.
+- **Content-Type swap** — JSON ↔ form-encoded ↔ XML body; the authz filter often parses only one.
+- **Extension swap** — `/user/1` → `/user/1.json`/`.xml`/`.rb`; an alternate renderer bypasses the guard.
+- **ID-type swap** — expects a UUID/hash? try a plain integer (and vice-versa); a fallback path may accept it.
+- **Array wrap** — `id[]=<victim>` or `{"id":["<victim>"]}` when the scalar is rejected.
+- **Wildcard / empty** — `*`, `%`, or a blank value where one ID goes may return every object.
+- **Newest feature first** — the most recently shipped endpoint is the least-tested for authz.
+
+Encode-then-swap: if the ID is base64/hex/"encrypted", decode it, change it, re-encode — the wrapper is rarely authenticated.
+
 ## Auth state matrix discipline
 
 The 2x2 minimum: (your auth × your ID) / (your auth × victim ID) / (victim auth × victim ID) / (no auth × any ID).

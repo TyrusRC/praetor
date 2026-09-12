@@ -410,6 +410,11 @@ Strong auth + weak recovery = ATO. Always test.
 | 8 | Backup code reuse / count not enforced | Use same backup code twice; or all 10 codes don't actually invalidate after use | HIGH |
 | 9 | Trusted device add via session only | Add a "remember this device" entry without 2FA confirm | HIGH |
 | 10 | Recovery answer enumeration | Wrong answer responds differently than correct username | LOW-MEDIUM |
+| 11 | Host-header reset poisoning | Send the reset request with `Host: attacker.tld` (and `X-Forwarded-Host` / `X-Forwarded-Server` / dupe `Host`) — the emailed reset link/token then points at the attacker; harvest via Collaborator (`test_host_header`) | CRITICAL — token exfil ATO |
+| 12 | Token / OTP leaked in response | Intercept the forgot-password / signup / resend response — the reset token, full reset link, or OTP is returned in the body or a header | CRITICAL |
+| 13 | Response / flag manipulation | Intercept the reset/verify/OTP response and flip `"verified":false`→`true`, `"otp_valid":false`→`true`, or status 4xx→200 — wins only when the client trusts the response to gate the next step | CRITICAL if client-gated |
+| 14 | Recipient param pollution | `email=victim@x.com&email=attacker@x.com`, `email[]=victim&email[]=attacker`, JSON `"email":["victim","attacker"]`, or CRLF `victim@x.com%0acc:attacker@x.com` — server validates the victim but mails the token to the attacker | CRITICAL |
+| 15 | Zero-token / token-not-checked | Submit the reset with an empty, deleted, or arbitrary `token` param — some flows only check presence, not validity | CRITICAL |
 
 ---
 
