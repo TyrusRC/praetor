@@ -235,6 +235,12 @@ class AndroidBackend(_Backend):
         # wrap complex commands in ["shell","sh","-c", command].
         return await self.run(dev, ["shell", *command.split()])
 
+    async def get_proxy(self, dev):
+        """Device-wide HTTP proxy setting, or "" if unset/disabled (":0")."""
+        out, _, _ = await self.run(dev, ["shell", "settings", "get", "global", "http_proxy"])
+        v = out.strip()
+        return "" if v in ("", "null", ":0", "0") else v
+
 
 class IOSBackend(_Backend):
     platform = "ios"
