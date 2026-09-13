@@ -7,12 +7,13 @@ cites a logger_index. HARD safety Rules 5-9 and the device allowlist apply.
 
 from mcp.server.fastmcp import FastMCP
 
-from . import control, frida, payloads, proxy
+from . import connect, control, frida, payloads, proxy
 
 
 def register(mcp: FastMCP) -> None:
     payloads.register(mcp)
     control.register(mcp)
+    connect.register(mcp)
     frida.register(mcp)
     proxy.register(mcp)
 
