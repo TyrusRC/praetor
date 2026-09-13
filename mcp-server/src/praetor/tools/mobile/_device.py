@@ -266,6 +266,16 @@ class _Backend:
         with a raw AttributeError instead of degrading cleanly."""
         raise DeviceError(f"{self.platform}: opening a URL is not supported by this backend")
 
+    async def setting_get(self, dev, ns, key) -> str:
+        """Base fallback: iOS has no CLI-readable/writable settings namespace
+        (AndroidBackend overrides both get and put with real `settings`
+        calls). Without this, mobile_setting's `except DeviceError` would
+        never fire for iOS and the tool would crash with a raw AttributeError."""
+        raise DeviceError(f"{self.platform}: settings are not CLI-writable")
+
+    async def setting_put(self, dev, ns, key, value) -> None:
+        raise DeviceError(f"{self.platform}: settings are not CLI-writable")
+
 
 class AndroidBackend(_Backend):
     platform = "android"
@@ -387,6 +397,17 @@ class AndroidBackend(_Backend):
         """Unset the device-wide HTTP proxy and drop any adb reverse tunnels."""
         await self.run(dev, ["shell", "settings", "put", "global", "http_proxy", ":0"])
         await self.run(dev, ["reverse", "--remove-all"])
+
+    async def setting_get(self, dev, ns, key) -> str:
+        """Read a `settings` value from the given namespace (system/secure/global)."""
+        out, _, _ = await self.run(dev, ["shell", "settings", "get", ns, key])
+        v = out.strip()
+        return "" if v in ("", "null") else v
+
+    async def setting_put(self, dev, ns, key, value) -> None:
+        """Write a `settings` value. Explicit argv — never shell(command) —
+        caller (mobile_setting) MUST run check_command() first."""
+        await self.run(dev, ["shell", "settings", "put", ns, key, value])
 
 
 class IOSBackend(_Backend):
