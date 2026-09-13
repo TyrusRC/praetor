@@ -3,7 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
-from ._oast import _pool_lock
+from ._oast import _COLLAB_POOL, _pool_lock
 
 
 def register(mcp: FastMCP):
