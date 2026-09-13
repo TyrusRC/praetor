@@ -105,6 +105,20 @@ class ResolveDeviceTest(unittest.IsolatedAsyncioTestCase):
             got = await _device.resolve_device()
         self.assertEqual(got.id, "ABC123")
 
+    async def test_explicit_device_multiple_connected_no_allowlist_resolves(self):
+        d = _device.Device(id="ABC123", platform="android", authorized=True)
+        d2 = _device.Device(id="DEF456", platform="android", authorized=True)
+        with await self._patch([d, d2]), mock.patch.dict(os.environ, {}, clear=True):
+            got = await _device.resolve_device("ABC123")
+        self.assertEqual(got.id, "ABC123")
+
+    async def test_no_device_multiple_connected_no_allowlist_raises(self):
+        d = _device.Device(id="ABC123", platform="android", authorized=True)
+        d2 = _device.Device(id="DEF456", platform="android", authorized=True)
+        with await self._patch([d, d2]), mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(_device.DeviceError):
+                await _device.resolve_device()
+
 
 class BackendForTest(unittest.TestCase):
     def test_android(self):

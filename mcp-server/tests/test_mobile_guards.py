@@ -152,6 +152,28 @@ class DeviceAllowlistTest(unittest.TestCase):
             ok, _ = _guards.check_device("ABC123", connected_count=1, strict=True)
             self.assertFalse(ok)
 
+    def test_explicit_device_multiple_connected_no_allowlist_ok(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            ok, _ = _guards.check_device("ABC123", connected_count=2, explicit=True)
+            self.assertTrue(ok)
+
+    def test_implicit_device_multiple_connected_no_allowlist_refused(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            ok, why = _guards.check_device("ABC123", connected_count=2, explicit=False)
+            self.assertFalse(ok)
+            self.assertIn("allowlist", why)
+
+    def test_explicit_device_strict_mode_still_refused(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            ok, _ = _guards.check_device("ABC123", connected_count=2, strict=True, explicit=True)
+            self.assertFalse(ok)
+
+    def test_explicit_device_not_in_allowlist_still_refused(self):
+        with mock.patch.dict(os.environ, {"PRAETOR_MOBILE_DEVICES": "Y"}):
+            ok, why = _guards.check_device("X", connected_count=2, explicit=True)
+            self.assertFalse(ok)
+            self.assertIn("allowlist", why)
+
 
 if __name__ == "__main__":
     unittest.main()
