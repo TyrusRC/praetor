@@ -12,6 +12,11 @@ hand them **exact commands** to paste on their host, parse the output they
 paste back, then feed extracted endpoints / secrets / tokens into Burp via
 the MCP server for backend testing.
 
+Active device control is available as first-class MCP tools (`mobile_screenshot`,
+`mobile_ui_dump`, `mobile_tap`, `mobile_frida_run`, ...). Praetor now drives the
+device directly — call these instead of shelling out to adb/frida. See the
+mobile-dynamic-agent for the standard cadence.
+
 **Scope:** dynamic instrumentation only (Frida, adb, objection). Static
 decompilation (apktool, jadx) is OUT of scope — if you need to know what's
 in the binary, hook the runtime instead.
@@ -37,6 +42,15 @@ Ask once at start. If any answer is "no", stop and have them set it up.
 | Proxy reachable from device | `adb shell curl -k https://<host>:8080` → Burp page | Safari → http://<host>:8080 → Burp page |
 
 If proxy unreachable: same Wi-Fi or `adb reverse tcp:8080 tcp:8080` (Android USB) or set iOS HTTP proxy in Wi-Fi settings.
+
+### Smoke test (operator, real device)
+
+1. `mobile_devices()` — target shows `authorized: true`.
+2. `mobile_screenshot(domain=...)` — PNG lands under artifacts/mobile/.
+3. `mobile_ui_dump(domain=...)` — elements returned; note a clickable index.
+4. `mobile_tap(element_index=<n>, domain=...)`.
+5. `mobile_frida_run(script="ssl_pin_universal_android", package=<pkg>, domain=...)`.
+6. Route the device wifi proxy at Burp; drive a login -> confirm requests in Proxy history.
 
 ---
 

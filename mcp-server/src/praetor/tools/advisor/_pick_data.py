@@ -50,4 +50,7 @@ TIER1_HUNT_LOOP = [
     ("assess_finding", "7-question validation gate (Rule 10b)"),
     ("save_finding", "persist finding (Rule 10c)"),
     ("smart_decode", "encoding detection"),
+    # Mobile lane entry
+    ("mobile_devices", "list connected Android/iOS devices — mobile lane entry"),
+    ("mobile_frida_run", "run a Frida hook (e.g. SSL-pinning bypass) to unlock app traffic"),
 ]

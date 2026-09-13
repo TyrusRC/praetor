@@ -15,7 +15,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-_PAYLOADS = Path(__file__).parent.parent / "payloads"
+_PAYLOADS = Path(__file__).parent.parent.parent / "payloads"
 _FRIDA_DIR = _PAYLOADS / "frida"
 _ADB_PATH = _PAYLOADS / "adb_commands.json"
 

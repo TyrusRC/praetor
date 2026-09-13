@@ -6,6 +6,16 @@ Entry order is significant (first keyword match wins).
 
 
 _WORKFLOW = [
+    # ----- Mobile lane: device control entry point -----
+    (["control android device", "control ios device", "drive the phone",
+      "mobile app testing", "adb shell", "frida hook", "ssl pinning bypass",
+      "bypass pinning", "install apk", "deep link app", "uiautomator",
+      "dump mobile ui", "mobile device"],
+     "mobile_devices",
+     "mobile_devices() -> mobile_screenshot/mobile_ui_dump/mobile_tap to drive UI; "
+     "mobile_frida_run(script='ssl_pin_universal_android', package=...) unlocks "
+     "pinned traffic into Burp"),
+
     # ----- session additions: router / offline / evidence / azure -----
     (["route signals", "auto trigger", "auto-trigger", "signal to tool",
       "which tool for this signal", "auto fire scanner", "reactive scan",

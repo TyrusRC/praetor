@@ -14,7 +14,7 @@ from praetor.tools.recon_extended.fingerprints import TAKEOVER_FINGERPRINTS
 class IOSFridaSnippetsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_ios_snippets_present(self):
-        from praetor.tools import mobile_payloads
+        from praetor.tools.mobile import payloads as mobile_payloads
         captured: dict = {}
 
         class _Stub:
@@ -36,7 +36,7 @@ class IOSFridaSnippetsTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn(name, out["available"], f"missing W9 iOS snippet: {name}")
 
     async def test_ios_lacontext_returns_objc_code(self):
-        from praetor.tools import mobile_payloads
+        from praetor.tools.mobile import payloads as mobile_payloads
         captured: dict = {}
 
         class _Stub:
