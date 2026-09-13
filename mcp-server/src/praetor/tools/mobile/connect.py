@@ -10,10 +10,10 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor.tools.recon._common import _run_cmd
 
-from ._device import DeviceError, list_devices, resolve_device
+from ._device import DeviceError, backend_for, list_devices, resolve_device
 from ._store import log_action
 
-_ACTIONS = ("tcpip", "connect", "pair", "disconnect", "list")
+_ACTIONS = ("tcpip", "connect", "pair", "disconnect", "list", "auto")
 
 
 def _is_failure(output: str) -> bool:
@@ -36,6 +36,11 @@ def register(mcp: FastMCP) -> None:
           the connect port.
         - disconnect: `adb disconnect [<ip>:<port>]` (all devices if no ip).
         - list: connected Android + iOS devices and their state.
+        - auto: DHCP-proof wireless bootstrap (Android only). Derives the
+          phone's current Wi-Fi IP over the USB channel (no manual `ip=`
+          needed), then does tcpip + connect in one call. No-op if already on
+          wireless adb. Errors on iOS (no IP-based transport — usbmuxd) or no
+          device.
         """
         if action == "tcpip":
             try:
@@ -93,5 +98,52 @@ def register(mcp: FastMCP) -> None:
             return {"count": len(devs),
                     "devices": [{"id": d.id, "platform": d.platform,
                                  "authorized": d.authorized} for d in devs]}
+
+        if action == "auto":
+            devs = await list_devices()
+            wireless_android = [d for d in devs if d.platform == "android" and ":" in d.id]
+            usb_android = [d for d in devs if d.platform == "android" and ":" not in d.id]
+
+            already = next((d for d in wireless_android if d.authorized), None)
+            if already:
+                oid = log_action(domain, already.id, "auto",
+                                 description="already on wireless adb")
+                return {"action": "auto", "serial": already.id,
+                        "note": "already on wireless adb", "oplog_id": oid}
+
+            if usb_android:
+                dev = next((d for d in usb_android if d.id == device), usb_android[0]) \
+                    if device else usb_android[0]
+                ip = await backend_for(dev).wifi_ip(dev)
+                if not ip:
+                    return {"error": f"device {dev.id} is not on Wi‑Fi (no wlan0 IP) "
+                                     "— connect it to Wi-Fi first"}
+                out, err, rc = await _run_cmd(["adb", "-s", dev.id, "tcpip", str(port)],
+                                              bypass_proxy=True)
+                if rc != 0 or _is_failure(out + err):
+                    return {"error": (out + err).strip() or "adb tcpip failed"}
+                serial = f"{ip}:{port}"
+                combined = ""
+                for _attempt in range(2):
+                    out, err, rc = await _run_cmd(["adb", "connect", serial], bypass_proxy=True)
+                    combined = out + err
+                    if rc == 0 and not _is_failure(combined) and (
+                            "connected" in combined.lower()
+                            or "already connected" in combined.lower()):
+                        break
+                else:
+                    return {"error": combined.strip() or "adb connect failed"}
+                oid = log_action(domain, serial, "auto",
+                                 description="bootstrapped wireless adb from USB",
+                                 output=out.strip())
+                return {"action": "auto", "serial": serial, "ip": ip,
+                        "note": "bootstrapped wireless adb from USB", "oplog_id": oid}
+
+            if devs:
+                return {"error": "auto is Android-only (wireless adb). iOS uses usbmuxd "
+                                 "(no IP needed); for iOS-over-Wi-Fi use SSH to the device IP."}
+
+            return {"error": "no Android device to bootstrap — attach one via USB once, "
+                             "or use action='connect' with a known ip"}
 
         return {"error": f"unknown action {action!r} ({'|'.join(_ACTIONS)})"}
