@@ -16,6 +16,15 @@ _WORKFLOW = [
      "mobile_frida_run(script='ssl_pin_universal_android', package=...) unlocks "
      "pinned traffic into Burp"),
 
+    # ----- Mobile lane: device<->Burp proxy routing (distinct from the device-control
+    # entry above -- this is "is traffic even reaching Burp", not "drive the UI") -----
+    (["phone control", "device proxy status", "traffic reaching burp",
+      "lost packets", "device not capturing", "set device proxy", "dhcp proxy"],
+     "mobile_proxy_status",
+     "mobile_set_proxy(mode='reverse') for USB Android (else 'tailscale') -> "
+     "mobile_proxy_status(canary=True); don't drive the UI until routing_ok "
+     "and canary_landed are both true"),
+
     # ----- session additions: router / offline / evidence / azure -----
     (["route signals", "auto trigger", "auto-trigger", "signal to tool",
       "which tool for this signal", "auto fire scanner", "reactive scan",
