@@ -47,6 +47,61 @@ class DenylistTest(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class SettingDenylistTest(unittest.TestCase):
+    def test_locksettings_clear_refused(self):
+        ok, why = _guards.check_command("shell locksettings clear")
+        self.assertFalse(ok)
+        self.assertIn("locksettings", why)
+
+    def test_locksettings_set_disabled_refused(self):
+        ok, _ = _guards.check_command("shell locksettings set-disabled true")
+        self.assertFalse(ok)
+
+    def test_locksettings_set_pin_refused(self):
+        ok, _ = _guards.check_command("shell locksettings set-pin 0000")
+        self.assertFalse(ok)
+
+    def test_lockscreen_disabled_refused(self):
+        ok, _ = _guards.check_command("shell settings put secure lockscreen.disabled 1")
+        self.assertFalse(ok)
+
+    def test_package_verifier_enable_refused(self):
+        ok, _ = _guards.check_command("shell settings put global package_verifier_enable 0")
+        self.assertFalse(ok)
+
+    def test_verifier_verify_adb_installs_refused(self):
+        ok, _ = _guards.check_command("shell settings put global verifier_verify_adb_installs 0")
+        self.assertFalse(ok)
+
+    def test_install_non_market_apps_secure_refused(self):
+        ok, _ = _guards.check_command("shell settings put secure install_non_market_apps 1")
+        self.assertFalse(ok)
+
+    def test_install_non_market_apps_global_refused(self):
+        ok, _ = _guards.check_command("shell settings put global install_non_market_apps 1")
+        self.assertFalse(ok)
+
+    def test_user_setup_complete_refused(self):
+        ok, _ = _guards.check_command("shell settings put secure user_setup_complete 0")
+        self.assertFalse(ok)
+
+    def test_settings_get_http_proxy_allowed(self):
+        ok, why = _guards.check_command("shell settings get global http_proxy")
+        self.assertTrue(ok, why)
+
+    def test_settings_put_brightness_allowed(self):
+        ok, why = _guards.check_command("shell settings put system screen_brightness 120")
+        self.assertTrue(ok, why)
+
+    def test_settings_put_http_proxy_allowed(self):
+        ok, why = _guards.check_command("shell settings put global http_proxy 127.0.0.1:8080")
+        self.assertTrue(ok, why)
+
+    def test_settings_get_android_id_allowed(self):
+        ok, why = _guards.check_command("shell settings get secure android_id")
+        self.assertTrue(ok, why)
+
+
 class DeviceAllowlistTest(unittest.TestCase):
     def test_allowlisted_ok(self):
         with mock.patch.dict(os.environ, {"PRAETOR_MOBILE_DEVICES": "ABC123, UDID-9"}):

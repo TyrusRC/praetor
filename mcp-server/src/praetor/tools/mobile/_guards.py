@@ -32,10 +32,27 @@ _MOBILE_DESTRUCTIVE: tuple[re.Pattern, ...] = tuple(
     )
 )
 
+# Security-destructive `settings put` / `locksettings` writes (Task 5 preview:
+# mobile_setting get/put). Disabling lock screens, package verification, or
+# provisioning state removes the device's own security controls — never a
+# legitimate pentest action even on the operator's own device.
+_MOBILE_SETTING_DENY: tuple[re.Pattern, ...] = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\blocksettings\b",
+        r"settings\s+put\s+secure\s+lock(screen|_pattern|_password|_pin)",
+        r"settings\s+put\s+secure\s+lockscreen\.disabled",
+        r"settings\s+put\s+global\s+(package_verifier_enable|verifier_verify_adb_installs|upload_apk_enable)",
+        r"settings\s+put\s+(secure|global)\s+install_non_market_apps",
+        r"settings\s+put\s+secure\s+(rollback_verifier|user_setup_complete|device_provisioned|managed_provisioning)",
+    )
+)
+
 
 def check_command(command: str) -> tuple[bool, str]:
     """Return (ok, reason). ok=False refuses. Runs the shared destructive
-    layer first (rm -rf, dd, format, ...), then mobile-specific patterns."""
+    layer first (rm -rf, dd, format, ...), then mobile-specific patterns,
+    then the settings/locksettings denylist."""
     ok, why = validate_payload(command, vuln_type="mobile")
     if not ok:
         return False, why
@@ -46,6 +63,13 @@ def check_command(command: str) -> tuple[bool, str]:
                 f"destructive/abusive mobile op blocked: {m.group(0)!r}. "
                 "Mobile pentest proves impact with READ access; drop to "
                 "send_raw_request / a manual shell and own the risk if truly required."
+            )
+    for pat in _MOBILE_SETTING_DENY:
+        m = pat.search(command)
+        if m:
+            return False, (
+                f"security-destructive setting write blocked: {m.group(0)!r} — "
+                "refuse to disable locks/verification/provisioning"
             )
     return True, ""
 
