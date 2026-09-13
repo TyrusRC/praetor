@@ -517,6 +517,41 @@ elif [ "$IS_KALI" -eq 0 ]; then
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# Mobile lane — powers mobile_* device-control tools (Android + iOS)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+info "Mobile lane tools (adb / frida / iOS-on-Linux via go-ios+libimobiledevice)..."
+
+# Android: adb
+if has adb; then ok "adb already installed"
+elif [ "$PLATFORM" = "linux" ]; then
+    pkg_install android-tools-adb || pkg_install adb || warn "adb not installed — install platform-tools manually"
+elif [ "$PLATFORM" = "macos" ]; then
+    pkg_install android-platform-tools || warn "adb not installed — brew install android-platform-tools"
+fi
+
+# Frida (SSL-pin/root bypass, hooks) — isolated uv tool venv
+install_pd_tool "frida" "uv tool install frida-tools"
+
+# iOS-on-Linux stack (Mac-free): usbmuxd + libimobiledevice + ideviceinstaller + go-ios
+if [ "$PLATFORM" = "linux" ]; then
+    pkg_install usbmuxd libimobiledevice-utils ideviceinstaller || \
+        warn "iOS libs not fully installed — apt install usbmuxd libimobiledevice-utils ideviceinstaller"
+elif [ "$PLATFORM" = "macos" ]; then
+    pkg_install libimobiledevice ideviceinstaller || warn "brew install libimobiledevice ideviceinstaller"
+fi
+# go-ios (cross-platform iOS control — the idb replacement)
+install_pd_tool "ios" "go install github.com/danielpaulus/go-ios@latest"
+
+# USB passthrough for WSL (phone plugged into Windows)
+if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+    info "WSL detected — USB devices need usbipd-win passthrough:"
+    warn "  Windows (admin PowerShell): usbipd bind --busid <id> ; usbipd attach --wsl --busid <id>"
+    warn "  WSL: sudo modprobe vhci_hcd  (kernel module ships with the WSL kernel)"
+    pkg_install usbip || warn "usbip client not installed — apt install usbip (linux-tools) for passthrough"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # Ghostwriter (core reporting/oplog hub) — auto-setup
 # ════════════════════════════════════════════════════════════════════
 echo ""
