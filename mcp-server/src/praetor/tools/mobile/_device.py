@@ -258,6 +258,24 @@ class _Backend:
     def _target_flag(self, dev: Device) -> list[str]:
         raise NotImplementedError
 
+    async def open_url(self, dev, url) -> None:
+        """Base fallback: only AndroidBackend (VIEW intent) and IOSBackend (WDA)
+        can actually open a URL on-device. Without this, _run_canary's
+        `except DeviceError` around open_url() would never fire for a backend
+        with no override, and mobile_proxy_status(canary=True) would crash
+        with a raw AttributeError instead of degrading cleanly."""
+        raise DeviceError(f"{self.platform}: opening a URL is not supported by this backend")
+
+    async def setting_get(self, dev, ns, key) -> str:
+        """Base fallback: iOS has no CLI-readable/writable settings namespace
+        (AndroidBackend overrides both get and put with real `settings`
+        calls). Without this, mobile_setting's `except DeviceError` would
+        never fire for iOS and the tool would crash with a raw AttributeError."""
+        raise DeviceError(f"{self.platform}: settings are not CLI-writable")
+
+    async def setting_put(self, dev, ns, key, value) -> None:
+        raise DeviceError(f"{self.platform}: settings are not CLI-writable")
+
 
 class AndroidBackend(_Backend):
     platform = "android"
@@ -380,6 +398,17 @@ class AndroidBackend(_Backend):
         await self.run(dev, ["shell", "settings", "put", "global", "http_proxy", ":0"])
         await self.run(dev, ["reverse", "--remove-all"])
 
+    async def setting_get(self, dev, ns, key) -> str:
+        """Read a `settings` value from the given namespace (system/secure/global)."""
+        out, _, _ = await self.run(dev, ["shell", "settings", "get", ns, key])
+        v = out.strip()
+        return "" if v in ("", "null") else v
+
+    async def setting_put(self, dev, ns, key, value) -> None:
+        """Write a `settings` value. Explicit argv — never shell(command) —
+        caller (mobile_setting) MUST run check_command() first."""
+        await self.run(dev, ["shell", "settings", "put", ns, key, value])
+
 
 class IOSBackend(_Backend):
     """iOS control over go-ios (`ios` CLI, cross-platform, Rust/Go — installs
@@ -445,6 +474,14 @@ class IOSBackend(_Backend):
                               f"(supported: {', '.join(self._WDA_KEY_MAP)})")
         client = await _wda_ensure(dev)
         await asyncio.to_thread(getattr(client, action))
+
+    async def open_url(self, dev, url) -> None:
+        """Open a URL on-device via WebDriverAgent. Used by the proxy canary
+        (mobile_proxy_status(canary=True)) to fire one request FROM the device.
+        _wda_ensure raises DeviceError when go-ios/WDA is unavailable, which
+        the caller (_run_canary) already catches for a clean degrade."""
+        client = await _wda_ensure(dev)
+        await asyncio.to_thread(client.open_url, url)
 
     async def screenshot(self, dev, out_path):
         if _check_tool("ios"):

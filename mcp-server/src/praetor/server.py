@@ -58,6 +58,7 @@ from praetor.tools import (
     evidence,
     assurance,
     hub,
+    burp_settings,
 )
 
 mcp = FastMCP(
@@ -144,6 +145,7 @@ router.register(mcp)   # signal->tool auto-routing (Balanced policy; ask-gates r
 evidence.register(mcp) # curate_evidence / audit_history_noise (history is read-only; curate+audit, not prune)
 assurance.register(mcp) # standards_coverage heatmap, generate_posture_dashboard, generate_compliance_report
 hub.register(mcp)       # set_remediation / remediation_status (SLA+MTTR) + import_scan_results (nuclei/nessus dedup-merge)
+burp_settings.register(mcp)  # burp_settings — single dispatcher over Montoya-settable Burp settings (scope/intercept/match-replace) + documents Montoya limits
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction

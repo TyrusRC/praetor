@@ -274,6 +274,51 @@ def register(mcp: FastMCP) -> None:
         return {"stdout": out, "stderr": err, "rc": rc, "oplog_id": oid, "device": dev.id}
 
     @mcp.tool()
+    async def mobile_setting(action: str = "", namespace: str = "", key: str = "",
+                             value: str = "", device: str = "", domain: str = "") -> dict:
+        """Read or write an Android `settings` value (system|secure|global
+        namespace). `action='put'` is guarded: security-destructive writes
+        (lock screen, package verifier, provisioning) are refused before the
+        device is touched. iOS: not CLI-writable, returns {"error"}.
+
+        Args:
+            action: "get" | "put".
+            namespace: "system" | "secure" | "global".
+            key: the settings key.
+            value: new value, required for action="put".
+            device: adb serial. Empty = the only connected device.
+            domain: engagement domain for oplog storage.
+        """
+        if action not in ("get", "put"):
+            return {"error": f"unknown action {action!r} (get|put)"}
+        if namespace not in ("system", "secure", "global"):
+            return {"error": f"unknown namespace {namespace!r} (system|secure|global)"}
+        try:
+            dev = await resolve_device(device)
+        except DeviceError as e:
+            return {"error": str(e)}
+        if action == "get":
+            try:
+                val = await backend_for(dev).setting_get(dev, namespace, key)
+            except DeviceError as e:
+                return {"error": str(e)}
+            oid = log_action(domain, dev.id, f"settings get {namespace} {key}",
+                             description="settings get")
+            return {"namespace": namespace, "key": key, "value": val,
+                    "oplog_id": oid, "device": dev.id}
+        ok, why = check_command(f"settings put {namespace} {key} {value}")
+        if not ok:
+            return {"error": why}
+        try:
+            await backend_for(dev).setting_put(dev, namespace, key, value)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"settings put {namespace} {key} {value}",
+                         description="settings put")
+        return {"namespace": namespace, "key": key, "value": value, "written": True,
+                "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
     async def mobile_wda_start(device: str = "", domain: str = "") -> dict:
         """Start (or reuse) a WebDriverAgent session for iOS UI driving:
         go-ios installs/launches WDA and forwards its port, then a WDA
