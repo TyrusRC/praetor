@@ -246,6 +246,22 @@ class AndroidBackend(_Backend):
         configured proxy, unlike our own control commands (which bypass it)."""
         await self.run(dev, ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", url])
 
+    async def reverse_port(self, dev, port) -> None:
+        """adb reverse tcp:<port> tcp:<port> — the device's 127.0.0.1:<port> tunnels
+        to the host's, immune to DHCP lease changes (USB only)."""
+        _o, err, rc = await self.run(dev, ["reverse", f"tcp:{port}", f"tcp:{port}"])
+        if rc != 0:
+            raise DeviceError(f"adb reverse failed: {err.strip()}")
+
+    async def set_proxy(self, dev, value) -> None:
+        """Set the device-wide HTTP proxy to host:port (or 127.0.0.1:port with reverse_port)."""
+        await self.run(dev, ["shell", "settings", "put", "global", "http_proxy", value])
+
+    async def clear_proxy(self, dev) -> None:
+        """Unset the device-wide HTTP proxy and drop any adb reverse tunnels."""
+        await self.run(dev, ["shell", "settings", "put", "global", "http_proxy", ":0"])
+        await self.run(dev, ["reverse", "--remove-all"])
+
 
 class IOSBackend(_Backend):
     platform = "ios"

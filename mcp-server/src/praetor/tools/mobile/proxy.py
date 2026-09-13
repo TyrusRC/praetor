@@ -30,6 +30,17 @@ def host_lan_ip() -> str:
     return ""
 
 
+def host_tailscale_ip() -> str:
+    """Host's tailnet IP (stable across DHCP renewals), via `ip -4 addr show
+    tailscale0`. "" if no tailscale0 interface / not connected."""
+    out = _run_text(["ip", "-4", "addr", "show", "tailscale0"])
+    for ln in out.splitlines():
+        ln = ln.strip()
+        if ln.startswith("inet "):
+            return ln.split()[1].split("/")[0]
+    return ""
+
+
 def burp_listener_scope() -> dict:
     """Whether Burp's proxy port has a listener, and if so whether it's bound
     to loopback only (unreachable from a LAN/USB device)."""
@@ -73,6 +84,8 @@ async def _run_canary(dev, domain) -> dict:
 
 
 CA_NOTE = "HTTPS capture also requires the Burp CA installed & trusted on the device"
+DRIFT_REMEDIATION = "run mobile_set_proxy(mode='reverse' for USB, else 'tailscale'/'lan')"
+DRIFT_NOTE = f"device proxy points at a stale IP (DHCP drift) — {DRIFT_REMEDIATION}"
 
 
 def register(mcp: FastMCP) -> None:
@@ -100,6 +113,8 @@ def register(mcp: FastMCP) -> None:
             warnings.append("device http_proxy is not set — app traffic will NOT reach Burp")
         elif lan and device_proxy != expected:
             warnings.append(f"device proxy {device_proxy!r} != expected {expected!r} (host LAN IP:Burp port)")
+        if device_proxy and not device_proxy.startswith("127.0.0.1") and lan and lan != device_proxy.split(":")[0]:
+            warnings.append(DRIFT_NOTE)
         if not scope["listening"]:
             warnings.append(f"no Burp proxy listener on port {BURP_PROXY_PORT}")
         elif scope["loopback_only"]:
@@ -114,10 +129,46 @@ def register(mcp: FastMCP) -> None:
             warnings.extend(canary_result.pop("warnings_extra", []))
             if canary_result.get("canary_landed") is False:
                 warnings.append("canary request did NOT reach Burp — device traffic is being "
-                                 "lost (check proxy + CA + all-interfaces listener)")
+                                 "lost (check proxy + CA + all-interfaces listener); "
+                                 f"if DHCP has changed the host IP, {DRIFT_REMEDIATION}")
             routing_ok = routing_ok and bool(canary_result.get("canary_landed"))
             result.update(canary_result)
             result["routing_ok"] = routing_ok
         result["oplog_id"] = log_action(domain, dev.id, "proxy_status", description="device->burp routing check",
                                         output=("ok" if routing_ok else "; ".join(warnings)))
         return result
+
+    @mcp.tool()
+    async def mobile_set_proxy(device: str = "", mode: str = "reverse", domain: str = "") -> dict:
+        """Point the device at Burp in a DHCP-robust way. mode: 'reverse' (Android/USB,
+        adb reverse + 127.0.0.1 — immune to IP changes; recommended), 'lan' (current host
+        LAN IP), 'tailscale' (stable tailnet IP), 'off' (clear). iOS is unsupported (set the
+        Wi-Fi proxy to a stable host address manually / via a .mobileconfig profile)."""
+        try:
+            dev = await resolve_device(device)
+        except DeviceError as e:
+            return {"error": str(e)}
+        if dev.platform != "android":
+            return {"error": "mobile_set_proxy supports Android only; for iOS set the Wi-Fi proxy "
+                            "to a stable host address (Tailscale / DHCP reservation) or a .mobileconfig profile"}
+        b = backend_for(dev); port = BURP_PROXY_PORT
+        try:
+            if mode == "reverse":
+                await b.reverse_port(dev, port); value = f"127.0.0.1:{port}"; await b.set_proxy(dev, value)
+            elif mode == "lan":
+                ip = host_lan_ip()
+                if not ip: return {"error": "could not determine host LAN IP"}
+                value = f"{ip}:{port}"; await b.set_proxy(dev, value)
+            elif mode == "tailscale":
+                ip = host_tailscale_ip()
+                if not ip: return {"error": "no tailscale0 address on host"}
+                value = f"{ip}:{port}"; await b.set_proxy(dev, value)
+            elif mode == "off":
+                await b.clear_proxy(dev); value = ""
+            else:
+                return {"error": f"unknown mode {mode!r} (reverse|lan|tailscale|off)"}
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, f"set_proxy {mode} {value}", description="device proxy config")
+        return {"applied": mode, "device_proxy": value, "oplog_id": oid, "device": dev.id,
+                "note": "run mobile_proxy_status(canary=True) to confirm traffic reaches Burp"}
