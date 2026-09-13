@@ -533,12 +533,15 @@ fi
 # Frida (SSL-pin/root bypass, hooks) — isolated uv tool venv
 install_pd_tool "frida" "uv tool install frida-tools"
 
-# iOS-on-Linux stack (Mac-free): usbmuxd + libimobiledevice + ideviceinstaller + go-ios
+# iOS-on-Linux stack (Mac-free): usbmuxd + libimobiledevice + ideviceinstaller + go-ios.
+# libusbmuxd-tools (iproxy) + sshpass power the jailbroken-iOS SSH-over-USB path:
+#   iproxy 2222 22 <udid>  ->  ssh mobile@127.0.0.1 -p 2222  (frida/objection on the device)
 if [ "$PLATFORM" = "linux" ]; then
-    pkg_install usbmuxd libimobiledevice-utils ideviceinstaller || \
-        warn "iOS libs not fully installed — apt install usbmuxd libimobiledevice-utils ideviceinstaller"
+    pkg_install usbmuxd libimobiledevice-utils ideviceinstaller libusbmuxd-tools sshpass || \
+        warn "iOS libs not fully installed — apt install usbmuxd libimobiledevice-utils ideviceinstaller libusbmuxd-tools sshpass"
 elif [ "$PLATFORM" = "macos" ]; then
-    pkg_install libimobiledevice ideviceinstaller || warn "brew install libimobiledevice ideviceinstaller"
+    pkg_install libimobiledevice ideviceinstaller libusbmuxd || warn "brew install libimobiledevice ideviceinstaller libusbmuxd"
+    has sshpass || warn "sshpass not installed — brew install hudochenkov/sshpass/sshpass (jailbroken-iOS SSH)"
 fi
 # go-ios (cross-platform iOS control — the idb replacement)
 install_pd_tool "ios" "go install github.com/danielpaulus/go-ios@latest && ln -sf \"$HOME/go/bin/go-ios\" \"$HOME/go/bin/ios\""
