@@ -104,7 +104,14 @@ def register(mcp: FastMCP):
         if not interactions:
             return "No collaborator interactions detected yet. The target may not have triggered the payload."
 
-        lines = [f"Collaborator Interactions ({total} total):\n"]
+        # Interactions are retained server-side across polls; new_in_poll counts
+        # only those drained on this call.
+        new_in_poll = data.get("new_in_poll")
+        header = f"Collaborator Interactions ({total} total"
+        if new_in_poll is not None:
+            header += f", {new_in_poll} new this poll"
+        header += "):\n"
+        lines = [header]
         for interaction in interactions:
             itype = interaction.get('type', '?')
             lines.append(f"  [{itype}] from {interaction.get('client_ip')}")

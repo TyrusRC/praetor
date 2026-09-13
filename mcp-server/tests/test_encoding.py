@@ -233,5 +233,32 @@ class ChainSanityTests(unittest.TestCase):
         self.assertEqual(dec2, s)
 
 
+class XmlEntityTests(unittest.TestCase):
+    def test_hex_entities_encodes_every_char(self):
+        # Not just specials — keyword letters get encoded too (WAF bypass).
+        self.assertEqual(apply_operation("AB", "hex_entities"), "&#x41;&#x42;")
+
+    def test_dec_entities_encodes_every_char(self):
+        self.assertEqual(apply_operation("AB", "dec_entities"), "&#65;&#66;")
+
+    def test_hex_entities_hides_sql_keyword(self):
+        enc = apply_operation("1 UNION SELECT", "hex_entities")
+        self.assertNotIn("UNION", enc)
+        self.assertNotIn("SELECT", enc)
+        self.assertTrue(enc.startswith("&#x31;"))
+
+    def test_html_decode_reverses_hex_entities(self):
+        s = "1 UNION SELECT username || '~' || password FROM users"
+        self.assertEqual(apply_operation(apply_operation(s, "hex_entities"), "html_decode"), s)
+
+    def test_html_decode_reverses_dec_entities(self):
+        s = "1 UNION SELECT NULL"
+        self.assertEqual(apply_operation(apply_operation(s, "dec_entities"), "html_decode"), s)
+
+    def test_both_entity_ops_registered(self):
+        self.assertIn("hex_entities", SHARED_OPS)
+        self.assertIn("dec_entities", SHARED_OPS)
+
+
 if __name__ == "__main__":
     unittest.main()
