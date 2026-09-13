@@ -358,6 +358,37 @@ check_recon adb   "sudo apt install adb                                # or: bre
 check_recon frida "uv tool install frida-tools                         # mobile lane degraded (no SSL-pin/root bypass, no Frida hooks)"
 check_recon idb   "brew install idb-companion && pip install fb-idb    # macOS only — mobile lane degraded (no iOS control)"
 
+# iOS-on-Linux (Mac-free): usbmuxd is the USB transport daemon, idevice_id/
+# ideviceinstaller are libimobiledevice-utils, `ios` is go-ios (canonical
+# binary name — replaces idb for iOS control + WebDriverAgent).
+check_recon usbmuxd    "sudo apt install usbmuxd                 # iOS-on-Linux transport"
+check_recon idevice_id "sudo apt install libimobiledevice-utils  # iOS info/screenshot/logs (Mac-free)"
+check_recon ideviceinstaller "sudo apt install ideviceinstaller  # iOS app install/list"
+check_recon ios        "go install github.com/danielpaulus/go-ios@latest  # iOS control + WDA (idb replacement)"
+
+# WSL USB/IP passthrough — only relevant when running under WSL.
+if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+    if lsmod 2>/dev/null | grep -q vhci_hcd; then pass "vhci_hcd loaded (USB passthrough ready)";
+    else skip "vhci_hcd not loaded" "sudo modprobe vhci_hcd — needed for usbipd attach"; fi
+    if [ -e "/mnt/c/Program Files/usbipd-win/usbipd.exe" ]; then pass "usbipd-win present on Windows";
+    else skip "usbipd-win" "install on Windows: winget install usbipd — then usbipd bind/attach --wsl"; fi
+fi
+
+# Device->Burp proxy routing — only when adb is present and a device is
+# actually attached. Reuses the live tool logic (DRY) instead of duplicating
+# it in shell; any failure here is swallowed and falls through to a skip.
+if has adb && [ -n "$(adb devices | awk 'NR>1 && $2=="device"{print $1}')" ]; then
+    status=$(cd "$SCRIPT_DIR/mcp-server" && uv run python -c "import asyncio,json; from praetor.tools.mobile import proxy, _device;
+async def m():
+    d=await _device.resolve_device()
+    print(json.dumps({'proxy':await _device.backend_for(d).get_proxy(d),'lan':proxy.host_lan_ip(),'scope':proxy.burp_listener_scope()}))
+asyncio.run(m())" 2>/dev/null)
+    if echo "$status" | grep -q '"loopback_only": true'; then skip "device->Burp routing" "Burp bound to loopback; device can't reach it — add an all-interfaces listener";
+    elif echo "$status" | grep -q '"proxy": ""'; then skip "device->Burp routing" "device http_proxy unset — app traffic will be lost";
+    elif [ -n "$status" ]; then pass "device->Burp routing (device proxy set; run mobile_proxy_status(canary=True) to confirm)";
+    else skip "device->Burp routing" "status check failed — run mobile_proxy_status manually"; fi
+fi
+
 # ════════════════════════════════════════════════════════════════════
 head "Ghostwriter (reporting / oplog hub)"
 # ════════════════════════════════════════════════════════════════════

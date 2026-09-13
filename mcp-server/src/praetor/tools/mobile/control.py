@@ -6,13 +6,13 @@ guards the command and records an operator-log entry.
 
 from __future__ import annotations
 
-import json
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
+from . import _wda
 from ._device import DeviceError, backend_for, list_devices, resolve_device
 from ._guards import check_command
 from ._store import artifact_dir, log_action, log_loot
@@ -23,7 +23,7 @@ _BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 def parse_ui(raw: str, platform: str) -> list[dict]:
     """Flatten a UI hierarchy into indexed elements with tappable centers."""
     if platform == "ios":
-        return _parse_ui_ios(raw)
+        return _wda.parse_wda_source(raw)
     return _parse_ui_android(raw)
 
 
@@ -45,28 +45,6 @@ def _parse_ui_android(raw: str) -> list[dict]:
             "bounds": bounds,
             "center": center,
             "clickable": node.get("clickable") == "true",
-        })
-    return els
-
-
-def _parse_ui_ios(raw: str) -> list[dict]:
-    try:
-        rows = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return []
-    els: list[dict] = []
-    for i, r in enumerate(rows):
-        frame = r.get("frame", {})
-        x, y = int(frame.get("x", 0)), int(frame.get("y", 0))
-        w, h = int(frame.get("width", 0)), int(frame.get("height", 0))
-        els.append({
-            "index": i,
-            "text": r.get("AXLabel") or r.get("AXValue") or "",
-            "resource_id": r.get("AXUniqueId", ""),
-            "class": r.get("type", ""),
-            "bounds": [x, y, x + w, y + h],
-            "center": [x + w // 2, y + h // 2],
-            "clickable": bool(r.get("AXEnabled", True)),
         })
     return els
 
@@ -294,3 +272,31 @@ def register(mcp: FastMCP) -> None:
         oid = log_action(domain, dev.id, f"shell {command}", description="adb shell",
                          output=out[:2000], rc=rc)
         return {"stdout": out, "stderr": err, "rc": rc, "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_wda_start(device: str = "", domain: str = "") -> dict:
+        """Start (or reuse) a WebDriverAgent session for iOS UI driving:
+        go-ios installs/launches WDA and forwards its port, then a WDA
+        session opens. mobile_tap/mobile_ui_dump/etc. start this lazily on
+        first use — call explicitly to warm it up or surface a startup
+        failure (e.g. no signed WDA on the device) up front."""
+        try:
+            dev = await resolve_device(device, platform="ios")
+            client = await _wda.ensure_session(dev)
+        except DeviceError as e:
+            return {"error": str(e)}
+        oid = log_action(domain, dev.id, "wda start", description="WebDriverAgent session start")
+        return {"started": True, "port": _wda._WDA_SESSIONS[dev.id]["port"],
+                "session_id": client.session_id, "oplog_id": oid, "device": dev.id}
+
+    @mcp.tool()
+    async def mobile_wda_stop(device: str = "", domain: str = "") -> dict:
+        """Stop a running WebDriverAgent session: kills the go-ios
+        runwda/forward processes and drops the cached session."""
+        try:
+            dev = await resolve_device(device, platform="ios")
+        except DeviceError as e:
+            return {"error": str(e)}
+        stopped = await _wda.stop_session(dev.id)
+        log_action(domain, dev.id, "wda stop", description="WebDriverAgent session stop")
+        return {"stopped": stopped, "device": dev.id}

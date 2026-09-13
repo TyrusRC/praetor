@@ -96,6 +96,12 @@ class MobileDiscoverabilityTest(unittest.IsolatedAsyncioTestCase):
         out = await pick_tool_impl("control android device")
         self.assertIn("mobile_", out)
 
+    async def test_pick_tool_routes_phone_control_to_proxy_status(self):
+        """Task 7 — a proxy-routing query must resolve to mobile_proxy_status,
+        not shadow (or be shadowed by) the device-control entry above."""
+        out = await pick_tool_impl("device proxy status, traffic reaching burp")
+        self.assertIn("mobile_proxy_status", out)
+
     def test_tier1_includes_mobile_devices(self):
         names = {n for n, _ in TIER1_HUNT_LOOP}
         self.assertIn("mobile_devices", names)

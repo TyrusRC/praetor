@@ -15,7 +15,10 @@ the MCP server for backend testing.
 Active device control is available as first-class MCP tools (`mobile_screenshot`,
 `mobile_ui_dump`, `mobile_tap`, `mobile_frida_run`, ...). Praetor now drives the
 device directly — call these instead of shelling out to adb/frida. See the
-mobile-dynamic-agent for the standard cadence.
+mobile-dynamic-agent for the standard cadence, and `.claude/skills/phone-control.md`
+for the connect / proxy pre-flight / unlock / drive / capture flow (run the proxy
+pre-flight — `mobile_set_proxy` + `mobile_proxy_status(canary=True)` — before Phase 0
+below, or captured traffic can be silently incomplete).
 
 **Scope:** dynamic instrumentation only (Frida, adb, objection). Static
 decompilation (apktool, jadx) is OUT of scope — if you need to know what's
