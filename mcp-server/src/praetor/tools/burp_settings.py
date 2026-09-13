@@ -83,7 +83,6 @@ def register(mcp: FastMCP):
         action: str,
         urls: list[str] | None = None,
         url: str = "",
-        enabled: bool | None = None,
         rules: list[dict] | None = None,
         rule_id: str = "",
         force: bool = False,
@@ -105,8 +104,6 @@ def register(mcp: FastMCP):
             action: one of the actions listed above.
             urls: full URLs — used by scope_add (as include) / scope_exclude (as exclude).
             url: single URL — used by scope_check.
-            enabled: reserved for future per-rule toggling; not read by this dispatcher today
-                (pass `enabled` inside each dict in `rules` for match_replace_add instead).
             rules: list of {type, match, replace, scope?, enabled?} — used by match_replace_add.
             rule_id: rule id — used by match_replace_delete.
             force: match_replace_add only — allow a rule matching a dangerous header
@@ -123,6 +120,8 @@ def register(mcp: FastMCP):
             return data
 
         if a == "scope_check":
+            if not url:
+                return {"error": "scope_check requires url"}
             data = await client.post("/api/scope/check", json={"url": url})
             if "error" in data:
                 return {"error": data["error"]}

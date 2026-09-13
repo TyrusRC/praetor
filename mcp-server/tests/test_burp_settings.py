@@ -48,6 +48,13 @@ class BurpSettingsDispatchTest(unittest.TestCase):
             asyncio.run(burp_settings(action="scope_check", url="https://x.com/a"))
             p.assert_awaited_once_with("/api/scope/check", json={"url": "https://x.com/a"})
 
+    def test_scope_check_without_url_errors(self):
+        burp_settings = _get_tool()
+        with patch.object(bs_mod.client, "post", new=AsyncMock()) as p:
+            result = asyncio.run(burp_settings(action="scope_check"))
+            self.assertIn("error", result)
+            p.assert_not_awaited()
+
     def test_intercept_on_posts_enable(self):
         burp_settings = _get_tool()
         with patch.object(bs_mod.client, "post", new=AsyncMock(return_value={"intercept_enabled": True})) as p:

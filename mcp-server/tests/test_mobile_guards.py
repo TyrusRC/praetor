@@ -73,6 +73,23 @@ class SettingDenylistTest(unittest.TestCase):
         ok, _ = _guards.check_command("shell settings put global verifier_verify_adb_installs 0")
         self.assertFalse(ok)
 
+    def test_upload_apk_enable_refused(self):
+        ok, _ = _guards.check_command("shell settings put global upload_apk_enable 0")
+        self.assertFalse(ok)
+
+    def test_package_verifier_user_consent_refused(self):
+        ok, why = _guards.check_command("shell settings put global package_verifier_user_consent 0")
+        self.assertFalse(ok)
+        self.assertIn("package_verifier", why)
+
+    def test_package_verifier_state_refused(self):
+        ok, _ = _guards.check_command("shell settings put global package_verifier_state 0")
+        self.assertFalse(ok)
+
+    def test_package_verifier_secure_scope_refused(self):
+        ok, _ = _guards.check_command("shell settings put secure package_verifier_user_consent 0")
+        self.assertFalse(ok)
+
     def test_install_non_market_apps_secure_refused(self):
         ok, _ = _guards.check_command("shell settings put secure install_non_market_apps 1")
         self.assertFalse(ok)
@@ -99,6 +116,10 @@ class SettingDenylistTest(unittest.TestCase):
 
     def test_settings_get_android_id_allowed(self):
         ok, why = _guards.check_command("shell settings get secure android_id")
+        self.assertTrue(ok, why)
+
+    def test_settings_get_package_verifier_enable_allowed(self):
+        ok, why = _guards.check_command("shell settings get global package_verifier_enable")
         self.assertTrue(ok, why)
 
 

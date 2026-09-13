@@ -48,7 +48,7 @@ def register(mcp: FastMCP) -> None:
                 return {"error": (out + err).strip() or "adb tcpip failed"}
             oid = log_action(domain, dev.id, f"tcpip {port}", description="wireless adb tcpip",
                              output=out.strip())
-            return {"action": "tcpip", "port": port,
+            return {"action": "tcpip", "port": port, "output": out.strip(),
                     "note": "now call action='connect' with the phone's Wi-Fi ip",
                     "oplog_id": oid}
 

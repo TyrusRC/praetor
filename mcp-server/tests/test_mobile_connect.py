@@ -35,6 +35,8 @@ class MobileConnectTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["action"], "tcpip")
         self.assertEqual(out["port"], 5555)
         self.assertEqual(out["oplog_id"], "op1")
+        self.assertEqual(out["output"], "restarting in TCP mode port: 5555")
+        self.assertIn("note", out)
 
     async def test_connect_success_returns_serial(self):
         with mock.patch.object(connect, "_run_cmd",

@@ -42,7 +42,8 @@ _MOBILE_SETTING_DENY: tuple[re.Pattern, ...] = tuple(
         r"\blocksettings\b",
         r"settings\s+put\s+secure\s+lock(screen|_pattern|_password|_pin)",
         r"settings\s+put\s+secure\s+lockscreen\.disabled",
-        r"settings\s+put\s+global\s+(package_verifier_enable|verifier_verify_adb_installs|upload_apk_enable)",
+        r"settings\s+put\s+(secure|global)\s+package_verifier",
+        r"settings\s+put\s+global\s+(verifier_verify_adb_installs|upload_apk_enable)",
         r"settings\s+put\s+(secure|global)\s+install_non_market_apps",
         r"settings\s+put\s+secure\s+(rollback_verifier|user_setup_complete|device_provisioned|managed_provisioning)",
     )
