@@ -258,6 +258,14 @@ class _Backend:
     def _target_flag(self, dev: Device) -> list[str]:
         raise NotImplementedError
 
+    async def open_url(self, dev, url) -> None:
+        """Base fallback: only AndroidBackend (VIEW intent) and IOSBackend (WDA)
+        can actually open a URL on-device. Without this, _run_canary's
+        `except DeviceError` around open_url() would never fire for a backend
+        with no override, and mobile_proxy_status(canary=True) would crash
+        with a raw AttributeError instead of degrading cleanly."""
+        raise DeviceError(f"{self.platform}: opening a URL is not supported by this backend")
+
 
 class AndroidBackend(_Backend):
     platform = "android"
@@ -445,6 +453,14 @@ class IOSBackend(_Backend):
                               f"(supported: {', '.join(self._WDA_KEY_MAP)})")
         client = await _wda_ensure(dev)
         await asyncio.to_thread(getattr(client, action))
+
+    async def open_url(self, dev, url) -> None:
+        """Open a URL on-device via WebDriverAgent. Used by the proxy canary
+        (mobile_proxy_status(canary=True)) to fire one request FROM the device.
+        _wda_ensure raises DeviceError when go-ios/WDA is unavailable, which
+        the caller (_run_canary) already catches for a clean degrade."""
+        client = await _wda_ensure(dev)
+        await asyncio.to_thread(client.open_url, url)
 
     async def screenshot(self, dev, out_path):
         if _check_tool("ios"):

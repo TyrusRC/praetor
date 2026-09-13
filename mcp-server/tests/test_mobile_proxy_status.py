@@ -74,6 +74,30 @@ class ProxyStatusIosTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("ios" in w.lower() for w in out["warnings"]))
 
 
+class ProxyStatusIosCanaryTest(unittest.IsolatedAsyncioTestCase):
+    async def test_ios_canary_no_wda_does_not_crash(self):
+        """Task 1 regression: IOSBackend had no open_url override, so
+        _run_canary's backend_for(dev).open_url(dev, url) raised a bare
+        AttributeError (not caught by `except DeviceError`), crashing
+        mobile_proxy_status(canary=True) for iOS devices. IOSBackend.open_url
+        now drives WDA and degrades to DeviceError when go-ios/WDA is absent,
+        which _run_canary already catches cleanly."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="UDID-1", platform="ios", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
+             mock.patch.object(_device, "_wda_ensure",
+                               side_effect=_device.DeviceError("go-ios (`ios`) not installed")), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com", canary=True)
+        self.assertIsInstance(out, dict)
+        self.assertNotIn("error", out)
+        self.assertIs(out["canary_landed"], False)
+        self.assertIn("warnings", out)
+        self.assertTrue(any("canary" in w.lower() for w in out["warnings"]))
+
+
 class ProxyStatusCanaryTest(unittest.IsolatedAsyncioTestCase):
     async def test_canary_landed(self):
         stub, cap = _stub_mcp(); proxy.register(stub)
