@@ -73,6 +73,10 @@ async def _run_canary(dev, domain) -> dict:
     it lands in Burp proxy history — proves packets actually flow, not just that
     the config looks right."""
     token = "praetor-canary-" + secrets.token_hex(4)
+    # Not OOB exfil (Rule 9a) -- this request terminates at Burp itself; we only
+    # check it lands in proxy history, nothing is exfiltrated to a remote host.
+    # example.com is IANA-reserved (RFC 2606) purely as a syntactically-valid,
+    # unroutable host, so Collaborator isn't required here.
     url = f"http://{token}.example.com/{token}"
     try:
         await backend_for(dev).open_url(dev, url)
@@ -107,19 +111,24 @@ def register(mcp: FastMCP) -> None:
         except DeviceError as e:
             warnings.append(f"could not read device proxy: {e}")
         lan = host_lan_ip()
+        # A device proxy is valid wireless routing if its host part is ANY current
+        # host IP, not just the LAN one — mode='tailscale' points at the tailnet IP,
+        # which would otherwise always trip the LAN-IP mismatch/drift check below.
+        host_ips = {ip for ip in (lan, host_tailscale_ip()) if ip}
         expected = f"{lan}:{BURP_PROXY_PORT}" if lan else f"<host-lan-ip>:{BURP_PROXY_PORT}"
         scope = burp_listener_scope()
         # adb-reverse routing: device 127.0.0.1:<port> tunnels to host 127.0.0.1:<port> —
         # a valid, DHCP-immune config, not a LAN-IP mismatch and not a loopback-listener problem.
         is_loopback_proxy = device_proxy in (f"127.0.0.1:{BURP_PROXY_PORT}", f"localhost:{BURP_PROXY_PORT}")
+        device_proxy_ip = device_proxy.split(":")[0] if device_proxy else ""
         proxy_note = ""
         if not device_proxy:
             warnings.append("device http_proxy is not set — app traffic will NOT reach Burp")
         elif is_loopback_proxy:
             proxy_note = "device via adb reverse — loopback Burp is correct"
-        elif lan and device_proxy != expected:
-            warnings.append(f"device proxy {device_proxy!r} != expected {expected!r} (host LAN IP:Burp port)")
-        if device_proxy and not is_loopback_proxy and lan and lan != device_proxy.split(":")[0]:
+        elif device_proxy_ip in host_ips:
+            proxy_note = "device proxy points at a current host IP (LAN or tailscale)"
+        elif host_ips:
             warnings.append(DRIFT_NOTE)
         if not scope["listening"]:
             warnings.append(f"no Burp proxy listener on port {BURP_PROXY_PORT}")

@@ -55,6 +55,25 @@ class ProxyStatusConfigTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(sc["listening"])
         self.assertFalse(sc["loopback_only"])  # 0.0.0.0 present
 
+class ProxyStatusIosTest(unittest.IsolatedAsyncioTestCase):
+    async def test_ios_device_proxy_unreadable_does_not_crash(self):
+        """FINDING 1 regression: get_proxy() on iOS used to raise a bare
+        AttributeError (no override on IOSBackend) outside the except DeviceError
+        guard, crashing the tool. The _Backend base fallback now raises
+        DeviceError, so this must return a clean dict + warning instead."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="UDID-1", platform="ios", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com")
+        self.assertIsInstance(out, dict)
+        self.assertNotIn("error", out)
+        self.assertEqual(out["device_proxy"], "")
+        self.assertTrue(any("ios" in w.lower() for w in out["warnings"]))
+
+
 class ProxyStatusCanaryTest(unittest.IsolatedAsyncioTestCase):
     async def test_canary_landed(self):
         stub, cap = _stub_mcp(); proxy.register(stub)
@@ -163,11 +182,30 @@ class ProxyStatusDriftTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(proxy, "resolve_device", return_value=dev), \
              mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="192.168.1.163:8080"), \
              mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.200"), \
+             mock.patch.object(proxy, "host_tailscale_ip", return_value=""), \
              mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
              mock.patch.object(proxy, "log_action", return_value="op1"):
             out = await cap["mobile_proxy_status"](domain="ex.com")
         self.assertTrue(any("mobile_set_proxy" in w for w in out["warnings"]))
-        self.assertTrue(any("drift" in w.lower() or "stale" in w.lower() for w in out["warnings"]))
+        drift_warnings = [w for w in out["warnings"] if "drift" in w.lower() or "stale" in w.lower()]
+        self.assertEqual(len(drift_warnings), 1)  # FINDING 2: collapsed, not a double warning
+        self.assertFalse(out["routing_ok"])
+
+    async def test_routing_ok_when_device_proxy_is_tailscale_ip(self):
+        """FINDING 2: mode='tailscale' points the device at the tailnet IP, which
+        differs from host_lan_ip() — that must NOT trip the mismatch/drift warning,
+        and routing_ok must be reachable for this recommended wireless mode."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="100.64.1.2:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "host_tailscale_ip", return_value="100.64.1.2"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com")
+        self.assertIs(out["routing_ok"], True)
+        self.assertEqual(out["warnings"], [])
 
     async def test_no_drift_warning_when_device_proxy_is_loopback(self):
         stub, cap = _stub_mcp(); proxy.register(stub)

@@ -222,6 +222,14 @@ class _Backend:
     platform = ""
     tool = ""
 
+    async def get_proxy(self, dev) -> str:
+        """Base fallback: iOS has no CLI-readable device-wide proxy setting
+        (AndroidBackend overrides this with a real `settings get` read). Without
+        this, mobile_proxy_status's `except DeviceError` around get_proxy() would
+        never fire for iOS and the tool would crash with a raw AttributeError."""
+        raise DeviceError("iOS device proxy is not readable via CLI — set/verify the Wi-Fi "
+                          "proxy manually (stable host address: Tailscale / DHCP reservation)")
+
     async def run(self, dev: Device, args: list[str], timeout: int = 60) -> tuple[str, str, int]:
         if not _check_tool(self.tool):
             raise DeviceError(f"{self.tool} not installed — required for {self.platform} control")
@@ -533,14 +541,13 @@ class IOSBackend(_Backend):
         if _check_tool("ios"):
             if not package:
                 raise DeviceError("go-ios cannot open an arbitrary URI without a bundle id — "
-                                  "pass package=<bundle_id> to launch the app, or use "
-                                  "WebDriverAgent-based deep-link opening (Task 5)")
+                                  "pass package=<bundle_id> to launch the app, or install idb "
+                                  "for a real deep-link open")
             out, err, rc = await self._ios(dev, ["launch", package])
             if rc != 0:
                 raise DeviceError(f"ios launch failed: {err.strip()}")
             return out
-        raise DeviceError("no iOS deep-link tool found — install go-ios (`ios`) or idb, "
-                          "or use WebDriverAgent-based deep-link opening (Task 5)")
+        raise DeviceError("no iOS deep-link tool found — install go-ios (`ios`) or idb")
 
     _LOG_CAPTURE_SECS = 8  # NOTE: go-ios/idevicesyslog stream forever; `timeout`
     # (coreutils) bounds the capture window. Ceiling: fixed window, not a

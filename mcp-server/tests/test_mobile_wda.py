@@ -373,10 +373,13 @@ class IosBackendUiDispatchTest(unittest.IsolatedAsyncioTestCase):
         ensure.assert_not_called()
 
     async def test_ui_dump_raw_no_go_ios_raises_device_error(self):
-        # ensure_session() itself raises when go-ios is absent -- no device/WDA
-        # available in this test environment, so this exercises the real path.
-        with self.assertRaises(DeviceError):
-            await self.backend.ui_dump_raw(self.dev)
+        # ensure_session() itself raises when go-ios is absent. FINDING 5: mock
+        # the tool-presence check directly rather than relying on the ambient
+        # environment lacking it -- on a box WITH go-ios installed, an unmocked
+        # check would let ensure_session spawn real runwda/forward and block ~15s.
+        with mock.patch.object(_wda, "_check_tool", lambda n: False):
+            with self.assertRaises(DeviceError):
+                await self.backend.ui_dump_raw(self.dev)
 
 
 # --- mobile_wda_start / mobile_wda_stop tools ------------------------------

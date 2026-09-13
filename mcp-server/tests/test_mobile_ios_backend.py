@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 from unittest import mock
 
-from praetor.tools.mobile import _device
+from praetor.tools.mobile import _device, _wda
 from praetor.tools.mobile._device import (
     Device,
     DeviceError,
@@ -355,16 +355,20 @@ class IosBackendUiStubTest(unittest.IsolatedAsyncioTestCase):
     async def test_ui_methods_raise_pointing_at_wda(self):
         backend = IOSBackend()
         dev = Device(id="UDID-1", platform="ios")
-        with self.assertRaises(DeviceError):
-            await backend.ui_dump_raw(dev)
-        with self.assertRaises(DeviceError):
-            await backend.tap(dev, 1, 2)
-        with self.assertRaises(DeviceError):
-            await backend.swipe(dev, 1, 2, 3, 4, 100)
-        with self.assertRaises(DeviceError):
-            await backend.input_text(dev, "hi")
-        with self.assertRaises(DeviceError):
-            await backend.key(dev, "HOME")
+        # FINDING 5: mock the tool-presence check directly -- on a box WITH
+        # go-ios installed, an unmocked check would let ensure_session spawn
+        # real runwda/forward subprocesses and block ~15s per assertion below.
+        with mock.patch.object(_wda, "_check_tool", lambda n: False):
+            with self.assertRaises(DeviceError):
+                await backend.ui_dump_raw(dev)
+            with self.assertRaises(DeviceError):
+                await backend.tap(dev, 1, 2)
+            with self.assertRaises(DeviceError):
+                await backend.swipe(dev, 1, 2, 3, 4, 100)
+            with self.assertRaises(DeviceError):
+                await backend.input_text(dev, "hi")
+            with self.assertRaises(DeviceError):
+                await backend.key(dev, "HOME")
 
 
 class IosBackendShellTest(unittest.IsolatedAsyncioTestCase):
