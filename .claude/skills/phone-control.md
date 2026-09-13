@@ -65,7 +65,7 @@ Full cadence: `playbook-mobile-dynamic.md` / `mobile-dynamic-agent`.
 Traffic is already flowing per step 2's canary. Pull it into the web lane:
 
 `get_proxy_history`/`search_history` → `extract_api_endpoints` →
-`build_target_header_profile(domain, source="mobile")` → `auto_probe`. Loot
+`build_target_header_profile(domain)` → `auto_probe`. Loot
 (files, prefs, DBs) via `mobile_pull_file`.
 
 Full backend handoff + MASTG mapping: `playbook-mobile-dynamic.md` Phase 3,
