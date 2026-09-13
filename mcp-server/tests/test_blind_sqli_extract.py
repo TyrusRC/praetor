@@ -59,6 +59,17 @@ class OracleEval(unittest.TestCase):
         self.assertFalse(B._eval_oracle(spec, {"response_body": "Welcome back"}))
         self.assertTrue(B._eval_oracle(spec, {"response_body": "nope"}))
 
+    def test_time_oracle_uses_elapsed_threshold(self):
+        spec = {"type": "time", "threshold_ms": 5000}
+        self.assertTrue(B._eval_oracle(spec, {}, elapsed_ms=9800))
+        self.assertFalse(B._eval_oracle(spec, {}, elapsed_ms=1200))
+        # exactly at threshold counts as TRUE
+        self.assertTrue(B._eval_oracle(spec, {}, elapsed_ms=5000))
+
+    def test_time_oracle_without_elapsed_raises(self):
+        with self.assertRaises(ValueError):
+            B._eval_oracle({"type": "time", "threshold_ms": 5000}, {})
+
     def test_bad_oracle_raises(self):
         with self.assertRaises(ValueError):
             B._eval_oracle({"type": "bogus"}, {"status_code": 200})
