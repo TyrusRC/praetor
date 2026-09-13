@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 
 from praetor.tools.recon._common import _check_tool, _run_cmd, _find_tool
@@ -67,12 +68,14 @@ def _parse_idb_targets(text: str) -> list[Device]:
 
 
 def _parse_ios_list(text: str) -> list[Device]:
-    """Parse go-ios `ios list --json` output into iOS Devices. go-ios only
-    lists trusted/connected udids -> treated as authorized. Handles the
-    documented `{"deviceList": [...]}` shape, a bare JSON array, richer dict
-    entries (a future `--details` output), and a plain udid-per-line fallback
-    for non-JSON output, since real go-ios CLI output isn't available here to
-    pin exactly (needs real-device calibration)."""
+    """Parse go-ios `ios list` output into iOS Devices. Calibrated against a
+    real device (iOS 16.7.12): `ios list --json` is INVALID in this go-ios
+    version (usage message on stderr, empty stdout) -- only plain `ios list`
+    is called, and it already prints the `{"deviceList": [...]}` JSON shape
+    on stdout. go-ios only lists trusted/connected udids -> treated as
+    authorized. Also handles a bare JSON array, richer dict entries (a future
+    `--details` output), and a plain udid-per-line fallback for non-JSON
+    output, kept defensively for older/newer go-ios builds."""
     try:
         data = json.loads(text)
     except (json.JSONDecodeError, TypeError):
@@ -179,7 +182,10 @@ async def list_devices() -> list[Device]:
         if rc == 0:
             devices.extend(_parse_adb_devices(out))
     if _check_tool("ios"):
-        out, _, rc = await _run_cmd(["ios", "list", "--json"], timeout=15, bypass_proxy=True)
+        # NOTE: `ios list --json` is INVALID on this go-ios version (real-device
+        # calibration, iOS 16.7.12) -- prints a usage message to stderr, empty
+        # stdout. Plain `ios list` already emits {"deviceList": [...]} JSON.
+        out, _, rc = await _run_cmd(["ios", "list"], timeout=15, bypass_proxy=True)
         if rc == 0:
             devices.extend(_parse_ios_list(out))
     elif _check_tool("idb"):
@@ -421,12 +427,15 @@ class IOSBackend(_Backend):
     UI methods (tap/swipe/input_text/key/ui_dump_raw) drive the device via
     WebDriverAgent, started + port-forwarded by go-ios (see `_wda.py`).
 
-    NOTE: exact go-ios subcommand flags/output shapes (`ios info`, `ios apps`,
-    `ios afc`, `ios runwda`, `ios forward`) are reasoned from go-ios's
-    documented CLI surface, not captured from a real device in this
-    environment — calibrate against a live device before relying on parsed
-    fields beyond bundle id / udid, and before trusting exact WDA startup
-    flags.
+    NOTE: `ios list` (no `--json` — invalid on this go-ios version), `ios
+    info --udid`, and `ios apps --udid` are confirmed against a real
+    jailbroken device (iOS 16.7.12): all three print their JSON on stdout,
+    with only a harmless WARN on stderr for `info`/`apps`. `ios screenshot`
+    is confirmed to fail without the Developer Disk Image mounted (see
+    `_mount_ddi`). Remaining subcommand flags/output shapes (`ios afc`,
+    `ios runwda`, `ios forward`, `ios image auto`) are still reasoned from
+    go-ios's documented CLI surface, not captured from this device —
+    calibrate further before trusting exact WDA startup flags.
     """
 
     platform = "ios"
@@ -483,24 +492,50 @@ class IOSBackend(_Backend):
         client = await _wda_ensure(dev)
         await asyncio.to_thread(client.open_url, url)
 
+    def _ddi_basedir(self) -> str:
+        """Cache dir for go-ios's auto-downloaded Developer Disk Image."""
+        return os.path.join(tempfile.gettempdir(), "praetor-ios-ddi")
+
+    async def _mount_ddi(self, dev) -> bool:
+        """Best-effort mount of the Developer Disk Image via go-ios's
+        `image auto` (auto-downloads + mounts the DDI matching the device's
+        iOS version). Real device (iOS 16.7.12, jailbroken) confirms
+        `ios screenshot` fails with "Could not start screenshotr service /
+        mount the Developer disk image" until this is done.
+
+        NOTE: exact `ios image auto` flags are calibration-reasoned from
+        go-ios's documented CLI surface, not pinned from a captured device
+        transcript. Any failure here (missing subcommand, network fetch
+        failure, already-mounted error) is swallowed -- the caller treats
+        it as "DDI not mounted" and falls through to the next screenshot
+        tool rather than crashing on a best-effort step."""
+        try:
+            _o, _err, rc = await self._ios(dev, ["image", "auto", "--basedir", self._ddi_basedir()])
+            return rc == 0
+        except Exception:
+            return False
+
     async def screenshot(self, dev, out_path):
         if _check_tool("ios"):
             _o, err, rc = await self._ios(dev, ["screenshot", "--output", str(out_path)])
             if rc != 0:
-                raise DeviceError(f"ios screenshot failed: {err.strip()}")
-            return
+                await self._mount_ddi(dev)
+                _o, err, rc = await self._ios(dev, ["screenshot", "--output", str(out_path)])
+            if rc == 0:
+                return
         if _check_tool("idevicescreenshot"):
             _o, err, rc = await self._libimd("idevicescreenshot", dev, [str(out_path)])
-            if rc != 0:
-                raise DeviceError(f"idevicescreenshot failed: {err.strip()}")
-            return
+            if rc == 0:
+                return
         if _check_tool("idb"):
             _o, err, rc = await self._idb(dev, ["screenshot", str(out_path)])
-            if rc != 0:
-                raise DeviceError(f"idb screenshot failed: {err.strip()}")
-            return
-        raise DeviceError("no iOS screenshot tool found — install go-ios (`ios`) "
-                          "or libimobiledevice's idevicescreenshot")
+            if rc == 0:
+                return
+        raise DeviceError(
+            "iOS screenshot failed on every available tool — jailbroken devices "
+            "often need the Developer Disk Image mounted (attempted `ios image "
+            "auto`) or a signed WebDriverAgent; install go-ios (`ios`) or "
+            "libimobiledevice's idevicescreenshot")
 
     async def device_info(self, dev):
         # Never raises: discovery already gave us dev.model/dev.os_version,
