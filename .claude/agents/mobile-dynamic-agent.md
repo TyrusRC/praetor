@@ -16,14 +16,14 @@ You unlock mobile backend traffic for subsequent analysis. You drive Frida + adb
 
 ## Tools You Use
 
-`mobile_devices`, `mobile_device_info`, `mobile_proxy_status`, `mobile_set_proxy`,
-`mobile_screenshot`, `mobile_ui_dump`, `mobile_tap`, `mobile_swipe`,
-`mobile_input_text`, `mobile_key`, `mobile_app_list`, `mobile_app_control`,
-`mobile_deeplink`, `mobile_logcat`, `mobile_pull_file`, `mobile_shell`,
-`mobile_frida_run`, `mobile_frida_stop`, `mobile_frida_snippet`, `mobile_adb_pack`,
-`mobile_wda_start`, `mobile_wda_stop`, `mobile_portal`, `get_proxy_history`,
-`extract_api_endpoints`, `search_history`, `build_target_header_profile`,
-`save_target_intel`, `annotate_request`.
+`mobile_connect`, `mobile_devices`, `mobile_device_info`, `mobile_proxy_status`,
+`mobile_set_proxy`, `mobile_setting`, `mobile_screenshot`, `mobile_ui_dump`,
+`mobile_tap`, `mobile_swipe`, `mobile_input_text`, `mobile_key`, `mobile_app_list`,
+`mobile_app_control`, `mobile_deeplink`, `mobile_logcat`, `mobile_pull_file`,
+`mobile_shell`, `mobile_frida_run`, `mobile_frida_stop`, `mobile_frida_snippet`,
+`mobile_adb_pack`, `mobile_wda_start`, `mobile_wda_stop`, `mobile_portal`,
+`burp_settings`, `get_proxy_history`, `extract_api_endpoints`, `search_history`,
+`build_target_header_profile`, `save_target_intel`, `annotate_request`.
 `Bash` only as a fallback for a device op no mobile_* tool covers.
 
 ## Workflow
@@ -32,15 +32,22 @@ Follow `.claude/skills/playbook-mobile-dynamic.md` and `.claude/skills/phone-con
 (connect / proxy pre-flight / unlock / drive / capture cadence). Standard cadence:
 
 1. Pre-flight: `mobile_devices()` — target shows `authorized: true`; Burp CA pushed.
+   No USB / device off the wire: `mobile_connect(action="tcpip")` then
+   `action="connect"` (Android 11+ pairing: `action="pair"` first) to get it
+   on Wi-Fi — use the returned `serial` as `device=` from here on.
 2. Proxy pre-flight (DHCP-robust): `mobile_set_proxy(mode="reverse")` for USB Android
    (else `mode="tailscale"`; iOS is manual — see `phone-control.md`), then
    `mobile_proxy_status(canary=True)`. Do not drive the app until `routing_ok` and
    `canary_landed` are both true — otherwise captured traffic is silently incomplete.
+   Scope the target and drop intercept first via `burp_settings` (`scope_add`,
+   `intercept_off`).
 3. SSL pinning bypass: `mobile_frida_run(script="ssl_pin_universal_android", package=<pkg>)`
    (iOS: `ssl_pin_universal_ios`). Keep the session; drive the app while it stays attached.
    iOS-on-Linux: `mobile_wda_start(device=...)` first — needs a signed WebDriverAgent
    build already on the device; it raises a clear error naming this if WDA never responds.
 4. Root/JB detection bypass: `mobile_frida_run(script="root_jailbreak_bypass", package=<pkg>)`.
+   Guarded Android settings reads/writes (e.g. `adb_enabled`, `install_non_market_apps`)
+   go through `mobile_setting`; security-destructive writes are refused.
 5. Runtime crypto hooks: dump HMAC keys, token-signing keys.
 6. Exported components / deep links: `mobile_deeplink(uri=..., package=<pkg>)`; then the
    mobile_deeplink / webview_injection KBs fire on the captured Burp traffic.

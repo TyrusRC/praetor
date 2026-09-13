@@ -25,6 +25,33 @@ _WORKFLOW = [
      "mobile_proxy_status(canary=True); don't drive the UI until routing_ok "
      "and canary_landed are both true"),
 
+    # ----- Mobile lane: wireless adb connection management (distinct from the
+    # device-control entry above -- this is "get a device on the wire", not
+    # "drive it once connected") -----
+    (["connect phone over wifi", "wireless adb", "adb tcpip", "pair device",
+      "connect device wirelessly"],
+     "mobile_connect",
+     "mobile_connect(action='tcpip') over USB -> mobile_connect(action='connect', "
+     "ip='<phone-wifi-ip>') -> serial for device= on every other mobile_* tool; "
+     "action='pair' for Android 11+ wireless debugging"),
+
+    # ----- Mobile lane: Android settings get/put (guarded) -----
+    (["read device setting", "change android setting", "settings put",
+      "settings get", "device setting"],
+     "mobile_setting",
+     "mobile_setting(action='get', namespace='secure', key='...') or "
+     "action='put' with value=...; security-destructive writes (lock screen, "
+     "package verifier, provisioning) are refused"),
+
+    # ----- Burp settings dispatcher: scope/intercept/match-replace over the
+    # Montoya-settable subset (documents the manual-only Burp UI items) -----
+    (["configure burp", "burp scope", "match and replace", "intercept toggle",
+      "burp settings"],
+     "burp_settings",
+     "burp_settings(action='scope_add', urls=[...]) / 'intercept_on' / "
+     "'match_replace_add'; manual-only items (proxy_listener, upstream_proxy, "
+     "tls, native_match_replace) return {'manual': ..., 'montoya': False}"),
+
     # ----- session additions: router / offline / evidence / azure -----
     (["route signals", "auto trigger", "auto-trigger", "signal to tool",
       "which tool for this signal", "auto fire scanner", "reactive scan",

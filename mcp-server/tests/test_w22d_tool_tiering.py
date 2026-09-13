@@ -106,6 +106,12 @@ class MobileDiscoverabilityTest(unittest.IsolatedAsyncioTestCase):
         names = {n for n, _ in TIER1_HUNT_LOOP}
         self.assertIn("mobile_devices", names)
 
+    async def test_pick_tool_routes_wireless_connect_to_mobile_connect(self):
+        """Task 7 — a wireless-adb query must resolve to mobile_connect, not be
+        shadowed by (or shadow) the device-control / proxy-status entries above."""
+        out = await pick_tool_impl("connect phone over wifi, wireless adb")
+        self.assertIn("mobile_connect", out)
+
 
 class ListTier1ToolsRegisteredTest(unittest.TestCase):
 

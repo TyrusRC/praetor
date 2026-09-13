@@ -16,8 +16,11 @@ problem.
 - **WSL + USB Android:** Windows admin PowerShell `usbipd bind`/`usbipd attach
   --wsl`; WSL side `sudo modprobe vhci_hcd` (`doctor.sh` checks both). Do this
   before `mobile_devices()` will see anything.
-- **Wireless Android (no USB):** `adb tcpip 5555` once over an existing
-  connection, then `adb connect <device-ip>:5555`.
+- **Wireless Android (no USB):** `mobile_connect(action='tcpip')` over the
+  existing USB/connected session, then `mobile_connect(action='connect',
+  ip=<device-ip>)`; Android 11+ wireless debugging pairs first with
+  `mobile_connect(action='pair', ip=<device-ip>, code=<pairing-code>)`. Use the
+  returned `serial` as `device=` on every other mobile_* tool.
 - **iOS:** go-ios (`ios list`) — no Mac needed. See the iOS-on-Linux note below.
 
 ## 2. Proxy pre-flight (DHCP-robust) — gate, don't skip
@@ -40,10 +43,19 @@ the mismatch; re-run `mobile_set_proxy` with the same mode to fix. `reverse`
 (USB) and `tailscale` modes are immune to this — prefer them over `lan` for
 anything longer than a one-off check.
 
+Scope the target and drop intercept before driving the device: `burp_settings`
+(`scope_add`, `intercept_off`) — single dispatcher over Montoya-settable Burp
+settings; see its docstring for the manual-only items (proxy listener,
+upstream proxy, TLS).
+
 ## 3. Unlock (pinning / root-detection)
 
 `mobile_frida_run(script="ssl_pin_universal_android"|"ssl_pin_universal_ios",
 package=<pkg>)`, then `root_jailbreak_bypass` if the app refuses to start.
+Guarded Android settings reads/writes (e.g. checking `adb_enabled` or
+`install_non_market_apps`) go through `mobile_setting` — destructive writes
+(lock screen, package verifier, provisioning) are refused before the device
+is touched.
 Full cadence: `playbook-mobile-dynamic.md` / `mobile-dynamic-agent`.
 
 ## 4. Drive
