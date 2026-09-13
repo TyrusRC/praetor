@@ -44,16 +44,19 @@ Ask once at start. If any answer is "no", stop and have them set it up.
 | App installed | `adb shell pm list packages \| grep <pkg>` | `frida-ps -Uai \| grep <bundle>` |
 | Proxy reachable from device | `adb shell curl -k https://<host>:8080` → Burp page | Safari → http://<host>:8080 → Burp page |
 
-If proxy unreachable: same Wi-Fi or `adb reverse tcp:8080 tcp:8080` (Android USB) or set iOS HTTP proxy in Wi-Fi settings.
+If proxy unreachable: prefer `mobile_set_proxy(mode="reverse"|"tailscale")` + `mobile_proxy_status(canary=True)` (`phone-control.md` §2, DHCP-robust) over hand-setting `adb reverse tcp:8080 tcp:8080` or the iOS Wi-Fi proxy manually.
 
 ### Smoke test (operator, real device)
 
-1. `mobile_devices()` — target shows `authorized: true`.
-2. `mobile_screenshot(domain=...)` — PNG lands under artifacts/mobile/.
-3. `mobile_ui_dump(domain=...)` — elements returned; note a clickable index.
-4. `mobile_tap(element_index=<n>, domain=...)`.
-5. `mobile_frida_run(script="ssl_pin_universal_android", package=<pkg>, domain=...)`.
-6. Route the device wifi proxy at Burp; drive a login -> confirm requests in Proxy history.
+Run `phone-control.md` Connect + Proxy pre-flight first (wireless-first
+connect, `mobile_set_proxy` + `mobile_proxy_status(canary=True)` must both be
+green) — then:
+
+1. `mobile_screenshot(domain=...)` — PNG lands under artifacts/mobile/.
+2. `mobile_ui_dump(domain=...)` — elements returned; note a clickable index.
+3. `mobile_tap(element_index=<n>, domain=...)`.
+4. `mobile_frida_run(script="ssl_pin_universal_android", package=<pkg>, domain=...)`.
+5. Drive a login -> confirm requests in Proxy history (canary already proved routing).
 
 ---
 
