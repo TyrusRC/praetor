@@ -77,14 +77,18 @@ public final class CurlSender {
             request = request.withHeader("Authorization", "Bearer " + bearerToken);
         }
 
+        // Cookie jar carried across redirects: seeded from the caller's
+        // cookies, then merged with each hop's Set-Cookie so an auth cookie a
+        // 302 sets reaches the followed request. A verbatim Cookie-header copy
+        // (the old behavior) dropped it — a login POST that 302s to
+        // /my-account then bounced back to /login.
+        Map<String, String> cookieJar = new LinkedHashMap<>();
         Map<String, Object> cookies = (Map<String, Object>) body.get("cookies");
         if (cookies != null && !cookies.isEmpty()) {
-            StringBuilder cookieHeader = new StringBuilder();
             for (var entry : cookies.entrySet()) {
-                if (cookieHeader.length() > 0) cookieHeader.append("; ");
-                cookieHeader.append(entry.getKey()).append("=").append(entry.getValue());
+                cookieJar.put(entry.getKey(), String.valueOf(entry.getValue()));
             }
-            request = request.withHeader("Cookie", cookieHeader.toString());
+            request = request.withHeader("Cookie", renderCookieHeader(cookieJar));
         }
 
         Map<String, Object> jsonBody = (Map<String, Object>) body.get("json");
@@ -191,17 +195,33 @@ public final class CurlSender {
                 && nextService.port() == result.request().httpService().port()
                 && nextService.secure() == result.request().httpService().secure();
 
+            // Merge this hop's Set-Cookie into the jar before carrying cookies
+            // forward — the auth cookie a 302 sets must reach the next request.
+            List<String> setCookies = new ArrayList<>();
+            if (result.response() != null) {
+                for (HttpHeader h : result.response().headers()) {
+                    if ("Set-Cookie".equalsIgnoreCase(h.name())) setCookies.add(h.value());
+                }
+            }
+            mergeSetCookieHeaders(cookieJar, setCookies);
+
             if (result.request() != null) {
                 for (HttpHeader h : result.request().headers()) {
                     String name = h.name();
                     if ("Host".equalsIgnoreCase(name)) continue;
                     if ("Content-Length".equalsIgnoreCase(name)) continue;
-                    if (!sameOrigin && ("Authorization".equalsIgnoreCase(name) || "Cookie".equalsIgnoreCase(name))) continue;
+                    if ("Cookie".equalsIgnoreCase(name)) continue; // rebuilt from the jar below
+                    if (!sameOrigin && "Authorization".equalsIgnoreCase(name)) continue;
                     nextRequest = nextRequest.withHeader(name, h.value());
                 }
                 if (preserveBody && result.request().body() != null && result.request().body().length() > 0) {
                     nextRequest = nextRequest.withBody(result.request().body());
                 }
+            }
+            // Same-origin keeps cookies (from the jar, so 302-set cookies win);
+            // cross-origin drops them, matching the Authorization strip above.
+            if (sameOrigin && !cookieJar.isEmpty()) {
+                nextRequest = nextRequest.withHeader("Cookie", renderCookieHeader(cookieJar));
             }
 
             result = com.praetor.http.ProxyTunnel.sendOrFallback(api, nextRequest);
@@ -254,6 +274,40 @@ public final class CurlSender {
         }
 
         sendJson(exchange, JsonUtil.toJson(out));
+    }
+
+    /**
+     * Merge Set-Cookie header values into a name-&gt;value jar. Only the
+     * {@code name=value} pair before the first {@code ';'} is honored;
+     * attributes (Path/Secure/HttpOnly/...) are ignored, and a later hop's
+     * cookie overwrites a same-named earlier one.
+     * NOTE: does not honor cookie deletion (Max-Age=0 / past Expires),
+     * Domain/Path scoping, or the Secure flag — enough to carry an auth cookie
+     * across a redirect. A full RFC 6265 jar is the upgrade path if a target
+     * ever needs deletion or per-path cookies during a redirect chain.
+     */
+    static void mergeSetCookieHeaders(Map<String, String> jar, List<String> setCookieValues) {
+        if (setCookieValues == null) return;
+        for (String sc : setCookieValues) {
+            if (sc == null) continue;
+            int semi = sc.indexOf(';');
+            String pair = semi >= 0 ? sc.substring(0, semi) : sc;
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue; // no name, or leading '=' -> malformed, skip
+            String name = pair.substring(0, eq).trim();
+            String value = pair.substring(eq + 1).trim();
+            if (!name.isEmpty()) jar.put(name, value);
+        }
+    }
+
+    /** Render a name-&gt;value jar into a {@code "a=b; c=d"} Cookie header value. */
+    static String renderCookieHeader(Map<String, String> jar) {
+        StringBuilder sb = new StringBuilder();
+        for (var e : jar.entrySet()) {
+            if (sb.length() > 0) sb.append("; ");
+            sb.append(e.getKey()).append("=").append(e.getValue());
+        }
+        return sb.toString();
     }
 
     private static boolean hasHeader(Map<String, Object> headers, String name) {
