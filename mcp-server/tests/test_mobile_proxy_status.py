@@ -55,6 +55,31 @@ class ProxyStatusConfigTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(sc["listening"])
         self.assertFalse(sc["loopback_only"])  # 0.0.0.0 present
 
+    def test_burp_listener_scope_falls_back_to_connect_probe(self):
+        """Mirrored-mode WSL: Burp runs on Windows, `ss` inside WSL sees no
+        listener at all, but a TCP connect-probe to the configured proxy
+        host:port succeeds — that must still report listening=True."""
+        with mock.patch.object(proxy, "_run_text", return_value=""), \
+             mock.patch.object(proxy, "_burp_connect_probe", return_value=True):
+            sc = proxy.burp_listener_scope()
+        self.assertTrue(sc["listening"])
+        self.assertFalse(sc["loopback_only"])  # ss gave no addrs, so best-effort False
+
+    def test_burp_listener_scope_not_listening_when_ss_and_probe_both_fail(self):
+        with mock.patch.object(proxy, "_run_text", return_value=""), \
+             mock.patch.object(proxy, "_burp_connect_probe", return_value=False):
+            sc = proxy.burp_listener_scope()
+        self.assertFalse(sc["listening"])
+
+    def test_connect_probe_true_on_successful_connection(self):
+        with mock.patch("socket.create_connection", return_value=mock.MagicMock()) as m:
+            self.assertTrue(proxy._burp_connect_probe())
+        m.assert_called_once()
+
+    def test_connect_probe_false_on_oserror(self):
+        with mock.patch("socket.create_connection", side_effect=OSError("refused")):
+            self.assertFalse(proxy._burp_connect_probe())
+
 class ProxyStatusIosTest(unittest.IsolatedAsyncioTestCase):
     async def test_ios_device_proxy_unreadable_does_not_crash(self):
         """FINDING 1 regression: get_proxy() on iOS used to raise a bare
@@ -276,6 +301,39 @@ class ProxyStatusDriftTest(unittest.IsolatedAsyncioTestCase):
             out = await cap["mobile_proxy_status"](domain="ex.com")
         self.assertFalse(out["routing_ok"])
         self.assertTrue(any("loopback" in w.lower() for w in out["warnings"]))
+
+    async def test_canary_landed_forces_routing_ok_despite_no_listener_warning(self):
+        """Mirrored-WSL ground truth: ss sees no listener (burp_listener_scope
+        reports listening=False, so the 'no Burp proxy listener' warning fires),
+        but the canary actually landed in Burp — canary_landed is ground truth
+        and must force routing_ok True and strip that warning."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="192.168.1.163:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": False, "loopback_only": False, "addrs": []}), \
+             mock.patch.object(_device.AndroidBackend, "open_url", return_value=None), \
+             mock.patch.object(proxy, "_poll_history_for", return_value=5), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com", canary=True)
+        self.assertIs(out["canary_landed"], True)
+        self.assertIs(out["routing_ok"], True)
+        self.assertFalse(any("no Burp proxy listener" in w for w in out["warnings"]))
+
+    async def test_no_listener_and_no_canary_still_warns(self):
+        """Non-canary path unchanged: both ss and the connect-probe failed (no
+        canary run) -> the 'no listener' warning is present and routing_ok is False."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="192.168.1.163:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": False, "loopback_only": False, "addrs": []}), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com")
+        self.assertFalse(out["routing_ok"])
+        self.assertTrue(any("no Burp proxy listener" in w for w in out["warnings"]))
 
     async def test_canary_lost_includes_remediation(self):
         stub, cap = _stub_mcp(); proxy.register(stub)

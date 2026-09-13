@@ -3,11 +3,12 @@ traffic isn't silently lost. Config-status now; active canary in canary=True."""
 from __future__ import annotations
 import asyncio
 import secrets
+import socket
 import subprocess
 
 from mcp.server.fastmcp import FastMCP
 from praetor import client
-from praetor.config import BURP_PROXY_PORT
+from praetor.config import BURP_PROXY_HOST, BURP_PROXY_PORT
 from ._device import DeviceError, backend_for, resolve_device
 from ._store import log_action
 
@@ -41,6 +42,17 @@ def host_tailscale_ip() -> str:
     return ""
 
 
+def _burp_connect_probe(timeout: float = 1.0) -> bool:
+    """TCP connect-probe fallback for mirrored-mode WSL, where Burp runs on
+    Windows and `ss` inside WSL sees no listener even though the port is
+    genuinely reachable."""
+    try:
+        with socket.create_connection((BURP_PROXY_HOST, BURP_PROXY_PORT), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def burp_listener_scope() -> dict:
     """Whether Burp's proxy port has a listener, and if so whether it's bound
     to loopback only (unreachable from a LAN/USB device)."""
@@ -49,7 +61,9 @@ def burp_listener_scope() -> dict:
     addrs = [ln.split()[3] for ln in out.splitlines()
              if len(ln.split()) >= 4 and ln.split()[3].endswith(":" + port)]
     listening = bool(addrs)
-    loopback_only = listening and all(a.startswith("127.") or a.startswith("[::1]") for a in addrs)
+    if not listening and _burp_connect_probe():
+        listening = True
+    loopback_only = listening and bool(addrs) and all(a.startswith("127.") or a.startswith("[::1]") for a in addrs)
     return {"listening": listening, "loopback_only": loopback_only, "addrs": addrs}
 
 
@@ -147,7 +161,14 @@ def register(mcp: FastMCP) -> None:
                                  "lost (check proxy + CA + all-interfaces listener); "
                                  f"if DHCP has changed the host IP, {DRIFT_REMEDIATION}")
             routing_ok = routing_ok and bool(canary_result.get("canary_landed"))
+            if canary_result.get("canary_landed"):
+                # A landed canary is ground truth: packets actually reached Burp,
+                # so a "no Burp proxy listener" warning from the ss-only check
+                # (e.g. mirrored-mode WSL, where Burp runs on Windows) is stale.
+                routing_ok = True
+                warnings = [w for w in warnings if "no Burp proxy listener" not in w]
             result.update(canary_result)
+            result["warnings"] = warnings
             result["routing_ok"] = routing_ok
         result["oplog_id"] = log_action(domain, dev.id, "proxy_status", description="device->burp routing check",
                                         output=("ok" if routing_ok else "; ".join(warnings)))
