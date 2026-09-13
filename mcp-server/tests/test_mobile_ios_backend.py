@@ -45,6 +45,13 @@ class ParseIosListTest(unittest.TestCase):
     def test_empty_input(self):
         self.assertEqual(_parse_ios_list(""), [])
 
+    def test_device_list_null_no_device_attached(self):
+        # Go marshals a nil slice as JSON null -- the common no-device case.
+        self.assertEqual(_parse_ios_list('{"deviceList": null}'), [])
+
+    def test_top_level_null(self):
+        self.assertEqual(_parse_ios_list("null"), [])
+
 
 class ParseIosInfoTest(unittest.TestCase):
     def test_json_object(self):
@@ -75,6 +82,13 @@ class ParseAppListsTest(unittest.TestCase):
     def test_idb_apps_json_lines(self):
         raw = '{"bundle_id": "com.example.app", "install_type": "user"}\n'
         self.assertEqual(_parse_idb_apps(raw, third_party_only=True), ["com.example.app"])
+
+    def test_ios_apps_null_no_apps(self):
+        # Go marshals a nil slice as JSON null.
+        self.assertEqual(_parse_ios_apps("null", third_party_only=True), [])
+
+    def test_ios_apps_empty_array(self):
+        self.assertEqual(_parse_ios_apps("[]", third_party_only=True), [])
 
 
 # --- IOSBackend method dispatch tests -----------------------------------

@@ -78,7 +78,9 @@ def _parse_ios_list(text: str) -> list[Device]:
     except (json.JSONDecodeError, TypeError):
         return [Device(id=ln.strip(), platform="ios") for ln in text.splitlines() if ln.strip()]
     if isinstance(data, dict):
-        udids = data.get("deviceList", [])
+        # Go marshals a nil slice as JSON null (the common no-device-attached
+        # case) -> `.get(...)` returns None here, not [] -- `or []` catches it.
+        udids = data.get("deviceList") or []
     elif isinstance(data, list):
         udids = data
     else:
@@ -125,6 +127,8 @@ def _parse_ios_apps(text: str, third_party_only: bool) -> list[str]:
         rows = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         return []
+    # Go marshals a nil slice as JSON null -> json.loads gives None, not [].
+    rows = rows or []
     if isinstance(rows, dict):
         rows = [rows]
     pkgs = []
