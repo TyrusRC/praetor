@@ -35,11 +35,28 @@ async def _get_client() -> httpx.AsyncClient:
     return _shared_client
 
 
+def _unreachable_hint() -> str:
+    """Actionable steps when the REST bridge can't be reached at all.
+
+    Shared by connection-refused (ConnectError) and connect-phase timeout
+    (ConnectTimeout) so both point the operator at connectivity, not at Burp
+    being slow.
+    """
+    return (
+        f"Can't reach the Praetor REST API. Verify: curl -s {BASE_URL}/api/health . "
+        "If that hangs or fails, (re)load the extension in Burp's Extensions tab, "
+        "then check its Praetor config-tab Host/Port match BURP_API_HOST/PORT. "
+        "On WSL with Burp on Windows the proxy (:8080) can be reachable while the "
+        "REST API (:8111) is not — set BURP_API_HOST to the Windows host IP (NAT) "
+        "or enable mirrored networking."
+    )
+
+
 def _connect_error_envelope() -> dict:
     return {
         "error": f"Cannot connect to Burp extension at {BASE_URL}. Is the extension loaded?",
         "code": "extension_unreachable",
-        "hint": "Open Burp, ensure the Praetor extension is loaded, then retry.",
+        "hint": _unreachable_hint(),
     }
 
 
@@ -72,15 +89,25 @@ def _generic_exception_envelope(e: Exception) -> dict:
     """
     detail = str(e) or "(no detail)"
     cls = type(e).__name__
+    # ConnectTimeout is a TimeoutException (NOT a ConnectError), so it slips
+    # past the `except httpx.ConnectError` clause and lands here. A connect-
+    # phase timeout means the REST bridge is unreachable — raising the read
+    # timeout does nothing when nothing is listening — so it gets the
+    # connectivity diagnosis, not the "Burp is slow" one.
+    if isinstance(e, httpx.ConnectTimeout):
+        return {"error": f"{cls}: {detail}", "code": "extension_unreachable",
+                "hint": _unreachable_hint()}
     hint = ""
-    if "Timeout" in cls:
+    if isinstance(e, httpx.TimeoutException):
+        # ReadTimeout / WriteTimeout / PoolTimeout: connected, but Burp didn't
+        # answer in time — raising the timeout is the right lever.
         hint = (
             f"Burp extension didn't respond within {BURP_API_TIMEOUT}s. "
             "The Java side may still be waiting on the target — "
             "raise BURP_API_TIMEOUT or shorten the target's read window."
         )
     elif "Connect" in cls:
-        hint = "Verify the Burp extension is loaded and listening on BURP_API_PORT."
+        hint = _unreachable_hint()
     return {"error": f"{cls}: {detail}", "code": "client_exception", "hint": hint}
 
 

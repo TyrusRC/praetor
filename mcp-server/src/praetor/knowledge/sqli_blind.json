@@ -15,7 +15,11 @@
         "index",
         "user_id",
         "cat",
-        "item_id"
+        "item_id",
+        "trackingid",
+        "tracking_id",
+        "tracking",
+        "tid"
       ],
       "probes": [
         {
@@ -96,7 +100,11 @@
         "idx",
         "index",
         "user_id",
-        "cat"
+        "cat",
+        "trackingid",
+        "tracking_id",
+        "tracking",
+        "tid"
       ],
       "probes": [
         {
@@ -197,7 +205,11 @@
         "cat",
         "item_id",
         "user_id",
-        "order_id"
+        "order_id",
+        "trackingid",
+        "tracking_id",
+        "tracking",
+        "tid"
       ],
       "probes": [
         {

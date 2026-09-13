@@ -101,6 +101,12 @@ Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
 - **Blind OOB:** Collaborator DNS/HTTP via `auto_collaborator_test`
 - **NOT sufficient:** status code alone, generic error page, length without error string or boolean stability
 
+**Boolean-blind extraction recipe** (injectable string context that appends a closing `'`, e.g. a `TrackingId` cookie):
+- The original query wraps the value in `'…'`. A payload ending in a bare number (`…AND LENGTH(password)=20`) becomes `20'` → SQL error → every probe reads FALSE and looks "not vulnerable". Keep the **outer** comparison a string so the trailing `'` closes cleanly: push the numeric test inside the WHERE and compare a known column back —
+  `x' AND (SELECT username FROM users WHERE username='administrator' AND LENGTH(password)=20)='administrator`
+- Oracle = presence of the TRUE-marker (`Welcome back`) or a stable content delta; capture the clean-value byte length once and diff against it.
+- **Volume belongs to a tool, not hand-crafting.** `run_sqlmap` (routes through Burp) does length + per-char dump: `--technique=B --string='Welcome back' -D … -T users -C username,password --dump`. If scripting a binary search instead, use `concurrent_requests` (stays in Burp); `ASCII(SUBSTRING(password,i,1))>m` keeps the numeric test inside the WHERE per above. A raw local script through the Windows/WSL proxy socket drops HTTPS CONNECTs above ~1 concurrent — another reason to stay on the MCP tools.
+
 ### XSS
 - **Reflected:** payload UNENCODED in body in executable context
 - **Stored:** payload appears on a DIFFERENT page after submission
