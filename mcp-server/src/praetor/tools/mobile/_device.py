@@ -381,10 +381,15 @@ class IOSBackend(_Backend):
     (tap/swipe/input_text/key/ui_dump_raw) are WebDriverAgent's job — Task 5,
     not reimplemented here.
 
+    UI methods (tap/swipe/input_text/key/ui_dump_raw) drive the device via
+    WebDriverAgent, started + port-forwarded by go-ios (see `_wda.py`).
+
     NOTE: exact go-ios subcommand flags/output shapes (`ios info`, `ios apps`,
-    `ios afc`) are reasoned from go-ios's documented CLI surface, not captured
-    from a real device in this environment — calibrate against a live device
-    before relying on parsed fields beyond bundle id / udid.
+    `ios afc`, `ios runwda`, `ios forward`) are reasoned from go-ios's
+    documented CLI surface, not captured from a real device in this
+    environment — calibrate against a live device before relying on parsed
+    fields beyond bundle id / udid, and before trusting exact WDA startup
+    flags.
     """
 
     platform = "ios"
@@ -406,21 +411,32 @@ class IOSBackend(_Backend):
         cmd = [binary, *(["-u", dev.id] if dev.id else []), *args]
         return await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
 
+    _WDA_KEY_MAP = {"HOME": "home"}  # WDA exposes no generic keycode injection (unlike adb's
+    # `input keyevent`) -- only a handful of hardware actions. See WdaClient.home() NOTE.
+
     async def ui_dump_raw(self, dev):
-        raise DeviceError("iOS UI inspection needs WebDriverAgent (Task 5) — "
-                          "not implemented in this build")
+        client = await _wda_ensure(dev)
+        return await asyncio.to_thread(client.source)
 
     async def tap(self, dev, x, y):
-        raise DeviceError("iOS tap needs WebDriverAgent (Task 5) — not implemented in this build")
+        client = await _wda_ensure(dev)
+        await asyncio.to_thread(client.tap, x, y)
 
     async def swipe(self, dev, x1, y1, x2, y2, duration_ms):
-        raise DeviceError("iOS swipe needs WebDriverAgent (Task 5) — not implemented in this build")
+        client = await _wda_ensure(dev)
+        await asyncio.to_thread(client.swipe, x1, y1, x2, y2, duration_ms / 1000)
 
     async def input_text(self, dev, text):
-        raise DeviceError("iOS text input needs WebDriverAgent (Task 5) — not implemented in this build")
+        client = await _wda_ensure(dev)
+        await asyncio.to_thread(client.type_text, text)
 
     async def key(self, dev, key):
-        raise DeviceError("iOS key events need WebDriverAgent (Task 5) — not implemented in this build")
+        action = self._WDA_KEY_MAP.get(key.strip().upper())
+        if not action:
+            raise DeviceError(f"iOS key {key!r} not mapped to a WDA action "
+                              f"(supported: {', '.join(self._WDA_KEY_MAP)})")
+        client = await _wda_ensure(dev)
+        await asyncio.to_thread(getattr(client, action))
 
     async def screenshot(self, dev, out_path):
         if _check_tool("ios"):
@@ -573,6 +589,13 @@ class IOSBackend(_Backend):
     async def shell(self, dev, command):
         raise DeviceError("iOS has no adb-style shell — use mobile_frida_run for "
                           "on-device runtime ops")
+
+
+async def _wda_ensure(dev) -> "object":
+    """Lazily import _wda (avoids a module-load cycle: _wda imports DeviceError
+    from this module) and return a live WdaClient for `dev`."""
+    from . import _wda
+    return await _wda.ensure_session(dev)
 
 
 def backend_for(dev: Device) -> AndroidBackend | IOSBackend:
