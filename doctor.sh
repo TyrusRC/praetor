@@ -365,6 +365,8 @@ check_recon usbmuxd    "sudo apt install usbmuxd                 # iOS-on-Linux 
 check_recon idevice_id "sudo apt install libimobiledevice-utils  # iOS info/screenshot/logs (Mac-free)"
 check_recon ideviceinstaller "sudo apt install ideviceinstaller  # iOS app install/list"
 check_recon ios        "go install github.com/danielpaulus/go-ios@latest  # iOS control + WDA (idb replacement)"
+check_recon iproxy     "sudo apt install libusbmuxd-tools        # iproxy: USB port-forward to a jailbroken iOS device (SSH)"
+check_recon sshpass    "sudo apt install sshpass                 # non-interactive SSH to a jailbroken iOS device (mobile@)"
 
 # WSL USB/IP passthrough — only relevant when running under WSL.
 if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
