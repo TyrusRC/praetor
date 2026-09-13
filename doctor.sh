@@ -368,6 +368,16 @@ check_recon ios        "go install github.com/danielpaulus/go-ios@latest  # iOS 
 check_recon iproxy     "sudo apt install libusbmuxd-tools        # iproxy: USB port-forward to a jailbroken iOS device (SSH)"
 check_recon sshpass    "sudo apt install sshpass                 # non-interactive SSH to a jailbroken iOS device (mobile@)"
 
+# usbmuxd binary present but not running is a common iOS-on-Linux failure mode
+# (mobile_devices() silently finds nothing). WARN-not-FAIL, matches Docker check style.
+if has usbmuxd || has idevice_id; then
+    if pgrep -x usbmuxd >/dev/null 2>&1; then
+        pass "usbmuxd running"
+    else
+        skip "usbmuxd running" "sudo usbmuxd (or: sudo service usbmuxd start) — needed for any idevice_*/go-ios/mobile_devices() iOS call"
+    fi
+fi
+
 # WSL USB/IP passthrough — only relevant when running under WSL.
 if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
     if lsmod 2>/dev/null | grep -q vhci_hcd; then pass "vhci_hcd loaded (USB passthrough ready)";

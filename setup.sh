@@ -532,6 +532,11 @@ fi
 
 # Frida (SSL-pin/root bypass, hooks) — isolated uv tool venv
 install_pd_tool "frida" "uv tool install frida-tools"
+# NOTE: this installs the host-side frida-tools CLI only. The on-device
+# frida-server binary (rooted Android target) is a runtime artifact the
+# operator pushes per-engagement, matched to this frida-tools version and the
+# device arch — not installed here. Push it over wireless adb, not USB/usbip:
+# usbip resets mid-transfer on a 50MB+ binary (see phone-control.md).
 
 # iOS-on-Linux stack (Mac-free): usbmuxd + libimobiledevice + ideviceinstaller + go-ios.
 # libusbmuxd-tools (iproxy) + sshpass power the jailbroken-iOS SSH-over-USB path:
@@ -551,6 +556,8 @@ if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
     info "WSL detected — USB devices need usbipd-win passthrough:"
     warn "  Windows (admin PowerShell): usbipd bind --busid <id> ; usbipd attach --wsl --busid <id>"
     warn "  WSL: sudo modprobe vhci_hcd  (kernel module ships with the WSL kernel)"
+    warn "  usbip resets Android devices on large pushes (frida-server, APKs) —"
+    warn "  pair once over USB then switch to wireless adb (mobile_connect tcpip/connect)."
     pkg_install usbip || warn "usbip client not installed — apt install usbip (linux-tools) for passthrough"
 fi
 
