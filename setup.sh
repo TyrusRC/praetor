@@ -541,7 +541,7 @@ elif [ "$PLATFORM" = "macos" ]; then
     pkg_install libimobiledevice ideviceinstaller || warn "brew install libimobiledevice ideviceinstaller"
 fi
 # go-ios (cross-platform iOS control — the idb replacement)
-install_pd_tool "ios" "go install github.com/danielpaulus/go-ios@latest"
+install_pd_tool "ios" "go install github.com/danielpaulus/go-ios@latest && ln -sf \"$HOME/go/bin/go-ios\" \"$HOME/go/bin/ios\""
 
 # USB passthrough for WSL (phone plugged into Windows)
 if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
