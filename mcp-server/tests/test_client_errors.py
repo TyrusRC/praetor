@@ -53,6 +53,25 @@ class ClientErrorEnvelope(unittest.TestCase):
         self.assertIn("ConnectTimeout", env["error"])
         self.assertTrue(env["hint"])
 
+    def test_connect_timeout_diagnosed_as_unreachable_not_slow(self):
+        # ConnectTimeout is a TimeoutException (not ConnectError), so it lands
+        # in the generic handler. A connect-phase timeout means the REST bridge
+        # is unreachable — NOT that Burp is slow answering. The hint must point
+        # at connectivity (health check / reload extension / WSL host), and must
+        # NOT tell the operator to raise BURP_API_TIMEOUT, which does nothing
+        # when nothing is listening.
+        env = self._trigger_post_with_exc(httpx.ConnectTimeout(""))
+        self.assertEqual(env["code"], "extension_unreachable")
+        self.assertIn("/api/health", env["hint"])
+        self.assertNotIn("BURP_API_TIMEOUT", env["hint"])
+
+    def test_read_timeout_diagnosed_as_slow_response(self):
+        # ReadTimeout means the connection was established but Burp did not
+        # answer in time — raising BURP_API_TIMEOUT is the right lever here.
+        env = self._trigger_post_with_exc(httpx.ReadTimeout(""))
+        self.assertIn("BURP_API_TIMEOUT", env["hint"])
+        self.assertNotIn("/api/health", env["hint"])
+
     def test_generic_exception_still_carries_class_name(self):
         env = self._trigger_post_with_exc(ValueError(""))
         self.assertNotEqual(env["error"], "")

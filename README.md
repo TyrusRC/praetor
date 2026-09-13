@@ -227,6 +227,8 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 
   NAT mode exposes the unauthenticated API on the WSL virtual switch; use only on a trusted host. Prefer mirrored.
 
+**Proxy works but tools time out (`extension_unreachable`).** If browser/proxy traffic (`:8080`) reaches Burp but every REST tool returns a `ConnectTimeout` / `extension_unreachable`, the extension's REST server on `:8111` is not up — the two listeners are independent. This is *not* a `BURP_API_TIMEOUT` problem. Fix: reload the Praetor extension in Burp's **Extensions** tab, then confirm `curl -s http://127.0.0.1:8111/api/health` returns `{"status":"ok"}` (mirrored) or the same against `$BURP_API_HOST` (NAT). Only after health passes are the MCP tools usable.
+
 ### Environment Variables
 
 | Variable | Default | Purpose |
