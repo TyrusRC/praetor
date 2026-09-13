@@ -103,6 +103,11 @@ def register(mcp: FastMCP):
 
         lines = [f"Status: {resp.get('status')}"]
         lines.append(f"Response Length: {resp.get('response_length', 0)} bytes")
+        # Surface server-measured latency — the oracle for time-based blind SQLi
+        # and other timing classes. The Java layer computes it; dropping it here
+        # forced a proxied-curl workaround to read the delay.
+        if "response_time_ms" in resp:
+            lines.append(f"Response Time: {resp['response_time_ms']} ms")
 
         extracted = resp.get("extracted", {})
         if extracted:
