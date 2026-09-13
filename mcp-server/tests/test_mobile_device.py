@@ -12,6 +12,10 @@ _ADB_DEVICES = (
     "ABC123   device product:foo model:Pixel_7 device:panther transport_id:1\n"
     "emulator-5554   offline\n"
 )
+# go-ios `ios list --json` output (primary iOS discovery path — Task 4).
+_IOS_LIST_JSON = '{"deviceList": ["UDID-9"]}'
+# Facebook idb `list-targets --json` output — fallback path only, used when
+# go-ios (`ios`) is not installed.
 _IDB_TARGETS = '[{"udid": "UDID-9", "name": "iPhone 15", "os_version": "17.4", "state": "Booted"}]'
 
 
@@ -20,8 +24,8 @@ class ListDevicesTest(unittest.IsolatedAsyncioTestCase):
         async def fake_run(cmd, timeout=120, bypass_proxy=False, **kw):
             if cmd[0] == "adb":
                 return _ADB_DEVICES, "", 0
-            if cmd[0] == "idb":
-                return _IDB_TARGETS, "", 0
+            if cmd[0] == "ios":
+                return _IOS_LIST_JSON, "", 0
             return "", "", 1
 
         with mock.patch.object(_device, "_run_cmd", fake_run), \
@@ -34,6 +38,22 @@ class ListDevicesTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(ids["emulator-5554"].authorized)  # offline
         self.assertIn("UDID-9", ids)
         self.assertEqual(ids["UDID-9"].platform, "ios")
+
+    async def test_ios_falls_back_to_idb_when_go_ios_absent(self):
+        async def fake_run(cmd, timeout=120, bypass_proxy=False, **kw):
+            if cmd[0] == "adb":
+                return _ADB_DEVICES, "", 0
+            if cmd[0] == "idb":
+                return _IDB_TARGETS, "", 0
+            return "", "", 1
+
+        with mock.patch.object(_device, "_run_cmd", fake_run), \
+             mock.patch.object(_device, "_check_tool", lambda n: n != "ios"):
+            devs = await _device.list_devices()
+        ids = {d.id: d for d in devs}
+        self.assertIn("UDID-9", ids)
+        self.assertEqual(ids["UDID-9"].platform, "ios")
+        self.assertEqual(ids["UDID-9"].model, "iPhone 15")
 
     async def test_missing_tools_degrade(self):
         with mock.patch.object(_device, "_check_tool", lambda n: False):
