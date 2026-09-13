@@ -29,11 +29,13 @@ _WORKFLOW = [
     # device-control entry above -- this is "get a device on the wire", not
     # "drive it once connected") -----
     (["connect phone over wifi", "wireless adb", "adb tcpip", "pair device",
-      "connect device wirelessly"],
+      "connect device wirelessly", "connect phone automatically", "auto wireless",
+      "dhcp ip"],
      "mobile_connect",
      "mobile_connect(action='tcpip') over USB -> mobile_connect(action='connect', "
      "ip='<phone-wifi-ip>') -> serial for device= on every other mobile_* tool; "
-     "action='pair' for Android 11+ wireless debugging"),
+     "action='pair' for Android 11+ wireless debugging; action='auto' derives the "
+     "phone's Wi-Fi ip over USB and connects in one call (no manual ip=, DHCP-proof)"),
 
     # ----- Mobile lane: Android settings get/put (guarded) -----
     (["read device setting", "change android setting", "settings put",

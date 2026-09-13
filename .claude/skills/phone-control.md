@@ -20,7 +20,9 @@ problem.
   ip=<device-ip>, port=5555)` for the rest of the session; Android 11+ wireless
   debugging pairs first with `mobile_connect(action='pair', ip=<device-ip>,
   code=<pairing-code>)`. Use the returned `serial` as `device=` on every other
-  mobile_* tool.
+  mobile_* tool. `mobile_connect(action='auto')` does this in one call — it
+  derives the phone's current Wi-Fi IP over USB and connects, no manual `ip=`
+  (DHCP-proof; no-ops if already on wireless adb).
 - **WSL + USB Android (when wireless isn't an option):** Windows admin
   PowerShell `usbipd bind`/`usbipd attach --wsl`; WSL side `sudo modprobe
   vhci_hcd` (`doctor.sh` checks both). Devices drop on big transfers or screen

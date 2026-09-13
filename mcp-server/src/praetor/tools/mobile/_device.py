@@ -416,6 +416,26 @@ class AndroidBackend(_Backend):
         caller (mobile_setting) MUST run check_command() first."""
         await self.run(dev, ["shell", "settings", "put", ns, key, value])
 
+    async def wifi_ip(self, dev) -> str:
+        """The device's current Wi-Fi IP, read over the IP-independent USB/adb
+        channel — used to bootstrap wireless adb without the operator typing an
+        IP (DHCP-proof: re-reads the live address every call instead of trusting
+        a stale one). Primary: `ip addr show wlan0`'s `inet <ip>/<cidr>` line.
+        Fallback: `ip route`'s `src <ip>` (covers devices where wlan0 is
+        renamed). Returns "" if neither yields an address (Wi-Fi off/no
+        wlan0)."""
+        out, _, _ = await self.run(dev, ["shell", "ip", "-f", "inet", "addr", "show", "wlan0"])
+        parts = out.split()
+        for i, tok in enumerate(parts):
+            if tok == "inet" and i + 1 < len(parts):
+                return parts[i + 1].split("/")[0]
+        out, _, _ = await self.run(dev, ["shell", "ip", "route"])
+        parts = out.split()
+        for i, tok in enumerate(parts):
+            if tok == "src" and i + 1 < len(parts):
+                return parts[i + 1].strip()
+        return ""
+
 
 class IOSBackend(_Backend):
     """iOS control over go-ios (`ios` CLI, cross-platform, Rust/Go — installs

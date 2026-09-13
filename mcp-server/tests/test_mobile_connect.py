@@ -93,7 +93,97 @@ class MobileConnectTest(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_action_is_error(self):
         out = await self.cap["mobile_connect"](action="bogus")
         self.assertIn("error", out)
-        self.assertIn("tcpip|connect|pair|disconnect|list", out["error"])
+        self.assertIn("tcpip|connect|pair|disconnect|list|auto", out["error"])
+
+
+class MobileConnectAutoTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.stub, self.cap = _stub_mcp()
+        connect.register(self.stub)
+        self.usb_dev = _device.Device(id="USB123", platform="android", authorized=True)
+        self.wireless_dev = _device.Device(id="192.168.1.137:5555", platform="android",
+                                           authorized=True)
+        self.ios_dev = _device.Device(id="00008110-ABCDEF", platform="ios", authorized=True)
+
+    async def test_auto_bootstraps_from_usb(self):
+        calls = []
+
+        async def fake_run_cmd(cmd, **kw):
+            calls.append(cmd)
+            if cmd[:2] == ["adb", "-s"] and "tcpip" in cmd:
+                return ("restarting in TCP mode port: 5555", "", 0)
+            if cmd[:2] == ["adb", "connect"]:
+                return ("connected to 192.168.1.50:5555", "", 0)
+            raise AssertionError(f"unexpected cmd {cmd}")
+
+        with mock.patch.object(connect, "list_devices", return_value=[self.usb_dev]), \
+             mock.patch.object(_device.AndroidBackend, "wifi_ip",
+                               return_value="192.168.1.50"), \
+             mock.patch.object(connect, "_run_cmd", side_effect=fake_run_cmd), \
+             mock.patch.object(connect, "log_action", return_value="op1"):
+            out = await self.cap["mobile_connect"](action="auto")
+
+        self.assertIn(["adb", "-s", "USB123", "tcpip", "5555"], calls)
+        self.assertIn(["adb", "connect", "192.168.1.50:5555"], calls)
+        self.assertNotIn("error", out)
+        self.assertEqual(out["serial"], "192.168.1.50:5555")
+        self.assertEqual(out["ip"], "192.168.1.50")
+
+    async def test_auto_noop_when_already_wireless(self):
+        with mock.patch.object(connect, "list_devices", return_value=[self.wireless_dev]), \
+             mock.patch.object(connect, "_run_cmd") as rc, \
+             mock.patch.object(connect, "log_action", return_value="op1"):
+            out = await self.cap["mobile_connect"](action="auto")
+        rc.assert_not_called()
+        self.assertNotIn("error", out)
+        self.assertEqual(out["serial"], "192.168.1.137:5555")
+
+    async def test_auto_errors_when_usb_device_not_on_wifi(self):
+        with mock.patch.object(connect, "list_devices", return_value=[self.usb_dev]), \
+             mock.patch.object(_device.AndroidBackend, "wifi_ip", return_value=""), \
+             mock.patch.object(connect, "_run_cmd") as rc, \
+             mock.patch.object(connect, "log_action", return_value="op1"):
+            out = await self.cap["mobile_connect"](action="auto")
+        rc.assert_not_called()
+        self.assertIn("error", out)
+        self.assertIn("Wi", out["error"])
+
+    async def test_auto_errors_ios_only(self):
+        with mock.patch.object(connect, "list_devices", return_value=[self.ios_dev]):
+            out = await self.cap["mobile_connect"](action="auto")
+        self.assertIn("error", out)
+        self.assertIn("Android-only", out["error"])
+
+    async def test_auto_errors_no_devices(self):
+        with mock.patch.object(connect, "list_devices", return_value=[]):
+            out = await self.cap["mobile_connect"](action="auto")
+        self.assertIn("error", out)
+
+    async def test_auto_retries_connect_once_on_failure(self):
+        calls = []
+        connect_attempts = {"n": 0}
+
+        async def fake_run_cmd(cmd, **kw):
+            calls.append(cmd)
+            if cmd[:2] == ["adb", "-s"] and "tcpip" in cmd:
+                return ("restarting in TCP mode port: 5555", "", 0)
+            if cmd[:2] == ["adb", "connect"]:
+                connect_attempts["n"] += 1
+                if connect_attempts["n"] == 1:
+                    return ("failed to connect to 192.168.1.50:5555", "", 1)
+                return ("connected to 192.168.1.50:5555", "", 0)
+            raise AssertionError(f"unexpected cmd {cmd}")
+
+        with mock.patch.object(connect, "list_devices", return_value=[self.usb_dev]), \
+             mock.patch.object(_device.AndroidBackend, "wifi_ip",
+                               return_value="192.168.1.50"), \
+             mock.patch.object(connect, "_run_cmd", side_effect=fake_run_cmd), \
+             mock.patch.object(connect, "log_action", return_value="op1"):
+            out = await self.cap["mobile_connect"](action="auto")
+
+        self.assertEqual(connect_attempts["n"], 2)
+        self.assertNotIn("error", out)
+        self.assertEqual(out["serial"], "192.168.1.50:5555")
 
 
 if __name__ == "__main__":
