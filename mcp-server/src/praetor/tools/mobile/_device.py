@@ -98,7 +98,8 @@ async def resolve_device(device: str = "", platform: str = "") -> Device:
         raise DeviceError("multiple devices connected — pass device=<serial/udid>. "
                           f"Connected: {', '.join(d.id for d in devs)}")
 
-    ok, why = _guards.check_device(match.id, connected_count=len(devs))
+    strict = os.environ.get("PRAETOR_MOBILE_STRICT", "").strip().lower() in ("1", "true", "yes", "on")
+    ok, why = _guards.check_device(match.id, connected_count=len(devs), strict=strict)
     if not ok:
         raise DeviceError(why)
     if not match.authorized:
@@ -170,6 +171,11 @@ class AndroidBackend(_Backend):
                              str(x2), str(y2), str(duration_ms)])
 
     async def input_text(self, dev, text):
+        # NOTE: only spaces are escaped (space -> %s); shell metacharacters (;&`$) in
+        # text reach 'adb shell input text' unescaped. Safe (check_command guards
+        # destruction; argv exec, no shell=True) but a field value containing them is
+        # mangled. Upgrade path: base64-encode + broadcast, or per-char keyevent, for
+        # exact text.
         await self.run(dev, ["shell", "input", "text", text.replace(" ", "%s")])
 
     async def key(self, dev, key):
@@ -224,6 +230,9 @@ class AndroidBackend(_Backend):
             raise DeviceError(f"adb pull failed: {err.strip()}")
 
     async def shell(self, dev, command):
+        # NOTE: naive command.split() — pipes/quotes/globs are not honored (adb
+        # reassembles argv on-device). check_command guards destruction. Upgrade path:
+        # wrap complex commands in ["shell","sh","-c", command].
         return await self.run(dev, ["shell", *command.split()])
 
 

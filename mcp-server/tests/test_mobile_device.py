@@ -72,6 +72,19 @@ class ResolveDeviceTest(unittest.IsolatedAsyncioTestCase):
             got = await _device.resolve_device()
         self.assertEqual(got.id, "ABC123")
 
+    async def test_strict_mode_refuses_single_device_without_allowlist(self):
+        d = _device.Device(id="ABC123", platform="android", authorized=True)
+        with await self._patch([d]), \
+             mock.patch.dict(os.environ, {"PRAETOR_MOBILE_STRICT": "1"}, clear=True):
+            with self.assertRaises(_device.DeviceError):
+                await _device.resolve_device()
+
+    async def test_strict_unset_single_device_still_resolves(self):
+        d = _device.Device(id="ABC123", platform="android", authorized=True)
+        with await self._patch([d]), mock.patch.dict(os.environ, {}, clear=True):
+            got = await _device.resolve_device()
+        self.assertEqual(got.id, "ABC123")
+
 
 class BackendForTest(unittest.TestCase):
     def test_android(self):
