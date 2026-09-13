@@ -45,6 +45,9 @@ async def _run_canary(dev, domain):
     return {}
 
 
+CA_NOTE = "HTTPS capture also requires the Burp CA installed & trusted on the device"
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -77,7 +80,8 @@ def register(mcp: FastMCP) -> None:
         routing_ok = not warnings
         result = {"device": dev.id, "platform": dev.platform, "device_proxy": device_proxy,
                   "expected_proxy": expected, "burp_listener": scope, "routing_ok": routing_ok,
-                  "canary_landed": None, "logger_index": None, "warnings": warnings}
+                  "canary_landed": None, "logger_index": None, "warnings": warnings,
+                  "ca_note": CA_NOTE}
         if canary:
             result.update(await _run_canary(dev, domain))  # Task 3
         result["oplog_id"] = log_action(domain, dev.id, "proxy_status", description="device->burp routing check",

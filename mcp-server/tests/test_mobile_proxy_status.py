@@ -24,8 +24,9 @@ class ProxyStatusConfigTest(unittest.IsolatedAsyncioTestCase):
              mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
              mock.patch.object(proxy, "log_action", return_value="op1"):
             out = await self.cap["mobile_proxy_status"](domain="ex.com")
-        self.assertTrue(out["routing_ok"])
+        self.assertIs(out["routing_ok"], True)
         self.assertEqual(out["warnings"], [])
+        self.assertTrue(out["ca_note"])
 
     async def test_warn_when_proxy_unset(self):
         with mock.patch.object(proxy, "resolve_device", return_value=self.dev), \
