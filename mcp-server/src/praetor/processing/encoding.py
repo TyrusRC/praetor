@@ -27,6 +27,15 @@ def apply_operation(text: str, op: str) -> str:
             return html.escape(text)
         case "html_decode" | "htmld":
             return html.unescape(text)
+        case "hex_entities":
+            # Every char -> &#xNN; XML numeric entity. Unlike html_encode
+            # (specials only), this hides SQL/XSS keywords entirely, so a WAF
+            # can't keyword-match while an XML/HTML parser still reconstructs
+            # the payload. Reverse with html_decode.
+            return "".join(f"&#x{ord(c):x};" for c in text)
+        case "dec_entities":
+            # Same, decimal form (&#NN;). Reverse with html_decode.
+            return "".join(f"&#{ord(c)};" for c in text)
         case "hex_encode" | "hexe":
             return text.encode().hex()
         case "hex_decode" | "hexd":
@@ -64,6 +73,7 @@ SHARED_OPS = (
     "base64_encode", "base64_decode",
     "url_encode", "url_decode", "double_url_encode",
     "html_encode", "html_decode",
+    "hex_entities", "dec_entities",
     "hex_encode", "hex_decode",
     "ascii_hex",
     "unicode_escape", "unicode_unescape",
