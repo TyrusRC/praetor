@@ -109,21 +109,27 @@ def register(mcp: FastMCP) -> None:
         lan = host_lan_ip()
         expected = f"{lan}:{BURP_PROXY_PORT}" if lan else f"<host-lan-ip>:{BURP_PROXY_PORT}"
         scope = burp_listener_scope()
+        # adb-reverse routing: device 127.0.0.1:<port> tunnels to host 127.0.0.1:<port> —
+        # a valid, DHCP-immune config, not a LAN-IP mismatch and not a loopback-listener problem.
+        is_loopback_proxy = device_proxy in (f"127.0.0.1:{BURP_PROXY_PORT}", f"localhost:{BURP_PROXY_PORT}")
+        proxy_note = ""
         if not device_proxy:
             warnings.append("device http_proxy is not set — app traffic will NOT reach Burp")
+        elif is_loopback_proxy:
+            proxy_note = "device via adb reverse — loopback Burp is correct"
         elif lan and device_proxy != expected:
             warnings.append(f"device proxy {device_proxy!r} != expected {expected!r} (host LAN IP:Burp port)")
-        if device_proxy and not device_proxy.startswith("127.0.0.1") and lan and lan != device_proxy.split(":")[0]:
+        if device_proxy and not is_loopback_proxy and lan and lan != device_proxy.split(":")[0]:
             warnings.append(DRIFT_NOTE)
         if not scope["listening"]:
             warnings.append(f"no Burp proxy listener on port {BURP_PROXY_PORT}")
-        elif scope["loopback_only"]:
+        elif scope["loopback_only"] and not is_loopback_proxy:
             warnings.append("Burp proxy bound to loopback only — a LAN/USB device cannot reach it; add an all-interfaces (0.0.0.0) proxy listener")
         routing_ok = not warnings
         result = {"device": dev.id, "platform": dev.platform, "device_proxy": device_proxy,
                   "expected_proxy": expected, "burp_listener": scope, "routing_ok": routing_ok,
                   "canary_landed": None, "logger_index": None, "warnings": warnings,
-                  "ca_note": CA_NOTE}
+                  "ca_note": CA_NOTE, "proxy_note": proxy_note}
         if canary:
             canary_result = await _run_canary(dev, domain)
             warnings.extend(canary_result.pop("warnings_extra", []))

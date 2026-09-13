@@ -179,6 +179,41 @@ class ProxyStatusDriftTest(unittest.IsolatedAsyncioTestCase):
              mock.patch.object(proxy, "log_action", return_value="op1"):
             out = await cap["mobile_proxy_status"](domain="ex.com")
         self.assertFalse(any("mobile_set_proxy" in w for w in out["warnings"]))
+        self.assertIs(out["routing_ok"], True)
+        self.assertEqual(out["warnings"], [])
+
+    async def test_adb_reverse_loopback_proxy_with_loopback_listener_is_routing_ok(self):
+        """FACET 1+2: reverse mode's device_proxy=127.0.0.1:<port> + a loopback-only
+        Burp listener is the CORRECT adb-reverse config — no mismatch warning, no
+        loopback-listener warning, routing_ok True, even though the host LAN IP
+        differs (irrelevant to a reverse tunnel)."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="127.0.0.1:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.200"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": True, "addrs": ["127.0.0.1:8080"]}), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com")
+        self.assertIs(out["routing_ok"], True)
+        self.assertEqual(out["warnings"], [])
+        self.assertTrue(out["ca_note"])
+        self.assertFalse(any("mismatch" in w.lower() or "!= expected" in w or "loopback" in w.lower()
+                             for w in out["warnings"]))
+
+    async def test_loopback_only_listener_still_warns_for_non_reverse_proxy(self):
+        """Regression guard: the loopback-listener warning must still fire for a
+        LAN-configured device_proxy (Task 2/3 behavior unchanged)."""
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="192.168.1.163:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": True, "addrs": ["127.0.0.1:8080"]}), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com")
+        self.assertFalse(out["routing_ok"])
+        self.assertTrue(any("loopback" in w.lower() for w in out["warnings"]))
 
     async def test_canary_lost_includes_remediation(self):
         stub, cap = _stub_mcp(); proxy.register(stub)
