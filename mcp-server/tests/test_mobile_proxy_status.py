@@ -55,5 +55,35 @@ class ProxyStatusConfigTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(sc["listening"])
         self.assertFalse(sc["loopback_only"])  # 0.0.0.0 present
 
+class ProxyStatusCanaryTest(unittest.IsolatedAsyncioTestCase):
+    async def test_canary_landed(self):
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="192.168.1.163:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
+             mock.patch.object(_device.AndroidBackend, "open_url", return_value=None), \
+             mock.patch.object(proxy, "_poll_history_for", return_value=4242), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com", canary=True)
+        self.assertTrue(out["canary_landed"])
+        self.assertEqual(out["logger_index"], 4242)
+
+    async def test_canary_lost(self):
+        stub, cap = _stub_mcp(); proxy.register(stub)
+        dev = _device.Device(id="ABC123", platform="android", authorized=True)
+        with mock.patch.object(proxy, "resolve_device", return_value=dev), \
+             mock.patch.object(_device.AndroidBackend, "get_proxy", return_value="192.168.1.163:8080"), \
+             mock.patch.object(proxy, "host_lan_ip", return_value="192.168.1.163"), \
+             mock.patch.object(proxy, "burp_listener_scope", return_value={"listening": True, "loopback_only": False, "addrs": ["0.0.0.0:8080"]}), \
+             mock.patch.object(_device.AndroidBackend, "open_url", return_value=None), \
+             mock.patch.object(proxy, "_poll_history_for", return_value=None), \
+             mock.patch.object(proxy, "log_action", return_value="op1"):
+            out = await cap["mobile_proxy_status"](domain="ex.com", canary=True)
+        self.assertFalse(out["canary_landed"])
+        self.assertTrue(any("canary" in w.lower() for w in out["warnings"]))
+
+
 if __name__ == "__main__":
     unittest.main()

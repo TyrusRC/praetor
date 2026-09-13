@@ -241,6 +241,11 @@ class AndroidBackend(_Backend):
         v = out.strip()
         return "" if v in ("", "null", ":0", "0") else v
 
+    async def open_url(self, dev, url) -> None:
+        """Fire the URL via an Android VIEW intent — routes through the device's
+        configured proxy, unlike our own control commands (which bypass it)."""
+        await self.run(dev, ["shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", url])
+
 
 class IOSBackend(_Backend):
     platform = "ios"

@@ -1,9 +1,12 @@
 """mobile_proxy_status — verify a device actually routes through Burp so app
 traffic isn't silently lost. Config-status now; active canary in canary=True."""
 from __future__ import annotations
+import asyncio
+import secrets
 import subprocess
 
 from mcp.server.fastmcp import FastMCP
+from praetor import client
 from praetor.config import BURP_PROXY_PORT
 from ._device import DeviceError, backend_for, resolve_device
 from ._store import log_action
@@ -39,10 +42,34 @@ def burp_listener_scope() -> dict:
     return {"listening": listening, "loopback_only": loopback_only, "addrs": addrs}
 
 
-async def _run_canary(dev, domain):
-    """Inert stub — active canary (fire one request from device, confirm it
-    lands in Burp proxy history) is implemented in Task 3."""
-    return {}
+async def _poll_history_for(token: str, seconds: float = 6.0) -> int | None:
+    """Poll Burp proxy history for a request whose URL contains token; return its
+    index, or None if it never lands within the window."""
+    deadline = asyncio.get_running_loop().time() + seconds
+    while True:
+        data = await client.post("/api/search/history", json={"query": token, "in_url": True, "limit": 20})
+        if "error" not in data:
+            for r in data.get("results", []):
+                if token in str(r.get("url", "")):
+                    return r["index"]
+        if asyncio.get_running_loop().time() >= deadline:
+            return None
+        await asyncio.sleep(1.0)
+
+
+async def _run_canary(dev, domain) -> dict:
+    """Fire one request FROM the device through its configured proxy and confirm
+    it lands in Burp proxy history — proves packets actually flow, not just that
+    the config looks right."""
+    token = "praetor-canary-" + secrets.token_hex(4)
+    url = f"http://{token}.example.com/{token}"
+    try:
+        await backend_for(dev).open_url(dev, url)
+    except DeviceError as e:
+        return {"canary_landed": False, "logger_index": None, "canary_url": url,
+                "warnings_extra": [f"could not fire canary: {e}"]}
+    idx = await _poll_history_for(token)
+    return {"canary_landed": idx is not None, "logger_index": idx, "canary_url": url}
 
 
 CA_NOTE = "HTTPS capture also requires the Burp CA installed & trusted on the device"
@@ -83,7 +110,14 @@ def register(mcp: FastMCP) -> None:
                   "canary_landed": None, "logger_index": None, "warnings": warnings,
                   "ca_note": CA_NOTE}
         if canary:
-            result.update(await _run_canary(dev, domain))  # Task 3
+            canary_result = await _run_canary(dev, domain)
+            warnings.extend(canary_result.pop("warnings_extra", []))
+            if canary_result.get("canary_landed") is False:
+                warnings.append("canary request did NOT reach Burp — device traffic is being "
+                                 "lost (check proxy + CA + all-interfaces listener)")
+            routing_ok = routing_ok and bool(canary_result.get("canary_landed"))
+            result.update(canary_result)
+            result["routing_ok"] = routing_ok
         result["oplog_id"] = log_action(domain, dev.id, "proxy_status", description="device->burp routing check",
                                         output=("ok" if routing_ok else "; ".join(warnings)))
         return result
