@@ -81,9 +81,12 @@ def allowed_devices() -> list[str]:
     return [d.strip() for d in raw.split(",") if d.strip()]
 
 
-def check_device(device_id: str, connected_count: int, strict: bool = False) -> tuple[bool, str]:
+def check_device(device_id: str, connected_count: int, strict: bool = False,
+                 explicit: bool = False) -> tuple[bool, str]:
     """Enforce the device allowlist (Rule 8). Allowlisted -> ok. No allowlist +
-    exactly one device + not strict -> ok (operator convenience). Else refuse."""
+    exactly one device + not strict -> ok (operator convenience). No allowlist +
+    not strict + caller explicitly named the device -> ok (naming a device isn't
+    guessing; operator mode default). Else refuse."""
     allow = allowed_devices()
     if device_id and device_id in allow:
         return True, ""
@@ -94,6 +97,8 @@ def check_device(device_id: str, connected_count: int, strict: bool = False) -> 
     if strict:
         return False, ("no device allowlist set and strict mode on. Set "
                        "PRAETOR_MOBILE_DEVICES to the serial(s) you are authorized to test.")
+    if explicit:
+        return True, ""
     if connected_count == 1:
         return True, ""
     return False, ("no device allowlist set and multiple devices connected — refusing "

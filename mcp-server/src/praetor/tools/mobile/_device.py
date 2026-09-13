@@ -215,7 +215,8 @@ async def resolve_device(device: str = "", platform: str = "") -> Device:
                           f"Connected: {', '.join(d.id for d in devs)}")
 
     strict = os.environ.get("PRAETOR_MOBILE_STRICT", "").strip().lower() in ("1", "true", "yes", "on")
-    ok, why = _guards.check_device(match.id, connected_count=len(devs), strict=strict)
+    ok, why = _guards.check_device(match.id, connected_count=len(devs), strict=strict,
+                                   explicit=bool(device))
     if not ok:
         raise DeviceError(why)
     if not match.authorized:
