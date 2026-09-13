@@ -27,6 +27,14 @@ public class CollaboratorHandler extends BaseHandler {
 
     private final MontoyaApi api;
 
+    // Burp's getAllInteractions() drains its buffer — each interaction is
+    // returned exactly once, so a second poll loses the first poll's results.
+    // Accumulate every drained interaction here so /interactions returns the
+    // full history and repeated polling can't drop OOB evidence. Session-
+    // scoped; ?clear=true resets it, ?new_only=true returns just this drain.
+    private static final List<Map<String, Object>> SEEN =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
+
     public CollaboratorHandler(MontoyaApi api) {
         this.api = api;
     }
@@ -240,65 +248,29 @@ public class CollaboratorHandler extends BaseHandler {
 
     private void handleGetInteractions(HttpExchange exchange) throws Exception {
         try {
+            Map<String, String> params = parseQuery(exchange.getRequestURI().getRawQuery());
+            if ("true".equalsIgnoreCase(params.get("clear"))) {
+                SEEN.clear();
+                sendJson(exchange, JsonUtil.object("total", 0, "interactions", new ArrayList<>(), "cleared", true));
+                return;
+            }
+            boolean newOnly = "true".equalsIgnoreCase(params.get("new_only"));
+
             CollaboratorClient c = getClient();
             List<Interaction> interactions = c.getAllInteractions();
 
-            List<Map<String, Object>> items = new ArrayList<>();
+            // Convert this drain's interactions and retain them. getAllInteractions
+            // returns each interaction once, so appending never duplicates.
+            List<Map<String, Object>> fresh = new ArrayList<>();
             for (Interaction interaction : interactions) {
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("type", interaction.type().toString());
-                entry.put("timestamp", interaction.timeStamp().toString());
-                entry.put("client_ip", interaction.clientIp().toString());
-                entry.put("payload_id", interaction.id().toString());
-
-                // Extract HTTP details if available (blind SSRF/XXE evidence)
-                try {
-                    if (interaction.httpDetails().isPresent()) {
-                        var http = interaction.httpDetails().get();
-                        Map<String, Object> httpData = new LinkedHashMap<>();
-                        if (http.requestResponse() != null) {
-                            var req = http.requestResponse().request();
-                            if (req != null) {
-                                httpData.put("method", req.method());
-                                httpData.put("path", req.path());
-                                // Host header carries OOB-exfil data placed in the
-                                // subdomain (<data>.<id>.oastify.com) — the canonical
-                                // blind-SQLi/XXE exfil channel. Surface it, and the URL.
-                                String hostHdr = req.headerValue("Host");
-                                if (hostHdr != null) httpData.put("host", hostHdr);
-                                try { httpData.put("url", req.url()); } catch (Exception ignored2) {}
-                                String reqBody = req.bodyToString();
-                                if (reqBody.length() > 1000) reqBody = reqBody.substring(0, 1000) + "...";
-                                httpData.put("request_body", reqBody);
-                            }
-                        }
-                        entry.put("http_details", httpData);
-                    }
-                } catch (Exception ignored) {}
-
-                // Extract DNS details if available (DNS exfiltration evidence)
-                try {
-                    if (interaction.dnsDetails().isPresent()) {
-                        var dns = interaction.dnsDetails().get();
-                        Map<String, Object> dnsData = new LinkedHashMap<>();
-                        dnsData.put("query_type", dns.queryType().toString());
-                        dnsData.put("description", dns.queryType().name() + " lookup");
-                        // The looked-up name carries OOB-exfil data in the subdomain
-                        // (<data>.<id>.oastify.com). Parse the QNAME out of the raw
-                        // DNS query so the leaked value is actually readable.
-                        try {
-                            String qname = extractDnsQname(dns.query());
-                            if (!qname.isEmpty()) dnsData.put("query_name", qname);
-                        } catch (Exception ignored3) {}
-                        entry.put("dns_details", dnsData);
-                    }
-                } catch (Exception ignored) {}
-
-                items.add(entry);
+                fresh.add(toEntry(interaction));
             }
+            SEEN.addAll(fresh);
 
+            List<Map<String, Object>> items = newOnly ? fresh : new ArrayList<>(SEEN);
             sendJson(exchange, JsonUtil.object(
                 "total", items.size(),
+                "new_in_poll", fresh.size(),
                 "interactions", items
             ));
         } catch (Exception e) {
@@ -312,6 +284,68 @@ public class CollaboratorHandler extends BaseHandler {
      * a zero byte; a compression pointer (top two bits set) ends parsing.
      * Returns "" if the bytes are too short or malformed.
      */
+    /** Convert one Collaborator interaction to the JSON entry map. */
+    private static Map<String, Object> toEntry(Interaction interaction) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("type", interaction.type().toString());
+        entry.put("timestamp", interaction.timeStamp().toString());
+        entry.put("client_ip", interaction.clientIp().toString());
+        entry.put("payload_id", interaction.id().toString());
+
+        // HTTP details (blind SSRF/XXE evidence). Host header carries OOB-exfil
+        // data placed in the subdomain (<data>.<id>.oastify.com).
+        try {
+            if (interaction.httpDetails().isPresent()) {
+                var http = interaction.httpDetails().get();
+                Map<String, Object> httpData = new LinkedHashMap<>();
+                if (http.requestResponse() != null) {
+                    var req = http.requestResponse().request();
+                    if (req != null) {
+                        httpData.put("method", req.method());
+                        httpData.put("path", req.path());
+                        String hostHdr = req.headerValue("Host");
+                        if (hostHdr != null) httpData.put("host", hostHdr);
+                        try { httpData.put("url", req.url()); } catch (Exception ignored2) {}
+                        String reqBody = req.bodyToString();
+                        if (reqBody.length() > 1000) reqBody = reqBody.substring(0, 1000) + "...";
+                        httpData.put("request_body", reqBody);
+                    }
+                }
+                entry.put("http_details", httpData);
+            }
+        } catch (Exception ignored) {}
+
+        // DNS details (DNS exfiltration evidence). The QNAME carries the leaked
+        // value in the subdomain — parse it so it is actually readable.
+        try {
+            if (interaction.dnsDetails().isPresent()) {
+                var dns = interaction.dnsDetails().get();
+                Map<String, Object> dnsData = new LinkedHashMap<>();
+                dnsData.put("query_type", dns.queryType().toString());
+                dnsData.put("description", dns.queryType().name() + " lookup");
+                try {
+                    String qname = extractDnsQname(dns.query());
+                    if (!qname.isEmpty()) dnsData.put("query_name", qname);
+                } catch (Exception ignored3) {}
+                entry.put("dns_details", dnsData);
+            }
+        } catch (Exception ignored) {}
+
+        return entry;
+    }
+
+    /** Parse a raw query string into a name→value map (last value wins). */
+    private static Map<String, String> parseQuery(String raw) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (raw == null || raw.isEmpty()) return out;
+        for (String pair : raw.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0) out.put(pair.substring(0, eq), pair.substring(eq + 1));
+            else if (eq < 0 && !pair.isEmpty()) out.put(pair, "");
+        }
+        return out;
+    }
+
     static String extractDnsQname(ByteArray q) {
         return q == null ? "" : extractDnsQname(q.getBytes());
     }
