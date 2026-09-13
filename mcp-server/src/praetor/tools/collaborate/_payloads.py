@@ -115,6 +115,9 @@ def register(mcp: FastMCP):
             http = interaction.get("http_details", {})
             if http:
                 lines.append(f"    HTTP: {http.get('method', '?')} {http.get('path', '/')}")
+                # Host header carries subdomain-exfiltrated data (<data>.<id>...).
+                if http.get("host"):
+                    lines.append(f"    Host: {http['host']}")
                 body = http.get("request_body", "")
                 if body:
                     lines.append(f"    Body: {body[:200]}")
@@ -123,6 +126,9 @@ def register(mcp: FastMCP):
             dns = interaction.get("dns_details", {})
             if dns:
                 lines.append(f"    DNS: {dns.get('query_type', '?')} — {dns.get('description', '')}")
+                # The queried name is where DNS-channel exfil data lands.
+                if dns.get("query_name"):
+                    lines.append(f"    Query: {dns['query_name']}")
 
             lines.append("")
 

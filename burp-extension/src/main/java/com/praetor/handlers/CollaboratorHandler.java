@@ -1,6 +1,7 @@
 package com.praetor.handlers;
 
 import burp.api.montoya.MontoyaApi;
+import burp.api.montoya.core.ByteArray;
 import burp.api.montoya.collaborator.CollaboratorClient;
 import burp.api.montoya.collaborator.CollaboratorPayload;
 import burp.api.montoya.collaborator.Interaction;
@@ -260,6 +261,12 @@ public class CollaboratorHandler extends BaseHandler {
                             if (req != null) {
                                 httpData.put("method", req.method());
                                 httpData.put("path", req.path());
+                                // Host header carries OOB-exfil data placed in the
+                                // subdomain (<data>.<id>.oastify.com) — the canonical
+                                // blind-SQLi/XXE exfil channel. Surface it, and the URL.
+                                String hostHdr = req.headerValue("Host");
+                                if (hostHdr != null) httpData.put("host", hostHdr);
+                                try { httpData.put("url", req.url()); } catch (Exception ignored2) {}
                                 String reqBody = req.bodyToString();
                                 if (reqBody.length() > 1000) reqBody = reqBody.substring(0, 1000) + "...";
                                 httpData.put("request_body", reqBody);
@@ -276,6 +283,13 @@ public class CollaboratorHandler extends BaseHandler {
                         Map<String, Object> dnsData = new LinkedHashMap<>();
                         dnsData.put("query_type", dns.queryType().toString());
                         dnsData.put("description", dns.queryType().name() + " lookup");
+                        // The looked-up name carries OOB-exfil data in the subdomain
+                        // (<data>.<id>.oastify.com). Parse the QNAME out of the raw
+                        // DNS query so the leaked value is actually readable.
+                        try {
+                            String qname = extractDnsQname(dns.query());
+                            if (!qname.isEmpty()) dnsData.put("query_name", qname);
+                        } catch (Exception ignored3) {}
                         entry.put("dns_details", dnsData);
                     }
                 } catch (Exception ignored) {}
@@ -290,5 +304,34 @@ public class CollaboratorHandler extends BaseHandler {
         } catch (Exception e) {
             sendError(exchange, 500, "Collaborator not available: " + e.getMessage());
         }
+    }
+
+    /**
+     * Decode the QNAME (queried domain) from a raw DNS query message. The
+     * name follows the 12-byte header as length-prefixed labels terminated by
+     * a zero byte; a compression pointer (top two bits set) ends parsing.
+     * Returns "" if the bytes are too short or malformed.
+     */
+    static String extractDnsQname(ByteArray q) {
+        return q == null ? "" : extractDnsQname(q.getBytes());
+    }
+
+    /** Pure byte[] core (Montoya-free, unit-tested). */
+    static String extractDnsQname(byte[] b) {
+        if (b == null) return "";
+        int len = b.length;
+        int i = 12; // skip the fixed DNS header
+        StringBuilder sb = new StringBuilder();
+        while (i < len) {
+            int l = b[i] & 0xFF;
+            if (l == 0) break;
+            if ((l & 0xC0) != 0) break; // compression pointer — not expected here
+            i++;
+            if (i + l > len) return "";
+            if (sb.length() > 0) sb.append('.');
+            for (int j = 0; j < l; j++) sb.append((char) (b[i + j] & 0xFF));
+            i += l;
+        }
+        return sb.toString();
     }
 }
