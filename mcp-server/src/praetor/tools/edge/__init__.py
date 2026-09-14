@@ -10,6 +10,7 @@ from praetor.tools.edge.discover_common_files import discover_common_files_impl
 from praetor.tools.edge.test_open_redirect import test_open_redirect_impl
 from praetor.tools.edge.test_lfi import test_lfi_impl
 from praetor.tools.edge.test_file_upload import test_file_upload_impl
+from praetor.tools.edge.test_clickjacking import test_clickjacking_impl
 
 
 def register(mcp: FastMCP):
@@ -146,3 +147,24 @@ def register(mcp: FastMCP):
             content_type_bypass: Test with mismatched Content-Type headers
         """
         return await test_file_upload_impl(session=session, path=path, parameter=parameter, test_types=test_types, content_type_bypass=content_type_bypass)
+
+    @mcp.tool()
+    async def test_clickjacking(
+        session: str,
+        path: str = "/",
+        multistep: bool = True,
+        target_url: str = "",
+    ) -> dict:
+        """Verdict a page's frameability (clickjacking) and emit an attack PoC when frameable.
+
+        Combines X-Frame-Options and CSP frame-ancestors the way a browser does
+        (frame-ancestors authoritative; legacy XFO ALLOW-FROM ignored). When
+        frameable, returns a ready-to-store overlay PoC for the exploit server.
+
+        Args:
+            session: Session name (fetch the target page authenticated if needed).
+            path: Endpoint path to test (e.g. /my-account).
+            multistep: Two-decoy overlay (for confirm-dialog flows) vs single decoy.
+            target_url: Full iframe URL for the PoC; defaults to the fetched URL / path.
+        """
+        return await test_clickjacking_impl(session=session, path=path, multistep=multistep, target_url=target_url)
