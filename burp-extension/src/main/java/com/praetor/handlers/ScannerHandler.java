@@ -74,15 +74,23 @@ public class ScannerHandler extends BaseHandler {
             entry.put("started_at", new Date(record.startedAt).toString());
 
             if (record.audit != null) {
-                try {
-                    entry.put("request_count", record.audit.requestCount());
-                    entry.put("insertion_point_count", record.audit.insertionPointCount());
-                    entry.put("issue_count", record.audit.issues().size());
-                    entry.put("error_count", record.audit.errorCount());
-                    entry.put("status_message", record.audit.statusMessage());
-                } catch (Exception e) {
-                    entry.put("status_message", "Error reading status: " + e.getMessage());
-                }
+                // Isolate each Montoya call: some builds throw "Currently
+                // unsupported" on Audit.issues()/statusMessage(). A single
+                // failing call must not blank the counters that DO work — and
+                // must not stop statusMessage() (the completion signal) from
+                // being tried just because issues() threw first.
+                final ScanRecord r = record;
+                Object rc = tryGet(() -> r.audit.requestCount());
+                if (rc != null) entry.put("request_count", rc);
+                Object ipc = tryGet(() -> r.audit.insertionPointCount());
+                if (ipc != null) entry.put("insertion_point_count", ipc);
+                Object ec = tryGet(() -> r.audit.errorCount());
+                if (ec != null) entry.put("error_count", ec);
+                Object isc = tryGet(() -> r.audit.issues().size());
+                if (isc != null) entry.put("issue_count", isc);
+                Object sm = tryGet(() -> r.audit.statusMessage());
+                entry.put("status_message", sm != null ? sm
+                    : "live status text unsupported by this Burp build — infer progress from request_count");
             }
 
             items.add(entry);
@@ -110,6 +118,7 @@ public class ScannerHandler extends BaseHandler {
         Map<String, String> params = queryParams(exchange);
         String filterSeverity = params.getOrDefault("severity", "").toUpperCase();
         String filterConfidence = params.getOrDefault("confidence", "").toUpperCase();
+        String filterHost = params.getOrDefault("host", "");
         int limit = intParam(params, "limit", 100);
 
         List<AuditIssue> issues;
@@ -122,15 +131,16 @@ public class ScannerHandler extends BaseHandler {
 
         List<Map<String, Object>> items = new ArrayList<>();
         int count = 0;
+        int matched = 0;
 
         for (AuditIssue issue : issues) {
-            if (count >= limit) break;
-
             String severity = issue.severity().toString();
             String confidence = issue.confidence().toString();
 
-            if (!filterSeverity.isEmpty() && !severity.equalsIgnoreCase(filterSeverity)) continue;
-            if (!filterConfidence.isEmpty() && !confidence.equalsIgnoreCase(filterConfidence)) continue;
+            if (!issueMatches(filterSeverity, filterConfidence, filterHost,
+                              severity, confidence, issue.baseUrl())) continue;
+            matched++;
+            if (count >= limit) continue;
 
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("name", issue.name());
@@ -156,9 +166,41 @@ public class ScannerHandler extends BaseHandler {
 
         sendJson(exchange, JsonUtil.object(
             "total_findings", issues.size(),
+            "matched_filter", matched,
             "returned", items.size(),
             "items", items
         ));
+    }
+
+    /**
+     * Pure filter predicate for scanner findings. Empty filter = match-all;
+     * severity/confidence are case-insensitive exact matches; host is a
+     * substring match against the issue's base URL (null base URL never
+     * matches a non-empty host filter). Package-private for unit testing.
+     */
+    static boolean issueMatches(String filterSeverity, String filterConfidence,
+                                String filterHost, String severity,
+                                String confidence, String baseUrl) {
+        if (!filterSeverity.isEmpty() && !severity.equalsIgnoreCase(filterSeverity)) return false;
+        if (!filterConfidence.isEmpty() && !confidence.equalsIgnoreCase(filterConfidence)) return false;
+        if (!filterHost.isEmpty() && (baseUrl == null || !baseUrl.contains(filterHost))) return false;
+        return true;
+    }
+
+    /** Supplier that may throw — for isolating individual Montoya calls. */
+    @FunctionalInterface
+    interface ThrowingSupplier {
+        Object get() throws Exception;
+    }
+
+    /** Run {@code s}, returning its value or null if it throws (e.g. a Montoya
+     *  call unsupported in the running Burp build). */
+    static Object tryGet(ThrowingSupplier s) {
+        try {
+            return s.get();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String truncate(String s, int max) {
