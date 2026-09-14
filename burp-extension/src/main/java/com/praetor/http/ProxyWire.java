@@ -69,4 +69,29 @@ final class ProxyWire {
         return bos.toByteArray();
     }
 
+    /**
+     * Ensure a raw HTTP/1 request carries "Connection: close" so a verbatim
+     * send's response stream terminates (readAll loops until EOF). If a
+     * Connection header is already present (any value/case) the bytes are
+     * returned unchanged; otherwise the header is inserted just before the
+     * blank line that ends the header block. Requests without a proper
+     * "\r\n\r\n" terminator are returned unchanged (nothing safe to do).
+     */
+    static byte[] ensureConnectionClose(byte[] raw) {
+        if (raw == null) return null;
+        String s = new String(raw, StandardCharsets.ISO_8859_1);
+        int sep = s.indexOf("\r\n\r\n");
+        if (sep < 0) return raw;
+        String headerBlock = s.substring(0, sep);
+        // Case-insensitive scan for a "connection:" header line.
+        for (String line : headerBlock.split("\r\n")) {
+            int colon = line.indexOf(':');
+            if (colon > 0 && line.substring(0, colon).trim().equalsIgnoreCase("connection")) {
+                return raw; // already present — respect the operator's value
+            }
+        }
+        String rebuilt = headerBlock + "\r\nConnection: close" + s.substring(sep);
+        return rebuilt.getBytes(StandardCharsets.ISO_8859_1);
+    }
+
 }
