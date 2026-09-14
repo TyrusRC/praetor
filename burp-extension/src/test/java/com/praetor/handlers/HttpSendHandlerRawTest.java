@@ -55,6 +55,15 @@ class HttpSendHandlerRawTest {
     }
 
     @Test
+    void directIsNotAWireProtocolMode() {
+        // "direct" selects the byte-exact direct-socket path (smuggling), not a
+        // Montoya HttpMode — it must parse as null so the handler routes it to the
+        // forceDirect branch instead of pinning HTTP_1/HTTP_2 via api.http().
+        assertNull(parseHttpMode("direct"));
+        assertNull(parseHttpMode("DIRECT"));
+    }
+
+    @Test
     void normalizeCrlfConvertsLoneLf() {
         String in = "GET https://t/ HTTP/1.1\nHost: 192.168.0.1\n\n";
         String out = normalizeCrlf(in);
