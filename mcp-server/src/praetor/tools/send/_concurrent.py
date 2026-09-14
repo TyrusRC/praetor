@@ -22,6 +22,11 @@ def register(mcp: FastMCP):
         Realistic browser headers are auto-injected on every request unless
         bare_headers=True. Per-request `headers` win; profile fills the rest.
 
+        Redirects are NOT followed by default (like curl_request), so 3xx
+        signals stay visible in the status histogram — a 429 for rate-limit
+        testing, a 302 for a brute-force success. Set follow_redirects=True in
+        a request dict to override per request.
+
         Args:
             requests: List of request dicts (same shape as curl_request args)
             concurrency: Max in-flight at once (default 10)
@@ -54,6 +59,12 @@ def register(mcp: FastMCP):
                 start = time.perf_counter()
                 payload = {k: v for k, v in req.items() if v is not None}
                 payload.setdefault("method", "GET")
+                # Don't follow redirects by default: the server (CurlSender)
+                # follows when the key is absent, which collapses a 3xx signal
+                # into the redirected 200 — fatal for this tool's stated jobs
+                # (rate-limit → 429, brute-force success → 302). A caller can
+                # still set follow_redirects=True in the request dict.
+                payload.setdefault("follow_redirects", False)
                 if "url" not in payload:
                     results[idx] = {"error": "missing url"}
                     return
