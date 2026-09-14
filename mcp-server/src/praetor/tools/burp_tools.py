@@ -10,16 +10,25 @@ def register(mcp: FastMCP):
     # ── WebSocket Send ──────────────────────────────────────────
 
     @mcp.tool()
-    async def websocket_connect(url: str, name: str = "") -> str:
+    async def websocket_connect(
+        url: str, name: str = "", headers: dict | None = None,
+    ) -> str:
         """Open a WebSocket connection through Burp's proxy.
 
         Args:
             url: WebSocket URL (ws:// or wss://)
             name: Connection name for reference
+            headers: Extra handshake request headers — the lever for
+                "manipulating the WebSocket handshake" (Origin spoofing, a
+                Cookie/session the chat requires, X-Forwarded-For to bypass an
+                IP ban). Mandatory upgrade headers (Host/Upgrade/Connection/
+                Sec-WebSocket-*) are set automatically and cannot be overridden.
         """
         payload: dict = {"url": url}
         if name:
             payload["name"] = name
+        if headers:
+            payload["headers"] = headers
         data = await client.post("/api/websocket-send/connect", json=payload)
         if "error" in data:
             return f"Error: {data['error']}"
