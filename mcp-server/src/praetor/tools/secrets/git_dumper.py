@@ -49,6 +49,13 @@ def _dump_dir(domain: str) -> Path:
 _PACK_RE = re.compile(r"pack-[0-9a-f]{40}\.(pack|idx)")
 
 
+def _git_dumper_cmd(tool: str, git_url: str, out_dir: str, proxy: str) -> list[str]:
+    """Build the git-dumper argv. arthaud/git-dumper takes the proxy as
+    ``--proxy URL`` — the short ``-p`` form does not exist and makes the CLI
+    exit rc=2 ("unrecognized arguments"), which silently defeated every dump."""
+    return [tool, git_url, out_dir, "--proxy", proxy]
+
+
 async def _fallback_dump(base_url: str, out_dir: Path) -> str:
     """Minimal in-process .git fetch via Burp proxy. Covers the common case
     where directory listing is enabled OR pack files are predictable."""
@@ -136,7 +143,7 @@ def register(mcp: FastMCP) -> None:
             tool = "git-dumper" if _check_tool("git-dumper") else "git_dumper.py"
             git_url = base_url.rstrip("/") + "/.git/"
             env_proxy = os.environ.get("HTTPS_PROXY") or "http://127.0.0.1:8080"
-            cmd = [tool, git_url, str(out_dir), "-p", env_proxy]
+            cmd = _git_dumper_cmd(tool, git_url, str(out_dir), env_proxy)
             stdout, stderr, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=False)
             if rc != 0:
                 return f"git-dumper rc={rc}\n{stderr[:800]}"
