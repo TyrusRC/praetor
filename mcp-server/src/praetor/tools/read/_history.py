@@ -132,6 +132,7 @@ def register(mcp: FastMCP):
     async def get_scanner_findings(
         severity: str = "",
         confidence: str = "",
+        host: str = "",
         limit: int = 20,
         actionable_only: bool = True,
     ) -> str:
@@ -140,6 +141,9 @@ def register(mcp: FastMCP):
         Args:
             severity: Filter by severity (HIGH, MEDIUM, LOW, INFORMATION)
             confidence: Filter by confidence (CERTAIN, FIRM, TENTATIVE)
+            host: Substring-match the finding's base URL (e.g. the current
+                target's hostname) to isolate one target's issues — Burp's
+                findings are project-wide and mix every host you've scanned.
             limit: Max findings to return (default 20 — pass higher when iterating)
             actionable_only: Filter out noise/informational findings (default True). Set False to see everything.
         """
@@ -148,6 +152,8 @@ def register(mcp: FastMCP):
             params["severity"] = severity
         if confidence:
             params["confidence"] = confidence
+        if host:
+            params["host"] = host
 
         data = await client.get("/api/scanner/findings", params=params)
         if "error" in data:
