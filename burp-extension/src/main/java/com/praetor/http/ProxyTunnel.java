@@ -7,7 +7,9 @@ import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.http.message.responses.HttpResponse;
 
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
@@ -152,6 +154,16 @@ public final class ProxyTunnel {
     }
 
     private static byte[] tunnelHttps(Socket socket, HttpRequest request, HttpService service) throws IOException {
+        return tunnelHttpsWire(socket, request.toByteArray().getBytes(), service);
+    }
+
+    /**
+     * HTTPS tunnel that writes exact request bytes over the MITM'd TLS socket.
+     * Used both by the Montoya path (bytes = request.toByteArray()) and the
+     * verbatim path (bytes = the operator's original raw request), so an
+     * absolute-URI request line survives to the wire.
+     */
+    private static byte[] tunnelHttpsWire(Socket socket, byte[] wire, HttpService service) throws IOException {
         String host = service.host();
         int port = service.port();
         String connect = "CONNECT " + host + ":" + port + " HTTP/1.1\r\n" +
@@ -188,13 +200,77 @@ public final class ProxyTunnel {
             SSLSocketFactory sf = ctx.getSocketFactory();
             try (SSLSocket tls = (SSLSocket) sf.createSocket(socket, host, port, true)) {
                 tls.startHandshake();
-                tls.getOutputStream().write(request.toByteArray().getBytes());
+                tls.getOutputStream().write(wire);
                 tls.getOutputStream().flush();
                 return ProxyWire.readAll(tls.getInputStream());
             }
         } catch (Exception e) {
             throw new IOException("TLS tunnel failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Send exact raw request bytes DIRECTLY to the target (bypassing Burp's
+     * proxy listener), so the wire request line survives verbatim.
+     *
+     * This is the only faithful delivery for a routing-based SSRF / host-header
+     * attack: the request-target is an absolute URI (GET https://target/path)
+     * and the Host header diverges from it. Every path through Burp normalises
+     * the absolute target to origin-form — Montoya's toByteArray()/api.http()
+     * re-serialize it, and the proxy listener rewrites it even inside a CONNECT
+     * tunnel — silently degrading the attack to a plain modified-Host request
+     * the target blocks.
+     *
+     * HTTPS: TLS with ALPN pinned to http/1.1 (a divergent Host is impossible
+     * over HTTP/2's SNI-bound :authority) and SNI set to the connection host.
+     * A trust-all context is used because the operator is targeting an
+     * authorized host and controls the raw bytes; this send does NOT go through
+     * Burp, so it is Logger-style (no Proxy-history entry). A Connection: close
+     * is appended if absent so the response stream terminates at EOF. Returns
+     * null on failure (caller falls back to the normalising path).
+     *
+     * @param forRecord HttpRequest used only to populate the returned
+     *        HttpRequestResponse's request side.
+     */
+    public static HttpRequestResponse sendDirectVerbatim(MontoyaApi api, HttpService service,
+                                                         byte[] rawBytes, HttpRequest forRecord) {
+        if (service == null || rawBytes == null) return null;
+        byte[] wire = ProxyWire.ensureConnectionClose(rawBytes);
+        byte[] rawResponse;
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(service.host(), service.port()), CONNECT_TIMEOUT_MS);
+            socket.setSoTimeout(READ_TIMEOUT_MS);
+            if (service.secure()) {
+                SSLContext ctx = SSLContext.getInstance("TLS");
+                ctx.init(null, TRUST_ALL, new SecureRandom());
+                SSLSocketFactory sf = ctx.getSocketFactory();
+                try (SSLSocket tls = (SSLSocket) sf.createSocket(socket, service.host(), service.port(), true)) {
+                    SSLParameters p = tls.getSSLParameters();
+                    p.setApplicationProtocols(new String[]{"http/1.1"});
+                    p.setServerNames(java.util.List.of(new SNIHostName(service.host())));
+                    tls.setSSLParameters(p);
+                    tls.startHandshake();
+                    tls.getOutputStream().write(wire);
+                    tls.getOutputStream().flush();
+                    rawResponse = ProxyWire.readAll(tls.getInputStream());
+                }
+            } else {
+                socket.getOutputStream().write(wire);
+                socket.getOutputStream().flush();
+                rawResponse = ProxyWire.readAll(socket.getInputStream());
+            }
+        } catch (Exception e) {
+            String msg = e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "(no detail)" : e.getMessage());
+            LAST_SEND_ERROR.set("direct verbatim — " + msg);
+            api.logging().logToError("ProxyTunnel.sendDirectVerbatim failed: " + msg);
+            return null;
+        }
+        if (rawResponse == null || rawResponse.length == 0) {
+            LAST_SEND_ERROR.set("direct verbatim returned empty response from " + service.host() + ":" + service.port());
+            return null;
+        }
+        HttpResponse response = HttpResponse.httpResponse(ByteArray.byteArray(rawResponse));
+        return HttpRequestResponse.httpRequestResponse(forRecord, response);
     }
 
     private static byte[] tunnelHttp(Socket socket, HttpRequest request, HttpService service) throws IOException {

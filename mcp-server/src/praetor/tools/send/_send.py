@@ -15,21 +15,42 @@ def register(mcp: FastMCP):
         host: str,
         port: int = 443,
         https: bool = True,
+        http_version: str = "",
+        cookie_jar: bool = True,
     ) -> str:
         """Send a raw HTTP request through Burp for exact byte-level control.
 
+        An absolute-URI request line (GET https://target/path) with a divergent
+        Host header (routing-based SSRF / host-header attacks) is delivered
+        byte-exact over a direct HTTP/1 socket — every Burp path re-serializes it
+        to origin-form and defeats the attack. Such a send is Logger-visible, not
+        in Proxy history.
+
         Args:
-            raw: Complete raw HTTP request string
-            host: Target hostname
+            raw: Complete raw HTTP request string (LF endings are normalised to CRLF)
+            host: Target hostname (also the cookie-jar lookup key)
             port: Target port (default 443)
             https: Use HTTPS (default True)
+            http_version: Pin the wire protocol for an ORIGIN-form request: "1"/"1.1"
+                or "2". Empty = AUTO (Proxy-history visible). (Absolute-URI requests
+                always go direct over HTTP/1 regardless.)
+            cookie_jar: When true (default) and the raw request has no Cookie header,
+                auto-attach the target host's cookies from Burp's cookie jar. The
+                session cookie that gets a modified-Host request past the front-end
+                belongs to the real service host and is easy to omit by hand — the
+                response's `cookie_jar` note says what was attached or that the jar
+                was empty. Set false for a deliberately unauthenticated raw send.
         """
-        data = await client.post("/api/http/raw", json={
+        payload: dict = {
             "raw": raw,
             "host": host,
             "port": port,
             "https": https,
-        })
+            "cookie_jar": cookie_jar,
+        }
+        if http_version:
+            payload["http_version"] = http_version
+        data = await client.post("/api/http/raw", json=payload)
         if "error" in data:
             return f"Error: {data['error']}"
         return _format_response(data)
