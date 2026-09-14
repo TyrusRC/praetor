@@ -70,8 +70,12 @@ public class WebSocketSendHandler extends BaseHandler {
         if (!requireInScope(api, exchange, scopeUrl)) return;
 
         try {
-            // Build upgrade request
-            HttpService service = HttpService.httpService(url);
+            // Montoya's HttpService/HttpRequest speak http(s). The raw ws(s)://
+            // URL must be translated to its http(s):// upgrade form for BOTH
+            // the service and the request line — passing wss:// straight to
+            // HttpService.httpService(...) throws "<url> is invalid".
+            String upgradeUrl = url.replace("wss://", "https://").replace("ws://", "http://");
+            HttpService service = HttpService.httpService(upgradeUrl);
             String wsPath = "/";
             try {
                 java.net.URI uri = new java.net.URI(url);
@@ -80,18 +84,25 @@ public class WebSocketSendHandler extends BaseHandler {
                 if (uri.getRawQuery() != null) wsPath += "?" + uri.getRawQuery();
             } catch (Exception ignored) {}
 
-            String upgradeUrl = url.replace("wss://", "https://").replace("ws://", "http://");
             // RFC 6455 §4.1: Sec-WebSocket-Key MUST be a fresh random 16-byte value (base64) per connection.
             byte[] nonce = new byte[16];
             new java.security.SecureRandom().nextBytes(nonce);
             String wsKey = Base64.getEncoder().encodeToString(nonce);
-            HttpRequest request = HttpRequest.httpRequest(service,
-                "GET " + wsPath + " HTTP/1.1\r\n" +
-                "Host: " + service.host() + "\r\n" +
-                "Upgrade: websocket\r\n" +
-                "Connection: Upgrade\r\n" +
-                "Sec-WebSocket-Version: 13\r\n" +
-                "Sec-WebSocket-Key: " + wsKey + "\r\n\r\n");
+
+            StringBuilder req = new StringBuilder()
+                .append("GET ").append(wsPath).append(" HTTP/1.1\r\n")
+                .append("Host: ").append(service.host()).append("\r\n")
+                .append("Upgrade: websocket\r\n")
+                .append("Connection: Upgrade\r\n")
+                .append("Sec-WebSocket-Version: 13\r\n")
+                .append("Sec-WebSocket-Key: ").append(wsKey).append("\r\n");
+            // Caller-supplied handshake headers (Origin, Cookie, X-Forwarded-For,
+            // ...) — the point of "manipulating the handshake". Mandatory upgrade
+            // headers above are skipped so a caller cannot break the upgrade, and
+            // CR/LF is stripped so a value cannot inject extra headers.
+            appendHandshakeHeaders(req, body.get("headers"));
+            req.append("\r\n");
+            HttpRequest request = HttpRequest.httpRequest(service, req.toString());
 
             ExtensionWebSocketCreation creation = api.websockets().createWebSocket(request);
             ExtensionWebSocket ws = creation.webSocket().orElse(null);
@@ -111,6 +122,28 @@ public class WebSocketSendHandler extends BaseHandler {
             ));
         } catch (Exception e) {
             sendError(exchange, 500, "WebSocket connection error: " + e.getMessage());
+        }
+    }
+
+    /** Reserved upgrade headers a caller may not override — they are emitted
+     *  by the handshake builder itself and duplicating them breaks the upgrade. */
+    private static final Set<String> RESERVED_WS_HEADERS = Set.of(
+        "host", "upgrade", "connection", "sec-websocket-version", "sec-websocket-key");
+
+    /**
+     * Append caller-supplied handshake headers to {@code req}. Reserved upgrade
+     * headers and blank names are dropped; CR/LF is stripped from name and value
+     * so a header value cannot smuggle additional headers into the handshake.
+     * Package-private + static for unit testing.
+     */
+    static void appendHandshakeHeaders(StringBuilder req, Object headers) {
+        if (!(headers instanceof Map<?, ?> map)) return;
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) continue;
+            String name = String.valueOf(e.getKey()).replaceAll("[\\r\\n]", "").trim();
+            String value = String.valueOf(e.getValue()).replaceAll("[\\r\\n]", "");
+            if (name.isEmpty() || RESERVED_WS_HEADERS.contains(name.toLowerCase())) continue;
+            req.append(name).append(": ").append(value).append("\r\n");
         }
     }
 
