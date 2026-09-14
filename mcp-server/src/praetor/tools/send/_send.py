@@ -31,9 +31,14 @@ def register(mcp: FastMCP):
             host: Target hostname (also the cookie-jar lookup key)
             port: Target port (default 443)
             https: Use HTTPS (default True)
-            http_version: Pin the wire protocol for an ORIGIN-form request: "1"/"1.1"
-                or "2". Empty = AUTO (Proxy-history visible). (Absolute-URI requests
-                always go direct over HTTP/1 regardless.)
+            http_version: "1"/"1.1" or "2" pins the wire protocol for an ORIGIN-form
+                request. "direct" forces a byte-exact direct HTTP/1 socket for ANY
+                request — required for request smuggling (CL.TE / TE.CL): Burp/Montoya
+                otherwise "fix" a request carrying both Content-Length and
+                Transfer-Encoding (recompute the length or drop TE) and kill the
+                desync. Empty = AUTO (Proxy-history visible). (Absolute-URI requests
+                always go direct regardless.) A direct send is Logger-visible, not in
+                Proxy history.
             cookie_jar: When true (default) and the raw request has no Cookie header,
                 auto-attach the target host's cookies from Burp's cookie jar. The
                 session cookie that gets a modified-Host request past the front-end

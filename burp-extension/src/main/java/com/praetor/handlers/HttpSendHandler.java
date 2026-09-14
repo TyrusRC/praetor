@@ -158,26 +158,31 @@ public class HttpSendHandler extends BaseHandler {
         HttpRequest request = HttpRequest.httpRequest(service, raw);
 
         int preSize = api.proxy().history().size();
+        String hv = httpVersion == null ? "" : httpVersion.trim();
+        boolean forceDirect = "direct".equalsIgnoreCase(hv);
         HttpMode mode = parseHttpMode(httpVersion);
         String target = requestTarget(raw);
         boolean absoluteTarget = target != null
             && (target.startsWith("http://") || target.startsWith("https://"));
 
         HttpRequestResponse result;
-        if (absoluteTarget) {
-            // Routing-based SSRF / host-header attack: the request-target is an
-            // absolute URI (GET https://target/path) and the Host header may
-            // diverge from it — that divergence IS the payload. Every path
-            // through Burp normalises the absolute target to origin-form (GET
-            // /path) — Montoya's api.http()/toByteArray() re-serialize it, and
-            // the proxy listener rewrites it even inside a CONNECT tunnel —
-            // silently degrading the attack to a plain modified-Host request the
-            // target blocks. Only a direct HTTP/1 socket to the target delivers
-            // the exact bytes on the wire. Direct send => Logger-style, not
-            // Proxy history (documented on the tool).
+        if (absoluteTarget || forceDirect) {
+            // Deliver the operator's exact bytes over a direct HTTP/1 socket,
+            // untouched by Burp/Montoya. Two triggers:
+            //   * absolute-URI target — routing-based SSRF / host-header attacks,
+            //     where every path through Burp rewrites the absolute request
+            //     line to origin-form and defeats the attack;
+            //   * http_version="direct" — request smuggling (CL.TE / TE.CL) and
+            //     any raw-wire test, where Burp/Montoya would "fix" a request
+            //     carrying both Content-Length and Transfer-Encoding (recompute
+            //     the length or drop TE) and destroy the desync.
+            // Direct send => Logger-style, not Proxy history (documented on the tool).
             byte[] wireBytes = raw.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
             result = com.praetor.http.ProxyTunnel.sendDirectVerbatim(api, service, wireBytes, request);
-            if (result == null) {
+            if (result == null && !forceDirect) {
+                // Absolute-target fallback re-serializes (loses the absolute line)
+                // but still returns a response; never fall back for a smuggling
+                // send — a re-serialized CL+TE request is a different, safe request.
                 result = com.praetor.http.ProxyTunnel.sendOrFallback(api, request);
             }
         } else if (mode != null) {
