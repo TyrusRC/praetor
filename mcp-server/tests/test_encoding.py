@@ -260,5 +260,59 @@ class XmlEntityTests(unittest.TestCase):
         self.assertIn("dec_entities", SHARED_OPS)
 
 
+class HashOpTests(unittest.TestCase):
+    def test_md5_hex_digest(self):
+        # Matches the value PortSwigger's stay-logged-in lab documents.
+        self.assertEqual(
+            apply_operation("peter", "md5"), "51dc30ddc473d43a6011e9ebba6ca770")
+
+    def test_sha1_hex_digest(self):
+        self.assertEqual(
+            apply_operation("abc", "sha1"),
+            "a9993e364706816aba3e25717850c26c9cd0d89d")
+
+    def test_sha256_hex_digest(self):
+        self.assertEqual(
+            apply_operation("abc", "sha256"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+
+    def test_hashes_registered(self):
+        for op in ("md5", "sha1", "sha256"):
+            self.assertIn(op, SHARED_OPS)
+
+
+class AffixOpTests(unittest.TestCase):
+    def test_prefix_prepends(self):
+        self.assertEqual(apply_operation("hash", "prefix:carlos:"), "carlos:hash")
+
+    def test_suffix_appends(self):
+        self.assertEqual(apply_operation("hash", "suffix:;end"), "hash;end")
+
+    def test_prefix_value_preserves_case_and_colons(self):
+        # Value after the first colon is verbatim — a "user:" token prefix
+        # keeps its own colon and any capitals.
+        self.assertEqual(apply_operation("x", "prefix:Admin:v2:"), "Admin:v2:x")
+
+    def test_prefix_keyword_case_insensitive(self):
+        self.assertEqual(apply_operation("x", "PREFIX:a"), "ax")
+
+    def test_empty_suffix_is_noop(self):
+        self.assertEqual(apply_operation("x", "suffix:"), "x")
+
+    def test_affix_ops_registered(self):
+        self.assertIn("prefix:<value>", SHARED_OPS)
+        self.assertIn("suffix:<value>", SHARED_OPS)
+
+
+class TokenBuildChainTests(unittest.TestCase):
+    def test_build_stay_logged_in_cookie(self):
+        # The full brute-force-a-stay-logged-in-cookie construction:
+        # base64(username + ':' + md5(password)). Carlos / "mobilemail".
+        step1 = apply_operation("mobilemail", "md5")
+        step2 = apply_operation(step1, "prefix:carlos:")
+        step3 = apply_operation(step2, "base64_encode")
+        self.assertEqual(step3, "Y2FybG9zOmIzZThjZGQ5ZmY0NDI1OWZkNjdlODc5ZTU3OGNkOGY0")
+
+
 if __name__ == "__main__":
     unittest.main()

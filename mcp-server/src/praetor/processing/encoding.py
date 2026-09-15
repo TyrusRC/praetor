@@ -5,13 +5,31 @@ same output regardless of which entrypoint they hit.
 """
 
 import base64
+import hashlib
 import html
 import urllib.parse
 
 
 def apply_operation(text: str, op: str) -> str:
     """Apply a single encode/decode op. Raises ValueError on unknown op."""
+    # Parametrized ops carry a value after the first colon. The keyword is
+    # case-insensitive; the value is preserved verbatim (it may itself contain
+    # colons, e.g. "prefix:carlos:" to build a "user:hash" token). Handled
+    # before the match so a colon in the value never breaks op lookup.
+    kind, sep, value = op.partition(":")
+    if sep and kind.lower() in ("prefix", "suffix"):
+        return value + text if kind.lower() == "prefix" else text + value
+
     match op.lower():
+        # Hashes: hex digest of the UTF-8 bytes. These build predictable
+        # session/token values (e.g. base64(username:md5(password))) — chain
+        # as ["md5", "prefix:user:", "base64_encode"].
+        case "md5":
+            return hashlib.md5(text.encode()).hexdigest()
+        case "sha1":
+            return hashlib.sha1(text.encode()).hexdigest()
+        case "sha256":
+            return hashlib.sha256(text.encode()).hexdigest()
         case "base64_encode" | "b64e":
             return base64.b64encode(text.encode()).decode()
         case "base64_decode" | "b64d":
@@ -78,4 +96,6 @@ SHARED_OPS = (
     "ascii_hex",
     "unicode_escape", "unicode_unescape",
     "reverse", "lowercase", "uppercase",
+    "md5", "sha1", "sha256",
+    "prefix:<value>", "suffix:<value>",
 )
