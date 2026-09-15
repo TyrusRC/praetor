@@ -6,6 +6,20 @@ from praetor import client
 from ._oast import _COLLAB_POOL, _pool_lock
 
 
+def _filter_interactions(interactions: list[dict], type_filter: str) -> list[dict]:
+    """Keep only interactions whose type matches ``type_filter`` (case-insensitive
+    exact match on the interaction's ``type`` field, e.g. HTTP/DNS/SMTP).
+
+    An empty/blank filter returns the list unchanged. Used to cut through DNS
+    resolver noise on OOB-exfil labs (cookie theft, blind XXE/SSRF) where the
+    payload data lands in the HTTP/SMTP body and the DNS lookups are chaff.
+    """
+    if not type_filter or not type_filter.strip():
+        return interactions
+    want = type_filter.strip().upper()
+    return [i for i in interactions if str(i.get("type", "")).upper() == want]
+
+
 def register(mcp: FastMCP):
 
     @mcp.tool()
@@ -92,16 +106,28 @@ def register(mcp: FastMCP):
 
 
     @mcp.tool()
-    async def get_collaborator_interactions() -> str:
-        """Check for Collaborator interactions (DNS, HTTP, SMTP). Presence confirms blind vulnerabilities. Requires Burp Professional."""
+    async def get_collaborator_interactions(type_filter: str = "") -> str:
+        """Check for Collaborator interactions (DNS, HTTP, SMTP). Presence confirms blind vulnerabilities. Requires Burp Professional.
+
+        Args:
+            type_filter: Show only interactions of this type (HTTP/DNS/SMTP,
+                case-insensitive). Default "" shows all. Pass "HTTP" on
+                OOB-exfil labs (cookie theft, blind XXE/SSRF) to skip the
+                DNS resolver chaff and see just the callback bodies that
+                carry the exfiltrated data.
+        """
         data = await client.get("/api/collaborator/interactions")
         if "error" in data:
             return f"Error: {data['error']}"
 
-        interactions = data.get("interactions", [])
         total = data.get("total", 0)
+        interactions = _filter_interactions(data.get("interactions", []), type_filter)
 
         if not interactions:
+            if type_filter and total:
+                return (f"No {type_filter.strip().upper()} collaborator interactions "
+                        f"(of {total} total across all types). Retry without type_filter "
+                        f"to see other channels.")
             return "No collaborator interactions detected yet. The target may not have triggered the payload."
 
         # Interactions are retained server-side across polls; new_in_poll counts
@@ -110,6 +136,8 @@ def register(mcp: FastMCP):
         header = f"Collaborator Interactions ({total} total"
         if new_in_poll is not None:
             header += f", {new_in_poll} new this poll"
+        if type_filter and type_filter.strip():
+            header += f", {len(interactions)} {type_filter.strip().upper()}"
         header += "):\n"
         lines = [header]
         for interaction in interactions:
