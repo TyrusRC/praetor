@@ -189,3 +189,28 @@ def build_h2_crlf_smuggle(host: str, smuggled_request: str, carrier: str = "foo"
         ("content-type", "application/x-www-form-urlencoded"),
     ]
     return {"headers": headers, "body": smuggled_request, "carrier_value": carrier_value}
+
+
+def last_byte_sync(raw_requests: list) -> list:
+    """Split each raw HTTP/1.1 request into (head, final_byte) for a last-byte-
+    synchronised race.
+
+    concurrent_requests fires each request once and its completions stagger
+    across the wire, so it cannot hit a tight race window (order-validate vs
+    order-confirm, move-then-scan file upload, etc). The last-byte technique
+    removes the jitter: send every request's HEAD first, each on its own
+    kept-alive connection, so all the server has left to receive is one byte;
+    then send all the withheld final bytes back-to-back. The requests then
+    complete at the server within microseconds of each other. (Over HTTP/2 the
+    same idea is the single-packet attack: withhold the last DATA frame of every
+    stream, then flush them all in one TCP segment.)
+
+    Returns [(head, final_byte), ...] as bytes; rejects an empty request.
+    """
+    out = []
+    for r in raw_requests:
+        b = r.encode() if isinstance(r, str) else bytes(r)
+        if not b:
+            raise ValueError("empty request cannot be last-byte split")
+        out.append((b[:-1], b[-1:]))
+    return out
