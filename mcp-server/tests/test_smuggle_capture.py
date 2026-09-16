@@ -80,3 +80,32 @@ class CaptureClThroughTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WrapTeclTest(unittest.TestCase):
+
+    def test_outer_cl_equals_chunk_size_line_length(self):
+        from praetor.tools.testing_extended._smuggle_capture import wrap_tecl
+        smuggled = "GET /admin HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\nx="
+        raw = wrap_tecl("t.example", smuggled)
+        chunk_hex = format(len(smuggled.encode()), "x")
+        declared = int([ln.split(": ", 1)[1] for ln in raw.split("\r\n")
+                        if ln.lower().startswith("content-length:")][0])
+        # Back-end (CL) must consume exactly the chunk-size line "<hex>\r\n".
+        self.assertEqual(declared, len((chunk_hex + "\r\n").encode()))
+
+    def test_three_digit_hex_needs_cl_5(self):
+        from praetor.tools.testing_extended._smuggle_capture import wrap_tecl
+        # A >255-byte smuggle -> 3 hex digits -> "1xx\r\n" = 5 bytes, not 4.
+        big = "GET /admin HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\n" + "A" * 300
+        raw = wrap_tecl("t.example", big)
+        declared = int([ln.split(": ", 1)[1] for ln in raw.split("\r\n")
+                        if ln.lower().startswith("content-length:")][0])
+        self.assertEqual(declared, 5)
+        self.assertIn(format(len(big.encode()), "x") + "\r\n", raw)
+
+    def test_body_terminated_by_zero_chunk(self):
+        from praetor.tools.testing_extended._smuggle_capture import wrap_tecl
+        raw = wrap_tecl("t.example", "GET /x HTTP/1.1\r\nContent-Length: 5\r\n\r\ny=")
+        self.assertTrue(raw.endswith("\r\n0\r\n\r\n"))
+        self.assertIn("Transfer-Encoding: chunked", raw)
