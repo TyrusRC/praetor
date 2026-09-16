@@ -1,10 +1,38 @@
 """Fresh/modified HTTP send: raw, resend-with-modification, curl."""
 
+import asyncio
+from collections import Counter
+
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools._request_headers import apply_realistic_headers
 from ._format import _format_curl_response, _format_response
+
+_MAX_RAW_REPEAT = 500
+
+
+def _format_repeat_summary(count: int, http_version: str,
+                           codes: Counter, locations: Counter,
+                           errors: Counter) -> str:
+    """Aggregate an N-shot raw send into a status histogram.
+
+    Request-smuggling desync attacks (capture-request / queue-poison) need the
+    same byte-exact request fired many times to catch an intermittent victim on
+    a poisoned back-end connection. Looping keeps every send inside Burp
+    (Logger-visible) instead of forcing a raw-socket script that bypasses it.
+    """
+    lines = [f"Repeated raw send x{count} (http_version={http_version or 'auto'})"]
+    if codes:
+        lines.append("Status histogram: " + ", ".join(
+            f"{k}:{v}" for k, v in sorted(codes.items(), key=lambda x: -x[1])))
+    if locations:
+        lines.append("Redirect Location(s): " + "; ".join(
+            f"{v}x {loc}" for loc, v in locations.most_common(5)))
+    if errors:
+        lines.append("Errors: " + ", ".join(f"{k} ({v})" for k, v in errors.items()))
+    lines.append("Responses are in Burp Logger (direct sends are not in Proxy history).")
+    return "\n".join(lines)
 
 
 def register(mcp: FastMCP):
@@ -17,6 +45,8 @@ def register(mcp: FastMCP):
         https: bool = True,
         http_version: str = "",
         cookie_jar: bool = True,
+        count: int = 1,
+        interval_ms: int = 0,
     ) -> str:
         """Send a raw HTTP request through Burp for exact byte-level control.
 
@@ -45,6 +75,15 @@ def register(mcp: FastMCP):
                 belongs to the real service host and is easy to omit by hand — the
                 response's `cookie_jar` note says what was attached or that the jar
                 was empty. Set false for a deliberately unauthenticated raw send.
+            count: Fire the SAME request this many times (default 1). >1 returns a
+                status histogram instead of one response body — for request-smuggling
+                desync attacks that must repeat to catch an intermittent victim on a
+                poisoned back-end connection. Keeps the loop inside Burp (Logger-
+                visible) rather than a raw-socket script that bypasses it. Capped at
+                500.
+            interval_ms: Delay between repeats when count>1 (default 0). A few hundred
+                ms widens the window for a victim's request to land on a poisoned
+                connection before the next self-send fills it.
         """
         payload: dict = {
             "raw": raw,
@@ -55,6 +94,26 @@ def register(mcp: FastMCP):
         }
         if http_version:
             payload["http_version"] = http_version
+
+        if count and count > 1:
+            count = min(count, _MAX_RAW_REPEAT)
+            codes: Counter = Counter()
+            locations: Counter = Counter()
+            errors: Counter = Counter()
+            for i in range(count):
+                d = await client.post("/api/http/raw", json=payload)
+                if "error" in d:
+                    errors[str(d["error"])[:60]] += 1
+                else:
+                    codes[d.get("status_code", "N/A")] += 1
+                    loc = next((h["value"] for h in d.get("response_headers", [])
+                                if h.get("name", "").lower() == "location"), None)
+                    if loc:
+                        locations[loc] += 1
+                if interval_ms > 0 and i < count - 1:
+                    await asyncio.sleep(interval_ms / 1000)
+            return _format_repeat_summary(count, http_version, codes, locations, errors)
+
         data = await client.post("/api/http/raw", json=payload)
         if "error" in data:
             return f"Error: {data['error']}"
