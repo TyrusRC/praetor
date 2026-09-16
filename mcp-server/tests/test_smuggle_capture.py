@@ -161,3 +161,24 @@ class H2CrlfSmuggleTest(unittest.TestCase):
         out = build_h2_crlf_smuggle("h", "b", carrier="x-pad", inject="content-length: 0")
         self.assertEqual(out["carrier_value"], "bar\r\ncontent-length: 0")
         self.assertIn(("x-pad", "bar\r\ncontent-length: 0"), out["headers"])
+
+
+class LastByteSyncTest(unittest.TestCase):
+
+    def test_splits_into_head_and_final_byte(self):
+        from praetor.tools.testing_extended._smuggle_capture import last_byte_sync
+        parts = last_byte_sync(["GET / HTTP/1.1\r\n\r\nX", "POST /cart HTTP/1.1\r\n\r\nY"])
+        self.assertEqual(len(parts), 2)
+        for orig, (head, last) in zip(["GET / HTTP/1.1\r\n\r\nX", "POST /cart HTTP/1.1\r\n\r\nY"], parts):
+            self.assertEqual(len(last), 1)
+            self.assertEqual(head + last, orig.encode())   # reassembles exactly
+
+    def test_accepts_bytes_input(self):
+        from praetor.tools.testing_extended._smuggle_capture import last_byte_sync
+        (head, last), = last_byte_sync([b"abc"])
+        self.assertEqual((head, last), (b"ab", b"c"))
+
+    def test_rejects_empty_request(self):
+        from praetor.tools.testing_extended._smuggle_capture import last_byte_sync
+        with self.assertRaises(ValueError):
+            last_byte_sync([""])
