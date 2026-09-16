@@ -15,7 +15,7 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 ```
 {pentest|redteam}-commander        engagement lead — research, plan, synthesize, report
   └─ grow-agent(domain)   × N      per-domain executor (bounded: 2–3 in flight)
-       └─ 10 workers
+       └─ 11 workers
 ```
 
 ### pentest-commander
@@ -98,6 +98,13 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 **Tools it should use:** `detect_tech_stack`, `generate_smart_wordlist`, `run_ffuf` (proxied through Burp; `match_codes=[200,204,301,307,401,403,500]`, `filter_size=<baseline>`), `annotate_request` (color `YELLOW`, comment `hidden-path`), `send_to_organizer`, `save_target_intel`.
 **Returns:** New endpoints written into `.burp-intel/<domain>/endpoints.json`, YELLOW-annotated proxy entries for each hit, organizer entries for follow-up.
 **Constraint:** Never two `fuzz-agent` on the same host simultaneously — WAF tripping. Max 1 concurrent `fuzz-agent` per host across the whole session. See `.claude/skills/fuzz-hidden-paths.md`.
+
+### llm-agent
+**Purpose:** Test the LLM/AI layer of a captured endpoint (OWASP LLM Top 10) — prompt injection, jailbreak/encoding bypass, system-prompt leakage, improper output handling into a downstream sink, sensitive-data disclosure, excessive agency / tool-SSRF. LLM lane only; does NOT test the app's classic web bugs.
+**When to dispatch:** An endpoint is LLM-backed — body carries `messages[]`/`prompt`/`input`, path is `/chat`|`/completions`|`/v1/chat`|`/generate`|`/ask`, or the response is model-generated natural language. Only against the operator's own deployment, never an upstream provider API. Triggered by `playbook-llm-security.md`.
+**Tools it should use:** `discover_llm_endpoint`, `run_web_llm_owasp_top10`, `run_nuclei_llm_infra`, `run_local_llm_prompt_injection`, `run_garak`, `run_owasp_asi_top10`, `inspect_for_prompt_injection`, `resend_with_modification`, `session_request`, `generate_collaborator_payload`, `get_collaborator_interactions`, `test_cloud_metadata` (tool-SSRF chain), `assess_finding`, `save_finding`, `annotate_request`, `send_to_organizer`.
+**Returns:** Confirmed LLM findings (injection/leak/agency/output-sink) with reproductions[], suspected candidates, and anomalies. Candidates from `run_*` sweeps are leads, not verdicts — each is verified (refusal ≠ compromise, echo ≠ sink) before save.
+**Constraint:** HARD Rule 5 — no unbounded-consumption flooding / token bombs (LLM10 is a rate-limit observation only); benign English canary markers, no destructive payloads. OOB via Collaborator only (Rule 9a). Indirect DOM-planted injection is `cua-hunt.md` / `probe_cua_injection_surface`, not this agent's echo tests. See `.claude/skills/playbook-llm-security.md`.
 
 ## Dispatch Rules
 

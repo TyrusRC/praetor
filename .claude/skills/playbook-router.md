@@ -125,7 +125,8 @@ Often co-load `playbook-api-advanced.md` since mobile backends are API-first.
 | GraphQL/gRPC/WS heavy | `api-advanced` | `pollution` if WAF |
 | Versioned stack leaked | (whatever Q1-Q7 said) | `cve-research` |
 | Mature target, nothing found | `pollution` | `red-team-web` |
-| Serialization / dep confusion / LLM | `red-team-web` | `cve-research` |
+| Serialization / dep confusion | `red-team-web` | `cve-research` |
+| LLM / AI chat/completions endpoint | `llm-security` | `red-team-web` for chains |
 | Cloud-native (AWS/GCP/Azure) | `cloud-native` | `red-team-web` if SSO |
 | OAuth / FIDO / Apple-Google-Samsung Pay / IAP / 3DS | `payment-and-auth` | `mobile-backend` if from mobile, `red-team-web` if ATO chain |
 | Plain webapp, standard CMS | none — stay on `hunt.md` | — |
@@ -174,7 +175,7 @@ Evaluate at TWO checkpoints:
 | Subscription / entitlement | `/subscription`, `/billing`, `tier`, `entitlement` in responses | R2 pattern I (entitlement state) |
 | Idempotency keys | `Idempotency-Key` header observed | R2 pattern G (idempotency-key scope) |
 | WebSocket traffic | `get_websocket_history` >0 OR intel logs WS endpoints | R5 WS smuggling + R4 WS |
-| LLM / AI features | chat UI, "assistant", prompt endpoints, `/v1/chat/completions`, `/embeddings` | R5 cross-class + load `playbook-red-team-web.md` |
+| LLM / AI features | chat UI, "assistant", prompt endpoints, `/v1/chat/completions`, `/embeddings` | load `playbook-llm-security.md` (dispatch `llm-agent`); co-load `playbook-red-team-web.md` for cross-class chains |
 | CDN in front | `Cache-Control`, `CF-Cache-Status`, `X-Cache`, `Via`, `CF-Ray`, `Akamai-X-` headers | R5 cache-poisoning |
 | Versioned tech with known CVEs | `Server: Apache/2.4.49`, framework versions in headers / HTML | load `playbook-cve-research.md` |
 
