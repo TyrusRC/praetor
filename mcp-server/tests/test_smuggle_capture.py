@@ -78,10 +78,6 @@ class CaptureClThroughTest(unittest.TestCase):
         self.assertTrue(r["found"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class WrapTeclTest(unittest.TestCase):
 
     def test_outer_cl_equals_chunk_size_line_length(self):
@@ -182,3 +178,7 @@ class LastByteSyncTest(unittest.TestCase):
         from praetor.tools.testing_extended._smuggle_capture import last_byte_sync
         with self.assertRaises(ValueError):
             last_byte_sync([""])
+
+
+if __name__ == "__main__":
+    unittest.main()
