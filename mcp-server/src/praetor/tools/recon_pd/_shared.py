@@ -12,7 +12,7 @@ Tools:
     run_uncover    Shodan/Censys/Fofa/Quake/Hunter wrapper (PD)
     run_cloudlist  Cloud asset inventory (PD)
     run_notify     Slack/Discord/Teams notifier (PD)
-    run_mapcves    CVE -> exploit / nuclei template (PD)
+    run_vulnx      CVE / vulnerability intelligence search (PD)
     run_cdncheck   CDN / WAF / cloud-IP classifier (PD)
     run_alterx     Subdomain permutation generator (PD)
     run_graphw00f  GraphQL engine fingerprint

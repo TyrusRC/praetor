@@ -7,6 +7,8 @@ _shared.py; _check_tool / _run_cmd come from recon._common.
 
 from __future__ import annotations
 
+import json
+
 from praetor.tools.recon._common import _check_tool, _run_cmd
 
 from ._shared import _not_installed, _parse_jsonl
@@ -26,23 +28,47 @@ async def run_notify(message: str, provider: str = "", timeout: int = 30) -> str
     return f"notify: dispatched ({len(message)} bytes)" + (f" via {provider}" if provider else "")
 
 
-async def run_mapcves(query: str = "", year: str = "", severity: str = "", timeout: int = 60) -> str:
-    if not _check_tool("mapcves"):
-        return _not_installed("mapcves", "go install github.com/projectdiscovery/mapcves@latest")
-    cmd = ["mapcves", "-silent", "-json"]
-    if query: cmd += ["-q", query]
-    if year:  cmd += ["-y", year]
-    if severity: cmd += ["-s", severity]
+async def run_vulnx(query: str = "", year: str = "", severity: str = "", timeout: int = 60) -> str:
+    # vulnx takes a search-query DSL via a `search` subcommand.
+    if not _check_tool("vulnx"):
+        return _not_installed(
+            "vulnx",
+            "go install github.com/projectdiscovery/vulnx/v2/cmd/vulnx@latest")
+    terms = []
+    if query:
+        terms.append(query)
+    if severity:
+        terms.append(f"severity:{severity.lower()}")
+    if year:
+        try:
+            y = int(year)
+            terms.append(f"cve_created_at:>={y} cve_created_at:<{y + 1}")
+        except ValueError:
+            terms.append(f"cve_created_at:>={year}")
+    q = " ".join(terms) if terms else "is_kev:true"
+    cmd = ["vulnx", "search", q, "--json", "--silent", "--limit", "30"]
     out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-    rows = _parse_jsonl(out)
-    lines = [f"mapcves: {len(rows)} CVEs"]
+    rows = []
+    try:
+        data = json.loads(out)
+        if isinstance(data, dict):
+            rows = data.get("results") or []
+    except (ValueError, TypeError):
+        rows = []
+    lines = [f"vulnx: {len(rows)} CVEs — query: {q}"]
     for r in rows[:30]:
-        cve = r.get("cve_id") or r.get("id", "?")
+        cve = r.get("cve_id", "?")
         sev = r.get("severity", "?")
-        tpl = r.get("nuclei_template") or r.get("template", "")
-        lines.append(f"  {cve} [{sev}] {tpl}")
-    if rc != 0 and not rows:
-        lines.append(f"[rc={rc}] {err[:200]}")
+        score = r.get("cvss_score", "")
+        name = (r.get("name") or "")[:60]
+        lines.append(f"  {cve} [{sev} {score}] {name}".rstrip())
+    if not rows:
+        blob = (err + out).lower()
+        if "api key" in blob or "rate" in blob or "429" in blob:
+            lines.append("Note: vulnx is rate-limited without a PDCP API key — "
+                         "run `vulnx auth` or set PDCP_API_KEY.")
+        elif rc != 0:
+            lines.append(f"[rc={rc}] {err[:200]}")
     return "\n".join(lines)
 
 

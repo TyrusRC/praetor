@@ -255,7 +255,7 @@ get_payloads(category="ssti", context="jinja2")
 ## Strategy E: 403 / access-control bypass (blocked path or IP gate)
 
 A `403`/`401` on a path is a filter to defeat, not a dead end. Automate with
-`probe_40x_bypass(url)` / `run_dontgo403` / `run_byp4xx`; the manual axes:
+`probe_40x_bypass(url)` / `run_nomore403` / `run_byp4xx`; the manual axes:
 
 **Path mutation** (front-end proxy ACL ≠ back-end routing):
 ```

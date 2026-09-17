@@ -281,24 +281,23 @@ check_recon asnmap     "go install -v github.com/projectdiscovery/asnmap/cmd/asn
 check_recon uncover    "go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest"
 check_recon cloudlist  "go install -v github.com/projectdiscovery/cloudlist/cmd/cloudlist@latest"
 check_recon notify     "go install -v github.com/projectdiscovery/notify/cmd/notify@latest"
-check_recon mapcves    "go install -v github.com/projectdiscovery/mapcves@latest"
+check_recon vulnx      "go install github.com/projectdiscovery/vulnx/v2/cmd/vulnx@latest"
 check_recon cdncheck   "go install -v github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest"
 check_recon alterx     "go install -v github.com/projectdiscovery/alterx/cmd/alterx@latest"
 check_recon graphw00f  "pipx install graphw00f                              # https://github.com/dolevf/graphw00f"
 
 # ── 40x bypass (W4) ──
-check_recon dontgo403  "go install -v github.com/devploit/dontgo403@latest"
+check_recon nomore403  "release binary: https://github.com/devploit/nomore403/releases"
 check_recon byp4xx     "go install -v github.com/lobuhi/byp4xx@latest"
 
-# ── SCA + LLM + K8s + smuggle (W5) ──
-check_recon osv-scanner "go install -v github.com/google/osv-scanner/cmd/osv-scanner@v2"
+# ── SCA + LLM + K8s (W5) ──
+check_recon osv-scanner "go install -v github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
 check_recon trivy      "brew install aquasecurity/trivy/trivy               # or: https://github.com/aquasecurity/trivy/releases"
 check_recon grype      "brew install grype                                  # or: https://github.com/anchore/grype#installation"
 check_recon garak      "pipx install garak"
 check_recon mcp-scan   "pipx install mcp-scan                               # https://github.com/invariantlabs-ai/mcp-scan"
-check_recon kubescape  "curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash"
+check_recon kubescape  "release binary: https://github.com/kubescape/kubescape/releases (kubescape_<ver>_linux_amd64)"
 check_recon kube-hunter "pipx install kube-hunter"
-check_recon smuggle    "pipx install smuggle                                # or: https://github.com/defparam/smuggler"
 
 # ── Cloud / IaC / CI / SBOM / K8s active / Visual EASM (W6) ──
 check_recon prowler    "pipx install prowler                                # https://github.com/prowler-cloud/prowler"

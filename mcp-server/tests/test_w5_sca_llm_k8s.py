@@ -1,4 +1,4 @@
-"""Wave 5 — SCA + LLM red-team + k8s + smuggle + vulnwalker + HTTPQL."""
+"""Wave 5 — SCA + LLM red-team + k8s + vulnwalker + HTTPQL."""
 
 import asyncio
 import tempfile
@@ -11,7 +11,6 @@ from praetor.tools import (
     k8s_audit,
     llm_redteam,
     sca,
-    smuggle_cli,
     vulnwalker,
 )
 
@@ -42,9 +41,6 @@ class W5RegistrationTest(unittest.TestCase):
     def test_k8s_tools_registered(self):
         for t in ("run_kubescape", "run_kube_hunter"):
             self.assertIn(t, self._registered(k8s_audit))
-
-    def test_smuggle_registered(self):
-        self.assertIn("run_smuggle", self._registered(smuggle_cli))
 
     def test_vulnwalker_registered(self):
         self.assertIn("vulnwalker_audit", self._registered(vulnwalker))
@@ -97,11 +93,6 @@ class W5MissingBinaryFallbackTest(unittest.TestCase):
         with mock.patch.object(k8s_audit, "_check_tool", return_value=False):
             out = self._call(k8s_audit, "run_kube_hunter")
         self.assertIn("kube-hunter not installed", out)
-
-    def test_smuggle_install_hint(self):
-        with mock.patch.object(smuggle_cli, "_check_tool", return_value=False):
-            out = self._call(smuggle_cli, "run_smuggle", "https://x.test/")
-        self.assertIn("smuggle not installed", out)
 
 
 class W5VulnwalkerTest(unittest.TestCase):
