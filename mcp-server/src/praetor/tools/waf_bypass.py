@@ -2,7 +2,7 @@
 
 In-process probe (`probe_40x_bypass`) — runs canonical header / path /
 method tricks through Burp without external binaries. CLI wrappers
-(`run_dontgo403`, `run_byp4xx`) shell out when those binaries are
+(`run_nomore403`, `run_byp4xx`) shell out when those binaries are
 present for broader coverage.
 """
 
@@ -205,25 +205,26 @@ def register(mcp: FastMCP) -> None:
         )
 
     @mcp.tool()
-    async def run_dontgo403(url: str, timeout: int = 300) -> str:
-        """Wrap dontgo403 — community 40x-bypass scanner.
+    async def run_nomore403(url: str, timeout: int = 300) -> str:
+        """Wrap nomore403 — community 40x-bypass scanner.
 
         Args:
             url: target URL.
             timeout: seconds.
         """
-        if not _check_tool("dontgo403"):
+        if not _check_tool("nomore403"):
             return (
-                "Error: dontgo403 not installed.\n"
-                "Install: go install github.com/devploit/dontgo403@latest"
+                "Error: nomore403 not installed.\n"
+                "Install: release binary from github.com/devploit/nomore403"
             )
+        # --no-banner keeps stdout parseable; -x routes attempts through Burp.
         out, err, rc = await _run_cmd(
-            ["dontgo403", "-u", url, "-x", "http://127.0.0.1:8080"],
+            ["nomore403", "-u", url, "-x", "http://127.0.0.1:8080", "--no-banner"],
             timeout=timeout, bypass_proxy=False,
         )
         if rc != 0 and not out:
-            return f"dontgo403 failed [rc={rc}]: {err[:300]}"
-        return f"# dontgo403 — {url}\n\n{out.strip()[:5000]}"
+            return f"nomore403 failed [rc={rc}]: {err[:300]}"
+        return f"# nomore403 — {url}\n\n{out.strip()[:5000]}"
 
     @mcp.tool()
     async def run_byp4xx(url: str, timeout: int = 300) -> str:

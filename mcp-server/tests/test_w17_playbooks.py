@@ -61,7 +61,7 @@ class RequestSmugglingPlaybookTest(unittest.TestCase):
 
     def test_references_tools(self):
         content = _read_skill("playbook-request-smuggling.md")
-        for tool in ("test_request_smuggling", "run_smuggle"):
+        for tool in ("test_request_smuggling", "send_raw_request"):
             self.assertIn(tool, content, f"smuggling playbook missing tool: {tool}")
 
 

@@ -291,6 +291,37 @@ install_pd_tool() {
     fi
 }
 
+# Go tools install into ~/go/bin (already on PATH for the go tools above).
+BIN_DIR="$(go env GOBIN 2>/dev/null)"; [ -n "$BIN_DIR" ] || BIN_DIR="$(go env GOPATH 2>/dev/null)/bin"; [ -n "$BIN_DIR" ] || BIN_DIR="$HOME/go/bin"
+
+# OS / arch tokens for release-binary asset names (macOS may be Apple Silicon).
+OS=linux; OS_CAP=Linux; [ "$PLATFORM" = "macos" ] && { OS=darwin; OS_CAP=Darwin; }
+case "$(uname -m)" in arm64|aarch64) ARCH=arm64; ARCH_X=arm64 ;; *) ARCH=amd64; ARCH_X=x86_64 ;; esac
+
+# gh_latest_tag <owner/repo> -> prints the latest release tag (e.g. v1.13)
+gh_latest_tag() {
+    curl -fsSL "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
+        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name":\s*"([^"]+)".*/\1/'
+}
+
+# install_gh_binary <name> <owner/repo> <asset-filename> — download a single-file
+# release binary into BIN_DIR as <name>. For tools whose go.mod carries replace
+# directives (go install pkg@latest is impossible) or that ship no source module.
+install_gh_binary() {
+    local name="$1" repo="$2" asset="$3"
+    if has "$name"; then ok "$name already installed"; return; fi
+    info "Installing $name (release binary)..."
+    local tag; tag="$(gh_latest_tag "$repo")"
+    mkdir -p "$BIN_DIR"
+    if [ -n "$tag" ] && curl -fsSL -o "$BIN_DIR/$name" \
+            "https://github.com/$repo/releases/download/$tag/$asset"; then
+        chmod +x "$BIN_DIR/$name"
+        has "$name" && ok "$name $tag installed" || warn "$name installed to $BIN_DIR but not on PATH"
+    else
+        warn "$name release download failed — install manually: https://github.com/$repo/releases"
+    fi
+}
+
 install_pd_tool "subfinder" \
     "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
 
@@ -359,22 +390,42 @@ info "Praetor v1.0 — installing SAST + secrets layer (core)..."
 install_pd_tool "opengrep" \
     "curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
 
+# gitleaks — the module still declares the legacy zricethezav path (the
+# gitleaks/gitleaks path fails "declares its path as ... but was required as").
 install_pd_tool "gitleaks" \
-    "go install -v github.com/gitleaks/gitleaks/v8@latest"
+    "go install -v github.com/zricethezav/gitleaks/v8@latest"
 
-install_pd_tool "trufflehog" \
-    "go install -v github.com/trufflesecurity/trufflehog/v3@latest"
+# trufflehog — secrets scanner (v3). macOS: Homebrew. Kali/Linux: official
+# install script (prebuilt binary) into ~/go/bin, which is already on PATH for
+# the go tools above. `go install` is unreliable here (main-package layout).
+if [ "$PLATFORM" = "macos" ]; then
+    install_pd_tool "trufflehog" "brew install trufflehog"
+else
+    install_pd_tool "trufflehog" \
+        'curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b "$HOME/go/bin"'
+fi
 
 # git-dumper — Python CLI, install via uv tool
 install_pd_tool "git-dumper" \
     "uv tool install git-dumper"
 
-# OWASP Noir — Crystal binary. brew tap exists for macOS; Linux build from source.
-# We surface a hint only; binary distribution is platform-specific.
+# OWASP Noir — Crystal binary. macOS: Homebrew formula. Kali/Debian: official
+# .deb from GitHub Releases (dpkg). Other distros: see the install docs.
 if has noir; then
     ok "noir already installed"
+elif [ "$PLATFORM" = "macos" ]; then
+    install_pd_tool "noir" "brew install noir"
+elif has apt-get; then
+    info "Installing noir (.deb from GitHub releases)..."
+    NOIR_VER="$(curl -s https://api.github.com/repos/owasp-noir/noir/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')"
+    if [ -n "$NOIR_VER" ] && curl -fsSL -o /tmp/noir.deb "https://github.com/owasp-noir/noir/releases/download/v${NOIR_VER}/noir_${NOIR_VER}_amd64.deb"; then
+        sudo dpkg -i /tmp/noir.deb && ok "noir $NOIR_VER installed" || warn "noir dpkg failed — install manually"
+        rm -f /tmp/noir.deb
+    else
+        warn "noir release download failed — see https://owasp-noir.github.io/noir/get_started/installation/"
+    fi
 else
-    warn "noir not installed — operator install: https://github.com/owasp-noir/noir (brew tap noir-cr/noir/noir on macOS)"
+    warn "noir not installed — see https://owasp-noir.github.io/noir/get_started/installation/ (brew install noir / sudo snap install noir / build from source)"
 fi
 
 # dig — DNS lookups used across recon (dnsutils / bind-tools)
@@ -396,7 +447,7 @@ install_pd_tool "asnmap"    "go install -v github.com/projectdiscovery/asnmap/cm
 install_pd_tool "uncover"   "go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest"
 install_pd_tool "cloudlist" "go install -v github.com/projectdiscovery/cloudlist/cmd/cloudlist@latest"
 install_pd_tool "notify"    "go install -v github.com/projectdiscovery/notify/cmd/notify@latest"
-install_pd_tool "mapcves"   "go install -v github.com/projectdiscovery/mapcves@latest"
+install_pd_tool "vulnx"     "go install -v github.com/projectdiscovery/vulnx/v2/cmd/vulnx@latest"
 install_pd_tool "cdncheck"  "go install -v github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest"
 install_pd_tool "alterx"    "go install -v github.com/projectdiscovery/alterx/cmd/alterx@latest"
 install_pd_tool "shuffledns" "go install -v github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest"
@@ -404,16 +455,17 @@ install_pd_tool "chaos"     "go install -v github.com/projectdiscovery/chaos-cli
 install_pd_tool "graphw00f" "uv tool install graphw00f"
 install_pd_tool "dnsgen"    "uv tool install dnsgen"
 
-# ── 40x / 403 bypass (run_dontgo403 / run_byp4xx) ──
+# ── 40x / 403 bypass (run_nomore403 / run_byp4xx) ──
 echo ""
 info "40x access-control bypass tools..."
-install_pd_tool "dontgo403" "go install -v github.com/devploit/dontgo403@latest"
+install_gh_binary "nomore403" "devploit/nomore403" "nomore403_${OS}_${ARCH}"
 install_pd_tool "byp4xx"    "go install -v github.com/lobuhi/byp4xx@latest"
 
 # ── SCA / containers / SBOM (run_osv_scanner / run_trivy / run_grype / run_syft / run_cosign_verify) ──
 echo ""
 info "SCA + container + SBOM tools..."
-install_pd_tool "osv-scanner" "go install -v github.com/google/osv-scanner/cmd/osv-scanner@v2"
+# osv-scanner is a /v2 module now; @v2 was being read as a version query.
+install_pd_tool "osv-scanner" "go install -v github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
 install_pd_tool "cosign"    "go install -v github.com/sigstore/cosign/v2/cmd/cosign@latest"
 install_pd_tool "trivy"     "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b \"$HOME/go/bin\""
 install_pd_tool "grype"     "curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b \"$HOME/go/bin\""
@@ -425,20 +477,38 @@ info "LLM + MCP security tools..."
 install_pd_tool "garak"     "uv tool install garak"
 install_pd_tool "mcp-scan"  "uv tool install mcp-scan"
 
-# ── HTTP request smuggling (run_smuggle) ──
-install_pd_tool "smuggle"   "uv tool install smuggle"
+# HTTP request smuggling has no external CLI dependency — Praetor ships it natively
+# (send_raw_request + testing_extended/_smuggle_capture + test_request_smuggling).
 
 # ── Kubernetes (run_kubescape / run_kube_hunter / run_peirates / run_kdigger / run_kubeletctl) ──
 echo ""
 info "Kubernetes audit + attack tools..."
-install_pd_tool "peirates"   "go install -v github.com/inguardians/peirates@latest"
-install_pd_tool "kubeletctl" "go install -v github.com/cyberark/kubeletctl/cmd/kubeletctl@latest"
+# peirates main package lives in cmd/peirates (not the module root).
+install_pd_tool "peirates"   "go install -v github.com/inguardians/peirates/cmd/peirates@latest"
+# kubeletctl's go.mod declares a bare module name (not a URL) — not go-installable;
+# use the release binary.
+install_gh_binary "kubeletctl" "cyberark/kubeletctl" "kubeletctl_${OS}_${ARCH}"
 install_pd_tool "kube-hunter" "uv tool install kube-hunter"
-install_pd_tool "kubescape"  "curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash"
+# kubescape — the install.sh drops the binary in a dir off PATH; fetch the
+# release binary straight into BIN_DIR instead (asset carries the version).
+if has kubescape; then
+    ok "kubescape already installed"
+else
+    info "Installing kubescape (release binary)..."
+    KS_TAG="$(gh_latest_tag kubescape/kubescape)"; KS_VER="${KS_TAG#v}"
+    mkdir -p "$BIN_DIR"
+    if [ -n "$KS_VER" ] && curl -fsSL -o "$BIN_DIR/kubescape" \
+            "https://github.com/kubescape/kubescape/releases/download/${KS_TAG}/kubescape_${KS_VER}_${OS}_${ARCH}"; then
+        chmod +x "$BIN_DIR/kubescape"
+        has kubescape && ok "kubescape $KS_VER installed" || warn "kubescape installed to $BIN_DIR but not on PATH"
+    else
+        warn "kubescape release download failed — https://github.com/kubescape/kubescape/releases"
+    fi
+fi
 if has kdigger; then
     ok "kdigger already installed"
 else
-    warn "kdigger not installed — operator install: release binary from https://github.com/quarkslab/kdigger/releases (brew: mtardy/tap/kdigger)"
+    install_gh_binary "kdigger" "quarkslab/kdigger" "kdigger-${OS}-${ARCH}"
 fi
 
 # ── Cloud posture (run_prowler / run_scout_suite / run_cloudsploit / run_pacu) ──
@@ -461,13 +531,44 @@ echo ""
 info "IaC + CI/CD audit tools..."
 install_pd_tool "checkov"   "uv tool install checkov"
 install_pd_tool "tfsec"     "go install -v github.com/aquasecurity/tfsec/cmd/tfsec@latest"
-install_pd_tool "terrascan" "go install -v github.com/tenable/terrascan/cmd/terrascan@latest"
+# terrascan / octoscan carry `replace` directives in go.mod, so `go install
+# pkg@latest` is impossible ("interpreted differently than if it were the main
+# module"). terrascan → release tarball; octoscan → build from a clone.
+if has terrascan; then
+    ok "terrascan already installed"
+else
+    info "Installing terrascan (release tarball)..."
+    TS_TAG="$(gh_latest_tag tenable/terrascan)"; TS_VER="${TS_TAG#v}"
+    mkdir -p "$BIN_DIR"
+    if [ -n "$TS_VER" ] && curl -fsSL -o /tmp/terrascan.tgz \
+            "https://github.com/tenable/terrascan/releases/download/${TS_TAG}/terrascan_${TS_VER}_${OS_CAP}_${ARCH_X}.tar.gz" \
+            && tar -xzf /tmp/terrascan.tgz -C "$BIN_DIR" terrascan 2>/dev/null; then
+        chmod +x "$BIN_DIR/terrascan"; ok "terrascan $TS_VER installed"
+    else
+        warn "terrascan release download failed — https://github.com/tenable/terrascan/releases"
+    fi
+    rm -f /tmp/terrascan.tgz
+fi
 install_pd_tool "poutine"   "go install -v github.com/boostsecurityio/poutine@latest"
-install_pd_tool "octoscan"  "go install -v github.com/synacktiv/octoscan@latest"
+if has octoscan; then
+    ok "octoscan already installed"
+else
+    info "Installing octoscan (build from source)..."
+    OCT_TMP="$(mktemp -d)"
+    if git clone --depth 1 https://github.com/synacktiv/octoscan "$OCT_TMP/octoscan" >/dev/null 2>&1 \
+            && (cd "$OCT_TMP/octoscan" && go build -o "$BIN_DIR/octoscan" . >/dev/null 2>&1) && has octoscan; then
+        ok "octoscan installed"
+    else
+        warn "octoscan build failed — manual: git clone https://github.com/synacktiv/octoscan && go build"
+    fi
+    rm -rf "$OCT_TMP"
+fi
 if has hadolint; then
     ok "hadolint already installed"
+elif [ "$PLATFORM" = "macos" ]; then
+    install_pd_tool "hadolint" "brew install hadolint"
 else
-    warn "hadolint not installed — operator install: release binary from https://github.com/hadolint/hadolint/releases (brew install hadolint)"
+    install_gh_binary "hadolint" "hadolint/hadolint" "hadolint-${OS}-${ARCH_X}"
 fi
 
 # ── Visual EASM (visual_easm_diff) ──
@@ -484,14 +585,20 @@ if grep -qiE 'kali|parrot' /etc/os-release 2>/dev/null; then IS_KALI=1; fi
 
 # Most of these ship in the Kali/Parrot repos under one apt bundle. On other
 # distros install what the package manager has and print a hint for the rest.
+# NOTE: ldapdomaindump and kerbrute are NOT in the Kali apt repos — and a single
+# unlocatable name makes `apt-get install` abort the ENTIRE bundle, so they are
+# installed separately below (pypi / go) rather than listed here.
 RT_APT_PKGS="nmap netexec impacket-scripts responder john hashcat gobuster \
-feroxbuster smbmap enum4linux-ng ldapdomaindump certipy-ad kerbrute evil-winrm \
+feroxbuster smbmap enum4linux-ng certipy-ad evil-winrm \
 bloodhound.py sshuttle seclists"
 
 if [ "$IS_KALI" -eq 1 ]; then
     info "Kali/Parrot detected — installing the red-team bundle via apt..."
     sudo apt-get install -y $RT_APT_PKGS 2>&1 | tail -2 \
         || warn "some red-team apt packages failed — core; install individually"
+    # Not in apt — install via their upstream methods.
+    install_pd_tool "ldapdomaindump" "uv tool install ldapdomaindump"
+    install_pd_tool "kerbrute"       "go install github.com/ropnop/kerbrute@latest"
 elif has apt-get; then
     info "Debian/Ubuntu — installing what the repos carry..."
     sudo apt-get install -y nmap john hashcat gobuster feroxbuster smbmap sshuttle 2>&1 | tail -2 \

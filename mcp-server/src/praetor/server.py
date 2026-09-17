@@ -11,7 +11,7 @@ from praetor.tools import (
     prompts, resources_mcp, mutate, exploit, auth, vuln, research, harvest, dom_xss_executed,
     bucket_urls, scope_extra, wordlist, secrets, analysis, security,
     shadow_repeater, easm, recon_pd, waf_bypass,
-    sca, llm_redteam, k8s_audit, smuggle_cli, vulnwalker, httpql,
+    sca, llm_redteam, k8s_audit, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
     source_aware, benchmark, mobile, cua_probe, sast_handoff, pyexploit,
     http3_probe, local_llm, mcptox,
@@ -172,12 +172,11 @@ dom_xss_executed.register(mcp) # probe_xss_executed — headless dialog-hook XSS
 bucket_urls.register(mcp)      # bucket_urls_by_vuln_class — gf-pattern URL classifier feeding targeted auto_probe (reconftw-derived; 5-10× more token-efficient than spray-fuzz)
 shadow_repeater.register(mcp)  # shadow_repeater — silent mutation pass on a captured request; reports anomalies vs baseline
 easm.register(mcp)             # recorded_login + findings_diff + format_pr_comment + easm_monitor_loop
-recon_pd.register(mcp)         # PD suite: dnsx/naabu/tlsx/asnmap/uncover/cloudlist/notify/mapcves/cdncheck/alterx + graphw00f
-waf_bypass.register(mcp)       # probe_40x_bypass (in-process header/path/method tricks) + dontgo403 + byp4xx wrappers
+recon_pd.register(mcp)         # PD suite: dnsx/naabu/tlsx/asnmap/uncover/cloudlist/notify/vulnx/cdncheck/alterx + graphw00f
+waf_bypass.register(mcp)       # probe_40x_bypass (in-process header/path/method tricks) + nomore403 + byp4xx wrappers
 sca.register(mcp)              # osv-scanner / trivy / grype — SCA + container + IaC
 llm_redteam.register(mcp)      # garak / pyrit / mcp-scan — LLM endpoint + MCP server attack surface
 k8s_audit.register(mcp)        # kubescape / kube-hunter — posture + active K8s recon
-smuggle_cli.register(mcp)      # smuggle CLI — Kettle 2025 0.CL/CL.0/V-H/Expect/RQP/double-desync detector
 vulnwalker.register(mcp)       # vulnwalker_audit — AST call-chain walker (Python) with taint-source matching
 httpql.register(mcp)           # query_history_dsl — small HTTPQL-style DSL over Burp proxy history
 cloud_audit.register(mcp)      # prowler / scout_suite / cloudsploit — multi-cloud config posture

@@ -38,7 +38,7 @@ class W3ToolRegistrationTest(unittest.TestCase):
         recon_pd.register(_Stub())
         for t in ("run_dnsx", "run_naabu", "run_tlsx", "run_asnmap",
                   "run_uncover", "run_cloudlist", "run_notify",
-                  "run_mapcves", "run_cdncheck", "run_alterx",
+                  "run_vulnx", "run_cdncheck", "run_alterx",
                   "run_graphw00f"):
             self.assertIn(t, tools, f"missing tool {t}")
 

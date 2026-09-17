@@ -92,16 +92,16 @@ def register(mcp: FastMCP):
         return await _gen.run_notify(message, provider, timeout)
 
     @mcp.tool()
-    async def run_mapcves(query: str = "", year: str = "", severity: str = "", timeout: int = 60) -> str:
-        """Query mapcves (CVE -> exploit / nuclei template).
+    async def run_vulnx(query: str = "", year: str = "", severity: str = "", timeout: int = 60) -> str:
+        """Query vulnx (ProjectDiscovery vulnerability intelligence: CVE search).
 
         Args:
-            query: free-text query (e.g. 'log4j', 'apache').
-            year: filter by CVE year (e.g. '2024').
+            query: free-text or DSL query (e.g. 'log4j', 'is_kev:true').
+            year: filter by CVE publication year (e.g. '2024').
             severity: low|medium|high|critical.
             timeout: seconds.
         """
-        return await _gen.run_mapcves(query, year, severity, timeout)
+        return await _gen.run_vulnx(query, year, severity, timeout)
 
     @mcp.tool()
     async def run_cdncheck(targets: list[str], timeout: int = 60) -> str:

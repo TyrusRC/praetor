@@ -37,7 +37,7 @@ Load when: target is behind a CDN / WAF / reverse proxy AND has an origin server
 
 1. **Confirm two-parser pipeline** — fetch a benign URL and look at `Server:` / `Via:` / `X-Cache:` / `X-Akamai-*` / `X-Amz-Cf-Id:` / `CF-RAY` headers. ≥2 distinct identifiers = two parsers.
 2. **Safe timing probe (default)** — `test_request_smuggling(session, path)` runs CL.TE / TE.CL / TE.TE timing-based detection. Returns VerdictResult SUSPECTED on any timing-confirmed finding; CONFIRMED only after Collaborator verification.
-3. **Binary tool wrapper** — `run_smuggle(target_url, ...)` shells out to the smuggle CLI for the 2025 0.CL / CL.0 / V-H / Expect / RQP / double-desync. Wider coverage than the in-process probe.
+3. **Byte-exact desync (native)** — `send_raw_request(raw, host, http_version="direct")` for CL.TE / TE.CL / TE.0 / CL.0 and the 2025 0.CL / V-H / Expect / double-desync variants, with the byte-exact wrappers in `testing_extended/_smuggle_capture` (`wrap_clte` / `wrap_tecl` / `build_h2_crlf_smuggle` / `build_host_sweep`). `http_version="direct"` keeps a request carrying both CL and TE from being normalized by Burp/Montoya. No external CLI needed.
 4. **Verify with Collaborator** — for any candidate, smuggle a request whose backend processing fires a Collaborator interaction. Three replays minimum (Rule 10a).
 
 ## Safe vs unsafe payloads
@@ -107,7 +107,7 @@ save_finding(
 
 - `knowledge/http_desync.json` — 2025 0.CL / CL.0 / V-H / Expect / RQP / double-desync contexts (W1-W5)
 - `test_request_smuggling` — timing-based detection (W14 VerdictResult)
-- `run_smuggle` — smuggle CLI wrapper (W5 binary tool integration)
+- `send_raw_request` + `testing_extended/_smuggle_capture` — native byte-exact desync wrappers (`wrap_clte` / `wrap_tecl` / `build_h2_crlf_smuggle` / `build_host_sweep`)
 - `chain-findings.md` — `smuggling_to_internal_route` progression
 - Rule 5 — destructive denylist
 - Rule 9a — Collaborator-only for OOB confirmation
