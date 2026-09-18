@@ -28,7 +28,8 @@ globs:
 
 - **CONFIRMED** — replay-based proof OR matcher fired on a class-defining marker. Confidence ≥ 0.70. Safe to feed directly into `assess_finding` evidence.
 - **SUSPECTED** — strong anomaly vs baseline, but missing one of: replay-stable, executable context, OOB confirmation. Confidence 0.45–0.69. Operator should escalate (Collaborator poll, manual confirm) before save.
-- **FAILED** — probe ran, no anomaly. Tool's contract is "I tested this; nothing found." Treat as covered-negative in `coverage.json`.
+- **FAILED** — probe ran, the test was VALID (mechanism exercised — positive control passed), and the body showed a real negative. Only THEN a covered-negative in `coverage.json`. A negative from an unproven/malformed test is INCONCLUSIVE, not FAILED.
+- **INCONCLUSIVE** (`inconclusive_verdict`) — probe ran but evidence is INSUFFICIENT to decide either way (test-validity unproven, or ambiguous body). NOT a finding and NOT covered — the tuple stays OPEN; keep testing or escalate (Rule 13b). `is_actionable` is False. This is the third state that stops the "wrong PoC → declare benign" overconfidence failure.
 - **ERROR** — probe could not run (scope, network, missing dep, blocked precondition). Do NOT mark as covered. Surface it and **ASK the operator to unblock** (Rule 32a); the tuple stays OPEN (Rule 19a), never filed `N/A`/`partial`.
 
 **Grading a manual probe (no VerdictResult tool):** the same bars apply — `FAILED`/covered-negative only after reading the response **body** vs the Rule 11 baseline (Rule 13a: a `200` is not a pass); `ERROR`/blocked → ask, never `N/A` (Rules 19a / 32a). Untested is neither N/A nor covered.

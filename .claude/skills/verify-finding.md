@@ -93,6 +93,24 @@ The verdict is the canonical evidence — no manual `resend_with_modification` c
 
 Each class has a SPECIFIC bar. Without it, the finding is NOT confirmed.
 
+### The bar is two-directional (Rule 13b)
+
+The per-class bars below say what confirms **VULNERABLE**. Declaring **NOT-VULNERABLE**
+has its own bar: you must first prove the test was **valid** (a positive control), then
+observe a real negative on the body. If you cannot show the mechanism was exercised, the
+verdict is **INCONCLUSIVE** (`inconclusive_verdict`), not benign — keep testing or ask.
+
+| Class | Positive control (test is VALID) → only then a negative counts |
+|---|---|
+| SQLi | a TRUE vs FALSE boolean pair returns **different** bodies (injection context is reached). Same body for both = your payload never entered the query → INCONCLUSIVE, not "not vulnerable". |
+| XSS | the injection point is found and your marker **lands in the response** in some context. No reflection located = you haven't tested the sink yet → INCONCLUSIVE. |
+| SSRF | the parameter is confirmed to drive a server-side fetch (a Collaborator hit on a known-good internal/OAST target, or a differential on a reachable vs unreachable host). No fetch proven = INCONCLUSIVE. |
+| IDOR/BOLA | you actually requested another principal's object with the other role/id and read the body. A 200/302 without inspecting whose data came back proves nothing either way. |
+| Access control | the negative control (authorized user) succeeds AND the unauthorized attempt is compared on the body — not just "got a 403 once". |
+
+"Every probe read FALSE / nothing happened" is the #1 false-benign trap — it is almost always
+a malformed payload or wrong injection point (see the SQLi recipe below), i.e. INCONCLUSIVE.
+
 ### SQL Injection
 - **Time-based:** response time > 3× baseline; replay 3×; compare to baseline
 - **Error-based:** SQL error string (unclosed quote, ORA-, mysql_fetch, pg_query, ODBC, OLE DB)
