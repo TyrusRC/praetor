@@ -169,11 +169,15 @@ CWE: CWE-XXX
 OWASP: A0X:2021-XXX
 
 ## Attachments / Evidence
-[Raw req/resp pairs, screenshots, video.]
-<!-- Screenshots: `browser_screenshot` for the target page; `burp_screenshot(domain, tab=)`
-     for the Burp window (select the Repeater/Intruder/Organizer/HTTP-history tab first —
-     it captures whatever is on screen). Both land in .burp-intel/<domain>/screenshots/
-     and feed `screenshot_gallery(domain)`. -->
+[Raw req/resp pairs, step-by-step PoC screenshots, video.]
+<!-- Screenshots: `browser_screenshot` for the target page; `burp_screenshot(domain, tab=,
+     finding_id=, note=)` for the Burp window. Capture the PoC STEP BY STEP like a real
+     pentester (evidence-and-tabs.md Workflow E): isolate the request in a named Repeater
+     tab, annotate/highlight it, then shoot baseline -> attack -> result — one prepared step
+     per shot, never a full-window history dump. Passing finding_id attaches the shot to the
+     finding (evidence.screenshots[]) so it renders here in order (client sees filename +
+     caption only) and is copied into export_poc_bundle. All land in
+     .burp-intel/<domain>/screenshots/ and feed screenshot_gallery(domain). -->
 
 
 ## References

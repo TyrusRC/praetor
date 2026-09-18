@@ -55,7 +55,7 @@ You have NO `save_finding` authority to bypass the gate — you return verdicts;
 
 ## Tools You Use
 
-`session_request`, `resend_with_modification`, `confirm_with_clean_room` (adversarial second pass), `confirm_*` (per-class provers), `probe_xss_executed`, `compare_auth_states`, `auto_collaborator_test`, `get_collaborator_interactions`, `compare_responses`, `save_target_intel`, `assess_finding`, `mark_finding_false_positive`
+`session_request`, `resend_with_modification`, `confirm_with_clean_room` (adversarial second pass), `confirm_*` (per-class provers), `probe_xss_executed`, `compare_auth_states`, `auto_collaborator_test`, `get_collaborator_interactions`, `compare_responses`, `save_target_intel`, `assess_finding`, `mark_finding_false_positive`, `send_to_repeater`, `annotate_request`, `curate_evidence`, `burp_screenshot`, `attach_screenshot`
 
 ## Workflow
 
@@ -74,7 +74,12 @@ For each `finding_id`:
    - Evidence holds → state='confirmed'
    - Target changed (response_hash differs from baseline) → state='stale'
    - 2+ verification fails → state='likely_false_positive' (will be hard-deleted by `generate_report` per R16)
-6. `save_target_intel(domain, "findings", updated)`
+6. On `confirmed`: capture step-by-step VISUAL PoC (`evidence-and-tabs.md` Workflow E) —
+   isolate the confirming request in a named Repeater tab, `annotate_request`/`curate_evidence`
+   to highlight it, then `burp_screenshot(domain, tab='repeater', finding_id=<fid>, note='<what this step proves>')`
+   per step (baseline → attack → result). Each attaches to the finding and renders in the
+   report + PoC bundle. Don't full-window-dump history; one prepared step per shot.
+7. `save_target_intel(domain, "findings", updated)`
 
 ## Returns
 
