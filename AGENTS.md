@@ -112,6 +112,7 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 2. **All agents must use the SAME session** for authentication consistency (sessions are thread-safe in the Java extension).
 3. **The orchestrator does NOT duplicate work** — if you dispatch an agent to scan for SQLi, don't also scan for SQLi yourself.
 4. **Merge results before next strategic decision** — wait for all parallel agents to complete before deciding what to investigate next.
+4a. **Shared live activity log** — the `activity-log.py` PostToolUse hook auto-appends one compact line per state event (finding / retest / lock / assess / checkpoint / intel save) from EVERY agent to `.burp-intel/_activity.jsonl`, tagged with each agent's session id. It updates with no model action and costs zero tokens (writes only to the file). Use it two ways: the operator live-checks progress with `tail -f .burp-intel/_activity.jsonl`; a coordinating agent reads it to see what siblings have already done (findings saved, tuples checkpointed) and avoid duplicate work — read the log, don't re-ask.
 5. **Save intel after merging** — the orchestrator calls `save_target_intel` with merged results, not individual agents.
 6. **Browser agents cannot run in parallel** — only one headless browser instance exists.
 7. **Use browser_crawl before extraction tools** — proxy history must be populated first.
