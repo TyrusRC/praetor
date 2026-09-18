@@ -50,6 +50,15 @@ class SaveShotTest(unittest.TestCase):
         out = _save_shot(data, "d", "proxy/http history", "")
         self.assertTrue(Path(out["saved"]).name.startswith("burp-proxy-http-history-"))
 
+    def test_filename_describes_the_evidence(self):
+        # tab + finding id + caption slug all land in the name so it self-documents.
+        data = {"png_base64": base64.b64encode(b"x").decode()}
+        out = _save_shot(data, "d", "repeater", "IDOR order id=2", finding_id="f001")
+        name = Path(out["saved"]).name
+        self.assertTrue(name.startswith("burp-repeater-f001-idor-order-id-2-"))
+        self.assertTrue(name.endswith(".png"))
+        self.assertEqual(out["finding_id"], "f001")
+
 
 if __name__ == "__main__":
     unittest.main()

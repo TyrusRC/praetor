@@ -12,6 +12,7 @@ straight into `screenshot_gallery(domain)` and per-finding evidence.
 from __future__ import annotations
 
 import base64
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -20,9 +21,29 @@ from mcp.server.fastmcp import FastMCP
 from praetor import client
 
 
-def _save_shot(data: dict, domain: str, tab: str, note: str) -> dict:
+def _slug(text: str, maxlen: int = 40) -> str:
+    """Filesystem-safe slug from free text (lowercase, dashes)."""
+    s = re.sub(r"[^a-z0-9]+", "-", (text or "").strip().lower()).strip("-")
+    return s[:maxlen].strip("-")
+
+
+def _shot_name(tab: str, finding_id: str, note: str, ts: str) -> str:
+    """Descriptive filename so the evidence is identifiable at a glance:
+    `burp-<tab>-<finding_id>-<note-slug>-<ts>.png`. Empty parts are dropped."""
+    parts = ["burp", _slug(tab) or "suite"]
+    if finding_id.strip():
+        parts.append(_slug(finding_id))
+    note_slug = _slug(note)
+    if note_slug:
+        parts.append(note_slug)
+    parts.append(ts)
+    return "-".join(p for p in parts if p) + ".png"
+
+
+def _save_shot(data: dict, domain: str, tab: str, note: str,
+               finding_id: str = "") -> dict:
     """Decode the base64 PNG from the extension and save it under the domain's
-    screenshots dir. Returns the saved-path envelope, or an error dict."""
+    screenshots dir with a self-describing name. Returns the envelope or error."""
     b64 = data.get("png_base64") if isinstance(data, dict) else None
     if not b64:
         return {"error": "no image returned from Burp", "raw": data}
@@ -35,8 +56,7 @@ def _save_shot(data: dict, domain: str, tab: str, note: str) -> dict:
     out_dir = Path.cwd() / ".burp-intel" / host / "screenshots"
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    label = (tab or "suite").strip().replace("/", "-").replace(" ", "-") or "suite"
-    path = out_dir / f"burp-{label}-{ts}.png"
+    path = out_dir / _shot_name(tab, finding_id, note, ts)
     path.write_bytes(raw)
     return {
         "saved": str(path),
@@ -44,6 +64,7 @@ def _save_shot(data: dict, domain: str, tab: str, note: str) -> dict:
         "height": data.get("height"),
         "title": data.get("title"),
         "tab": tab or "suite",
+        "finding_id": finding_id,
         "note": note,
     }
 
@@ -60,11 +81,12 @@ def register(mcp: FastMCP) -> None:
         tool tabs, so `tab` is a label recorded in the filename/return, not a
         selector — the on-screen selection is what gets captured.
 
-        Saves a PNG under .burp-intel/<domain>/screenshots/ so it feeds
-        screenshot_gallery(domain) and per-finding evidence directly. Pass
-        `finding_id` to attach it to that finding straight away (renders in the
-        report + PoC bundle). Requires Burp running with its GUI (headless Burp
-        returns a `headless` error).
+        Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
+        name — `burp-<tab>-<finding_id>-<note-slug>-<timestamp>.png` — so the
+        evidence is identifiable at a glance. It feeds screenshot_gallery(domain)
+        and per-finding evidence directly. Pass `finding_id` to attach it to that
+        finding straight away (renders in the report + PoC bundle). Requires Burp
+        running with its GUI (headless Burp returns a `headless` error).
 
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
@@ -75,7 +97,7 @@ def register(mcp: FastMCP) -> None:
         data = await client.get("/api/ui/screenshot")
         if isinstance(data, dict) and "error" in data:
             return data
-        out = _save_shot(data, domain, tab, note)
+        out = _save_shot(data, domain, tab, note, finding_id)
         if "error" not in out and finding_id and domain:
             from praetor.tools.notes._screenshot_attach import _attach_screenshot
             out["attached"] = _attach_screenshot(domain, finding_id, out["saved"], note)

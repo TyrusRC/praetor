@@ -45,7 +45,11 @@ public class ScreenshotHandler extends BaseHandler {
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
             "height", img.getHeight(),
-            "title", frame.getTitle()
+            "title", frame.getTitle(),
+            // Identifies the capture engine so a caller can VERIFY which build is
+            // loaded (printAll = occlusion-immune component render, not a screen
+            // grab). Absent/other value => a stale jar is still loaded.
+            "engine", "printall"
         ));
     }
 }

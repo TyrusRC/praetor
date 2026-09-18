@@ -5,11 +5,29 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import javax.swing.JPanel;
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 
 class SuiteScreenshotTest {
+
+    @Test
+    void captureComponentRendersTheComponentNotAScreenRegion() {
+        // printAll paints the component's own pixels — proving the capture is the
+        // Swing hierarchy (occlusion-immune), not a Robot grab of the screen.
+        JPanel panel = new JPanel();
+        panel.setOpaque(true);
+        panel.setBackground(Color.RED);
+        panel.setSize(8, 8);
+
+        BufferedImage img = SuiteScreenshot.captureComponent(panel, 8, 8);
+        assertEquals(8, img.getWidth());
+        assertEquals(8, img.getHeight());
+        assertEquals(new Color(Color.RED.getRGB()).getRGB(), img.getRGB(4, 4),
+            "center pixel should be the panel's own background");
+    }
 
     @Test
     void pngBase64EncodesADecodablePng() throws Exception {

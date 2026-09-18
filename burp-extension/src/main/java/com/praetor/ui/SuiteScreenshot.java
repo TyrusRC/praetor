@@ -2,11 +2,11 @@ package com.praetor.ui;
 
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
-import java.awt.AWTException;
+import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Frame;
+import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
-import java.awt.Rectangle;
-import java.awt.Robot;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,6 +20,14 @@ import java.util.Base64;
  * frame is currently showing. Montoya exposes the top-level frame but not the
  * individual tool tabs, so "which tab" is the operator's on-screen selection,
  * not a parameter.
+ *
+ * <p>Capture renders the component tree OFFSCREEN via {@link Component#printAll}
+ * — NOT a screen-region grab. That matters: a {@code Robot} screen capture of
+ * the frame's bounds returns whatever pixels are composited there, so an
+ * overlapping window (another terminal, an editor) gets captured instead of
+ * Burp, and the frame does not even need to be in front. {@code printAll} paints
+ * Burp's own Swing hierarchy, so the result is always Burp regardless of z-order
+ * and never leaks another window's content.
  */
 public final class SuiteScreenshot {
 
@@ -32,31 +40,59 @@ public final class SuiteScreenshot {
         return Base64.getEncoder().encodeToString(out.toByteArray());
     }
 
-    /** True when a display is available to capture (false in headless Burp). */
+    /** True when a display is available to render (false in headless Burp). */
     public static boolean displayAvailable() {
         return !GraphicsEnvironment.isHeadless();
     }
 
     /**
-     * Capture the given frame as it currently appears on screen. Brings it to
-     * front on the EDT first (best-effort) so an overlapping window doesn't
-     * occlude it, then grabs its screen bounds.
+     * Render a component to an image via {@code printAll}, on the EDT. Works for
+     * any lightweight Swing component regardless of what overlaps it on screen.
      *
-     * <p>NOTE: single-screen capture via the default Robot over the virtual
-     * coordinate space — covers the common single-monitor case. A frame dragged
-     * onto a secondary display with a different origin may clip; upgrade path is
-     * a per-device Robot from {@code frame.getGraphicsConfiguration()}.
+     * <p>NOTE: renders the Swing hierarchy. Standard Burp panels (HTTP editors,
+     * tables, tabs) are Swing and paint correctly; a rare heavyweight/native peer
+     * could come out blank. Upgrade path if that ever bites: composite a Robot
+     * grab of just that sub-region.
      */
-    public static BufferedImage captureFrame(Frame frame) throws AWTException {
+    public static BufferedImage captureComponent(Component c, int width, int height) {
+        BufferedImage img = new BufferedImage(Math.max(1, width), Math.max(1, height),
+                                              BufferedImage.TYPE_INT_ARGB);
+        Runnable paint = () -> {
+            Graphics2D g = img.createGraphics();
+            try {
+                c.printAll(g);
+            } finally {
+                g.dispose();
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            paint.run();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(paint);
+            } catch (Exception ignored) {
+                // Best-effort — return whatever was painted (possibly blank).
+            }
+        }
+        return img;
+    }
+
+    /**
+     * Capture the Burp suite frame. De-iconifies it first (a minimized window
+     * paints blank) but does NOT need to raise it — {@code printAll} is immune to
+     * occlusion.
+     */
+    public static BufferedImage captureFrame(Frame frame) {
         try {
             SwingUtilities.invokeAndWait(() -> {
-                frame.toFront();
-                frame.requestFocus();
+                if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
+                    frame.setExtendedState(Frame.NORMAL);
+                }
             });
         } catch (Exception ignored) {
-            // toFront is best-effort; capture proceeds regardless.
+            // De-iconify is best-effort; capture proceeds regardless.
         }
-        Rectangle bounds = frame.getBounds();
-        return new Robot().createScreenCapture(bounds);
+        Dimension d = frame.getSize();
+        return captureComponent(frame, d.width, d.height);
     }
 }
