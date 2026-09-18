@@ -50,7 +50,8 @@ def _save_shot(data: dict, domain: str, tab: str, note: str) -> dict:
 
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
-    async def burp_screenshot(domain: str = "", tab: str = "", note: str = "") -> dict:
+    async def burp_screenshot(domain: str = "", tab: str = "", note: str = "",
+                              finding_id: str = "") -> dict:
         """Screenshot the Burp Suite window (whatever tab is on screen) for evidence.
 
         Captures the FULL Burp window as it currently looks — SELECT the tab you
@@ -60,15 +61,22 @@ def register(mcp: FastMCP) -> None:
         selector — the on-screen selection is what gets captured.
 
         Saves a PNG under .burp-intel/<domain>/screenshots/ so it feeds
-        screenshot_gallery(domain) and per-finding evidence directly. Requires
-        Burp running with its GUI (headless Burp returns a `headless` error).
+        screenshot_gallery(domain) and per-finding evidence directly. Pass
+        `finding_id` to attach it to that finding straight away (renders in the
+        report + PoC bundle). Requires Burp running with its GUI (headless Burp
+        returns a `headless` error).
 
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
             tab: label for what's on screen (history/repeater/intruder/organizer).
-            note: short caption stored in the return for the gallery.
+            note: short caption stored in the return / used as the finding caption.
+            finding_id: optional saved-finding id to attach the shot to.
         """
         data = await client.get("/api/ui/screenshot")
         if isinstance(data, dict) and "error" in data:
             return data
-        return _save_shot(data, domain, tab, note)
+        out = _save_shot(data, domain, tab, note)
+        if "error" not in out and finding_id and domain:
+            from praetor.tools.notes._screenshot_attach import _attach_screenshot
+            out["attached"] = _attach_screenshot(domain, finding_id, out["saved"], note)
+        return out

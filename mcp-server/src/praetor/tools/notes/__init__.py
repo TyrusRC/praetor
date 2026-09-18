@@ -14,7 +14,7 @@ keeps resolving.
 
 from mcp.server.fastmcp import FastMCP
 
-from . import chain_proposer, explain_finding, explore_issue, export_junit, export_sarif, lock, poc_bundle, query, repro_script, retest, save, triager_review
+from . import chain_proposer, explain_finding, explore_issue, export_junit, export_sarif, lock, poc_bundle, query, repro_script, retest, save, triager_review, _screenshot_attach
 from ._helpers import (
     _dedupe_finding,
     _domain_from_endpoint,
@@ -56,3 +56,4 @@ def register(mcp: FastMCP):
     poc_bundle.register(mcp)
     retest.register(mcp)
     lock.register(mcp)
+    _screenshot_attach.register(mcp)

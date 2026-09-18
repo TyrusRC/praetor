@@ -100,13 +100,28 @@ def register(mcp: FastMCP):
             add("verify.py", verify.encode("utf-8"), mode=0o755)
             add("finding.json", finding_blob.encode("utf-8"))
 
+            # Attached screenshots (evidence.screenshots) — copy the actual PNGs
+            # into the bundle so a triager gets the visual proof, not just a path.
+            shot_files: list[str] = []
+            ev = target.get("evidence") or {}
+            for s in (ev.get("screenshots") or []) if isinstance(ev, dict) else []:
+                rel = s.get("file", "") if isinstance(s, dict) else str(s)
+                if not rel:
+                    continue
+                src = _intel_dir() / _sanitized(domain) / rel
+                if src.exists():
+                    arc = f"screenshots/{Path(rel).name}"
+                    add(arc, src.read_bytes())
+                    shot_files.append(arc)
+
         tar_path.write_bytes(buf.getvalue())
         return {
             "ok": True,
             "finding_id": finding_id,
             "bundle_path": str(tar_path),
             "size_bytes": tar_path.stat().st_size,
-            "files": ["README.md", "request.http", "response.http", "repro.sh", "verify.py", "finding.json"],
+            "files": ["README.md", "request.http", "response.http", "repro.sh",
+                      "verify.py", "finding.json"] + shot_files,
         }
 
     @mcp.tool()
