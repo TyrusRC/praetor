@@ -222,10 +222,40 @@ def _build_wstg() -> list[dict[str, str]]:
     return out
 
 
+# OWASP MASVS v2.1 — 24 controls across 8 categories (the mobile "test case"
+# granularity; MASTG tests verify these). (id, category, name, tool).
+_MASTG_CHECKLIST: list[dict[str, str]] = [
+    {"id": "MASVS-STORAGE-1", "category": "STORAGE", "name": "Securely stores sensitive data", "tool": "mobile_pull_file / mobile_shell / mobile_frida_run"},
+    {"id": "MASVS-STORAGE-2", "category": "STORAGE", "name": "Prevents leakage of sensitive data (logs, backups, clipboard, keyboard cache)", "tool": "mobile_logcat / mobile_pull_file / mobile_adb_pack"},
+    {"id": "MASVS-CRYPTO-1", "category": "CRYPTO", "name": "Uses strong, correctly-configured cryptography", "tool": "mobile_frida_run (hook crypto) / mobile_frida_snippet"},
+    {"id": "MASVS-CRYPTO-2", "category": "CRYPTO", "name": "Key management per best practices", "tool": "mobile_frida_run / mobile_pull_file"},
+    {"id": "MASVS-AUTH-1", "category": "AUTH", "name": "Secure auth/authz protocols (server-side)", "tool": "test_auth_matrix / test_jwt (backend)"},
+    {"id": "MASVS-AUTH-2", "category": "AUTH", "name": "Local authentication done securely (biometric/PIN)", "tool": "mobile_frida_run (biometric bypass)"},
+    {"id": "MASVS-AUTH-3", "category": "AUTH", "name": "Sensitive operations require additional auth", "tool": "mobile_frida_run / manual flow"},
+    {"id": "MASVS-NETWORK-1", "category": "NETWORK", "name": "All network traffic secured (TLS best practices)", "tool": "mobile_set_proxy + traffic review / run_tlsx"},
+    {"id": "MASVS-NETWORK-2", "category": "NETWORK", "name": "Certificate/identity pinning for developer endpoints", "tool": "mobile_frida_run (pinning bypass)"},
+    {"id": "MASVS-PLATFORM-1", "category": "PLATFORM", "name": "IPC mechanisms used securely (exported components, intents)", "tool": "mobile_app_control / mobile_deeplink / mobile_shell"},
+    {"id": "MASVS-PLATFORM-2", "category": "PLATFORM", "name": "WebViews used securely", "tool": "mobile_frida_run / mobile_ui_dump"},
+    {"id": "MASVS-PLATFORM-3", "category": "PLATFORM", "name": "UI used securely (screenshots, clipboard, overlays)", "tool": "mobile_screenshot / mobile_setting"},
+    {"id": "MASVS-CODE-1", "category": "CODE", "name": "Requires an up-to-date platform version", "tool": "mobile_device_info / manifest review"},
+    {"id": "MASVS-CODE-2", "category": "CODE", "name": "Has a mechanism for enforcing updates", "tool": "manual / update-flow review"},
+    {"id": "MASVS-CODE-3", "category": "CODE", "name": "Uses components without known vulnerabilities", "tool": "run_grype / run_syft (SBOM)"},
+    {"id": "MASVS-CODE-4", "category": "CODE", "name": "Validates and sanitizes untrusted inputs", "tool": "auto_probe (backend) / mobile_frida_run"},
+    {"id": "MASVS-RESILIENCE-1", "category": "RESILIENCE", "name": "Validates platform integrity (root/jailbreak detection)", "tool": "mobile_frida_run (root/JB bypass)"},
+    {"id": "MASVS-RESILIENCE-2", "category": "RESILIENCE", "name": "Anti-tampering mechanisms", "tool": "mobile_frida_run / mobile_adb_pack (re-sign)"},
+    {"id": "MASVS-RESILIENCE-3", "category": "RESILIENCE", "name": "Anti-static-analysis (obfuscation)", "tool": "mobile_adb_pack / manual decompile review"},
+    {"id": "MASVS-RESILIENCE-4", "category": "RESILIENCE", "name": "Anti-dynamic-analysis (anti-debug, anti-hook, emulator detection)", "tool": "mobile_frida_run (anti-debug bypass)"},
+    {"id": "MASVS-PRIVACY-1", "category": "PRIVACY", "name": "Minimizes access to sensitive data and resources", "tool": "mobile_shell (permissions) / manifest review"},
+    {"id": "MASVS-PRIVACY-2", "category": "PRIVACY", "name": "Prevents identification of the user (tracking/fingerprinting)", "tool": "mobile_set_proxy + traffic review"},
+    {"id": "MASVS-PRIVACY-3", "category": "PRIVACY", "name": "Transparent about data collection and usage", "tool": "manual / privacy-policy review"},
+    {"id": "MASVS-PRIVACY-4", "category": "PRIVACY", "name": "Offers user control over their data", "tool": "manual / flow review"},
+]
+
+
 CHECKLISTS: dict[str, list[dict[str, str]]] = {
     "ai_testing": _AI_CHECKLIST,
     "wstg": _build_wstg(),
-    # "mastg": _MASTG_CHECKLIST, # follows (MASTG-TEST-NNNN -> MASVS cat)
+    "mastg": _MASTG_CHECKLIST,
 }
 
 

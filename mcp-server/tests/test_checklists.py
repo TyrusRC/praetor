@@ -31,6 +31,14 @@ class ChecklistCatalogTest(unittest.TestCase):
     def test_unknown_standard_empty(self):
         self.assertEqual(checklist_for("nope"), [])
 
+    def test_mastg_catalog_24_controls_valid(self):
+        m = checklist_for("mastg")
+        self.assertEqual(len(m), 24)  # MASVS v2.1 = 24 controls
+        valid = set(STANDARDS["mastg"]["categories"])
+        for c in m:
+            self.assertIn(c["category"], valid, f"{c['id']} bad category")
+            self.assertTrue(c["name"] and c["tool"])
+
     def test_wstg_catalog_complete_and_categories_valid(self):
         w = checklist_for("wstg")
         self.assertGreaterEqual(len(w), 110)  # WSTG v4.2 full list
