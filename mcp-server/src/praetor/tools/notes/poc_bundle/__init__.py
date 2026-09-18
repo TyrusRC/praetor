@@ -102,17 +102,30 @@ def register(mcp: FastMCP):
 
             # Attached screenshots (evidence.screenshots) — copy the actual PNGs
             # into the bundle so a triager gets the visual proof, not just a path.
+            # `file` is operator/tool-writable, so confirm it resolves UNDER the
+            # domain dir (no ../ escaping a host path into the shareable tar) and
+            # uniquify basename collisions so one shot can't overwrite another.
             shot_files: list[str] = []
+            used_arcs: set[str] = set()
             ev = target.get("evidence") or {}
+            dom_dir = (_intel_dir() / _sanitized(domain)).resolve()
             for s in (ev.get("screenshots") or []) if isinstance(ev, dict) else []:
                 rel = s.get("file", "") if isinstance(s, dict) else str(s)
                 if not rel:
                     continue
-                src = _intel_dir() / _sanitized(domain) / rel
-                if src.exists():
-                    arc = f"screenshots/{Path(rel).name}"
-                    add(arc, src.read_bytes())
-                    shot_files.append(arc)
+                src = (_intel_dir() / _sanitized(domain) / rel).resolve()
+                if dom_dir != src and dom_dir not in src.parents:
+                    continue  # traversal outside the domain dir — skip
+                if not src.exists():
+                    continue
+                arc = f"screenshots/{src.name}"
+                n = 1
+                while arc in used_arcs:  # basename collision
+                    arc = f"screenshots/{src.stem}-{n}{src.suffix}"
+                    n += 1
+                used_arcs.add(arc)
+                add(arc, src.read_bytes())
+                shot_files.append(arc)
 
         tar_path.write_bytes(buf.getvalue())
         return {

@@ -39,6 +39,15 @@ class ExtractScreenshotsTest(unittest.TestCase):
         self.assertEqual(files, ["screenshots/a.png", "screenshots/b.png",
                                  "screenshots/z.png", "screenshots/m.png"])
 
+    def test_orders_steps_numerically_not_lexically(self):
+        ev = {"screenshots": [
+            {"file": "screenshots/c.png", "step": "10-cleanup"},
+            {"file": "screenshots/a.png", "step": "2-attack"},
+            {"file": "screenshots/b.png", "step": "9-escalate"},
+        ]}
+        files = [s["file"] for s in extract_screenshots(ev)]
+        self.assertEqual(files, ["screenshots/a.png", "screenshots/b.png", "screenshots/c.png"])
+
     def test_non_dict_is_empty(self):
         self.assertEqual(extract_screenshots("nope"), [])
 

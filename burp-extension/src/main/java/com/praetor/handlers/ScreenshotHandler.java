@@ -77,7 +77,8 @@ public class ScreenshotHandler extends BaseHandler {
             return fallback;
         }
         try {
-            return Double.parseDouble(s.trim());
+            double v = Double.parseDouble(s.trim());
+            return Double.isFinite(v) ? v : fallback;   // reject NaN/Infinity
         } catch (NumberFormatException e) {
             return fallback;
         }

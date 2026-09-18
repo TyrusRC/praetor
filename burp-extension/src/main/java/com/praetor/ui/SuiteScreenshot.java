@@ -59,15 +59,23 @@ public final class SuiteScreenshot {
         return !GraphicsEnvironment.isHeadless();
     }
 
+    /**
+     * Run on the EDT and PROPAGATE failures — a render that throws must surface
+     * as an error, not a silent blank-but-valid PNG returned as success.
+     */
     private static void runOnEdt(Runnable r) {
         if (SwingUtilities.isEventDispatchThread()) {
             r.run();
-        } else {
-            try {
-                SwingUtilities.invokeAndWait(r);
-            } catch (Exception ignored) {
-                // Best-effort — proceed with whatever state exists.
-            }
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(r);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();          // restore the flag
+            throw new RuntimeException("interrupted during EDT operation", e);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new RuntimeException("EDT operation failed: " + cause, cause);
         }
     }
 
@@ -123,20 +131,40 @@ public final class SuiteScreenshot {
         }
         String needle = tabName.trim().toLowerCase();
         String[] selected = {null};
-        runOnEdt(() -> {
-            JTabbedPane tp = findMainTabbedPane(root);
-            if (tp == null) {
-                return;
-            }
-            for (int i = 0; i < tp.getTabCount(); i++) {
-                String t = tp.getTitleAt(i);
-                if (t != null && t.toLowerCase().contains(needle)) {
-                    tp.setSelectedIndex(i);
-                    selected[0] = t;
+        try {
+            runOnEdt(() -> {
+                JTabbedPane tp = findMainTabbedPane(root);
+                if (tp == null) {
                     return;
                 }
-            }
-        });
+                // Prefer an EXACT title, then a prefix, then a substring — so an
+                // abbreviated name (e.g. "co") doesn't grab the wrong tab when a
+                // better match exists later in the strip.
+                int exact = -1, prefix = -1, contains = -1;
+                for (int i = 0; i < tp.getTabCount(); i++) {
+                    String t = tp.getTitleAt(i);
+                    if (t == null) {
+                        continue;
+                    }
+                    String lt = t.toLowerCase();
+                    if (lt.equals(needle) && exact < 0) {
+                        exact = i;
+                    } else if (lt.startsWith(needle) && prefix < 0) {
+                        prefix = i;
+                    } else if (lt.contains(needle) && contains < 0) {
+                        contains = i;
+                    }
+                }
+                int idx = exact >= 0 ? exact : (prefix >= 0 ? prefix : contains);
+                if (idx >= 0) {
+                    tp.setSelectedIndex(idx);
+                    selected[0] = tp.getTitleAt(idx);
+                }
+            });
+        } catch (RuntimeException e) {
+            // Tab selection is best-effort — never abort the capture over it.
+            return null;
+        }
         return selected[0];
     }
 
@@ -186,6 +214,9 @@ public final class SuiteScreenshot {
      * maxLongSide} (≈2K) so the PNG stays optimised, and never downscale below 1×.
      */
     public static double effectiveScale(int width, int height, double requested, int maxLongSide) {
+        if (!Double.isFinite(requested)) {
+            requested = 1.0;   // NaN/Infinity -> safe default (no 1px degenerate image)
+        }
         double s = Math.max(1.0, Math.min(requested, 4.0));
         int longSide = Math.max(width, height);
         if (longSide > 0 && longSide * s > maxLongSide) {
@@ -247,25 +278,30 @@ public final class SuiteScreenshot {
      */
     public static BufferedImage captureFrame(Frame frame, double scale,
                                              String caption, String trademark) {
+        // De-iconify and read component state on the EDT (AWT state reads off the
+        // EDT are not guaranteed consistent). Clear ONLY the ICONIFIED bit so a
+        // maximized-then-minimized window isn't shrunk to "normal".
+        Dimension[] dim = {null};
+        double[] deviceScale = {1.0};
         runOnEdt(() -> {
             if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
-                frame.setExtendedState(Frame.NORMAL);
+                frame.setExtendedState(frame.getExtendedState() & ~Frame.ICONIFIED);
+            }
+            dim[0] = frame.getSize();
+            try {
+                if (frame.getGraphicsConfiguration() != null) {
+                    deviceScale[0] = frame.getGraphicsConfiguration()
+                        .getDefaultTransform().getScaleX();
+                }
+            } catch (Exception ignored) {
+                // No GC (edge) — stay at 1×.
             }
         });
-        Dimension d = frame.getSize();
         // frame.getSize() is in LOGICAL points; on a HiDPI/Retina display the
         // backing store is deviceScale× denser. Render at least at that density so
         // a Mac Retina capture is pixel-perfect, not a soft 1× logical grab.
-        double deviceScale = 1.0;
-        try {
-            if (frame.getGraphicsConfiguration() != null) {
-                deviceScale = frame.getGraphicsConfiguration()
-                    .getDefaultTransform().getScaleX();
-            }
-        } catch (Exception ignored) {
-            // No GC (headless/edge) — stay at 1×.
-        }
-        double eff = effectiveScale(d.width, d.height, Math.max(scale, deviceScale), 2560);
+        Dimension d = dim[0] != null ? dim[0] : new Dimension(1, 1);
+        double eff = effectiveScale(d.width, d.height, Math.max(scale, deviceScale[0]), 2560);
         BufferedImage img = captureComponent(frame, d.width, d.height, eff);
         boolean wantFooter = (caption != null && !caption.isBlank())
                           || (trademark != null && !trademark.isBlank());

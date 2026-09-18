@@ -11,6 +11,7 @@ straight into `screenshot_gallery(domain)` and per-finding evidence.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import re
 from datetime import datetime
@@ -19,6 +20,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools.notes._findings_io import _sanitized
 
 
 def _slug(text: str, maxlen: int = 40) -> str:
@@ -65,12 +67,25 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
     except Exception as exc:  # malformed transport
         return {"error": f"bad base64 image: {exc}"}
 
-    host = (domain or "").strip() or "_burp"
+    # Sanitize the domain the SAME way every downstream consumer does
+    # (_attach_screenshot / _safe_findings_path / poc_bundle all use _sanitized),
+    # so the save dir agrees with them and path traversal is closed.
+    if (domain or "").strip():
+        try:
+            host = _sanitized(domain)
+        except ValueError as exc:
+            return {"error": f"invalid domain {domain!r}: {exc}"}
+    else:
+        host = "_burp"
     out_dir = Path.cwd() / ".burp-intel" / host / "screenshots"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    # Microseconds so two captures in the same second don't overwrite silently.
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     path = out_dir / _shot_name(tab, finding_id, step, note, ts)
-    path.write_bytes(raw)
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    except OSError as exc:
+        return {"error": f"failed to save screenshot: {exc}"}
     return {
         "saved": str(path),
         "width": data.get("width"),
@@ -118,6 +133,11 @@ def register(mcp: FastMCP) -> None:
         image is covered) with the step/caption on the left and `trademark` (if
         given) on the right.
 
+        SENSITIVE: this captures the WHOLE Burp window, which may show unrelated
+        secrets (other tabs, tokens, other in-scope hosts, cross-customer proxy
+        rows). Prefer a specific `tab`, and review/redact before shipping it in a
+        client deliverable (export_poc_bundle copies the PNG out verbatim).
+
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
             tab: top-level Burp tab to bring to front + label (proxy/repeater/...).
@@ -146,6 +166,7 @@ def register(mcp: FastMCP) -> None:
             out["selected_tab"] = data.get("selected_tab", "")
             if finding_id and domain:
                 from praetor.tools.notes._screenshot_attach import _attach_screenshot
-                out["attached"] = _attach_screenshot(
-                    domain, finding_id, out["saved"], note, step)
+                # off-thread: the attach takes a blocking flock on findings.json.
+                out["attached"] = await asyncio.to_thread(
+                    _attach_screenshot, domain, finding_id, out["saved"], note, step)
         return out

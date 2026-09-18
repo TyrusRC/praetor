@@ -13,6 +13,7 @@ report's internal-evidence filter never strips it.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -102,4 +103,6 @@ def register(mcp: FastMCP):
             note: short caption for the report.
             step: PoC step label (e.g. '1-baseline') — orders the shots in the report.
         """
-        return _attach_screenshot(domain, finding_id, path, note, step)
+        # off-thread: _attach_screenshot takes a blocking flock on findings.json.
+        return await asyncio.to_thread(
+            _attach_screenshot, domain, finding_id, path, note, step)

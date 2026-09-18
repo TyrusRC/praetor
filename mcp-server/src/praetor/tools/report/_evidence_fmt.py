@@ -57,12 +57,18 @@ def extract_screenshots(evidence: object) -> list[dict]:
     legacy = evidence.get("screenshot")
     if isinstance(legacy, str) and legacy.strip():
         out.append({"file": legacy.strip(), "note": "", "step": ""})
-    # Order by PoC step (shots with a step first, natural-sorted; then the rest
-    # in capture order) so the report reads baseline -> attack -> result.
+    # Order by PoC step (shots with a step first, natural-sorted on the leading
+    # number so 10-cleanup follows 2-attack; then the rest in capture order) so
+    # the report reads baseline -> attack -> result.
+    import re as _re
+
     def _key(i_s):
         i, s = i_s
         step = s.get("step", "")
-        return (0, step, i) if step else (1, "", i)
+        if not step:
+            return (1, 0, "", i)
+        m = _re.match(r"(\d+)", step)
+        return (0, int(m.group(1)) if m else 0, step, i)
     return [s for _, s in sorted(enumerate(out), key=_key)]
 
 

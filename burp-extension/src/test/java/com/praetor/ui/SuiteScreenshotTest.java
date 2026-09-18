@@ -56,6 +56,33 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void selectTabPrefersExactAndPrefixOverSubstring() {
+        JTabbedPane tp = new JTabbedPane();
+        for (String t : new String[]{"Dashboard", "Proxy", "Decoder", "Comparer",
+                "Collaborator", "Logger"}) {
+            tp.addTab(t, new JLabel(t));
+        }
+        JPanel root = new JPanel();
+        root.add(tp);
+        // "co": Decoder CONTAINS it (earlier index) but Comparer/Collaborator
+        // START with it -> a prefix beats a substring, so NOT Decoder.
+        String co = SuiteScreenshot.selectTabIn(root, "co");
+        assertNotEquals("Decoder", co);
+        assertTrue(co.toLowerCase().startsWith("co"));
+        // Exact title wins over any partial match.
+        assertEquals("Decoder", SuiteScreenshot.selectTabIn(root, "decoder"));
+        assertEquals("Comparer", SuiteScreenshot.selectTabIn(root, "comparer"));
+    }
+
+    @Test
+    void effectiveScaleRejectsNonFinite() {
+        // ?scale=NaN / Infinity must not produce a 1x1 degenerate or NaN scale.
+        assertEquals(1.0, SuiteScreenshot.effectiveScale(1000, 700, Double.NaN, 2560), 0.01);
+        assertEquals(1.0, SuiteScreenshot.effectiveScale(1000, 700,
+                     Double.POSITIVE_INFINITY, 2560), 0.01);
+    }
+
+    @Test
     void selectTabReturnsNullForUnknownNameOrBlank() {
         JPanel root = new JPanel();
         root.add(burpLikeStrip());
