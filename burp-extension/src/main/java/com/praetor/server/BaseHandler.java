@@ -127,7 +127,13 @@ public abstract class BaseHandler implements HttpHandler {
                 host = host.substring(0, colon);
             }
         }
-        if (host.equals("localhost") || host.equals("::1") || host.startsWith("127.")) {
+        // EXACT/anchored loopback only — a prefix test (startsWith "127.") would
+        // accept a rebinding domain like "127.0.0.1.evil.com", and InetAddress
+        // must NOT be used (it resolves DNS, which the attacker controls).
+        if (host.equals("localhost") || host.equals("::1") || host.equals("127.0.0.1")) {
+            return true;
+        }
+        if (host.matches("127(\\.\\d{1,3}){3}")) {   // 127.0.0.0/8, no DNS lookup
             return true;
         }
         return host.equals(bindHost.toLowerCase());

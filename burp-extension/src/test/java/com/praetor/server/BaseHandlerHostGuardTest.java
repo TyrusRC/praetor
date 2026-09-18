@@ -30,10 +30,14 @@ class BaseHandlerHostGuardTest {
         assertTrue(BaseHandler.isHostAllowed("localhost:8111"));
         assertTrue(BaseHandler.isHostAllowed("[::1]:8111"));
         assertTrue(BaseHandler.isHostAllowed("127.0.0.1"));
+        assertTrue(BaseHandler.isHostAllowed("127.0.0.2:8111"));   // 127/8 loopback
         // rejected: the rebinding case + any routable host
         assertFalse(BaseHandler.isHostAllowed("evil.com:8111"));
         assertFalse(BaseHandler.isHostAllowed("evil.com"));
         assertFalse(BaseHandler.isHostAllowed("192.168.1.5:8111"));
+        // rebinding domain crafted to look loopback-prefixed must NOT slip past
+        assertFalse(BaseHandler.isHostAllowed("127.0.0.1.evil.com:8111"));
+        assertFalse(BaseHandler.isHostAllowed("127.0.0.1.evil.com"));
     }
 
     @Test
