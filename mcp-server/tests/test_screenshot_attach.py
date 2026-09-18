@@ -43,6 +43,13 @@ class AttachScreenshotTest(unittest.TestCase):
         out = _attach_screenshot(self.domain, "f001", full, "")
         self.assertTrue(out.get("ok"))
 
+    def test_stores_step_for_ordering(self):
+        out = _attach_screenshot(self.domain, "f001", "burp-repeater-x.png", "attack", step="2-attack")
+        self.assertEqual(out["step"], "2-attack")
+        shots = self._read_finding("f001")["evidence"]["screenshots"]
+        self.assertEqual(shots[0], {"file": "screenshots/burp-repeater-x.png",
+                                    "note": "attack", "step": "2-attack"})
+
     def test_idempotent_updates_note_not_duplicates(self):
         _attach_screenshot(self.domain, "f001", "burp-repeater-x.png", "first")
         _attach_screenshot(self.domain, "f001", "burp-repeater-x.png", "second")
@@ -61,6 +68,22 @@ class AttachScreenshotTest(unittest.TestCase):
     def test_unknown_finding_errors(self):
         out = _attach_screenshot(self.domain, "f404", "burp-repeater-x.png", "")
         self.assertIn("error", out)
+
+    def test_save_and_attach_agree_on_hostport_domain(self):
+        # HIGH regression: _save_shot and _attach_screenshot must resolve the SAME
+        # dir for a domain that _sanitized rewrites (host:port), else the shot is
+        # written but not found on attach.
+        import base64
+        from praetor.tools.burp_ui import _save_shot
+        dom = "example.com:8080"
+        sdir = Path(".burp-intel") / "example.com_8080"
+        (sdir / "screenshots").mkdir(parents=True)
+        (sdir / "findings.json").write_text(json.dumps({"findings": [{"id": "f9", "evidence": {}}]}))
+        out = _save_shot({"png_base64": base64.b64encode(b"\x89PNG").decode()},
+                         dom, "logger", "n", finding_id="f9")
+        self.assertIn("example.com_8080", out["saved"])
+        att = _attach_screenshot(dom, "f9", out["saved"], "n")
+        self.assertTrue(att.get("ok"), att)
 
     def test_additive_on_locked_finding(self):
         # A locked finding freezes its verdict, but adding evidence is allowed.

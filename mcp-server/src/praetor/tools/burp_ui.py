@@ -11,6 +11,7 @@ straight into `screenshot_gallery(domain)` and per-finding evidence.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import re
 from datetime import datetime
@@ -19,6 +20,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools.notes._findings_io import _sanitized
 
 
 def _slug(text: str, maxlen: int = 40) -> str:
@@ -27,12 +29,15 @@ def _slug(text: str, maxlen: int = 40) -> str:
     return s[:maxlen].strip("-")
 
 
-def _shot_name(tab: str, finding_id: str, note: str, ts: str) -> str:
-    """Descriptive filename so the evidence is identifiable at a glance:
-    `burp-<tab>-<finding_id>-<note-slug>-<ts>.png`. Empty parts are dropped."""
+def _shot_name(tab: str, finding_id: str, step: str, note: str, ts: str) -> str:
+    """Descriptive filename so the evidence + its PoC step are identifiable at a
+    glance: `burp-<tab>-<finding_id>-step-<step>-<note-slug>-<ts>.png`. Empty
+    parts are dropped."""
     parts = ["burp", _slug(tab) or "suite"]
     if finding_id.strip():
         parts.append(_slug(finding_id))
+    if step.strip():
+        parts.append("step-" + _slug(step))
     note_slug = _slug(note)
     if note_slug:
         parts.append(note_slug)
@@ -40,8 +45,18 @@ def _shot_name(tab: str, finding_id: str, note: str, ts: str) -> str:
     return "-".join(p for p in parts if p) + ".png"
 
 
+def _caption(step: str, note: str) -> str:
+    """The on-image call-out banner text (PoC step + caption)."""
+    step, note = step.strip(), note.strip()
+    if step and note:
+        return f"Step {step} — {note}"
+    if step:
+        return f"Step {step}"
+    return note
+
+
 def _save_shot(data: dict, domain: str, tab: str, note: str,
-               finding_id: str = "") -> dict:
+               finding_id: str = "", step: str = "") -> dict:
     """Decode the base64 PNG from the extension and save it under the domain's
     screenshots dir with a self-describing name. Returns the envelope or error."""
     b64 = data.get("png_base64") if isinstance(data, dict) else None
@@ -52,12 +67,25 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
     except Exception as exc:  # malformed transport
         return {"error": f"bad base64 image: {exc}"}
 
-    host = (domain or "").strip() or "_burp"
+    # Sanitize the domain the SAME way every downstream consumer does
+    # (_attach_screenshot / _safe_findings_path / poc_bundle all use _sanitized),
+    # so the save dir agrees with them and path traversal is closed.
+    if (domain or "").strip():
+        try:
+            host = _sanitized(domain)
+        except ValueError as exc:
+            return {"error": f"invalid domain {domain!r}: {exc}"}
+    else:
+        host = "_burp"
     out_dir = Path.cwd() / ".burp-intel" / host / "screenshots"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = out_dir / _shot_name(tab, finding_id, note, ts)
-    path.write_bytes(raw)
+    # Microseconds so two captures in the same second don't overwrite silently.
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    path = out_dir / _shot_name(tab, finding_id, step, note, ts)
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    except OSError as exc:
+        return {"error": f"failed to save screenshot: {exc}"}
     return {
         "saved": str(path),
         "width": data.get("width"),
@@ -65,6 +93,7 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
         "title": data.get("title"),
         "tab": tab or "suite",
         "finding_id": finding_id,
+        "step": step,
         "note": note,
     }
 
@@ -72,7 +101,9 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def burp_screenshot(domain: str = "", tab: str = "", note: str = "",
-                              finding_id: str = "") -> dict:
+                              finding_id: str = "", step: str = "",
+                              scale: float = 2.0, banner: bool = False,
+                              trademark: str = "") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
@@ -92,22 +123,50 @@ def register(mcp: FastMCP) -> None:
         finding straight away (renders in the report + PoC bundle). Requires Burp
         running with its GUI (headless Burp returns a `headless` error).
 
+        Capture is rendered at `scale`× (default 2×, capped to ~2K long side) so
+        text is readable on FHD/2K without bloating the PNG. `step` (e.g.
+        '1-baseline', '2-attack', '3-result') goes in the filename and orders the
+        shots in the finding's report — it does NOT draw on the image.
+
+        `banner` is OPT-IN and defaults OFF — ASK the operator before enabling it.
+        When on, a footer strip is appended BELOW the screenshot (nothing on the
+        image is covered) with the step/caption on the left and `trademark` (if
+        given) on the right.
+
+        SENSITIVE: this captures the WHOLE Burp window, which may show unrelated
+        secrets (other tabs, tokens, other in-scope hosts, cross-customer proxy
+        rows). Prefer a specific `tab`, and review/redact before shipping it in a
+        client deliverable (export_poc_bundle copies the PNG out verbatim).
+
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
             tab: top-level Burp tab to bring to front + label (proxy/repeater/...).
-            note: short caption stored in the return / used as the finding caption.
+            note: short caption — finding caption + filename slug (+ footer if banner).
             finding_id: optional saved-finding id to attach the shot to.
+            step: PoC step label (ordered in the report; footer text if banner on).
+            scale: render scale (default 2×; capped so the long side stays ~2K).
+            banner: append a footer caption strip below the shot (ask first; default off).
+            trademark: optional brand text, right side of the footer (implies banner).
         """
-        params = {"tab": tab} if tab.strip() else None
+        label = _caption(step, note) if (banner or trademark.strip()) else ""
+        params = {"scale": str(scale)}
+        if tab.strip():
+            params["tab"] = tab
+        if label:
+            params["label"] = label
+        if trademark.strip():
+            params["trademark"] = trademark
         data = await client.get("/api/ui/screenshot", params=params)
         if isinstance(data, dict) and "error" in data:
             return data
-        out = _save_shot(data, domain, tab, note, finding_id)
+        out = _save_shot(data, domain, tab, note, finding_id, step)
         if "error" not in out:
             # Which tab the extension actually brought to front (empty if `tab`
             # didn't match a top-level Burp tab — the shot is the prior tab then).
             out["selected_tab"] = data.get("selected_tab", "")
             if finding_id and domain:
                 from praetor.tools.notes._screenshot_attach import _attach_screenshot
-                out["attached"] = _attach_screenshot(domain, finding_id, out["saved"], note)
+                # off-thread: the attach takes a blocking flock on findings.json.
+                out["attached"] = await asyncio.to_thread(
+                    _attach_screenshot, domain, finding_id, out["saved"], note, step)
         return out

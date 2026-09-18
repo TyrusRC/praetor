@@ -165,6 +165,14 @@ filename + caption, no internal path) and is copied into `export_poc_bundle`. St
 capture with no finding: omit `finding_id`, then `attach_screenshot(domain, fid, path, note)`
 later. Verify the gallery with `screenshot_gallery(domain)`.
 
+Banner (OPT-IN — ask first):
+- `note`/`step` always go in the filename and the report caption; they do NOT draw on the
+  image. An on-image caption is opt-in via `banner=True`, and it renders as a FOOTER strip
+  appended below the shot (nothing is covered — like a phone-screenshot caption), with the
+  step/caption left and an optional `trademark=` on the right.
+- **Ask the operator before turning the banner on**, and whether they want a trademark/brand
+  on it. Do not stamp a banner (or a brand) unprompted. Default is a clean, unbannered shot.
+
 Rules:
 - **One step per shot.** Baseline → attack → result is three shots, not one busy window.
 - **Highlight before you shoot** (annotate colour + comment, or a named Repeater tab) so the

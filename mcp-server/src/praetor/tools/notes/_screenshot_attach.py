@@ -13,6 +13,7 @@ report's internal-evidence filter never strips it.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -34,9 +35,11 @@ def _rel_ref(name: str) -> str:
     return f"screenshots/{name}"
 
 
-def _attach_screenshot(domain: str, finding_id: str, path: str, note: str = "") -> dict:
-    """Append `{file, note}` to the finding's `evidence.screenshots`. Idempotent
-    by filename (a repeat updates the note). Touches only findings.json, locked."""
+def _attach_screenshot(domain: str, finding_id: str, path: str, note: str = "",
+                       step: str = "") -> dict:
+    """Append `{file, note, step}` to the finding's `evidence.screenshots`.
+    Idempotent by filename (a repeat updates note/step). `step` orders the shots
+    as PoC steps in the report. Touches only findings.json, locked."""
     name = Path(path).name
     if not name.lower().endswith(_IMAGE_EXTS):
         return {"error": f"not an image file: {path!r}"}
@@ -64,8 +67,13 @@ def _attach_screenshot(domain: str, finding_id: str, path: str, note: str = "") 
         if existing is not None:
             if note:
                 existing["note"] = note
+            if step:
+                existing["step"] = step
         else:
-            shots.append({"file": ref, "note": note})
+            entry = {"file": ref, "note": note}
+            if step:
+                entry["step"] = step
+            shots.append(entry)
         ev["screenshots"] = shots
         f["evidence"] = ev
         findings[idx] = f
@@ -73,25 +81,28 @@ def _attach_screenshot(domain: str, finding_id: str, path: str, note: str = "") 
         _write_findings_file(fpath, store)
 
     return {"ok": True, "finding_id": finding_id, "file": ref,
-            "screenshots": len(shots), "note": note}
+            "screenshots": len(shots), "note": note, "step": step}
 
 
 def register(mcp: FastMCP):
     @mcp.tool()
     async def attach_screenshot(domain: str, finding_id: str, path: str,
-                                note: str = "") -> dict:
+                                note: str = "", step: str = "") -> dict:
         """Attach a saved screenshot to a finding — it then renders in the report + PoC bundle.
 
         Links a PNG already under .burp-intel/<domain>/screenshots/ (captured by
         burp_screenshot or browser_screenshot) to a finding's evidence. It appears
-        in generate_report (client-safe — filename only, no internal path) and is
-        copied into export_poc_bundle. Additive evidence: safe on a locked finding
-        (does not change the frozen verdict).
+        in generate_report (client-safe — filename only, no internal path), ordered
+        by `step`, and is copied into export_poc_bundle. Additive evidence: safe on
+        a locked finding (does not change the frozen verdict).
 
         Args:
             domain: target domain.
             finding_id: saved-finding id.
             path: screenshot path or filename (the `saved` value from *_screenshot).
             note: short caption for the report.
+            step: PoC step label (e.g. '1-baseline') — orders the shots in the report.
         """
-        return _attach_screenshot(domain, finding_id, path, note)
+        # off-thread: _attach_screenshot takes a blocking flock on findings.json.
+        return await asyncio.to_thread(
+            _attach_screenshot, domain, finding_id, path, note, step)

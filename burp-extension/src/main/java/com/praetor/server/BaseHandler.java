@@ -48,6 +48,22 @@ public abstract class BaseHandler implements HttpHandler {
             return;
         }
 
+        // DNS-rebinding guard. The API is unauthenticated; the Origin gate above
+        // stops classic cross-origin reads, but a rebinding site (attacker DNS
+        // for evil.com -> 127.0.0.1) makes the request SAME-origin, so no Origin
+        // restriction applies and JS can read the response (incl. a screenshot of
+        // the Burp window). A browser always sends the page's host in the Host
+        // header, so requiring Host to be loopback/localhost/the configured bind
+        // host rejects the rebinding case while leaving local tools (which send
+        // Host: 127.0.0.1:<port>) untouched.
+        if (!isHostAllowed(exchange.getRequestHeaders().getFirst("Host"))) {
+            sendError(exchange, 403,
+                "Host header not allowed (DNS-rebinding guard).",
+                "host_not_allowed",
+                "Reach the API on 127.0.0.1 / ::1 / localhost.");
+            return;
+        }
+
         // Log API call to activity log (skip health checks to reduce noise)
         String path = exchange.getRequestURI().getPath();
         if (!"/api/health".equals(path)) {
@@ -75,6 +91,52 @@ public abstract class BaseHandler implements HttpHandler {
     /** True iff a CORS {@code Origin} header names a loopback host. Delegates to {@link OriginCheck}; kept here for the inherited call site + tests. */
     static boolean isLoopbackOrigin(String origin) {
         return OriginCheck.isLoopbackOrigin(origin);
+    }
+
+    // The configured bind host, set by ApiServer at start(). Used by the
+    // DNS-rebinding Host allowlist so an operator who intentionally binds to a
+    // specific address can still reach the API by that Host.
+    private static volatile String bindHost = "127.0.0.1";
+
+    public static void setBindHost(String host) {
+        bindHost = host == null ? "" : host.trim();
+    }
+
+    /**
+     * DNS-rebinding guard for the {@code Host} header. Allows loopback/localhost
+     * and the configured bind host; rejects a foreign Host (the rebinding case).
+     * A blank Host is allowed — HTTP/1.1 requires one and a rebinding browser
+     * always sends the attacker's host, so blank means a non-browser local tool.
+     * When bound to a wildcard interface the operator has opted into broad
+     * exposure, so the allowlist can't meaningfully restrict and is skipped.
+     */
+    static boolean isHostAllowed(String hostHeader) {
+        if (bindHost.isEmpty() || "0.0.0.0".equals(bindHost) || "::".equals(bindHost)) {
+            return true;   // wildcard/explicit broad bind — nothing to restrict
+        }
+        if (hostHeader == null || hostHeader.isBlank()) {
+            return true;   // non-browser local client (rebinding always sends a Host)
+        }
+        String host = hostHeader.trim().toLowerCase();
+        if (host.startsWith("[")) {                 // [::1]:8111 -> ::1
+            int end = host.indexOf(']');
+            host = end > 0 ? host.substring(1, end) : host.substring(1);
+        } else {
+            int colon = host.indexOf(':');          // 127.0.0.1:8111 -> 127.0.0.1
+            if (colon >= 0) {
+                host = host.substring(0, colon);
+            }
+        }
+        // EXACT/anchored loopback only — a prefix test (startsWith "127.") would
+        // accept a rebinding domain like "127.0.0.1.evil.com", and InetAddress
+        // must NOT be used (it resolves DNS, which the attacker controls).
+        if (host.equals("localhost") || host.equals("::1") || host.equals("127.0.0.1")) {
+            return true;
+        }
+        if (host.matches("127(\\.\\d{1,3}){3}")) {   // 127.0.0.0/8, no DNS lookup
+            return true;
+        }
+        return host.equals(bindHost.toLowerCase());
     }
     private static final int MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
 

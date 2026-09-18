@@ -48,7 +48,12 @@ public class ScreenshotHandler extends BaseHandler {
         // matched (unknown name / not the main strip); caller sees selected_tab.
         String selectedTab = SuiteScreenshot.selectTab(frame, requestedTab);
 
-        BufferedImage img = SuiteScreenshot.captureFrame(frame);
+        double scale = parseDouble(params.get("scale"), 2.0);   // 2× for readability
+        // Optional footer strip (opt-in) — appended below the shot, hides nothing.
+        String label = params.getOrDefault("label", "");        // PoC-step caption
+        String trademark = params.getOrDefault("trademark", ""); // right-aligned brand
+
+        BufferedImage img = SuiteScreenshot.captureFrame(frame, scale, label, trademark);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
@@ -58,10 +63,24 @@ public class ScreenshotHandler extends BaseHandler {
             // The tab actually brought to front (null if not matched — the shot is
             // then the previously-selected tab).
             "selected_tab", selectedTab == null ? "" : selectedTab,
+            "label", label,
+            "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is
             // loaded (printAll = occlusion-immune component render, not a screen
             // grab). Absent/other value => a stale jar is still loaded.
             "engine", "printall"
         ));
+    }
+
+    private static double parseDouble(String s, double fallback) {
+        if (s == null || s.isBlank()) {
+            return fallback;
+        }
+        try {
+            double v = Double.parseDouble(s.trim());
+            return Double.isFinite(v) ? v : fallback;   // reject NaN/Infinity
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 }
