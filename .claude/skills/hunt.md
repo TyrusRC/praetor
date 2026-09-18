@@ -168,6 +168,13 @@ under-score every other class.
 
 **ADVISOR SHORTCUT:** Call `get_hunt_plan(target_url)` or `get_next_action(target_url, completed_phases=['recon'])` to get pre-computed testing priorities instead of reasoning about what to test next.
 
+**Build the asset/role map first:** `asset_role_matrix(domain)` — the feature/asset
+map plus the role × feature authorization matrix (built from endpoints + the
+business_context roles captured in Phase 2.5). Every untested cell is an authz
+test to run (Rule 29: IDOR/BFLA is the highest-value class); prioritise the
+state-changing features. Drive `test_auth_matrix` from this grid and treat any
+untested cell as OPEN, not N/A (Rule 19a).
+
 Load coverage to identify UNTESTED parameters and categories.
 
 **PARALLEL DISPATCH (see dispatch-agents skill):** Split targets by vulnerability category and dispatch up to 6 vuln-scanner agents simultaneously (Java thread pool cap). Each agent gets non-overlapping targets. Example:
