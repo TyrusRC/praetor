@@ -139,3 +139,68 @@ def build_coverage_section(coverage: dict, internal: bool = False) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+# ATT&CK tactics in kill-chain order for the red-team narrative.
+_KILLCHAIN_ORDER = [
+    "Reconnaissance", "Resource Development", "Initial Access", "Execution",
+    "Persistence", "Privilege Escalation", "Defense Evasion", "Credential Access",
+    "Discovery", "Lateral Movement", "Collection", "Command and Control",
+    "Exfiltration", "Impact",
+]
+
+
+def build_killchain_section(domain: str, findings: list, *, internal: bool = False) -> str:
+    """Red-team kill-chain narrative from the ATT&CK-tagged operator log + findings.
+
+    Pure-ish (reads the on-disk operator log). Groups actions by ATT&CK tactic in
+    kill-chain order, lists the techniques observed, flags detected steps, and ends
+    with the confirmed-finding impact — the deliverable a red-team engagement needs
+    instead of a CVSS-sorted finding list.
+    """
+    try:
+        from praetor.tools.redteam._oplog import read_oplog
+        ops = read_oplog(domain)
+    except Exception:
+        ops = []
+    lines = ["## Attack Narrative (Kill Chain)", ""]
+    if not ops:
+        lines.append("_No operator-log actions recorded yet — use `record_redteam_action` "
+                     "so each step is ATT&CK-tagged and this narrative builds itself._")
+    else:
+        by_tactic: dict[str, list] = {}
+        for o in ops:
+            by_tactic.setdefault(o.get("tactic") or "Uncategorized", []).append(o)
+        order = _KILLCHAIN_ORDER + [t for t in by_tactic if t not in _KILLCHAIN_ORDER]
+        for tac in order:
+            acts = by_tactic.get(tac)
+            if not acts:
+                continue
+            lines.append(f"### {tac}")
+            for o in sorted(acts, key=lambda x: x.get("seq", 0)):
+                tech = o.get("technique", "")
+                tname = o.get("technique_name", "")
+                det = " [DETECTED]" if o.get("detected") else ""
+                tgt = o.get("target", "")
+                desc = o.get("description") or o.get("tool", "")
+                head = f"{tech} {tname}".strip()
+                lines.append(f"- {head} — {desc}" + (f" on {tgt}" if tgt else "") + det)
+            lines.append("")
+        techs = sorted({(o.get("technique"), o.get("technique_name"))
+                        for o in ops if o.get("technique")})
+        if techs:
+            lines.append("### MITRE ATT&CK techniques observed")
+            for tid, tname in techs:
+                lines.append(f"- {tid} {tname}".rstrip())
+            lines.append("")
+        detected = sum(1 for o in ops if o.get("detected"))
+        lines.append(f"_Stealth: {detected} of {len(ops)} recorded actions were detected._")
+        lines.append("")
+
+    confirmed = [f for f in findings if str(f.get("status", "")).lower() == "confirmed"]
+    lines.append(f"### Objective Impact ({len(confirmed)} confirmed)")
+    if not confirmed:
+        lines.append("_No confirmed objective impact recorded._")
+    for f in confirmed[:25]:
+        lines.append(f"- [{f.get('severity', '?')}] {f.get('title', '')} @ {f.get('endpoint', '')}")
+    return "\n".join(lines)
