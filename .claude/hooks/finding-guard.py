@@ -11,6 +11,7 @@ Efficient + fail-OPEN: fires only on the finding-mutation tools, reads one JSON
 file, and on any error/ambiguity it ALLOWS — it never blocks legitimate work.
 """
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -43,6 +44,24 @@ def _find_in(path: Path, fid: str):
     return None
 
 
+def _intel_bases():
+    """.burp-intel roots to search, in priority order, de-duplicated.
+
+    $CLAUDE_PROJECT_DIR (set by Claude Code at hook runtime) is the canonical
+    project root; cwd is the fallback. Checking both means the guard still finds
+    the store if the hook's cwd drifts from the MCP server's — a drift would
+    otherwise make it silently ALLOW a flip, the one failure we can't accept.
+    """
+    bases = []
+    for root in (os.environ.get("CLAUDE_PROJECT_DIR"), os.getcwd()):
+        if not root:
+            continue
+        p = Path(root) / ".burp-intel"
+        if p not in bases:
+            bases.append(p)
+    return bases
+
+
 def _load_finding(domain: str, fid: str):
     """Best-effort lookup of a finding by id. Returns the dict or None.
 
@@ -52,18 +71,18 @@ def _load_finding(domain: str, fid: str):
     fid = (fid or "").strip()
     if not fid:
         return None
-    base = Path.cwd() / ".burp-intel"
-    if domain:
-        f = _find_in(base / _sanitized(domain) / "findings.json", fid)
-        if f is not None:
-            return f
-    try:
-        for p in sorted(base.glob("*/findings.json")):
-            f = _find_in(p, fid)
+    for base in _intel_bases():
+        if domain:
+            f = _find_in(base / _sanitized(domain) / "findings.json", fid)
             if f is not None:
                 return f
-    except OSError:
-        pass
+        try:
+            for p in sorted(base.glob("*/findings.json")):
+                f = _find_in(p, fid)
+                if f is not None:
+                    return f
+        except OSError:
+            pass
     return None
 
 

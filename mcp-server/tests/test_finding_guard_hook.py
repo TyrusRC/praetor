@@ -4,6 +4,7 @@ Runs the actual hook script as a subprocess (as Claude Code would), fail-open.
 """
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -68,6 +69,20 @@ class FindingGuardHookTest(unittest.TestCase):
         p = subprocess.run([sys.executable, str(HOOK)], input="not json",
                            capture_output=True, text=True, cwd=str(self.dir))
         self.assertEqual(p.stdout.strip(), "")
+
+    def test_blocks_via_project_dir_when_cwd_drifts(self):
+        # Hook run from an unrelated cwd but CLAUDE_PROJECT_DIR points at the store:
+        # must still find the locked finding (never silently allow on a cwd drift).
+        other = Path(tempfile.mkdtemp())
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": str(self.dir)}
+        p = subprocess.run(
+            [sys.executable, str(HOOK)],
+            input=json.dumps({"tool_name": "mcp__praetor__record_retest",
+                              "tool_input": {"finding_id": "f001",
+                                             "domain": "acme.test",
+                                             "status": "regressed"}}),
+            capture_output=True, text=True, cwd=str(other), env=env)
+        self.assertTrue(self._denied(p.stdout))
 
 
 if __name__ == "__main__":
