@@ -30,6 +30,17 @@ class ChecklistCatalogTest(unittest.TestCase):
     def test_unknown_standard_empty(self):
         self.assertEqual(checklist_for("nope"), [])
 
+    def test_wstg_catalog_complete_and_categories_valid(self):
+        w = checklist_for("wstg")
+        self.assertGreaterEqual(len(w), 110)  # WSTG v4.2 full list
+        valid = set(STANDARDS["wstg"]["categories"])
+        for c in w:
+            self.assertIn(c["category"], valid, f"{c['id']} bad category")
+            self.assertTrue(c["name"] and c["tool"])
+        # INJT test ids roll up to the INPV standard category
+        sqli = [c for c in w if c["id"] == "WSTG-INJT-05"][0]
+        self.assertEqual(sqli["category"], "INPV")
+
 
 class RenderChecklistTest(unittest.TestCase):
     def test_renders_items_and_open_count(self):
