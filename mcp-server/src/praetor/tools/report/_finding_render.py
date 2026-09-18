@@ -2,7 +2,12 @@
 
 from praetor.tools._framework_map import framework_tags
 
-from ._evidence_fmt import _is_internal_evidence, format_poc_request, format_repro_steps
+from ._evidence_fmt import (
+    _is_internal_evidence,
+    extract_screenshots,
+    format_poc_request,
+    format_repro_steps,
+)
 
 def build_finding_section(finding: dict, index: int, internal: bool = False) -> str:
     """Build a single finding section to professional pentest standard.
@@ -145,15 +150,22 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
     evidence_text = finding.get("evidence_text", "")
     reproductions = finding.get("reproductions", []) or []
 
+    # Screenshots are deliverable evidence — rendered as their own block, not
+    # as a generic row (whose value would be a list and whose relative path the
+    # internal-evidence filter could strip). Pull them out first.
+    screenshots = extract_screenshots(evidence)
+
     evidence_rows: list[tuple[str, object]] = []
     if isinstance(evidence, dict):
         evidence_rows = [
             (k, v) for k, v in evidence.items()
-            if internal or not _is_internal_evidence(k, v)
+            if k not in ("screenshots", "screenshot")
+            and (internal or not _is_internal_evidence(k, v))
         ]
 
     has_evidence_body = bool(
         evidence_rows
+        or screenshots
         or (isinstance(evidence, str) and evidence.strip())
         or (evidence_text and evidence_text.strip())
         or (reproductions and internal)
@@ -162,6 +174,14 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
         lines.append("**Evidence**")
         for k, v in evidence_rows:
             lines.append(f"- {k}: `{str(v)[:200]}`")
+        # Client report cites the filename only (the reader gets the image file
+        # attached); internal keeps the domain-relative path so the operator can
+        # open it beside the report.
+        for s in screenshots:
+            name = s["file"].rsplit("/", 1)[-1]
+            ref = s["file"] if internal else name
+            cap = f" — {s['note']}" if s.get("note") else ""
+            lines.append(f"- Screenshot: `{ref}`{cap}")
         if isinstance(evidence, str) and evidence.strip():
             lines.append(f"```\n{evidence[:800]}\n```")
         # Replay tables prove reproducibility to the operator, not to the

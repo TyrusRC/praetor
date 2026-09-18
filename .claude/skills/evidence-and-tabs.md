@@ -124,6 +124,58 @@ For rate-limit testing, use `attack_type='battering_ram'` with 100 copies of the
 
 This is why **Workflow A's `annotate_request` + `send_to_organizer` step is mandatory** — without it, the only way to find evidence later is to re-search the entire proxy history, which is expensive.
 
+## Workflow E — "Screenshot a PoC step by step (visual evidence)"
+
+Capture like a real pentester building a report, **not** a full-window dump of whatever
+tab happens to be open. One screenshot = one thing that advances the proof. Prepare the
+view first so the shot SHOWS the evidence and nothing else.
+
+`burp_screenshot` captures the whole Burp window as it currently looks (Montoya exposes
+the window, not a single tab), so the discipline is: **isolate + highlight the one request,
+select that tab, then capture.** A shot of Proxy history with 400 unrelated rows proves
+nothing and reads as noise.
+
+Prepare the view (filter + highlight — the "real person" part):
+```
+1. Isolate the ONE request that proves the step:
+     send_to_repeater(index=N, tab_name="f001-sqli-login")   # req+resp on one clean tab
+   OR filter it out of the noise so it's the visible/selected row:
+     annotate_request(index=N, color='RED', comment='f001 | sqli | pg_query error in body')
+     send_to_organizer(index=N)                              # or curate_evidence(...) — one call
+   → in Burp, select that Repeater tab / that Organizer entry / that highlighted row.
+```
+
+Capture each PoC STEP with a caption that says what it proves, attaching to the finding:
+```
+# baseline — clean request, normal response (anchors the delta)
+burp_screenshot(domain, tab='repeater', finding_id='f001',
+                note='baseline id=1 returns one row')
+# attack — the payload visible in the request
+burp_screenshot(domain, tab='repeater', finding_id='f001',
+                note='inject id=1 OR 1=1 -- payload in id param')
+# result — the response proving impact (error string / other-user data / executed marker)
+burp_screenshot(domain, tab='repeater', finding_id='f001',
+                note='response leaks all rows / pg_query error confirms SQLi')
+```
+
+Each shot lands under `.burp-intel/<domain>/screenshots/` with a self-describing name
+(`burp-<tab>-<finding_id>-<note-slug>-<ts>.png`) and, with `finding_id=`, is attached to
+`evidence.screenshots[]` — so it renders IN ORDER in `generate_report` (client sees the
+filename + caption, no internal path) and is copied into `export_poc_bundle`. Standalone
+capture with no finding: omit `finding_id`, then `attach_screenshot(domain, fid, path, note)`
+later. Verify the gallery with `screenshot_gallery(domain)`.
+
+Rules:
+- **One step per shot.** Baseline → attack → result is three shots, not one busy window.
+- **Highlight before you shoot** (annotate colour + comment, or a named Repeater tab) so the
+  reader's eye lands on the proof.
+- **Caption every shot** (`note=`) — it becomes the filename slug AND the report caption.
+- **Don't shoot noise.** No full HTTP-history dumps, no unrelated tabs, no other apps in
+  front (printAll captures Burp regardless of z-order, but a wrong TAB is still wrong).
+- **No secrets in frame.** If a real credential/token/PII is visible in the panel and it
+  isn't the point of the finding, scroll it out or capture the isolated Repeater tab, not
+  the whole session.
+
 ## Naming Conventions (use these consistently)
 
 - **Repeater tab name:** `<finding-id>-<vuln-class>` (e.g. `f003-ssrf-image-fetch`)

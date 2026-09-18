@@ -181,6 +181,9 @@ public class ApiServer {
         // Burp tools: decoder, project info, logger, intruder config
         server.createContext("/api/burp-tools", new BurpToolsHandler(api));
 
+        // Full-window screenshot of the Burp Suite GUI (evidence capture)
+        server.createContext("/api/ui/screenshot", new ScreenshotHandler(api));
+
         server.start();
     }
 

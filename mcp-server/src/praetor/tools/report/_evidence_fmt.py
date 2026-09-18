@@ -34,6 +34,31 @@ def _is_internal_evidence(key: str, value: object) -> bool:
     return any(m in s for m in _INTERNAL_VALUE_MARKERS)
 
 
+def extract_screenshots(evidence: object) -> list[dict]:
+    """Pull screenshot references out of a finding's evidence.
+
+    Accepts the canonical `evidence.screenshots = [{file, note}]` plus a legacy
+    scalar `evidence.screenshot` (a bare path/filename). Returns a normalised
+    list of `{file, note}`. Screenshots are deliverable evidence, rendered
+    separately from the generic evidence rows so the internal-path filter never
+    strips them.
+    """
+    if not isinstance(evidence, dict):
+        return []
+    out: list[dict] = []
+    raw = evidence.get("screenshots")
+    if isinstance(raw, list):
+        for s in raw:
+            if isinstance(s, dict) and s.get("file"):
+                out.append({"file": str(s["file"]), "note": str(s.get("note", ""))})
+            elif isinstance(s, str) and s.strip():
+                out.append({"file": s.strip(), "note": ""})
+    legacy = evidence.get("screenshot")
+    if isinstance(legacy, str) and legacy.strip():
+        out.append({"file": legacy.strip(), "note": ""})
+    return out
+
+
 def format_poc_request(poc: dict | str | None) -> str:
     """Render a poc_request dict (or string) as an http code block."""
     if isinstance(poc, dict):
