@@ -66,6 +66,20 @@ class SaveShotTest(unittest.TestCase):
         self.assertTrue(name.startswith("burp-logger-f001-step-2-attack-sqli-error-"))
         self.assertEqual(out["step"], "2-attack")
 
+    def test_same_second_captures_do_not_overwrite(self):
+        # microsecond ts: two identical-param captures in one second stay distinct.
+        data = {"png_base64": base64.b64encode(b"x").decode()}
+        o1 = _save_shot(data, "d", "logger", "same", finding_id="f1")
+        o2 = _save_shot(data, "d", "logger", "same", finding_id="f1")
+        self.assertNotEqual(o1["saved"], o2["saved"])
+        self.assertTrue(Path(o1["saved"]).exists())
+        self.assertTrue(Path(o2["saved"]).exists())
+
+    def test_traversal_domain_returns_error(self):
+        data = {"png_base64": base64.b64encode(b"x").decode()}
+        out = _save_shot(data, "../../etc", "logger", "")
+        self.assertIn("error", out)
+
     def test_caption_builds_step_and_note(self):
         from praetor.tools.burp_ui import _caption
         self.assertEqual(_caption("2-attack", "SQLi payload"), "Step 2-attack — SQLi payload")
