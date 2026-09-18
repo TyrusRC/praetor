@@ -42,9 +42,18 @@ class RenderChecklistTest(unittest.TestCase):
     def test_touched_category_marks_items(self):
         cases = checklist_for("ai_testing")
         out = render_checklist("ai_testing", "OWASP AI Testing Guide", cases, {"APP"})
-        # 14 APP items become touched -> 32-14 = 18 open
-        self.assertIn("18/32 test cases still OPEN", out)
-        self.assertIn("## APP (touched)", out)
+        # 14 APP items become category-touched -> 32-14 = 18 OPEN
+        self.assertIn("18 OPEN of 32", out)
+
+    def test_explicit_item_status_overrides_category(self):
+        cases = checklist_for("ai_testing")
+        status = {"ai_testing:AITG-APP-01": {"status": "confirmed", "note": "garak clean"},
+                  "ai_testing:AITG-MOD-01": {"status": "not_applicable", "note": "no model access"}}
+        out = render_checklist("ai_testing", "OWASP AI Testing Guide", cases, set(), status)
+        self.assertIn("[x] AITG-APP-01", out)
+        self.assertIn("[-] AITG-MOD-01", out)
+        self.assertIn("(garak clean)", out)
+        self.assertIn("2 confirmed/NA", out)
 
 
 if __name__ == "__main__":
