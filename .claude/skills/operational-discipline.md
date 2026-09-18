@@ -184,6 +184,17 @@ Words to flag in your own draft and reconsider:
 Replace with: "confirmed", "reproduced 3x", "evidence: idx=N", or move
 back to `status="suspected"`.
 
+**"Not vulnerable" needs proof too (Rule 13b).** The three outcomes are
+VULNERABLE, NOT-VULNERABLE, and INCONCLUSIVE — and INCONCLUSIVE is the default
+when unsure, never a coerced benign. Before you call something benign, prove the
+test was VALID (a positive control: the injection context was entered / the sink
+was reached / a TRUE-vs-FALSE pair gave different bodies) and then read a real
+negative on the body. "I fired a payload and nothing happened" right after a
+possibly-wrong PoC is the documented overconfidence trap — that is INCONCLUSIVE
+(`inconclusive_verdict`), so fix the payload / prove the sink / ask, don't close
+it. Ask yourself before every verdict: "what would I see if the opposite were
+true, and did I actually look?"
+
 ---
 
 ## Anti-checklist red flags
@@ -204,6 +215,8 @@ If you catch yourself thinking any of these, stop and re-read this skill:
 | "It's blocked (no creds, tool down) — skip it" | A blocker is an ASK, not a skip. Tell the operator exactly what you need (Rule 32a). |
 | "200 OK, so it passed" | The status line is not a verdict. Read the body vs baseline (Rule 13a). |
 | "I'll mark this N/A and move on" | Only after a test ran and failed on the body. Otherwise it stays OPEN. |
+| "Tried a payload, nothing happened — not vulnerable" | Was the test VALID? Prove the sink was reached (positive control) first; else it's INCONCLUSIVE, not benign (Rule 13b). |
+| "I'm confident it's benign / it's exploitable" | Overconfidence is the documented failure. Run the disconfirmation check: what would disprove this, and did you look? |
 
 ---
 

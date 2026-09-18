@@ -6,13 +6,25 @@ human-readable string is surfaced at top-level `human_summary`.
 
 Verdict semantics
 -----------------
-- CONFIRMED   — replay-based proof: matcher fired, replays agree, evidence
-                bound to a real Burp index.
-- SUSPECTED   — strong anomaly vs baseline, but missing one of: replay-stable,
-                executable context, OOB confirmation.
-- FAILED      — probe ran, no anomaly. Caller should treat as covered-negative.
-- ERROR       — probe could not run (scope reject, network failure, missing
-                dependency). Caller should NOT mark as covered.
+- CONFIRMED    — replay-based proof: matcher fired, replays agree, evidence
+                 bound to a real Burp index.
+- SUSPECTED    — strong anomaly vs baseline, but missing one of: replay-stable,
+                 executable context, OOB confirmation.
+- FAILED       — probe ran AND the test was VALID (the mechanism was exercised —
+                 injection context entered, sink reached, payload landed — i.e. a
+                 positive control passed) AND the response body showed a real
+                 negative vs baseline. Only THEN is it a covered-negative. A
+                 negative from an unproven/malformed test is NOT FAILED — it is
+                 INCONCLUSIVE. "Absence of evidence is not evidence of absence."
+- INCONCLUSIVE — probe ran but the evidence is INSUFFICIENT to call it either way:
+                 test-validity unproven (payload may not have reached the sink /
+                 wrong injection point / malformed), or the body signal is
+                 ambiguous. NOT a finding and NOT a covered-negative — the tuple
+                 stays OPEN (keep testing / fix the payload / escalate). This is the
+                 third state that prevents the documented overconfidence failure of
+                 declaring "benign" right after a wrong PoC.
+- ERROR        — probe could not run at all (scope reject, network failure, missing
+                 dependency). Caller should NOT mark as covered.
 
 Confidence
 ----------
@@ -24,9 +36,9 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-Verdict = Literal["CONFIRMED", "SUSPECTED", "FAILED", "ERROR"]
+Verdict = Literal["CONFIRMED", "SUSPECTED", "FAILED", "INCONCLUSIVE", "ERROR"]
 
-_VALID = {"CONFIRMED", "SUSPECTED", "FAILED", "ERROR"}
+_VALID = {"CONFIRMED", "SUSPECTED", "FAILED", "INCONCLUSIVE", "ERROR"}
 
 
 def make_verdict(
@@ -124,6 +136,40 @@ def error_verdict(
         message,
         vuln_type=vuln_type,
         details=details,
+        summary=message,
+    )
+
+
+def inconclusive_verdict(
+    message: str,
+    *,
+    vuln_type: str | None = None,
+    reason: str | None = None,
+    logger_indices: list[int] | None = None,
+) -> dict[str, Any]:
+    """Shortcut for a probe that RAN but produced INSUFFICIENT evidence to decide.
+
+    Use this — not FAILED — when the test's validity is unproven (the payload may
+    not have reached the sink, the injection context was never entered, the payload
+    was malformed) or the body signal is ambiguous. INCONCLUSIVE is neither a finding
+    nor a covered-negative: the tuple stays OPEN, so `is_actionable` is False and the
+    orchestrator must keep testing (fix the payload / prove the sink / add a variant)
+    or escalate — never close it as benign. This is the guard against the documented
+    LLM failure of declaring "not vulnerable" right after a wrong PoC.
+
+    `reason` is a short machine-readable class — `test_validity_unproven`,
+    `ambiguous_body`, `sink_not_reached` — for callers that branch on it.
+    """
+    details: dict[str, Any] = {}
+    if reason:
+        details["reason"] = reason
+    return make_verdict(
+        "INCONCLUSIVE",
+        0.0,
+        message,
+        vuln_type=vuln_type,
+        logger_indices=logger_indices,
+        details=details or None,
         summary=message,
     )
 

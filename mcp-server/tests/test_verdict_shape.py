@@ -1,7 +1,12 @@
 """Token-lean verdict shape (Spec E1.2): no duplicate summary, no empty lists."""
 import unittest
 
-from praetor.tools.testing._verdict import make_verdict, to_assess_evidence
+from praetor.tools.testing._verdict import (
+    inconclusive_verdict,
+    is_actionable,
+    make_verdict,
+    to_assess_evidence,
+)
 
 
 class VerdictShapeTest(unittest.TestCase):
@@ -29,6 +34,36 @@ class VerdictShapeTest(unittest.TestCase):
         ev = to_assess_evidence(v)
         self.assertNotIn("logger_index", ev)
         self.assertNotIn("collaborator_interaction_id", ev)
+
+
+class InconclusiveVerdictTest(unittest.TestCase):
+    """The third state: ran, but insufficient evidence to call benign or vuln."""
+
+    def test_make_verdict_accepts_inconclusive(self):
+        v = make_verdict("INCONCLUSIVE", 0.0, "sink not reached")
+        self.assertEqual(v["verdict"], "INCONCLUSIVE")
+
+    def test_helper_shape_and_reason(self):
+        v = inconclusive_verdict("payload may not have reached the sink",
+                                 vuln_type="sqli", reason="test_validity_unproven",
+                                 logger_indices=[7])
+        self.assertEqual(v["verdict"], "INCONCLUSIVE")
+        self.assertEqual(v["confidence"], 0.0)
+        self.assertEqual(v["vuln_type"], "sqli")
+        self.assertEqual(v["details"]["reason"], "test_validity_unproven")
+        self.assertEqual(v["logger_indices"], [7])
+
+    def test_inconclusive_is_not_actionable(self):
+        # Must NOT be savable and must NOT be a covered-negative — tuple stays OPEN.
+        self.assertFalse(is_actionable(inconclusive_verdict("ambiguous body")))
+
+    def test_inconclusive_is_distinct_from_failed(self):
+        # A covered-negative (FAILED) and "insufficient evidence" (INCONCLUSIVE)
+        # must not collapse together.
+        self.assertNotEqual(
+            inconclusive_verdict("unproven")["verdict"],
+            make_verdict("FAILED", 0.1, "clean")["verdict"],
+        )
 
 
 if __name__ == "__main__":
