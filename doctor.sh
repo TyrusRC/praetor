@@ -291,7 +291,7 @@ check_recon nomore403  "release binary: https://github.com/devploit/nomore403/re
 check_recon byp4xx     "go install -v github.com/lobuhi/byp4xx@latest"
 
 # ── SCA + LLM + K8s (W5) ──
-check_recon osv-scanner "go install -v github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
+check_recon osv-scanner "release binary: https://github.com/google/osv-scanner/releases (osv-scanner_<os>_<arch>)"
 check_recon trivy      "brew install aquasecurity/trivy/trivy               # or: https://github.com/aquasecurity/trivy/releases"
 check_recon grype      "brew install grype                                  # or: https://github.com/anchore/grype#installation"
 check_recon garak      "pipx install garak"

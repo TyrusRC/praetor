@@ -159,6 +159,17 @@ The `_dedupe_finding` key is `(endpoint, vuln_type, title.lower(),
 parameter)` — keep titles stable so re-saves UPDATE rather than
 duplicate.
 
+**Record "covered" only for a probe you actually RAN.** A tuple is covered
+only after a test executed and returned `FAILED` (covered-negative) or better
+(Rule 19a). "Looks not applicable" / "probably not vulnerable on this stack" is
+a hypothesis to test, not a result — the only skip is Rule 19's three proven
+conditions. A tuple you could not run (missing creds/input/role, a blocker, a
+tool or MCP that's down) is **not covered and not `N/A`**: leave it OPEN and ASK
+the operator to unblock it (Rule 32a). Test every function of the target — skip
+no functionality. And grade every probe on the response **body** vs the baseline,
+never the status line (Rule 13a): a `200` returning "Invalid token", an empty
+result, or another user's data is a hit, not a pass.
+
 ## 10. Be honest about uncertainty
 
 If a probe response is ambiguous, the right move is `annotate_request
@@ -189,6 +200,10 @@ If you catch yourself thinking any of these, stop and re-read this skill:
 | "I'll add a chain note to push it through Q6" | Chains are real exploit paths, not gate-bypass language. |
 | "Let me re-run auto_probe to be sure" | Coverage was recorded last run. You're burning target QPS for no info. |
 | "The triager will figure out the impact" | They won't. Your description IS the report. |
+| "Not applicable / probably not vulnerable here" | Untested is not N/A. Run it, then grade on the body (Rules 19a / 13a). |
+| "It's blocked (no creds, tool down) — skip it" | A blocker is an ASK, not a skip. Tell the operator exactly what you need (Rule 32a). |
+| "200 OK, so it passed" | The status line is not a verdict. Read the body vs baseline (Rule 13a). |
+| "I'll mark this N/A and move on" | Only after a test ran and failed on the body. Otherwise it stays OPEN. |
 
 ---
 
