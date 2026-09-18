@@ -212,13 +212,27 @@ async def submit_and_persist(
         status, evidence, severity, saved_id, vuln_type, title, endpoint
     )
 
-    action_label = "Updated" if dedup_action == "updated" else "Saved"
+    action_label = {
+        "updated": "Updated",
+        "updated_locked": "Updated (LOCKED — reported verdict kept)",
+        "locked_conflict": "LOCKED — status NOT changed",
+    }.get(dedup_action, "Saved")
+    lock_warning = ""
+    if dedup_action == "locked_conflict":
+        locked_status = (saved_entry or {}).get("status", "?")
+        lock_warning = (
+            f"\n  ⚠ {saved_id} is LOCKED at status='{locked_status}'. Your save "
+            f"observed status='{status}' — it was recorded in discrepancy_log, NOT "
+            f"applied, so the shipped report stays consistent. Surface this old-vs-new "
+            f"discrepancy to the operator; use unlock_finding({saved_id}) only if they "
+            f"decide to change the reported verdict."
+        )
     return (
         f"{action_label} [{severity}] c={confidence:.2f} {title}\n"
         f"  Persistent ID: {saved_id} ({resolved_domain})\n"
         f"  Burp ID: {burp_id}\n"
         f"  Location: .burp-intel/{_sanitized(resolved_domain)}/findings.json"
-        f"{organizer_note}"
+        f"{lock_warning}{organizer_note}"
     )
 
 

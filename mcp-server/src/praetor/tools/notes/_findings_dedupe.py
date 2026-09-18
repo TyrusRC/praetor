@@ -228,6 +228,28 @@ def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, i
         same_title = f.get("title", "").lower() == key_title
         same_param = f.get("parameter", "") == key_param
         if same_ep and same_vuln and same_title and same_param:
+            if f.get("locked"):
+                # Report-integrity: a locked finding's reported verdict is frozen.
+                # New evidence/fields still merge (audit value), but status /
+                # severity / impact are preserved and any attempted status change
+                # is recorded in discrepancy_log, never silently applied. The
+                # operator unlocks to change what a shipped report already stated.
+                merged = {**f, **new, "id": f.get("id"), "locked": True}
+                for frozen in ("status", "severity", "impact",
+                               "cvss4_severity", "cvss4_vector"):
+                    if frozen in f:
+                        merged[frozen] = f[frozen]
+                incoming = new.get("status")
+                if incoming and incoming != f.get("status"):
+                    merged.setdefault("discrepancy_log", []).append({
+                        "observed_status": incoming,
+                        "kept_status": f.get("status"),
+                        "at": new.get("last_updated", ""),
+                    })
+                    existing[i] = merged
+                    return existing, "locked_conflict", i
+                existing[i] = merged
+                return existing, "updated_locked", i
             merged = {**f, **new, "id": f.get("id")}
             existing[i] = merged
             return existing, "updated", i

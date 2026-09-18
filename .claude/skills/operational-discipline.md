@@ -222,6 +222,8 @@ If you catch yourself thinking any of these, stop and re-read this skill:
 | "I'll mark this N/A and move on" | Only after a test ran and failed on the body. Otherwise it stays OPEN. |
 | "Tried a payload, nothing happened — not vulnerable" | Was the test VALID? Prove the sink was reached (positive control) first; else it's INCONCLUSIVE, not benign (Rule 13b). |
 | "I'm confident it's benign / it's exploitable" | Overconfidence is the documented failure. Run the disconfirmation check: what would disprove this, and did you look? |
+| "They asked again about f0NN, let me re-test and update its status" | If it's locked/confirmed for a report, DON'T silently change it. Surface old-vs-new + ask; unlock only on their decision (Rule 16b). |
+| "Confirmed for the report" | Call `lock_findings(domain)` so a later re-ask can't flip a shipped verdict; hand back the evidence-attached freeze. |
 
 ---
 

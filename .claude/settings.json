@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__praetor__record_retest|mcp__praetor__mark_finding_false_positive",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/finding-guard.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
