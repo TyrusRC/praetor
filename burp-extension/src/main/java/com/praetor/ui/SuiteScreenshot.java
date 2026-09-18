@@ -227,7 +227,19 @@ public final class SuiteScreenshot {
             }
         });
         Dimension d = frame.getSize();
-        double eff = effectiveScale(d.width, d.height, scale, 2560);
+        // frame.getSize() is in LOGICAL points; on a HiDPI/Retina display the
+        // backing store is deviceScale× denser. Render at least at that density so
+        // a Mac Retina capture is pixel-perfect, not a soft 1× logical grab.
+        double deviceScale = 1.0;
+        try {
+            if (frame.getGraphicsConfiguration() != null) {
+                deviceScale = frame.getGraphicsConfiguration()
+                    .getDefaultTransform().getScaleX();
+            }
+        } catch (Exception ignored) {
+            // No GC (headless/edge) — stay at 1×.
+        }
+        double eff = effectiveScale(d.width, d.height, Math.max(scale, deviceScale), 2560);
         BufferedImage img = captureComponent(frame, d.width, d.height, eff);
         if (label != null && !label.isBlank()) {
             drawCaption(img, label, eff);
