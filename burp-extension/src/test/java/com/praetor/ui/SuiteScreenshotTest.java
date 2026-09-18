@@ -96,6 +96,25 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void addFooterExtendsCanvasBelowAndPreservesContent() {
+        BufferedImage src = new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < 20; x++) {
+            for (int y = 0; y < 10; y++) {
+                src.setRGB(x, y, 0x0000FF);   // solid blue
+            }
+        }
+        BufferedImage out = SuiteScreenshot.addFooter(src, "Step 1", "ACME Security", 1.0);
+
+        assertEquals(20, out.getWidth(), "width unchanged");
+        assertTrue(out.getHeight() > src.getHeight(), "footer appended below");
+        // Every original pixel is preserved (nothing overlaid/hidden).
+        assertEquals(0x0000FF, out.getRGB(5, 5) & 0xFFFFFF);
+        assertEquals(0x0000FF, out.getRGB(19, 9) & 0xFFFFFF);
+        // The footer strip lives strictly below the original image.
+        assertNotEquals(0x0000FF, out.getRGB(5, src.getHeight() + 2) & 0xFFFFFF);
+    }
+
+    @Test
     void pngBase64EncodesADecodablePng() throws Exception {
         BufferedImage img = new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, 0xFF0000);

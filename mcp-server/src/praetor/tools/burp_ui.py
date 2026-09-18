@@ -87,7 +87,8 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def burp_screenshot(domain: str = "", tab: str = "", note: str = "",
                               finding_id: str = "", step: str = "",
-                              scale: float = 2.0) -> dict:
+                              scale: float = 2.0, banner: bool = False,
+                              trademark: str = "") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
@@ -108,25 +109,33 @@ def register(mcp: FastMCP) -> None:
         running with its GUI (headless Burp returns a `headless` error).
 
         Capture is rendered at `scale`× (default 2×, capped to ~2K long side) so
-        text is readable on FHD/2K without bloating the PNG. Pass `step` (e.g.
-        '1-baseline', '2-attack', '3-result') to label the shot as a PoC step:
-        it goes in the filename, is stamped as an on-image call-out banner, and
-        orders the screenshots in the finding's report section.
+        text is readable on FHD/2K without bloating the PNG. `step` (e.g.
+        '1-baseline', '2-attack', '3-result') goes in the filename and orders the
+        shots in the finding's report — it does NOT draw on the image.
+
+        `banner` is OPT-IN and defaults OFF — ASK the operator before enabling it.
+        When on, a footer strip is appended BELOW the screenshot (nothing on the
+        image is covered) with the step/caption on the left and `trademark` (if
+        given) on the right.
 
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
             tab: top-level Burp tab to bring to front + label (proxy/repeater/...).
-            note: short caption — banner text + finding caption + filename slug.
+            note: short caption — finding caption + filename slug (+ footer if banner).
             finding_id: optional saved-finding id to attach the shot to.
-            step: PoC step label (ordered in the report; shown on the banner).
+            step: PoC step label (ordered in the report; footer text if banner on).
             scale: render scale (default 2×; capped so the long side stays ~2K).
+            banner: append a footer caption strip below the shot (ask first; default off).
+            trademark: optional brand text, right side of the footer (implies banner).
         """
-        label = _caption(step, note)
+        label = _caption(step, note) if (banner or trademark.strip()) else ""
         params = {"scale": str(scale)}
         if tab.strip():
             params["tab"] = tab
         if label:
             params["label"] = label
+        if trademark.strip():
+            params["trademark"] = trademark
         data = await client.get("/api/ui/screenshot", params=params)
         if isinstance(data, dict) and "error" in data:
             return data

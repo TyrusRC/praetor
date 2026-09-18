@@ -194,33 +194,59 @@ public final class SuiteScreenshot {
         return Math.max(1.0, s);
     }
 
-    /** Draw an amber call-out banner (the PoC step / caption) across the top. */
-    static void drawCaption(BufferedImage img, String text, double scale) {
-        Graphics2D g = img.createGraphics();
+    /**
+     * Append a footer strip BELOW the screenshot (extends the canvas — hides no
+     * content, like a phone-screenshot caption bar) carrying the caption (left)
+     * and an optional trademark (right). Returns a new, taller image.
+     */
+    static BufferedImage addFooter(BufferedImage src, String caption,
+                                   String trademark, double scale) {
+        int fs = Math.max(13, (int) Math.round(14 * scale));
+        int pad = Math.max(6, (int) Math.round(7 * scale));
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, fs);
+
+        BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        Graphics2D pg = probe.createGraphics();
+        pg.setFont(font);
+        FontMetrics fm = pg.getFontMetrics();
+        int footerH = fm.getHeight() + pad * 2;
+        pg.dispose();
+
+        int w = src.getWidth();
+        BufferedImage out = new BufferedImage(w, src.getHeight() + footerH,
+                                              BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = out.createGraphics();
         try {
+            g.drawImage(src, 0, 0, null);
+            g.setColor(new Color(24, 24, 28));
+            g.fillRect(0, src.getHeight(), w, footerH);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            int fs = Math.max(13, (int) Math.round(15 * scale));
-            int pad = Math.max(6, (int) Math.round(6 * scale));
-            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, fs));
-            FontMetrics fm = g.getFontMetrics();
-            int barH = fm.getHeight() + pad * 2;
-            g.setColor(new Color(0, 0, 0, 205));
-            g.fillRect(0, 0, img.getWidth(), barH);
-            g.setColor(new Color(255, 214, 0));
-            g.drawString(text, pad, pad + fm.getAscent());
+            g.setFont(font);
+            int baseline = src.getHeight() + pad + fm.getAscent();
+            if (caption != null && !caption.isBlank()) {
+                g.setColor(new Color(255, 214, 0));
+                g.drawString(caption, pad, baseline);
+            }
+            if (trademark != null && !trademark.isBlank()) {
+                g.setColor(new Color(200, 200, 200));
+                g.drawString(trademark, w - fm.stringWidth(trademark) - pad, baseline);
+            }
         } finally {
             g.dispose();
         }
+        return out;
     }
 
     /**
      * Capture the Burp suite frame. De-iconifies it first (a minimized window
      * paints blank) but does NOT need to raise it — {@code printAll} is immune to
      * occlusion. Renders at an effective scale capped at ~2K and, when {@code
-     * label} is non-blank, stamps it as a call-out banner (the PoC step).
+     * caption} or {@code trademark} is non-blank, appends a footer strip below
+     * the shot (no content hidden).
      */
-    public static BufferedImage captureFrame(Frame frame, double scale, String label) {
+    public static BufferedImage captureFrame(Frame frame, double scale,
+                                             String caption, String trademark) {
         runOnEdt(() -> {
             if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
                 frame.setExtendedState(Frame.NORMAL);
@@ -241,14 +267,16 @@ public final class SuiteScreenshot {
         }
         double eff = effectiveScale(d.width, d.height, Math.max(scale, deviceScale), 2560);
         BufferedImage img = captureComponent(frame, d.width, d.height, eff);
-        if (label != null && !label.isBlank()) {
-            drawCaption(img, label, eff);
+        boolean wantFooter = (caption != null && !caption.isBlank())
+                          || (trademark != null && !trademark.isBlank());
+        if (wantFooter) {
+            img = addFooter(img, caption, trademark, eff);
         }
         return img;
     }
 
-    /** Back-compat: 1×, no caption. */
+    /** Back-compat: 1×, no footer. */
     public static BufferedImage captureFrame(Frame frame) {
-        return captureFrame(frame, 1.0, null);
+        return captureFrame(frame, 1.0, null, null);
     }
 }

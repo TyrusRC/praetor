@@ -49,9 +49,11 @@ public class ScreenshotHandler extends BaseHandler {
         String selectedTab = SuiteScreenshot.selectTab(frame, requestedTab);
 
         double scale = parseDouble(params.get("scale"), 2.0);   // 2× for readability
-        String label = params.getOrDefault("label", "");        // PoC-step caption banner
+        // Optional footer strip (opt-in) — appended below the shot, hides nothing.
+        String label = params.getOrDefault("label", "");        // PoC-step caption
+        String trademark = params.getOrDefault("trademark", ""); // right-aligned brand
 
-        BufferedImage img = SuiteScreenshot.captureFrame(frame, scale, label);
+        BufferedImage img = SuiteScreenshot.captureFrame(frame, scale, label, trademark);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
@@ -62,6 +64,7 @@ public class ScreenshotHandler extends BaseHandler {
             // then the previously-selected tab).
             "selected_tab", selectedTab == null ? "" : selectedTab,
             "label", label,
+            "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is
             // loaded (printAll = occlusion-immune component render, not a screen
             // grab). Absent/other value => a stale jar is still loaded.
