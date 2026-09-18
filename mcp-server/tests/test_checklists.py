@@ -6,6 +6,7 @@ from praetor.tools.assurance._checklists import (
     checklist_for,
     next_open_items,
     render_checklist,
+    verdict_to_checklist_status,
     CHECKLISTS,
 )
 from praetor.tools.assurance._standards import STANDARDS
@@ -95,6 +96,14 @@ class AutoTestDriverTest(unittest.TestCase):
         # first item is a high-value category, and pure-manual items are dropped
         self.assertIn(plan[0]["category"], ("ATHZ", "ATHN", "INPV", "BUSL", "APIT", "SESS"))
         self.assertTrue(all("manual" not in c["tool"].lower() for c in plan))
+
+    def test_verdict_to_checklist_status_mapping(self):
+        # A real finding / valid negative CLOSE the item; non-decisive verdicts do NOT.
+        self.assertEqual(verdict_to_checklist_status("CONFIRMED")[0], "finding")
+        self.assertEqual(verdict_to_checklist_status("FAILED")[0], "confirmed")
+        for v in ("SUSPECTED", "INCONCLUSIVE", "ERROR", "weird"):
+            self.assertEqual(verdict_to_checklist_status(v)[0], "open",
+                             f"{v} must leave the item OPEN (Rule 13b/19a)")
 
 
 if __name__ == "__main__":
