@@ -353,6 +353,34 @@ def next_open_items(standard: str, cases: list[dict[str, str]],
     return open_items
 
 
+# VerdictResult.verdict -> checklist item status. INCONCLUSIVE/SUSPECTED/ERROR
+# leave the item OPEN (not closed) per Rule 13b/19a — a non-decisive probe is not
+# a completed test case.
+_VERDICT_TO_STATUS: dict[str, str] = {
+    "CONFIRMED": "finding",       # a real finding
+    "FAILED": "confirmed",        # ran + valid negative -> test case done, clean
+    "SUSPECTED": "open",          # needs manual confirmation
+    "INCONCLUSIVE": "open",       # test validity unproven -> keep testing
+    "ERROR": "open",              # blocked -> ask operator
+}
+_VERDICT_NOTE: dict[str, str] = {
+    "CONFIRMED": "auto: confirmed by probe",
+    "FAILED": "auto: tested, valid negative",
+    "SUSPECTED": "auto: suspected — needs manual confirmation",
+    "INCONCLUSIVE": "auto: inconclusive — test validity unproven, keep testing",
+    "ERROR": "auto: probe errored/blocked — unblock and re-run (Rule 32a)",
+}
+
+
+def verdict_to_checklist_status(verdict: str) -> tuple[str, str]:
+    """Pure: map a VerdictResult verdict to (checklist_status, note).
+
+    Returns status 'open' for non-decisive verdicts (the item is NOT closed).
+    """
+    v = (verdict or "").upper()
+    return _VERDICT_TO_STATUS.get(v, "open"), _VERDICT_NOTE.get(v, "auto: unknown verdict")
+
+
 def register(mcp: Any) -> None:
     from .coverage_map import _tested_classes
     from ._standards import STANDARDS, category_of
@@ -466,3 +494,46 @@ def register(mcp: Any) -> None:
                      "checklist_update(domain, standard, item_id, status=confirmed|finding|"
                      "not_applicable, note=...). A blocker is an ASK, not a skip (Rule 32a).")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def checklist_record_batch(domain: str, standard: str, results: list) -> str:
+        """Record many auto-test results at once — closes the run loop efficiently.
+
+        After `checklist_autotest` gives the plan and you run each item's tool,
+        pass the outcomes here in ONE call. Each result is a dict with `item_id`
+        plus EITHER `verdict` (a VerdictResult verdict — CONFIRMED/FAILED/
+        SUSPECTED/INCONCLUSIVE/ERROR, mapped automatically) OR an explicit `status`
+        (confirmed/finding/not_applicable). Optional `note` (evidence index).
+        Non-decisive verdicts (SUSPECTED/INCONCLUSIVE/ERROR) leave the item OPEN —
+        they are not a completed test (Rule 13b/19a).
+
+        Args:
+            domain: target.
+            standard: wstg / ai_testing / owasp_top10 / api_top10 / mastg.
+            results: [{item_id, verdict|status, note?}, ...].
+        """
+        from datetime import datetime, timezone
+        items = _load_status(domain)
+        closed, left_open, bad = 0, 0, 0
+        for r in results or []:
+            if not isinstance(r, dict) or not r.get("item_id"):
+                bad += 1
+                continue
+            note = str(r.get("note", "")).strip()
+            if r.get("verdict"):
+                status, auto_note = verdict_to_checklist_status(r["verdict"])
+                note = note or auto_note
+            else:
+                status = str(r.get("status", "")).lower()
+            if status not in ("confirmed", "finding", "not_applicable"):
+                left_open += 1  # SUSPECTED/INCONCLUSIVE/ERROR/open -> stays open
+                continue
+            if status == "not_applicable" and not note:
+                note = "auto: marked N/A"
+            items[f"{standard}:{r['item_id']}"] = {
+                "status": status, "note": note,
+                "at": datetime.now(timezone.utc).isoformat()}
+            closed += 1
+        _save_status(domain, items)
+        return (f"recorded {closed} test case(s); {left_open} left OPEN "
+                f"(non-decisive/needs work)" + (f"; {bad} malformed" if bad else "") + ".")
