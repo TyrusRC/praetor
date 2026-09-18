@@ -36,7 +36,7 @@ class RenderChecklistTest(unittest.TestCase):
         cases = checklist_for("ai_testing")
         out = render_checklist("ai_testing", "OWASP AI Testing Guide", cases, set())
         self.assertIn("AITG-APP-01", out)
-        self.assertIn("32 test cases still OPEN", out)  # nothing touched
+        self.assertIn("32 OPEN of 32", out)  # nothing touched/confirmed
         self.assertIn("-> ", out)  # tool mapping shown
 
     def test_touched_category_marks_items(self):
