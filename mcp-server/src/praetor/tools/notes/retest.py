@@ -32,7 +32,17 @@ def _apply_retest(domain: str, finding_id: str, status: str, date: str,
     entry = {"version": version, "date": date, "status": status,
              "evidence": evidence, "notes": notes}
     retests.append(entry)
-    finding["status"] = status
+    # Report-integrity: a locked finding keeps its reported status. The retest
+    # round is still recorded (audit) and the divergence is logged, but the
+    # canonical status is NOT flipped — the operator unlocks to change a shipped
+    # verdict. This is what stops a re-ask from silently mutating the report.
+    locked_status = finding.get("status")
+    if finding.get("locked") and status != locked_status:
+        entry["not_applied_locked"] = True
+        finding.setdefault("discrepancy_log", []).append({
+            "observed_status": status, "kept_status": locked_status, "at": date})
+    else:
+        finding["status"] = status
     store["findings"][idx] = finding
     _write_findings_file(path, store)
     # Import here to avoid a load-time cycle (workspace -> notes._helpers).
@@ -62,5 +72,11 @@ def register(mcp: FastMCP):
             entry = _apply_retest(domain, finding_id, status, date, evidence, notes)
         except (ValueError, KeyError) as e:
             return f"error: {e}"
+        if entry.get("not_applied_locked"):
+            return (f"Retest v{entry['version']} recorded for {finding_id}, but "
+                    f"{finding_id} is LOCKED — status NOT changed to '{status}' "
+                    f"(logged in discrepancy_log). Surface this to the operator; "
+                    f"unlock_finding({finding_id}) only if they decide to change the "
+                    f"reported verdict.")
         return (f"Retest v{entry['version']} recorded for {finding_id} [{status}] "
                 f"— snapshot findings/{finding_id}/v{entry['version']}_{date}_{status}.md")
