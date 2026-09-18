@@ -69,31 +69,64 @@ def checklist_for(standard: str) -> list[dict[str, str]]:
     return CHECKLISTS.get(standard, [])
 
 
+# Per-item status the operator confirms, persisted in .burp-intel/<domain>/checklist.json.
+# {standard}:{item_id} -> {status, note, at}. Auto (coverage) is overlaid at render.
+_ITEM_STATES = {"confirmed", "finding", "not_applicable", "open"}
+_ITEM_BOX = {"confirmed": "[x]", "finding": "[!]", "not_applicable": "[-]", "open": "[ ]"}
+
+
+def _load_status(domain: str) -> dict[str, dict[str, str]]:
+    if not domain:
+        return {}
+    from praetor.tools.report.lifecycle import load_intel
+    return load_intel(domain, "checklist").get("items", {}) or {}
+
+
+def _save_status(domain: str, items: dict[str, dict[str, str]]) -> None:
+    from praetor.tools.intel import _intel_path
+    from praetor.tools.notes._findings_io import atomic_write_json
+    d = _intel_path(domain)
+    d.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(d / "checklist.json", {"items": items})
+
+
 def render_checklist(standard: str, standard_name: str, cases: list[dict[str, str]],
-                     tested_categories: set[str] | None = None) -> str:
+                     tested_categories: set[str] | None = None,
+                     item_status: dict[str, dict[str, str]] | None = None) -> str:
     """Render the detailed per-test-case checklist. Pure.
 
-    When `tested_categories` is given (category ids with at least one test/finding),
-    an item in a tested category is shown [~] (category touched) vs [ ] (open) — a
-    coarse status until per-item results are recorded by the auto-test driver.
+    Status precedence per item: an explicit operator status in `item_status`
+    (confirmed / finding / not_applicable) wins; else [~] if the item's category
+    was touched by coverage (`tested_categories`); else [ ] open (Rule 19a).
     """
     touched = tested_categories or set()
+    status = item_status or {}
     lines = [f"# {standard_name} — detailed checklist ({len(cases)} tests)", ""]
     by_cat: dict[str, list[dict[str, str]]] = {}
     for c in cases:
         by_cat.setdefault(c["category"], []).append(c)
-    open_n = 0
+    open_n = done_n = 0
     for cat, items in by_cat.items():
-        mark = "touched" if cat in touched else "OPEN"
-        lines.append(f"## {cat} ({mark})")
+        lines.append(f"## {cat}")
         for it in items:
-            box = "[~]" if it["category"] in touched else "[ ]"
-            if it["category"] not in touched:
+            st = status.get(f"{standard}:{it['id']}", {})
+            explicit = st.get("status")
+            if explicit in ("confirmed", "finding", "not_applicable"):
+                box = _ITEM_BOX[explicit]
+                done_n += 1
+                note = f"  ({st.get('note')})" if st.get("note") else ""
+            elif it["category"] in touched:
+                box = "[~]"  # category touched, item not individually confirmed
+                note = ""
+            else:
+                box = "[ ]"
                 open_n += 1
-            lines.append(f"  {box} {it['id']}  {it['name']}  -> {it['tool']}")
+                note = ""
+            lines.append(f"  {box} {it['id']}  {it['name']}  -> {it['tool']}{note}")
         lines.append("")
-    lines.append(f"{open_n}/{len(cases)} test cases still OPEN — "
-                 f"[~] = category touched (confirm the item), [ ] = untested (Rule 19a).")
+    lines.append(f"{done_n} confirmed/NA, {len(cases) - done_n - open_n} category-touched, "
+                 f"{open_n} OPEN of {len(cases)}. "
+                 f"[x]=confirmed [!]=finding [-]=N/A [~]=category touched [ ]=untested (Rule 19a).")
     return "\n".join(lines)
 
 
@@ -131,4 +164,36 @@ def register(mcp: Any) -> None:
                 cat = category_of(standard, cls)
                 if cat:
                     touched.add(cat)
-        return render_checklist(standard, name, cases, touched)
+        return render_checklist(standard, name, cases, touched, _load_status(domain))
+
+    @mcp.tool()
+    async def checklist_update(domain: str, standard: str, item_id: str,
+                               status: str, note: str = "") -> str:
+        """Confirm/complete one checklist test case (operator-owned status).
+
+        Walk the checklist item by item: run each item's mapped tool, then record
+        the operator-confirmed result here so it sticks (auto coverage marks a
+        category touched; this marks the SPECIFIC test case done). Use this in the
+        confirm loop — present the item + evidence, ask the operator, then set it.
+
+        Args:
+            domain: target.
+            standard: ai_testing / owasp_top10 / api_top10 / wstg / mastg.
+            item_id: the test-case id, e.g. AITG-APP-01.
+            status: confirmed | finding | not_applicable | open.
+            note: short evidence / reason (required for not_applicable).
+        """
+        if status not in _ITEM_STATES:
+            return f"status must be one of {sorted(_ITEM_STATES)}"
+        if status == "not_applicable" and not note.strip():
+            return "not_applicable requires a note (why it doesn't apply) — Rule 19a."
+        from datetime import datetime, timezone
+        items = _load_status(domain)
+        key = f"{standard}:{item_id}"
+        if status == "open":
+            items.pop(key, None)
+        else:
+            items[key] = {"status": status, "note": note.strip(),
+                          "at": datetime.now(timezone.utc).isoformat()}
+        _save_status(domain, items)
+        return f"checklist {key} -> {status}" + (f" ({note.strip()})" if note.strip() else "")
