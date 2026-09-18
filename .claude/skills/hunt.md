@@ -50,6 +50,8 @@ Three things at the start of every hunt session:
 3. **Read `.claude/skills/operational-discipline.md` once.** It governs every probe you send this session — the difference between a pentester and a fuzzing scanner is reading the response before the next payload, stating a hypothesis before probing, and replaying before saving. Phase 3 below assumes you've read it; it is not restated there.
 4. `set_capture_hygiene()` — filter the HTTP-history VIEW to in-scope-only and hide static/media (js/css/images/fonts) + exclude tracker/CDN hosts from scope, so the Proxy tab stays signal, not noise. One-time per session.
 
+5. **Model-tier self-check (Rules 33 / 31).** Note which model you are. If you are **Sonnet or Haiku**: your working memory drops covered tuples and skips test cases under load, so (a) `write_checkpoint` every round and reload `coverage_status` / `load_target_intel(domain,"coverage")` BEFORE deciding what's next — never trust recall for what's tested; (b) at any strategic branch-point (which class to prioritize with no signal, a two-reading ambiguity, "what next after a class is exhausted", a LOW worth another cycle), do NOT guess — gather the intel and escalate to Opus per Rule 33 (`Agent(model="opus")` advisor or a commander), then surface its recommendation before acting. Tactical single calls stay on your model; only the branch-point escalates.
+
 Sessions (cookies, auth tokens, extracted variables) DO NOT auto-restore on extension reload — they're in-memory only with no on-disk mirror yet. Re-establish via `create_session` + `session_request` (login flow) or `run_flow`.
 
 ### Noise & project hygiene — three problems, three levers
@@ -103,11 +105,24 @@ Skip entirely if freshness check says all sections are FRESH.
 4. `detect_tech_stack` on key pages for full stack profiling
 5. `fetch_page_resources` + `extract_js_secrets` + `analyze_dom` for JS analysis
 
-**Option C — Browser-assisted recon (for JS-heavy targets):**
-1. `browser_crawl(url, max_pages=20)` — auto-crawl through Burp proxy, populates proxy history
-2. `browser_interact_all(url)` — click every button/link/toggle on the page
-3. `get_proxy_history(limit=50)` — review all captured traffic
+**Browser-assisted recon — the DEFAULT opener, not an option.** Most targets are
+JS/SPA; a `curl_request` GET only sees the initial HTML and misses XHR/API calls,
+lazy routes, and form targets. Drive the headless browser to find leads first:
+1. `browser_crawl(url, max_pages=20)` — auto-crawl through Burp proxy; populates proxy history with the REAL rendered surface (XHR, dynamic routes, form actions) curl never sees
+2. `browser_interact_all(url)` — click every button/link/toggle to surface event-driven requests and hidden flows
+3. `get_proxy_history(limit=50)` — review captured traffic; feed new endpoints into `save_target_intel(domain, "endpoints", ...)`
 4. `smart_analyze(index)` on key pages from proxy history
+A lead you can only reach by clicking is one curl will never find — a curl-only
+endpoint list is untested surface, i.e. OPEN, not absent (Rule 19a).
+
+**Installed CLI recon layer — use the tools setup installed, don't hand-roll (Rule 26a).**
+Reach for these where they beat the in-process probes; all route through Burp and are captured/replayable:
+- `run_katana(url)` — deep JS-aware crawl at scale (complements browser_crawl)
+- `run_nuclei(url)` — template-driven vuln / misconfig / CVE sweep
+- `run_ffuf` / `discover_common_files` — content discovery
+- `run_dalfox` — XSS discovery; `run_sqlmap` / `run_ghauri` — SQLi confirmation
+- `run_subfinder` / `run_httpx` / `run_dnsx` — subdomain + live-host + DNS expansion
+Don't write a Python `requests` scanner when an installed tool already does it (Rule 26a).
 
 **One-call alternative:** `run_recon_phase(target_url)` executes session creation + tech detection + analysis + sensitive file checks in a single call.
 
