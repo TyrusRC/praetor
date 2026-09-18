@@ -87,5 +87,22 @@ class CVSS4Test(unittest.TestCase):
         self.assertIn("C:H", v31)
 
 
+class CvssDeterminismTest(unittest.TestCase):
+    """Same class + same shape flags -> the SAME vector every run (no per-run drift)."""
+
+    def test_build_vector_is_deterministic(self):
+        from praetor.tools.advisor._cvss4 import build_vector
+        for vt in ("sqli", "xss", "ssrf", "idor", "csrf"):
+            vecs = {build_vector(vt, {"requires_auth": True}) for _ in range(10)}
+            self.assertEqual(len(vecs), 1, f"{vt} produced {len(vecs)} distinct vectors")
+
+    def test_shape_flags_are_the_only_variance(self):
+        from praetor.tools.advisor._cvss4 import build_vector
+        # different flags -> may differ; identical flags -> identical, always.
+        a = build_vector("sqli", {"requires_auth": True, "requires_interaction": True})
+        b = build_vector("sqli", {"requires_auth": True, "requires_interaction": True})
+        self.assertEqual(a, b)
+
+
 if __name__ == "__main__":
     unittest.main()

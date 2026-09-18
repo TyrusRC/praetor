@@ -81,6 +81,16 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
     **14c. One root cause is one finding.** The same defect on a second endpoint is
     a systemic issue with several affected locations. First distinct report carries
     the value; duplicates of the same pattern carry none.
+    **14d. CVSS 4.0 is TOOL-computed and STABLE — never hand-score it.** A vector comes
+    from `compute_cvss(vuln_type, evidence)`, which is deterministic: the same class +
+    the same shape flags produce the SAME vector every run. Do not eyeball or reason out
+    a CVSS yourself — that is what makes the score change each time you "check again",
+    and a score that drifts per run destroys trust in the report exactly like a flipped
+    status. The vector is stored on the finding as `cvss4_vector`; on any re-check or
+    re-report, **CITE the stored `cvss4_vector`** — do not regenerate it (it is part of
+    the finding's frozen verdict, Rule 16b). The severity band is READ FROM the vector,
+    never the reverse. Recompute only if the finding's shape genuinely changed (e.g. you
+    proved a new subsequent-system impact) — then run `compute_cvss` ONCE and note why.
 15. **Never submit findings requiring absurd victim action** ("user pastes a 500-char payload into devtools"). Self-XSS, victim-side-only DoS, etc. fail this gate.
 16. **Reports are TRUE-POSITIVES-ONLY. Delete false positives, don't track them.** `generate_report` includes only `status='confirmed'` findings AND hard-deletes `likely_false_positive` entries from `.burp-intel/<domain>/findings.json` (no tombstones, no removed-FP lists, no audit trail). Tracking dead findings re-loads them every session and burns tokens forever.
 16a. **No vanity metrics in the final report.** A report is confirmed findings and their impact — never activity counts. Do NOT write "tested 22 times", "33 test cases run", "sent 500 payloads", "N endpoints scanned", coverage percentages, or request tallies. Those measure effort, not risk, and read as padding to a triager or client. Write like a professional pentest / red-team deliverable: **executive summary** (business-impact framing, risk posture — no counts) → **per-finding technical detail** (title, severity with CVSS vector, affected endpoint/parameter, description, real-world impact, reproduction steps, evidence: request/response + screenshot + PoC, remediation) → **remediation guidance**. Reproduction counts live in `evidence.reproductions[]` for internal verification (Rule 10a), never in the customer-facing report. A red-team report is the kill-chain narrative to objective, not a log of actions attempted.
