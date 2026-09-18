@@ -32,27 +32,38 @@ def _sanitized(domain: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]", "_", domain or "").strip(".")
 
 
+def _find_in(path: Path, fid: str):
+    try:
+        store = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    for f in store.get("findings", []):
+        if f.get("id") == fid:
+            return f
+    return None
+
+
 def _load_finding(domain: str, fid: str):
-    """Best-effort lookup of a finding by id. Returns the dict or None."""
+    """Best-effort lookup of a finding by id. Returns the dict or None.
+
+    Reads the domain's own findings.json first (the cheap common path) and only
+    globs sibling stores if that misses — no wasted directory scan on a hit.
+    """
     fid = (fid or "").strip()
     if not fid:
         return None
     base = Path.cwd() / ".burp-intel"
-    candidates = []
     if domain:
-        candidates.append(base / _sanitized(domain) / "findings.json")
+        f = _find_in(base / _sanitized(domain) / "findings.json", fid)
+        if f is not None:
+            return f
     try:
-        candidates += sorted(base.glob("*/findings.json"))
+        for p in sorted(base.glob("*/findings.json")):
+            f = _find_in(p, fid)
+            if f is not None:
+                return f
     except OSError:
         pass
-    for p in candidates:
-        try:
-            store = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        for f in store.get("findings", []):
-            if f.get("id") == fid:
-                return f
     return None
 
 
@@ -73,15 +84,12 @@ def main() -> None:
     cur = str(f.get("status", "")).lower()
     unlock = f"unlock_finding('{fid}','{domain}')"
     if tool in DELETE_TOOLS:
-        deny(f"BLOCKED by finding-guard: {fid} is LOCKED at status='{cur}' (report "
-             f"freeze). Refusing to mark it false-positive / delete a shipped finding. "
-             f"Surface this to the operator; run {unlock} only if they decide to revise.")
+        deny(f"finding-guard: {fid} LOCKED at '{cur}' (report freeze). Won't delete a "
+             f"shipped finding. Surface it; {unlock} only if the operator approves.")
     new = str(ti.get("status", "")).lower()
     if new and new != cur:
-        deny(f"BLOCKED by finding-guard: {fid} is LOCKED at status='{cur}' (report "
-             f"freeze). Refusing to change it to '{new}' silently — a shipped report must "
-             f"not drift. Surface the old-vs-new discrepancy to the operator; run {unlock} "
-             f"only if they decide to revise the reported verdict.")
+        deny(f"finding-guard: {fid} LOCKED at '{cur}' (report freeze). Won't silently "
+             f"change it to '{new}'. Surface it; {unlock} only if the operator approves.")
     return  # same status / no change -> allow
 
 
