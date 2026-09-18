@@ -117,10 +117,13 @@ class ValidatePayloadHardRefuseTests(unittest.TestCase):
         ok, _ = validate_payload("format C: /Q", "rce")
         self.assertFalse(ok)
 
-    def test_reason_names_vuln_type(self):
+    def test_reason_is_an_actionable_pivot_not_a_deadend(self):
+        # A block must point to the way forward: prove impact benignly OR use the
+        # unrestricted send_raw_request path — never just "refused".
         ok, reason = validate_payload("DROP TABLE x", "sqli")
         self.assertFalse(ok)
-        self.assertIn("confirm_sqli", reason)
+        self.assertIn("PIVOT", reason)
+        self.assertIn("send_raw_request", reason)
 
 
 class ValidatePayloadSocLoudPassTests(unittest.TestCase):
