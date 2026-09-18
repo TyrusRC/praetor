@@ -41,6 +41,7 @@ from praetor.tools import (
     unicode_normalize_split_probe,
     bopla_probe,
     clean_room_confirm,
+    burp_ui,
     gallery,
     gcp_key_audit,
     secret_audit,
@@ -225,6 +226,7 @@ rre_chain_finder.register(mcp)                  # build_api_dag + find_rre_chain
 unicode_normalize_split_probe.register(mcp)     # probe_unicode_normalize_split — BH USA 2026 WAF↔origin normalisation split
 bopla_probe.register(mcp)                       # probe_bopla — Rapid7 per-property authz read-leak matrix
 clean_room_confirm.register(mcp)                # confirm_with_clean_room — XBOW second-pass replay agent
+burp_ui.register(mcp)                           # burp_screenshot — full-window Burp GUI capture for evidence
 gallery.register(mcp)                           # screenshot_gallery — offline visual-triage contact sheet
 gcp_key_audit.register(mcp)                     # audit_google_api_key — validate exposed AIza key + impact (safe, no billing)
 secret_audit.register(mcp)                       # audit_exposed_secret — classify + safe read-only validate (github/gitlab/slack/npm); financial keys manual-only

@@ -170,6 +170,11 @@ OWASP: A0X:2021-XXX
 
 ## Attachments / Evidence
 [Raw req/resp pairs, screenshots, video.]
+<!-- Screenshots: `browser_screenshot` for the target page; `burp_screenshot(domain, tab=)`
+     for the Burp window (select the Repeater/Intruder/Organizer/HTTP-history tab first —
+     it captures whatever is on screen). Both land in .burp-intel/<domain>/screenshots/
+     and feed `screenshot_gallery(domain)`. -->
+
 
 ## References
 - ...
