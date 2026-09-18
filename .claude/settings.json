@@ -10,6 +10,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__praetor__(save_finding|record_retest|lock_finding|lock_findings|unlock_finding|mark_finding_false_positive|assess_finding|write_checkpoint|save_target_intel)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/activity-log.py\""
+          }
+        ]
+      }
     ]
   }
 }
