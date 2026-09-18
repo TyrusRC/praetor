@@ -43,6 +43,15 @@ class KillChainSectionTest(unittest.TestCase):
         out = build_killchain_section("nobody.test", [])
         self.assertIn("record_redteam_action", out)
 
+    def test_findings_enrich_attack_techniques(self):
+        # Even with no oplog, confirmed findings contribute ATT&CK via attack_ck.
+        out = build_killchain_section(
+            "nobody.test",
+            [{"status": "confirmed", "vuln_type": "sqli", "severity": "high",
+              "title": "SQLi", "endpoint": "/x"}])
+        self.assertIn("MITRE ATT&CK techniques observed", out)
+        self.assertIn("T1190", out)  # sqli -> Exploit Public-Facing Application
+
 
 if __name__ == "__main__":
     unittest.main()
