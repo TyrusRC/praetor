@@ -34,18 +34,45 @@ class TestStandards(unittest.TestCase):
         self.assertEqual(len(cats), 10)
         self.assertIn("API1", cats)
 
+    def test_owasp_top10_is_2025(self):
+        self.assertIn("2025", self.s.STANDARDS["owasp_top10"]["name"])
+        cats = self.s.STANDARDS["owasp_top10"]["categories"]
+        self.assertEqual(cats["A03"], "Software Supply Chain Failures")  # new in 2025
+        self.assertEqual(cats["A10"], "Mishandling of Exceptional Conditions")  # new
+
+    def test_owasp_2021_to_2025_remap(self):
+        # framework map still tags 2021 codes; the rollup must land on 2025 ids.
+        self.assertEqual(self.s.category_of("owasp_top10", "sqli"), "A05")   # Injection
+        self.assertEqual(self.s.category_of("owasp_top10", "idor"), "A01")   # Broken Access
+        self.assertEqual(self.s.category_of("owasp_top10", "ssrf"), "A01")   # SSRF folded in
+
+    def test_mastg_standard_and_keyword_rollup(self):
+        cats = self.s.STANDARDS["mastg"]["categories"]
+        self.assertEqual(len(cats), 8)
+        self.assertEqual(self.s.category_of("mastg", "insecure_storage"), "STORAGE")
+        self.assertEqual(self.s.category_of("mastg", "ssl_pinning_bypass"), "NETWORK")
+        self.assertEqual(self.s.category_of("mastg", "root_detection_bypass"), "RESILIENCE")
+
+    def test_ai_testing_standard_and_keyword_rollup(self):
+        cats = self.s.STANDARDS["ai_testing"]["categories"]
+        self.assertEqual(set(cats), {"APP", "MODEL", "INFRA", "DATA"})
+        self.assertEqual(self.s.category_of("ai_testing", "prompt_injection"), "APP")
+        self.assertEqual(self.s.category_of("ai_testing", "membership_inference"), "MODEL")
+        self.assertEqual(self.s.category_of("ai_testing", "supply_chain_tamper"), "INFRA")
+
     def test_wstg_categories_present(self):
         cats = self.s.STANDARDS["wstg"]["categories"]
         self.assertIn("INPV", cats)
         self.assertIn("ATHZ", cats)
 
     def test_category_of_maps_sqli_to_owasp_injection(self):
-        self.assertEqual(self.s.category_of("owasp_top10", "sqli"), "A03")
+        # Top 10 2025: Injection is A05 (was A03 in 2021); the 2021->2025 remap applies.
+        self.assertEqual(self.s.category_of("owasp_top10", "sqli"), "A05")
 
     def test_category_of_maps_alias_and_suffix(self):
         # framework_tags resolves aliases + suffix strip; rollup must inherit that
-        self.assertEqual(self.s.category_of("owasp_top10", "sql_injection"), "A03")
-        self.assertEqual(self.s.category_of("owasp_top10", "sqli_blind"), "A03")
+        self.assertEqual(self.s.category_of("owasp_top10", "sql_injection"), "A05")
+        self.assertEqual(self.s.category_of("owasp_top10", "sqli_blind"), "A05")
 
     def test_category_of_wstg_rolls_up_to_top_category(self):
         # WSTG-INPV-05 -> INPV
@@ -71,7 +98,7 @@ class TestHeatmap(unittest.TestCase):
 
     def test_tested_class_marks_category_tested(self):
         hm = self.build("owasp_top10", tested_classes={"sqli"}, findings=[])
-        self.assertEqual(hm["categories"]["A03"]["status"], "tested")
+        self.assertEqual(hm["categories"]["A05"]["status"], "tested")  # 2025: Injection=A05
         self.assertGreater(hm["coverage_pct"], 0)
 
     def test_finding_outranks_tested(self):
@@ -80,8 +107,8 @@ class TestHeatmap(unittest.TestCase):
             tested_classes={"sqli"},
             findings=[{"vuln_type": "sqli", "status": "confirmed"}],
         )
-        self.assertEqual(hm["categories"]["A03"]["status"], "findings")
-        self.assertEqual(hm["categories"]["A03"]["findings"], 1)
+        self.assertEqual(hm["categories"]["A05"]["status"], "findings")
+        self.assertEqual(hm["categories"]["A05"]["findings"], 1)
 
     def test_all_categories_present_even_when_untested(self):
         hm = self.build("owasp_top10", tested_classes={"sqli"}, findings=[])
@@ -110,10 +137,10 @@ class TestCoverageStatusRender(unittest.TestCase):
         ]
         out = self.render("lab.example", hms)
         self.assertIn("Test coverage status — lab.example", out)
-        self.assertIn("OWASP Top 10 (2021)", out)
+        self.assertIn("OWASP Top 10 (2025)", out)
         self.assertIn("OWASP WSTG v4.2", out)
-        # A03 has a finding -> FINDING tag; untested categories are listed as gaps.
-        self.assertIn("[FINDING ] A03", out)
+        # sqli finding -> A05 (Injection, 2025) FINDING tag; untested listed as gaps.
+        self.assertIn("[FINDING ] A05", out)
         self.assertIn("UNTESTED gaps", out)
         self.assertIn("owasp_top10:A02", out)  # untested category surfaced by id
 
