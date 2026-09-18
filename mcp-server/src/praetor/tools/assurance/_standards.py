@@ -120,7 +120,8 @@ _AI_KEYWORDS: dict[str, tuple[str, ...]] = {
             "excessive_agency", "agentic", "sensitive_disclosure", "hallucination"),
     "MODEL": ("evasion", "model_poison", "membership_inference", "inversion", "adversarial",
               "robustness", "goal_alignment"),
-    "INFRA": ("supply_chain", "plugin", "resource_exhaust", "model_theft", "fine_tuning"),
+    "INFRA": ("supply_chain", "plugin", "resource_exhaust", "model_theft", "fine_tuning",
+              "a2a", "mcp", "tool_poison", "agent_card", "sse_injection"),
     "DATA": ("training_data", "data_exfil", "data_leak", "dataset", "data_minimization"),
 }
 
