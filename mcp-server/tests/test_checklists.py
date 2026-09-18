@@ -4,6 +4,7 @@ import unittest
 
 from praetor.tools.assurance._checklists import (
     checklist_for,
+    next_open_items,
     render_checklist,
     CHECKLISTS,
 )
@@ -65,6 +66,27 @@ class RenderChecklistTest(unittest.TestCase):
         self.assertIn("[-] AITG-MOD-01", out)
         self.assertIn("(garak clean)", out)
         self.assertIn("2 confirmed/NA", out)
+
+
+class AutoTestDriverTest(unittest.TestCase):
+    def test_full_coverage_returns_all_open_in_catalog_order(self):
+        cases = checklist_for("wstg")
+        plan = next_open_items("wstg", cases, {}, set(), "full_coverage")
+        self.assertEqual(len(plan), len(cases))
+        self.assertEqual(plan[0]["id"], cases[0]["id"])
+
+    def test_confirmed_items_drop_out(self):
+        cases = checklist_for("wstg")
+        st = {"wstg:WSTG-INJT-05": {"status": "confirmed"}}
+        ids = {c["id"] for c in next_open_items("wstg", cases, st, set(), "full_coverage")}
+        self.assertNotIn("WSTG-INJT-05", ids)
+
+    def test_high_impact_prioritizes_rule29_categories(self):
+        cases = checklist_for("wstg")
+        plan = next_open_items("wstg", cases, {}, set(), "high_impact")
+        # first item is a high-value category, and pure-manual items are dropped
+        self.assertIn(plan[0]["category"], ("ATHZ", "ATHN", "INPV", "BUSL", "APIT", "SESS"))
+        self.assertTrue(all("manual" not in c["tool"].lower() for c in plan))
 
 
 if __name__ == "__main__":
