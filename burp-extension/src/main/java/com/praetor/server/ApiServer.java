@@ -74,6 +74,8 @@ public class ApiServer {
                 "-Dpraetor.allow_non_loopback_bind=true to override."
             );
         }
+        // The DNS-rebinding Host allowlist allows this configured bind host too.
+        BaseHandler.setBindHost(host);
         server = HttpServer.create(new InetSocketAddress(host, port), 0);
         // 24 threads (was 12 -> 6). Long-running handlers (auto_probe ~30s,
         // race_condition Thread.sleep, large body decodes) frequently
