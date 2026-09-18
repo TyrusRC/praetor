@@ -41,9 +41,31 @@ Mode mindset is NOT locked at session start. Re-evaluate per tool call:
 
 Locking into one mode after session start is a primary cause of missed findings.
 
-## Phase 0: Edition Gate + State Hydration (once per session)
+## Phase 0: Pre-engagement + Edition Gate + State Hydration (once per session)
 
-Three things at the start of every hunt session:
+**FIRST — establish the OBJECTIVE (PTES phase 1). ASK, don't assume (Rule 32).**
+What the engagement IS changes the entire flow — coverage vs impact, stealth, and
+the report shape. If the operator has not stated it, ask which of these it is:
+
+- **Full-coverage pentest** — breadth. Systematically test every applicable class ×
+  parameter × endpoint AND every standard test case; fill the board. Drive with
+  `asset_role_matrix`, `coverage_status`, `checklist(standard)`; deliverable is a
+  structured report (CVSS + PoCs) where "did we test everything" is the answer.
+- **High-impact hunt (bug-bounty style)** — depth on the classes that pay (Rule 29:
+  authz / authn / business-logic / injection-to-sink / mass-assignment). Skip
+  scanner-shaped low-value items; one verified CRITICAL beats ten lows. Impact is
+  the deliverable.
+- **Red-team / objective-driven** — a defined goal (flag, data, DA) under a
+  stealth/noise budget; ~80% recon, opportunistic path of least resistance,
+  kill-chain + MITRE ATT&CK narrative. Reaching the objective is the deliverable.
+- **Compliance / checklist** — walk a fixed standard to completion for assurance
+  ("what did we NOT test"); `standards_coverage` / `checklist`.
+
+The mode sets coverage-vs-impact priority, the stealth budget, and the report
+shape — never default silently. Re-confirm if the operator's ask implies a
+different mode mid-engagement.
+
+Then, at the start of every hunt session:
 
 1. `check_pro_features()` — confirms Pro vs Community. On Community, route to MCP-side equivalents (auto_probe + run_nuclei + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
 2. `hydrate_burp_findings(domain="all")` — Burp's in-memory FindingsStore empties on every extension reload. This re-populates the UI Findings tab from `.burp-intel/<domain>/findings.json` so what's on disk matches what's visible. Safe to run repeatedly (duplicate-skips). If skipped: previously-saved findings disappear from the Burp UI even though they're still on disk.
