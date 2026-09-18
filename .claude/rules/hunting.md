@@ -50,6 +50,7 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 11. **Always compare against a recorded baseline.** Capture `{status, length, response_hash}` of the clean request before any probe sequence. Anomaly claims = deltas from baseline ("500 vs baseline 200, len delta +1842, error 'pg_query'"), not absolute observations. Without a baseline, evidence is unfalsifiable.
 12. **Save evidence BEFORE further exploitation.** Annotate + Organize the moment something is interesting (Rule 18). Targets get patched.
 13. **Verified evidence > theory.** Stack traces / parsing errors / status changes are clues, not proof. Match the per-class bar in `verify-finding.md` (e.g., XSS needs payload in executable context, not just reflection).
+13a. **A status code is not a verdict — read the response BODY.** `200 OK` is not a pass and `403`/`500` is not a fail. Before you call anything vulnerable, not-vulnerable, pass, or fail, read the response **body** and compare it against the Rule 11 baseline (body content, length delta, response hash, error strings, reflected/echoed input, auth/role markers). A `200` that returns "Invalid token", an empty result, or another user's data means the opposite of what the status line says. Whenever a request returns a body, inspect the body — never grade a probe on the status code alone.
 
 ## Reporting (14–17) — DEFAULT
 
@@ -78,6 +79,7 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 
 18. **Annotate + Organize as you work.** Every interesting captured request gets `annotate_request(index, color='RED|ORANGE|YELLOW|GREEN|CYAN|BLUE|PINK|MAGENTA|GRAY', comment='<f-id> | <vuln> | <evidence>')` AND `send_to_organizer(index)`. Color convention: RED=confirmed crit/high, ORANGE=strong suspicion, YELLOW=anomaly, GREEN=baseline/pass, CYAN=chain candidate, GRAY=noise. Without these, reporting time has to re-search the entire history.
 19. **DEFAULT IS FULL COVERAGE.** Test every applicable vuln class against every user-controlled parameter on every reachable endpoint. Skip ONLY when ALL three conditions hold: (a) the class is impossible for the stack (e.g. PHP CVE on Laravel, Windows LFI on Linux), (b) knowledge-base matchers cleared AND param-name signal absent for THIS exact (endpoint, param, class) tuple, (c) `coverage.json` records a documented negative for the same tuple at the current `knowledge_version`. Re-test when knowledge updates. There is NO "save tokens by skipping a class" path — that's the failure mode that misses findings. Token economy: `auto_probe(skip_already_covered=True)` prevents redundant work; pagination on `load_target_intel` keeps recall cheap; `discover_attack_surface` is medium-cost and pre-scopes — these are the levers, not skipping coverage.
+19a. **Untested is NOT N/A — and untested is NOT covered.** Never record a class / parameter / endpoint as `N/A`, `partial`, `not applicable`, `covered`, or `skipped` unless you actually EXECUTED a test that returned a `FAILED` (covered-negative) or stronger verdict. "Looks not applicable", "probably not vulnerable on this stack", or "the param seems static" is a HYPOTHESIS to test, not a result to file. The ONLY skip path is Rule 19's three conditions, all three proven. A probe that returned `ERROR` or hit a blocker (no creds, unclear input, tool/MCP down, needs a manual step) is **not coverage** — the tuple stays OPEN and goes to Rule 32a (ask), never to `N/A`. If the operator asks "did you test X?", the honest answer is either "yes, here is the body/verdict" or "no, it is still open because <blocker>" — never a fabricated N/A/partial for something you never ran. **Test every function of the target; skip no functionality.**
 20. **Check coverage before testing.** Don't re-test parameters already covered this session. `load_target_intel(domain, "coverage")`.
 20a. **Session-start recon gate.** First action whenever a target domain is identifiable: call `load_target_intel(domain, "all")` AND `check_target_freshness(domain, session)`. Use the returned profile (tech stack, auth model, scope rules) and findings list as primary context — don't re-discover. Skipping this gate is the most common cause of duplicate work, missed chains, and wasted tokens. If `.burp-intel/<domain>/` is empty, that's a NEW target: run a recon phase (`browser_crawl` → `full_recon` → `discover_attack_surface`) and `save_target_intel` the results before any testing. Do not start testing without either loading prior intel or recording fresh recon.
 21. **Save progress at every checkpoint.** Session ends → resume without re-doing work. `save_target_intel(domain, ...)` after each phase.
@@ -199,6 +201,17 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
    submission intent is unknown; the wording maps to tools with different blast radius; or a
    hard-to-reverse action is implied. Present the readings, recommend one, ask once, then act.
    Do not ask when a sensible default exists and being wrong costs one re-run.
+
+32a. **A blocker is an ASK, never a silent skip.** When a test cannot complete because
+   something is missing or outside your reach — credentials or a second user/role, a valid
+   input value or object ID, an OOB/Collaborator callback, a working Burp/MCP connection, a
+   CAPTCHA/OTP, or any manual step only the operator can do — STOP and ASK the operator to
+   unblock it, stating exactly what you need. Do NOT assume-blocked-then-move-on, do NOT mark
+   the class `N/A`/`partial` (Rule 19a), and do NOT report it as tested. This overrides the
+   "sensible default" clause above: a missing prerequisite is not a two-reading ambiguity, it
+   is a hard blocker, and being wrong costs a silently-missed vulnerability, not one re-run.
+   The test stays OPEN until it is run or the operator explicitly waives it. If a probe is
+   genuinely testable but you were about to file it `N/A` because it was inconvenient — run it.
 
 ## Model Escalation (33) — ADVISORY
 

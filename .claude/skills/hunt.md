@@ -216,12 +216,12 @@ Choose the right attack order based on detected technology. Test in this order �
    - **CRLF:** Test redirect/header params with `%0d%0a` payloads
    - **Deserialization:** Look for serialized objects in cookies/params (base64 starting with `rO0AB`, `O:`, `gASV`)
    - **Hidden params:** `discover_hidden_parameters(session, method, path)` on interesting endpoints
-4. **If anomaly detected** — immediately verify:
+4. **Grade on the response BODY, not the status line (Rule 13a).** A `200` is not a pass and a `403`/`500` is not a fail — read the body vs the Rule 11 baseline (content, length/hash delta, error strings, reflected input, another user's data) before deciding. **If anomaly detected** — immediately verify:
    - Re-send the exact payload to confirm reproducibility
    - Check evidence requirements (see verify-finding skill)
    - If confirmed: `save_target_intel(domain, "findings", finding_data)`
    - If not confirmed: note as suspected, move on
-5. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})`
+5. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})` — record a tuple as covered ONLY when a test actually ran and returned FAILED/covered-negative or better. **Untested ≠ N/A (Rule 19a).** A probe you could not run (missing creds/input/role, blocker, tool down) is NOT coverage — leave it OPEN and **ASK the operator to unblock it (Rule 32a)**; never file `N/A`/`partial` for something you did not execute.
 6. **Stop the category by reasoning, not by counting.** `noise-budget.md`'s exhaustion-signal table (KB cleared + tech-stack match, WAF-filtered → switch technique don't abandon, 30-probes-at-c<0.30 → document the negative and pivot) replaces any fixed "N probes then quit" heuristic.
 
 **CHECKPOINT after each category:**

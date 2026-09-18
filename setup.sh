@@ -301,7 +301,7 @@ case "$(uname -m)" in arm64|aarch64) ARCH=arm64; ARCH_X=arm64 ;; *) ARCH=amd64; 
 # gh_latest_tag <owner/repo> -> prints the latest release tag (e.g. v1.13)
 gh_latest_tag() {
     curl -fsSL "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
-        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name":\s*"([^"]+)".*/\1/'
+        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/'
 }
 
 # install_gh_binary <name> <owner/repo> <asset-filename> — download a single-file
@@ -464,8 +464,9 @@ install_pd_tool "byp4xx"    "go install -v github.com/lobuhi/byp4xx@latest"
 # ── SCA / containers / SBOM (run_osv_scanner / run_trivy / run_grype / run_syft / run_cosign_verify) ──
 echo ""
 info "SCA + container + SBOM tools..."
-# osv-scanner is a /v2 module now; @v2 was being read as a version query.
-install_pd_tool "osv-scanner" "go install -v github.com/google/osv-scanner/v2/cmd/osv-scanner@latest"
+# osv-scanner via release binary — `go install` compiles a huge dep tree
+# (modernc sqlite, etc.) and looks like a hang; the prebuilt binary is instant.
+install_gh_binary "osv-scanner" "google/osv-scanner" "osv-scanner_${OS}_${ARCH}"
 install_pd_tool "cosign"    "go install -v github.com/sigstore/cosign/v2/cmd/cosign@latest"
 install_pd_tool "trivy"     "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b \"$HOME/go/bin\""
 install_pd_tool "grype"     "curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b \"$HOME/go/bin\""
