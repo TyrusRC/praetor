@@ -7,11 +7,12 @@ pure-function + JSON-load; no Burp client, no network.
 
 from mcp.server.fastmcp import FastMCP
 
-from . import asset_matrix, coverage_map, dashboard, compliance
+from . import asset_matrix, coverage_map, dashboard, compliance, _checklists
 
 
 def register(mcp: FastMCP) -> None:
     coverage_map.register(mcp)
     asset_matrix.register(mcp)
+    _checklists.register(mcp)
     dashboard.register(mcp)
     compliance.register(mcp)
