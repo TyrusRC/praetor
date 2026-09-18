@@ -93,6 +93,41 @@ class TestHeatmap(unittest.TestCase):
         self.assertEqual(hm["coverage_pct"], 20)
 
 
+class TestCoverageStatusRender(unittest.TestCase):
+    def setUp(self):
+        from praetor.tools.assurance.coverage_map import (
+            build_heatmap,
+            render_coverage_status,
+        )
+        self.build = build_heatmap
+        self.render = render_coverage_status
+
+    def test_renders_all_standards_and_lists_untested(self):
+        hms = [
+            self.build("owasp_top10", {"sqli"},
+                       [{"vuln_type": "sqli", "status": "confirmed"}]),
+            self.build("wstg", set(), []),
+        ]
+        out = self.render("lab.example", hms)
+        self.assertIn("Test coverage status — lab.example", out)
+        self.assertIn("OWASP Top 10 (2021)", out)
+        self.assertIn("OWASP WSTG v4.2", out)
+        # A03 has a finding -> FINDING tag; untested categories are listed as gaps.
+        self.assertIn("[FINDING ] A03", out)
+        self.assertIn("UNTESTED gaps", out)
+        self.assertIn("owasp_top10:A02", out)  # untested category surfaced by id
+
+    def test_full_coverage_has_no_gaps_line(self):
+        # A standard where every category is tested -> no gaps message.
+        hm = self.build("owasp_top10", set(), [])
+        # force all categories tested
+        for c in hm["categories"].values():
+            c["tested"], c["status"] = 1, "tested"
+        out = self.render("d", [hm])
+        self.assertIn("Every standard category has at least one test", out)
+        self.assertNotIn("UNTESTED gaps", out)
+
+
 class TestCoverageDiskSchema(unittest.TestCase):
     """Guards the real on-disk coverage.json schema: entries[].category."""
 

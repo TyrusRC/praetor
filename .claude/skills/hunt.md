@@ -226,6 +226,11 @@ Choose the right attack order based on detected technology. Test in this order �
 
 **CHECKPOINT after each category:**
 - Show: X parameters tested, Y anomalies found, Z confirmed
+- **Surface `coverage_status(domain)`** — the OWASP Top 10 / WSTG tracking table
+  (tested / finding / UNTESTED per category, plus the untested-gaps list) so the
+  operator always sees live test coverage, not just findings. The gaps list is the
+  Rule 19a "still OPEN" set — an untested category is a gap to close or justify,
+  never a silent N/A.
 - Ask: Continue to next category, pivot strategy, or stop?
 
 ### Token budget guardrails (Rule 19 — full coverage is mandatory)
@@ -379,7 +384,11 @@ If rubric says HIGH but program-history shows LOW pays for that class, downgrade
 ## Phase 5: Summary
 
 1. Show confirmed findings with severity and evidence
-2. Show coverage statistics (% endpoints tested, by category)
+2. **Show `coverage_status(domain)`** — the OWASP Top 10 / API Top 10 / WSTG
+   tracking table (tested / finding / UNTESTED per category + the untested-gaps
+   list). This is the operator's assurance view: what was tested and what was NOT.
+   Do not present a session as "done" while categories sit UNTESTED without a
+   Rule 19 justification — call out the gaps explicitly.
 3. Save notes with observations and next-session priorities:
    ```
    save_target_notes(domain, "# Target Notes: {domain}\n\n## Observations\n...\n\n## Next Session\n...")
