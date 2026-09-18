@@ -22,18 +22,18 @@ from .._vuln_class import canonical
 # Authoritative checklists. Order is display order.
 STANDARDS: dict[str, dict[str, Any]] = {
     "owasp_top10": {
-        "name": "OWASP Top 10 (2021)",
+        "name": "OWASP Top 10 (2025)",
         "categories": {
             "A01": "Broken Access Control",
-            "A02": "Cryptographic Failures",
-            "A03": "Injection",
-            "A04": "Insecure Design",
-            "A05": "Security Misconfiguration",
-            "A06": "Vulnerable and Outdated Components",
-            "A07": "Identification and Authentication Failures",
-            "A08": "Software and Data Integrity Failures",
-            "A09": "Security Logging and Monitoring Failures",
-            "A10": "Server-Side Request Forgery (SSRF)",
+            "A02": "Security Misconfiguration",
+            "A03": "Software Supply Chain Failures",
+            "A04": "Cryptographic Failures",
+            "A05": "Injection",
+            "A06": "Insecure Design",
+            "A07": "Authentication Failures",
+            "A08": "Software or Data Integrity Failures",
+            "A09": "Security Logging and Alerting Failures",
+            "A10": "Mishandling of Exceptional Conditions",
         },
     },
     "api_top10": {
@@ -68,7 +68,70 @@ STANDARDS: dict[str, dict[str, Any]] = {
             "APIT": "API Testing",
         },
     },
+    "mastg": {
+        "name": "OWASP MASVS v2 (Mobile / MASTG)",
+        "categories": {
+            "STORAGE": "Data Storage",
+            "CRYPTO": "Cryptography",
+            "AUTH": "Authentication and Authorization",
+            "NETWORK": "Network Communication",
+            "PLATFORM": "Platform Interaction",
+            "CODE": "Code Quality",
+            "RESILIENCE": "Resilience Against Reverse Engineering and Tampering",
+            "PRIVACY": "Privacy",
+        },
+    },
+    "ai_testing": {
+        "name": "OWASP AI Testing Guide",
+        "categories": {
+            "APP": "AI Application Testing",
+            "MODEL": "AI Model Testing",
+            "INFRA": "AI Infrastructure Testing",
+            "DATA": "AI Data Testing",
+        },
+    },
 }
+
+# The framework map still tags classes with OWASP Top 10 2021 codes; the 2025
+# revision renumbered and merged categories (SSRF folded into A01; Components ->
+# Software Supply Chain A03; Misconfig A05->A02; etc.). Translate on read so the
+# rollup keeps working without re-tagging every vuln class.
+_OWASP_2021_TO_2025 = {
+    "A01": "A01", "A02": "A04", "A03": "A05", "A04": "A06", "A05": "A02",
+    "A06": "A03", "A07": "A07", "A08": "A08", "A09": "A09", "A10": "A01",
+}
+
+# Keyword -> category rollups for the mobile (MASVS) and AI standards, since the
+# framework map does not yet carry masvs/ai tags. Matched against the canonical
+# vuln-class name. Best-effort: a class that matches nothing stays untested (an
+# explicit checklist gap), never mis-bucketed.
+_MASTG_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "STORAGE": ("storage", "backup", "logcat", "keychain", "sharedpref", "sqlite_plain"),
+    "CRYPTO": ("crypto", "cipher", "hardcoded_key", "weak_random", "insecure_hash"),
+    "AUTH": ("auth", "biometric", "oauth", "jwt", "session"),
+    "NETWORK": ("pinning", "tls", "cleartext", "mitm", "network", "cert"),
+    "PLATFORM": ("intent", "deeplink", "exported", "webview", "ipc", "clipboard", "screenshot"),
+    "CODE": ("code_quality", "debuggable", "obfusc", "memory_corruption", "injection"),
+    "RESILIENCE": ("root", "jailbreak", "tamper", "reverse", "frida", "hook", "emulator", "anti_debug"),
+    "PRIVACY": ("privacy", "pii", "consent", "tracking", "permission"),
+}
+_AI_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "APP": ("prompt_injection", "jailbreak", "system_prompt_leak", "llm", "insecure_output",
+            "excessive_agency", "agentic", "sensitive_disclosure", "hallucination"),
+    "MODEL": ("evasion", "model_poison", "membership_inference", "inversion", "adversarial",
+              "robustness", "goal_alignment"),
+    "INFRA": ("supply_chain", "plugin", "resource_exhaust", "model_theft", "fine_tuning"),
+    "DATA": ("training_data", "data_exfil", "data_leak", "dataset", "data_minimization"),
+}
+
+
+def _keyword_category(keywords: dict[str, tuple[str, ...]], vuln_class: str,
+                      valid: dict[str, str]) -> str | None:
+    cls = (vuln_class or "").lower()
+    for cat, kws in keywords.items():
+        if cat in valid and any(k in cls for k in kws):
+            return cat
+    return None
 
 _COMPLIANCE_PATH = (
     Path(__file__).resolve().parent.parent.parent / "data" / "compliance_mappings.json"
@@ -114,12 +177,30 @@ def category_of(standard: str, vuln_class: str) -> str | None:
         cat = parts[1] if len(parts) >= 2 else ""
         return cat if cat in STANDARDS["wstg"]["categories"] else None
 
-    prefix = "API" if standard == "api_top10" else "A"
+    if standard == "mastg":
+        masvs = framework_tags(vuln_class).get("masvs") or ""
+        if masvs:  # MASVS-STORAGE-1 -> STORAGE
+            parts = masvs.split("-")
+            cat = parts[1] if len(parts) >= 2 else ""
+            if cat in STANDARDS["mastg"]["categories"]:
+                return cat
+        return _keyword_category(_MASTG_KEYWORDS, vuln_class,
+                                 STANDARDS["mastg"]["categories"])
+
+    if standard == "ai_testing":
+        ai = framework_tags(vuln_class).get("ai") or ""
+        if ai and ai in STANDARDS["ai_testing"]["categories"]:
+            return ai
+        return _keyword_category(_AI_KEYWORDS, vuln_class,
+                                 STANDARDS["ai_testing"]["categories"])
+
     for code in _owasp_codes(vuln_class):
         # "A03:2021-Injection" -> "A03"; "API1:2023" -> "API1"
         head = code.split(":")[0].strip()
         if standard == "api_top10" and head.startswith("API"):
             return head if head in STANDARDS["api_top10"]["categories"] else None
         if standard == "owasp_top10" and head.startswith("A") and not head.startswith("API"):
+            # framework map tags with 2021 codes; the checklist is 2025.
+            head = _OWASP_2021_TO_2025.get(head, head)
             return head if head in STANDARDS["owasp_top10"]["categories"] else None
     return None
