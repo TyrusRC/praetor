@@ -164,6 +164,7 @@ def build_killchain_section(domain: str, findings: list, *, internal: bool = Fal
     except Exception:
         ops = []
     lines = ["## Attack Narrative (Kill Chain)", ""]
+    techs: set = set()
     if not ops:
         lines.append("_No operator-log actions recorded yet — use `record_redteam_action` "
                      "so each step is ATT&CK-tagged and this narrative builds itself._")
@@ -186,18 +187,31 @@ def build_killchain_section(domain: str, findings: list, *, internal: bool = Fal
                 head = f"{tech} {tname}".strip()
                 lines.append(f"- {head} — {desc}" + (f" on {tgt}" if tgt else "") + det)
             lines.append("")
-        techs = sorted({(o.get("technique"), o.get("technique_name"))
-                        for o in ops if o.get("technique")})
-        if techs:
-            lines.append("### MITRE ATT&CK techniques observed")
-            for tid, tname in techs:
-                lines.append(f"- {tid} {tname}".rstrip())
-            lines.append("")
+        techs |= {(o.get("technique"), o.get("technique_name"))
+                  for o in ops if o.get("technique")}
         detected = sum(1 for o in ops if o.get("detected"))
         lines.append(f"_Stealth: {detected} of {len(ops)} recorded actions were detected._")
         lines.append("")
 
     confirmed = [f for f in findings if str(f.get("status", "")).lower() == "confirmed"]
+
+    # Enrich the ATT&CK view from confirmed findings too (framework_tags carries
+    # attack_ck per vuln class), so techniques surface even when the oplog is thin.
+    try:
+        from praetor.tools._framework_map import framework_tags
+        for f in confirmed:
+            row = framework_tags(f.get("vuln_type") or f.get("title", ""))
+            name = row.get("attack_name", "")
+            for tid in row.get("attack_ck", []) or []:
+                techs.add((tid, name))
+    except Exception:
+        pass
+    if techs:
+        lines.append("### MITRE ATT&CK techniques observed")
+        for tid, tname in sorted(t for t in techs if t[0]):
+            lines.append(f"- {tid} {tname}".rstrip())
+        lines.append("")
+
     lines.append(f"### Objective Impact ({len(confirmed)} confirmed)")
     if not confirmed:
         lines.append("_No confirmed objective impact recorded._")
