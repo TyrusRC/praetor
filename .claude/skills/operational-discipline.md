@@ -147,6 +147,11 @@ the impact in the first paragraph, downgrade or chain.
 
 ## 9. Coverage discipline
 
+Surface `coverage_status(domain)` at every phase checkpoint and at session end —
+the OWASP Top 10 / WSTG tracking table (tested / finding / UNTESTED per category
++ untested-gaps list). The gaps are the Rule 19a OPEN set the operator must see;
+don't leave them as silent N/A.
+
 Before re-testing a known endpoint:
 1. `load_target_intel(domain, "coverage")` — already covered tuples
    skip via `auto_probe(skip_already_covered=True)`.
