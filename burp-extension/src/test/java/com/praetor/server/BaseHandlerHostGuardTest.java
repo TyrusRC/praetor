@@ -41,6 +41,21 @@ class BaseHandlerHostGuardTest {
     }
 
     @Test
+    void rejectsTrailingDotUserinfoAndNumericIpForms() {
+        BaseHandler.setBindHost("127.0.0.1");
+        // trailing-dot forms don't turn a name into loopback -> rejected (fail closed)
+        assertFalse(BaseHandler.isHostAllowed("localhost.:8111"));
+        assertFalse(BaseHandler.isHostAllowed("127.0.0.1.:8111"));
+        assertFalse(BaseHandler.isHostAllowed("evil.com.:8111"));
+        // userinfo in the authority
+        assertFalse(BaseHandler.isHostAllowed("user@127.0.0.1:8111"));
+        // decimal / hex / octal IP encodings (not the exact literal; also
+        // unreachable as a browser Host, which is always the registered domain)
+        assertFalse(BaseHandler.isHostAllowed("2130706433:8111"));
+        assertFalse(BaseHandler.isHostAllowed("0x7f.0.0.1:8111"));
+    }
+
+    @Test
     void configuredBindHostIsAllowedByThatName() {
         BaseHandler.setBindHost("192.168.1.5");
         assertTrue(BaseHandler.isHostAllowed("192.168.1.5:8111"));
