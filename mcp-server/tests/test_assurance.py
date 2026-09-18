@@ -53,6 +53,15 @@ class TestStandards(unittest.TestCase):
         self.assertEqual(self.s.category_of("mastg", "ssl_pinning_bypass"), "NETWORK")
         self.assertEqual(self.s.category_of("mastg", "root_detection_bypass"), "RESILIENCE")
 
+    def test_untagged_longtail_classes_roll_up_via_keyword(self):
+        # Classes with no explicit FRAMEWORK_MAP tag must still land in a category
+        # (was the ~80% coverage blind spot).
+        self.assertEqual(self.s.category_of("owasp_top10", "clickjacking"), "A02")
+        self.assertEqual(self.s.category_of("owasp_top10", "bopla"), "A01")
+        self.assertEqual(self.s.category_of("wstg", "cspp"), "CLNT")
+        self.assertEqual(self.s.category_of("wstg", "race_condition"), "BUSL")
+        self.assertEqual(self.s.category_of("owasp_top10", "cspp"), "A05")
+
     def test_ai_testing_standard_and_keyword_rollup(self):
         cats = self.s.STANDARDS["ai_testing"]["categories"]
         self.assertEqual(set(cats), {"APP", "MODEL", "INFRA", "DATA"})

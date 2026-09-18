@@ -133,6 +133,61 @@ def _keyword_category(keywords: dict[str, tuple[str, ...]], vuln_class: str,
             return cat
     return None
 
+
+# Keyword inference for the long tail of vuln classes NOT explicitly tagged in
+# FRAMEWORK_MAP (only ~43 of ~215 classes are). Order matters: the most specific
+# buckets first. Codes are OWASP Top 10 2025. This is a fallback — an explicit
+# framework tag always wins in category_of().
+_OWASP2025_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "A01": ("idor", "bola", "bfla", "bopla", "authz", "access_control", "privilege",
+            "priv_esc", "ssrf", "path_traversal", "lfi", "rfi", "forced_browsing",
+            "csrf", "cors", "auth_bypass", "403_to_200", "tenant", "mass_assignment"),
+    "A07": ("auth", "login", "session", "jwt", "oauth", "saml", "mfa", "otp",
+            "password", "lockout", "credential", "passkey", "webauthn", "sso",
+            "token_reuse", "kerberos", "spnego"),
+    "A05": ("sqli", "injection", "xss", "ssti", "xxe", "command", "cmdi", "ldap",
+            "xpath", "nosql", "template", "crlf", "header_injection", "hpp",
+            "parameter_pollution", "deserial", "ognl", "el_injection", "csv",
+            "dangling_markup", "css_injection", "argv", "prototype", "cspp"),
+    "A04": ("crypto", "cipher", "tls", "ssl", "cert", "weak_random", "hash",
+            "jwt_alg", "padding_oracle", "hmac"),
+    "A02": ("misconfig", "csp_", "header", "clickjack", "debug", "default_cred",
+            "directory_listing", "verbose_error", "cookie", "hsts", "options_method",
+            "exposed_", "actuator", "swagger", "graphql_introspection"),
+    "A03": ("supply_chain", "dependency", "outdated", "component", "vulnerable_lib",
+            "cve", "known_vuln", "subresource", "dependency_confusion"),
+    "A08": ("integrity", "deserialization", "insecure_deser", "unsigned",
+            "auto_update", "ci_", "pipeline", "actions_injection", "cd_"),
+    "A06": ("logic", "race", "workflow", "reorder", "idempotency", "quota",
+            "float_rounding", "business_flow", "cron", "insecure_design"),
+    "A09": ("logging", "monitor", "audit", "alerting"),
+    "A10": ("exception", "error_handling", "dos", "resource_exhaust", "crash"),
+}
+_WSTG_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "ATHN": ("auth", "login", "password", "mfa", "otp", "lockout", "credential",
+             "jwt", "oauth", "saml", "sso", "passkey", "webauthn"),
+    "ATHZ": ("idor", "bola", "bfla", "bopla", "authz", "access_control", "privilege",
+             "priv_esc", "forced_browsing", "auth_bypass", "403_to_200", "tenant"),
+    "SESS": ("session", "cookie", "csrf", "logout", "token_reuse", "fixation"),
+    "INPV": ("sqli", "injection", "xss", "ssti", "xxe", "command", "cmdi", "ldap",
+             "xpath", "nosql", "template", "crlf", "hpp", "parameter_pollution",
+             "ssrf", "lfi", "rfi", "path_traversal", "deserial", "ognl", "file_upload"),
+    "CRYP": ("crypto", "cipher", "tls", "ssl", "cert", "weak_random", "padding_oracle"),
+    "CONF": ("misconfig", "csp_", "header", "clickjack", "debug", "default_cred",
+             "directory_listing", "cookie", "hsts", "options_method", "exposed_",
+             "actuator", "swagger", "cors"),
+    "BUSL": ("logic", "race", "workflow", "reorder", "idempotency", "quota",
+             "float_rounding", "business_flow", "mass_assignment"),
+    "CLNT": ("dom", "client_side", "postmessage", "prototype", "cspp", "css_injection",
+             "dangling_markup", "clickjack", "websocket", "cswsh", "browser_storage",
+             "tabnabbing", "web_message"),
+    "APIT": ("api_", "graphql", "grpc", "rest", "openapi", "swagger", "soap"),
+    "INFO": ("disclosure", "version", "fingerprint", "info_leak", "recon",
+             "metadata", "banner"),
+    "ERRH": ("error_handling", "stack_trace", "verbose_error", "exception"),
+    "IDNT": ("registration", "enumeration", "provisioning", "identity"),
+}
+
 _COMPLIANCE_PATH = (
     Path(__file__).resolve().parent.parent.parent / "data" / "compliance_mappings.json"
 )
@@ -170,12 +225,15 @@ def category_of(standard: str, vuln_class: str) -> str | None:
 
     if standard == "wstg":
         wstg = framework_tags(vuln_class).get("wstg") or ""
-        if not wstg:
-            return None
-        # WSTG-INPV-05 -> INPV
-        parts = wstg.split("-")
-        cat = parts[1] if len(parts) >= 2 else ""
-        return cat if cat in STANDARDS["wstg"]["categories"] else None
+        if wstg:
+            # WSTG-INPV-05 -> INPV
+            parts = wstg.split("-")
+            cat = parts[1] if len(parts) >= 2 else ""
+            if cat in STANDARDS["wstg"]["categories"]:
+                return cat
+        # Fallback for the ~170 classes with no explicit WSTG tag.
+        return _keyword_category(_WSTG_KEYWORDS, vuln_class,
+                                 STANDARDS["wstg"]["categories"])
 
     if standard == "mastg":
         masvs = framework_tags(vuln_class).get("masvs") or ""
@@ -203,4 +261,8 @@ def category_of(standard: str, vuln_class: str) -> str | None:
             # framework map tags with 2021 codes; the checklist is 2025.
             head = _OWASP_2021_TO_2025.get(head, head)
             return head if head in STANDARDS["owasp_top10"]["categories"] else None
+    # Fallback for classes with no explicit OWASP tag (keyword inference, 2025 codes).
+    if standard == "owasp_top10":
+        return _keyword_category(_OWASP2025_KEYWORDS, vuln_class,
+                                 STANDARDS["owasp_top10"]["categories"])
     return None
