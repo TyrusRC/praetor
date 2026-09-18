@@ -176,12 +176,16 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
             lines.append(f"- {k}: `{str(v)[:200]}`")
         # Client report cites the filename only (the reader gets the image file
         # attached); internal keeps the domain-relative path so the operator can
-        # open it beside the report.
+        # open it beside the report. Ordered as PoC steps.
+        if screenshots:
+            lines.append("")
+            lines.append("_PoC screenshots:_")
         for s in screenshots:
             name = s["file"].rsplit("/", 1)[-1]
             ref = s["file"] if internal else name
+            step = f"Step {s['step']}: " if s.get("step") else ""
             cap = f" — {s['note']}" if s.get("note") else ""
-            lines.append(f"- Screenshot: `{ref}`{cap}")
+            lines.append(f"- {step}`{ref}`{cap}")
         if isinstance(evidence, str) and evidence.strip():
             lines.append(f"```\n{evidence[:800]}\n```")
         # Replay tables prove reproducibility to the operator, not to the

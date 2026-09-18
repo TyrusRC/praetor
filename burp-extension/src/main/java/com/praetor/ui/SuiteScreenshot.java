@@ -3,12 +3,16 @@ package com.praetor.ui;
 import javax.imageio.ImageIO;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Frame;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -146,11 +150,29 @@ public final class SuiteScreenshot {
      * grab of just that sub-region.
      */
     public static BufferedImage captureComponent(Component c, int width, int height) {
-        BufferedImage img = new BufferedImage(Math.max(1, width), Math.max(1, height),
-                                              BufferedImage.TYPE_INT_ARGB);
+        return captureComponent(c, width, height, 1.0);
+    }
+
+    /**
+     * Render at {@code scale}× for readability (Burp windows are small; a 1×
+     * grab pixelates when viewed larger). Supersampling draws the vector Swing
+     * UI at higher resolution so text stays crisp on FHD/2K. Output is
+     * {@code TYPE_INT_RGB} (no alpha) to keep the PNG small.
+     */
+    public static BufferedImage captureComponent(Component c, int width, int height, double scale) {
+        int w = Math.max(1, (int) Math.round(width * scale));
+        int h = Math.max(1, (int) Math.round(height * scale));
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         runOnEdt(() -> {
             Graphics2D g = img.createGraphics();
             try {
+                g.setColor(Color.WHITE);
+                g.fillRect(0, 0, w, h);
+                g.setRenderingHint(RenderingHints.KEY_RENDERING,
+                                   RenderingHints.VALUE_RENDER_QUALITY);
+                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                                   RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g.scale(scale, scale);
                 c.printAll(g);
             } finally {
                 g.dispose();
@@ -160,17 +182,61 @@ public final class SuiteScreenshot {
     }
 
     /**
+     * Effective scale: honour the request but cap the long side at {@code
+     * maxLongSide} (≈2K) so the PNG stays optimised, and never downscale below 1×.
+     */
+    public static double effectiveScale(int width, int height, double requested, int maxLongSide) {
+        double s = Math.max(1.0, Math.min(requested, 4.0));
+        int longSide = Math.max(width, height);
+        if (longSide > 0 && longSide * s > maxLongSide) {
+            s = (double) maxLongSide / longSide;
+        }
+        return Math.max(1.0, s);
+    }
+
+    /** Draw an amber call-out banner (the PoC step / caption) across the top. */
+    static void drawCaption(BufferedImage img, String text, double scale) {
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                               RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int fs = Math.max(13, (int) Math.round(15 * scale));
+            int pad = Math.max(6, (int) Math.round(6 * scale));
+            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, fs));
+            FontMetrics fm = g.getFontMetrics();
+            int barH = fm.getHeight() + pad * 2;
+            g.setColor(new Color(0, 0, 0, 205));
+            g.fillRect(0, 0, img.getWidth(), barH);
+            g.setColor(new Color(255, 214, 0));
+            g.drawString(text, pad, pad + fm.getAscent());
+        } finally {
+            g.dispose();
+        }
+    }
+
+    /**
      * Capture the Burp suite frame. De-iconifies it first (a minimized window
      * paints blank) but does NOT need to raise it — {@code printAll} is immune to
-     * occlusion.
+     * occlusion. Renders at an effective scale capped at ~2K and, when {@code
+     * label} is non-blank, stamps it as a call-out banner (the PoC step).
      */
-    public static BufferedImage captureFrame(Frame frame) {
+    public static BufferedImage captureFrame(Frame frame, double scale, String label) {
         runOnEdt(() -> {
             if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
                 frame.setExtendedState(Frame.NORMAL);
             }
         });
         Dimension d = frame.getSize();
-        return captureComponent(frame, d.width, d.height);
+        double eff = effectiveScale(d.width, d.height, scale, 2560);
+        BufferedImage img = captureComponent(frame, d.width, d.height, eff);
+        if (label != null && !label.isBlank()) {
+            drawCaption(img, label, eff);
+        }
+        return img;
+    }
+
+    /** Back-compat: 1×, no caption. */
+    public static BufferedImage captureFrame(Frame frame) {
+        return captureFrame(frame, 1.0, null);
     }
 }

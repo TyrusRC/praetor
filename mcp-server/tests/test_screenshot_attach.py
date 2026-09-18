@@ -43,6 +43,13 @@ class AttachScreenshotTest(unittest.TestCase):
         out = _attach_screenshot(self.domain, "f001", full, "")
         self.assertTrue(out.get("ok"))
 
+    def test_stores_step_for_ordering(self):
+        out = _attach_screenshot(self.domain, "f001", "burp-repeater-x.png", "attack", step="2-attack")
+        self.assertEqual(out["step"], "2-attack")
+        shots = self._read_finding("f001")["evidence"]["screenshots"]
+        self.assertEqual(shots[0], {"file": "screenshots/burp-repeater-x.png",
+                                    "note": "attack", "step": "2-attack"})
+
     def test_idempotent_updates_note_not_duplicates(self):
         _attach_screenshot(self.domain, "f001", "burp-repeater-x.png", "first")
         _attach_screenshot(self.domain, "f001", "burp-repeater-x.png", "second")

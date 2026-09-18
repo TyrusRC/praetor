@@ -28,6 +28,17 @@ class ExtractScreenshotsTest(unittest.TestCase):
         files = [s["file"] for s in got]
         self.assertEqual(files, ["screenshots/a.png", "screenshots/b.png", "screenshots/c.png"])
 
+    def test_orders_by_poc_step(self):
+        ev = {"screenshots": [
+            {"file": "screenshots/z.png", "note": "", "step": "3-result"},
+            {"file": "screenshots/a.png", "note": "", "step": "1-baseline"},
+            {"file": "screenshots/m.png", "note": ""},               # no step -> last
+            {"file": "screenshots/b.png", "note": "", "step": "2-attack"},
+        ]}
+        files = [s["file"] for s in extract_screenshots(ev)]
+        self.assertEqual(files, ["screenshots/a.png", "screenshots/b.png",
+                                 "screenshots/z.png", "screenshots/m.png"])
+
     def test_non_dict_is_empty(self):
         self.assertEqual(extract_screenshots("nope"), [])
 
@@ -35,7 +46,8 @@ class ExtractScreenshotsTest(unittest.TestCase):
 class RenderScreenshotTest(unittest.TestCase):
     def test_client_report_shows_basename_only(self):
         out = build_finding_section(_finding(), 1, internal=False)
-        self.assertIn("Screenshot: `burp-repeater-x.png`", out)
+        self.assertIn("_PoC screenshots:_", out)
+        self.assertIn("`burp-repeater-x.png`", out)
         self.assertIn("id=2 -> victim order", out)
         # No internal path leaked, and the Burp index is stripped for the client.
         self.assertNotIn(".burp-intel", out)
@@ -44,8 +56,14 @@ class RenderScreenshotTest(unittest.TestCase):
 
     def test_internal_report_keeps_relative_path(self):
         out = build_finding_section(_finding(), 1, internal=True)
-        self.assertIn("Screenshot: `screenshots/burp-repeater-x.png`", out)
+        self.assertIn("`screenshots/burp-repeater-x.png`", out)
         self.assertIn("logger_index", out)  # internal keeps bookkeeping
+
+    def test_step_prefix_rendered(self):
+        f = _finding()
+        f["evidence"]["screenshots"][0]["step"] = "2-attack"
+        out = build_finding_section(f, 1, internal=False)
+        self.assertIn("Step 2-attack: `burp-repeater-x.png`", out)
 
 
 if __name__ == "__main__":

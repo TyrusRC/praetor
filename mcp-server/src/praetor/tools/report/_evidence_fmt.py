@@ -50,13 +50,20 @@ def extract_screenshots(evidence: object) -> list[dict]:
     if isinstance(raw, list):
         for s in raw:
             if isinstance(s, dict) and s.get("file"):
-                out.append({"file": str(s["file"]), "note": str(s.get("note", ""))})
+                out.append({"file": str(s["file"]), "note": str(s.get("note", "")),
+                            "step": str(s.get("step", ""))})
             elif isinstance(s, str) and s.strip():
-                out.append({"file": s.strip(), "note": ""})
+                out.append({"file": s.strip(), "note": "", "step": ""})
     legacy = evidence.get("screenshot")
     if isinstance(legacy, str) and legacy.strip():
-        out.append({"file": legacy.strip(), "note": ""})
-    return out
+        out.append({"file": legacy.strip(), "note": "", "step": ""})
+    # Order by PoC step (shots with a step first, natural-sorted; then the rest
+    # in capture order) so the report reads baseline -> attack -> result.
+    def _key(i_s):
+        i, s = i_s
+        step = s.get("step", "")
+        return (0, step, i) if step else (1, "", i)
+    return [s for _, s in sorted(enumerate(out), key=_key)]
 
 
 def format_poc_request(poc: dict | str | None) -> str:

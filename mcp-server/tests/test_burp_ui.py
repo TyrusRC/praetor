@@ -59,6 +59,20 @@ class SaveShotTest(unittest.TestCase):
         self.assertTrue(name.endswith(".png"))
         self.assertEqual(out["finding_id"], "f001")
 
+    def test_step_in_filename_and_envelope(self):
+        data = {"png_base64": base64.b64encode(b"x").decode()}
+        out = _save_shot(data, "d", "logger", "SQLi error", finding_id="f001", step="2-attack")
+        name = Path(out["saved"]).name
+        self.assertTrue(name.startswith("burp-logger-f001-step-2-attack-sqli-error-"))
+        self.assertEqual(out["step"], "2-attack")
+
+    def test_caption_builds_step_and_note(self):
+        from praetor.tools.burp_ui import _caption
+        self.assertEqual(_caption("2-attack", "SQLi payload"), "Step 2-attack — SQLi payload")
+        self.assertEqual(_caption("1", ""), "Step 1")
+        self.assertEqual(_caption("", "just a note"), "just a note")
+        self.assertEqual(_caption("", ""), "")
+
 
 if __name__ == "__main__":
     unittest.main()

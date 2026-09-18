@@ -80,6 +80,22 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void effectiveScaleHonoursRequestButCapsAt2K() {
+        // small window, 2x requested, fits under 2560 (1000*2=2000) -> 2x honoured
+        assertEquals(2.0, SuiteScreenshot.effectiveScale(1000, 700, 2.0, 2560), 0.01);
+        // 2x would exceed 2560 on the long side -> capped so long side == 2560
+        double s = SuiteScreenshot.effectiveScale(1600, 900, 2.0, 2560);
+        assertEquals(2560.0 / 1600.0, s, 0.01);
+        assertTrue(1600 * s <= 2560.5);
+        // the real Burp window (1291 wide) at 2x -> capped just under 2x
+        assertEquals(2560.0 / 1291.0, SuiteScreenshot.effectiveScale(1291, 699, 2.0, 2560), 0.01);
+        // never downscale below 1x, even for a window already wider than the cap
+        assertEquals(1.0, SuiteScreenshot.effectiveScale(3000, 1600, 2.0, 2560), 0.01);
+        // requested scale clamped to 4x max
+        assertEquals(2560.0 / 800.0, SuiteScreenshot.effectiveScale(800, 600, 9.0, 2560), 0.01);
+    }
+
+    @Test
     void pngBase64EncodesADecodablePng() throws Exception {
         BufferedImage img = new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, 0xFF0000);
