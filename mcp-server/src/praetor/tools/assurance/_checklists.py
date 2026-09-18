@@ -294,6 +294,35 @@ def render_checklist(standard: str, standard_name: str, cases: list[dict[str, st
     return "\n".join(lines)
 
 
+# Rule-29 high-value categories, per standard, for the high-impact ordering.
+_HIGH_VALUE = {
+    "wstg": ("ATHZ", "ATHN", "INPV", "BUSL", "APIT", "SESS"),
+    "owasp_top10": ("A01", "A05", "A07", "A06"),
+    "api_top10": ("API1", "API5", "API3", "API2"),
+    "ai_testing": ("APP", "MODEL"),
+    "mastg": ("AUTH", "STORAGE", "PLATFORM"),
+}
+
+
+def next_open_items(standard: str, cases: list[dict[str, str]],
+                    item_status: dict[str, dict[str, str]],
+                    touched: set[str], mode: str = "full_coverage") -> list[dict[str, str]]:
+    """Pure: the OPEN test cases to run next, ordered by engagement mode.
+
+    An item is OPEN unless it has an explicit confirmed/finding/not_applicable
+    status. `full_coverage`/`checklist` -> catalog order; `high_impact` ->
+    Rule-29 high-value categories first (and drops pure-manual items).
+    """
+    done = {k.split(":", 1)[1] for k, v in item_status.items()
+            if v.get("status") in ("confirmed", "finding", "not_applicable")}
+    open_items = [c for c in cases if c["id"] not in done]
+    if mode == "high_impact":
+        hv = _HIGH_VALUE.get(standard, ())
+        open_items = [c for c in open_items if "manual" not in c["tool"].lower()]
+        open_items.sort(key=lambda c: hv.index(c["category"]) if c["category"] in hv else len(hv))
+    return open_items
+
+
 def register(mcp: Any) -> None:
     from .coverage_map import _tested_classes
     from ._standards import STANDARDS, category_of
@@ -361,3 +390,49 @@ def register(mcp: Any) -> None:
                           "at": datetime.now(timezone.utc).isoformat()}
         _save_status(domain, items)
         return f"checklist {key} -> {status}" + (f" ({note.strip()})" if note.strip() else "")
+
+    @mcp.tool()
+    async def checklist_autotest(domain: str, standard: str = "wstg",
+                                 mode: str = "full_coverage", limit: int = 25) -> str:
+        """Drive the checklist: the ordered run-plan of OPEN test cases to execute.
+
+        Walks the catalog and returns the next OPEN items (skipping confirmed /
+        finding / not_applicable), each with the Praetor tool to run — so the
+        orchestrator executes each, then records the result via
+        `checklist_update`. This is the "test every case" loop.
+
+        Ordering follows the Phase-0 engagement mode: `high_impact` puts the
+        Rule-29 high-value categories first (and drops pure-manual items);
+        `full_coverage` / `checklist` walk in catalog order.
+
+        Args:
+            domain: target.
+            standard: wstg / ai_testing / owasp_top10 / api_top10 / mastg.
+            mode: full_coverage | high_impact | checklist.
+            limit: max items in this plan (page through the rest as they close).
+        """
+        cases = checklist_for(standard)
+        if standard not in STANDARDS:
+            return f"unknown standard '{standard}'; valid: {sorted(STANDARDS.keys())}"
+        if not cases:
+            return (f"{STANDARDS[standard]['name']} has no per-test-case catalog; "
+                    f"use coverage_status(domain) for the category heatmap.")
+        status = _load_status(domain)
+        touched: set[str] = set()
+        if domain:
+            for cls in _tested_classes(domain):
+                cat = category_of(standard, cls)
+                if cat:
+                    touched.add(cat)
+        plan = next_open_items(standard, cases, status, touched, mode)
+        total_open = len(plan)
+        plan = plan[:max(1, limit)]
+        lines = [f"# Auto-test plan — {STANDARDS[standard]['name']} ({mode})",
+                 f"{total_open} OPEN test cases; next {len(plan)}:"]
+        for it in plan:
+            lines.append(f"  {it['id']} [{it['category']}]  {it['name']}  -> RUN {it['tool']}")
+        lines.append("")
+        lines.append("For each: run the tool, grade on the response BODY (Rule 13a), then "
+                     "checklist_update(domain, standard, item_id, status=confirmed|finding|"
+                     "not_applicable, note=...). A blocker is an ASK, not a skip (Rule 32a).")
+        return "\n".join(lines)
