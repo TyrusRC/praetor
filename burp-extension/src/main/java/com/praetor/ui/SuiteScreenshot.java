@@ -1,8 +1,10 @@
 package com.praetor.ui;
 
 import javax.imageio.ImageIO;
+import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.Graphics2D;
@@ -10,28 +12,36 @@ import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Full-window screenshot of the Burp Suite frame, for evidence capture.
  *
- * <p>The operator selects the tab they want visible (Proxy &gt; HTTP history,
- * Repeater, Intruder, Organizer, ...) and the capture grabs whatever the suite
- * frame is currently showing. Montoya exposes the top-level frame but not the
- * individual tool tabs, so "which tab" is the operator's on-screen selection,
- * not a parameter.
+ * <p>Optionally brings a named top-level Burp tab (Proxy, Repeater, Intruder,
+ * Organizer, Logger, ...) to front before capturing, so the caller gets the tab
+ * they asked for instead of whatever happened to be selected. Montoya has no
+ * tab-select API, so this walks the Swing tree to the main tab strip — a bounded,
+ * tested best-effort that degrades gracefully (unknown name -> current tab).
  *
  * <p>Capture renders the component tree OFFSCREEN via {@link Component#printAll}
- * — NOT a screen-region grab. That matters: a {@code Robot} screen capture of
- * the frame's bounds returns whatever pixels are composited there, so an
- * overlapping window (another terminal, an editor) gets captured instead of
- * Burp, and the frame does not even need to be in front. {@code printAll} paints
- * Burp's own Swing hierarchy, so the result is always Burp regardless of z-order
- * and never leaks another window's content.
+ * — NOT a screen-region grab. A {@code Robot} screen capture of the frame's
+ * bounds returns whatever pixels are composited there, so an overlapping window
+ * gets captured instead of Burp. {@code printAll} paints Burp's own Swing
+ * hierarchy: always Burp regardless of z-order, never another window's content.
  */
 public final class SuiteScreenshot {
 
     private SuiteScreenshot() {}
+
+    // Top-level Burp tab titles — used to identify the MAIN tab strip among the
+    // several JTabbedPanes in the frame (sub-tabs like Proxy>HTTP-history score 0).
+    private static final Set<String> TOP_LEVEL_TABS = Set.of(
+        "dashboard", "target", "proxy", "intruder", "repeater", "collaborator",
+        "sequencer", "decoder", "comparer", "logger", "organizer", "extensions",
+        "learn");
 
     /** PNG-encode an image and base64 it for JSON transport (the testable seam). */
     public static String pngBase64(BufferedImage img) throws IOException {
@@ -43,6 +53,87 @@ public final class SuiteScreenshot {
     /** True when a display is available to render (false in headless Burp). */
     public static boolean displayAvailable() {
         return !GraphicsEnvironment.isHeadless();
+    }
+
+    private static void runOnEdt(Runnable r) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            r.run();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(r);
+            } catch (Exception ignored) {
+                // Best-effort — proceed with whatever state exists.
+            }
+        }
+    }
+
+    /** The main Burp tab strip: the JTabbedPane whose tab titles include the most
+     *  known top-level names. Null if none looks like the Burp strip. */
+    static JTabbedPane findMainTabbedPane(Component root) {
+        List<JTabbedPane> panes = new ArrayList<>();
+        collectTabbedPanes(root, panes);
+        JTabbedPane best = null;
+        int bestScore = 0;
+        for (JTabbedPane p : panes) {
+            int score = 0;
+            for (int i = 0; i < p.getTabCount(); i++) {
+                String t = p.getTitleAt(i);
+                if (t != null && TOP_LEVEL_TABS.contains(t.trim().toLowerCase())) {
+                    score++;
+                }
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    private static void collectTabbedPanes(Component c, List<JTabbedPane> out) {
+        if (c instanceof JTabbedPane tp) {
+            out.add(tp);
+        }
+        if (c instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                collectTabbedPanes(child, out);
+            }
+        }
+    }
+
+    /**
+     * Select the top-level Burp tab whose title contains {@code tabName}
+     * (case-insensitive), on the EDT. Returns the title actually selected, or
+     * null if no match / no tab strip found (caller then captures the current
+     * tab). Blank {@code tabName} is a no-op.
+     */
+    public static String selectTab(Frame frame, String tabName) {
+        return selectTabIn(frame, tabName);
+    }
+
+    /** Selection core, over any component root (so it is testable without a
+     *  heavyweight Frame, which cannot be built headless). */
+    static String selectTabIn(Component root, String tabName) {
+        if (tabName == null || tabName.isBlank()) {
+            return null;
+        }
+        String needle = tabName.trim().toLowerCase();
+        String[] selected = {null};
+        runOnEdt(() -> {
+            JTabbedPane tp = findMainTabbedPane(root);
+            if (tp == null) {
+                return;
+            }
+            for (int i = 0; i < tp.getTabCount(); i++) {
+                String t = tp.getTitleAt(i);
+                if (t != null && t.toLowerCase().contains(needle)) {
+                    tp.setSelectedIndex(i);
+                    selected[0] = t;
+                    return;
+                }
+            }
+        });
+        return selected[0];
     }
 
     /**
@@ -57,23 +148,14 @@ public final class SuiteScreenshot {
     public static BufferedImage captureComponent(Component c, int width, int height) {
         BufferedImage img = new BufferedImage(Math.max(1, width), Math.max(1, height),
                                               BufferedImage.TYPE_INT_ARGB);
-        Runnable paint = () -> {
+        runOnEdt(() -> {
             Graphics2D g = img.createGraphics();
             try {
                 c.printAll(g);
             } finally {
                 g.dispose();
             }
-        };
-        if (SwingUtilities.isEventDispatchThread()) {
-            paint.run();
-        } else {
-            try {
-                SwingUtilities.invokeAndWait(paint);
-            } catch (Exception ignored) {
-                // Best-effort — return whatever was painted (possibly blank).
-            }
-        }
+        });
         return img;
     }
 
@@ -83,15 +165,11 @@ public final class SuiteScreenshot {
      * occlusion.
      */
     public static BufferedImage captureFrame(Frame frame) {
-        try {
-            SwingUtilities.invokeAndWait(() -> {
-                if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
-                    frame.setExtendedState(Frame.NORMAL);
-                }
-            });
-        } catch (Exception ignored) {
-            // De-iconify is best-effort; capture proceeds regardless.
-        }
+        runOnEdt(() -> {
+            if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
+                frame.setExtendedState(Frame.NORMAL);
+            }
+        });
         Dimension d = frame.getSize();
         return captureComponent(frame, d.width, d.height);
     }

@@ -73,13 +73,17 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def burp_screenshot(domain: str = "", tab: str = "", note: str = "",
                               finding_id: str = "") -> dict:
-        """Screenshot the Burp Suite window (whatever tab is on screen) for evidence.
+        """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
-        Captures the FULL Burp window as it currently looks — SELECT the tab you
-        want first in Burp (Proxy > HTTP history, Repeater, Intruder, Organizer,
-        Logger, ...), then call this. Montoya exposes the window, not individual
-        tool tabs, so `tab` is a label recorded in the filename/return, not a
-        selector — the on-screen selection is what gets captured.
+        Pass `tab` to bring that top-level Burp tab to front before capturing
+        (Proxy, Repeater, Intruder, Organizer, Logger, Target, Dashboard, ...);
+        matched case-insensitively by substring. Leave `tab` empty to capture
+        whatever tab is currently selected. The return's `selected_tab` says which
+        tab was actually shown (empty if the name didn't match — then it's the
+        prior tab). Note: sub-tabs (e.g. Proxy > HTTP history vs Intercept) aren't
+        individually selectable — `tab='Proxy'` shows Proxy with its last sub-tab;
+        also, tool-sent traffic (curl/send_*) shows in Logger, browser traffic in
+        Proxy > HTTP history.
 
         Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
         name — `burp-<tab>-<finding_id>-<note-slug>-<timestamp>.png` — so the
@@ -90,15 +94,20 @@ def register(mcp: FastMCP) -> None:
 
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
-            tab: label for what's on screen (history/repeater/intruder/organizer).
+            tab: top-level Burp tab to bring to front + label (proxy/repeater/...).
             note: short caption stored in the return / used as the finding caption.
             finding_id: optional saved-finding id to attach the shot to.
         """
-        data = await client.get("/api/ui/screenshot")
+        params = {"tab": tab} if tab.strip() else None
+        data = await client.get("/api/ui/screenshot", params=params)
         if isinstance(data, dict) and "error" in data:
             return data
         out = _save_shot(data, domain, tab, note, finding_id)
-        if "error" not in out and finding_id and domain:
-            from praetor.tools.notes._screenshot_attach import _attach_screenshot
-            out["attached"] = _attach_screenshot(domain, finding_id, out["saved"], note)
+        if "error" not in out:
+            # Which tab the extension actually brought to front (empty if `tab`
+            # didn't match a top-level Burp tab — the shot is the prior tab then).
+            out["selected_tab"] = data.get("selected_tab", "")
+            if finding_id and domain:
+                from praetor.tools.notes._screenshot_attach import _attach_screenshot
+                out["attached"] = _attach_screenshot(domain, finding_id, out["saved"], note)
         return out

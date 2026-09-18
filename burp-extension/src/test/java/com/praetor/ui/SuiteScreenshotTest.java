@@ -5,13 +5,63 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 
 class SuiteScreenshotTest {
+
+    /** A JTabbedPane that looks like Burp's main strip, wrapped so the finder has
+     *  to walk into it (mirrors the real nested layout). */
+    private static JTabbedPane burpLikeStrip() {
+        JTabbedPane tp = new JTabbedPane();
+        for (String t : new String[]{"Dashboard", "Target", "Proxy", "Intruder",
+                "Repeater", "Collaborator", "Decoder", "Comparer", "Logger",
+                "Organizer", "Extensions"}) {
+            tp.addTab(t, new JLabel(t));
+        }
+        return tp;
+    }
+
+    @Test
+    void findMainTabbedPaneIgnoresUnrelatedTabStrips() {
+        JPanel root = new JPanel();
+        JTabbedPane subTabs = new JTabbedPane();     // e.g. Proxy sub-tabs — must NOT win
+        subTabs.addTab("HTTP history", new JLabel());
+        subTabs.addTab("WebSockets history", new JLabel());
+        root.add(subTabs);
+        JTabbedPane main = burpLikeStrip();
+        root.add(main);
+
+        assertSame(main, SuiteScreenshot.findMainTabbedPane(root));
+    }
+
+    @Test
+    void selectTabBringsNamedTopLevelTabToFront() {
+        JPanel root = new JPanel();
+        JTabbedPane main = burpLikeStrip();
+        root.add(main);
+        // The tabs the operator called out explicitly, plus a couple more.
+        for (String name : new String[]{"logger", "organizer", "collaborator",
+                "comparer", "decoder", "repeater", "proxy"}) {
+            String sel = SuiteScreenshot.selectTabIn(root, name);
+            assertNotNull(sel, name + " should match a top-level tab");
+            assertEquals(name, sel.toLowerCase());
+            assertEquals(name, main.getTitleAt(main.getSelectedIndex()).toLowerCase());
+        }
+    }
+
+    @Test
+    void selectTabReturnsNullForUnknownNameOrBlank() {
+        JPanel root = new JPanel();
+        root.add(burpLikeStrip());
+        assertNull(SuiteScreenshot.selectTabIn(root, "no-such-tab"));
+        assertNull(SuiteScreenshot.selectTabIn(root, ""));
+    }
 
     @Test
     void captureComponentRendersTheComponentNotAScreenRegion() {

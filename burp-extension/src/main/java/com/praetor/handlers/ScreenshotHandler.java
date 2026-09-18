@@ -8,11 +8,13 @@ import com.praetor.util.JsonUtil;
 
 import java.awt.Frame;
 import java.awt.image.BufferedImage;
+import java.util.Map;
 
 /**
  * GET /api/ui/screenshot — full-window PNG of the Burp Suite frame, base64 in
- * JSON. Captures whatever tab the operator has on screen (history, Repeater,
- * Intruder, Organizer, ...) for report evidence.
+ * JSON. With {@code ?tab=<name>} it first brings that top-level Burp tab to front
+ * (Proxy, Repeater, Intruder, Organizer, Logger, ...); otherwise it captures
+ * whatever tab is selected. For report evidence.
  */
 public class ScreenshotHandler extends BaseHandler {
 
@@ -40,12 +42,22 @@ public class ScreenshotHandler extends BaseHandler {
             sendError(exchange, 409, "Burp suite frame unavailable.", "no_frame", null);
             return;
         }
+        Map<String, String> params = queryParams(exchange);
+        String requestedTab = params.getOrDefault("tab", "");
+        // Best-effort: bring the requested top-level tab to front. null => not
+        // matched (unknown name / not the main strip); caller sees selected_tab.
+        String selectedTab = SuiteScreenshot.selectTab(frame, requestedTab);
+
         BufferedImage img = SuiteScreenshot.captureFrame(frame);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
             "height", img.getHeight(),
             "title", frame.getTitle(),
+            "requested_tab", requestedTab,
+            // The tab actually brought to front (null if not matched — the shot is
+            // then the previously-selected tab).
+            "selected_tab", selectedTab == null ? "" : selectedTab,
             // Identifies the capture engine so a caller can VERIFY which build is
             // loaded (printAll = occlusion-immune component render, not a screen
             // grab). Absent/other value => a stale jar is still loaded.
