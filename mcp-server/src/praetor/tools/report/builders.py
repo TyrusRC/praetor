@@ -12,8 +12,10 @@ from ._evidence_fmt import (
 from ._finding_render import build_finding_section
 from ._report_sections import (
     build_executive_summary, build_methodology_section, build_coverage_section,
+    build_killchain_section,
 )
 
 __all__ = ["_is_internal_evidence", "format_poc_request", "format_repro_steps",
            "build_finding_section", "build_executive_summary",
-           "build_methodology_section", "build_coverage_section"]
+           "build_methodology_section", "build_coverage_section",
+           "build_killchain_section"]

@@ -16,6 +16,7 @@ from praetor.tools.report.builders import (
     build_coverage_section,
     build_executive_summary,
     build_finding_section,
+    build_killchain_section,
     build_methodology_section,
 )
 from praetor.tools.report.lifecycle import (
@@ -44,7 +45,10 @@ def register(mcp: FastMCP):
 
         Args:
             domain: Target domain
-            format: 'pentest', 'executive', or 'findings'
+            format: 'pentest' (CVSS findings report), 'executive', 'findings',
+                or 'redteam' (kill-chain / ATT&CK narrative + objective impact,
+                from the operator log — the adversarial deliverable for a
+                red-team engagement, per the Phase-0 objective).
             platform: '' or 'hackerone', 'bugcrowd', 'intigriti', 'immunefi'
             include_coverage: Append the internal test-coverage matrix
                 (parameters/categories tested). Default False — Rule 16a: the
@@ -122,6 +126,20 @@ def register(mcp: FastMCP):
             sections.append(build_executive_summary(findings, domain, profile, internal=internal))
 
         if format == "executive":
+            return "\n".join(sections)
+
+        if format == "redteam":
+            # Adversarial deliverable: kill-chain narrative + ATT&CK + objective
+            # impact, not a CVSS-sorted finding list (that's the pentest format).
+            sections.append(f"# Red Team Assessment: {domain}")
+            sections.append(f"**Date:** {now}")
+            sections.append("")
+            sections.append(build_executive_summary(findings, domain, profile, internal=internal))
+            sections.append("")
+            sections.append(build_killchain_section(domain, findings, internal=internal))
+            if include_coverage and coverage:
+                sections.append("")
+                sections.append(build_coverage_section(coverage, internal=internal))
             return "\n".join(sections)
 
         if format == "pentest":
