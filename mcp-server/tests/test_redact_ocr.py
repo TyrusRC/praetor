@@ -20,10 +20,12 @@ class ValueShapeTest(unittest.TestCase):
         self.assertTrue(_is_sensitive_value("25d7a7ce75eecfbf324c49b2bfcb01bc"))   # hex
         self.assertTrue(_is_sensitive_value("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))  # JWT
         self.assertTrue(_is_sensitive_value("user@example.com"))                  # email
-        self.assertTrue(_is_sensitive_value("AKIAIOSFODNN7EXAMPLEKEY123"))        # base64-ish
 
     def test_benign_not_flagged(self):
-        for t in ("login.php", "GET", "id=1", "Host", "text/html"):
+        # base64-ish MIME/header values must NOT be flagged standalone (false-positive
+        # source) — only after a key. Only high-precision shapes are standalone.
+        for t in ("login.php", "GET", "id=1", "Host", "text/html",
+                  "application/xhtml+xml,", "image/webp,"):
             self.assertFalse(_is_sensitive_value(t), t)
 
 

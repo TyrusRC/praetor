@@ -26,16 +26,17 @@ _SENSITIVE_KEYS = (
     "password", "passwd", "pwd", "bearer", "auth", "x-auth-token",
 )
 
+# High-precision standalone value shapes (low false-positive). base64 is
+# deliberately NOT matched standalone — it false-hits MIME types / header values;
+# real base64 secrets sit after a KEY (Authorization/api_key=), which is covered.
 _JWT = re.compile(r"eyJ[A-Za-z0-9_-]{4,}")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _HEX = re.compile(r"[0-9a-fA-F]{16,}")
-_B64 = re.compile(r"[A-Za-z0-9+/=_-]{20,}")
 
 
 def _is_sensitive_value(word: str) -> bool:
-    """A token that LOOKS like a secret regardless of context."""
-    return bool(_JWT.search(word) or _EMAIL.search(word)
-                or _HEX.search(word) or _B64.search(word))
+    """A token that LOOKS like a secret regardless of context (high precision)."""
+    return bool(_JWT.search(word) or _EMAIL.search(word) or _HEX.search(word))
 
 
 def _has_key(token: str) -> bool:
@@ -43,39 +44,52 @@ def _has_key(token: str) -> bool:
     return any(k in low for k in _SENSITIVE_KEYS)
 
 
-def _sensitive_boxes(words: list[dict]) -> list[list[int]]:
+def _sensitive_boxes(words: list[dict], y_tol: int = 8) -> list[list[int]]:
     """Pure: from OCR word boxes, the merged [x,y,w,h] boxes to redact.
 
-    Each word is {text,left,top,width,height,line}. A word is redacted when it
-    matches a secret shape, OR a sensitive KEY appeared earlier on its line (so
-    the whole value after `Cookie:` / `Authorization:` is covered).
+    Groups words into VISUAL lines by y-coordinate (not OCR's fragile line ids,
+    which split one line into pieces). When a sensitive KEY (Cookie /
+    Authorization / PHPSESSID / api_key / ...) is on a line, redacts from the
+    value to the line's RIGHT edge — covering the whole secret even when OCR
+    mangles or splits the token. Otherwise boxes only high-precision value shapes
+    (long hex / JWT / email). Over-redacts the safe way; never leaves a keyed
+    value uncovered.
     """
-    lines: dict[str, list[dict]] = defaultdict(list)
-    for w in words:
-        lines[w.get("line", "")].append(w)
+    lines: list[list[dict]] = []
+    for w in sorted(words, key=lambda w: (w["top"], w["left"])):
+        for ln in lines:
+            if abs(w["top"] - ln[0]["top"]) <= y_tol:
+                ln.append(w)
+                break
+        else:
+            lines.append([w])
 
-    hits: list[dict] = []
-    for _, ws in lines.items():
-        ws = sorted(ws, key=lambda w: w["left"])
-        redact_rest = False
-        for w in ws:
-            t = str(w.get("text", "")).strip()
-            if not t:
-                continue
-            if redact_rest:
-                hits.append(w)
-                continue
-            if _has_key(t):
-                redact_rest = True
-                # Box only if the value is inline (`PHPSESSID=25d7…`), not a bare
-                # label like `Cookie:` — the label can stay, the value is covered.
-                m = re.search(r"[:=](.+)", t)
-                if m and m.group(1).strip():
-                    hits.append(w)
-                continue
-            if _is_sensitive_value(t):
-                hits.append(w)
-    return _merge_boxes([[w["left"], w["top"], w["width"], w["height"]] for w in hits])
+    boxes: list[list[int]] = []
+    for ln in lines:
+        ln.sort(key=lambda w: w["left"])
+        key_idx = next((i for i, w in enumerate(ln)
+                        if _has_key(str(w.get("text", "")))), None)
+        if key_idx is not None:
+            key = ln[key_idx]
+            kt = str(key.get("text", ""))
+            # inline value (`PHPSESSID=25d7…`) -> cover the token; bare label
+            # (`Cookie`/`Authorization:`) -> start just after it.
+            if re.search(r"[:=]\S", kt):
+                x0 = key["left"]
+            else:
+                x0 = key["left"] + key["width"] + 4
+            right = max(w["left"] + w["width"] for w in ln)
+            top = min(w["top"] for w in ln)
+            bottom = max(w["top"] + w["height"] for w in ln)
+            if right - x0 > 0:
+                boxes.append([x0, top, right - x0, bottom - top])
+        else:
+            # No key on the line: only box HIGH-CONFIDENCE value shapes, so
+            # low-conf OCR noise doesn't create spurious redactions.
+            for w in ln:
+                if w.get("conf", 100) >= 40 and _is_sensitive_value(str(w.get("text", ""))):
+                    boxes.append([w["left"], w["top"], w["width"], w["height"]])
+    return _merge_boxes(boxes)
 
 
 def _merge_boxes(boxes: list[list[int]], y_tol: int = 8, x_gap: int = 30,
@@ -104,8 +118,11 @@ def tesseract_available() -> bool:
     return shutil.which("tesseract") is not None
 
 
-def _ocr_words(path: str, min_conf: float = 40.0) -> list[dict]:
-    """Word boxes via the tesseract CLI (TSV). Empty list on failure."""
+def _ocr_words(path: str, min_conf: float = 10.0) -> list[dict]:
+    """Word boxes via the tesseract CLI (TSV). Low floor on purpose — a keyed
+    line's redaction must extend over GARBLED (low-conf) token words too, or the
+    secret leaks; standalone value-matching re-gates on higher confidence. Empty
+    list on failure."""
     try:
         proc = subprocess.run(
             ["tesseract", str(path), "stdout", "--psm", "11", "tsv"],
@@ -128,7 +145,7 @@ def _ocr_words(path: str, min_conf: float = 40.0) -> list[dict]:
         if level != 5 or conf < min_conf or not text.strip():
             continue
         words.append({"text": text, "left": left, "top": top, "width": w,
-                      "height": h, "line": f"{f[2]}-{f[3]}-{f[4]}"})
+                      "height": h, "conf": conf, "line": f"{f[2]}-{f[3]}-{f[4]}"})
     return words
 
 
