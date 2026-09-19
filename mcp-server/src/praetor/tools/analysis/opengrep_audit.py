@@ -1,7 +1,7 @@
 """opengrep over JS/HTML bodies already captured in Burp proxy history.
 
 This is the static counterpart to analyze_dom (dynamic). It runs opengrep
-(Semgrep fork, MIT, no telemetry) against response bodies pulled from the
+(Semgrep fork, LGPL 2.1, no telemetry) against response bodies pulled from the
 proxy. Findings include the originating logger_index + URL so the operator
 can pivot back to the live request that delivered the vulnerable JS.
 
