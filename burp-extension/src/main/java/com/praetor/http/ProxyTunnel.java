@@ -154,7 +154,9 @@ public final class ProxyTunnel {
     }
 
     private static byte[] tunnelHttps(Socket socket, HttpRequest request, HttpService service) throws IOException {
-        return tunnelHttpsWire(socket, request.toByteArray().getBytes(), service);
+        // Force HTTP/1.1 on the request line — a proxy-history-sourced request may
+        // be HTTP/2, and the tunnel speaks HTTP/1.1 to Burp's listener (else 400).
+        return tunnelHttpsWire(socket, ProxyWire.forceHttp11(request.toByteArray().getBytes()), service);
     }
 
     /**
@@ -274,7 +276,7 @@ public final class ProxyTunnel {
     }
 
     private static byte[] tunnelHttp(Socket socket, HttpRequest request, HttpService service) throws IOException {
-        byte[] raw = request.toByteArray().getBytes();
+        byte[] raw = ProxyWire.forceHttp11(request.toByteArray().getBytes());
         byte[] proxied = ProxyWire.rewriteAsProxyRequest(raw, service.host(), service.port());
         socket.getOutputStream().write(proxied);
         socket.getOutputStream().flush();
