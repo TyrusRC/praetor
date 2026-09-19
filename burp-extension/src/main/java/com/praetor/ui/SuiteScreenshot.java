@@ -59,6 +59,44 @@ public final class SuiteScreenshot {
         return Base64.getEncoder().encodeToString(out.toByteArray());
     }
 
+    private static int clamp(int v, int lo, int hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    /**
+     * Draw opaque redaction boxes OVER an existing image (no re-render) to hide
+     * sensitive data — cookies, session tokens, keys, PII. Each box is
+     * {@code [x, y, w, h]} in the image's own pixel coordinates; caller sizes it
+     * to cover only the sensitive span (redact half a value, leave a prefix). A
+     * solid fill (not blur/pixelate) is used because it is irreversible. Returns
+     * a new image; the original is untouched.
+     */
+    public static BufferedImage applyRedactions(BufferedImage src, List<int[]> boxes) {
+        BufferedImage out = new BufferedImage(src.getWidth(), src.getHeight(),
+                                              BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = out.createGraphics();
+        try {
+            g.drawImage(src, 0, 0, null);
+            for (int[] b : boxes) {
+                if (b == null || b.length < 4) {
+                    continue;
+                }
+                int x = clamp(b[0], 0, out.getWidth());
+                int y = clamp(b[1], 0, out.getHeight());
+                int w = clamp(b[2], 0, out.getWidth() - x);
+                int h = clamp(b[3], 0, out.getHeight() - y);
+                if (w <= 0 || h <= 0) {
+                    continue;
+                }
+                g.setColor(new Color(18, 18, 18));   // opaque, irreversible
+                g.fillRect(x, y, w, h);
+            }
+        } finally {
+            g.dispose();
+        }
+        return out;
+    }
+
     /** True when a display is available to render (false in headless Burp). */
     public static boolean displayAvailable() {
         return !GraphicsEnvironment.isHeadless();
