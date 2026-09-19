@@ -120,52 +120,99 @@ public final class SuiteScreenshot {
      * tab). Blank {@code tabName} is a no-op.
      */
     public static String selectTab(Frame frame, String tabName) {
-        return selectTabIn(frame, tabName);
+        return selectTabAndSubIn(frame, tabName, null)[0];
     }
 
-    /** Selection core, over any component root (so it is testable without a
-     *  heavyweight Frame, which cannot be built headless). */
-    static String selectTabIn(Component root, String tabName) {
-        if (tabName == null || tabName.isBlank()) {
-            return null;
+    /** Select a top-level tab AND, if given, a nested sub-tab within it (e.g.
+     *  Proxy > HTTP history). Returns {topTitle, subTitle}; either may be null. */
+    public static String[] selectTab(Frame frame, String tabName, String subTabName) {
+        return selectTabAndSubIn(frame, tabName, subTabName);
+    }
+
+    /** Index of the tab whose title best matches {@code needle} (lowercased):
+     *  EXACT, then prefix, then substring — so an abbreviated name doesn't grab
+     *  the wrong tab when a better match exists later. -1 if none. */
+    static int matchTab(JTabbedPane tp, String needle) {
+        int exact = -1, prefix = -1, contains = -1;
+        for (int i = 0; i < tp.getTabCount(); i++) {
+            String t = tp.getTitleAt(i);
+            if (t == null) {
+                continue;
+            }
+            String lt = t.toLowerCase();
+            if (lt.equals(needle) && exact < 0) {
+                exact = i;
+            } else if (lt.startsWith(needle) && prefix < 0) {
+                prefix = i;
+            } else if (lt.contains(needle) && contains < 0) {
+                contains = i;
+            }
         }
-        String needle = tabName.trim().toLowerCase();
-        String[] selected = {null};
+        return exact >= 0 ? exact : (prefix >= 0 ? prefix : contains);
+    }
+
+    /** The nested JTabbedPane under {@code root} that HAS a tab matching
+     *  {@code needle} — so a sub-tab name finds the tool's own sub-strip, not a
+     *  deep editor's Pretty/Raw/Hex strip. DFS pre-order = shallowest first. */
+    static JTabbedPane findSubTabbedPaneWith(Component root, String needle) {
+        List<JTabbedPane> panes = new ArrayList<>();
+        collectTabbedPanes(root, panes);
+        for (JTabbedPane p : panes) {
+            if (matchTab(p, needle) >= 0) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /** Back-compat single-tab selector (over any component root — testable
+     *  without a heavyweight Frame). */
+    static String selectTabIn(Component root, String tabName) {
+        return selectTabAndSubIn(root, tabName, null)[0];
+    }
+
+    /**
+     * Selection core over any component root. Selects the top-level tab, then (if
+     * {@code subTabName} is given) descends into that tool's component to select a
+     * nested sub-tab. Best-effort — a failure never aborts the capture. Returns
+     * {topTitle, subTitle}; a null entry means that level didn't match.
+     */
+    static String[] selectTabAndSubIn(Component root, String tabName, String subTabName) {
+        String[] out = {null, null};
+        if (tabName == null || tabName.isBlank()) {
+            return out;
+        }
+        String topNeedle = tabName.trim().toLowerCase();
+        String subNeedle = (subTabName == null || subTabName.isBlank())
+            ? null : subTabName.trim().toLowerCase();
         try {
             runOnEdt(() -> {
-                JTabbedPane tp = findMainTabbedPane(root);
-                if (tp == null) {
+                JTabbedPane main = findMainTabbedPane(root);
+                if (main == null) {
                     return;
                 }
-                // Prefer an EXACT title, then a prefix, then a substring — so an
-                // abbreviated name (e.g. "co") doesn't grab the wrong tab when a
-                // better match exists later in the strip.
-                int exact = -1, prefix = -1, contains = -1;
-                for (int i = 0; i < tp.getTabCount(); i++) {
-                    String t = tp.getTitleAt(i);
-                    if (t == null) {
-                        continue;
-                    }
-                    String lt = t.toLowerCase();
-                    if (lt.equals(needle) && exact < 0) {
-                        exact = i;
-                    } else if (lt.startsWith(needle) && prefix < 0) {
-                        prefix = i;
-                    } else if (lt.contains(needle) && contains < 0) {
-                        contains = i;
-                    }
+                int idx = matchTab(main, topNeedle);
+                if (idx < 0) {
+                    return;
                 }
-                int idx = exact >= 0 ? exact : (prefix >= 0 ? prefix : contains);
-                if (idx >= 0) {
-                    tp.setSelectedIndex(idx);
-                    selected[0] = tp.getTitleAt(idx);
+                main.setSelectedIndex(idx);
+                out[0] = main.getTitleAt(idx);
+                if (subNeedle != null) {
+                    JTabbedPane sub = findSubTabbedPaneWith(main.getComponentAt(idx), subNeedle);
+                    if (sub != null) {
+                        int sidx = matchTab(sub, subNeedle);
+                        if (sidx >= 0) {
+                            sub.setSelectedIndex(sidx);
+                            out[1] = sub.getTitleAt(sidx);
+                        }
+                    }
                 }
             });
         } catch (RuntimeException e) {
-            // Tab selection is best-effort — never abort the capture over it.
-            return null;
+            // Best-effort — never abort the capture over tab selection.
+            return out;
         }
-        return selected[0];
+        return out;
     }
 
     /**

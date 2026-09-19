@@ -100,20 +100,20 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
 
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
-    async def burp_screenshot(domain: str = "", tab: str = "", note: str = "",
-                              finding_id: str = "", step: str = "",
+    async def burp_screenshot(domain: str = "", tab: str = "", subtab: str = "",
+                              note: str = "", finding_id: str = "", step: str = "",
                               scale: float = 2.0, banner: bool = False,
                               trademark: str = "") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
-        (Proxy, Repeater, Intruder, Organizer, Logger, Target, Dashboard, ...);
-        matched case-insensitively by substring. Leave `tab` empty to capture
-        whatever tab is currently selected. The return's `selected_tab` says which
-        tab was actually shown (empty if the name didn't match — then it's the
-        prior tab). Note: sub-tabs (e.g. Proxy > HTTP history vs Intercept) aren't
-        individually selectable — `tab='Proxy'` shows Proxy with its last sub-tab;
-        also, tool-sent traffic (curl/send_*) shows in Logger, browser traffic in
+        (Proxy, Repeater, Intruder, Organizer, Logger, Target, Dashboard, ...) and
+        `subtab` to select a nested sub-tab within it (e.g. tab='proxy',
+        subtab='http history'); both match case-insensitively (exact > prefix >
+        substring). Leave them empty to capture whatever is currently selected.
+        The return's `selected_tab` / `selected_subtab` say what was actually
+        shown (empty if the name didn't match — then it's the prior selection).
+        Note: tool-sent traffic (curl/send_*) shows in Logger, browser traffic in
         Proxy > HTTP history.
 
         Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
@@ -152,6 +152,8 @@ def register(mcp: FastMCP) -> None:
         params = {"scale": str(scale)}
         if tab.strip():
             params["tab"] = tab
+        if subtab.strip():
+            params["subtab"] = subtab
         if label:
             params["label"] = label
         if trademark.strip():
@@ -161,9 +163,10 @@ def register(mcp: FastMCP) -> None:
             return data
         out = _save_shot(data, domain, tab, note, finding_id, step)
         if "error" not in out:
-            # Which tab the extension actually brought to front (empty if `tab`
-            # didn't match a top-level Burp tab — the shot is the prior tab then).
+            # Which tab (and nested sub-tab) the extension actually brought to
+            # front — empty if the name didn't match (the shot is the prior tab).
             out["selected_tab"] = data.get("selected_tab", "")
+            out["selected_subtab"] = data.get("selected_subtab", "")
             if finding_id and domain:
                 from praetor.tools.notes._screenshot_attach import _attach_screenshot
                 # off-thread: the attach takes a blocking flock on findings.json.
