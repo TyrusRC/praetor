@@ -60,6 +60,10 @@ the report shape. If the operator has not stated it, ask which of these it is:
   kill-chain + MITRE ATT&CK narrative. Reaching the objective is the deliverable.
 - **Compliance / checklist** — walk a fixed standard to completion for assurance
   ("what did we NOT test"); `standards_coverage` / `checklist`.
+- **Lab / CTF single-objective** — one named vuln class with a hard solve
+  condition (PortSwigger Academy, HTB, CTF). Deliverable is the flipped solve flag,
+  not a report. Go straight to `lab-solve.md`; skip Phases 2, 2.5, 3.6, 4, 5 and
+  the save-finding pipeline unless the operator asks for a writeup.
 
 The mode sets coverage-vs-impact priority, the stealth budget, and the report
 shape — never default silently. Re-confirm if the operator's ask implies a
