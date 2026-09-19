@@ -208,6 +208,21 @@ class TestPrioritisation(unittest.TestCase):
     def test_split_files_inherit_the_parent_tier(self):
         self.assertEqual(class_value("sqli_mssql"), class_value("sqli"))
 
+    def test_real_category_names_resolve_above_default(self):
+        # class-vocabulary drift: these are REAL KB categories that a stale tier
+        # key ('nosqli') or a missing entry left sitting at the default tier.
+        default = class_value("a_class_that_does_not_exist")
+        for cat in ("nosql", "state_machine_race", "second_order"):
+            self.assertGreater(class_value(cat), default, cat)
+        self.assertEqual(class_value("nosql"), class_value("sqli"))  # both injection tier
+
+    def test_injection_family_ranks_with_injection_tier(self):
+        # every *_injection class reaches a sink — must not drop to default
+        default = class_value("a_class_that_does_not_exist")
+        for cat in ("xpath_injection", "xslt_injection", "ldap_injection",
+                    "ssi_injection", "grpc_injection", "argv_injection"):
+            self.assertGreater(class_value(cat), default, cat)
+
     def test_unknown_class_sits_mid_table(self):
         self.assertLess(class_value("clickjacking"), class_value("some_new_class"))
         self.assertLess(class_value("some_new_class"), class_value("sqli"))

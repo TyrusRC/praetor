@@ -31,15 +31,20 @@ def _tier(names: tuple[str, ...], score: int) -> None:
         _CLASS_VALUE[n] = score
 
 
+# Keys must match REAL knowledge `category` names (e.g. `nosql`, not `nosqli`),
+# or the tier silently never applies and the class drops to _DEFAULT_VALUE. The
+# `_injection` suffix rule in class_value() covers the whole `*_injection` family
+# (xpath/xslt/ldap/ssi/latex/xml/json/email/css/argv/grpc) without listing each.
 _tier((
-    "sqli", "nosqli", "rce", "command_injection", "ssti", "ssrf", "xxe",
+    "sqli", "nosql", "rce", "command_injection", "ssti", "ssrf", "xxe",
     "deserialization", "path_traversal", "lfi", "file_upload",
     "request_smuggling", "prototype_pollution", "graphql_injection",
 ), 6)
 _tier((
     "idor", "bola", "bfla", "bopla", "access_control", "auth_bypass",
     "authentication", "authorization", "jwt", "oauth", "saml", "session",
-    "mass_assignment", "business_logic", "race_condition", "privilege_escalation",
+    "mass_assignment", "business_logic", "race_condition", "state_machine_race",
+    "second_order", "privilege_escalation",
 ), 5)
 _tier((
     "xss", "dom_xss", "csrf", "cache_poisoning", "cors", "open_redirect",
@@ -59,6 +64,10 @@ def class_value(category: str) -> int:
     cat = (category or "").lower()
     if cat in _CLASS_VALUE:
         return _CLASS_VALUE[cat]
+    # The whole `*_injection` family reaches a sink — rank it with the injection
+    # tier without enumerating every language (xpath/xslt/ldap/ssi/grpc/...).
+    if cat.endswith("_injection"):
+        return 6
     # Split files (`ssti_elixir`, `sqli_mssql`) inherit their parent's tier.
     for name, score in sorted(_CLASS_VALUE.items(), key=lambda kv: -len(kv[0])):
         if cat.startswith(name + "_") or cat.startswith(name):

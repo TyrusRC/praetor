@@ -26,7 +26,20 @@
         "forward",
         "target",
         "ref",
-        "back"
+        "back",
+        "returl",
+        "rurl",
+        "retpath",
+        "returnurl",
+        "redirecturl",
+        "linkurl",
+        "success_url",
+        "cancel_url",
+        "checkout_url",
+        "image_url",
+        "uri",
+        "link",
+        "location"
       ],
       "probes": [
         {
@@ -244,6 +257,55 @@
               "type": "header",
               "name": "Location",
               "contains": "evil"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "meta_refresh_body": {
+      "description": "Redirect rendered in the RESPONSE BODY (200 OK) via <meta http-equiv=refresh> or a JS location sink, not a Location header — missed entirely by header-only matchers.",
+      "tech_match": [],
+      "param_match": [
+        "redirect",
+        "url",
+        "next",
+        "return",
+        "redir",
+        "goto",
+        "dest",
+        "destination",
+        "continue",
+        "return_url",
+        "returl",
+        "returnurl",
+        "callback",
+        "forward",
+        "target",
+        "link",
+        "location"
+      ],
+      "probes": [
+        {
+          "payload": "https://evil.com",
+          "description": "External host reflected into a meta-refresh or JS location redirect sink in the body",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "(?i)(?:http-equiv=[\"']?refresh[^>]*url=|location\\.(?:href|replace|assign)\\s*[=(]\\s*[\"']?|window\\.location\\s*=\\s*[\"']?)https?://evil\\.com"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "//evil.com",
+          "description": "Protocol-relative host reflected into a body redirect sink",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "(?i)(?:http-equiv=[\"']?refresh[^>]*url=|location\\.(?:href|replace|assign)\\s*[=(]\\s*[\"']?|window\\.location\\s*=\\s*[\"']?)//evil\\.com"
             }
           ],
           "severity": "medium",
