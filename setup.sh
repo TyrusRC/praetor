@@ -437,6 +437,17 @@ elif [ "$PLATFORM" = "macos" ]; then
     pkg_install bind || warn "dig not installed — brew install bind"
 fi
 
+# ── tesseract OCR — screenshot auto-redaction (auto_redact_screenshot) ──
+if has tesseract; then
+    ok "tesseract already installed ($(tesseract --version 2>&1 | head -1))"
+elif [ "$PLATFORM" = "linux" ]; then
+    pkg_install tesseract-ocr && ok "tesseract installed" \
+        || warn "tesseract not installed — apt/dnf install tesseract-ocr (screenshot auto-redaction)"
+else
+    pkg_install tesseract && ok "tesseract installed" \
+        || warn "tesseract not installed — brew install tesseract (screenshot auto-redaction)"
+fi
+
 # ── ProjectDiscovery expansion — recon_pd tools (run_dnsx / run_naabu / ...) ──
 echo ""
 info "ProjectDiscovery expansion (DNS / ports / TLS / ASN / OSINT recon)..."
