@@ -21,7 +21,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -437,6 +439,79 @@ public final class SuiteScreenshot {
             return -1;
         }
         return result[0];
+    }
+
+    /**
+     * A snapshot of the operator's navigational UI state (every tab strip's
+     * selection, every table's selected rows, every split's divider). Taken
+     * BEFORE the capture navigates, restored AFTER — so a screenshot never leaves
+     * a human's Burp on a different tab/row/layout than they had it (don't disrupt
+     * someone using Burp with the mouse). Button CLICKS are real actions and are
+     * NOT undone.
+     */
+    public static final class UiSnapshot {
+        private final Map<JTabbedPane, Integer> tabs = new IdentityHashMap<>();
+        private final Map<JTable, int[]> tableRows = new IdentityHashMap<>();
+        private final Map<JSplitPane, Integer> splits = new IdentityHashMap<>();
+    }
+
+    public static UiSnapshot snapshotUi(Component root) {
+        UiSnapshot s = new UiSnapshot();
+        runOnEdt(() -> {
+            List<JTabbedPane> tps = new ArrayList<>();
+            collectTabbedPanes(root, tps);
+            for (JTabbedPane tp : tps) {
+                s.tabs.put(tp, tp.getSelectedIndex());
+            }
+            List<JTable> ts = new ArrayList<>();
+            collectTables(root, ts);
+            for (JTable t : ts) {
+                s.tableRows.put(t, t.getSelectedRows());
+            }
+            List<JSplitPane> sps = new ArrayList<>();
+            collectSplitPanes(root, sps);
+            for (JSplitPane sp : sps) {
+                s.splits.put(sp, sp.getDividerLocation());
+            }
+        });
+        return s;
+    }
+
+    /** Restore a {@link #snapshotUi} — puts the operator's tab / row / layout back. */
+    public static void restoreUi(UiSnapshot s) {
+        if (s == null) {
+            return;
+        }
+        runOnEdt(() -> {
+            s.tabs.forEach((tp, i) -> {
+                try {
+                    if (i >= 0 && i < tp.getTabCount()) {
+                        tp.setSelectedIndex(i);
+                    }
+                } catch (Exception ignored) {
+                    // best-effort
+                }
+            });
+            s.tableRows.forEach((t, rows) -> {
+                try {
+                    t.clearSelection();
+                    for (int r : rows) {
+                        if (r >= 0 && r < t.getRowCount()) {
+                            t.addRowSelectionInterval(r, r);
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // best-effort
+                }
+            });
+            s.splits.forEach((sp, d) -> {
+                try {
+                    sp.setDividerLocation(d);
+                } catch (Exception ignored) {
+                    // best-effort
+                }
+            });
+        });
     }
 
     /** The component of the currently-selected top-level tab, or the frame. */

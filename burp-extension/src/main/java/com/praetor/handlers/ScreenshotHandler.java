@@ -43,6 +43,14 @@ public class ScreenshotHandler extends BaseHandler {
             return;
         }
         Map<String, String> params = queryParams(exchange);
+
+        // Snapshot the operator's current view (tab / sub-tab / row / layout) so we
+        // can restore it after capturing — a screenshot must NOT leave a human's
+        // Burp on a different tab/selection than they had it (don't disrupt someone
+        // using the mouse). Default on; ?restore=false leaves the navigation.
+        boolean restore = !"false".equalsIgnoreCase(params.getOrDefault("restore", "true"));
+        SuiteScreenshot.UiSnapshot snapshot = restore ? SuiteScreenshot.snapshotUi(frame) : null;
+
         String requestedTab = params.getOrDefault("tab", "");
         String requestedSubtab = params.getOrDefault("subtab", "");
         // Best-effort: bring the requested top-level tab (and nested sub-tab, e.g.
@@ -106,6 +114,9 @@ public class ScreenshotHandler extends BaseHandler {
         String trademark = params.getOrDefault("trademark", ""); // right-aligned brand
 
         BufferedImage img = SuiteScreenshot.captureFrame(frame, scale, label, trademark);
+        // Put the operator's view back exactly as it was (the PNG already holds the
+        // navigated state). A button CLICK is a real action and is not undone.
+        SuiteScreenshot.restoreUi(snapshot);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
