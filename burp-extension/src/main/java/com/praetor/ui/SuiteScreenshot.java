@@ -2,6 +2,7 @@ package com.praetor.ui;
 
 import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
@@ -329,6 +330,52 @@ public final class SuiteScreenshot {
         }
     }
 
+    static void collectSplitPanes(Component c, List<JSplitPane> out) {
+        if (c instanceof JSplitPane sp) {
+            out.add(sp);
+        }
+        if (c instanceof Container ct) {
+            for (Component child : ct.getComponents()) {
+                collectSplitPanes(child, out);
+            }
+        }
+    }
+
+    static boolean containsTable(Component c) {
+        List<JTable> t = new ArrayList<>();
+        collectTables(c, t);
+        return !t.isEmpty();
+    }
+
+    /**
+     * If the table/detail VERTICAL split (table on top, request/response below)
+     * is collapsed to a table-only view, open it to ~55% so a selected row's
+     * request/response detail is visible. Best-effort, on the EDT.
+     */
+    static void ensureDetailPaneVisible(Component root) {
+        List<JSplitPane> splits = new ArrayList<>();
+        collectSplitPanes(root, splits);
+        for (JSplitPane sp : splits) {
+            if (sp.getOrientation() != JSplitPane.VERTICAL_SPLIT) {
+                continue;
+            }
+            Component top = sp.getTopComponent();
+            if (top == null || !containsTable(top)) {
+                continue;   // want the split whose TOP holds the history table
+            }
+            int h = sp.getHeight();
+            if (h <= 0) {
+                return;
+            }
+            int div = sp.getDividerLocation();
+            int max = sp.getMaximumDividerLocation();
+            if (div >= max - 5 || div >= h - 60) {   // detail collapsed
+                sp.setDividerLocation(0.55);
+            }
+            return;
+        }
+    }
+
     /** View-row for a table's first ("#") column value {@code wantNumber}; the
      *  last row when {@code wantNumber < 0} or no match (empty table -> -1). */
     static int rowForNumber(JTable table, int wantNumber) {
@@ -380,6 +427,10 @@ public final class SuiteScreenshot {
                 int viewRow = rowForNumber(table, wantNumber);
                 table.setRowSelectionInterval(viewRow, viewRow);
                 table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
+                // The selected row's request/response detail lives in a bottom
+                // split-pane that is often collapsed (table-only view) — open it
+                // so the shot shows the request + response, not just the row.
+                ensureDetailPaneVisible(selectedTopComponent(frame));
                 result[0] = viewRow;
             });
         } catch (RuntimeException e) {
