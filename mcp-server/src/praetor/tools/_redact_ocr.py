@@ -149,6 +149,27 @@ def _ocr_words(path: str, min_conf: float = 10.0) -> list[dict]:
     return words
 
 
-def detect_sensitive_boxes(path: str) -> list[list[int]]:
-    """OCR the image and return the [x,y,w,h] boxes to redact."""
-    return _sensitive_boxes(_ocr_words(path))
+def _trailing_fraction(boxes: list[list[int]], coverage: float) -> list[list[int]]:
+    """Shrink each box to its trailing `coverage` fraction (the value's tail).
+
+    Redact-half convention: keep the label + prefix readable (which header /
+    which token), mosaic only the high-entropy tail. `coverage=1.0` covers the
+    whole value; `0.5` covers the back half.
+    """
+    if coverage >= 1.0:
+        return boxes
+    coverage = max(0.05, min(1.0, coverage))
+    out: list[list[int]] = []
+    for x, y, w, h in boxes:
+        cw = max(1, round(w * coverage))
+        out.append([x + (w - cw), y, cw, h])
+    return out
+
+
+def detect_sensitive_boxes(path: str, coverage: float = 0.5) -> list[list[int]]:
+    """OCR the image and return the [x,y,w,h] boxes to redact.
+
+    `coverage` is the fraction of each value covered from the RIGHT — default 0.5
+    redacts the back half and leaves the label/prefix visible; 1.0 covers all.
+    """
+    return _trailing_fraction(_sensitive_boxes(_ocr_words(path)), coverage)

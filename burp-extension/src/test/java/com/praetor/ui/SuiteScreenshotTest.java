@@ -267,6 +267,24 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void pixelStyleMosaicsInsideBoxAndLeavesOutsideUntouched() {
+        // half black / half white checkerboard inside the box -> a coarse mosaic
+        // averages neighbouring cells to grey, so the exact pattern can't be read back.
+        BufferedImage src = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < 40; x++) {
+            for (int y = 0; y < 20; y++) {
+                src.setRGB(x, y, ((x + y) % 2 == 0) ? 0x000000 : 0xFFFFFF);
+            }
+        }
+        BufferedImage out = SuiteScreenshot.applyRedactions(
+            src, java.util.List.of(new int[]{4, 2, 20, 16}), "pixel");
+        int c = out.getRGB(12, 8) & 0xFF;              // a blue channel inside the box
+        assertTrue(c > 0x20 && c < 0xE0, "inside must be an averaged mid-tone, not pure b/w");
+        assertEquals(src.getRGB(0, 0), out.getRGB(0, 0), "outside the box unchanged");
+        assertEquals(src.getRGB(39, 19), out.getRGB(39, 19), "outside the box unchanged");
+    }
+
+    @Test
     void pngBase64EncodesADecodablePng() throws Exception {
         BufferedImage img = new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, 0xFF0000);
