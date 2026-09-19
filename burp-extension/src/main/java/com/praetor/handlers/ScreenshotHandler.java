@@ -60,6 +60,29 @@ public class ScreenshotHandler extends BaseHandler {
         // so it is NOT clickable here — fire Repeater via repeater_resend instead.
         // The action is async, so wait before capturing.
         String clickButton = params.getOrDefault("click_button", "");
+        // Select a specific row in the selected tab's main table (Proxy HTTP
+        // history, Logger, ...) and scroll it into view, so the row's req/resp
+        // detail renders and the shot shows a SPECIFIC request. Value: a "#"
+        // entry number, or "last"/"newest" for the most recent row.
+        String selectRow = params.getOrDefault("select_row", "");
+        int selectedRow = -1;
+        if (!selectRow.isBlank()) {
+            int want = -1;   // <0 = last/newest
+            if (!selectRow.equalsIgnoreCase("last") && !selectRow.equalsIgnoreCase("newest")) {
+                try {
+                    want = Integer.parseInt(selectRow.trim());
+                } catch (NumberFormatException ignore) {
+                    want = -1;
+                }
+            }
+            selectedRow = SuiteScreenshot.selectTableRow(frame, want);
+            try {
+                Thread.sleep(400);   // let the req/resp detail pane render
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
         boolean clickedButton = false;
         // Diagnostic: what clickable buttons the selected tab actually exposes —
         // helps when a label doesn't match (Burp's custom UI may not use standard
@@ -96,6 +119,7 @@ public class ScreenshotHandler extends BaseHandler {
             "selected_subtab", selectedSubtab == null ? "" : selectedSubtab,
             "clicked_button", clickedButton ? clickButton : "",
             "available_buttons", availableButtons,
+            "selected_row", selectedRow,
             "label", label,
             "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is

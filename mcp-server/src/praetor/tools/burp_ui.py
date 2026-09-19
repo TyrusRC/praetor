@@ -103,7 +103,8 @@ def register(mcp: FastMCP) -> None:
     async def burp_screenshot(domain: str = "", tab: str = "", subtab: str = "",
                               note: str = "", finding_id: str = "", step: str = "",
                               scale: float = 2.0, banner: bool = False,
-                              trademark: str = "", click_button: str = "") -> dict:
+                              trademark: str = "", click_button: str = "",
+                              select_row: str = "") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
@@ -128,6 +129,13 @@ def register(mcp: FastMCP) -> None:
         repeater_resend / curl_request (they return the parsed response, which is
         the evidence, Rule 13a) and screenshot the request for context.
         Pair with tab=/subtab= to select the surface first.
+
+        `select_row='<#>'` (a Burp "#" entry number) or `select_row='last'` selects
+        that row in the selected tab's main TABLE (Proxy HTTP history, Logger, ...)
+        and scrolls it into view, so the row's request/response detail renders and
+        the shot shows a SPECIFIC request — e.g.
+        burp_screenshot(tab='proxy', subtab='http history', select_row='last').
+        `selected_row` in the return is the chosen 0-based view row (-1 if none).
 
         Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
         name — `burp-<tab>-<finding_id>-<note-slug>-<timestamp>.png` — so the
@@ -169,6 +177,8 @@ def register(mcp: FastMCP) -> None:
             params["subtab"] = subtab
         if click_button.strip():
             params["click_button"] = click_button.strip()
+        if select_row.strip():
+            params["select_row"] = select_row.strip()
         if label:
             params["label"] = label
         if trademark.strip():
@@ -183,6 +193,7 @@ def register(mcp: FastMCP) -> None:
             out["selected_tab"] = data.get("selected_tab", "")
             out["selected_subtab"] = data.get("selected_subtab", "")
             out["clicked_button"] = data.get("clicked_button", "")
+            out["selected_row"] = data.get("selected_row", -1)
             if finding_id and domain:
                 from praetor.tools.notes._screenshot_attach import _attach_screenshot
                 # off-thread: the attach takes a blocking flock on findings.json.

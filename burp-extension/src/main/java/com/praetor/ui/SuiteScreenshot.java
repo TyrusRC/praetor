@@ -3,6 +3,7 @@ package com.praetor.ui;
 import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Component;
@@ -315,6 +316,76 @@ public final class SuiteScreenshot {
             // diagnostic only
         }
         return out;
+    }
+
+    static void collectTables(Component c, List<JTable> out) {
+        if (c instanceof JTable t) {
+            out.add(t);
+        }
+        if (c instanceof Container ct) {
+            for (Component child : ct.getComponents()) {
+                collectTables(child, out);
+            }
+        }
+    }
+
+    /** View-row for a table's first ("#") column value {@code wantNumber}; the
+     *  last row when {@code wantNumber < 0} or no match (empty table -> -1). */
+    static int rowForNumber(JTable table, int wantNumber) {
+        if (table.getRowCount() == 0) {
+            return -1;
+        }
+        if (wantNumber >= 0) {
+            String want = String.valueOf(wantNumber);
+            for (int r = 0; r < table.getRowCount(); r++) {
+                Object v = table.getValueAt(r, 0);
+                if (v != null && v.toString().trim().equals(want)) {
+                    return r;
+                }
+            }
+        }
+        return table.getRowCount() - 1;
+    }
+
+    /** The JTable with the most rows under {@code root} — the history/results
+     *  table rather than a small side table. Null if none. */
+    static JTable findLargestTable(Component root) {
+        List<JTable> tables = new ArrayList<>();
+        collectTables(root, tables);
+        JTable best = null;
+        for (JTable t : tables) {
+            if (best == null || t.getRowCount() > best.getRowCount()) {
+                best = t;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Select a row in the selected tab's main table (Proxy HTTP history, Logger,
+     * Intruder results, ...) and scroll it into view, on the EDT — so the row's
+     * request/response detail renders below and a screenshot shows a SPECIFIC
+     * request. {@code wantNumber} is the value in the table's first ("#") column
+     * (Burp's 1-based entry number); pass < 0 for the last (newest) row. Returns
+     * the selected view-row index (0-based), or -1 if no table/row.
+     */
+    public static int selectTableRow(Frame frame, int wantNumber) {
+        int[] result = {-1};
+        try {
+            runOnEdt(() -> {
+                JTable table = findLargestTable(selectedTopComponent(frame));
+                if (table == null || table.getRowCount() == 0) {
+                    return;
+                }
+                int viewRow = rowForNumber(table, wantNumber);
+                table.setRowSelectionInterval(viewRow, viewRow);
+                table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
+                result[0] = viewRow;
+            });
+        } catch (RuntimeException e) {
+            return -1;
+        }
+        return result[0];
     }
 
     /** The component of the currently-selected top-level tab, or the frame. */
