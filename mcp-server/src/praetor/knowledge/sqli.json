@@ -89,7 +89,15 @@
                 "supplied argument is not a valid MySQL",
                 "SQLSTATE[",
                 "ORA-01756",
-                "PG::SyntaxError"
+                "PG::SyntaxError",
+                "Unclosed quotation mark",
+                "Incorrect syntax near",
+                "Microsoft OLE DB Provider",
+                "ODBC SQL Server Driver",
+                "Microsoft SQL Native Client",
+                "System.Data.SqlClient.SqlException",
+                "Microsoft JET Database",
+                "ODBC Microsoft Access Driver"
               ],
               "condition": "or"
             },
