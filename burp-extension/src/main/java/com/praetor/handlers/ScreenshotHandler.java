@@ -44,9 +44,13 @@ public class ScreenshotHandler extends BaseHandler {
         }
         Map<String, String> params = queryParams(exchange);
         String requestedTab = params.getOrDefault("tab", "");
-        // Best-effort: bring the requested top-level tab to front. null => not
-        // matched (unknown name / not the main strip); caller sees selected_tab.
-        String selectedTab = SuiteScreenshot.selectTab(frame, requestedTab);
+        String requestedSubtab = params.getOrDefault("subtab", "");
+        // Best-effort: bring the requested top-level tab (and nested sub-tab, e.g.
+        // Proxy > HTTP history) to front. A null entry => that level didn't match;
+        // the caller sees selected_tab / selected_subtab.
+        String[] selected = SuiteScreenshot.selectTab(frame, requestedTab, requestedSubtab);
+        String selectedTab = selected[0];
+        String selectedSubtab = selected[1];
 
         double scale = parseDouble(params.get("scale"), 2.0);   // 2× for readability
         // Optional footer strip (opt-in) — appended below the shot, hides nothing.
@@ -63,6 +67,8 @@ public class ScreenshotHandler extends BaseHandler {
             // The tab actually brought to front (null if not matched — the shot is
             // then the previously-selected tab).
             "selected_tab", selectedTab == null ? "" : selectedTab,
+            "requested_subtab", requestedSubtab,
+            "selected_subtab", selectedSubtab == null ? "" : selectedSubtab,
             "label", label,
             "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is

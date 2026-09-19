@@ -83,6 +83,46 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void selectsNestedSubTabWithinAToolTab() {
+        JTabbedPane sub = new JTabbedPane();
+        sub.addTab("Intercept", new JLabel());
+        sub.addTab("HTTP history", new JLabel());
+        sub.addTab("WebSockets history", new JLabel());
+        JPanel proxyTool = new JPanel();
+        proxyTool.add(sub);
+        JTabbedPane main = new JTabbedPane();
+        main.addTab("Dashboard", new JLabel());
+        main.addTab("Proxy", proxyTool);          // Proxy's content holds the sub-strip
+        main.addTab("Logger", new JLabel());
+        JPanel root = new JPanel();
+        root.add(main);
+
+        String[] r = SuiteScreenshot.selectTabAndSubIn(root, "proxy", "http history");
+        assertEquals("Proxy", r[0]);
+        assertEquals("HTTP history", r[1]);
+        assertEquals("Proxy", main.getTitleAt(main.getSelectedIndex()));
+        assertEquals("HTTP history", sub.getTitleAt(sub.getSelectedIndex()));
+    }
+
+    @Test
+    void unmatchedSubTabStillSelectsTheTopTab() {
+        JTabbedPane sub = new JTabbedPane();
+        sub.addTab("Intercept", new JLabel());
+        sub.addTab("HTTP history", new JLabel());
+        JPanel proxyTool = new JPanel();
+        proxyTool.add(sub);
+        JTabbedPane main = new JTabbedPane();
+        main.addTab("Proxy", proxyTool);
+        main.addTab("Logger", new JLabel());
+        JPanel root = new JPanel();
+        root.add(main);
+
+        String[] r = SuiteScreenshot.selectTabAndSubIn(root, "proxy", "no-such-subtab");
+        assertEquals("Proxy", r[0]);
+        assertNull(r[1]);   // sub-tab not found -> top tab still selected
+    }
+
+    @Test
     void selectTabReturnsNullForUnknownNameOrBlank() {
         JPanel root = new JPanel();
         root.add(burpLikeStrip());

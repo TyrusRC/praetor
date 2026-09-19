@@ -10,6 +10,42 @@ final class ProxyWire {
 
     private ProxyWire() {}
 
+    /**
+     * Force the request-line HTTP version to {@code HTTP/1.1}.
+     *
+     * A request captured from Burp's proxy history can be HTTP/2 (Burp negotiated
+     * h2 with the target), and Montoya's {@code toByteArray()} serializes it with
+     * an {@code HTTP/2} version token. The proxy tunnel speaks HTTP/1.1 to Burp's
+     * listener, so an {@code HTTP/2} request line is rejected with 400 — which is
+     * why re-sending a proxy-history-sourced Repeater tab failed while a freshly
+     * built (HTTP/1.1) request succeeded. Rewrite only the version token; the
+     * method, target and everything after the first line are byte-preserved.
+     * No-op when already HTTP/1.1 or when the first line isn't a request line.
+     */
+    static byte[] forceHttp11(byte[] raw) {
+        int lf = -1;
+        for (int i = 0; i < raw.length; i++) {
+            if (raw[i] == '\n') { lf = i; break; }
+        }
+        if (lf < 0) return raw;
+        int lineEnd = (lf > 0 && raw[lf - 1] == '\r') ? lf - 1 : lf;
+        String requestLine = new String(raw, 0, lineEnd, StandardCharsets.US_ASCII);
+        int lastSpace = requestLine.lastIndexOf(' ');
+        if (lastSpace < 0) return raw;
+        String version = requestLine.substring(lastSpace + 1);
+        if (!version.startsWith("HTTP/") || version.equals("HTTP/1.1")) return raw;
+        String newLine = requestLine.substring(0, lastSpace) + " HTTP/1.1\r\n";
+        byte[] newLineBytes = newLine.getBytes(StandardCharsets.US_ASCII);
+        int restStart = lf + 1;
+        int restLen = raw.length - restStart;
+        byte[] out = new byte[newLineBytes.length + restLen];
+        System.arraycopy(newLineBytes, 0, out, 0, newLineBytes.length);
+        if (restLen > 0) {
+            System.arraycopy(raw, restStart, out, newLineBytes.length, restLen);
+        }
+        return out;
+    }
+
     static byte[] rewriteAsProxyRequest(byte[] raw, String host, int port) {
         int lf = -1;
         for (int i = 0; i < raw.length; i++) {
