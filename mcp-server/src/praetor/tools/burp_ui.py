@@ -104,7 +104,7 @@ def register(mcp: FastMCP) -> None:
                               note: str = "", finding_id: str = "", step: str = "",
                               scale: float = 2.0, banner: bool = False,
                               trademark: str = "", click_button: str = "",
-                              select_row: str = "") -> dict:
+                              select_row: str = "", restore: bool = True) -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
@@ -144,6 +144,13 @@ def register(mcp: FastMCP) -> None:
         finding straight away (renders in the report + PoC bundle). Requires Burp
         running with its GUI (headless Burp returns a `headless` error).
 
+        NON-DISRUPTIVE by default (`restore=True`): the operator's current view —
+        selected tab, sub-tab, table row, split layout — is snapshotted before the
+        capture navigates and restored right after, so this never leaves a human's
+        Burp on a different tab/selection than they had it (the capture is also
+        occlusion-immune and doesn't steal window focus). A button CLICK is a real
+        action and is not undone. `restore=False` leaves the navigated view.
+
         Capture is rendered at `scale`× (default 2×, capped to ~2K long side) so
         text is readable on FHD/2K without bloating the PNG. `step` (e.g.
         '1-baseline', '2-attack', '3-result') goes in the filename and orders the
@@ -179,6 +186,8 @@ def register(mcp: FastMCP) -> None:
             params["click_button"] = click_button.strip()
         if select_row.strip():
             params["select_row"] = select_row.strip()
+        if not restore:
+            params["restore"] = "false"
         if label:
             params["label"] = label
         if trademark.strip():

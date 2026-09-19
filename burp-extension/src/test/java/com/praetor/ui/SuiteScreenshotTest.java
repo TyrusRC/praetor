@@ -223,6 +223,34 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void snapshotRestorePutsTabAndRowBack() {
+        JTabbedPane tp = new JTabbedPane();
+        tp.addTab("A", new JLabel());
+        tp.addTab("B", new JLabel());
+        tp.addTab("C", new JLabel());
+        tp.setSelectedIndex(1);                         // operator on tab B
+        javax.swing.table.DefaultTableModel model =
+            new javax.swing.table.DefaultTableModel(new Object[]{"#"}, 0);
+        model.addRow(new Object[]{"1"});
+        model.addRow(new Object[]{"2"});
+        model.addRow(new Object[]{"3"});
+        javax.swing.JTable table = new javax.swing.JTable(model);
+        table.setRowSelectionInterval(0, 0);            // operator had row 0 selected
+        JPanel root = new JPanel();
+        root.add(tp);
+        root.add(table);
+
+        SuiteScreenshot.UiSnapshot snap = SuiteScreenshot.snapshotUi(root);
+        // simulate the capture navigating away
+        tp.setSelectedIndex(2);
+        table.setRowSelectionInterval(2, 2);
+        // restore puts the operator's view back
+        SuiteScreenshot.restoreUi(snap);
+        assertEquals(1, tp.getSelectedIndex());
+        assertEquals(0, table.getSelectedRow());
+    }
+
+    @Test
     void pngBase64EncodesADecodablePng() throws Exception {
         BufferedImage img = new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, 0xFF0000);
