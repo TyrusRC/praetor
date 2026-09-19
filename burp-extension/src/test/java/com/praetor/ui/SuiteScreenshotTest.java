@@ -203,6 +203,26 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void tableRowFinderMatchesNumberOrLast() {
+        javax.swing.table.DefaultTableModel model =
+            new javax.swing.table.DefaultTableModel(new Object[]{"#", "URL"}, 0);
+        model.addRow(new Object[]{"1", "/a"});
+        model.addRow(new Object[]{"2", "/b"});
+        model.addRow(new Object[]{"15", "/sqli"});
+        javax.swing.JTable table = new javax.swing.JTable(model);
+        // findLargestTable locates it under a container
+        JPanel root = new JPanel();
+        root.add(table);
+        assertSame(table, SuiteScreenshot.findLargestTable(root));
+        // by "#" number
+        assertEquals(2, SuiteScreenshot.rowForNumber(table, 15));
+        assertEquals(0, SuiteScreenshot.rowForNumber(table, 1));
+        // last row for <0 or no match
+        assertEquals(2, SuiteScreenshot.rowForNumber(table, -1));
+        assertEquals(2, SuiteScreenshot.rowForNumber(table, 999));
+    }
+
+    @Test
     void pngBase64EncodesADecodablePng() throws Exception {
         BufferedImage img = new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, 0xFF0000);
