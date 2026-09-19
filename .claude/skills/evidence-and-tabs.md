@@ -128,6 +128,26 @@ For rate-limit testing, use `attack_type='battering_ram'` with 100 copies of the
 
 This is why **Workflow A's `annotate_request` + `send_to_organizer` step is mandatory** — without it, the only way to find evidence later is to re-search the entire proxy history, which is expensive.
 
+## Driving Burp UI buttons (`burp_screenshot(click_button=...)`)
+
+`click_button='<label>'` clicks a real Burp button (matched by text / tooltip /
+accessible-name) in the selected tab before capturing, so the action runs through the UI —
+less reliance on the API. `available_buttons` in the return lists what's clickable; a
+disabled button won't click.
+
+- **Collaborator — FIRST-TIME activation:** the tab opens on a "Get started" intro screen,
+  and `Poll now` / `Copy to clipboard` are DISABLED until it's clicked. So the first time
+  per session: `burp_screenshot(tab='collaborator', click_button='Get started')` to activate
+  it, THEN `click_button='Poll now'` / `'Copy to clipboard'`. (The MCP `generate_collaborator_payload`
+  / `get_collaborator_interactions` API tools work without this — the "Get started" step is
+  only for the Collaborator UI view/screenshot.)
+- Works for standard Swing buttons across features: Collaborator (Get started / Poll now /
+  Copy to clipboard / HTTP-DNS-SMTP filters), Settings, Add, etc.
+- **EXCEPTION — Repeater "Send":** it is a custom-painted control, NOT a Swing button, so it
+  CANNOT be clicked from code (an API-fired `repeater_resend` also leaves the UI response
+  pane empty). Fire Repeater with `repeater_resend` / `curl_request` — they RETURN the parsed
+  response, which is the evidence (Rule 13a) — and screenshot the request for context.
+
 ## Workflow E — "Screenshot a PoC step by step (visual evidence)"
 
 Capture like a real pentester building a report, **not** a full-window dump of whatever
