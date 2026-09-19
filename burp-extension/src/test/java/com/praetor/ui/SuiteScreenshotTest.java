@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import javax.swing.AbstractButton;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
@@ -179,6 +181,25 @@ class SuiteScreenshotTest {
         assertEquals(0x0000FF, out.getRGB(19, 9) & 0xFFFFFF);
         // The footer strip lives strictly below the original image.
         assertNotEquals(0x0000FF, out.getRGB(5, src.getHeight() + 2) & 0xFFFFFF);
+    }
+
+    @Test
+    void findButtonLocatesSendAndDoClickFires() {
+        JButton send = new JButton("Send");
+        int[] clicks = {0};
+        send.addActionListener(e -> clicks[0]++);
+        JPanel toolbar = new JPanel();
+        toolbar.add(new JButton("Cancel"));
+        toolbar.add(send);
+        JPanel root = new JPanel();
+        root.add(toolbar);
+
+        AbstractButton found = SuiteScreenshot.findButton(root, "Send");
+        assertSame(send, found);
+        assertNull(SuiteScreenshot.findButton(root, "no-such-button"));
+        // clickSendButton's core: doClick() actually fires the action.
+        found.doClick();
+        assertEquals(1, clicks[0]);
     }
 
     @Test

@@ -103,7 +103,7 @@ def register(mcp: FastMCP) -> None:
     async def burp_screenshot(domain: str = "", tab: str = "", subtab: str = "",
                               note: str = "", finding_id: str = "", step: str = "",
                               scale: float = 2.0, banner: bool = False,
-                              trademark: str = "") -> dict:
+                              trademark: str = "", click_button: str = "") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
@@ -115,6 +115,19 @@ def register(mcp: FastMCP) -> None:
         shown (empty if the name didn't match — then it's the prior selection).
         Note: tool-sent traffic (curl/send_*) shows in Logger, browser traffic in
         Proxy > HTTP history.
+
+        `click_button='<label>'` clicks a real Burp button (matched by text /
+        tooltip / accessible-name) in the selected tab BEFORE capturing, so the
+        action runs THROUGH the UI and its result renders. Works for STANDARD Swing
+        buttons: Collaborator ('Poll now', 'Copy to clipboard', 'HTTP'/'DNS'/'SMTP'),
+        Settings, Help, Add, etc. `clicked_button` echoes the label if found+enabled+
+        clicked (waits ~2.5s to render); `available_buttons` lists what's clickable
+        in that tab (a disabled button won't click — e.g. 'Poll now' before a payload
+        exists). EXCEPTION: Repeater's 'Send' is a custom-painted control, NOT a
+        Swing button — it CANNOT be clicked from code. Fire Repeater with
+        repeater_resend / curl_request (they return the parsed response, which is
+        the evidence, Rule 13a) and screenshot the request for context.
+        Pair with tab=/subtab= to select the surface first.
 
         Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
         name — `burp-<tab>-<finding_id>-<note-slug>-<timestamp>.png` — so the
@@ -154,6 +167,8 @@ def register(mcp: FastMCP) -> None:
             params["tab"] = tab
         if subtab.strip():
             params["subtab"] = subtab
+        if click_button.strip():
+            params["click_button"] = click_button.strip()
         if label:
             params["label"] = label
         if trademark.strip():
@@ -167,6 +182,7 @@ def register(mcp: FastMCP) -> None:
             # front — empty if the name didn't match (the shot is the prior tab).
             out["selected_tab"] = data.get("selected_tab", "")
             out["selected_subtab"] = data.get("selected_subtab", "")
+            out["clicked_button"] = data.get("clicked_button", "")
             if finding_id and domain:
                 from praetor.tools.notes._screenshot_attach import _attach_screenshot
                 # off-thread: the attach takes a blocking flock on findings.json.

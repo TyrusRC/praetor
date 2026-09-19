@@ -1,6 +1,7 @@
 package com.praetor.ui;
 
 import javax.imageio.ImageIO;
+import javax.swing.AbstractButton;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import java.awt.Color;
@@ -213,6 +214,153 @@ public final class SuiteScreenshot {
             return out;
         }
         return out;
+    }
+
+    /** The first enabled {@link AbstractButton} under {@code root} whose text
+     *  equals {@code label} (case-insensitive, trimmed). Null if none. */
+    static AbstractButton findButton(Component root, String label) {
+        if (root instanceof AbstractButton b) {
+            String t = b.getText();
+            if (t != null && t.trim().equalsIgnoreCase(label)) {
+                return b;
+            }
+        }
+        if (root instanceof Container c) {
+            for (Component child : c.getComponents()) {
+                AbstractButton found = findButton(child, label);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    static void collectButtons(Component c, List<AbstractButton> out) {
+        if (c instanceof AbstractButton b) {
+            out.add(b);
+        }
+        if (c instanceof Container ct) {
+            for (Component child : ct.getComponents()) {
+                collectButtons(child, out);
+            }
+        }
+    }
+
+    /** A button's identifying label: its text, else its tooltip, else its
+     *  accessible name — so a custom-painted, text-less button (Burp's "Send") is
+     *  still matchable. */
+    static String buttonLabel(AbstractButton b) {
+        String t = b.getText();
+        if (t != null && !t.isBlank()) {
+            return t.trim();
+        }
+        t = b.getToolTipText();
+        if (t != null && !t.isBlank()) {
+            return t.trim();
+        }
+        try {
+            String a = b.getAccessibleContext().getAccessibleName();
+            if (a != null && !a.isBlank()) {
+                return a.trim();
+            }
+        } catch (Exception ignored) {
+            // no accessible context
+        }
+        return "";
+    }
+
+    /** Best {@link AbstractButton} match under {@code root}: exact label, then a
+     *  prefix, then a substring (matched on text/tooltip/accessible-name so a
+     *  text-less custom button is still found), preferring an enabled one. */
+    static AbstractButton findButtonFuzzy(Component root, String wantLower) {
+        List<AbstractButton> all = new ArrayList<>();
+        collectButtons(root, all);
+        AbstractButton exact = null, prefix = null, contains = null;
+        for (AbstractButton b : all) {
+            String label = buttonLabel(b);
+            if (label.isEmpty()) {
+                continue;
+            }
+            String lt = label.toLowerCase();
+            if (lt.equals(wantLower) && (exact == null || b.isEnabled())) {
+                exact = b;
+            } else if (lt.startsWith(wantLower) && prefix == null) {
+                prefix = b;
+            } else if (lt.contains(wantLower) && contains == null) {
+                contains = b;
+            }
+        }
+        return exact != null ? exact : (prefix != null ? prefix : contains);
+    }
+
+    /** Enabled-button labels under the currently-selected top tab — a diagnostic
+     *  so a caller can see what's clickable (Burp's custom UI may not expose a
+     *  given control as a standard AbstractButton). */
+    public static List<String> listButtons(Frame frame) {
+        List<String> out = new ArrayList<>();
+        try {
+            runOnEdt(() -> {
+                Component scope = selectedTopComponent(frame);
+                List<AbstractButton> all = new ArrayList<>();
+                collectButtons(scope, all);
+                for (AbstractButton b : all) {
+                    String label = buttonLabel(b);   // text, else tooltip/accessible-name
+                    if (!label.isEmpty()) {
+                        out.add(label + (b.isEnabled() ? "" : " (disabled)"));
+                    }
+                }
+            });
+        } catch (RuntimeException e) {
+            // diagnostic only
+        }
+        return out;
+    }
+
+    /** The component of the currently-selected top-level tab, or the frame. */
+    private static Component selectedTopComponent(Frame frame) {
+        JTabbedPane main = findMainTabbedPane(frame);
+        if (main != null) {
+            int idx = main.getSelectedIndex();
+            if (idx >= 0) {
+                return main.getComponentAt(idx);
+            }
+        }
+        return frame;
+    }
+
+    /**
+     * Click a real Burp button (by exact label) in the currently-selected
+     * top-level tab, on the EDT — so the action runs THROUGH the UI and its
+     * result renders in the pane (an API call does not update the UI). Generic
+     * over features: "Send" (Repeater), "Poll now" (Collaborator), "Start attack"
+     * (Intruder), "Decode"/"Encode" (Decoder), etc. Returns true if an enabled
+     * button with that label was found and clicked. Any async result arrives
+     * after; the caller waits before capturing.
+     */
+    public static boolean clickButton(Frame frame, String label) {
+        if (label == null || label.isBlank()) {
+            return false;
+        }
+        String want = label.trim().toLowerCase();
+        boolean[] clicked = {false};
+        try {
+            runOnEdt(() -> {
+                // Search the selected tool's component first, then the whole frame
+                // as a fallback (some controls live in a shared toolbar).
+                AbstractButton btn = findButtonFuzzy(selectedTopComponent(frame), want);
+                if (btn == null) {
+                    btn = findButtonFuzzy(frame, want);
+                }
+                if (btn != null && btn.isEnabled()) {
+                    btn.doClick();
+                    clicked[0] = true;
+                }
+            });
+        } catch (RuntimeException e) {
+            return false;
+        }
+        return clicked[0];
     }
 
     /**
