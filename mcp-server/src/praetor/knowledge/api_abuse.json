@@ -268,6 +268,33 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "server_side_param_pollution": {
+      "description": "Server-side parameter pollution (SSPP) — a user value the front-end forwards into an INTERNAL query/REST call is field-masked with a double-encoded delimiter: %2523 (#) truncates the trailing internal params, %2526 (&) appends a new internal param. Covers the query-string and REST-URL SSPP labs.",
+      "tech_match": [],
+      "param_match": ["id", "user_id", "username", "email", "field", "filter", "search", "q", "role", "status", "type", "action"],
+      "probes": [
+        {
+          "payload": "{{baseline}}%2523",
+          "description": "Field mask via encoded # — if the value is placed into a backend query string, %23 (from double-decode) truncates the server-appended params, changing the result or raising a backend error vs baseline.",
+          "matchers": [
+            {"type": "length_diff", "min_diff": 30},
+            {"type": "not_word", "words": ["invalid", "not found", "does not exist"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}%2526role=admin",
+          "description": "Field inject via encoded & — appends role=admin to the backend query; a privilege/behaviour delta vs baseline confirms the value reaches an internal parameterised call.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 30}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }

