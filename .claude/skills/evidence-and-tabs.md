@@ -130,20 +130,28 @@ Capture like a real pentester building a report, **not** a full-window dump of w
 tab happens to be open. One screenshot = one thing that advances the proof. Prepare the
 view first so the shot SHOWS the evidence and nothing else.
 
-`burp_screenshot` captures the whole Burp window as it currently looks (Montoya exposes
-the window, not a single tab), so the discipline is: **isolate + highlight the one request,
-select that tab, then capture.** A shot of Proxy history with 400 unrelated rows proves
-nothing and reads as noise.
+**`burp_screenshot(tab=...)` switches the top-level Burp tab FOR you — you do NOT ask the
+operator to click it.** Pass the tool name (`logger`, `organizer`, `repeater`, `proxy`,
+`comparer`, `decoder`, `intruder`, ...) and the extension brings that tab to front before
+capturing; the return's `selected_tab` confirms it. The discipline is still **isolate +
+highlight the one request, then capture** — a shot of Proxy history with 400 unrelated rows
+proves nothing — but the tab switch is automatic, not a hand-off.
 
-Prepare the view (filter + highlight — the "real person" part):
+Prepare the view (all tool-driven — no manual clicking):
 ```
 1. Isolate the ONE request that proves the step:
-     send_to_repeater(index=N, tab_name="f001-sqli-login")   # req+resp on one clean tab
-   OR filter it out of the noise so it's the visible/selected row:
+     send_to_repeater(index=N, tab_name="f001-sqli-login")   # creates AND focuses a new
+                                                             # Repeater sub-tab
+   OR annotate + bookmark so it's the highlighted/selected row:
      annotate_request(index=N, color='RED', comment='f001 | sqli | pg_query error in body')
      send_to_organizer(index=N)                              # or curate_evidence(...) — one call
-   → in Burp, select that Repeater tab / that Organizer entry / that highlighted row.
+2. burp_screenshot(tab='repeater'|'organizer'|'logger', ...) brings that tool to front and
+   captures — the isolated request (the just-focused Repeater sub-tab / the annotated row)
+   is what's shown. NO operator step.
 ```
+The only thing NOT tool-selectable is a SUB-tab *within* a tool (Proxy > HTTP-history vs
+Intercept) — Montoya exposes no selector below the top strip. Everything at the top-tab
+level is automatic; only ask the operator when you genuinely need a specific sub-tab shown.
 
 Capture each PoC STEP with a caption that says what it proves, attaching to the finding:
 ```
