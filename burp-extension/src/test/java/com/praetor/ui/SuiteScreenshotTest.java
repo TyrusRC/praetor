@@ -251,6 +251,22 @@ class SuiteScreenshotTest {
     }
 
     @Test
+    void applyRedactionsBlacksOutOnlyTheBox() {
+        BufferedImage src = new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < 20; x++) {
+            for (int y = 0; y < 20; y++) {
+                src.setRGB(x, y, 0xFFFFFF);   // white
+            }
+        }
+        BufferedImage out = SuiteScreenshot.applyRedactions(src, java.util.List.of(new int[]{5, 5, 6, 6}));
+        assertTrue((out.getRGB(7, 7) & 0xFFFFFF) < 0x303030, "inside the box must be dark");
+        assertEquals(0xFFFFFF, out.getRGB(0, 0) & 0xFFFFFF, "outside unchanged");
+        assertEquals(0xFFFFFF, out.getRGB(19, 19) & 0xFFFFFF, "outside unchanged");
+        // out-of-bounds box is clamped, no crash
+        assertNotNull(SuiteScreenshot.applyRedactions(src, java.util.List.of(new int[]{15, 15, 999, 999})));
+    }
+
+    @Test
     void pngBase64EncodesADecodablePng() throws Exception {
         BufferedImage img = new BufferedImage(3, 2, BufferedImage.TYPE_INT_RGB);
         img.setRGB(0, 0, 0xFF0000);

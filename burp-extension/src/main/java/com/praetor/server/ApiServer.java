@@ -186,6 +186,9 @@ public class ApiServer {
         // Full-window screenshot of the Burp Suite GUI (evidence capture)
         server.createContext("/api/ui/screenshot", new ScreenshotHandler(api));
 
+        // Redact sensitive regions in an existing screenshot (opaque boxes)
+        server.createContext("/api/ui/redact", new RedactHandler());
+
         server.start();
     }
 
