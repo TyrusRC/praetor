@@ -60,6 +60,41 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "dotnet_efcore": {
+      "description": "EF Core / OData navigation-property traversal (PortSwigger Top-10 2025 #2, 'ORM Leaking More Than You Joined For') -- a search/filter param that traverses a navigation property reaches a RELATED table's sensitive columns the endpoint never meant to expose.",
+      "tech_match": [".NET", "ASP.NET", "IIS"],
+      "param_match": ["filter", "search", "sort", "order", "orderby", "where", "expand", "select", "field", "q", "$filter", "$expand", "$select", "$orderby"],
+      "probes": [
+        {
+          "payload": "Owner/Password ne null",
+          "description": "Navigation-property traversal in a filter -- EF Core throws a translation error when the path reaches a column/relationship it cannot map, confirming the param drives an EF query.",
+          "matchers": [
+            {"type": "word", "words": ["The LINQ expression", "could not be translated", "Microsoft.EntityFrameworkCore", "System.InvalidOperationException", "System.Data.Entity"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "$expand=*",
+          "description": "OData $expand wildcard -- pulls every navigation property (related entities) into the response; a valid-but-unintended expand leaks related-table data or an OData validation error confirms the surface.",
+          "matchers": [
+            {"type": "word", "words": ["The query specified in the URI is not valid", "Microsoft.OData", "System.Web.Http.OData", "ODataException", "@odata.context"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "Owner.Role eq 'admin'",
+          "description": "Boolean relationship filter -- if the related-entity predicate changes the result set vs baseline, the filter reaches a joined table (extractable one predicate at a time).",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 80}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }

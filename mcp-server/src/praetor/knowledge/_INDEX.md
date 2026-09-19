@@ -342,3 +342,18 @@ Active-only surfaces (probes run via binary tools, no KB matchers):
 | `windows_admin_center` | wac_powershell_rce_invokecommand, wac_product_fingerprint | WinREST invokeCommand post-auth PowerShell RCE | critical | windows admin center, wac, winrest |
 
 Kill-chain context (why these two sit together): SmarterMail unauth RCE -> svc_mail filesystem access -> DPAPI masterkey+credential-blob recovery (`impacket-dpapi`) -> domain creds -> BloodHound reveals a ForceChangePassword/ACL path -> AD CS ESC template abuse (`certipy req`/`auth`) -> Administrator NT hash -> Pass-the-Hash to DC. Windows Admin Center is the alternate foothold (management-plane PowerShell exec against a managed DC node).
+
+## 2026-09-19 additions — PortSwigger lab + 2025 Top-10 gap pass
+
+Grep-verified diff of the KB against every PortSwigger Web Security Academy lab and the 2025 Top-10 web hacking techniques found the KB already tracks the full lab catalog and 8-9/10 of the 2025 Top-10. New contexts fill the genuine, falsifiable, auto_probe-shaped gaps (multi-step/raw-socket variants are routed via `lab-solve.md`, not added as probes):
+
+| Category | New context | Lab / technique |
+|---|---|---|
+| `orm_leak` | `dotnet_efcore` | 2025 Top-10 #2 "ORM Leaking More Than You Joined For" — EF Core / OData navigation-property traversal |
+| `xss` | (probe in `javascript_context`) | reflected XSS into a JS template literal `${...}` with angle brackets escaped |
+| `nosql` | `mongodb_field_enum` | NoSQL operator injection to extract UNKNOWN FIELD names (`$where` Object.keys) |
+| `prototype_pollution` | (probes in `client_side`) | client-side PP via flawed sanitization + alternative `constructor[prototype]` vector |
+| `api_abuse` | `server_side_param_pollution` | SSPP field-masking in a query string and REST URL (`%2523`/`%2526`) |
+| `file_upload` | `filename_path_traversal` | web-shell upload via traversal/null-byte filename |
+
+Confirmed already-covered (NOT re-added): error-based blind SSTI (`ssti_*:error_based_blind`), SSRF redirect-loop (`ssrf_bypass:redirect_loop_full_response_leak`), GraphQL CSRF (`graphql:csrf_via_get`), CSTI (`xss:angular`), XXE-via-SVG (`xxe:svg_xxe`), fat-GET cache, PHP filter chains, single-packet race, PAR/DPoP OAuth, 0.CL/CL.0/browser-powered desync, DOM clobbering. Research-only / low-priority (not added): SMTP smuggling, timeless-timing KB↔tool parity, "Successful Errors" (overlaps ssti/info_disclosure).

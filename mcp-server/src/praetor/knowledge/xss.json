@@ -243,6 +243,19 @@
           "severity": "high",
           "confidence_boost": 60,
           "variables": {}
+        },
+        {
+          "payload": "${alert(document.domain)}",
+          "description": "Template-literal breakout \u2014 reflection inside a backtick-delimited JS string; ${} is evaluated by the browser even when < > & ' \" and \\ are HTML/Unicode-escaped (the 'template literal with angle brackets escaped' lab). Confirm execution with probe_xss_executed.",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
         }
       ]
     },

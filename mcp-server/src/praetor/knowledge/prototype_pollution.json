@@ -114,6 +114,32 @@
           "severity": "high",
           "confidence_boost": 55,
           "variables": {}
+        },
+        {
+          "payload": "?__pro__proto__to__[pp_canary_9z]=pp_canary_9z",
+          "description": "Flawed-sanitization bypass \u2014 a naive single-pass strip of '__proto__' leaves '__proto__' behind (the 'client-side PP via flawed sanitization' lab). Reflection of the canary key confirms pollution survived the filter.",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "?constructor[prototype][pp_canary_9z]=pp_canary_9z",
+          "description": "Alternative pollution vector \u2014 constructor[prototype] reaches Object.prototype when __proto__ is filtered (the 'DOM XSS via an alternative prototype pollution vector' lab).",
+          "matchers": [
+            {
+              "type": "reflection",
+              "check_variants": true
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
         }
       ]
     },
