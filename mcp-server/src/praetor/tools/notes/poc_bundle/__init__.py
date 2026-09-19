@@ -106,6 +106,7 @@ def register(mcp: FastMCP):
             # domain dir (no ../ escaping a host path into the shareable tar) and
             # uniquify basename collisions so one shot can't overwrite another.
             shot_files: list[str] = []
+            leak_warnings: list[str] = []
             used_arcs: set[str] = set()
             ev = target.get("evidence") or {}
             dom_dir = (_intel_dir() / _sanitized(domain)).resolve()
@@ -118,6 +119,15 @@ def register(mcp: FastMCP):
                     continue  # traversal outside the domain dir — skip
                 if not src.exists():
                     continue
+                # Safety net: a naked shot is going into a shareable tar while a
+                # redacted twin exists on disk — the operator likely meant to ship
+                # the redacted one. Flag it (the bundle still builds).
+                if (not src.name.endswith("-redacted.png")
+                        and (src.parent / f"{src.stem}-redacted.png").exists()):
+                    leak_warnings.append(
+                        f"{src.name}: a redacted twin ({src.stem}-redacted.png) exists but the "
+                        "NAKED shot is attached — re-attach the redacted one before sharing "
+                        "(burp_screenshot attach='auto' / attach_screenshot the -redacted file).")
                 arc = f"screenshots/{src.name}"
                 n = 1
                 while arc in used_arcs:  # basename collision
@@ -128,7 +138,7 @@ def register(mcp: FastMCP):
                 shot_files.append(arc)
 
         tar_path.write_bytes(buf.getvalue())
-        return {
+        result = {
             "ok": True,
             "finding_id": finding_id,
             "bundle_path": str(tar_path),
@@ -136,6 +146,9 @@ def register(mcp: FastMCP):
             "files": ["README.md", "request.http", "response.http", "repro.sh",
                       "verify.py", "finding.json"] + shot_files,
         }
+        if leak_warnings:
+            result["warnings"] = leak_warnings
+        return result
 
     @mcp.tool()
     async def export_proof_capsule(

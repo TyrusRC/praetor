@@ -6,6 +6,7 @@ from praetor.tools._redact_ocr import (
     _is_sensitive_value,
     _merge_boxes,
     _sensitive_boxes,
+    _trailing_fraction,
 )
 
 
@@ -48,6 +49,19 @@ class SensitiveBoxesTest(unittest.TestCase):
     def test_authorization_bearer_redacted(self):
         words = [_w("Authorization:", 50), _w("Bearer", 200), _w("eyJhbGciOiJIUzI1NiJ9", 270)]
         self.assertTrue(_sensitive_boxes(words))
+
+
+class TrailingFractionTest(unittest.TestCase):
+    def test_covers_back_half_keeps_prefix(self):
+        # value box x=100 w=200 -> back half is x=200 w=100 (prefix 100..200 stays)
+        self.assertEqual(_trailing_fraction([[100, 50, 200, 18]], 0.5), [[200, 50, 100, 18]])
+
+    def test_full_coverage_unchanged(self):
+        self.assertEqual(_trailing_fraction([[100, 50, 200, 18]], 1.0), [[100, 50, 200, 18]])
+
+    def test_never_zero_width(self):
+        # tiny box still yields at least 1px so a short value isn't left uncovered
+        self.assertTrue(all(b[2] >= 1 for b in _trailing_fraction([[10, 5, 3, 18]], 0.5)))
 
 
 class MergeBoxesTest(unittest.TestCase):

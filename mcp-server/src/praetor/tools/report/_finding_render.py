@@ -174,18 +174,26 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
         lines.append("**Evidence**")
         for k, v in evidence_rows:
             lines.append(f"- {k}: `{str(v)[:200]}`")
-        # Client report cites the filename only (the reader gets the image file
-        # attached); internal keeps the domain-relative path so the operator can
-        # open it beside the report. Ordered as PoC steps.
+        # Embed the shots inline as images so the reader SEES the proof, not a
+        # bare filename. reports/ and screenshots/ are siblings under the domain
+        # root, so `../screenshots/<name>` renders in any markdown/HTML viewer and
+        # inside export_poc_bundle. internal adds the canonical workspace path so
+        # the operator can locate the file. Ordered as PoC steps.
         if screenshots:
             lines.append("")
             lines.append("_PoC screenshots:_")
+            lines.append("")
         for s in screenshots:
             name = s["file"].rsplit("/", 1)[-1]
-            ref = s["file"] if internal else name
             step = f"Step {s['step']}: " if s.get("step") else ""
-            cap = f" — {s['note']}" if s.get("note") else ""
-            lines.append(f"- {step}`{ref}`{cap}")
+            caption = f"{step}{s.get('note', '')}".strip()
+            lines.append(f"![{caption or name}](../screenshots/{name})")
+            sub = caption
+            if internal:
+                sub = f"{caption} (`{s['file']}`)".strip() if caption else f"`{s['file']}`"
+            if sub:
+                lines.append(f"*{sub}*")
+            lines.append("")
         if isinstance(evidence, str) and evidence.strip():
             lines.append(f"```\n{evidence[:800]}\n```")
         # Replay tables prove reproducibility to the operator, not to the

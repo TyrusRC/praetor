@@ -6,15 +6,57 @@ This renders a single HTML grid under reports/gallery.html with relative <img>
 refs to the screenshots dir (opened locally beside them — a triage aid, not a
 shareable artifact).
 
-`render_gallery_html` is pure; `screenshot_gallery` scans the dir + writes.
+When a shot has a `<name>-redacted.png` twin, only the redacted one is shown —
+the contact sheet never surfaces a raw secret a redaction already covered.
+Captions come from the finding a shot is attached to (`evidence.screenshots`).
+
+`render_gallery_html` and `_visible_shots` are pure; `screenshot_gallery` scans
+the dir + findings.json and writes.
 """
 
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+
+from praetor.tools.notes._findings_io import _intel_dir, _sanitized
+
+
+def _visible_shots(names: list[str]) -> list[str]:
+    """Drop the naked partner when a `<stem>-redacted.png` twin exists.
+
+    A redacted twin means the operator produced a safe version; showing the raw
+    shot beside it in the contact sheet re-exposes the secret. Redacted files and
+    shots with no twin pass through. Order preserved.
+    """
+    have = set(names)
+
+    def superseded(n: str) -> bool:
+        return (n.endswith(".png") and not n.endswith("-redacted.png")
+                and f"{n[:-4]}-redacted.png" in have)
+    return [n for n in names if not superseded(n)]
+
+
+def _notes_from_findings(findings_path: Path) -> dict[str, str]:
+    """Map screenshot basename -> caption, from findings' evidence.screenshots."""
+    notes: dict[str, str] = {}
+    try:
+        store = json.loads(findings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return notes
+    for f in store.get("findings", []) if isinstance(store, dict) else []:
+        ev = f.get("evidence")
+        if not isinstance(ev, dict):
+            continue
+        for s in ev.get("screenshots") or []:
+            ref = s.get("file", "") if isinstance(s, dict) else str(s)
+            note = s.get("note", "") if isinstance(s, dict) else ""
+            if ref:
+                notes[ref.rsplit("/", 1)[-1]] = note
+    return notes
 
 
 def render_gallery_html(domain: str, shots: list[dict]) -> str:
@@ -60,15 +102,16 @@ def register(mcp: FastMCP) -> None:
 
         Scans .burp-intel/<domain>/screenshots/*.png and writes
         reports/gallery.html — a visual-triage grid to spot login/admin/staging
-        panels at a glance. Returns {path, count}.
+        panels at a glance. Hides the naked twin of any redacted shot and captions
+        each from the finding it is attached to. Returns {path, count}.
         """
-        shots_dir = Path(".burp-intel") / domain / "screenshots"
-        shots = [
-            {"file": p.name, "note": ""}
-            for p in sorted(shots_dir.glob("*.png"))
-        ] if shots_dir.is_dir() else []
+        base = _intel_dir() / _sanitized(domain)
+        shots_dir = base / "screenshots"
+        names = sorted(p.name for p in shots_dir.glob("*.png")) if shots_dir.is_dir() else []
+        notes = _notes_from_findings(base / "findings.json")
+        shots = [{"file": n, "note": notes.get(n, "")} for n in _visible_shots(names)]
 
-        out = Path(".burp-intel") / domain / "reports" / "gallery.html"
+        out = base / "reports" / "gallery.html"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(render_gallery_html(domain, shots), encoding="utf-8")
         return {"path": str(out), "count": len(shots)}

@@ -6,7 +6,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from praetor.tools.burp_ui import _save_shot
+from praetor.tools.burp_ui import _pick_attach, _save_shot
+
+
+class PickAttachTest(unittest.TestCase):
+    NAKED = "screenshots/burp-repeater-f001.png"
+    RED = "screenshots/burp-repeater-f001-redacted.png"
+
+    def test_auto_prefers_redacted_twin(self):
+        # the deliverable must never carry the naked shot when a redacted one exists
+        self.assertEqual(_pick_attach(self.NAKED, self.RED, "auto"), self.RED)
+
+    def test_auto_falls_back_to_naked_when_no_redaction(self):
+        self.assertEqual(_pick_attach(self.NAKED, "", "auto"), self.NAKED)
+
+    def test_naked_forces_raw_shot(self):
+        self.assertEqual(_pick_attach(self.NAKED, self.RED, "naked"), self.NAKED)
+
+    def test_none_attaches_nothing(self):
+        self.assertEqual(_pick_attach(self.NAKED, self.RED, "none"), "")
+
+    def test_unknown_mode_is_auto(self):
+        self.assertEqual(_pick_attach(self.NAKED, self.RED, "bogus"), self.RED)
 
 
 class SaveShotTest(unittest.TestCase):

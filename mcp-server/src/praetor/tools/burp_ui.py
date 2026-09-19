@@ -98,8 +98,28 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
     }
 
 
-async def _run_auto_redact(path: str, out_path: str = "") -> dict:
-    """OCR-detect secrets in `path` and write a redacted twin. Naked stays put."""
+def _pick_attach(saved: str, redacted: str, mode: str) -> str:
+    """Which screenshot to attach to a finding (⇒ ships in report + PoC bundle).
+
+    'auto' (default) prefers the REDACTED twin when one exists so a secret never
+    reaches the deliverable, else the naked shot; 'naked' forces the raw shot;
+    'none' attaches nothing (returns ""). Unknown modes fall back to 'auto'.
+    """
+    m = (mode or "auto").strip().lower()
+    if m == "none":
+        return ""
+    if m == "naked":
+        return saved
+    return redacted or saved   # auto: redacted wins when present
+
+
+async def _run_auto_redact(path: str, out_path: str = "",
+                           style: str = "pixel", coverage: float = 0.5) -> dict:
+    """OCR-detect secrets in `path` and write a redacted twin. Naked stays put.
+
+    Default: pixel-mosaic the trailing half of each value (label/prefix stays
+    readable). `style="solid"` for an opaque fill; `coverage=1.0` covers all.
+    """
     from praetor.tools._redact_ocr import detect_sensitive_boxes, tesseract_available
     p = Path(path)
     if not p.exists():
@@ -107,11 +127,12 @@ async def _run_auto_redact(path: str, out_path: str = "") -> dict:
     if not tesseract_available():
         return {"error": "tesseract not installed",
                 "hint": "install the free tesseract-ocr (apt/brew) — see setup.sh"}
-    boxes = await asyncio.to_thread(detect_sensitive_boxes, str(p))
+    boxes = await asyncio.to_thread(detect_sensitive_boxes, str(p), coverage)
     if not boxes:
         return {"redacted": "", "regions": 0, "note": "no sensitive spans detected by OCR"}
     b64 = base64.b64encode(p.read_bytes()).decode()
-    data = await client.post("/api/ui/redact", json={"png_base64": b64, "boxes": boxes})
+    data = await client.post("/api/ui/redact",
+                             json={"png_base64": b64, "boxes": boxes, "style": style})
     if isinstance(data, dict) and "error" in data:
         return data
     rb64 = data.get("png_base64") if isinstance(data, dict) else None
@@ -123,7 +144,7 @@ async def _run_auto_redact(path: str, out_path: str = "") -> dict:
         out.write_bytes(base64.b64decode(rb64))
     except (OSError, ValueError) as exc:
         return {"error": f"failed to save redacted image: {exc}"}
-    return {"redacted": str(out), "regions": len(boxes)}
+    return {"redacted": str(out), "regions": len(boxes), "style": style}
 
 
 def register(mcp: FastMCP) -> None:
@@ -133,7 +154,7 @@ def register(mcp: FastMCP) -> None:
                               scale: float = 2.0, banner: bool = False,
                               trademark: str = "", click_button: str = "",
                               select_row: str = "", restore: bool = True,
-                              auto_redact: bool = False) -> dict:
+                              auto_redact: bool = False, attach: str = "auto") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
         Pass `tab` to bring that top-level Burp tab to front before capturing
@@ -192,9 +213,15 @@ def register(mcp: FastMCP) -> None:
 
         `auto_redact=True` OCR-scans the saved shot and writes a redacted twin
         (`out['redacted']`) with secrets (cookies / tokens / keys / JWTs / emails)
-        boxed out — the naked shot stays at `out['saved']`, so the operator picks
-        which goes in the report. Needs tesseract (see setup.sh); for precise
-        control use `redact_screenshot(path, boxes)` / `auto_redact_screenshot(path)`.
+        pixel-mosaicked — the naked shot stays at `out['saved']`, so the operator
+        keeps both. Needs tesseract (see setup.sh); for precise control use
+        `redact_screenshot(path, boxes)` / `auto_redact_screenshot(path)`.
+
+        `attach` picks which twin is linked to `finding_id` (⇒ what ships in the
+        report + PoC bundle): 'auto' (default) ships the REDACTED twin when one
+        exists — so a secret never reaches the deliverable — else the naked shot;
+        'naked' forces the raw shot; 'none' captures without attaching.
+        `attached_file` echoes the filename that was linked.
 
         SENSITIVE: this captures the WHOLE Burp window, which may show unrelated
         secrets (other tabs, tokens, other in-scope hosts, cross-customer proxy
@@ -210,6 +237,10 @@ def register(mcp: FastMCP) -> None:
             scale: render scale (default 2×; capped so the long side stays ~2K).
             banner: append a footer caption strip below the shot (ask first; default off).
             trademark: optional brand text, right side of the footer (implies banner).
+            auto_redact: OCR-detect secrets and write a pixel-mosaicked redacted twin.
+            attach: which twin to link to finding_id — 'auto' (redacted if present,
+                else naked), 'naked', or 'none'. Default 'auto' keeps secrets out of
+                the deliverable.
         """
         label = _caption(step, note) if (banner or trademark.strip()) else ""
         params = {"scale": str(scale)}
@@ -246,39 +277,53 @@ def register(mcp: FastMCP) -> None:
                 out["redacted_regions"] = r.get("regions", 0)
                 if "error" in r:
                     out["redact_error"] = r["error"]
-            if finding_id and domain:
+            # Which twin gets attached to the finding (⇒ ships in report + PoC
+            # bundle). 'auto' ships the REDACTED twin when one exists so a secret
+            # never reaches the deliverable; 'naked' forces the raw shot; 'none'
+            # skips attach.
+            attach_path = _pick_attach(out["saved"], out.get("redacted", ""), attach)
+            if finding_id and domain and attach_path:
                 from praetor.tools.notes._screenshot_attach import _attach_screenshot
                 # off-thread: the attach takes a blocking flock on findings.json.
                 out["attached"] = await asyncio.to_thread(
-                    _attach_screenshot, domain, finding_id, out["saved"], note, step)
+                    _attach_screenshot, domain, finding_id, attach_path, note, step)
+                out["attached_file"] = Path(attach_path).name
         return out
 
     @mcp.tool()
-    async def auto_redact_screenshot(path: str, out_path: str = "") -> dict:
+    async def auto_redact_screenshot(path: str, out_path: str = "",
+                                     style: str = "pixel", coverage: float = 0.5) -> dict:
         """Auto-detect + redact secrets in a screenshot via OCR — keeps a naked + redacted pair.
 
         Runs the free `tesseract` OCR over the saved PNG, flags sensitive spans
         (cookies, session tokens, API keys, JWTs, emails — by value shape or a
-        sensitive header key on the line), and draws opaque boxes over them via
-        /api/ui/redact. The original (naked) is left untouched; a `<name>-redacted.png`
-        twin is written. The operator chooses which to put in the report. No model
-        step and no re-capture. Needs tesseract installed (apt/brew; see setup.sh).
+        sensitive header key on the line), and censors them via /api/ui/redact.
+        Default: a coarse pixel-mosaic over the trailing HALF of each value, so
+        the label/prefix stays readable (which header, which token) and only the
+        high-entropy tail is hidden. The original (naked) is left untouched; a
+        `<name>-redacted.png` twin is written. The operator chooses which to put in
+        the report. No model step, no re-capture. Needs tesseract (apt/brew; setup.sh).
 
         Args:
             path: the screenshot to scan (a burp_screenshot `saved` path).
             out_path: where to write the redacted twin (default `<name>-redacted.png`).
+            style: "pixel" (coarse mosaic, default) or "solid" (opaque fill).
+            coverage: fraction of each value covered from the right (0.5 = back half,
+                1.0 = whole value). Solid + coverage=1.0 is the fully-irreversible option.
         """
-        r = await _run_auto_redact(path, out_path)
+        r = await _run_auto_redact(path, out_path, style=style, coverage=coverage)
         r.setdefault("naked", path)
         return r
 
     @mcp.tool()
-    async def redact_screenshot(path: str, boxes: list, out_path: str = "") -> dict:
-        """Redact sensitive regions in an EXISTING screenshot — opaque boxes ON TOP.
+    async def redact_screenshot(path: str, boxes: list, out_path: str = "",
+                                style: str = "pixel") -> dict:
+        """Redact sensitive regions in an EXISTING screenshot — censor boxes ON TOP.
 
-        Does NOT re-capture or re-render; it draws solid, irreversible boxes over
-        the saved PNG to hide cookies, session tokens, API keys, PII, etc. before
-        the shot goes in a report.
+        Does NOT re-capture or re-render; it censors the saved PNG to hide cookies,
+        session tokens, API keys, PII, etc. before the shot goes in a report.
+        `style="pixel"` (default) draws a coarse, non-invertible mosaic; "solid" an
+        opaque fill.
 
         Workflow: read the screenshot first (so you SEE it and its coordinate
         mapping), find the sensitive spans, then pass their boxes. Size each box to
@@ -291,6 +336,7 @@ def register(mcp: FastMCP) -> None:
                 saved PNG is 2×, ~2560px wide — use the coordinates you read off it,
                 not the displayed/downscaled ones).
             out_path: where to save; default `<name>-redacted.png` beside the source.
+            style: "pixel" (coarse mosaic, default) or "solid" (opaque fill).
         """
         p = Path(path)
         if not p.exists():
@@ -308,7 +354,8 @@ def register(mcp: FastMCP) -> None:
                     continue
         if not norm:
             return {"error": "no valid boxes — each must be [x, y, w, h]"}
-        data = await client.post("/api/ui/redact", json={"png_base64": b64, "boxes": norm})
+        data = await client.post("/api/ui/redact",
+                                 json={"png_base64": b64, "boxes": norm, "style": style})
         if isinstance(data, dict) and "error" in data:
             return data
         rb64 = data.get("png_base64") if isinstance(data, dict) else None
@@ -320,5 +367,5 @@ def register(mcp: FastMCP) -> None:
             out.write_bytes(base64.b64decode(rb64))
         except (OSError, ValueError) as exc:
             return {"error": f"failed to save redacted image: {exc}"}
-        return {"saved": str(out), "source": str(p),
+        return {"saved": str(out), "source": str(p), "style": style,
                 "boxes_applied": data.get("boxes_applied", len(norm))}
