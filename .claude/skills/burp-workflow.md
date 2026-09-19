@@ -82,7 +82,9 @@ Multi-step flow (login → extract CSRF → exploit)?
   → run_flow(session, steps=[...])                   # ONE call instead of 5+
 
 Want it visible in Burp UI?
-  → send_to_repeater(index)                          # For manual follow-up in Burp
+  → send_to_repeater_tracked(index, tab_name=...)    # visible AND fireable via repeater_resend
+                                                     # (plain send_to_repeater is UI-only — a
+                                                     # human must click Send)
   → send_to_intruder(index)                          # For position-based attacks in Burp
 ```
 

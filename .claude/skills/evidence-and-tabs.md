@@ -16,7 +16,7 @@ The MCP gives you the same surfaces a real Burp operator uses. Pick by INTENT, n
 | Find a request already captured (auth, login, target endpoint) | `search_history(query=...)` → `get_proxy_history(filter=...)` | Captured requests carry real cookies, CSRF tokens, browser headers. Curl recreations lose state. |
 | Read a specific request/response by index | `get_request_detail(index)` (or `extract_regex/json_path/headers` for token efficiency) | Reading is cheap; re-sending wastes scope traffic. |
 | Test ONE modification on a captured request | `resend_with_modification(index, modify_headers=..., modify_body=..., modify_path=..., modify_method=...)` | Single-call diff vs baseline. |
-| Iterate on a captured request through Burp UI (manual tweaks, re-runs) | `send_to_repeater(index, tab_name="<f-id> <vuln>")` → `repeater_resend(tab_name, modifications)` | Tracked tabs survive across calls; user can also hand-tweak in Burp UI. |
+| Iterate on a captured request through Burp UI (fire + re-run from the MCP) | `send_to_repeater_tracked(index, tab_name="<f-id>-<vuln>")` → `repeater_resend(tab_name, modify_*)` | `_tracked` is required — plain `send_to_repeater` only DISPLAYS the tab (untracked), so `repeater_resend` can't fire it and it waits on a human. |
 | Brute force, rate-limit absence, spam, header/param sweep, value enumeration | `send_to_intruder_configured(index, mode='auto', payload_lists=[...], attack_type=..., tab_name=...)` | Burp's native attack engine — proper position handling, mark/grep, exposes results table. |
 | Race condition (concurrent identical/near-identical requests) | `test_race_condition(session, request, concurrent=10)` | Server-side CountDownLatch; `Intruder` is sequential. |
 | Same payload list across N parameters or N endpoints | `fuzz_parameter(index, parameters=[...], attack_type='cluster_bomb')` | MCP-side, no UI overhead, anomaly detection on responses. |
@@ -76,17 +76,21 @@ If after step 1 the query returns 0 hits AND the user expects a captured request
 ## Workflow B — "Modify and re-test a captured request"
 
 ```
-1. send_to_repeater(index=N, tab_name="f001-sqli-login")
-   → tab created, visible in Burp UI for the user too
-2. repeater_resend(tab_name="f001-sqli-login", modifications={
-       "body": "username=admin&password=admin' OR 1=1--",
-   })
+1. send_to_repeater_tracked(index=N, tab_name="f001-sqli-login")   # _tracked = fireable
+   → tab created + TRACKED (visible in Burp UI too). Plain send_to_repeater is UI-only.
+2. repeater_resend(tab_name="f001-sqli-login",
+       modify_body="username=admin&password=admin' OR 1=1--")       # this FIRES it
+   → the call RETURNS the response — READ it (status + BODY vs baseline, Rule 13a).
 3. Compare via get_response_diff(index_a=<original>, index_b=<repeater_result>)
 4. If anomaly persists → annotate_request(<repeater_result_index>, color='RED', comment=...)
                        → send_to_organizer(<repeater_result_index>)
 ```
 
-Iterate by calling `repeater_resend` again with the next variation. The tab stays open; the user sees your iterations live.
+Iterate by calling `repeater_resend` again with the next variation; each call fires and
+returns the response. The tab stays open; the user sees your iterations live. If a
+`repeater_resend` result looks wrong (e.g. a 400 with an nginx/error-page body when the
+same request works via `curl_request`), the send path — not the target — is the problem:
+fall back to `curl_request` (it fires + parses + lands in Proxy history) and note it.
 
 ## Workflow C — "Brute / rate-limit / spam test"
 
@@ -140,8 +144,8 @@ proves nothing — but the tab switch is automatic, not a hand-off.
 Prepare the view (all tool-driven — no manual clicking):
 ```
 1. Isolate the ONE request that proves the step:
-     send_to_repeater(index=N, tab_name="f001-sqli-login")   # creates AND focuses a new
-                                                             # Repeater sub-tab
+     send_to_repeater_tracked(index=N, tab_name="f001-sqli-login")  # tracked = fireable +
+                                                             # focuses a new Repeater sub-tab
    OR annotate + bookmark so it's the highlighted/selected row:
      annotate_request(index=N, color='RED', comment='f001 | sqli | pg_query error in body')
      send_to_organizer(index=N)                              # or curate_evidence(...) — one call
@@ -153,18 +157,32 @@ The only thing NOT tool-selectable is a SUB-tab *within* a tool (Proxy > HTTP-hi
 Intercept) — Montoya exposes no selector below the top strip. Everything at the top-tab
 level is automatic; only ask the operator when you genuinely need a specific sub-tab shown.
 
-Capture each PoC STEP with a caption that says what it proves, attaching to the finding:
+**A SCREENSHOT IS NOT A TEST. Fire the request and READ the response body first (Rule 13a);
+the verdict comes from the parsed response, not the image — the shot only corroborates.**
+Never screenshot a staged-but-unsent request. Two send paths that actually fire AND return
+the response to you:
+- `curl_request(url, ...)` — fires, returns the full parsed response, and lands in Proxy
+  history. The reliable one-call send+parse; use it as the default.
+- `send_to_repeater_tracked(index, tab_name=)` → `repeater_resend(tab_name, modify_*)` —
+  fires a TRACKED tab and returns the response for iteration. NOTE the plain
+  `send_to_repeater` (untracked) only DISPLAYS the request in Burp's UI — `repeater_resend`
+  cannot fire it, so it waits on a human to click Send; use `_tracked` when you need to fire.
+
+Each PoC step = FIRE it, PARSE the response (grade on the BODY vs baseline — status line is
+not a verdict), THEN capture with a caption of what the response proved:
 ```
-# baseline — clean request, normal response (anchors the delta)
-burp_screenshot(domain, tab='repeater', finding_id='f001',
-                note='baseline id=1 returns one row')
-# attack — the payload visible in the request
-burp_screenshot(domain, tab='repeater', finding_id='f001',
-                note='inject id=1 OR 1=1 -- payload in id param')
-# result — the response proving impact (error string / other-user data / executed marker)
-burp_screenshot(domain, tab='repeater', finding_id='f001',
-                note='response leaks all rows / pg_query error confirms SQLi')
+# baseline — fire the clean request, read the response, then capture
+r = curl_request('https://t/x?id=1', cookies=...)     # r.body: one row, 200
+burp_screenshot(domain, tab='repeater', finding_id='f001', note='baseline id=1 -> one row')
+# attack — fire the payload, read the response
+r = curl_request('https://t/x?id=1%27+OR+%271%27%3D%271', cookies=...)  # URL-ENCODE payloads
+burp_screenshot(domain, tab='repeater', finding_id='f001', note='inject id=1 OR 1=1')
+# result — the response is the proof (error string / other-user data / executed marker)
+#   r.body shows "mysqli_sql_exception ... SELECT first_na..." => payload reached the SQL sink
+burp_screenshot(domain, tab='repeater', finding_id='f001', note='mysqli error confirms SQLi at sink')
 ```
+URL-encode payloads in a path/query (a raw space or quote makes an invalid request line —
+nginx 400s it before the app, which is INCONCLUSIVE, not a negative: Rule 13b).
 
 Each shot lands under `.burp-intel/<domain>/screenshots/` with a self-describing name
 (`burp-<tab>-<finding_id>-<note-slug>-<ts>.png`) and, with `finding_id=`, is attached to
