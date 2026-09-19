@@ -228,7 +228,12 @@ Rules:
   front (printAll captures Burp regardless of z-order, but a wrong TAB is still wrong).
 - **No secrets in frame.** If a real credential/token/PII is visible in the panel and it
   isn't the point of the finding, scroll it out or capture the isolated Repeater tab, not
-  the whole session.
+  the whole session. When a secret must stay in shot for context, **redact it before the
+  screenshot ships**: read the saved PNG (you get its coordinate mapping), then
+  `redact_screenshot(path, boxes=[[x,y,w,h], ...])` draws opaque, irreversible boxes over
+  the sensitive spans (cookies, session tokens, API keys, PII) — no re-capture. Size each
+  box to cover only the sensitive part so a prefix stays legible (`PHPSESSID=25d7…▮`).
+  Redact BEFORE `attach_screenshot` / `export_poc_bundle` / client delivery.
 
 ## Naming Conventions (use these consistently)
 
