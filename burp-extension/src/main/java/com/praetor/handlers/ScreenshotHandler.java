@@ -52,6 +52,31 @@ public class ScreenshotHandler extends BaseHandler {
         String selectedTab = selected[0];
         String selectedSubtab = selected[1];
 
+        // Optionally click a real Burp button (by text/tooltip/accessible-name)
+        // in the selected tab so the action runs THROUGH the UI and its result
+        // renders — an API call leaves the UI unchanged. Works for standard Swing
+        // buttons (Collaborator "Poll now"/"Copy to clipboard", Settings, ...).
+        // NOTE: Repeater's "Send" is a custom-painted control, not a Swing button,
+        // so it is NOT clickable here — fire Repeater via repeater_resend instead.
+        // The action is async, so wait before capturing.
+        String clickButton = params.getOrDefault("click_button", "");
+        boolean clickedButton = false;
+        // Diagnostic: what clickable buttons the selected tab actually exposes —
+        // helps when a label doesn't match (Burp's custom UI may not use standard
+        // AbstractButtons). Only computed when a click was requested.
+        java.util.List<String> availableButtons = java.util.List.of();
+        if (!clickButton.isBlank()) {
+            availableButtons = SuiteScreenshot.listButtons(frame);
+            clickedButton = SuiteScreenshot.clickButton(frame, clickButton);
+            if (clickedButton) {
+                try {
+                    Thread.sleep(2500);   // let the action round-trip + the pane render
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+
         double scale = parseDouble(params.get("scale"), 2.0);   // 2× for readability
         // Optional footer strip (opt-in) — appended below the shot, hides nothing.
         String label = params.getOrDefault("label", "");        // PoC-step caption
@@ -69,6 +94,8 @@ public class ScreenshotHandler extends BaseHandler {
             "selected_tab", selectedTab == null ? "" : selectedTab,
             "requested_subtab", requestedSubtab,
             "selected_subtab", selectedSubtab == null ? "" : selectedSubtab,
+            "clicked_button", clickedButton ? clickButton : "",
+            "available_buttons", availableButtons,
             "label", label,
             "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is
