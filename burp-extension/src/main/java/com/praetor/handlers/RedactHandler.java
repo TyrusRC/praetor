@@ -17,7 +17,7 @@ import java.util.Map;
  * POST /api/ui/redact — draw opaque redaction boxes over an existing screenshot
  * (no re-capture, no re-render). Body: {png_base64, boxes:[[x,y,w,h], ...],
  * style:"pixel"|"solid"} in the image's own pixel coordinates ("pixel" = coarse
- * mosaic, default "solid"). Returns the redacted PNG as base64.
+ * mosaic, the default; "solid" = opaque fill). Returns the redacted PNG as base64.
  */
 public class RedactHandler extends BaseHandler {
 
@@ -61,7 +61,7 @@ public class RedactHandler extends BaseHandler {
         }
 
         String style = body.get("style") instanceof String st && !st.isBlank()
-                     ? st : "solid";
+                     ? st : "pixel";
         BufferedImage redacted = SuiteScreenshot.applyRedactions(src, boxes, style);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(redacted),
