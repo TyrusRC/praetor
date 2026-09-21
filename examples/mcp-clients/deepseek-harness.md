@@ -4,31 +4,64 @@ DeepSeek Harness ships a built-in MCP bridge — the `@deepseek-ai/dsh-mcp-clien
 plugin — so Praetor plugs in as a standard stdio MCP server, exactly like Claude
 Code or Codex. No native Cordis plugin is needed for the tools.
 
-## 1. Register Praetor
+## 1. Prerequisites
 
-Add [`deepseek-harness-cordis.yml`](deepseek-harness-cordis.yml)'s row to the
-`plugins:` list of your dsh `cordis.yml`, then start dsh (`npx @deepseek-ai/dsh web`
-or `pnpm dsh web`). Praetor's tools appear to the model as `mcp__praetor__<tool>`:
+- **Node.js** (dsh's runtime) and **`uv` / `uvx`** (launches Praetor's Python server;
+  `curl -LsSf https://astral.sh/uv/install.sh | sh`).
+- **Burp Suite running with the Praetor extension JAR loaded** (REST on `:8111`).
+  dsh only starts the Python server — it does not touch Burp.
+
+## 2. Install / run dsh
+
+```sh
+npx @deepseek-ai/dsh web        # from npm — opens the Web UI at http://127.0.0.1:3080
+# or, from a source checkout:  pnpm dsh web
+```
+
+## 3. Register Praetor as an MCP server
+
+dsh bridges MCP through its built-in `@deepseek-ai/dsh-mcp-client` plugin — add one
+plugin row for Praetor. Put the row from
+[`deepseek-harness-cordis.yml`](deepseek-harness-cordis.yml) in **either**:
+
+- your profile's `cordis.yml` `plugins:` list (as the bare `- id: … name: … config: …`
+  row shown in that file), **or**
+- machine-wide in `$DSH_HOME/cordis.patch.yml` (default `~/.dsh/cordis.patch.yml`),
+  wrapped in an `insert:` block:
+
+  ```yaml
+  - insert:
+      - id: mcp-praetor
+        name: '@deepseek-ai/dsh-mcp-client'
+        config:
+          serverName: praetor
+          transport: stdio
+          command: uvx
+          args:
+            - '--from'
+            - 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server'
+            - 'praetor-mcp'
+          env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111' }
+          toolCallTimeoutMs: 120000
+  ```
+
+Saving the config **hot-reloads** — the server connects with no dsh restart (the
+first `uvx` launch is slow while it resolves deps). Praetor's tools then appear to the
+model as `mcp__praetor__<tool>`:
 
 ```
-mcp__praetor__list_tier1_tools
-mcp__praetor__auto_probe
-mcp__praetor__save_finding
-mcp__praetor__list_skills
-...
+mcp__praetor__list_tier1_tools   mcp__praetor__auto_probe
+mcp__praetor__save_finding       mcp__praetor__list_skills   ...
 ```
 
-Verify:
+## 4. Verify
 
 ```sh
 dsh web --dump-config | grep -A3 praetor
 zstdcat ~/.dsh/sessions/*/*/session*.jsonl.zstd | grep -E '"mcp__praetor__' | head
 ```
 
-The Burp extension JAR must be loaded in Burp separately — dsh only starts the
-Python server.
-
-## 2. Skills on dsh — use the tools, not the resources
+## 5. Skills on dsh — use the tools, not the resources
 
 `dsh-mcp-client` bridges the MCP **Tools** capability only; **Resources and Prompts
 are deferred**. So the `burp://skills/*` resources are invisible on dsh, but the
@@ -40,7 +73,7 @@ skill **tools** are not:
 
 Discovery: `mcp__praetor__list_tier1_tools` / `mcp__praetor__pick_tool`.
 
-## 3. Steer the agent — a pentest protocol (the dsh-pentest pattern)
+## 6. Steer the agent — a pentest protocol (the dsh-pentest pattern)
 
 [`dsh-pentest`](https://github.com/howmp/dsh-pentest) drives its workflow by
 injecting a system-prompt segment (`pentest:protocol`) into the agent and shipping a
@@ -83,7 +116,7 @@ HARD rules — always in force, never override:
 `.claude/rules/engineering.md`; the agent can load them with
 `mcp__praetor__get_skill` siblings or read the files.)
 
-## 4. Run Praetor + dsh-pentest together — same vocabulary, one bridge
+## 7. Run Praetor + dsh-pentest together — same vocabulary, one bridge
 
 Both model an engagement as `goal → intent → fact → finding → asset` with the same
 edges (`spawns / yields / derived_from / proves / parent`). That is deliberate:
