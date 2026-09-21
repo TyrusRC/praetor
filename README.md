@@ -259,6 +259,7 @@ Where each host reads that block:
 | Cursor | `.cursor/mcp.json` (or `~/.cursor/mcp.json`) | `mcpServers` |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
 | VS Code (Copilot agent) | `.vscode/mcp.json` — or `code --add-mcp` | `servers` |
+| DeepSeek Harness (dsh) | `cordis.yml` (via `@deepseek-ai/dsh-mcp-client`) | a plugin row — tools become `mcp__praetor__*` |
 
 Notes: **Antigravity** shares one config with Gemini CLI and opens it via the agent
 panel's `…` → *Manage MCP Servers* → *View raw config*; it uses standard
@@ -283,8 +284,9 @@ Praetor ships three layers; they port to non-Claude hosts differently:
 
 **Skills on any host.** `list_skills()` returns every playbook's name + description;
 `get_skill("verify-finding")` returns its full text. These are MCP *tools*, so they
-work even on hosts that don't implement MCP resources. Resource-capable hosts can use
-`burp://skills/index` + `burp://skills/<name>` instead.
+work even on hosts that don't implement MCP resources (e.g. DeepSeek Harness, whose
+MCP bridge is Tools-only — that's exactly why the skills are offered as tools).
+Resource-capable hosts can use `burp://skills/index` + `burp://skills/<name>` instead.
 
 **Per-host rule files are included** so each host auto-loads the core guidance and the
 HARD safety rules, pointing at the tools + skills:
@@ -296,6 +298,7 @@ HARD safety rules, pointing at the tools + skills:
 | Gemini CLI / Antigravity | `GEMINI.md` |
 | Cursor | `.cursor/rules/praetor.mdc` |
 | Windsurf | `.windsurf/rules/praetor.md` |
+| DeepSeek Harness (dsh) | agent preset / system prompt — paste-ready block in [`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md) |
 
 **Agents.** The roster in `.claude/agents/` is Claude-Code orchestration. On other
 hosts: **Gemini CLI has subagents** — worked-example ports live in

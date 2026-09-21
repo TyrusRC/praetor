@@ -22,6 +22,7 @@ from . import (
     checkpoint,
     cost_cap,
     cross_target,
+    engagement,
     episodes,
     findings_graph,
     freshness,
@@ -60,6 +61,7 @@ def register(mcp: FastMCP) -> None:
     program_policy.register(mcp)
     business_context.register(mcp)
     findings_graph.register(mcp)
+    engagement.register(mcp)  # goal→intent→fact→finding→asset lineage (dsh-pentest interop)
     cost_cap.register(mcp)
     episodes.register(mcp)
     checkpoint.register(mcp)  # W37 — durable engagement checkpoint + task ledger

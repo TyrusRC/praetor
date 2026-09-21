@@ -21,6 +21,7 @@ uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" 
 | `cursor.mcp.json` | project `.cursor/mcp.json` (or `~/.cursor/mcp.json`) | `mcpServers` |
 | `windsurf-mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
 | `vscode.mcp.json` | project `.vscode/mcp.json` | `servers` [3] |
+| `deepseek-harness-cordis.yml` | dsh `cordis.yml` (the `plugins:` list) | a `@deepseek-ai/dsh-mcp-client` row [4] |
 
 [1] Claude Desktop config path: macOS `~/Library/Application Support/Claude/claude_desktop_config.json`,
     Windows `%APPDATA%\Claude\claude_desktop_config.json`.
@@ -30,6 +31,11 @@ uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" 
     remote HTTP servers).
 [3] VS Code (Copilot agent mode) wraps servers under `servers`, not `mcpServers`, and
     each entry carries `"type": "stdio"`. `code --add-mcp` also works.
+[4] DeepSeek Harness (dsh) bridges MCP through its `@deepseek-ai/dsh-mcp-client`
+    plugin; tools appear as `mcp__praetor__<tool>`. dsh bridges MCP **Tools** only
+    (Resources/Prompts deferred) — reach skills via the `list_skills`/`get_skill`
+    tools. Full walkthrough (+ pentest system-prompt, running alongside dsh-pentest):
+    [`deepseek-harness.md`](deepseek-harness.md).
 
 If the target file already has a config block, merge the `praetor` entry in rather
 than overwriting the whole file.
