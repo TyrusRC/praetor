@@ -7,6 +7,11 @@ description: Orchestrate parallel pentesting agents — dispatch specialists for
 
 You are the orchestrator. Your job is to identify independent work streams and dispatch specialized agents to run in parallel, dramatically reducing total testing time. A full hunt that takes 50 sequential tool calls can finish in 15 with proper parallelism.
 
+> This skill runs FIXED patterns you sequence. Once recon has seeded the board and
+> many live leads compete, switch to `swarm-hunting.md` — the reactive/stigmergic
+> upgrade where a new finding wakes the matching specialist, lead priorities decay,
+> and chains emerge instead of being scripted.
+
 ## SMART MOVE — agent routing by input shape
 
 | Input you have | Single agent to dispatch |
