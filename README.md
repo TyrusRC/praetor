@@ -192,6 +192,85 @@ pipx install "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server
 praetor-mcp                   # entrypoint
 ```
 
+### Install into your agent (Claude Code, Codex, Gemini, Antigravity, …)
+
+Praetor's MCP server speaks **stdio**, so any MCP client can launch it — the launch
+command is always the same, only each host's config format differs. The portable,
+no-clone command (works on every host) is:
+
+```sh
+uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
+```
+
+The first `uvx` launch resolves the deps (including CloakBrowser + its stealth
+Chromium) and is slow; later launches are cached. Whatever the host, the **Burp
+extension JAR must still be loaded in Burp separately** — the client only starts the
+Python server, it does not touch Burp.
+
+**One-line CLI install** (hosts that ship an `mcp add` command; everything after
+`--` is the launch command above):
+
+```sh
+# Claude Code  — add --scope user for all projects; default is a project-local .mcp.json
+claude mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
+
+# OpenAI Codex CLI
+codex mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
+```
+
+Attach env with the host's flag when Burp isn't on `127.0.0.1:8111` (WSL-NAT / remote
+Burp — see [WSL](#wsl-burp-on-the-windows-host)): Claude/Codex `--env BURP_API_HOST=172.22.112.1`.
+
+**Config-file install** — every JSON host (Claude Code/Desktop, Gemini CLI,
+Antigravity, Cursor, Windsurf) takes the *same* block:
+
+```json
+{
+  "mcpServers": {
+    "praetor": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server", "praetor-mcp"],
+      "env": { "BURP_API_HOST": "127.0.0.1", "BURP_API_PORT": "8111" }
+    }
+  }
+}
+```
+
+OpenAI Codex CLI uses TOML instead:
+
+```toml
+[mcp_servers.praetor]
+command = "uvx"
+args = ["--from", "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server", "praetor-mcp"]
+[mcp_servers.praetor.env]
+BURP_API_HOST = "127.0.0.1"
+BURP_API_PORT = "8111"
+```
+
+Where each host reads that block:
+
+| Host | Config file | Key |
+|---|---|---|
+| Claude Code | `.mcp.json` (project) · `~/.claude.json` (user) | `mcpServers` |
+| Claude Desktop | `claude_desktop_config.json` | `mcpServers` |
+| OpenAI Codex CLI | `~/.codex/config.toml` (or project `.codex/config.toml`) | `[mcp_servers.praetor]` |
+| Gemini CLI | `~/.gemini/settings.json` (or project `.gemini/settings.json`) | `mcpServers` |
+| Google Antigravity (IDE + CLI) | `~/.gemini/config/mcp_config.json` | `mcpServers` |
+| Cursor | `.cursor/mcp.json` (or `~/.cursor/mcp.json`) | `mcpServers` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
+| VS Code (Copilot agent) | `.vscode/mcp.json` — or `code --add-mcp` | `servers` |
+
+Notes: **Antigravity** shares one config with Gemini CLI and opens it via the agent
+panel's `…` → *Manage MCP Servers* → *View raw config*; it uses standard
+`command`/`args`/`env` for a stdio server like Praetor (`serverUrl` is only for remote
+HTTP servers). **VS Code** uses a `servers` key rather than `mcpServers`, same
+command/args/env inside. The `env` block is optional — omit it on a single host
+(defaults are `127.0.0.1:8111`); all hosts honour the same
+[environment variables](#environment-variables).
+
+Ready-to-copy config files for each host (one per client, with a where-does-it-go
+table) live in [`examples/mcp-clients/`](examples/mcp-clients/).
+
 ## Configuration
 
 Create `.mcp.json` in the project root. The file is gitignored; each developer maintains their own.

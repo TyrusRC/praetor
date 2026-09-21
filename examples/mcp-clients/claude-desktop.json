@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "praetor": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server",
+        "praetor-mcp"
+      ],
+      "env": {
+        "BURP_API_HOST": "127.0.0.1",
+        "BURP_API_PORT": "8111"
+      }
+    }
+  }
+}
