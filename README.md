@@ -558,7 +558,8 @@ Behavioral skills live in `.claude/skills/`:
 - `chain-findings.md` — escalate low findings into chained impact
 - `report-templates.md` — platform-specific report formatting
 - `autopilot.md` — autonomous hunt loop with circuit breaker
-- `dispatch-agents.md` — parallel agent orchestration
+- `dispatch-agents.md` — parallel agent orchestration (fixed patterns)
+- `swarm-hunting.md` — stigmergic coordination: pheromone-weighted leads, trigger-predicate routing, decay, emergent chains (reactive upgrade to dispatch-agents)
 - `burp-workflow.md`, `investigate.md`, `craft-payload.md`, `static-dynamic-analysis.md`
 - `user-override.md` — operator override surfaces when defaults block legitimate findings
 - `operational-discipline.md` — cross-role discipline (pentester / BBH / red team / researcher): read before you send, replay before save, annotate live, stop when impact is proved, honour the noise budget
