@@ -3,6 +3,7 @@ package com.praetor.handlers;
 import burp.api.montoya.MontoyaApi;
 import com.praetor.http.HttpExchange;
 import com.praetor.server.BaseHandler;
+import com.praetor.ui.BurpNavigator;
 import com.praetor.ui.SuiteScreenshot;
 import com.praetor.util.JsonUtil;
 
@@ -49,14 +50,14 @@ public class ScreenshotHandler extends BaseHandler {
         // Burp on a different tab/selection than they had it (don't disrupt someone
         // using the mouse). Default on; ?restore=false leaves the navigation.
         boolean restore = !"false".equalsIgnoreCase(params.getOrDefault("restore", "true"));
-        SuiteScreenshot.UiSnapshot snapshot = restore ? SuiteScreenshot.snapshotUi(frame) : null;
+        BurpNavigator.UiSnapshot snapshot = restore ? BurpNavigator.snapshotUi(frame) : null;
 
         String requestedTab = params.getOrDefault("tab", "");
         String requestedSubtab = params.getOrDefault("subtab", "");
         // Best-effort: bring the requested top-level tab (and nested sub-tab, e.g.
         // Proxy > HTTP history) to front. A null entry => that level didn't match;
         // the caller sees selected_tab / selected_subtab.
-        String[] selected = SuiteScreenshot.selectTab(frame, requestedTab, requestedSubtab);
+        String[] selected = BurpNavigator.selectTab(frame, requestedTab, requestedSubtab);
         String selectedTab = selected[0];
         String selectedSubtab = selected[1];
 
@@ -83,7 +84,7 @@ public class ScreenshotHandler extends BaseHandler {
                     want = -1;
                 }
             }
-            selectedRow = SuiteScreenshot.selectTableRow(frame, want);
+            selectedRow = BurpNavigator.selectTableRow(frame, want);
             try {
                 Thread.sleep(400);   // let the req/resp detail pane render
             } catch (InterruptedException ie) {
@@ -97,8 +98,8 @@ public class ScreenshotHandler extends BaseHandler {
         // AbstractButtons). Only computed when a click was requested.
         java.util.List<String> availableButtons = java.util.List.of();
         if (!clickButton.isBlank()) {
-            availableButtons = SuiteScreenshot.listButtons(frame);
-            clickedButton = SuiteScreenshot.clickButton(frame, clickButton);
+            availableButtons = BurpNavigator.listButtons(frame);
+            clickedButton = BurpNavigator.clickButton(frame, clickButton);
             if (clickedButton) {
                 try {
                     Thread.sleep(2500);   // let the action round-trip + the pane render
@@ -116,7 +117,7 @@ public class ScreenshotHandler extends BaseHandler {
         BufferedImage img = SuiteScreenshot.captureFrame(frame, scale, label, trademark);
         // Put the operator's view back exactly as it was (the PNG already holds the
         // navigated state). A button CLICK is a real action and is not undone.
-        SuiteScreenshot.restoreUi(snapshot);
+        BurpNavigator.restoreUi(snapshot);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
