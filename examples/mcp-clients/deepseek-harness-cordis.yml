@@ -1,0 +1,29 @@
+# DeepSeek Harness (dsh) — register Praetor as an MCP server.
+# Merge this row into the `plugins:` list of your dsh `cordis.yml`. It uses dsh's
+# built-in MCP bridge (@deepseek-ai/dsh-mcp-client); Praetor's tools then appear to
+# the model as  mcp__praetor__<tool>  (e.g. mcp__praetor__auto_probe,
+# mcp__praetor__list_skills).  See deepseek-harness.md in this folder for the full
+# guide (skills, pentest system-prompt, running alongside dsh-pentest).
+
+- id: mcp-praetor
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: praetor
+    transport: stdio
+    # Zero-clone launch (same command every MCP host uses). For a local checkout,
+    # swap to command: praetor-mcp  (after `pipx install …`) or the venv python.
+    command: uvx
+    args:
+      - '--from'
+      - 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server'
+      - 'praetor-mcp'
+    env:
+      # Optional — omit on a single host (defaults are 127.0.0.1:8111). Set only for
+      # WSL-NAT / remote Burp (point BURP_API_HOST at the Windows-host IP).
+      BURP_API_HOST: '127.0.0.1'
+      BURP_API_PORT: '8111'
+    # dsh-mcp-client bridges the MCP *Tools* capability (Resources/Prompts are
+    # deferred), so Praetor's skills are reached via the list_skills / get_skill
+    # TOOLS, not the burp://skills resources. First `uvx` launch is slow (deps).
+    toolCallTimeoutMs: 120000
+    failOnStartupError: false
