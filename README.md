@@ -384,6 +384,8 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `BURP_API_TIMEOUT` | `30` | HTTP timeout in seconds |
 | `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
 | `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
+| `PRAETOR_TOOLLOG` | `on` | Universal tool-call ledger (`harness_log`); `off` disables it |
+| `PRAETOR_OPLOG` | `on` | Burp-call operation ledger (`get_operation_log`); `off` disables it |
 | `GHOSTWRITER_URL` | — | Ghostwriter base URL (e.g. `https://127.0.0.1`); unset = no forwarding |
 | `GHOSTWRITER_OPLOG_ID` | — | numeric Oplog id to append entries to |
 | `GHOSTWRITER_ADMIN_SECRET` | — | Hasura admin secret (highest-precedence auth) |
@@ -460,6 +462,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
 | Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset); `engagement_graph(format='dsh')` mirrors into dsh-pentest |
 | Skills (cross-host) | `list_skills`, `get_skill` — the `.claude/skills` playbooks as tools, for any MCP host |
+| Observability | `harness_log` (universal tool-call ledger — every call timed, secret-free), `get_operation_log` (Burp-call ledger), `verify_operation_log` |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |

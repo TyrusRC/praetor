@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import functools
 import inspect
+import time
 from contextvars import ContextVar
 
 from mcp.server.fastmcp import FastMCP
 
-from . import _verify
+from . import _toolcalls, _verify
 from ._store import oplog_path, read_entries
 
 # Name of the MCP tool currently executing. Set by instrument_tools(), read by
@@ -46,18 +47,30 @@ def instrument_tools(mcp: FastMCP) -> int:
             @functools.wraps(fn)
             async def wrapper(*a, __fn=fn, __name=name, **kw):
                 token = current_tool.set(__name)
+                t0 = time.perf_counter()
+                ok, err = True, ""
                 try:
                     return await __fn(*a, **kw)
+                except Exception as exc:                       # noqa: BLE001 — record then re-raise
+                    ok, err = False, f"{type(exc).__name__}: {exc}"
+                    raise
                 finally:
                     current_tool.reset(token)
+                    _toolcalls.record(__name, ok, (time.perf_counter() - t0) * 1000, err)
         else:
             @functools.wraps(fn)
             def wrapper(*a, __fn=fn, __name=name, **kw):
                 token = current_tool.set(__name)
+                t0 = time.perf_counter()
+                ok, err = True, ""
                 try:
                     return __fn(*a, **kw)
+                except Exception as exc:                       # noqa: BLE001 — record then re-raise
+                    ok, err = False, f"{type(exc).__name__}: {exc}"
+                    raise
                 finally:
                     current_tool.reset(token)
+                    _toolcalls.record(__name, ok, (time.perf_counter() - t0) * 1000, err)
 
         wrapper._praetor_oplog_wrapped = True
         tool.fn = wrapper
@@ -66,6 +79,30 @@ def instrument_tools(mcp: FastMCP) -> int:
 
 
 def register(mcp: FastMCP):
+
+    @mcp.tool()
+    async def harness_log(limit: int = 50, tool: str = "", errors_only: bool = False) -> dict:
+        """Read the universal tool-call ledger — EVERY MCP tool invocation, timed.
+
+        Broader than get_operation_log (which records only calls that reached Burp):
+        this logs every tool call — analysis, intel, graph, reporting — with its
+        timing and ok/error, so a session is replayable and auditable after a
+        compaction ("did tool X run, and did it error?"). Secret-free: the ledger
+        holds tool name + ok/error + elapsed only, never argument values or results.
+        Written at the central instrument seam; disable with PRAETOR_TOOLLOG=off.
+
+        Args:
+            limit: max entries, most-recent-first (default 50).
+            tool: filter to one tool name (exact).
+            errors_only: only failed calls.
+        """
+        entries = _toolcalls.read(limit=max(1, min(1000, int(limit or 50))),
+                                  tool=tool.strip(), errors_only=errors_only)
+        if not entries:
+            return {"entries": [], "note": "no tool-call ledger yet "
+                    "(PRAETOR_TOOLLOG=off disables it)"}
+        errs = sum(1 for e in entries if not e.get("ok", True))
+        return {"count": len(entries), "errors": errs, "entries": entries}
 
     @mcp.tool()
     async def get_operation_log(
