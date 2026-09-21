@@ -15,7 +15,10 @@ import java.awt.FontMetrics;
 import java.awt.Frame;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.InputEvent;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -519,18 +522,47 @@ public final class SuiteScreenshot {
                     return;
                 }
                 int viewRow = rowForNumber(table, wantNumber);
-                table.setRowSelectionInterval(viewRow, viewRow);
-                table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
                 // The selected row's request/response detail lives in a bottom
                 // split-pane that is often collapsed (table-only view) — open it
-                // so the shot shows the request + response, not just the row.
+                // FIRST so the editors are laid out, then drive the row so Burp
+                // loads its request/response into them.
                 ensureDetailPaneVisible(selectedTopComponent(frame));
-                result[0] = viewRow;
+                result[0] = driveRowSelection(table, viewRow);
             });
         } catch (RuntimeException e) {
             return -1;
         }
         return result[0];
+    }
+
+    /**
+     * Select {@code viewRow} in {@code table} AND load the row into the tool's
+     * request/response editors, scrolling it into view. Returns {@code viewRow}.
+     *
+     * <p>Burp fills those editors from a MOUSE-driven selection handler, not a
+     * plain {@code ListSelectionListener}, so a bare
+     * {@link JTable#setRowSelectionInterval} moves the highlight but leaves the
+     * editors showing the previously mouse-clicked row — the "highlight moves,
+     * detail stays" bug. Dispatching a synthetic left-click on the row's own cell
+     * fires that handler through the normal path. Coordinates are component-local
+     * ({@link JTable#getCellRect}), so this needs no Retina/HiDPI conversion and
+     * behaves identically on macOS, Linux and Windows (unlike {@code java.awt.Robot},
+     * which uses screen coordinates). Must run on the EDT.
+     */
+    static int driveRowSelection(JTable table, int viewRow) {
+        table.setRowSelectionInterval(viewRow, viewRow);
+        Rectangle cell = table.getCellRect(viewRow, 0, true);
+        table.scrollRectToVisible(cell);
+        int px = cell.x + Math.min(Math.max(cell.width / 2, 1), 12);
+        int py = cell.y + cell.height / 2;
+        long when = System.currentTimeMillis();
+        table.dispatchEvent(new MouseEvent(table, MouseEvent.MOUSE_PRESSED, when,
+                InputEvent.BUTTON1_DOWN_MASK, px, py, 1, false, MouseEvent.BUTTON1));
+        table.dispatchEvent(new MouseEvent(table, MouseEvent.MOUSE_RELEASED, when,
+                0, px, py, 1, false, MouseEvent.BUTTON1));
+        table.dispatchEvent(new MouseEvent(table, MouseEvent.MOUSE_CLICKED, when,
+                0, px, py, 1, false, MouseEvent.BUTTON1));
+        return viewRow;
     }
 
     /**

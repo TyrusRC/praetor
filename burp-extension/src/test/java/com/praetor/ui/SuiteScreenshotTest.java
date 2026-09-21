@@ -305,4 +305,33 @@ class SuiteScreenshotTest {
         assertEquals(3, back.getWidth());
         assertEquals(2, back.getHeight());
     }
+
+    /** driveRowSelection must both SELECT the row and dispatch a real mouse click
+     *  on it — Burp loads the row's request/response from a mouse handler, so a
+     *  bare setRowSelectionInterval (highlight only) leaves the editors stale. */
+    @Test
+    void driveRowSelectionSelectsAndFiresMouseClick() {
+        javax.swing.table.DefaultTableModel model =
+            new javax.swing.table.DefaultTableModel(new Object[]{"#", "URL"}, 0);
+        model.addRow(new Object[]{"1", "/a"});
+        model.addRow(new Object[]{"2", "/b"});
+        model.addRow(new Object[]{"3", "/c"});
+        javax.swing.JTable table = new javax.swing.JTable(model);
+        table.setSize(200, 60);       // give cells a non-zero rect
+        table.doLayout();
+
+        int[] clickedRow = {-1};
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                clickedRow[0] = table.rowAtPoint(e.getPoint());
+            }
+        });
+
+        int r = SuiteScreenshot.driveRowSelection(table, 2);
+
+        assertEquals(2, r);
+        assertEquals(2, table.getSelectedRow());        // highlight moved
+        assertEquals(2, clickedRow[0]);                 // AND a real click fired on that row
+    }
 }
