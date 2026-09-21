@@ -1,0 +1,41 @@
+---
+trigger: always_on
+description: Praetor — authorized pentest/red-team MCP harness. Tool/skill discovery and the HARD safety rules.
+---
+
+# Praetor — operating guide (Windsurf)
+
+Praetor is an authorized pentest / red-team harness driven by the **Praetor MCP
+tools** (register the server per `README.md` → *Install into your agent*). Full
+Claude-Code manual: `CLAUDE.md`. Agent roster: `AGENTS.md`.
+
+## Find capabilities and playbooks
+
+- **Tools:** `list_tier1_tools()` / `pick_tool(task)`. Web lane routes through Burp
+  (`127.0.0.1:8111`); network lane bypasses Burp.
+- **Skills (how-to playbooks):** `list_skills()` then `get_skill("<name>")`
+  (verify-finding, chain-findings, lab-solve, …); or `burp://skills/index` +
+  `burp://skills/<name>`; or read `.claude/skills/*.md`.
+- **Rules:** `.claude/rules/hunting.md` + `.claude/rules/engineering.md` are
+  authoritative (also `burp://rules/*`).
+
+## HARD rules — always in force (never override)
+
+1. **Scope** — `check_scope(url)` before any new domain; never out-of-scope, never
+   follow an out-of-scope redirect.
+2. **No destructive payloads** — no `DROP TABLE`/`DELETE FROM`/`rm -rf`/`shutdown`.
+   Prove impact benignly: `SELECT version()` (SQLi), a read marker (RCE), an IDOR
+   **read** not write. Blind tests use `SLEEP`/math/Collaborator.
+3. **No account break-in** — default creds ok; credential-stuffing / ATO brute force
+   not. ID enumeration is in-scope IDOR testing.
+4. **Never exfiltrate real user data; never modify another user's data.**
+5. **Save-finding pipeline** — `verify` (replay ≥3× for blind/timing) →
+   `assess_finding` (7-gate) → `save_finding`, citing a real Burp index. No INFO
+   tier: a leaked path / stack trace / version is an INPUT, not a finding.
+6. **A tool safety-refusal is a PIVOT** — prove the same impact benignly rather than
+   stopping.
+7. **Reports carry findings + impact only** — no counts, paths, or Burp indices in
+   client output.
+
+The Burp extension JAR is loaded in Burp separately; the MCP client only starts the
+Python server.
