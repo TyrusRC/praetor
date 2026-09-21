@@ -453,8 +453,8 @@ public final class SuiteScreenshot {
         List<JSplitPane> splits = new ArrayList<>();
         collectSplitPanes(root, splits);
         for (JSplitPane sp : splits) {
-            if (sp.getOrientation() != JSplitPane.VERTICAL_SPLIT) {
-                continue;
+            if (sp.getOrientation() != JSplitPane.VERTICAL_SPLIT || !sp.isShowing()) {
+                continue;   // ignore splits in off-screen sub-tabs (see findLargestTable)
             }
             Component top = sp.getTopComponent();
             if (top == null || !containsTable(top)) {
@@ -492,17 +492,28 @@ public final class SuiteScreenshot {
     }
 
     /** The JTable with the most rows under {@code root} — the history/results
-     *  table rather than a small side table. Null if none. */
+     *  table rather than a small side table. Null if none.
+     *
+     *  <p>Prefers tables that are actually SHOWING on screen: a tool panel keeps
+     *  every sub-tab's component instantiated (Proxy holds HTTP-history,
+     *  WebSockets-history and Match-and-replace tables at once), so an off-screen
+     *  sub-tab's larger table would otherwise win and the row select would land on
+     *  a table the operator can't see. Only if no table is showing (headless /
+     *  odd layout) does it fall back to the largest overall. */
     static JTable findLargestTable(Component root) {
         List<JTable> tables = new ArrayList<>();
         collectTables(root, tables);
-        JTable best = null;
+        JTable best = null, bestShowing = null;
         for (JTable t : tables) {
             if (best == null || t.getRowCount() > best.getRowCount()) {
                 best = t;
             }
+            if (t.isShowing()
+                    && (bestShowing == null || t.getRowCount() > bestShowing.getRowCount())) {
+                bestShowing = t;
+            }
         }
-        return best;
+        return bestShowing != null ? bestShowing : best;
     }
 
     /**
