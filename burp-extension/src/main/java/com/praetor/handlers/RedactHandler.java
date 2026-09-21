@@ -2,6 +2,7 @@ package com.praetor.handlers;
 
 import com.praetor.http.HttpExchange;
 import com.praetor.server.BaseHandler;
+import com.praetor.ui.ScreenshotRedactor;
 import com.praetor.ui.SuiteScreenshot;
 import com.praetor.util.JsonUtil;
 
@@ -62,7 +63,7 @@ public class RedactHandler extends BaseHandler {
 
         String style = body.get("style") instanceof String st && !st.isBlank()
                      ? st : "pixel";
-        BufferedImage redacted = SuiteScreenshot.applyRedactions(src, boxes, style);
+        BufferedImage redacted = ScreenshotRedactor.applyRedactions(src, boxes, style);
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(redacted),
             "width", redacted.getWidth(),

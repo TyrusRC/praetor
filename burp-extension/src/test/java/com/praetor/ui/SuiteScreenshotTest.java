@@ -39,7 +39,7 @@ class SuiteScreenshotTest {
         JTabbedPane main = burpLikeStrip();
         root.add(main);
 
-        assertSame(main, SuiteScreenshot.findMainTabbedPane(root));
+        assertSame(main, BurpNavigator.findMainTabbedPane(root));
     }
 
     @Test
@@ -50,7 +50,7 @@ class SuiteScreenshotTest {
         // The tabs the operator called out explicitly, plus a couple more.
         for (String name : new String[]{"logger", "organizer", "collaborator",
                 "comparer", "decoder", "repeater", "proxy"}) {
-            String sel = SuiteScreenshot.selectTabIn(root, name);
+            String sel = BurpNavigator.selectTabIn(root, name);
             assertNotNull(sel, name + " should match a top-level tab");
             assertEquals(name, sel.toLowerCase());
             assertEquals(name, main.getTitleAt(main.getSelectedIndex()).toLowerCase());
@@ -68,12 +68,12 @@ class SuiteScreenshotTest {
         root.add(tp);
         // "co": Decoder CONTAINS it (earlier index) but Comparer/Collaborator
         // START with it -> a prefix beats a substring, so NOT Decoder.
-        String co = SuiteScreenshot.selectTabIn(root, "co");
+        String co = BurpNavigator.selectTabIn(root, "co");
         assertNotEquals("Decoder", co);
         assertTrue(co.toLowerCase().startsWith("co"));
         // Exact title wins over any partial match.
-        assertEquals("Decoder", SuiteScreenshot.selectTabIn(root, "decoder"));
-        assertEquals("Comparer", SuiteScreenshot.selectTabIn(root, "comparer"));
+        assertEquals("Decoder", BurpNavigator.selectTabIn(root, "decoder"));
+        assertEquals("Comparer", BurpNavigator.selectTabIn(root, "comparer"));
     }
 
     @Test
@@ -99,7 +99,7 @@ class SuiteScreenshotTest {
         JPanel root = new JPanel();
         root.add(main);
 
-        String[] r = SuiteScreenshot.selectTabAndSubIn(root, "proxy", "http history");
+        String[] r = BurpNavigator.selectTabAndSubIn(root, "proxy", "http history");
         assertEquals("Proxy", r[0]);
         assertEquals("HTTP history", r[1]);
         assertEquals("Proxy", main.getTitleAt(main.getSelectedIndex()));
@@ -119,7 +119,7 @@ class SuiteScreenshotTest {
         JPanel root = new JPanel();
         root.add(main);
 
-        String[] r = SuiteScreenshot.selectTabAndSubIn(root, "proxy", "no-such-subtab");
+        String[] r = BurpNavigator.selectTabAndSubIn(root, "proxy", "no-such-subtab");
         assertEquals("Proxy", r[0]);
         assertNull(r[1]);   // sub-tab not found -> top tab still selected
     }
@@ -128,8 +128,8 @@ class SuiteScreenshotTest {
     void selectTabReturnsNullForUnknownNameOrBlank() {
         JPanel root = new JPanel();
         root.add(burpLikeStrip());
-        assertNull(SuiteScreenshot.selectTabIn(root, "no-such-tab"));
-        assertNull(SuiteScreenshot.selectTabIn(root, ""));
+        assertNull(BurpNavigator.selectTabIn(root, "no-such-tab"));
+        assertNull(BurpNavigator.selectTabIn(root, ""));
     }
 
     @Test
@@ -194,9 +194,9 @@ class SuiteScreenshotTest {
         JPanel root = new JPanel();
         root.add(toolbar);
 
-        AbstractButton found = SuiteScreenshot.findButton(root, "Send");
+        AbstractButton found = SwingUi.findButton(root, "Send");
         assertSame(send, found);
-        assertNull(SuiteScreenshot.findButton(root, "no-such-button"));
+        assertNull(SwingUi.findButton(root, "no-such-button"));
         // clickSendButton's core: doClick() actually fires the action.
         found.doClick();
         assertEquals(1, clicks[0]);
@@ -213,13 +213,13 @@ class SuiteScreenshotTest {
         // findLargestTable locates it under a container
         JPanel root = new JPanel();
         root.add(table);
-        assertSame(table, SuiteScreenshot.findLargestTable(root));
+        assertSame(table, BurpNavigator.findLargestTable(root));
         // by "#" number
-        assertEquals(2, SuiteScreenshot.rowForNumber(table, 15));
-        assertEquals(0, SuiteScreenshot.rowForNumber(table, 1));
+        assertEquals(2, BurpNavigator.rowForNumber(table, 15));
+        assertEquals(0, BurpNavigator.rowForNumber(table, 1));
         // last row for <0 or no match
-        assertEquals(2, SuiteScreenshot.rowForNumber(table, -1));
-        assertEquals(2, SuiteScreenshot.rowForNumber(table, 999));
+        assertEquals(2, BurpNavigator.rowForNumber(table, -1));
+        assertEquals(2, BurpNavigator.rowForNumber(table, 999));
     }
 
     @Test
@@ -240,12 +240,12 @@ class SuiteScreenshotTest {
         root.add(tp);
         root.add(table);
 
-        SuiteScreenshot.UiSnapshot snap = SuiteScreenshot.snapshotUi(root);
+        BurpNavigator.UiSnapshot snap = BurpNavigator.snapshotUi(root);
         // simulate the capture navigating away
         tp.setSelectedIndex(2);
         table.setRowSelectionInterval(2, 2);
         // restore puts the operator's view back
-        SuiteScreenshot.restoreUi(snap);
+        BurpNavigator.restoreUi(snap);
         assertEquals(1, tp.getSelectedIndex());
         assertEquals(0, table.getSelectedRow());
     }
@@ -258,12 +258,12 @@ class SuiteScreenshotTest {
                 src.setRGB(x, y, 0xFFFFFF);   // white
             }
         }
-        BufferedImage out = SuiteScreenshot.applyRedactions(src, java.util.List.of(new int[]{5, 5, 6, 6}));
+        BufferedImage out = ScreenshotRedactor.applyRedactions(src, java.util.List.of(new int[]{5, 5, 6, 6}));
         assertTrue((out.getRGB(7, 7) & 0xFFFFFF) < 0x303030, "inside the box must be dark");
         assertEquals(0xFFFFFF, out.getRGB(0, 0) & 0xFFFFFF, "outside unchanged");
         assertEquals(0xFFFFFF, out.getRGB(19, 19) & 0xFFFFFF, "outside unchanged");
         // out-of-bounds box is clamped, no crash
-        assertNotNull(SuiteScreenshot.applyRedactions(src, java.util.List.of(new int[]{15, 15, 999, 999})));
+        assertNotNull(ScreenshotRedactor.applyRedactions(src, java.util.List.of(new int[]{15, 15, 999, 999})));
     }
 
     @Test
@@ -276,7 +276,7 @@ class SuiteScreenshotTest {
                 src.setRGB(x, y, ((x + y) % 2 == 0) ? 0x000000 : 0xFFFFFF);
             }
         }
-        BufferedImage out = SuiteScreenshot.applyRedactions(
+        BufferedImage out = ScreenshotRedactor.applyRedactions(
             src, java.util.List.of(new int[]{4, 2, 20, 16}), "pixel");
         int c = out.getRGB(12, 8) & 0xFF;              // a blue channel inside the box
         assertTrue(c > 0x20 && c < 0xE0, "inside must be an averaged mid-tone, not pure b/w");
@@ -328,7 +328,7 @@ class SuiteScreenshotTest {
             }
         });
 
-        int r = SuiteScreenshot.driveRowSelection(table, 2);
+        int r = BurpNavigator.driveRowSelection(table, 2);
 
         assertEquals(2, r);
         assertEquals(2, table.getSelectedRow());        // highlight moved
