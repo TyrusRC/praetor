@@ -268,6 +268,9 @@ command/args/env inside. The `env` block is optional — omit it on a single hos
 (defaults are `127.0.0.1:8111`); all hosts honour the same
 [environment variables](#environment-variables).
 
+Ready-to-copy config files for each host (one per client, with a where-does-it-go
+table) live in [`examples/mcp-clients/`](examples/mcp-clients/).
+
 ## Configuration
 
 Create `.mcp.json` in the project root. The file is gitignored; each developer maintains their own.

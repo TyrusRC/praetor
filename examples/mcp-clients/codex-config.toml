@@ -1,0 +1,10 @@
+# OpenAI Codex CLI — merge into ~/.codex/config.toml (or a trusted project's .codex/config.toml).
+# Codex uses TOML, and the table key is [mcp_servers.<name>] (underscore), unlike the JSON hosts.
+
+[mcp_servers.praetor]
+command = "uvx"
+args = ["--from", "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server", "praetor-mcp"]
+
+[mcp_servers.praetor.env]
+BURP_API_HOST = "127.0.0.1"
+BURP_API_PORT = "8111"
