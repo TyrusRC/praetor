@@ -59,6 +59,17 @@ def register(mcp: FastMCP):
         path = RULES_DIR / "engineering.md"
         return path.read_text(encoding="utf-8") if path.exists() else "engineering.md not found"
 
+    @mcp.resource("burp://skills/index")
+    def skills_index() -> str:
+        """List of all available skills (file stem — one-line description)."""
+        from praetor.tools.skills_access import skill_entries
+        entries = skill_entries()
+        if not entries:
+            return f"no skills found under {SKILLS_DIR}"
+        rows = [f"- {e['name']} — {e['description'][:100]}" for e in entries]
+        return ("Praetor skills (load one with burp://skills/<name>):\n"
+                + "\n".join(rows))
+
     @mcp.resource("burp://skills/{name}")
     def skill_markdown(name: str) -> str:
         """Read a single skill file from .claude/skills/ by name (without .md)."""

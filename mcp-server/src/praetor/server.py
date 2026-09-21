@@ -60,6 +60,7 @@ from praetor.tools import (
     assurance,
     hub,
     burp_settings,
+    skills_access,
 )
 
 mcp = FastMCP(
@@ -160,6 +161,7 @@ burp_tools.register(mcp)       # Burp native: WebSocket send, Organizer, Decoder
 dom_probe.register(mcp)        # DOM-aware probe — closes the client-side gap (DOM XSS, DOM-redirect, CSPP, link-manip, DOM-data-manip)
 prompts.register(mcp)          # MCP Prompts — operator-invokable workflow templates (hunt-target, verify-finding, chain-findings, save-finding-checklist, triage-program)
 resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, skills, knowledge, intel, findings) under burp:// URIs
+skills_access.register(mcp)    # list_skills / get_skill — skill library as TOOLS (for hosts without MCP-resource support)
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
 secrets.register(mcp)          # gitleaks / trufflehog / git-dumper wrappers — secret leakage + .git exposure chain
 analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies) + run_opengrep_source (repo SAST)
