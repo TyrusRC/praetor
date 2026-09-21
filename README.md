@@ -274,6 +274,33 @@ command/args/env inside. The `env` block is optional — omit it on a single hos
 Ready-to-copy config files for each host (one per client, with a where-does-it-go
 table) live in [`examples/mcp-clients/`](examples/mcp-clients/).
 
+#### DeepSeek Harness (dsh)
+
+dsh doesn't use the `mcpServers` JSON block — it bridges MCP through its built-in
+`@deepseek-ai/dsh-mcp-client` plugin. Run dsh (`npx @deepseek-ai/dsh web`), then add a
+plugin row to `~/.dsh/cordis.patch.yml` (needs `uvx` on PATH + Burp running with the
+extension):
+
+```yaml
+- insert:
+    - id: mcp-praetor
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: praetor
+        transport: stdio
+        command: uvx
+        args: ['--from', 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server', 'praetor-mcp']
+        env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111' }
+        toolCallTimeoutMs: 120000
+```
+
+Saving hot-reloads (no restart); tools appear as `mcp__praetor__*`. dsh bridges MCP
+**Tools only** (Resources/Prompts deferred), so skills come from the `list_skills` /
+`get_skill` tools. Full walkthrough — verification, a pentest system-prompt, and
+running **alongside dsh-pentest** (`engagement_graph(format='dsh')` mirrors Praetor's
+lineage into its live graph) — is in
+[`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md).
+
 ### Skills, rules & agents on other hosts
 
 Praetor ships three layers; they port to non-Claude hosts differently:
