@@ -56,6 +56,8 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - Stealth headless browser ([CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — patched Chromium binary with source-level fingerprint fixes, not JS shims) that proxies through Burp.
 - Fast history queries: `get_proxy_count` (sub-ms), `since_index` tail polling, `host` exact-match filter, ByteArray in-place body search.
 - Persistent target memory with staleness detection and cross-target pattern reuse.
+- **Engagement-narrative graph**: a first-class `goal → intent → fact → finding → asset` lineage (`record_goal` / `record_intent` / `record_fact` / `link_finding` / `engagement_graph`) over `.burp-intel`, capturing the pre-finding reasoning the finding stores don't. `engagement_graph` renders text / Mermaid / JSON, or a `dsh` replay that mirrors into [`dsh-pentest`](https://github.com/howmp/dsh-pentest) — same vocabulary, so Praetor (the moves) and dsh-pentest (the map) interoperate on DeepSeek Harness.
+- **Runs in any MCP host**: Claude Code, Codex, Gemini CLI, Antigravity, Cursor, Windsurf, VS Code, DeepSeek Harness — one stdio launch, per-host configs in [`examples/mcp-clients/`](examples/mcp-clients/). Skills are exposed as both `burp://skills/*` resources and `list_skills`/`get_skill` tools, so hosts that bridge Tools-only still get them.
 - Operator override surfaces for severity, scope filter, NEVER-SUBMIT class, confidence floor.
 
 ## Requirements
@@ -429,6 +431,8 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Subdomain takeover | `test_subdomain_takeover` — 129 vendor fingerprints (W8 nuclei merge) + DNS-only signal mode (W9: ElasticBeanstalk regional, Azure trafficmanager / azureedge / redis.cache.windows.net). DNS-only entries flag takeover when CNAME resolves but target hostname has no A record (skip body fingerprint match). See `.claude/skills/recon-takeover.md`. |
 | Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
+| Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset); `engagement_graph(format='dsh')` mirrors into dsh-pentest |
+| Skills (cross-host) | `list_skills`, `get_skill` — the `.claude/skills` playbooks as tools, for any MCP host |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
@@ -460,11 +464,16 @@ Read-only context the agent can attach without spending tool budget. URIs:
 |---|---|
 | `burp://rules/hunting` | The 28 always-active hunting rules (HARD/DEFAULT/ADVISORY). |
 | `burp://rules/engineering` | The 4 engineering rules. |
+| `burp://skills/index` | List of every skill (stem + one-line description) — the discovery entry point. |
 | `burp://skills/{name}` | One skill markdown file by stem (`hunt`, `verify-finding`, `chain-findings`, …). |
 | `burp://knowledge/index` | List of all knowledge categories with context counts. |
 | `burp://knowledge/{category}` | Raw JSON for one category (probes + matchers + craft guidance). |
 | `burp://intel/{domain}/{kind}` | Saved target intel: `profile`, `endpoints`, `coverage`, `findings`, `fingerprint`, `patterns`, `notes`. |
 | `burp://findings/{domain}` | Findings JSON for one domain (alias of `burp://intel/{domain}/findings`). |
+
+Hosts that bridge MCP Tools but not Resources (e.g. DeepSeek Harness) reach the same
+skill library through the `list_skills` / `get_skill` **tools** — see [Skills, rules &
+agents on other hosts](#skills-rules--agents-on-other-hosts).
 
 ## Knowledge Base
 
@@ -529,6 +538,8 @@ Always-active rules in `.claude/rules/`:
 
 - `engineering.md` — engineering rules (think first, simplicity, surgical changes, goal-driven execution)
 - `hunting.md` — tiered hunting rules (HARD 1-10 tool-enforced, DEFAULT 11-21 overridable, ADVISORY 22-28 on-demand)
+
+On non-Claude hosts these load the same way — via the `list_skills` / `get_skill` tools, the `burp://skills/*` resources, or the raw files. See [Skills, rules & agents on other hosts](#skills-rules--agents-on-other-hosts).
 
 ## Agents
 

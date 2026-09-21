@@ -76,6 +76,10 @@ class RenderTest(unittest.TestCase):
         self.assertIn("flowchart TD", m)
         self.assertIn("-->|proves|", m)
         self.assertIn("-->|derived_from|", m)
+        # goal node id must be sanitised to match the edge refs (goal_1, not goal-1)
+        self.assertIn("goal_1[", m)
+        self.assertNotIn("goal-1[", m)
+        self.assertIn("spawns", m)
 
     def test_dsh_replay_shape(self):
         g, _ = _seed()

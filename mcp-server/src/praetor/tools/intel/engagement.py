@@ -55,6 +55,21 @@ def _finding_meta(domain: str, finding_id: str) -> dict | None:
     return None
 
 
+def _apply(domain: str, mutator) -> str:
+    """Load the graph (guarding "no goal yet"), run mutator(graph) -> result string,
+    save, and return the result — or an operator-readable error. The load/guard/save
+    boilerplate every mutating tool shares."""
+    graph = _load(domain)
+    if graph is None:
+        return "error: no engagement graph — call record_goal first"
+    try:
+        result = mutator(graph)
+        _save(domain, graph)
+        return result
+    except (ValueError, OSError) as exc:
+        return f"error: {exc}"
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -93,15 +108,10 @@ def register(mcp: FastMCP) -> None:
             title: the hypothesis/action, e.g. 'test IDOR on order_id'.
             parent: 'goal-1' (default) or a `fact-<n>` id this intent follows from.
         """
-        graph = _load(domain)
-        if graph is None:
-            return "error: no engagement graph — call record_goal first"
-        try:
-            iid = E.add_intent(graph, title, parent)
-            _save(domain, graph)
-        except (ValueError, OSError) as exc:
-            return f"error: {exc}"
-        return f"{iid}: {title}  (⇐ {parent})"
+        def m(g):
+            iid = E.add_intent(g, title, parent)
+            return f"{iid}: {title}  (⇐ {parent})"
+        return _apply(domain, m)
 
     @mcp.tool()
     async def record_fact(domain: str, text: str, intent: str) -> str:
@@ -112,15 +122,10 @@ def register(mcp: FastMCP) -> None:
             text: the observation, e.g. '/api/users?id= returns 500 on a quote'.
             intent: the `intent-<n>` that produced it.
         """
-        graph = _load(domain)
-        if graph is None:
-            return "error: no engagement graph — call record_goal first"
-        try:
-            fid = E.add_fact(graph, text, intent)
-            _save(domain, graph)
-        except (ValueError, OSError) as exc:
-            return f"error: {exc}"
-        return f"{fid} (⇐ {intent}): {text}"
+        def m(g):
+            fid = E.add_fact(g, text, intent)
+            return f"{fid} (⇐ {intent}): {text}"
+        return _apply(domain, m)
 
     @mcp.tool()
     async def record_asset(domain: str, name: str, atype: str = "",
@@ -134,16 +139,11 @@ def register(mcp: FastMCP) -> None:
             atype: host / service / endpoint / account / bucket / ... (free text).
             parent: an existing `asset-<n>` to nest under, or '' for a root.
         """
-        graph = _load(domain)
-        if graph is None:
-            return "error: no engagement graph — call record_goal first"
-        try:
-            aid = E.add_asset(graph, name, atype, parent)
-            _save(domain, graph)
-        except (ValueError, OSError) as exc:
-            return f"error: {exc}"
-        tail = f"  (⇐ {parent})" if parent else ""
-        return f"{aid}: {name} [{atype or '?'}]{tail}"
+        def m(g):
+            aid = E.add_asset(g, name, atype, parent)
+            tail = f"  (⇐ {parent})" if parent else ""
+            return f"{aid}: {name} [{atype or '?'}]{tail}"
+        return _apply(domain, m)
 
     @mcp.tool()
     async def link_finding(domain: str, finding_id: str, intent: str,
@@ -162,22 +162,18 @@ def register(mcp: FastMCP) -> None:
             assets: `asset-<n>` ids the finding affects (optional).
             title: override title; default reads it from findings.json.
         """
-        graph = _load(domain)
-        if graph is None:
-            return "error: no engagement graph — call record_goal first"
         meta = _finding_meta(domain, finding_id) or {}
         severity = str(meta.get("severity", "")).lower()
         repro = meta.get("reproduction_steps") or meta.get("reproductionSteps") or []
         use_title = title.strip() or str(meta.get("title", "")) or finding_id
-        try:
-            nid = E.add_finding(graph, finding_id, use_title, intent,
+
+        def m(g):
+            nid = E.add_finding(g, finding_id, use_title, intent,
                                 assets=assets or [], severity=severity,
                                 repro=repro if isinstance(repro, list) else [])
-            _save(domain, graph)
-        except (ValueError, OSError) as exc:
-            return f"error: {exc}"
-        warn = "" if meta else "  (note: finding not found in findings.json — save it first)"
-        return f"{nid} proves←{intent}: {use_title} [{severity or '?'}]{warn}"
+            warn = "" if meta else "  (note: finding not found in findings.json — save it first)"
+            return f"{nid} proves←{intent}: {use_title} [{severity or '?'}]{warn}"
+        return _apply(domain, m)
 
     @mcp.tool()
     async def engagement_graph(domain: str, format: str = "text") -> str:
