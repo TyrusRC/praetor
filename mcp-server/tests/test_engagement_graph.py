@@ -81,6 +81,19 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("goal-1[", m)
         self.assertIn("spawns", m)
 
+    def test_report_renders_findings_lineage_assets(self):
+        g, _ = _seed()
+        r = E.render_report(g)
+        self.assertIn("# Engagement — acme.tld", r)
+        self.assertIn("SOW-42", r)                          # authorization
+        self.assertIn("## Findings", r)
+        self.assertIn("f007", r)
+        self.assertIn("[HIGH]", r)                          # severity band
+        self.assertIn("Proven by:", r)
+        self.assertIn("## Exploration lineage", r)
+        self.assertIn("## Assets", r)
+        self.assertIn("/api/v1/users", r)                   # asset in the tree
+
     def test_dsh_replay_shape(self):
         g, _ = _seed()
         calls = E.render_dsh(g)

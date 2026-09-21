@@ -181,6 +181,10 @@ def register(mcp: FastMCP) -> None:
 
         Formats:
           - text     : indented lineage summary (default).
+          - report   : a Markdown engagement report from the lineage — findings (with
+                       the intent that proved them, affected assets, reproducible
+                       steps), the exploration narrative, and the asset tree (the
+                       dsh-pentest `pentest_report` analog; complements generate_report).
           - mermaid  : a Mermaid flowchart (paste into any Markdown renderer).
           - json     : the raw graph (nodes + typed edges).
           - dsh      : an ordered `pentest_add_*` replay so the DeepSeek-Harness agent
@@ -189,12 +193,14 @@ def register(mcp: FastMCP) -> None:
 
         Args:
             domain: target domain.
-            format: text | mermaid | json | dsh.
+            format: text | report | mermaid | json | dsh.
         """
         graph = _load(domain)
         if graph is None:
             return "error: no engagement graph — call record_goal first"
         fmt = (format or "text").lower()
+        if fmt == "report":
+            return E.render_report(graph)
         if fmt == "mermaid":
             return E.render_mermaid(graph)
         if fmt == "json":
