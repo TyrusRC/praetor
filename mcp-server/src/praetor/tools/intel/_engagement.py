@@ -174,6 +174,69 @@ def render_mermaid(graph: dict) -> str:
     return "\n".join(out)
 
 
+_SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "": 5}
+
+
+def render_report(graph: dict) -> str:
+    """A Markdown engagement report from the lineage — the pentest_report analog:
+    findings (with the intent that proved them, affected assets, reproducible steps),
+    the exploration narrative, and the asset tree. Complements the finding-centric
+    generate_report; this one tells the goal→proof story."""
+    g = graph.get("goal", {})
+    intents = {n["id"]: n for n in _nodes_of(graph, "intent")}
+    assets = {n["id"]: n for n in _nodes_of(graph, "asset")}
+    out = [f"# Engagement — {g.get('target', '?')}", ""]
+    out.append(f"**Objective:** {g.get('objective', '?')}")
+    out.append(f"**Authorization:** {g.get('authorization') or '—'}")
+    out.append("")
+
+    findings = sorted(_nodes_of(graph, "finding"),
+                      key=lambda n: (_SEV_ORDER.get(n.get("severity", ""), 5), n["id"]))
+    out.append("## Findings")
+    if not findings:
+        out.append("\n_None proven yet._")
+    for fn in findings:
+        sev = (fn.get("severity") or "unrated").upper()
+        out.append(f"\n### {fn['finding_id']} — {fn.get('title') or fn['finding_id']}  [{sev}]")
+        it = intents.get(fn.get("intent"))
+        if it:
+            out.append(f"- **Proven by:** {it['id']} — {it['title']}")
+        aff = [assets[a]["name"] for a in fn.get("assets", []) if a in assets]
+        out.append(f"- **Affects:** {', '.join(aff) if aff else '—'}")
+        repro = fn.get("repro") or []
+        if repro:
+            out.append("- **Reproducible steps:**")
+            out.extend(f"  {i}. {step}" for i, step in enumerate(repro, 1))
+        else:
+            out.append("- **Reproducible steps:** _not recorded — see the saved finding_")
+
+    out.append("\n## Exploration lineage")
+    for it in sorted(intents.values(), key=lambda n: n["id"]):
+        out.append(f"\n- **{it['id']}** {it['title']} _({it['status']})_")
+        for f in sorted(_nodes_of(graph, "fact"), key=lambda n: n["id"]):
+            if f["intent"] == it["id"]:
+                out.append(f"  - yields {f['id']}: {f['text']}")
+        for fn in findings:
+            if fn.get("intent") == it["id"]:
+                out.append(f"  - **proves** {fn['finding_id']}: {fn.get('title') or ''}")
+
+    tree = sorted(assets.values(), key=lambda n: n["id"])
+    if tree:
+        out.append("\n## Assets")
+        depth = {}
+        for a in tree:
+            d = 0
+            p = a.get("parent")
+            seen = set()
+            while p and p in assets and p not in seen:
+                seen.add(p)
+                d += 1
+                p = assets[p].get("parent")
+            depth[a["id"]] = d
+            out.append(f"{'  ' * d}- {a['name']} [{a.get('atype') or '?'}]")
+    return "\n".join(out)
+
+
 def render_dsh(graph: dict) -> list[dict]:
     """A replay the dsh agent runs to mirror this graph into dsh-pentest's live view.
 
