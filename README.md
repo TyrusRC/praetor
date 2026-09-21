@@ -271,6 +271,40 @@ command/args/env inside. The `env` block is optional — omit it on a single hos
 Ready-to-copy config files for each host (one per client, with a where-does-it-go
 table) live in [`examples/mcp-clients/`](examples/mcp-clients/).
 
+### Skills, rules & agents on other hosts
+
+Praetor ships three layers; they port to non-Claude hosts differently:
+
+| Layer | What | On Codex / Gemini / Antigravity / Cursor / Windsurf |
+|---|---|---|
+| **Tools** (~470) | the capabilities | **Universal** — every MCP host gets them once the server is registered. |
+| **Skills / rules / KB** | the how-to playbooks (`.claude/skills/`), the rules (`.claude/rules/`), probe data | **Portable.** Load them three ways: the `list_skills()` / `get_skill(name)` **tools**; the `burp://skills/index`, `burp://skills/<name>`, `burp://rules/hunting`, `burp://knowledge/*` **resources**; or the raw `.claude/skills/*.md` files. |
+| **Agents** (`.claude/agents/`) | the sub-agent roster + auto-dispatch | **Claude-Code-native orchestration.** No universal multi-agent standard — see below. |
+
+**Skills on any host.** `list_skills()` returns every playbook's name + description;
+`get_skill("verify-finding")` returns its full text. These are MCP *tools*, so they
+work even on hosts that don't implement MCP resources. Resource-capable hosts can use
+`burp://skills/index` + `burp://skills/<name>` instead.
+
+**Per-host rule files are included** so each host auto-loads the core guidance and the
+HARD safety rules, pointing at the tools + skills:
+
+| Host | File |
+|---|---|
+| Claude Code | `CLAUDE.md` + `.claude/rules/` |
+| OpenAI Codex (and the cross-host convention) | `AGENTS.md` |
+| Gemini CLI / Antigravity | `GEMINI.md` |
+| Cursor | `.cursor/rules/praetor.mdc` |
+| Windsurf | `.windsurf/rules/praetor.md` |
+
+**Agents.** The roster in `.claude/agents/` is Claude-Code orchestration. On other
+hosts: **Gemini CLI has subagents** — worked-example ports live in
+[`.gemini/agents/`](.gemini/agents/) with a guide to porting the rest. **Cursor**
+background agents and **Antigravity**'s agent manager can each take one role
+(`.claude/agents/<role>.md` + the MCP tools). A host without subagents runs a role as
+a single focused prompt — same tools, same rules, you just lose automatic parallel
+dispatch. The capability is always the tools; the roster is a convenience on top.
+
 ## Configuration
 
 Create `.mcp.json` in the project root. The file is gitignored; each developer maintains their own.
