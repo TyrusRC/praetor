@@ -33,6 +33,7 @@ def new_graph(target: str, objective: str, authorization: str = "") -> dict:
         "version": 1,
         "goal": {
             "id": GOAL_ID,
+            "kind": "goal",
             "target": target.strip(),
             "objective": objective.strip(),
             "authorization": authorization.strip(),
@@ -70,7 +71,8 @@ def add_intent(graph: dict, title: str, parent: str = GOAL_ID) -> str:
     iid = _next_id(graph, "intent")
     graph["nodes"][iid] = {"id": iid, "kind": "intent", "title": title.strip(),
                            "parent": parent, "status": "open"}
-    edge = "spawns" if parent_node.get("id") == GOAL_ID or parent == GOAL_ID else "derived_from"
+    # Anchored to the goal => spawns; anchored to a fact => derived_from (a follow-up).
+    edge = "spawns" if parent_node["kind"] == "goal" else "derived_from"
     graph["edges"].append({"type": edge, "from": parent, "to": iid})
     return iid
 
@@ -157,7 +159,8 @@ def render_mermaid(graph: dict) -> str:
     """A Mermaid flowchart of the lineage — pasteable into any Markdown renderer."""
     out = ["```mermaid", "flowchart TD"]
     g = graph.get("goal", {})
-    out.append(f'  {GOAL_ID}["🎯 {g.get("target","goal")}"]')
+    # Node ids must match the edge refs, which sanitise "-" -> "_".
+    out.append(f'  {GOAL_ID.replace("-", "_")}["🎯 {g.get("target","goal")}"]')
     shape = {"intent": ('["', '"]'), "fact": ('("', '")'),
              "finding": ('{{"', '"}}'), "asset": ('[/"', '"/]')}
     for n in graph.get("nodes", {}).values():
