@@ -59,11 +59,13 @@ codex  mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git
   runs elsewhere (WSL-NAT / remote — set `BURP_API_HOST` to the Windows-host IP). Full
   variable list: see the root README's *Environment Variables*.
 - **Non-Claude hosts: call `praetor_bootstrap()` first.** Claude Code auto-loads Praetor's
-  rules, skills, and agent playbooks from disk; every other host (dsh, Codex, Gemini,
-  Cursor, Windsurf, …) reaches them as **tools** instead. `praetor_bootstrap()` returns the
-  session-start flow and points to `get_rules` (the always-active hunting/engineering
-  rules), `list_skills`/`get_skill`, and `list_agents`/`get_agent` — the same operating
-  context Claude Code loads natively. Safety Rules 5–9 and the save-finding pipeline are
-  tool-layer enforced, so they apply on every host regardless of what is loaded. A host that
-  spawns its own sub-agents (e.g. dsh) gives each one a playbook with `get_agent(<name>)`,
-  exactly as Claude Code dispatches them.
+  rules, project CLAUDE.md, skills, prompts, and agent playbooks from disk; every other host
+  (dsh, Codex, Gemini, Cursor, Windsurf, …) reaches them as **tools** instead.
+  `praetor_bootstrap()` returns the session-start flow + the model-tier mapping and points to
+  `get_rules` (`hunting` / `engineering` / `project` — the last is the project CLAUDE.md),
+  `list_skills`/`get_skill`, `list_prompts`/`get_prompt` (one-call launchers), and
+  `list_agents`/`get_agent` — the same operating context Claude Code loads natively. Safety
+  Rules 5–9 and the save-finding pipeline are tool-layer enforced, so they apply on every host
+  regardless of what is loaded. A host that spawns its own sub-agents (e.g. dsh) gives each one
+  a playbook with `get_agent(<name>)` and maps its `tier` (strategic / standard / fast) to the
+  nearest local model, exactly as Claude Code dispatches them.

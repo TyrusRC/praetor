@@ -21,29 +21,39 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 # mcp-server/src/praetor/tools/host_bootstrap.py -> parents[4] == repo root
-RULES_DIR = Path(__file__).resolve().parents[4] / ".claude" / "rules"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+RULES_DIR = REPO_ROOT / ".claude" / "rules"
 
-_RULES = ("hunting", "engineering")
+# name -> path. 'project' is the checked-in project CLAUDE.md (repo root), NOT
+# the operator's personal ~/.claude/CLAUDE.md — only the in-repo file is served.
+_RULE_PATHS = {
+    "hunting": RULES_DIR / "hunting.md",
+    "engineering": RULES_DIR / "engineering.md",
+    "project": REPO_ROOT / "CLAUDE.md",
+}
 
 
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def get_rules(name: str = "hunting") -> dict:
-        """Load an always-active rule file as a TOOL.
+        """Load an always-active rule / project-guideline file as a TOOL.
 
-        Claude Code auto-loads these; a tools-only host cannot read the
-        `burp://rules/*` resources, so it fetches them here.
+        Claude Code auto-loads all of these from disk; a tools-only host cannot
+        read the `burp://rules/*` resources and never sees CLAUDE.md, so it
+        fetches them here.
 
         Args:
             name: 'hunting' (scope / safety / evidence / coverage / save-finding
-                  pipeline) or 'engineering' (think-first, simplicity, surgical,
-                  goal-driven).
+                  pipeline), 'engineering' (think-first, simplicity, surgical,
+                  goal-driven), or 'project' (the checked-in project CLAUDE.md —
+                  save-finding gates, override surfaces, output discipline, Burp
+                  editions; the behavioural spec Claude Code loads natively).
         """
-        if name not in _RULES:
-            return {"error": f"unknown rules {name!r}", "available": list(_RULES)}
-        path = RULES_DIR / f"{name}.md"
+        path = _RULE_PATHS.get(name)
+        if path is None:
+            return {"error": f"unknown rules {name!r}", "available": list(_RULE_PATHS)}
         if not path.exists():
-            return {"error": f"{name}.md not found under {RULES_DIR}"}
+            return {"error": f"{name} file not found at {path}"}
         return {"name": name, "markdown": path.read_text(encoding="utf-8")}
 
     @mcp.tool()
@@ -60,8 +70,11 @@ def register(mcp: FastMCP) -> None:
             "load_first": [
                 "get_rules('hunting')      — HARD scope/safety + evidence/coverage/save-finding rules",
                 "get_rules('engineering')  — how to work (think-first, surgical, goal-driven)",
+                "get_rules('project')      — project CLAUDE.md: save-finding gates, override surfaces, output discipline (Claude Code auto-loads this; you must fetch it)",
                 "list_skills() / get_skill(name)  — procedural playbooks (HOW to do a task)",
+                "list_prompts() / get_prompt(name, args)  — one-call workflow launchers (hunt-target, triage-program, save-finding-checklist, ...)",
                 "list_agents() / get_agent(name)  — strategy playbooks behind the team",
+                "list_knowledge() / get_knowledge(category)  — probe-class KB (matchers + craft guidance) auto_probe consumes",
                 "list_tier1_tools() / pick_tool(task)  — find the right tool for a task",
             ],
             "web_hunt_loop": [
@@ -82,6 +95,13 @@ def register(mcp: FastMCP) -> None:
             "save_finding_pipeline": [
                 "verify (replay >= 3x) -> assess_finding(7-gate) -> save_finding",
                 "tool-layer enforced: a finding failing scope/dedup/evidence/impact is rejected regardless of host",
+            ],
+            "model_tiers": [
+                "Agent playbooks are pinned to Claude tiers (opus / sonnet / haiku). On a non-Claude host, map the generic `tier` in list_agents to YOUR platform's nearest model:",
+                "  strategic (opus)  -> your strongest reasoning model — commanders + hard 'what next and why' decisions (hunting Rule 33)",
+                "  standard  (sonnet) -> your balanced default model — most workers",
+                "  fast      (haiku)  -> your cheapest/fastest model — bulk, low-stakes steps",
+                "If your host has only one model, run everything on it; the escalation in Rule 33 becomes a no-op, not a blocker.",
             ],
             "note": (
                 "Everything Claude Code does via auto-loaded files, a tools-only host does via "

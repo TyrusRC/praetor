@@ -13,15 +13,23 @@ rule set; the full Claude-Code manual is `CLAUDE.md`, the agent roster is
   points to the rules, skills, and agent playbooks below.
 - **Tools (what to run):** call `list_tier1_tools()` or `pick_tool(task)`. Web lane
   routes through Burp (`127.0.0.1:8111`); network lane bypasses Burp.
-- **Rules (authoritative):** call `get_rules("hunting")` and
-  `get_rules("engineering")` — the always-active rules as a tool (also
+- **Rules (authoritative):** call `get_rules("hunting")`, `get_rules("engineering")`
+  and `get_rules("project")` — the always-active rules plus the project CLAUDE.md
+  (save-finding gates, override surfaces, output discipline) as a tool (also
   `burp://rules/*` resources if your host supports them).
 - **Skills (how to run it):** call `list_skills()` then `get_skill("<name>")` — the
   procedural playbooks (verify-finding, chain-findings, lab-solve, craft-payload,
   …). Also on `burp://skills/*` for resource-capable hosts.
+- **Prompts (one-call launchers):** call `list_prompts()` then
+  `get_prompt("<name>", args)` — hunt-target, triage-program, save-finding-checklist,
+  … — the MCP prompt templates as tools, for hosts that defer the Prompts primitive.
+- **Knowledge (probe classes):** call `list_knowledge()` then `get_knowledge("<cat>")`
+  — the KB matchers + craft guidance `auto_probe` consumes (also `burp://knowledge/*`).
 - **Agents (strategy playbooks):** call `list_agents()` then `get_agent("<name>")`
   (pentest-commander, recon-agent, auth-tester, …). If your host spawns sub-agents,
-  give each one a `get_agent` playbook as its system prompt.
+  give each one a `get_agent` playbook as its system prompt, and map the agent's
+  `tier` (strategic / standard / fast) to your nearest model — not every host has
+  Claude's opus/sonnet/haiku.
 
 (Tools are the portable path — a host that bridges MCP Tools only still gets all of
 the above. Safety Rules 5–9 and the save-finding pipeline are enforced server-side.)

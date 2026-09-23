@@ -191,6 +191,11 @@ def register(mcp: FastMCP):
         return {
             "tier": 1,
             "count": len(TIER1_HUNT_LOOP),
+            "bootstrap": (
+                "Non-Claude host? If you have not yet, call praetor_bootstrap() FIRST — "
+                "it loads the rules / skills / prompts / agent playbooks Claude Code gets "
+                "from disk. Safety Rules 5-9 + the save-finding gate are tool-enforced regardless."
+            ),
             "tools": [{"name": n, "purpose": d} for n, d in TIER1_HUNT_LOOP],
             "default_chain": [
                 "load_target_intel(domain)",
