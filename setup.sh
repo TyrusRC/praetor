@@ -79,6 +79,36 @@ pkg_install() {
     fi
 }
 
+# ── Preflight: OS-first toolchain check ─────────────────────────────
+# OS is detected above; now verify THIS platform's package manager + build
+# toolchain BEFORE any install runs, so a missing prerequisite fails fast with
+# the exact fix instead of erroring halfway through Phase 1.
+preflight() {
+    if [ "$PLATFORM" = "macos" ]; then
+        if ! has brew; then
+            fail "Homebrew is required on macOS. Install it, then re-run ./setup.sh:"
+            echo '    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+            exit 1
+        fi
+        # Xcode Command Line Tools compile the Go tools and the lxml/Pillow C
+        # extensions — the #1 macOS build failure when absent.
+        if ! xcode-select -p &>/dev/null; then
+            warn "Xcode Command Line Tools not found — Go/lxml/Pillow builds will fail."
+            info "Install with:  xcode-select --install   (then re-run ./setup.sh)"
+        fi
+        info "Plan (macOS): brew for system tools · go install for ProjectDiscovery · uv for Python."
+    else
+        local pkg=""
+        has apt-get && pkg=apt; [ -z "$pkg" ] && has dnf && pkg=dnf; [ -z "$pkg" ] && has pacman && pkg=pacman
+        if [ -z "$pkg" ]; then
+            fail "No supported package manager (apt/dnf/pacman) found on this Linux host — install one or install deps manually."
+            exit 1
+        fi
+        info "Plan (Linux/$pkg): $pkg for system tools · go install for ProjectDiscovery · uv for Python."
+    fi
+}
+preflight
+
 # ════════════════════════════════════════════════════════════════════
 # PHASE 1: Required Dependencies
 # ════════════════════════════════════════════════════════════════════
