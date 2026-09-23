@@ -263,12 +263,18 @@ head "Recon tools (core — web lane)"
 # ════════════════════════════════════════════════════════════════════
 
 check_recon() {
-    local tool="$1" install_hint="$2"
-    if has "$tool"; then
-        pass "$tool"
-    else
-        skip "$tool" "$install_hint"
-    fi
+    # check_recon <tool> <install_hint> [alt-bin...] — passes if <tool> OR any
+    # alternate binary name is on PATH. Alternates cover tools whose executable
+    # differs by install source: impacket is `impacket-secretsdump` from Debian
+    # apt but `secretsdump.py` from PyPI (`uv tool install impacket`), and
+    # run_network_tool accepts either. Existing 2-arg calls are unaffected.
+    local tool="$1" install_hint="$2"; shift 2
+    if has "$tool"; then pass "$tool"; return; fi
+    local alt
+    for alt in "$@"; do
+        if has "$alt"; then pass "$tool"; return; fi
+    done
+    skip "$tool" "$install_hint"
 }
 
 check_recon subfinder  "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
@@ -322,7 +328,7 @@ check_recon osv-scanner "release binary: https://github.com/google/osv-scanner/r
 check_recon trivy      "brew install aquasecurity/trivy/trivy               # or: https://github.com/aquasecurity/trivy/releases"
 check_recon grype      "brew install grype                                  # or: https://github.com/anchore/grype#installation"
 check_recon garak      "pipx install garak"
-check_recon mcp-scan   "pipx install mcp-scan                               # https://github.com/invariantlabs-ai/mcp-scan"
+check_recon snyk-agent-scan "uv tool install snyk-agent-scan                   # renamed from invariantlabs-ai/mcp-scan"
 check_recon kubescape  "release binary: https://github.com/kubescape/kubescape/releases (kubescape_<ver>_linux_amd64)"
 check_recon kube-hunter "pipx install kube-hunter"
 
@@ -354,10 +360,10 @@ head "Red-team / network lane (core)"
 # does NOT route through Burp; evidence lands in the operator log instead.
 check_recon nmap       "sudo apt install nmap                               # Kali: preinstalled"
 check_recon nxc        "sudo apt install netexec                            # or: uv tool install git+https://github.com/Pennyw0rth/NetExec"
-check_recon impacket-secretsdump "sudo apt install impacket-scripts        # or: uv tool install impacket"
+check_recon impacket-secretsdump "sudo apt install impacket-scripts        # or: uv tool install impacket" secretsdump.py
 check_recon responder  "sudo apt install responder                          # or: git clone https://github.com/lgandx/Responder"
 check_recon bloodhound-python "sudo apt install bloodhound.py               # or: uv tool install bloodhound"
-check_recon certipy    "sudo apt install certipy-ad                         # or: uv tool install certipy-ad"
+check_recon certipy    "sudo apt install certipy-ad                         # or: uv tool install certipy-ad" certipy-ad
 check_recon kerbrute   "sudo apt install kerbrute                           # or: go install github.com/ropnop/kerbrute@latest"
 check_recon enum4linux-ng "sudo apt install enum4linux-ng"
 check_recon smbmap     "sudo apt install smbmap"
