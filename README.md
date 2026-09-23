@@ -290,9 +290,14 @@ extension):
         transport: stdio
         command: uvx
         args: ['--from', 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server', 'praetor-mcp']
-        env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111' }
+        env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111', PRAETOR_PROFILE: 'web' }
         toolCallTimeoutMs: 120000
 ```
+
+`PRAETOR_PROFILE` advertises a smaller tool set so dsh's eager load stays cheap — `web`
+is a good default; a gated tool is never blocked (`run_tool` runs it and auto-enables its
+lane). Drop the key for the full surface; profile options are in the
+[dsh guide](examples/mcp-clients/deepseek-harness.md).
 
 Saving hot-reloads (no restart); tools appear as `mcp__praetor__*`. dsh bridges MCP
 **Tools only** (Resources/Prompts deferred), so call `praetor_bootstrap()` first and pull
