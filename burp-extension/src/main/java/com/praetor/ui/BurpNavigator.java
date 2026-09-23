@@ -160,6 +160,42 @@ public final class BurpNavigator {
         return out;
     }
 
+    /**
+     * Top-level tab titles actually present in Burp's main tab strip right now —
+     * a diagnostic so a caller can tell a mismatched {@code tab} name apart from
+     * a tab the operator has HIDDEN (right-click the tab bar -> Hide). Montoya
+     * has no API to detect or un-hide a hidden tool tab, so a hidden tab simply
+     * never appears in this list and {@link #selectTab} can never select it —
+     * this surfaces that situation instead of silently screenshotting/selecting
+     * whatever tab happened to be in front. Empty list if no tab strip found.
+     */
+    public static List<String> listTopLevelTabs(Frame frame) {
+        return listTopLevelTabsIn(frame);
+    }
+
+    /** Core of {@link #listTopLevelTabs} over any component root — testable
+     *  without a heavyweight Frame, same pattern as {@link #selectTabIn}. */
+    static List<String> listTopLevelTabsIn(Component root) {
+        List<String> out = new ArrayList<>();
+        try {
+            SwingUi.runOnEdt(() -> {
+                JTabbedPane main = findMainTabbedPane(root);
+                if (main == null) {
+                    return;
+                }
+                for (int i = 0; i < main.getTabCount(); i++) {
+                    String t = main.getTitleAt(i);
+                    if (t != null && !t.isBlank()) {
+                        out.add(t);
+                    }
+                }
+            });
+        } catch (RuntimeException e) {
+            // diagnostic only
+        }
+        return out;
+    }
+
     /** Enabled-button labels under the currently-selected top tab — a diagnostic
      *  so a caller can see what's clickable (Burp's custom UI may not expose a
      *  given control as a standard AbstractButton). */
