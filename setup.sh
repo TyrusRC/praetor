@@ -354,33 +354,30 @@ case "$(uname -m)" in arm64|aarch64) ARCH=arm64; ARCH_X=arm64 ;; *) ARCH=amd64; 
 # whole setup. Reused by every release-binary/tarball download below.
 DL_FLAGS="--connect-timeout 15 --max-time 300 --retry 2 --retry-delay 2"
 
-# gh_latest_tag <owner/repo> -> prints the latest release tag (e.g. v1.13), or
-# nothing (exit 0) on any failure. Two properties this MUST hold, both learned
-# from a macOS run that hung then died at kdigger:
-#   * bounded — --connect-timeout/--max-time so a stalled api.github.com socket
-#     can never hang the whole setup ("stuck"). Unauthenticated api.github.com
-#     is rate-limited (60/hr per IP); a re-run or shared NAT returns 403.
-#   * never-fatal — the trailing `|| true` guarantees exit 0. Callers assign the
-#     result with a bare `tag="$(gh_latest_tag ...)"`, and under `set -euo
-#     pipefail` a non-zero command substitution in a bare assignment aborts the
-#     ENTIRE script — so a single 403/timeout silently skipped every tool after
-#     it. Empty output + the callers' `[ -n "$tag" ]` guard degrade to a warn.
-gh_latest_tag() {
-    curl -fsSL --connect-timeout 15 --max-time 30 --retry 2 --retry-delay 2 \
-        "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
-        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/' || true
-}
+# Pinned release tags. Release binaries are fetched from github.com at these
+# EXACT tags, so setup never calls the api.github.com "latest" endpoint — the
+# unauthenticated-and-rate-limited (60/hr per IP) lookup that hung, then aborted,
+# a macOS run at kdigger. github.com/releases/download is not rate-limited the
+# same way. Bump a version HERE when you want newer; nothing else looks it up.
+KDIGGER_TAG=v1.5.1
+KUBESCAPE_TAG=v4.0.14
+KUBELETCTL_TAG=v1.13
+TERRASCAN_TAG=v1.19.9
+NOMORE403_TAG=v2.0.1
+OSV_SCANNER_TAG=v2.6.0
+HADOLINT_TAG=v2.15.1
+NOIR_TAG=v1.3.1
 
-# install_gh_binary <name> <owner/repo> <asset-filename> — download a single-file
-# release binary into BIN_DIR as <name>. For tools whose go.mod carries replace
-# directives (go install pkg@latest is impossible) or that ship no source module.
+# install_gh_binary <name> <owner/repo> <tag> <asset-filename> — download a
+# single-file release binary into BIN_DIR as <name>, at a PINNED tag. For tools
+# whose go.mod carries replace directives (go install pkg@latest is impossible)
+# or that ship no source module.
 install_gh_binary() {
-    local name="$1" repo="$2" asset="$3"
+    local name="$1" repo="$2" tag="$3" asset="$4"
     if has "$name"; then ok "$name already installed"; return; fi
-    info "Installing $name (release binary)..."
-    local tag; tag="$(gh_latest_tag "$repo")"
+    info "Installing $name $tag (release binary)..."
     mkdir -p "$BIN_DIR"
-    if [ -n "$tag" ] && curl -fsSL $DL_FLAGS -o "$BIN_DIR/$name" \
+    if curl -fsSL $DL_FLAGS -o "$BIN_DIR/$name" \
             "https://github.com/$repo/releases/download/$tag/$asset"; then
         chmod +x "$BIN_DIR/$name"
         has "$name" && ok "$name $tag installed" || warn "$name installed to $BIN_DIR but not on PATH"
@@ -484,7 +481,7 @@ elif [ "$PLATFORM" = "macos" ]; then
     install_pd_tool "noir" "brew install noir"
 elif has apt-get; then
     info "Installing noir (.deb from GitHub releases)..."
-    NOIR_VER="$(gh_latest_tag owasp-noir/noir)"; NOIR_VER="${NOIR_VER#v}"
+    NOIR_VER="${NOIR_TAG#v}"
     if [ -n "$NOIR_VER" ] && curl -fsSL $DL_FLAGS -o /tmp/noir.deb "https://github.com/owasp-noir/noir/releases/download/v${NOIR_VER}/noir_${NOIR_VER}_amd64.deb"; then
         sudo dpkg -i /tmp/noir.deb && ok "noir $NOIR_VER installed" || warn "noir dpkg failed — install manually"
         rm -f /tmp/noir.deb
@@ -536,7 +533,7 @@ install_pd_tool "dnsgen"    "uv tool install dnsgen"
 # ── 40x / 403 bypass (run_nomore403 / run_byp4xx) ──
 echo ""
 info "40x access-control bypass tools..."
-install_gh_binary "nomore403" "devploit/nomore403" "nomore403_${OS}_${ARCH}"
+install_gh_binary "nomore403" "devploit/nomore403" "$NOMORE403_TAG" "nomore403_${OS}_${ARCH}"
 install_pd_tool "byp4xx"    "go install -v github.com/lobuhi/byp4xx@latest"
 
 # ── SCA / containers / SBOM (run_osv_scanner / run_trivy / run_grype / run_syft / run_cosign_verify) ──
@@ -544,7 +541,7 @@ echo ""
 info "SCA + container + SBOM tools..."
 # osv-scanner via release binary — `go install` compiles a huge dep tree
 # (modernc sqlite, etc.) and looks like a hang; the prebuilt binary is instant.
-install_gh_binary "osv-scanner" "google/osv-scanner" "osv-scanner_${OS}_${ARCH}"
+install_gh_binary "osv-scanner" "google/osv-scanner" "$OSV_SCANNER_TAG" "osv-scanner_${OS}_${ARCH}"
 install_pd_tool "cosign"    "go install -v github.com/sigstore/cosign/v2/cmd/cosign@latest"
 install_pd_tool "trivy"     "curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b \"$HOME/go/bin\""
 install_pd_tool "grype"     "curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b \"$HOME/go/bin\""
@@ -566,7 +563,7 @@ info "Kubernetes audit + attack tools..."
 install_pd_tool "peirates"   "go install -v github.com/inguardians/peirates/cmd/peirates@latest"
 # kubeletctl's go.mod declares a bare module name (not a URL) — not go-installable;
 # use the release binary.
-install_gh_binary "kubeletctl" "cyberark/kubeletctl" "kubeletctl_${OS}_${ARCH}"
+install_gh_binary "kubeletctl" "cyberark/kubeletctl" "$KUBELETCTL_TAG" "kubeletctl_${OS}_${ARCH}"
 install_pd_tool "kube-hunter" "uv tool install kube-hunter"
 # kubescape — the install.sh drops the binary in a dir off PATH; fetch the
 # release binary straight into BIN_DIR instead (asset carries the version).
@@ -574,7 +571,7 @@ if has kubescape; then
     ok "kubescape already installed"
 else
     info "Installing kubescape (release binary)..."
-    KS_TAG="$(gh_latest_tag kubescape/kubescape)"; KS_VER="${KS_TAG#v}"
+    KS_TAG="$KUBESCAPE_TAG"; KS_VER="${KS_TAG#v}"
     mkdir -p "$BIN_DIR"
     if [ -n "$KS_VER" ] && curl -fsSL $DL_FLAGS -o "$BIN_DIR/kubescape" \
             "https://github.com/kubescape/kubescape/releases/download/${KS_TAG}/kubescape_${KS_VER}_${OS}_${ARCH}"; then
@@ -587,7 +584,7 @@ fi
 if has kdigger; then
     ok "kdigger already installed"
 else
-    install_gh_binary "kdigger" "quarkslab/kdigger" "kdigger-${OS}-${ARCH}"
+    install_gh_binary "kdigger" "quarkslab/kdigger" "$KDIGGER_TAG" "kdigger-${OS}-${ARCH}"
 fi
 
 # ── Cloud posture (run_prowler / run_scout_suite / run_cloudsploit / run_pacu) ──
@@ -617,7 +614,7 @@ if has terrascan; then
     ok "terrascan already installed"
 else
     info "Installing terrascan (release tarball)..."
-    TS_TAG="$(gh_latest_tag tenable/terrascan)"; TS_VER="${TS_TAG#v}"
+    TS_TAG="$TERRASCAN_TAG"; TS_VER="${TS_TAG#v}"
     mkdir -p "$BIN_DIR"
     if [ -n "$TS_VER" ] && curl -fsSL $DL_FLAGS -o /tmp/terrascan.tgz \
             "https://github.com/tenable/terrascan/releases/download/${TS_TAG}/terrascan_${TS_VER}_${OS_CAP}_${ARCH_X}.tar.gz" \
@@ -647,7 +644,7 @@ if has hadolint; then
 elif [ "$PLATFORM" = "macos" ]; then
     install_pd_tool "hadolint" "brew install hadolint"
 else
-    install_gh_binary "hadolint" "hadolint/hadolint" "hadolint-${OS}-${ARCH_X}"
+    install_gh_binary "hadolint" "hadolint/hadolint" "$HADOLINT_TAG" "hadolint-${OS}-${ARCH_X}"
 fi
 
 # ── Visual EASM (visual_easm_diff) ──
