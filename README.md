@@ -50,7 +50,7 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - **SAST + secrets layer (v1.0)**: `audit_crawled_artifacts` opengrep-over-proxy-bodies (DOM clobbering / proto pollution / postMessage), `run_opengrep_source` source-tree SAST, `run_gitleaks` + `run_trufflehog` (live verification = HIGH severity floor), `dump_exposed_git` chains with `discover_common_files` `.git/HEAD` to reconstruct repo + extract secrets. Noir OpenAPI ingest via `import_scope --format noir_json`.
 - **Active LLM/MCP probes (v1.0)**: `ai_prompt_injection`, `rag_injection`, `mcp_server_attacks`, `mcp_tool_poisoning`, `vector_db_injection`, `echoleak` (CVE-2025-32711). Declarative prompt-injection guardrail (`inspect_for_prompt_injection`).
 - **CI integration (v1.0)**: SARIF 2.1.0 + JUnit XML exporters, compliance-framework tags (OWASP / PCI-DSS / HIPAA / SOC2 / GDPR / CWE), `intensity=safe|normal|aggressive` flag, per-engagement cost cap (`set_engagement_cost_cap`), auto-PoC `generate_repro_script` rendering runnable curl from the finding's proxy_history_index.
-- **Report evidence capture**: `burp_screenshot` grabs the live Burp GUI — any tab / nested sub-tab, a specific Proxy-history or Logger row, an optional button click — occlusion-immune via `Component.printAll` (no window-focus theft, non-disruptive: the operator's view is snapshotted and restored). `auto_redact` OCR-detects secrets (cookies / tokens / keys / JWTs / emails, free `tesseract`) and writes a **redacted twin** beside the naked shot — a coarse, non-invertible pixel-mosaic over the value's trailing half, or a solid irreversible fill. The redacted twin is what attaches to the finding, so `generate_report` (inline image embeds) and `export_poc_bundle` never ship a raw secret; `screenshot_gallery` builds an offline contact sheet.
+- **Report evidence capture**: `burp_screenshot` grabs the live Burp GUI — any tab / nested sub-tab, a specific Proxy-history or Logger row, an optional button click — occlusion-immune via `Component.printAll` (no window-focus theft, non-disruptive: the operator's view is snapshotted and restored). `auto_redact_screenshot` OCR-detects secrets (cookies / tokens / keys / JWTs / emails, free `tesseract`) and writes a **redacted twin** beside the naked shot — a coarse, non-invertible pixel-mosaic over the value's trailing half, or a solid irreversible fill. The redacted twin is what attaches to the finding, so `generate_report` (inline image embeds) and `export_poc_bundle` never ship a raw secret; `screenshot_gallery` builds an offline contact sheet.
 - Save-finding pipeline with a 7-question gate (`assess_finding`) and per-program policy overrides.
 - **False-positive defenses**: payload-tied reflection-liveness (a payload reflected only HTML/JS-encoded is not XSS), dual-baseline access-control check (`compare_auth_states` probes unauthenticated — public data is not an IDOR), OOB-mandatory verdicts for blind classes (blind SSRF/XXE/XSS need a resolved Collaborator interaction), AND-composed matchers with baseline deltas, and ≥3× replay for timing/blind classes.
 - Stealth headless browser ([CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — patched Chromium binary with source-level fingerprint fixes, not JS shims) that proxies through Burp.
@@ -465,7 +465,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 |---|---|
 | Scope & configuration | `configure_scope`, `check_scope`, `get_scope` |
 | Read | `get_proxy_history`, `get_proxy_count`, `get_sitemap`, `get_scanner_findings`, `get_websocket_history` |
-| Analyze | `smart_analyze`, `find_injection_points`, `extract_js_secrets`, `analyze_dom` |
+| Analyze | `smart_analyze`, `detect_tech_stack`, `extract_js_secrets`, `analyze_dom` |
 | Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater` |
 | Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js` |
 | Session | `create_session`, `session_request`, `extract_token`, `run_flow` |
@@ -496,7 +496,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
-| Report evidence | `burp_screenshot` (GUI capture + tab/sub-tab/row/click nav + `auto_redact`), `auto_redact_screenshot`, `redact_screenshot`, `attach_screenshot`, `screenshot_gallery`, `export_poc_bundle` |
+| Report evidence | `burp_screenshot` (GUI capture + tab/sub-tab/row/click nav + auto-redaction), `auto_redact_screenshot`, `redact_screenshot`, `attach_screenshot`, `screenshot_gallery`, `export_poc_bundle` |
 | **Network recon (lane)** | `run_network_recon` (chained discover→enum→leads pipeline), `run_nmap`, `get_network_inventory` |
 | **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch) |
 | **Credential loop** | `crack_hashes` (offline hashcat/john), `record_credential`, `list_credentials` |
