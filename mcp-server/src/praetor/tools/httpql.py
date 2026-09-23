@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools.read._noise import classify, is_noise
 
 
 _TOKEN = re.compile(r"\s*(\(|\)|AND|OR|NOT|[!<>=~]+|\".*?\"|'.*?'|\S+)", re.IGNORECASE)
@@ -62,6 +63,16 @@ def _eval_clause(field: str, op: str, val: str, entry: dict) -> bool:
         fv = rl if rl is not None else len(entry.get("response_body") or "")
         try: val = int(val)
         except ValueError: pass
+    elif field == "noise":
+        # noise = true/false (CDN/ads/analytics/telemetry/static), or a category:
+        # noise = ads / noise ~ analytics.
+        cat = classify(entry.get("url") or "", entry.get("mime_type") or "")
+        lv = str(val).lower()
+        if lv in ("true", "1", "yes"):
+            return bool(cat)
+        if lv in ("false", "0", "no"):
+            return not cat
+        return lv in cat if op == "~" else cat == lv
     else:
         return False
 
@@ -115,22 +126,39 @@ def register(mcp: FastMCP) -> None:
         query: str,
         limit: int = 100,
         offset: int = 0,
+        drop_noise: bool = True,
     ) -> str:
-        """Filter proxy history with HTTPQL-style DSL.
+        """Filter proxy history with HTTPQL-style DSL — noise dropped by default.
 
-        Fields: method, status, url, host, path, body, header, length.
+        Fields: method, status, url, host, path, body, header, length, noise.
         Operators: =, !=, ~ (substring), >, <, >=, <=.
         Combiners: AND, OR. No parens.
+
+        `drop_noise=True` (default) hides third-party CDN / ads / analytics /
+        telemetry / static-media rows — the beacon/asset flood a real browser
+        session captures — so a lookup over thousands of rows returns just the
+        target's app + API traffic and costs a fraction of the tokens. The footer
+        reports how many were hidden; pass `drop_noise=False` to include them, or
+        query the `noise` field directly (`noise = true`, `noise ~ ads`) to inspect
+        what's being classed as noise. JS/CSS/JSON/source-maps are never noise.
 
         Examples:
             status >= 400 AND host = api.x.test
             method = POST AND body ~ token
-            url ~ /admin AND status = 200
+            url ~ /oidc/callback              # find that one request, noise gone
+            noise = true                      # inspect what's being dropped
         """
         data = await client.get(f"/api/proxy/history?limit={max(limit, offset + limit) + 50}")
         if "error" in data:
             return f"Error: {data['error']}"
         entries = data.get("items") or []
+        # drop_noise is a no-op when the caller filters on `noise` explicitly — the
+        # query owns the decision then.
+        hidden = 0
+        if drop_noise and not re.search(r"\bnoise\b", query, re.I):
+            kept = [e for e in entries if not is_noise(e)]
+            hidden = len(entries) - len(kept)
+            entries = kept
         # The list view omits request/response bodies and headers; fetch detail
         # per entry only when the query actually references them.
         if re.search(r"\b(body|header)\b", query, re.I):
@@ -145,9 +173,10 @@ def register(mcp: FastMCP) -> None:
             entries = enriched
         hits = [e for e in entries if _eval_query(query, e)]
         sliced = hits[offset:offset + limit]
+        noise_note = f"  |  hid {hidden} noise rows (drop_noise=False to include)" if hidden else ""
         lines = [
             f"# query_history_dsl — {query!r}",
-            f"Matches: {len(hits)} (showing {len(sliced)}, offset={offset})",
+            f"Matches: {len(hits)} (showing {len(sliced)}, offset={offset}){noise_note}",
             "",
         ]
         for e in sliced:
