@@ -191,7 +191,9 @@ class MsfrpcModuleExecuteTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "ERROR")
         self.assertIn("hard-deny", out["evidence_summary"])
 
-    async def test_job_started_confirmed(self):
+    async def test_job_started_is_suspected_not_confirmed(self):
+        # A job STARTING is not proof of exploitation — SUSPECTED until a session
+        # or job outcome is polled. CONFIRMED here overclaimed impact.
         _TOKEN_CACHE["127.0.0.1:55553"] = "tok"
         body_b64 = _msgpack_b64({
             "job_id": 42, "uuid": "abc-123-uuid",
@@ -210,7 +212,7 @@ class MsfrpcModuleExecuteTest(unittest.IsolatedAsyncioTestCase):
                 module_name="exploit/multi/http/log4shell_header_injection",
                 options={"RHOSTS": "10.0.0.5", "LHOST": "10.0.0.99",
                          "LPORT": 4444})
-        self.assertEqual(out["verdict"], "CONFIRMED")
+        self.assertEqual(out["verdict"], "SUSPECTED")
         self.assertEqual(out["details"]["job_id"], 42)
 
     async def test_no_job_started_failed(self):

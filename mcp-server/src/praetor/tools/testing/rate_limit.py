@@ -10,7 +10,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
-from ._verdict import make_verdict
+from ._verdict import inconclusive_verdict, make_verdict
 
 
 def register(mcp: FastMCP):
@@ -131,6 +131,16 @@ def register(mcp: FastMCP):
             lines.append(f"  Result: No rate limiting after {requests_count} requests.")
 
         human = "\n".join(lines)
+        # Positive control (Rule 13b): "no rate limiting" is a claim that needs the
+        # requests to have actually gone through. If EVERY request errored (dead
+        # session / unreachable target), status_codes are all 0 and rate_limited
+        # stays False — that is INCONCLUSIVE, never a CONFIRMED "no limit".
+        ok_count = sum(1 for c in status_codes if c != 0)
+        if ok_count == 0:
+            return inconclusive_verdict(
+                f"all {requests_count} requests errored — target unreachable or "
+                f"session dead; cannot assess rate limiting",
+                vuln_type="rate_limit", reason="test_validity_unproven")
         # "rate_limit" finding is itself a low/medium standalone (NEVER_SUBMIT
         # on non-sensitive endpoints per Rule 17). CONFIRMED when no rate
         # limiting on a state-changing endpoint; SUSPECTED on bypass via

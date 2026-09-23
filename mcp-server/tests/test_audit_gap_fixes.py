@@ -118,5 +118,21 @@ class ConfirmReflectionGuardTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "INCONCLUSIVE")
 
 
+# ── Wave 3: network / probe validity gates ───────────────────────────────
+
+class RateLimitValidityTest(unittest.IsolatedAsyncioTestCase):
+    """All requests erroring (dead session) used to yield CONFIRMED 'no rate
+    limiting'. Zero successful requests must be INCONCLUSIVE."""
+
+    async def test_all_errored_is_inconclusive(self):
+        async def fake_post(path, json=None):
+            return {"error": "connection refused"}
+        with patch("praetor.tools.testing.rate_limit.client.post",
+                   new=AsyncMock(side_effect=fake_post)):
+            fn = _tool("test_rate_limit")
+            out = await fn(session="s", method="GET", path="/login", requests_count=5)
+        self.assertEqual(out["verdict"], "INCONCLUSIVE")
+
+
 if __name__ == "__main__":
     unittest.main()
