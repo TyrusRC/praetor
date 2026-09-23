@@ -68,7 +68,10 @@ def register(mcp: FastMCP):
         hidden = 0
         if drop_noise:
             items = data.get("items") or []
-            kept = [e for e in items if not is_noise(e)]
+            # A host/URL the caller is filtering on is being targeted on purpose —
+            # never let the noise deny-list hide it (e.g. testing an extension host).
+            keep = tuple(h for h in (host, filter_url) if h)
+            kept = [e for e in items if not is_noise(e, keep)]
             hidden = len(items) - len(kept)
             data["items"] = kept
         out = format_proxy_table(data)

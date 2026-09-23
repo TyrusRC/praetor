@@ -49,6 +49,25 @@ _NOISE_HOSTS: dict[str, tuple[str, ...]] = {
         # public font / asset CDNs — target app code is rarely served here
         "fonts.googleapis.com", "fonts.gstatic.com",
     ),
+    # Browser-EXTENSION backends. A real operator profile runs Grammarly, a
+    # password manager, an ad-blocker, a shopping helper — each of which fires its
+    # own out-of-scope telemetry from every page, flooding history with traffic
+    # that has nothing to do with the target. This list catches the common ones;
+    # the robust general answer is Burp target scope (configure_scope) — anything
+    # off-scope is noise for the engagement regardless of which extension sent it.
+    "extension": (
+        "grammarly.com", "grammarly.io", "gnar.grammarly.com",
+        "languagetool.org", "languagetoolplus.com",
+        "joinhoney.com", "honey.com",
+        "getadblock.com", "adblockplus.org", "eyeo.com",
+        "wikibuy.com", "capitaloneshopping.com",
+        "improving.duckduckgo.com", "duckduckgo.com/e.js",
+        "norton.com", "safeweb.norton.com", "safebrowse.io",
+        "avast.com", "avg.com", "mcafee.com",
+        "pocket.com", "getpocket.com", "loom.com",
+        "lastpass.com", "1password.com", "dashlane.com", "bitwarden.com",
+        "clients2.googleusercontent.com",
+    ),
 }
 
 # Static media extensions carrying no app logic. JS / CSS / JSON / .map are KEPT
@@ -62,23 +81,34 @@ _NOISE_EXT: tuple[str, ...] = (
 _NOISE_MIME_PREFIX: tuple[str, ...] = ("image/", "font/", "video/", "audio/")
 
 
-def classify(url: str, mime: str = "") -> str:
+def classify(url: str, mime: str = "", keep_hosts: tuple[str, ...] = ()) -> str:
     """Noise category for a request, or "" when it looks like signal.
 
-    Returns one of: analytics | ads | telemetry | asset | "" (signal).
+    Returns one of: analytics | ads | telemetry | extension | asset | "" (signal).
+
+    `keep_hosts` are host substrings that are ALWAYS signal — scope wins over the
+    deny-list. When the operator is actually testing one of these backends (e.g. a
+    Grammarly engagement), the target host is passed here and is never classified
+    as noise, so the hardcoded list can't hide it. Callers populate it from the
+    host being filtered on / the configured target scope.
     """
     if not url:
         return ""
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     full = url.lower()
-    for category, subs in _NOISE_HOSTS.items():
-        for sub in subs:
-            # host substrings match the host; path-bearing markers (…/tr, …/log,
-            # /gsi/log) match the full URL.
-            target = full if "/" in sub else host
-            if sub in target:
-                return category
+    # keep_hosts exempts a host from the third-party DENY-LIST only (targeting a
+    # Grammarly/CDN host on purpose), NOT from static-asset classification — an
+    # image/font is still noise even on the target host, so assets keep dropping.
+    exempt = bool(host) and any(k and k.lower() in host for k in keep_hosts)
+    if not exempt:
+        for category, subs in _NOISE_HOSTS.items():
+            for sub in subs:
+                # host substrings match the host; path-bearing markers (…/tr,
+                # …/log, /gsi/log) match the full URL.
+                target = full if "/" in sub else host
+                if sub in target:
+                    return category
     if parsed.path.lower().endswith(_NOISE_EXT):
         return "asset"
     if (mime or "").lower().startswith(_NOISE_MIME_PREFIX):
@@ -86,6 +116,11 @@ def classify(url: str, mime: str = "") -> str:
     return ""
 
 
-def is_noise(entry: dict) -> bool:
-    """True when a proxy-history entry (needs url; mime_type optional) is noise."""
-    return bool(classify(entry.get("url") or "", entry.get("mime_type") or ""))
+def is_noise(entry: dict, keep_hosts: tuple[str, ...] = ()) -> bool:
+    """True when a proxy-history entry (needs url; mime_type optional) is noise.
+
+    `keep_hosts` (host substrings that are always signal — the target scope /
+    filtered host) exempts a request from noise classification, so a deliberately
+    targeted extension/CDN host is never dropped.
+    """
+    return bool(classify(entry.get("url") or "", entry.get("mime_type") or "", keep_hosts))
