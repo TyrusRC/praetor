@@ -350,10 +350,25 @@ BIN_DIR="$(go env GOBIN 2>/dev/null)"; [ -n "$BIN_DIR" ] || BIN_DIR="$(go env GO
 OS=linux; OS_CAP=Linux; [ "$PLATFORM" = "macos" ] && { OS=darwin; OS_CAP=Darwin; }
 case "$(uname -m)" in arm64|aarch64) ARCH=arm64; ARCH_X=arm64 ;; *) ARCH=amd64; ARCH_X=x86_64 ;; esac
 
-# gh_latest_tag <owner/repo> -> prints the latest release tag (e.g. v1.13)
+# Bounded-download curl flags — a stalled github.com socket must never hang the
+# whole setup. Reused by every release-binary/tarball download below.
+DL_FLAGS="--connect-timeout 15 --max-time 300 --retry 2 --retry-delay 2"
+
+# gh_latest_tag <owner/repo> -> prints the latest release tag (e.g. v1.13), or
+# nothing (exit 0) on any failure. Two properties this MUST hold, both learned
+# from a macOS run that hung then died at kdigger:
+#   * bounded — --connect-timeout/--max-time so a stalled api.github.com socket
+#     can never hang the whole setup ("stuck"). Unauthenticated api.github.com
+#     is rate-limited (60/hr per IP); a re-run or shared NAT returns 403.
+#   * never-fatal — the trailing `|| true` guarantees exit 0. Callers assign the
+#     result with a bare `tag="$(gh_latest_tag ...)"`, and under `set -euo
+#     pipefail` a non-zero command substitution in a bare assignment aborts the
+#     ENTIRE script — so a single 403/timeout silently skipped every tool after
+#     it. Empty output + the callers' `[ -n "$tag" ]` guard degrade to a warn.
 gh_latest_tag() {
-    curl -fsSL "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
-        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/'
+    curl -fsSL --connect-timeout 15 --max-time 30 --retry 2 --retry-delay 2 \
+        "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
+        | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name":[[:space:]]*"([^"]+)".*/\1/' || true
 }
 
 # install_gh_binary <name> <owner/repo> <asset-filename> — download a single-file
@@ -365,7 +380,7 @@ install_gh_binary() {
     info "Installing $name (release binary)..."
     local tag; tag="$(gh_latest_tag "$repo")"
     mkdir -p "$BIN_DIR"
-    if [ -n "$tag" ] && curl -fsSL -o "$BIN_DIR/$name" \
+    if [ -n "$tag" ] && curl -fsSL $DL_FLAGS -o "$BIN_DIR/$name" \
             "https://github.com/$repo/releases/download/$tag/$asset"; then
         chmod +x "$BIN_DIR/$name"
         has "$name" && ok "$name $tag installed" || warn "$name installed to $BIN_DIR but not on PATH"
@@ -469,8 +484,8 @@ elif [ "$PLATFORM" = "macos" ]; then
     install_pd_tool "noir" "brew install noir"
 elif has apt-get; then
     info "Installing noir (.deb from GitHub releases)..."
-    NOIR_VER="$(curl -s https://api.github.com/repos/owasp-noir/noir/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')"
-    if [ -n "$NOIR_VER" ] && curl -fsSL -o /tmp/noir.deb "https://github.com/owasp-noir/noir/releases/download/v${NOIR_VER}/noir_${NOIR_VER}_amd64.deb"; then
+    NOIR_VER="$(gh_latest_tag owasp-noir/noir)"; NOIR_VER="${NOIR_VER#v}"
+    if [ -n "$NOIR_VER" ] && curl -fsSL $DL_FLAGS -o /tmp/noir.deb "https://github.com/owasp-noir/noir/releases/download/v${NOIR_VER}/noir_${NOIR_VER}_amd64.deb"; then
         sudo dpkg -i /tmp/noir.deb && ok "noir $NOIR_VER installed" || warn "noir dpkg failed — install manually"
         rm -f /tmp/noir.deb
     else
@@ -561,7 +576,7 @@ else
     info "Installing kubescape (release binary)..."
     KS_TAG="$(gh_latest_tag kubescape/kubescape)"; KS_VER="${KS_TAG#v}"
     mkdir -p "$BIN_DIR"
-    if [ -n "$KS_VER" ] && curl -fsSL -o "$BIN_DIR/kubescape" \
+    if [ -n "$KS_VER" ] && curl -fsSL $DL_FLAGS -o "$BIN_DIR/kubescape" \
             "https://github.com/kubescape/kubescape/releases/download/${KS_TAG}/kubescape_${KS_VER}_${OS}_${ARCH}"; then
         chmod +x "$BIN_DIR/kubescape"
         has kubescape && ok "kubescape $KS_VER installed" || warn "kubescape installed to $BIN_DIR but not on PATH"
@@ -604,7 +619,7 @@ else
     info "Installing terrascan (release tarball)..."
     TS_TAG="$(gh_latest_tag tenable/terrascan)"; TS_VER="${TS_TAG#v}"
     mkdir -p "$BIN_DIR"
-    if [ -n "$TS_VER" ] && curl -fsSL -o /tmp/terrascan.tgz \
+    if [ -n "$TS_VER" ] && curl -fsSL $DL_FLAGS -o /tmp/terrascan.tgz \
             "https://github.com/tenable/terrascan/releases/download/${TS_TAG}/terrascan_${TS_VER}_${OS_CAP}_${ARCH_X}.tar.gz" \
             && tar -xzf /tmp/terrascan.tgz -C "$BIN_DIR" terrascan 2>/dev/null; then
         chmod +x "$BIN_DIR/terrascan"; ok "terrascan $TS_VER installed"
