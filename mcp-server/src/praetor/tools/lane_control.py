@@ -78,10 +78,12 @@ def register(mcp: FastMCP) -> None:
     async def use_lane(lane: str, ctx: Context = None) -> dict:
         """Re-advertise a gated tool lane so its tools appear directly in the manifest.
 
-        Optional convenience — `run_tool` already reaches gated tools without this. On a
-        host that honours tools/list_changed (Claude Code) the lane appears live; on dsh
-        it will not surface until reconnect, but run_tool still works. To NARROW the set,
-        edit `PRAETOR_PROFILE` in the server config and reconnect.
+        Optional convenience — `run_tool` already reaches gated tools without this. This
+        fires tools/list_changed, and a host that honours it re-fetches and the whole lane
+        appears live with NO reconnect — both Claude Code and the dsh MCP client do (dsh's
+        connection.ts wires onChanged -> refreshTools -> syncTools). After this, get_profile()
+        reports the lane as enabled. WIDENING is live; only NARROWING back needs a config
+        change — set a smaller PRAETOR_PROFILE and reconnect.
 
         Args:
             lane: one of get_profile()['all_lanes'] (web / network / mobile / llm / ...).
@@ -92,4 +94,5 @@ def register(mcp: FastMCP) -> None:
         if promoted:
             await _notify(ctx)
         return {"lane": lane, "promoted": len(promoted), "tools": promoted,
-                "note": "run_tool reached these already; promotion just re-advertises them."}
+                "note": ("surfaced live via tools/list_changed — no reconnect, no config "
+                         "change; run_tool already reached these before promotion.")}

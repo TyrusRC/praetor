@@ -79,6 +79,17 @@ class ApplyProfileTest(unittest.TestCase):
         self.assertIn("web_x", m._tool_manager._tools)
         self.assertNotIn("web_x", _lanes.HIDDEN)
 
+    def test_promote_lane_updates_last_applied(self):
+        # get_profile reads LAST_APPLIED; a runtime promotion must show the lane as
+        # enabled (not still gated) so the host does not report "still web, reconnect".
+        m = self._mk()
+        _lanes.apply_profile(m, "core")
+        self.assertNotIn("web", _lanes.LAST_APPLIED["enabled_lanes"])
+        _lanes.promote_lane(m, "web")
+        self.assertIn("web", _lanes.LAST_APPLIED["enabled_lanes"])
+        self.assertNotIn("web", _lanes.hidden_by_lane())
+        self.assertEqual(_lanes.LAST_APPLIED["removed"], len(_lanes.HIDDEN))
+
     def test_enabled_lane_kept(self):
         m = self._mk()
         _lanes.apply_profile(m, "web")

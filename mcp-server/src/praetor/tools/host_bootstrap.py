@@ -71,9 +71,12 @@ def register(mcp: FastMCP) -> None:
         from praetor import _lanes
         live = _lanes.LAST_APPLIED
         hidden = _lanes.hidden_by_lane()
+        base_lanes = _lanes.resolve_lanes(live["profile"])
+        promoted = sorted(set(live["enabled_lanes"]) - base_lanes)
         return {
             "active_profile": live["profile"],
             "enabled_lanes": live["enabled_lanes"],
+            "promoted_at_runtime": promoted,
             "tools_advertised": live["kept"],
             "tools_gated_out": live["removed"],
             "gated_lanes": {lane: len(names) for lane, names in sorted(hidden.items())},

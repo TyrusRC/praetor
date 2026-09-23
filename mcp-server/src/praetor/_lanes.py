@@ -198,8 +198,10 @@ def promote_lane(mcp, lane: str) -> list[str]:
 
     Returns the promoted tool names. A host that honours tools/list_changed then
     sees them directly; on a host that does not, they were already reachable via
-    `run_tool`, so nothing was ever blocked.
+    `run_tool`, so nothing was ever blocked. Updates LAST_APPLIED so `get_profile`
+    reports the lane as enabled (not still gated) after a runtime promotion.
     """
+    global LAST_APPLIED
     tm = mcp._tool_manager
     promoted = []
     for name, tool in list(HIDDEN.items()):
@@ -207,4 +209,8 @@ def promote_lane(mcp, lane: str) -> list[str]:
             tm._tools[name] = tool
             del HIDDEN[name]
             promoted.append(name)
+    if promoted:
+        enabled = sorted(set(LAST_APPLIED["enabled_lanes"]) | {lane})
+        LAST_APPLIED = {**LAST_APPLIED, "enabled_lanes": enabled,
+                        "kept": len(tm._tools), "removed": len(HIDDEN)}
     return promoted
