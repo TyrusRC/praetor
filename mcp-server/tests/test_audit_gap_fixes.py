@@ -83,5 +83,40 @@ class VerdictToolSourceGuardTest(unittest.TestCase):
                              f"{mod.__name__} returns a raw joined str from a -> dict tool")
 
 
+# ── Wave 2: exploit-confirm reflection / OOB coercion ────────────────────
+
+class ConfirmReflectionGuardTest(unittest.IsolatedAsyncioTestCase):
+    """The marker frame rides in the outbound payload, so pure input reflection
+    used to yield a false CONFIRMED. Reflection must resolve to INCONCLUSIVE."""
+
+    async def test_confirm_rce_reflection_is_inconclusive(self):
+        async def fake_post(path, json=None):
+            # App echoes the decoded payload verbatim (search box, error page):
+            body = "you searched for: ; echo M-deadbeef-START; id; echo M-deadbeef-END — no results"
+            return {"response_body": body, "status_code": 200, "proxy_index": 5}
+        with patch("praetor.tools.exploit.confirm_rce.client.post",
+                   new=AsyncMock(side_effect=fake_post)), \
+             patch("praetor.tools.exploit.confirm_rce.make_marker",
+                   return_value="m-deadbeef"):
+            fn = _tool("confirm_rce")
+            out = await fn(endpoint="https://t/x", parameter="cmd",
+                           command="id", os="linux", wrapper_index=0)
+        self.assertEqual(out["verdict"], "INCONCLUSIVE")
+
+    async def test_confirm_sqli_reflection_is_inconclusive(self):
+        # App echoes the sent union payload verbatim (marker M-M-deadbeef included).
+        async def fake_post(path, json=None):
+            body = "results for '+UNION+SELECT+'M-M-deadbeef',VERSION()--+- : none found"
+            return {"response_body": body, "status_code": 200, "proxy_index": 8}
+        with patch("praetor.tools.exploit.confirm_sqli.client.post",
+                   new=AsyncMock(side_effect=fake_post)), \
+             patch("praetor.tools.exploit.confirm_sqli.make_marker",
+                   return_value="M-deadbeef"):
+            fn = _tool("confirm_sqli")
+            out = await fn(endpoint="https://t/x", parameter="id",
+                           dbms="mysql", strategy="union")
+        self.assertEqual(out["verdict"], "INCONCLUSIVE")
+
+
 if __name__ == "__main__":
     unittest.main()
