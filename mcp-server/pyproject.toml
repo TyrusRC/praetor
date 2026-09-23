@@ -29,6 +29,17 @@ dependencies = [
     # cvss: real FIRST.org base-score computation (2.0/3.x/4.0) — replaces the
     # in-repo MacroVector band approximation in advisor/_cvss4.py.
     "cvss>=3.4",
+    # Support libs for the bundled Python recon tooling and the `uv run` helper env
+    # (parsing scanner/HTML output, DNS lookups, image handling). Kali's apt Python
+    # ships these globally so imports resolve; a clean macOS uv venv does not — and
+    # lxml/Pillow are C extensions needing libxml2/libxslt/libjpeg to build, which
+    # setup.sh installs via brew on macOS first. Declared here (not an optional
+    # extra) so `uv pip install -e .` installs the full tool surface on every host.
+    "lxml>=5.0",
+    "Pillow>=10.0",
+    "PyYAML>=6.0",
+    "dnspython>=2.4",
+    "beautifulsoup4>=4.12",
 ]
 
 [project.urls]

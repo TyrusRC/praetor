@@ -233,6 +233,27 @@ if [ -n "$VENV_PY" ]; then
     else
         bad "CloakBrowser" "not installed — cd mcp-server && uv pip install -e ."
     fi
+    # Playwright ships NO browser; `playwright install chromium` fetches it. Without
+    # it the browser_* surface is dead (the macOS blocker). Check the browser, not
+    # just the package — `playwright install --dry-run` exits 0 only when present.
+    if (cd "$SCRIPT_DIR/mcp-server" && uv run playwright install --dry-run chromium 2>/dev/null | grep -qiE "is already installed|up to date"); then
+        pass "Playwright Chromium installed"
+    elif (cd "$SCRIPT_DIR/mcp-server" && uv run python -c "import playwright" >/dev/null 2>&1); then
+        bad "Playwright Chromium" "browser not fetched — (cd mcp-server && uv run playwright install chromium)"
+    else
+        skip "Playwright Chromium" "playwright not importable — cd mcp-server && uv pip install -e ."
+    fi
+    # Support libs for the bundled Python recon tooling (declared core deps). Kali's
+    # apt Python has them globally; a clean macOS venv needs them built — lxml/Pillow
+    # are C extensions (brew libxml2 libxslt jpeg). One missing => tool surface gaps.
+    for mod_pkg in "lxml:lxml" "PIL:Pillow" "yaml:PyYAML" "dns:dnspython" "bs4:beautifulsoup4"; do
+        mod="${mod_pkg%%:*}"; pkg="${mod_pkg##*:}"
+        if "$VENV_PY" -c "import $mod" >/dev/null 2>&1; then
+            pass "python: $pkg"
+        else
+            bad "python: $pkg" "missing — cd mcp-server && uv pip install -e . (macOS: brew install libxml2 libxslt jpeg first)"
+        fi
+    done
 else
     skip "CloakBrowser" "venv missing — cannot probe; install with uv pip install -e ."
 fi
@@ -252,6 +273,12 @@ check_recon() {
 
 check_recon subfinder  "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
 check_recon httpx      "go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+# B7: 'httpx' is ambiguous — the python HTTP lib installs one too. Praetor resolves
+# ~/go/bin first, but a shadowing binary earlier on the operator's PATH confuses
+# manual use. Warn when the PATH-resolved httpx isn't ProjectDiscovery's.
+if has httpx && ! httpx -version 2>&1 | grep -qi "projectdiscovery\|httpx version"; then
+    skip "httpx is ProjectDiscovery's" "another 'httpx' shadows PATH — prepend ~/go/bin (Praetor itself resolves it correctly)"
+fi
 check_recon nuclei     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 check_recon katana     "go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
 check_recon ffuf       "go install -v github.com/ffuf/ffuf/v2@latest"

@@ -10,9 +10,23 @@ import shutil
 
 from praetor.config import BURP_PROXY_URL
 
-# ProjectDiscovery tools installed via `go install` land in ~/go/bin.
-# Prepend it to search path so Go tools are found.
-_GO_BIN = os.path.join(os.path.expanduser("~"), "go", "bin")
+# ProjectDiscovery tools installed via `go install` land in the Go bin dir.
+# Honor GOBIN, then GOPATH/bin, then the ~/go/bin default — a custom GOPATH (common
+# on macOS) otherwise hides the binaries from shutil.which, so a correctly-installed
+# httpx/subfinder reads as "not installed" (the macOS PATH-conflict blocker).
+def _go_bin() -> str:
+    gobin = os.environ.get("GOBIN")
+    if gobin:
+        return gobin
+    gopath = os.environ.get("GOPATH")
+    if gopath:
+        return os.path.join(gopath.split(os.pathsep)[0], "bin")
+    return os.path.join(os.path.expanduser("~"), "go", "bin")
+
+
+_GO_BIN = _go_bin()
+# Prepend the Go bin dir so Go tools are found AND preferred over a shadowing
+# system binary of the same name (e.g. a python-httpx shim vs ProjectDiscovery httpx).
 _SEARCH_PATH = os.pathsep.join([_GO_BIN, os.environ.get("PATH", "")])
 
 # Realistic User-Agent to avoid bot detection on targets
