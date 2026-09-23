@@ -244,6 +244,17 @@ fi
 # ── Install Python MCP server ──────────────────────────────────────
 info "Setting up Python MCP server..."
 cd "$SCRIPT_DIR/mcp-server"
+# macOS: lxml/Pillow are C extensions that fail to build without the system
+# libraries + Xcode command-line tools. Kali/apt ships prebuilt wheels/libs, so
+# only macOS needs this. Install them BEFORE `uv pip install -e .` so the build
+# of those deps succeeds instead of silently leaving the tool surface broken.
+if [ "$PLATFORM" = "macos" ]; then
+    has xcode-select && ! xcode-select -p &>/dev/null && \
+        warn "Xcode CLT missing — run 'xcode-select --install' if the build below fails"
+    info "Installing C-extension build libs (libxml2, libxslt, jpeg)..."
+    pkg_install libxml2 libxslt jpeg 2>&1 | tail -1 \
+        || warn "brew build libs failed — lxml/Pillow may not compile"
+fi
 uv venv 2>/dev/null || true
 uv pip install -e . 2>&1 | tail -1
 ok "MCP server installed"
@@ -264,6 +275,17 @@ if uv run python -c "import cloakbrowser" >/dev/null 2>&1; then
     ok "CloakBrowser ready"
 else
     warn "CloakBrowser warm-up failed — browser_* tools will trigger the download on first call instead"
+fi
+
+# Playwright browser binary — CloakBrowser drives Chromium through Playwright, and
+# the pip package ships NO browser; `playwright install chromium` fetches it. Skipped
+# by a plain pip install, so the browser_* surface is dead until this runs (the macOS
+# blocker). Idempotent — a no-op once the browser is cached.
+info "Installing Playwright Chromium (browser_* tools)..."
+if uv run playwright install chromium >/dev/null 2>&1; then
+    ok "Playwright Chromium ready"
+else
+    warn "playwright install chromium failed — run it manually: (cd mcp-server && uv run playwright install chromium)"
 fi
 
 # ════════════════════════════════════════════════════════════════════
