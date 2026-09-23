@@ -146,15 +146,19 @@ public class NotesHandler extends BaseHandler {
 
         Object proxyIdxObj  = evidence.get("proxy_history_index");
         Object collabIdObj  = evidence.get("collaborator_interaction_id");
+        Object sendRefObj   = evidence.get("send_ref");
 
-        boolean hasProxy  = proxyIdxObj instanceof Number;
-        boolean hasCollab = collabIdObj instanceof String && !((String) collabIdObj).isEmpty();
+        boolean hasProxy   = proxyIdxObj instanceof Number;
+        boolean hasCollab  = collabIdObj instanceof String && !((String) collabIdObj).isEmpty();
+        boolean hasSendRef = sendRefObj instanceof String && !((String) sendRefObj).isEmpty();
 
-        if (!hasProxy && !hasCollab) {
+        if (!hasProxy && !hasCollab && !hasSendRef) {
             sendError(exchange, 400,
-                "evidence required: provide proxy_history_index or collaborator_interaction_id",
+                "evidence required: provide proxy_history_index, collaborator_interaction_id or send_ref",
                 "evidence_missing",
-                "Replay the request via resend_with_modification(index) and pass that index as evidence.proxy_history_index.");
+                "Replay the request via resend_with_modification(index) and pass that index as "
+                + "evidence.proxy_history_index; a direct send (smuggling / absolute-target / pinned "
+                + "version) that skipped proxy history is cited via evidence.send_ref instead.");
             return;
         }
 
@@ -199,6 +203,32 @@ public class NotesHandler extends BaseHandler {
                     + "get_collaborator_interactions() before save_finding. If the id is "
                     + "from an external callback (interact.sh / webhook.site), use evidence_text "
                     + "to cite the receipt instead.");
+                return;
+            }
+        }
+        if (hasSendRef) {
+            String ref = (String) sendRefObj;
+            burp.api.montoya.http.message.HttpRequestResponse stored =
+                com.praetor.store.SendStore.get().get(ref);
+            if (stored == null) {
+                sendError(exchange, 400,
+                    "evidence.send_ref not found: " + ref,
+                    "send_ref_not_found",
+                    "The direct send under this handle is unknown or was evicted (bounded store). "
+                    + "Re-send the request and cite the fresh send_ref it returns.");
+                return;
+            }
+            // Same endpoint cross-check as proxy_history_index, on the stored
+            // request's URL (it never entered proxy history, so there is no index).
+            String storedUrl = stored.request() != null ? stored.request().url() : null;
+            String mismatch = com.praetor.util.EvidenceMatch.describeMismatchForUrl(storedUrl, findingEndpoint);
+            if (mismatch != null) {
+                sendError(exchange, 400,
+                    "evidence.send_ref " + ref + " does not belong to this finding: " + mismatch,
+                    "evidence_endpoint_mismatch",
+                    "The stored send is a different request than the one the finding describes — "
+                    + "reports, Burp comments and generated writeups would all point at the wrong "
+                    + "traffic. Cite the send_ref of the real request, or fix `endpoint` to match.");
                 return;
             }
         }
