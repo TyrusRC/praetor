@@ -36,12 +36,35 @@ Every finding — regardless of platform — must include these sections in this
 
 ## Universal Rules
 
-1. **Title:** `[Bug Class] in [Component] allows [actor] to [impact]`
+1. **Title:** `[Bug Class] in [Component] allows [actor] to [impact]` — specific, never
+   vague ("Stored XSS in the profile About-Me field runs on any viewer", not "XSS in app").
 2. **Impact-first** in the summary — what an attacker DOES, not how the bug works
-3. **<600 words** main body (triagers read hundreds of reports)
-4. **Reproduction must work cold-start in <5 min**
-5. **One finding per report** — bundle only when it's a chain
-6. **Severity honest** — Rule 21. NEVER inflate.
+3. **<600 words** main body (triagers read hundreds of reports) — comprehensive yet concise;
+   cut anything not needed to verify the bug (no overloading, no narration).
+4. **Reproduction must work cold-start in <5 min** — numbered steps with URLs, affected
+   parameters, and the user role required.
+5. **Expected vs. actual** — state what the app SHOULD do and what it actually does; the gap
+   is the finding.
+6. **One finding per report** — bundle only when it's a chain
+7. **Severity honest** — Rule 21. NEVER inflate.
+8. **Format for reading** — payloads, requests and responses in fenced code blocks; headings
+   + bullets, never a wall of prose. Show the exact payload used.
+
+### Pre-submission checklist (triage-ready)
+
+Before the `generate_report` output ships, confirm each — this is what a security team needs
+to verify fast:
+
+- [ ] Title names bug + component + actor + impact (not "XSS in web app").
+- [ ] Steps reproduce it cold in <5 min — URLs, parameters, roles, the exact payload.
+- [ ] Expected vs. actual is explicit.
+- [ ] Impact says what an attacker GAINS (data / access / money / account control), not what
+      the server does.
+- [ ] Evidence attached: request/response + screenshot (redacted per `evidence-and-tabs` —
+      pixelize the sensitive tail, never blank the whole shot) + PoC / payload in code blocks.
+- [ ] Remediation suggested (optional, but speeds triage).
+- [ ] In scope and not a duplicate (Rules 1 / 16c); severity honest (Rule 14); no vanity
+      metrics or activity counts (Rule 16a).
 
 ## CVSS 4.0 — Use the Calculator
 
