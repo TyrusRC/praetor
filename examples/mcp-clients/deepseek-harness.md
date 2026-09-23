@@ -61,17 +61,28 @@ dsh web --dump-config | grep -A3 praetor
 zstdcat ~/.dsh/sessions/*/*/session*.jsonl.zstd | grep -E '"mcp__praetor__' | head
 ```
 
-## 5. Skills on dsh — use the tools, not the resources
+## 5. Rules, skills, agents on dsh — use the tools, not the resources
 
 `dsh-mcp-client` bridges the MCP **Tools** capability only; **Resources and Prompts
-are deferred**. So the `burp://skills/*` resources are invisible on dsh, but the
-skill **tools** are not:
+are deferred**. So the `burp://rules/*` and `burp://skills/*` resources are invisible
+on dsh — but everything Claude Code auto-loads from disk is also exposed as **tools**,
+so dsh gets full parity. Call these; don't rely on resources:
 
-- `mcp__praetor__list_skills` → every playbook's name + description
-- `mcp__praetor__get_skill` (`name`) → its full markdown (verify-finding,
-  chain-findings, lab-solve, …)
+- `mcp__praetor__praetor_bootstrap` → **call this first.** Returns the session-start
+  flow (web / network / mobile lanes + the save-finding pipeline) and points to
+  everything below. The one call that hands a non-Claude host the same operating
+  context Claude Code loads natively.
+- `mcp__praetor__get_rules` (`hunting` | `engineering`) → the always-active rule files.
+- `mcp__praetor__list_skills` / `mcp__praetor__get_skill` (`name`) → procedural
+  playbooks (verify-finding, chain-findings, lab-solve, …).
+- `mcp__praetor__list_agents` / `mcp__praetor__get_agent` (`name`) → the agent-team
+  strategy playbooks (pentest-commander, recon-agent, auth-tester, …). dsh spawns a
+  sub-agent per playbook — give each the markdown from `get_agent` as its system
+  prompt, exactly as Claude Code dispatches them.
 
-Discovery: `mcp__praetor__list_tier1_tools` / `mcp__praetor__pick_tool`.
+Safety Rules 5–9 and the 7-gate save-finding pipeline are enforced in the tool layer,
+so they hold on dsh regardless of what the agent loads. Discovery of the rest:
+`mcp__praetor__list_tier1_tools` / `mcp__praetor__pick_tool`.
 
 ## 6. Steer the agent — a pentest protocol (the dsh-pentest pattern)
 
@@ -82,9 +93,13 @@ in its preset / system prompt so it uses the tools under the HARD safety rules.
 
 ```text
 You are a penetration tester operating the Praetor toolset over DeepSeek Harness.
+Call mcp__praetor__praetor_bootstrap FIRST — it returns the flow and points to the
+rules, skills, and agent playbooks. Load the full rules with
+mcp__praetor__get_rules("hunting") and mcp__praetor__get_rules("engineering").
 Capabilities are the mcp__praetor__* tools; find them with
 mcp__praetor__list_tier1_tools / mcp__praetor__pick_tool. Load procedural playbooks
-with mcp__praetor__list_skills then mcp__praetor__get_skill("<name>").
+with mcp__praetor__list_skills then mcp__praetor__get_skill("<name>"); load agent
+strategy playbooks with mcp__praetor__list_agents / mcp__praetor__get_agent("<name>").
 
 Track the engagement as a lineage: call mcp__praetor__record_goal once, then
 mcp__praetor__record_intent (a hypothesis) and mcp__praetor__record_fact (what you
@@ -113,8 +128,8 @@ HARD rules — always in force, never override:
 ```
 
 (The authoritative rules live in `.claude/rules/hunting.md` +
-`.claude/rules/engineering.md`; the agent can load them with
-`mcp__praetor__get_skill` siblings or read the files.)
+`.claude/rules/engineering.md`; the agent loads them verbatim with
+`mcp__praetor__get_rules("hunting")` / `mcp__praetor__get_rules("engineering")`.)
 
 ## 7. Run Praetor + dsh-pentest together — same vocabulary, one bridge
 

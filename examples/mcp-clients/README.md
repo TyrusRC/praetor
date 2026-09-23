@@ -33,8 +33,9 @@ uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" 
     each entry carries `"type": "stdio"`. `code --add-mcp` also works.
 [4] DeepSeek Harness (dsh) bridges MCP through its `@deepseek-ai/dsh-mcp-client`
     plugin; tools appear as `mcp__praetor__<tool>`. dsh bridges MCP **Tools** only
-    (Resources/Prompts deferred) — reach skills via the `list_skills`/`get_skill`
-    tools. Full walkthrough (+ pentest system-prompt, running alongside dsh-pentest):
+    (Resources/Prompts deferred) — reach the rules/skills/agents via the tool bridge,
+    starting with `praetor_bootstrap` (then `get_rules` / `get_skill` / `get_agent`).
+    Full walkthrough (+ pentest system-prompt, running alongside dsh-pentest):
     [`deepseek-harness.md`](deepseek-harness.md).
 
 If the target file already has a config block, merge the `praetor` entry in rather
@@ -49,7 +50,7 @@ claude mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git
 codex  mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
 ```
 
-## Two things that apply to every host
+## Things that apply to every host
 
 - **The Burp extension JAR must be loaded in Burp separately** — the client only starts
   the Python server; it does not touch Burp. Build it with `./build.sh` and add it via
@@ -57,3 +58,12 @@ codex  mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git
 - The `env` block is **optional**. Defaults are `127.0.0.1:8111`; keep it only if Burp
   runs elsewhere (WSL-NAT / remote — set `BURP_API_HOST` to the Windows-host IP). Full
   variable list: see the root README's *Environment Variables*.
+- **Non-Claude hosts: call `praetor_bootstrap()` first.** Claude Code auto-loads Praetor's
+  rules, skills, and agent playbooks from disk; every other host (dsh, Codex, Gemini,
+  Cursor, Windsurf, …) reaches them as **tools** instead. `praetor_bootstrap()` returns the
+  session-start flow and points to `get_rules` (the always-active hunting/engineering
+  rules), `list_skills`/`get_skill`, and `list_agents`/`get_agent` — the same operating
+  context Claude Code loads natively. Safety Rules 5–9 and the save-finding pipeline are
+  tool-layer enforced, so they apply on every host regardless of what is loaded. A host that
+  spawns its own sub-agents (e.g. dsh) gives each one a playbook with `get_agent(<name>)`,
+  exactly as Claude Code dispatches them.
