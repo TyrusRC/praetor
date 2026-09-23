@@ -659,6 +659,25 @@ info "Red-team / network lane tools (core — run_nmap / run_network_recon / run
 IS_KALI=0
 if grep -qiE 'kali|parrot' /etc/os-release 2>/dev/null; then IS_KALI=1; fi
 
+# NetExec is installed from git on every non-Kali host (it is not on PyPI, and
+# only Kali/Parrot ship a `netexec` apt package). Its dependency `aardwolf`
+# (and other AD deps) build from source and need a Rust toolchain — uv aborts
+# with "Rust compiler toolchain" when cargo is absent, which is exactly why nxc
+# failed on macOS. Provide cargo before the git build. No-op if already present.
+ensure_rust() {
+    has cargo && return 0
+    info "Installing Rust toolchain (NetExec build dependency)..."
+    if [ "$PLATFORM" = "macos" ]; then
+        brew install rust 2>&1 | tail -1 || warn "brew install rust failed — nxc build may fail"
+    elif has apt-get; then
+        sudo apt-get install -y cargo 2>&1 | tail -1 || warn "apt install cargo failed — nxc build may fail"
+    elif has dnf; then
+        sudo dnf install -y cargo 2>&1 | tail -1 || warn "dnf install cargo failed — nxc build may fail"
+    elif has pacman; then
+        sudo pacman -S --noconfirm rust 2>&1 | tail -1 || warn "pacman install rust failed — nxc build may fail"
+    fi
+}
+
 # Most of these ship in the Kali/Parrot repos under one apt bundle. On other
 # distros install what the package manager has and print a hint for the rest.
 # NOTE: ldapdomaindump and kerbrute are NOT in the Kali apt repos — and a single
@@ -679,9 +698,12 @@ elif has apt-get; then
     info "Debian/Ubuntu — installing what the repos carry..."
     sudo apt-get install -y nmap john hashcat gobuster feroxbuster smbmap sshuttle 2>&1 | tail -2 \
         || warn "some apt packages failed — install manually"
-    # Python-side red-team tools via uv (isolated per-tool venv).
+    # Python-side red-team tools via uv (isolated per-tool venv). impacket from
+    # PyPI installs `secretsdump.py` et al. (NOT the Debian `impacket-*` names);
+    # run_network_tool accepts either, so verify the name PyPI actually creates.
+    ensure_rust
     install_pd_tool "nxc"        "uv tool install git+https://github.com/Pennyw0rth/NetExec"
-    install_pd_tool "impacket-secretsdump" "uv tool install impacket"
+    install_pd_tool "secretsdump.py" "uv tool install impacket"
     install_pd_tool "certipy"    "uv tool install certipy-ad"
     install_pd_tool "bloodhound-python" "uv tool install bloodhound"
     install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
@@ -699,8 +721,9 @@ elif [ "$PLATFORM" = "macos" ]; then
     # smbmap has no brew formula — same PyPI source works cross-platform.
     install_pd_tool "smbmap"      "uv tool install smbmap"
     # Python/Go red-team tools — identical cross-platform sources to the Debian branch.
+    ensure_rust
     install_pd_tool "nxc"        "uv tool install git+https://github.com/Pennyw0rth/NetExec"
-    install_pd_tool "impacket-secretsdump" "uv tool install impacket"
+    install_pd_tool "secretsdump.py" "uv tool install impacket"
     install_pd_tool "certipy"    "uv tool install certipy-ad"
     install_pd_tool "bloodhound-python" "uv tool install bloodhound"
     install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
@@ -898,6 +921,18 @@ check() {
     fi
 }
 
+# check_any <label> <bin>... — ✓ if ANY of the binaries is present. For tools
+# whose executable name differs by install source (impacket: Debian
+# `impacket-secretsdump` vs PyPI `secretsdump.py`).
+check_any() {
+    local label="$1"; shift
+    local b
+    for b in "$@"; do
+        if has "$b"; then echo -e "  ${GREEN}✓${NC} $label"; return; fi
+    done
+    echo -e "  ${RED}✗${NC} $label (not found)"
+}
+
 echo "Required:"
 check java
 check mvn
@@ -941,7 +976,7 @@ echo ""
 echo "Core red-team / network lane:"
 check nmap
 check nxc
-check impacket-secretsdump
+check_any "impacket (secretsdump)" impacket-secretsdump secretsdump.py
 check responder
 check bloodhound-python
 check certipy
