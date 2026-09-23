@@ -39,7 +39,7 @@ def _set_lock(finding: dict, locked: bool, *, reason: str = "", at: str = "") ->
 def _evidence_line(f: dict) -> str:
     """Pure: one reviewable line — id, severity, status, title, evidence index."""
     ev = f.get("evidence") or {}
-    idx = (ev.get("logger_index") or ev.get("proxy_history_index")
+    idx = (ev.get("proxy_history_index")
            or ev.get("collaborator_interaction_id") or "—")
     return (f"  {f.get('id', '?')} [{f.get('severity', '?')}] "
             f"{f.get('status', '?')} — {f.get('title', '')[:60]} (evidence: {idx})")

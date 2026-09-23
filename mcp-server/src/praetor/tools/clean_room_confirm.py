@@ -32,7 +32,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def confirm_with_clean_room(
-        logger_index: int,
+        proxy_history_index: int,
         expected_markers: list[str],
         expected_status: int | None = None,
         expected_header_contains: dict[str, str] | None = None,
@@ -46,7 +46,7 @@ def register(mcp: FastMCP) -> None:
         produced the suspected finding. Marker check only; no interpretation.
 
         Args:
-            logger_index: Logger index of the confirming replay (the entry
+            proxy_history_index: Logger index of the confirming replay (the entry
                 whose response originally proved the finding).
             expected_markers: list of substrings that must appear in the
                 response body (or headers — checked together).
@@ -61,8 +61,8 @@ def register(mcp: FastMCP) -> None:
         Returns: VerdictResult — CONFIRMED if every replay matches all
         criteria; SUSPECTED if some replays match; FAILED if none match.
         """
-        if logger_index < 0:
-            return error_verdict("logger_index must be >= 0",
+        if proxy_history_index < 0:
+            return error_verdict("proxy_history_index must be >= 0",
                                  vuln_type="clean_room_confirm")
         if not expected_markers:
             return error_verdict(
@@ -77,7 +77,7 @@ def register(mcp: FastMCP) -> None:
 
         for attempt in range(max(1, replays)):
             resp = await client.post("/api/http/resend", json={
-                "index": logger_index,
+                "index": proxy_history_index,
             })
             new_li = resp.get("history_index", -1)
             status = resp.get("status_code") or resp.get("status")
@@ -108,7 +108,7 @@ def register(mcp: FastMCP) -> None:
 
             reproductions.append({
                 "attempt": attempt + 1,
-                "logger_index": new_li,
+                "proxy_history_index": new_li,
                 "status_code": status,
                 "markers_matched": [m for m, ok in marker_results.items() if ok],
                 "markers_missed": [m for m, ok in marker_results.items() if not ok],
@@ -127,7 +127,7 @@ def register(mcp: FastMCP) -> None:
                 logger_indices=logger_indices,
                 reproductions=reproductions,
                 details={"replays": replays, "confirmed": confirmed_count,
-                         "source_logger_index": logger_index,
+                         "source_proxy_history_index": proxy_history_index,
                          "expected_markers": expected_markers},
                 summary=f"CONFIRMED via clean-room replay ({confirmed_count}/{replays})",
             )
@@ -143,7 +143,7 @@ def register(mcp: FastMCP) -> None:
                 logger_indices=logger_indices,
                 reproductions=reproductions,
                 details={"replays": replays, "confirmed": confirmed_count,
-                         "source_logger_index": logger_index},
+                         "source_proxy_history_index": proxy_history_index},
                 summary=f"SUSPECTED — flaky clean-room replay ({confirmed_count}/{replays})",
             )
 
@@ -156,7 +156,7 @@ def register(mcp: FastMCP) -> None:
             vuln_type="clean_room_confirm",
             logger_indices=logger_indices,
             reproductions=reproductions,
-            details={"replays": replays, "source_logger_index": logger_index,
+            details={"replays": replays, "source_proxy_history_index": proxy_history_index,
                      "expected_markers": expected_markers},
             summary="FAILED clean-room replay — likely FP or target changed",
         )

@@ -136,7 +136,7 @@ save_finding(
     parameter="Authorization",
     severity="critical",                                # forge succeeded
     evidence={
-        "logger_index": <forge-accepted index>,
+        "proxy_history_index": <forge-accepted index>,
         "summary": "JWT alg confusion (RS256 → HS256) — forged token signed with /.well-known/jwks.json pubkey as HMAC secret accepted at /me, returns victim profile",
         "original_alg": "RS256",
         "forged_alg": "HS256",

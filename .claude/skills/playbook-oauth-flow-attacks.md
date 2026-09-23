@@ -147,7 +147,7 @@ save_finding(
     parameter="redirect_uri",
     severity="critical",
     evidence={
-        "logger_index": <code-arrival index>,
+        "proxy_history_index": <code-arrival index>,
         "collaborator_interaction_id": "<id>",         # for redirect_uri bypass demo
         "summary": "OAuth redirect_uri suffix bypass — code delivered to https://app.target.com.evil.com/callback. Combined with weak state validation, code replayed at /token to obtain victim access_token.",
         "flow_type": "authorization_code",

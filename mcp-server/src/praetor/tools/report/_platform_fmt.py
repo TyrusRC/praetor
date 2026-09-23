@@ -20,7 +20,7 @@ def _numbered(value) -> str:
 def _evidence_str(evidence) -> str:
     """Evidence lines for a platform submission.
 
-    A bug-bounty triager cannot resolve `logger_index: 412` — it is a pointer
+    A bug-bounty triager cannot resolve `proxy_history_index: 412` — it is a pointer
     into someone else's Burp session. Pasting it makes the report look
     machine-generated and gives the triager nothing to verify, so operator
     bookkeeping keys are dropped here unconditionally.

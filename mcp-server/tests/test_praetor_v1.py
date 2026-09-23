@@ -24,7 +24,7 @@ class SarifExportTest(unittest.TestCase):
                 "description": "time-based on /search?q=",
                 "endpoint": "https://example.com/search",
                 "evidence_text": "5s sleep observed",
-                "evidence": {"logger_index": 42},
+                "evidence": {"proxy_history_index": 42},
                 "status": "confirmed",
             },
             {
@@ -35,7 +35,7 @@ class SarifExportTest(unittest.TestCase):
                 "description": "reflection in error message",
                 "endpoint": "https://example.com/err",
                 "evidence_text": "<script> reflected",
-                "evidence": {"logger_index": 43},
+                "evidence": {"proxy_history_index": 43},
                 "status": "confirmed",
             },
         ]
@@ -52,7 +52,7 @@ class SarifExportTest(unittest.TestCase):
         crit = run["results"][0]
         self.assertEqual(crit["level"], "error")
         self.assertEqual(crit["ruleId"], "praetor.sqli")
-        self.assertEqual(crit["properties"]["logger_index"], 42)
+        self.assertEqual(crit["properties"]["proxy_history_index"], 42)
         self.assertIn("severity", crit["properties"])
 
         med = run["results"][1]
@@ -134,7 +134,7 @@ class IntensityFlagTest(unittest.TestCase):
         ctx = _build_context(
             vuln_type="sqli", evidence="", endpoint="https://x/", parameter="",
             response_diff="", domain="x", business_context="", environment="",
-            logger_index=-1, human_verified=False, overrides=None,
+            proxy_history_index=-1, human_verified=False, overrides=None,
             chain_with=None, reproductions=None, session_name="",
             intensity="ULTRA_VIOLENCE",
         )

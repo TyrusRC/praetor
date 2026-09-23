@@ -54,7 +54,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "rce", "severity": "critical", "status": "confirmed",
             "endpoint": "https://demo.example.com/api/x",
-            "evidence": {"logger_index": 5, "baseline_status": 200, "summary": "attacker executes id command; uid=33 output"},
+            "evidence": {"proxy_history_index": 5, "baseline_status": 200, "summary": "attacker executes id command; uid=33 output"},
             "impact": "attacker executes arbitrary commands as web user, reads /etc/shadow",
             "cvss4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H",
         })
@@ -65,7 +65,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "open_redirect", "severity": "critical", "status": "confirmed",
             "endpoint": "https://demo.example.com/r",
-            "evidence": {"logger_index": 5},
+            "evidence": {"proxy_history_index": 5},
             "impact": "attacker redirects user to attacker.com",
         })
         result = await self._run()
@@ -76,7 +76,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "sqli", "severity": "high", "status": "confirmed",
             "endpoint": "https://demo.example.com/q",
-            "evidence": {"logger_index": 5},
+            "evidence": {"proxy_history_index": 5},
             "description": "this could lead to potential database leakage, may allow data exfil",
         })
         result = await self._run()
@@ -98,7 +98,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "csrf_logout", "severity": "low", "status": "confirmed",
             "endpoint": "https://demo.example.com/logout",
-            "evidence": {"logger_index": 1},
+            "evidence": {"proxy_history_index": 1},
             "impact": "logs user out without consent",
         })
         result = await self._run()
@@ -109,7 +109,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "xss", "severity": "high", "status": "confirmed",
             "endpoint": "https://demo.example.com/x",
-            "evidence": {"logger_index": 5},
+            "evidence": {"proxy_history_index": 5},
             "description": "user pastes <script>alert(1)</script> in devtools console",
         })
         result = await self._run()
@@ -119,7 +119,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "rce", "severity": "critical", "status": "suspected",
             "endpoint": "https://demo.example.com/x",
-            "evidence": {"logger_index": 5},
+            "evidence": {"proxy_history_index": 5},
             "impact": "attacker executes commands",
         })
         result = await self._run()
@@ -129,7 +129,7 @@ class TriagerReviewTest(unittest.IsolatedAsyncioTestCase):
         self._write({
             "id": "f1", "vuln_type": "sqli_time", "severity": "high", "status": "confirmed",
             "endpoint": "https://demo.example.com/q",
-            "evidence": {"logger_index": 5, "reproductions": [{"logger_index": 5, "elapsed_ms": 5100}]},
+            "evidence": {"proxy_history_index": 5, "reproductions": [{"proxy_history_index": 5, "elapsed_ms": 5100}]},
             "impact": "blind SQL injection via time-based delay",
         })
         result = await self._run()

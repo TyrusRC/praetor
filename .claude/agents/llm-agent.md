@@ -46,7 +46,7 @@ Not LLM-backed → do nothing, return `status:"blocked"` with `blockers:["endpoi
 - **No destructive payloads**; injection canaries are benign English markers (Rule 5).
 - **No bulk data exfil** (Rule 7) — 1-2 records for distinctness.
 - **OOB uses Collaborator** (`generate_collaborator_payload`), never a fabricated callback (Rule 9a).
-- **Route every send through Burp** for a citable `logger_index` (Rule 26a) — no direct `requests`/`httpx` script.
+- **Route every send through Burp** for a citable `proxy_history_index` (Rule 26a) — no direct `requests`/`httpx` script.
 
 ## Inputs
 

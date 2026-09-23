@@ -102,7 +102,7 @@ class ReflectionLivenessGate(unittest.IsolatedAsyncioTestCase):
             parameter="q",
             evidence="payload reflected in response, alert( in output",
             domain="ex.com",
-            logger_index=5,
+            proxy_history_index=5,
         )
         self.assertIn("Q5 SANITIZED", out)
 
@@ -121,7 +121,7 @@ class ReflectionLivenessGate(unittest.IsolatedAsyncioTestCase):
             parameter="q",
             evidence="payload reflected in executable context, alert( executed",
             domain="ex.com",
-            logger_index=6,
+            proxy_history_index=6,
         )
         self.assertNotIn("Q5 SANITIZED", out)
 

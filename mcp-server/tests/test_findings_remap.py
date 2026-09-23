@@ -24,7 +24,7 @@ def _make_finding(fid: str, status: str = "confirmed", chain=None, conf: float =
         "description": "x",
         "severity": "MEDIUM",
         "endpoint": f"https://t.example/{fid}",
-        "evidence": {"logger_index": 1},
+        "evidence": {"proxy_history_index": 1},
         "evidence_text": "",
         "status": status,
         "parameter": "p",
@@ -181,7 +181,7 @@ class SaveFindingIdMaxPlusOneTest(unittest.IsolatedAsyncioTestCase):
             out = await save_fn(
                 title="new",
                 description="x",
-                evidence={"logger_index": 5},
+                evidence={"proxy_history_index": 5},
                 severity="LOW",
                 endpoint="https://t.example/new",
                 parameter="q",

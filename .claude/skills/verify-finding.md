@@ -18,21 +18,21 @@ Skip Step 1 → wasted tokens drafting reports for findings that fail the 7-Ques
 ## SMART MOVE — first call
 
 Route by what you have in hand:
-- logger_index of the suspicious request → `resend_with_modification(index)` (Step 0 immediately)
+- proxy_history_index of the suspicious request → `resend_with_modification(index)` (Step 0 immediately)
 - finding_id from a prior session → `load_target_intel(domain, "findings")` then resend the baseline indexed there
-- raw curl output, no Logger entry → re-fire through Burp via `curl_request` (R26a) FIRST so a logger_index exists, then Step 0
-- timing/blind class (sqli_blind / sqli_time / ssrf_blind / race / smuggling / xxe_blind) → 3 replays with `{logger_index, elapsed_ms, status_code}` captured before Step 1
+- raw curl output, no Logger entry → re-fire through Burp via `curl_request` (R26a) FIRST so a proxy_history_index exists, then Step 0
+- timing/blind class (sqli_blind / sqli_time / ssrf_blind / race / smuggling / xxe_blind) → 3 replays with `{proxy_history_index, elapsed_ms, status_code}` captured before Step 1
 - no anomaly delta vs baseline (R11) → STOP, mark `likely_false_positive`; do NOT call `save_finding`
 
 ## Step 0 — Logger Replay (MANDATORY)
 
 1. Identify the suspicious request via `get_proxy_history` (with filters) or `search_history`. Note its index.
 2. `resend_with_modification(index)` — confirm the same anomaly (status, body delta, error string).
-3. The Logger index of the **confirming replay** is what goes into `evidence.logger_index`.
-4. **Timing/blind classes** (`sqli_blind`, `sqli_time`, `ssrf_blind`, `race_condition`, `request_smuggling`, `ssti_blind`, `command_injection_blind`, `xxe_blind`): replay 2 more times after the confirmation. Capture `{logger_index, elapsed_ms, status_code}` for each → these become `reproductions[]`.
+3. The Logger index of the **confirming replay** is what goes into `evidence.proxy_history_index`.
+4. **Timing/blind classes** (`sqli_blind`, `sqli_time`, `ssrf_blind`, `race_condition`, `request_smuggling`, `ssti_blind`, `command_injection_blind`, `xxe_blind`): replay 2 more times after the confirmation. Capture `{proxy_history_index, elapsed_ms, status_code}` for each → these become `reproductions[]`.
 5. If the anomaly does not reproduce on the second send → mark `likely_false_positive` and STOP. Do not call `save_finding`.
 
-The server hard-rejects `save_finding` calls without a resolvable `evidence.logger_index` / `proxy_history_index` / `collaborator_interaction_id`.
+The server hard-rejects `save_finding` calls without a resolvable `evidence.proxy_history_index` / `collaborator_interaction_id`.
 
 ## Step 1 — assess_finding (MANDATORY)
 
@@ -71,7 +71,7 @@ Use specialised tools, not full responses:
 ## Shortcut: `confirm_*` exploit-confirmation tools
 
 For 5 high-frequency classes there is an audited one-shot tool that runs the
-canonical proof, returns a VerdictResult dict, and gives you a `logger_index`
+canonical proof, returns a VerdictResult dict, and gives you a `proxy_history_index`
 ready for `save_finding`. Use these BEFORE crafting payloads manually — they
 share the same destructive-payload denylist as `confirm_*` family and never
 exfil real data.

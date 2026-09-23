@@ -98,8 +98,8 @@ def register(mcp: FastMCP) -> None:
                                  vuln_type="saml_xsw", reason="baseline_failed")
         baseline_status = baseline_resp.get("status_code", 0)
         logger_indices = []
-        if "logger_index" in baseline_resp:
-            logger_indices.append(baseline_resp["logger_index"])
+        if "proxy_history_index" in baseline_resp:
+            logger_indices.append(baseline_resp["proxy_history_index"])
 
         variants: list[tuple[str, bytes | None]] = [
             ("xsw1_wrap_before", _xsw_wrap_assertion(saml_xml, attacker_nameid)),
@@ -129,8 +129,8 @@ def register(mcp: FastMCP) -> None:
                     "variant": name, "error": resp.get("error", ""),
                 })
                 continue
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             state, evidence = _classify_replay(resp, baseline_status)
             variant_results.append({
                 "variant": name,

@@ -29,7 +29,7 @@ class AssessContext:
     domain: str = ""
     business_context: str = ""
     environment: str = ""
-    logger_index: int = -1
+    proxy_history_index: int = -1
     human_verified: bool = False
     chain_with: list[str] = field(default_factory=list)
     reproductions: list[dict] = field(default_factory=list)

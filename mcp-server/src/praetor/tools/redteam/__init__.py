@@ -5,7 +5,7 @@
   sync_to_ghostwriter / ghostwriter_status               - central hub (ghostwriter_tools.py)
   ingest_bloodhound / sync_bloodhound_to_ghostwriter     - AD attack paths (bloodhound_tools.py)
 
-The web lane cites Burp logger_index; this lane cites operator-log ids. Both
+The web lane cites Burp proxy_history_index; this lane cites operator-log ids. Both
 forward into Ghostwriter as the single reporting/oplog centre for the engagement.
 """
 

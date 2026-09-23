@@ -1,4 +1,4 @@
-"""Auto-PoC repro.sh generator from a saved finding's logger_index.
+"""Auto-PoC repro.sh generator from a saved finding's proxy_history_index.
 
 Triager handoff quality: every confirmed finding gets a runnable shell script
 that reproduces the request through Burp's proxy. Closes the visible
@@ -6,7 +6,7 @@ delta vs XBOW/Strix who ship reproducible PoCs by default.
 
 Pipeline:
     1. Look up the finding by id.
-    2. Pull logger_index / proxy_history_index from finding.evidence.
+    2. Pull proxy_history_index from finding.evidence.
     3. Fetch the captured request via /api/proxy/<index>.
     4. Render a single-file bash script: env + curl invocation that reproduces.
        Operator runs `bash repro.sh` and sees the expected anomaly (status /
@@ -90,7 +90,7 @@ def register(mcp: FastMCP):
     async def generate_repro_script(finding_id: str) -> str:
         """Render a runnable bash repro script for a saved finding.
 
-        Reads finding.evidence.logger_index (or proxy_history_index) and emits
+        Reads finding.evidence.proxy_history_index and emits
         a self-contained curl-through-Burp script. Output is the script text —
         operator pipes to `> repro.sh && bash repro.sh`.
 
@@ -111,16 +111,14 @@ def register(mcp: FastMCP):
 
         evidence = target.get("evidence") or {}
         idx = (
-            evidence.get("logger_index")
+            evidence.get("proxy_history_index")
             if isinstance(evidence, dict)
             else None
         )
-        if idx is None and isinstance(evidence, dict):
-            idx = evidence.get("proxy_history_index")
         if idx is None or int(idx) < 0:
             return (
-                f"Error: finding {finding_id} has no logger_index / "
-                "proxy_history_index — cannot reproduce"
+                f"Error: finding {finding_id} has no proxy_history_index "
+                "— cannot reproduce"
             )
 
         detail = await client.get(f"/api/proxy/history/{int(idx)}", params={"include_body": "true"})

@@ -83,14 +83,14 @@ class TestGhostwriterMapping(unittest.TestCase):
         obj = _ghostwriter.map_reported_finding({
             "id": "f001", "vuln_type": "sqli", "severity": "HIGH",
             "title": "SQLi", "endpoint": "https://t/x", "impact": "reads rows",
-            "remediation": "parameterize", "evidence": {"logger_index": 42},
+            "remediation": "parameterize", "evidence": {"proxy_history_index": 42},
         }, report_id=7)
         self.assertEqual(obj["reportId"], 7)
         self.assertEqual(obj["severityId"], 4)          # HIGH -> 4
         self.assertEqual(obj["findingTypeId"], 4)       # https endpoint -> Web
         self.assertEqual(obj["impact"], "reads rows")
         self.assertEqual(obj["mitigation"], "parameterize")
-        self.assertIn("logger_index=42", obj["references"])
+        self.assertIn("proxy_history_index=42", obj["references"])
         self.assertEqual(obj["extraFields"]["praetor_id"], "f001")
 
     def test_network_finding_maps_to_network_type(self):

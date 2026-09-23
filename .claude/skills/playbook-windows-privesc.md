@@ -1,13 +1,13 @@
 ---
 name: playbook-windows-privesc
 description: Windows local privilege escalation on a shell you already have — enumerate token privileges and groups, then work the vectors (SeImpersonate→Potato, service misconfig, AlwaysInstallElevated, UAC bypass, autorun/task hijack, saved-credential looting, SAM+SYSTEM dump). Load when you have a non-SYSTEM shell on a Windows host (network/red-team lane). LOLBAS staging defers to lookup_lolbas.
-prerequisite: An interactive or semi-interactive shell on a Windows target (reverse shell, WinRM, web-RCE foothold, RunasCs pivot). This is the network/red-team lane — evidence is the operator log, not a Burp logger_index.
+prerequisite: An interactive or semi-interactive shell on a Windows target (reverse shell, WinRM, web-RCE foothold, RunasCs pivot). This is the network/red-team lane — evidence is the operator log, not a Burp proxy_history_index.
 stop_condition: Two full enumeration passes (manual token/service/registry triage + winPEAS) with no writable-by-you SYSTEM primitive AND no reusable credential → record what you mapped to the operator log and pivot (lateral movement via playbook-ad-lateral-delegation.md, a kernel/authz CVE, or a different host).
 ---
 
 # Windows Local Privilege Escalation Playbook
 
-Load when: you hold a **non-SYSTEM / non-admin shell** on a Windows host and want SYSTEM (or a lateral pivot). Foothold-host work is Burp-blind — record evidence with `record_redteam_action` / `record_loot`, crack with `crack_hashes`, and reuse creds with `record_credential` (the network lane's capture→crack→reuse loop). Cite operator-log ids, never a `logger_index`.
+Load when: you hold a **non-SYSTEM / non-admin shell** on a Windows host and want SYSTEM (or a lateral pivot). Foothold-host work is Burp-blind — record evidence with `record_redteam_action` / `record_loot`, crack with `crack_hashes`, and reuse creds with `record_credential` (the network lane's capture→crack→reuse loop). Cite operator-log ids, never a `proxy_history_index`.
 
 For **domain** escalation once you have SYSTEM or a service-account context (delegation, RBCD, DCSync, AD CS, DACL abuse), this playbook hands off to `playbook-ad-lateral-delegation.md` — see especially its §6 (foothold-host bridge to SYSTEM). This file is the *local* half: get from low-priv user to SYSTEM/admin on the box in front of you.
 

@@ -110,13 +110,13 @@ def register(mcp: FastMCP) -> None:
 
         baseline_status = baseline.get("status_code") or baseline.get("status")
         baseline_body = baseline.get("response_body", "") or ""
-        baseline_logger = baseline.get("logger_index", -1)
+        baseline_logger = baseline.get("proxy_history_index", -1)
         baseline_is_graphql = _is_graphql_response(baseline_body)
 
         reproductions: list[dict] = [{
             "label": "baseline_json_post",
             "status_code": baseline_status,
-            "logger_index": baseline_logger,
+            "proxy_history_index": baseline_logger,
             "graphql_shape": baseline_is_graphql,
         }]
 
@@ -143,14 +143,14 @@ def register(mcp: FastMCP) -> None:
             )
             status = resp.get("status_code") or resp.get("status")
             body = resp.get("response_body", "") or ""
-            logger_idx = resp.get("logger_index", -1)
+            logger_idx = resp.get("proxy_history_index", -1)
             if isinstance(logger_idx, int) and logger_idx >= 0:
                 logger_indices.append(logger_idx)
             is_gql = _is_graphql_response(body)
             entry = {
                 "label": label,
                 "status_code": status,
-                "logger_index": logger_idx,
+                "proxy_history_index": logger_idx,
                 "graphql_shape": is_gql,
             }
             reproductions.append(entry)

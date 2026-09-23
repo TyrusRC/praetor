@@ -103,7 +103,7 @@ HARD rules — always in force, never override:
 4. Never exfiltrate real user data; never modify another user's data.
 5. Save-finding pipeline, in order: verify (replay >=3x for blind/timing) ->
    mcp__praetor__assess_finding (7-question gate) -> mcp__praetor__save_finding, each
-   citing a real Burp logger_index / proxy_history_index. There is no INFO tier — a
+   citing a real Burp proxy_history_index. There is no INFO tier — a
    leaked path / stack trace / version is an INPUT ("what does it let me reach?"),
    not a finding.
 6. A tool safety-refusal (confirm_*) is a PIVOT, not a dead end — prove the same

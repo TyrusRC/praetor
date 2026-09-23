@@ -73,8 +73,8 @@ def register(mcp: FastMCP) -> None:
                 status = resp.get("status_code", 0)
                 if status in (404, 405, 410):
                     break  # path doesn't exist; try next path
-                if "logger_index" in resp:
-                    logger_indices.append(resp["logger_index"])
+                if "proxy_history_index" in resp:
+                    logger_indices.append(resp["proxy_history_index"])
                 text = _response_text(resp)
                 if _marker_echoed(text, canary):
                     confirmed.append({
@@ -180,8 +180,8 @@ def register(mcp: FastMCP) -> None:
                                timeout=timeout_per_request)
             if resp.get("error"):
                 continue
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             text = _response_text(resp)
             if _marker_echoed(text, f"PWNED-{canary}"):
                 findings.append({
@@ -198,8 +198,8 @@ def register(mcp: FastMCP) -> None:
         resp = await _post(endpoint_url, _build_body(prompt),
                            timeout=timeout_per_request)
         if not resp.get("error"):
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             text = _response_text(resp)
             if _looks_like_html_unescaped(text, canary):
                 findings.append({
@@ -215,8 +215,8 @@ def register(mcp: FastMCP) -> None:
                                timeout=timeout_per_request)
             if resp.get("error"):
                 continue
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             text = _response_text(resp)
             if _looks_like_system_prompt_leak(text):
                 findings.append({
@@ -232,8 +232,8 @@ def register(mcp: FastMCP) -> None:
             resp = await _post(endpoint_url, _build_body(_DOS_PAYLOAD),
                                timeout=timeout_per_request)
             if not resp.get("error"):
-                if "logger_index" in resp:
-                    logger_indices.append(resp["logger_index"])
+                if "proxy_history_index" in resp:
+                    logger_indices.append(resp["proxy_history_index"])
                 text = _response_text(resp)
                 # If output is huge (no token cap enforced) → vuln
                 if len(text) > 8000:

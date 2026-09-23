@@ -95,10 +95,10 @@ async def _run_canary(dev, domain) -> dict:
     try:
         await backend_for(dev).open_url(dev, url)
     except DeviceError as e:
-        return {"canary_landed": False, "logger_index": None, "canary_url": url,
+        return {"canary_landed": False, "proxy_history_index": None, "canary_url": url,
                 "warnings_extra": [f"could not fire canary: {e}"]}
     idx = await _poll_history_for(token)
-    return {"canary_landed": idx is not None, "logger_index": idx, "canary_url": url}
+    return {"canary_landed": idx is not None, "proxy_history_index": idx, "canary_url": url}
 
 
 CA_NOTE = "HTTPS capture also requires the Burp CA installed & trusted on the device"
@@ -151,7 +151,7 @@ def register(mcp: FastMCP) -> None:
         routing_ok = not warnings
         result = {"device": dev.id, "platform": dev.platform, "device_proxy": device_proxy,
                   "expected_proxy": expected, "burp_listener": scope, "routing_ok": routing_ok,
-                  "canary_landed": None, "logger_index": None, "warnings": warnings,
+                  "canary_landed": None, "proxy_history_index": None, "warnings": warnings,
                   "ca_note": CA_NOTE, "proxy_note": proxy_note}
         if canary:
             canary_result = await _run_canary(dev, domain)

@@ -91,7 +91,7 @@ def register(mcp: FastMCP):
         high_similarity_cross_state = False
         for row in data.get("matrix", []):
             for cell in row.get("results", []) or []:
-                idx = cell.get("logger_index")
+                idx = cell.get("proxy_history_index")
                 if isinstance(idx, int) and idx >= 0:
                     logger_indices.append(idx)
                 sim = cell.get("similarity_to_baseline")

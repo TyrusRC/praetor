@@ -1,6 +1,6 @@
 """R1: Auto-derive evidence markers from a captured Burp request.
 
-When the operator passes `logger_index=<N>`, fetch the entry and extract
+When the operator passes `proxy_history_index=<N>`, fetch the entry and extract
 class-specific markers (SQLi vendor errors, XSS executable contexts, SSRF
 cloud metadata, RCE uid output, CORS leaks, JWT alg:none, etc.). Markers are
 appended to evidence_lower so the Q5 keyword gate passes without forcing the
@@ -18,10 +18,10 @@ from ._liveness import reflection_liveness
 
 async def augment_evidence(ctx: AssessContext) -> None:
     """Populate ctx.derived_markers from the logger entry (if any)."""
-    if ctx.logger_index is None or ctx.logger_index < 0:
+    if ctx.proxy_history_index is None or ctx.proxy_history_index < 0:
         return
     try:
-        detail = await client.get(f"/api/proxy/history/{ctx.logger_index}")
+        detail = await client.get(f"/api/proxy/history/{ctx.proxy_history_index}")
         if "error" in detail:
             return
 

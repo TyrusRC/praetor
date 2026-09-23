@@ -82,13 +82,13 @@ def register(mcp: FastMCP) -> None:
         for p in paths:
             url = f"{base}{p}"
             resp = await _send(url, session, timeout)
-            li = resp.get("logger_index", -1)
+            li = resp.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
             status = resp.get("status_code") or resp.get("status")
             body = resp.get("response_body") or ""
             reproductions.append({
-                "path": p, "status_code": status, "logger_index": li,
+                "path": p, "status_code": status, "proxy_history_index": li,
             })
             if status == 200 and body:
                 try:

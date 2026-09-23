@@ -88,7 +88,7 @@ save_finding(
     parameter="SAMLResponse",
     severity="critical",
     evidence={
-        "logger_index": <xsw-accepted index>,
+        "proxy_history_index": <xsw-accepted index>,
         "summary": "SAML XSW2 — wrapped legit assertion in sibling under Response, inserted attacker NameID at root. SP processes evil assertion's NameID while verifier validates legit signature. Result: arbitrary user impersonation.",
         "xsw_variant": "XSW2",                       # 1-8
         "saml_processor": "OpenSAML 2.5.1",          # from server header or library version

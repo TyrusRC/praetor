@@ -8,7 +8,7 @@
                                  reportedFindings on the report. Idempotent.
 
 The network lane is Burp-blind, so evidence for AD attack paths is the operator
-log (op ids) + Ghostwriter, never a Burp logger_index.
+log (op ids) + Ghostwriter, never a Burp proxy_history_index.
 """
 
 from __future__ import annotations

@@ -271,7 +271,7 @@ save_finding(
     title="Cross-device session replay on /api/mobile/transfer (no device-id check)",
     description="...",
     url="https://target/api/mobile/transfer",
-    evidence={"logger_index": N},
+    evidence={"proxy_history_index": N},
 )
 ```
 

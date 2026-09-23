@@ -52,11 +52,9 @@ def register(mcp: FastMCP):
             return {"error": f"finding {finding_id!r} not found in {path}"}
 
         evidence = target.get("evidence") or {}
-        idx = evidence.get("logger_index") if isinstance(evidence, dict) else None
-        if idx is None and isinstance(evidence, dict):
-            idx = evidence.get("proxy_history_index")
+        idx = evidence.get("proxy_history_index") if isinstance(evidence, dict) else None
         if idx is None or int(idx) < 0:
-            return {"error": "no logger_index / proxy_history_index in evidence"}
+            return {"error": "no proxy_history_index in evidence"}
 
         detail = await client.get(f"/api/proxy/history/{int(idx)}", params={"include_body": "true"})
         if "error" in detail:
@@ -200,13 +198,11 @@ def register(mcp: FastMCP):
             return {"error": f"finding {finding_id!r} not found in {path}"}
 
         evidence = target.get("evidence") or {}
-        idx = evidence.get("logger_index") if isinstance(evidence, dict) else None
-        if idx is None and isinstance(evidence, dict):
-            idx = evidence.get("proxy_history_index")
+        idx = evidence.get("proxy_history_index") if isinstance(evidence, dict) else None
         if idx is None or int(idx) < 0:
             return {
                 "error": (
-                    f"finding {finding_id!r} has no logger_index / proxy_history_index "
+                    f"finding {finding_id!r} has no proxy_history_index "
                     "in evidence — cannot resolve the confirming request"
                 )
             }

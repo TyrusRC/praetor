@@ -99,7 +99,7 @@ async def annotate_findings(findings_sorted: list[dict]) -> int:
     awaits cost ~50ms each, compounded to 1-2s on 30-finding runs. Returns the
     count of successfully annotated entries."""
     async def _annotate(finding: dict) -> bool:
-        idx = finding.get("history_index") or finding.get("proxy_index") or finding.get("logger_index")
+        idx = finding.get("history_index") or finding.get("proxy_index") or finding.get("proxy_history_index")
         if idx is None:
             return False
         conf = finding.get("confidence", 0) or 0

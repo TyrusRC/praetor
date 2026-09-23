@@ -93,7 +93,7 @@ def register(mcp: FastMCP) -> None:
                                  vuln_type="grpc_reflection", reason="transport_error")
 
         status = resp.get("status_code", 0)
-        logger_indices = [resp["logger_index"]] if "logger_index" in resp else []
+        logger_indices = [resp["proxy_history_index"]] if "proxy_history_index" in resp else []
 
         # Try to read response body as bytes
         raw = resp.get("response_body_b64") or resp.get("response_body") or ""
@@ -208,8 +208,8 @@ def register(mcp: FastMCP) -> None:
         b_grpc = b_hdrs.get("grpc-status", "0")
 
         logger_indices = []
-        if "logger_index" in baseline:
-            logger_indices.append(baseline["logger_index"])
+        if "proxy_history_index" in baseline:
+            logger_indices.append(baseline["proxy_history_index"])
 
         mutation_results = []
         candidates: list[bytes] = []
@@ -225,8 +225,8 @@ def register(mcp: FastMCP) -> None:
             resp = await _send_grpc(method_url, cand, timeout=timeout)
             if resp.get("error"):
                 continue
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             m_status = resp.get("status_code", 0)
             m_body = resp.get("response_body") or ""
             m_len = len(m_body) if isinstance(m_body, str) else 0

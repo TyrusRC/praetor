@@ -100,7 +100,7 @@ def register(mcp: FastMCP) -> None:
         for role_entry in ranked:
             role = role_entry.get("role") or f"trust{role_entry.get('trust_rank')}"
             resp = await _send(target_url, method, role_entry, json_body)
-            li = resp.get("logger_index", -1)
+            li = resp.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
             status = resp.get("status_code") or resp.get("status")
@@ -111,7 +111,7 @@ def register(mcp: FastMCP) -> None:
                 "role": role,
                 "trust_rank": role_entry.get("trust_rank"),
                 "status_code": status,
-                "logger_index": li,
+                "proxy_history_index": li,
                 "property_count": len(props),
                 "properties_visible": sorted(props)[:60],
             })

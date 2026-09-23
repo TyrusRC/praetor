@@ -75,13 +75,13 @@ def register(mcp: FastMCP) -> None:
                 vuln_type="sveltekit_devalue_dos",
             )
         baseline_status = baseline_resp.get("status_code") or baseline_resp.get("status")
-        baseline_logger = baseline_resp.get("logger_index") or baseline_resp.get("proxy_index", -1)
+        baseline_logger = baseline_resp.get("proxy_history_index") or baseline_resp.get("proxy_index", -1)
 
         reproductions: list[dict] = [{
             "label": "baseline",
             "elapsed_ms": baseline_ms,
             "status_code": baseline_status,
-            "logger_index": baseline_logger,
+            "proxy_history_index": baseline_logger,
         }]
         timing_hits = 0
         status_5xx_hits = 0
@@ -91,13 +91,13 @@ def register(mcp: FastMCP) -> None:
             resp = await _send(target_url, method, content_type, payload, session)
             elapsed = int((time.time() - start) * 1000)
             status = resp.get("status_code") or resp.get("status")
-            logger_idx = resp.get("logger_index") or resp.get("proxy_index", -1)
+            logger_idx = resp.get("proxy_history_index") or resp.get("proxy_index", -1)
             entry = {
                 "label": f"cycle_{i}",
                 "payload_preview": payload[:60],
                 "elapsed_ms": elapsed,
                 "status_code": status,
-                "logger_index": logger_idx,
+                "proxy_history_index": logger_idx,
             }
             reproductions.append(entry)
             ratio = (elapsed / baseline_ms) if baseline_ms > 0 else 0
@@ -115,7 +115,7 @@ def register(mcp: FastMCP) -> None:
                 f"SvelteKit devalue DoS — {timing_hits} cyclic variant(s) "
                 f"elapsed >= {_TIMING_RATIO}x baseline ({baseline_ms}ms)",
                 vuln_type="sveltekit_devalue_dos",
-                logger_indices=[r["logger_index"] for r in reproductions if isinstance(r.get("logger_index"), int) and r["logger_index"] >= 0],
+                logger_indices=[r["proxy_history_index"] for r in reproductions if isinstance(r.get("proxy_history_index"), int) and r["proxy_history_index"] >= 0],
                 reproductions=reproductions,
                 details={"timing_hits": timing_hits, "status_5xx_hits": status_5xx_hits},
                 summary=f"CONFIRMED devalue DoS on {target_url} ({timing_hits}/{_MAX_VARIANTS} variants)",
@@ -128,7 +128,7 @@ def register(mcp: FastMCP) -> None:
                 f"SvelteKit devalue probe — {status_5xx_hits} cyclic variant(s) "
                 f"returned 5xx (parser failed but no timing spike)",
                 vuln_type="sveltekit_devalue_dos",
-                logger_indices=[r["logger_index"] for r in reproductions if isinstance(r.get("logger_index"), int) and r["logger_index"] >= 0],
+                logger_indices=[r["proxy_history_index"] for r in reproductions if isinstance(r.get("proxy_history_index"), int) and r["proxy_history_index"] >= 0],
                 reproductions=reproductions,
                 details={"timing_hits": 0, "status_5xx_hits": status_5xx_hits},
                 summary=f"SUSPECTED parser fragility on {target_url} ({status_5xx_hits} 5xx)",
@@ -139,7 +139,7 @@ def register(mcp: FastMCP) -> None:
             0.10,
             "SvelteKit devalue cyclic-reference probes did not trigger DoS",
             vuln_type="sveltekit_devalue_dos",
-            logger_indices=[r["logger_index"] for r in reproductions if isinstance(r.get("logger_index"), int) and r["logger_index"] >= 0],
+            logger_indices=[r["proxy_history_index"] for r in reproductions if isinstance(r.get("proxy_history_index"), int) and r["proxy_history_index"] >= 0],
             reproductions=reproductions,
             details={"timing_hits": 0, "status_5xx_hits": 0},
             summary=f"FAILED — no DoS signal on {target_url}",

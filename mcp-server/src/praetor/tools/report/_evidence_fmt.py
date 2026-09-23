@@ -5,7 +5,7 @@
 # A client or triager cannot resolve them, and citing them reads as a tool dump
 # rather than a finding. Kept out of the delivered report; still in findings.json.
 _INTERNAL_EVIDENCE_KEYS = {
-    "logger_index", "proxy_history_index", "proxy_index", "history_index",
+    "proxy_history_index", "proxy_index", "history_index",
     "repeater_tab", "repeater_tab_id", "burp_id", "organizer_index",
     "session_name", "scan_id", "task_id", "baseline_index", "annotation_index",
 }

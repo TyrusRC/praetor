@@ -38,7 +38,7 @@ def _format_proof_for_review(f: dict) -> str:
         lines.append(f"  Evidence:    {clip}")
     ev = f.get("evidence") or {}
     if isinstance(ev, dict):
-        for key in ("logger_index", "proxy_history_index", "collaborator_interaction_id"):
+        for key in ("proxy_history_index", "collaborator_interaction_id"):
             if ev.get(key) is not None:
                 lines.append(f"  evidence.{key}: {ev[key]}")
     if f.get("reproductions"):

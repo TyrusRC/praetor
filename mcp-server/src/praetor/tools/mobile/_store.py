@@ -1,7 +1,7 @@
 """Operator-log + loot + artifact glue for the mobile lane.
 
 Device actions bypass Burp, so their evidence is an oplog id (not a Burp
-logger_index). Pulled files get loot chain-of-custody. Screenshots land under
+proxy_history_index). Pulled files get loot chain-of-custody. Screenshots land under
 artifacts/mobile/.
 """
 

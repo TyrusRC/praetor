@@ -7,7 +7,7 @@ logout → replay → assess. Documented in session_security.json
 it's three coordinated requests.
 
 This tool runs that flow in one call. All three requests route through
-Burp; logger_index of the final replay is the evidence the operator cites.
+Burp; proxy_history_index of the final replay is the evidence the operator cites.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def register(mcp: FastMCP):
           2) POST logout_url with same auth
           3) GET protected_url with same auth -> if still 200, session was NOT revoked
 
-        The third request's logger_index is the evidence to cite in
+        The third request's proxy_history_index is the evidence to cite in
         save_finding. Maps to WSTG-SESS-06 / session_security.json
         logout_does_not_invalidate_session context.
 
@@ -129,12 +129,12 @@ def register(mcp: FastMCP):
         details = {
             "baseline_status": baseline_status,
             "baseline_length": baseline_len,
-            "baseline_logger_index": baseline_idx,
+            "baseline_proxy_history_index": baseline_idx,
             "logout_status": logout_status,
-            "logout_logger_index": logout_idx,
+            "logout_proxy_history_index": logout_idx,
             "replay_status": replay_status,
             "replay_length": replay_len,
-            "replay_logger_index": replay_idx,
+            "replay_proxy_history_index": replay_idx,
             "length_delta": len_delta,
         }
         logger_indices = [i for i in (baseline_idx, logout_idx, replay_idx) if i >= 0]
@@ -168,11 +168,11 @@ def register(mcp: FastMCP):
                          f"length delta={len_delta}b.")
             lines.append("")
             lines.append("This is the classic stateless-JWT-no-revocation pattern.")
-            lines.append("Cite logger_index in save_finding:")
+            lines.append("Cite proxy_history_index in save_finding:")
             lines.append("  save_finding(vuln_type='session_not_invalidated',")
             lines.append("               severity='high',")
             lines.append(f"               endpoint='{protected_url}',")
-            lines.append(f"               evidence={{'logger_index': {replay_idx}, "
+            lines.append(f"               evidence={{'proxy_history_index': {replay_idx}, "
                          f"'reproductions': []}})")
             return make_verdict(
                 "CONFIRMED", 0.85,

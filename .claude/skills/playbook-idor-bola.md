@@ -129,7 +129,7 @@ save_finding(
     parameter="id",
     severity="high",                                    # critical only with PII / payment / health
     evidence={
-        "logger_index": <foreign-record-read index>,
+        "proxy_history_index": <foreign-record-read index>,
         "baseline_status": 403,                         # what should happen
         "summary": "Order 12347 (alice@victim.com) readable from bob's session — auth not enforced on resource owner",
         "cross_principal_verified": True,

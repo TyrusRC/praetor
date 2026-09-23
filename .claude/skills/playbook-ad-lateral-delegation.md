@@ -1,7 +1,7 @@
 ---
 name: playbook-ad-lateral-delegation
 description: Active Directory lateral movement + privilege escalation via MSSQL linked servers + xp_cmdshell RCE, foothold credential-looting and single-password reuse-spray, Kerberos delegation (unconstrained/constrained/RBCD), authentication coercion, cross-forest trusts, Timeroasting, DACL abuse (bloodyAD — AddSelf/ForceChangePassword/WriteOwner→GenericAll/Protected-Users removal), WriteSPN targeted-Kerberoasting, gMSA password read, deleted-object recovery, AD CS ESC1/ESC4/ESC15, and DCSync. Load when you have domain creds or a foothold on a Windows/AD network (network/red-team lane). Payloads defer to redteam_tool_guide / the network lane.
-prerequisite: A domain credential (user:pass / NT hash / ccache) OR a shell on a domain-joined Windows host. This is the network/red-team lane — evidence is the operator log, not a Burp logger_index.
+prerequisite: A domain credential (user:pass / NT hash / ccache) OR a shell on a domain-joined Windows host. This is the network/red-team lane — evidence is the operator log, not a Burp proxy_history_index.
 stop_condition: A DA/enterprise-admin equivalent is reached (DCSync of krbtgt, or Administrator hash), OR two enumeration passes (BloodHound + service enum) yield no delegation / linked-server / trust / dangerous-ACL edge → record what you mapped and pivot host or vector.
 ---
 

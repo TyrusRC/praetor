@@ -11,7 +11,7 @@ Fix: one bounded VerdictResult tool that —
      run away on token cost.
 
 Zero deps. All traffic routes through `/api/http/curl` so every variant has
-a `logger_index` for `assess_finding` evidence (Rule 10b).
+a `proxy_history_index` for `assess_finding` evidence (Rule 10b).
 
 Supported classes (variant generators):
   - react_server_components       (CVE-2025-55182 React2Shell, CVE-2025-66478)
@@ -196,7 +196,7 @@ def register(mcp: FastMCP) -> None:
                 "verdict": verdict,
                 "confidence": conf,
                 "reason": reason,
-                "logger_index": li if isinstance(li, int) else -1,
+                "proxy_history_index": li if isinstance(li, int) else -1,
                 "elapsed_ms": req_elapsed,
             })
 
@@ -230,12 +230,12 @@ def register(mcp: FastMCP) -> None:
                 summary_lines.append(
                     f"  - {a['label']}: status={a['status']} "
                     f"verdict={a['verdict']} ({a['confidence']:.2f}) "
-                    f"logger={a['logger_index']} {a['reason'][:80]}"
+                    f"logger={a['proxy_history_index']} {a['reason'][:80]}"
                 )
         summary_lines.append("")
         if best_verdict == "CONFIRMED":
             summary_lines.append(
-                f"Next: assess_finding(vuln_type='{klass}', logger_index={best_logger}, "
+                f"Next: assess_finding(vuln_type='{klass}', proxy_history_index={best_logger}, "
                 f"evidence='probe_cve_with_variants {best_label} confirmed {cve_id}')")
         elif best_verdict == "SUSPECTED":
             summary_lines.append(

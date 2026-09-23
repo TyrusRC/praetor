@@ -53,7 +53,7 @@ Return value flags vulnerable variant. **If it says "no inconsistency detected" 
 
 ### Evidence (zero-noise gate)
 - **Required:** Two requests in proxy history (`get_proxy_history`) where request B's body shows up in request A's response, OR a delayed-response oracle confirming queue poisoning.
-- **`evidence.logger_index`** = the response that received the smuggled body
+- **`evidence.proxy_history_index`** = the response that received the smuggled body
 - **`reproductions[]` ≥ 2** (this vuln_type is in the timing/blind set — server enforces)
 - **NEVER** use a destructive smuggled payload (no `DELETE`, no admin actions). Use a `GET /not-real-path` smuggle to prove queue poisoning safely.
 
@@ -70,10 +70,10 @@ save_finding(
     title="HTTP Request Smuggling (CL.TE) on origin via Cloudflare",
     description="...",
     url="https://target/",
-    evidence={"logger_index": 42},
+    evidence={"proxy_history_index": 42},
     reproductions=[
-        {"logger_index": 42, "elapsed_ms": 350, "status_code": 200},
-        {"logger_index": 51, "elapsed_ms": 380, "status_code": 200},
+        {"proxy_history_index": 42, "elapsed_ms": 350, "status_code": 200},
+        {"proxy_history_index": 51, "elapsed_ms": 380, "status_code": 200},
     ],
 )
 ```
@@ -102,7 +102,7 @@ Call `test_cache_poisoning(target_url, headers_to_test=[...])`. Tests these unke
 ### Evidence
 - **Required:** Two requests with `extract_headers(index, ['Cache-Control', 'X-Cache', 'Age', 'CF-Cache-Status', 'X-Served-By'])`. The second hits the cache (`Age > 0`, `X-Cache: HIT`) while serving attacker-controlled content.
 - **Cache deception:** First request authenticated, second unauthenticated **for the deception URL** must return the cached sensitive content.
-- Save with `evidence.logger_index` of the cache HIT response.
+- Save with `evidence.proxy_history_index` of the cache HIT response.
 
 ### False positives
 - `X-Cache: MISS` on the second request = not actually cached
@@ -146,7 +146,7 @@ search_history(query="constructor.prototype", in_response_body=True)
 ```
 
 ### Evidence
-- **Required:** Two requests — pollution request, then probe request that reads the polluted property and reflects it. Both `logger_index` go in evidence/reproductions.
+- **Required:** Two requests — pollution request, then probe request that reads the polluted property and reflects it. Both `proxy_history_index` go in evidence/reproductions.
 - **NEVER use destructive gadgets** (`require('child_process').exec`). Stop at "polluted property is readable from request scope."
 
 ## Technique 4 — JSON Parser Inconsistency (Ghost Parameters)
@@ -245,10 +245,10 @@ save_finding(
     title="Server-side prototype pollution via /api/profile (lodash.merge sink)",
     description="POST /api/profile with __proto__ key pollutes Object.prototype. Subsequent /api/search reads polluted.role and grants admin view.",
     url="https://target/api/profile",
-    evidence={"logger_index": 88},
+    evidence={"proxy_history_index": 88},
     reproductions=[  # smuggling/race always need this; others optional but encouraged
-        {"logger_index": 88, "elapsed_ms": 220, "status_code": 200},
-        {"logger_index": 92, "elapsed_ms": 215, "status_code": 200},
+        {"proxy_history_index": 88, "elapsed_ms": 220, "status_code": 200},
+        {"proxy_history_index": 92, "elapsed_ms": 215, "status_code": 200},
     ],
 )
 ```
@@ -261,7 +261,7 @@ save_finding(
     title="...",
     description="...",
     url="...",
-    evidence={"logger_index": N},
+    evidence={"proxy_history_index": N},
     chain_with=["finding-id-of-cache-poison"],  # REQUIRED — server enforces
 )
 ```

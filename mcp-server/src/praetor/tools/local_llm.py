@@ -88,7 +88,7 @@ def register(mcp: FastMCP) -> None:
                     "endpoint": base,
                     "backend": backend,
                     "models": models,
-                    "logger_index": idx,
+                    "proxy_history_index": idx,
                 })
 
         if not detections:
@@ -188,7 +188,7 @@ def register(mcp: FastMCP) -> None:
                 "prompt": prompt[:60],
                 "completion_excerpt": completion[:200],
                 "marker_echoed": hit,
-                "logger_index": idx,
+                "proxy_history_index": idx,
             })
 
         lines = [f"run_local_llm_prompt_injection — model={model} backend={backend}:"]

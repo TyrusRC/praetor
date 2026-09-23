@@ -2,7 +2,7 @@
 bypass orchestrator, MFA bypass, reset-token entropy analysis.
 
 All HTTP-bearing tools route through Burp via the standard client.post path,
-producing logger_index for evidence. Pure-compute tools (forge_jwt,
+producing proxy_history_index for evidence. Pure-compute tools (forge_jwt,
 crack_jwt_secret, analyze_reset_tokens) operate locally — no external deps
 beyond stdlib + the already-installed `cryptography` package."""
 

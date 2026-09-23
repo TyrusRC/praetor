@@ -69,7 +69,7 @@ def register(mcp: FastMCP) -> None:
         if user_a_session or user_a_bearer:
             for _ in range(3):
                 pre = await _send(target_url, user_a_session, user_a_bearer)
-                li = pre.get("logger_index", -1)
+                li = pre.get("proxy_history_index", -1)
                 if isinstance(li, int) and li >= 0:
                     logger_indices.append(li)
 
@@ -83,14 +83,14 @@ def register(mcp: FastMCP) -> None:
         for i, resp in enumerate(responses):
             if isinstance(resp, BaseException):
                 continue
-            li = resp.get("logger_index", -1)
+            li = resp.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
             body = resp.get("response_body", "") or ""
             entry = {
                 "burst_index": i,
                 "status_code": resp.get("status_code"),
-                "logger_index": li,
+                "proxy_history_index": li,
             }
             reproductions.append(entry)
             if user_a_marker in body:

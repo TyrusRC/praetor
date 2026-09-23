@@ -137,54 +137,30 @@ public class NotesHandler extends BaseHandler {
             : null;
         if (evidence == null) {
             sendError(exchange, 400,
-                "evidence required: provide {logger_index, proxy_history_index, or collaborator_interaction_id}",
+                "evidence required: provide {proxy_history_index or collaborator_interaction_id}",
                 "evidence_missing",
-                "Pass evidence={'logger_index': <N>} where N is the index of the confirming replay in "
-                + "Burp's PROXY history (the field is named logger_index for historical reasons — "
-                + "Montoya has no API to read Burp's separate Logger tool).");
+                "Pass evidence={'proxy_history_index': <N>} where N is the index of the confirming replay in "
+                + "Burp's PROXY history.");
             return;
         }
 
-        Object loggerIdxObj = evidence.get("logger_index");
         Object proxyIdxObj  = evidence.get("proxy_history_index");
         Object collabIdObj  = evidence.get("collaborator_interaction_id");
 
-        boolean hasLogger = loggerIdxObj instanceof Number;
         boolean hasProxy  = proxyIdxObj instanceof Number;
         boolean hasCollab = collabIdObj instanceof String && !((String) collabIdObj).isEmpty();
 
-        if (!hasLogger && !hasProxy && !hasCollab) {
+        if (!hasProxy && !hasCollab) {
             sendError(exchange, 400,
-                "evidence required: provide logger_index, proxy_history_index, or collaborator_interaction_id",
+                "evidence required: provide proxy_history_index or collaborator_interaction_id",
                 "evidence_missing",
-                "Replay the request via resend_with_modification(index) and pass that index as evidence.logger_index.");
+                "Replay the request via resend_with_modification(index) and pass that index as evidence.proxy_history_index.");
             return;
         }
 
         // ── verify existence against live Burp data ──
         int proxyHistorySize = api.proxy().history().size();
         String findingEndpoint = (String) body.get("endpoint");
-        if (hasLogger) {
-            int idx = ((Number) loggerIdxObj).intValue();
-            // "logger_index" is a PROXY-HISTORY ordinal, not an index into Burp's
-            // separate Logger tool — Montoya has no read API for Logger (see
-            // BurpToolsHandler class header). Same bounds as proxy_history_index.
-            if (idx < 0 || idx >= proxyHistorySize) {
-                sendError(exchange, 400, "evidence.logger_index not found: " + idx);
-                return;
-            }
-            String mismatch = describeEndpointMismatch(idx, findingEndpoint);
-            if (mismatch != null) {
-                sendError(exchange, 400,
-                    "evidence.logger_index " + idx + " does not belong to this finding: " + mismatch,
-                    "evidence_endpoint_mismatch",
-                    "The cited index is a different request than the one the finding describes — "
-                    + "reports, Burp comments and generated writeups would all point at the wrong "
-                    + "traffic. Re-run resend_with_modification() on the real request and cite the "
-                    + "index it returns, or fix `endpoint` to match the captured request.");
-                return;
-            }
-        }
         if (hasProxy) {
             int idx = ((Number) proxyIdxObj).intValue();
             if (idx < 0 || idx >= proxyHistorySize) {
@@ -196,8 +172,10 @@ public class NotesHandler extends BaseHandler {
                 sendError(exchange, 400,
                     "evidence.proxy_history_index " + idx + " does not belong to this finding: " + mismatch,
                     "evidence_endpoint_mismatch",
-                    "The cited index is a different request than the one the finding describes. "
-                    + "Cite the index of the confirming replay for this endpoint.");
+                    "The cited index is a different request than the one the finding describes — "
+                    + "reports, Burp comments and generated writeups would all point at the wrong "
+                    + "traffic. Re-run resend_with_modification() on the real request and cite the "
+                    + "index it returns, or fix `endpoint` to match the captured request.");
                 return;
             }
         }

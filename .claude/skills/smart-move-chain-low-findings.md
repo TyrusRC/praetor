@@ -20,7 +20,7 @@ reasoning is where the high-payout bugs live.
 4. for chain in chains:
        impact = assess_finding(
            vuln_type=chain.anchor_class,
-           evidence={...with logger_index from each link...},
+           evidence={...with proxy_history_index from each link...},
            chain_with=[f.id for f in chain.links],
            domain='target.com',
        )

@@ -129,7 +129,7 @@ def register(mcp: FastMCP) -> None:
                 tools = parsed
         elif server_url:
             resp = await _fetch_tools(server_url, session, timeout)
-            li = resp.get("logger_index", -1)
+            li = resp.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
             body = resp.get("response_body") or ""

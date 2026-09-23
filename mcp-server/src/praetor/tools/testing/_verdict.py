@@ -104,10 +104,9 @@ def to_assess_evidence(v: dict[str, Any]) -> dict[str, Any]:
     ev: dict[str, Any] = {"summary": v.get("evidence_summary", "")}
     if v.get("collaborator_interactions"):
         ev["collaborator_interaction_id"] = v["collaborator_interactions"][0]
-    if v.get("logger_indices"):
-        ev["logger_index"] = v["logger_indices"][0]
-    elif v.get("proxy_indices"):
-        ev["proxy_history_index"] = v["proxy_indices"][0]
+    idx = v.get("logger_indices") or v.get("proxy_indices")
+    if idx:
+        ev["proxy_history_index"] = idx[0]
     if v.get("reproductions"):
         ev["reproductions"] = v["reproductions"]
     if v.get("confidence") is not None:

@@ -50,7 +50,7 @@ def register(mcp: FastMCP) -> None:
 
         Pushes both lanes onto Ghostwriter's oplog timeline: the network
         operator log AND web/Burp findings (findings ride the timeline tagged
-        vuln:/severity:, with the Burp logger_index or operator-log id in
+        vuln:/severity:, with the Burp proxy_history_index or operator-log id in
         comments for traceability). Idempotent — a per-domain marker skips
         already-synced entries.
 

@@ -183,7 +183,7 @@ def register(mcp: FastMCP) -> None:
         Pair with tab=/subtab= to select the surface first.
 
         To capture ONE specific request, pick the row by REQUEST IDENTITY, not by a
-        Praetor evidence index — a `logger_index` / `proxy_history_index` is NOT the
+        Praetor evidence index — a `proxy_history_index` is NOT the
         value Burp prints in the table's "#" column (they diverge; a Praetor index
         fed to select_row lands on unrelated traffic). Three selectors, in order of
         preference:

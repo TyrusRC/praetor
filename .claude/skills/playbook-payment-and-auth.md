@@ -93,7 +93,7 @@ assess_finding(
   vuln_type="oauth_redirect_uri",
   endpoint="https://target.tld/oauth/authorize",
   parameter="redirect_uri",
-  evidence={"logger_index": N, "reproductions": [...], "notes": "attacker.tld received code=abc123"},
+  evidence={"proxy_history_index": N, "reproductions": [...], "notes": "attacker.tld received code=abc123"},
   domain="target.tld",
 )
 save_finding(severity="critical", vuln_type="oauth_redirect_uri", ...)
@@ -177,7 +177,7 @@ save_finding(
   severity="high",
   title="Server accepts attestation=none with attacker-supplied public key",
   endpoint="https://target.tld/webauthn/register/finish",
-  evidence={"logger_index": N, "notes": "attacker pubkey accepted; later authenticated as same user"},
+  evidence={"proxy_history_index": N, "notes": "attacker pubkey accepted; later authenticated as same user"},
 )
 ```
 
@@ -237,7 +237,7 @@ save_finding(
   severity="critical",
   title="Google Pay token replayable across orders / amounts (no backend re-verification)",
   endpoint="https://target.tld/checkout/charge",
-  evidence={"logger_index": N, "reproductions":[...], "notes": "$10 token charged $10000 order, both captured"},
+  evidence={"proxy_history_index": N, "reproductions":[...], "notes": "$10 token charged $10000 order, both captured"},
 )
 ```
 

@@ -278,7 +278,7 @@ Immunefi tips: remediation REQUIRED; severity by funds at risk (Critical $10M+, 
 ```
 1. load_target_intel(domain, "findings")              # finding dict
 2. load_target_intel(domain, "profile")               # tech context
-3. get_request_detail(index=<poc_logger_index>)       # PoC req/resp
+3. get_request_detail(index=<poc_proxy_history_index>)       # PoC req/resp
 4. format_finding_for_platform(domain, finding_id, platform)
    # OR
    generate_report(domain, format="pentest", platform="")
@@ -349,7 +349,7 @@ Impact:
 
 PoC request: <raw HTTP>
 Reproduction steps: <cold-start 5-min recipe>
-Evidence: logger_index #N, response excerpt with class marker, replay table for blind class
+Evidence: proxy_history_index #N, response excerpt with class marker, replay table for blind class
 Remediation:
   - Allow-list scheme + host + resolved IP.
   - Block RFC1918 / link-local / loopback at the egress proxy.
@@ -392,7 +392,7 @@ Evidence:
   - cross_principal_verified: True
   - id_shape: <sequential / uuidv1 / ulid / snowflake>
   - foreign_records_observed: <N>
-  - logger_index: <foreign-record-read index>
+  - proxy_history_index: <foreign-record-read index>
 
 Remediation:
   - Server-side ownership check on every object access.
@@ -437,7 +437,7 @@ Evidence:
   - original_alg: <...>
   - forged_alg: <...>
   - attack: <alg_none | rs_to_hs | kid_traversal | claim_swap>
-  - logger_index: <forge-accepted index>
+  - proxy_history_index: <forge-accepted index>
 
 Remediation:
   - Pin alg server-side; reject tokens whose alg != server's expected value.
@@ -482,7 +482,7 @@ Reproduction steps: <cold-start: spin up Collaborator â†’ craft authorize URL â†
 Evidence:
   - flow_type: <authorization_code | pkce | device>
   - attack: <redirect_uri_suffix_bypass | missing_state | pkce_downgrade | mix_up | jwks_swap>
-  - logger_index: <code-arrival index>
+  - proxy_history_index: <code-arrival index>
   - collaborator_interaction_id: <id>
 
 Remediation:
@@ -534,7 +534,7 @@ Evidence:
   - back_parser: <vendor>
   - collaborator_interaction_id: <id>
   - reproductions: 3 minimum (Rule 10a)
-  - logger_index: <smuggle-confirming index>
+  - proxy_history_index: <smuggle-confirming index>
 
 Remediation:
   - Front-end and origin MUST agree on Content-Length / Transfer-Encoding parsing.
@@ -581,7 +581,7 @@ Evidence:
   - gadget: <dompurify_allowed_tags | express_isadmin_default | childprocess_argv | handlebars_compileoptions>
   - sink: <innerHTML after DOMPurify.sanitize | role-check middleware | spawn call site>
   - impact_window: <single-page / single-tab / until process restart>
-  - logger_index: <pollute-then-trigger index>
+  - proxy_history_index: <pollute-then-trigger index>
 
 Remediation:
   - Reject reserved keys (`__proto__`, `constructor`, `prototype`) at the input boundary.
@@ -634,7 +634,7 @@ Evidence:
   - gadget_chain: <CommonsCollections6 | ObjectDataProvider | __reduce__ pickle | system gadget | _$$ND_FUNC$$_>
   - injection_point: <cookie name / form field / header / WebSocket frame index>
   - exec_marker: <Collaborator DNS hit / uid stdout from `id` / file-write at path>
-  - logger_index: <RCE-confirming request>
+  - proxy_history_index: <RCE-confirming request>
 
 Remediation:
   - Never deserialize untrusted input with native language deserializers; use JSON / Protobuf with strict schema.
@@ -690,7 +690,7 @@ Evidence:
   - consumed_node_path: <XPath of node application reads NameID from>
   - victim_nameid: <NameID swapped in>
   - resulting_session_user: <observed via /me or similar>
-  - logger_index: <wrapped request that produced victim session>
+  - proxy_history_index: <wrapped request that produced victim session>
 
 Remediation:
   - Use a SAML library that pins signature verification to the SAME node attributes are read from.
@@ -746,7 +746,7 @@ Evidence:
   - victim_tenant_id: <if cross-tenant>
   - cross_data_field_leaked: <email / address / token / internal_id>
   - subprotocol_observed: <graphql-ws | graphql-transport-ws | subscriptions-transport-ws>
-  - logger_index: <query/response showing the cross-tenant data>
+  - proxy_history_index: <query/response showing the cross-tenant data>
 
 Remediation:
   - Disable introspection in production (Apollo: `introspection: false`; graphene: `IntrospectionSchema`).
@@ -802,7 +802,7 @@ Evidence:
   - subprotocol_negotiated: <observed Sec-WebSocket-Protocol response>
   - victim_id_in_frame: <body of frame showing swapped ID>
   - frame_response: <cross-user data / state-change ack>
-  - logger_index: <handshake + frame indices>
+  - proxy_history_index: <handshake + frame indices>
 
 Remediation:
   - Enforce strict Origin allowlist on the upgrade handshake (return 403 otherwise).
@@ -855,7 +855,7 @@ Evidence:
   - x_cache_header: <HIT | cf-cache-status: HIT | X-Served-By cache hit>
   - leaked_field_classes: <PII (email, name) / payment / session token / internal ID>
   - victim_indicators: <victim user_id observed in cached response>
-  - logger_index: <unauth-fetch index that returned victim data>
+  - proxy_history_index: <unauth-fetch index that returned victim data>
 
 Remediation:
   - Add `Cache-Control: no-store, private` to ALL authenticated dynamic responses.
@@ -913,7 +913,7 @@ Evidence:
   - invoked_from_route: <non-admin page used as POST target>
   - effect_observed: <state change / admin response / cross-user data>
   - cve: <CVE-2025-55182 | CVE-2025-66478 | per-app class>
-  - logger_index: <bypass-confirming request>
+  - proxy_history_index: <bypass-confirming request>
 
 Remediation:
   - Enforce per-action authz INSIDE every Server Action body, not via route protection.

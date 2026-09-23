@@ -85,8 +85,8 @@ def register(mcp: FastMCP) -> None:
             if resp.get("error"):
                 return error_verdict(resp.get("error", ""),
                                      vuln_type="csp_misconfig", reason="fetch_failed")
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             hdrs = {k.lower(): v for k, v in (resp.get("response_headers") or {}).items()}
             csp_str = hdrs.get("content-security-policy", "")
             if not csp_str:

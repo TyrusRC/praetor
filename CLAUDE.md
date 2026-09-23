@@ -62,7 +62,7 @@ Claude Code -> praetor-mcp (stdio) ->
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external runtime deps. Artifact `praetor-burp-ext`, package `com.praetor`.
 - `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package dir is `praetor/`.
 - **Finding a tool** — `list_tier1_tools()`, `pick_tool(task)`, or `skill.json`. Tool counts are deliberately untracked here: they go stale in a week and cost tokens every session.
-- **Two lanes, one evidence model.** Web-lane findings cite a Burp `logger_index`; network-lane actions bypass Burp and cite an operator-log id. Web tools (nuclei/ffuf/sqlmap) and network tools (nmap/netexec/impacket) are both core — nothing is optional.
+- **Two lanes, one evidence model.** Web-lane findings cite a Burp `proxy_history_index`; network-lane actions bypass Burp and cite an operator-log id. Web tools (nuclei/ffuf/sqlmap) and network tools (nmap/netexec/impacket) are both core — nothing is optional.
 - **Web hunt loop** — `load_target_intel -> discover_attack_surface -> auto_probe`.
 - **Network lane** (`tools/network`, `tools/redteam`) — `run_network_recon` (discover → service enum → leads → auto-loot → web-lane bridge); `run_network_tool` (sanctioned impacket/netexec/...); `crack_hashes` + credential store (capture → crack → reuse). Evidence: `tools/redteam/_oplog` (ATT&CK-tagged operator log + loot chain-of-custody), forwarded to Ghostwriter via `sync_to_ghostwriter`. HARD safety (Rules 5-9) refuses destructive/brute args; scope is engagement-mode-aware.
 - **Assessment tools** return a `VerdictResult`; use `verdict_from_tally(hits)` (`tools/testing/_verdict.py`, guide `.claude/skills/verdict-tools.md`).
@@ -101,7 +101,7 @@ Core rules: `.claude/rules/engineering.md`. Additions:
 verify (replay >=3x)  ->  assess_finding (7-question gate)  ->  save_finding (gates + persist + dedup)
 ```
 
-`assess_finding`: `logger_index` extracts class markers server-side; `human_verified=True`
+`assess_finding`: `proxy_history_index` extracts class markers server-side; `human_verified=True`
 skips Q5 only (audit-logged); `overrides=["<gate>:<reason>"]` bypasses any of q1_scope,
 q2_repro, q3_impact, q4_dedup, q5_evidence, q6_never_submit, q7_triager, recon_gate.
 
@@ -146,8 +146,8 @@ failure that reached a real program.**
   | MEDIUM | moderate security compromise, restricted access, standard rate-limiting issues |
   | HIGH | significant data exposure, privilege escalation, core component bypass |
   | CRITICAL | RCE, full system compromise, direct unauthenticated access to sensitive data |
-- **Evidence/endpoint cross-check** — `evidence.logger_index`, `evidence.proxy_history_index`
-  and every `reproductions[].logger_index` must resolve to a request whose host+path matches
+- **Evidence/endpoint cross-check** — `evidence.proxy_history_index`
+  and every `reproductions[].proxy_history_index` must resolve to a request whose host+path matches
   the finding's `endpoint`. An in-range index pointing at unrelated traffic is rejected with
   `evidence_endpoint_mismatch` — that mismatch is what produced Burp comments, writeups and
   reports citing the wrong request.

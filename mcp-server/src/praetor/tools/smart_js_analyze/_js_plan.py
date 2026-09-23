@@ -211,7 +211,7 @@ def _synthesise_plan(analyses: list[dict[str, Any]], target_base: str,
                     f"endpoint={a.get('source', '')!r}, "
                     f"title='Secret leaked in JS: {sec['type']}', "
                     f"severity='medium', "
-                    f"evidence={{'logger_index': '<from extract>', 'match': {sec['match'][:60]!r}}}, "
+                    f"evidence={{'proxy_history_index': '<from extract>', 'match': {sec['match'][:60]!r}}}, "
                     f"chain_with=[<linked finding>])  # NEVER_SUBMIT alone — needs chain"
                 ),
                 "rationale": (

@@ -9,11 +9,11 @@ is a finding whose ONLY basis is a scanner's verdict, with nothing the operator
 independently reproduced.
 
 This gate fires when the evidence is sourced from a named scanner AND carries
-no independent proof of impact: no captured request handle (logger_index), no
+no independent proof of impact: no captured request handle (proxy_history_index), no
 reproductions[], no resolved OOB / Collaborator interaction, not human_verified,
 and no attacker-capability / concrete-asset wording. It downgrades to NEEDS MORE
 EVIDENCE and names the next proof — replay the candidate request yourself and
-cite the confirming logger_index. A scanner's verdict is a lead, not a finding.
+cite the confirming proxy_history_index. A scanner's verdict is a lead, not a finding.
 
 Override: overrides=['scanner_proof:<reason>'] (audit-trailed).
 """
@@ -61,11 +61,11 @@ async def check(ctx: AssessContext) -> CheckResult:
         return {"passed": True, "reason": "not-scanner-sourced", "evidence": {}}
 
     # Any independent corroboration lifts it above a bare scanner verdict:
-    #  - a captured request handle (logger_index → real response, cross-checked)
+    #  - a captured request handle (proxy_history_index → real response, cross-checked)
     #  - replay entries in reproductions[]
     #  - a resolved OOB / Collaborator interaction
     #  - explicit attacker-capability or concrete-asset wording
-    has_handle = ctx.logger_index is not None and ctx.logger_index >= 0
+    has_handle = ctx.proxy_history_index is not None and ctx.proxy_history_index >= 0
     has_repros = bool(ctx.reproductions)
     has_oob = any(m in ctx.evidence_lower for m in _OOB_MARKERS)
     haystack = " ".join(
@@ -82,8 +82,8 @@ async def check(ctx: AssessContext) -> CheckResult:
         "scanner's own hit — nothing here was independently reproduced. An "
         "unverified scanner claim is ineligible (no proof-of-impact).\n"
         "      Next proof: replay the candidate request yourself "
-        "(resend_with_modification) and pass the confirming logger_index=<N>, "
-        "add reproductions=[{logger_index, ...}], resolve an OOB/Collaborator "
+        "(resend_with_modification) and pass the confirming proxy_history_index=<N>, "
+        "add reproductions=[{proxy_history_index, ...}], resolve an OOB/Collaborator "
         "interaction, or pass human_verified=True after confirming in Burp.\n"
         "      A scanner's verdict is a lead, not a finding."
     )

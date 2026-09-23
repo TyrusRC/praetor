@@ -48,11 +48,11 @@ def register(mcp: FastMCP):
         Args:
             title: Short finding title.
             description: Detailed vulnerability description.
-            evidence: Dict with logger_index, proxy_history_index, or collaborator_interaction_id.
+            evidence: Dict with proxy_history_index or collaborator_interaction_id.
             severity: CRITICAL/HIGH/MEDIUM/LOW/INFO. Operator-locked — wins over advisor's inferred severity.
             endpoint: Affected URL/endpoint.
             evidence_text: Freeform proof string for the report.
-            reproductions: Required for timing/blind vuln_types (>=3 dicts with logger_index/elapsed_ms/status_code, per Rule 10a).
+            reproductions: Required for timing/blind vuln_types (>=3 dicts with proxy_history_index/elapsed_ms/status_code, per Rule 10a).
             chain_with: Required for NEVER-SUBMIT vuln_types — list of finding IDs for the chain.
             status: suspected/confirmed/stale/likely_false_positive.
             domain: Target domain for persistent .burp-intel storage.

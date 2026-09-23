@@ -63,9 +63,9 @@ SCENARIOS = [
         endpoint="/search",
         evidence="sleep(5) confirmed 3/3 iterations consistent timing",
         reproductions=[
-            {"logger_index": 1, "elapsed_ms": 5100, "status_code": 200},
-            {"logger_index": 2, "elapsed_ms": 5050, "status_code": 200},
-            {"logger_index": 3, "elapsed_ms": 5200, "status_code": 200},
+            {"proxy_history_index": 1, "elapsed_ms": 5100, "status_code": 200},
+            {"proxy_history_index": 2, "elapsed_ms": 5050, "status_code": 200},
+            {"proxy_history_index": 3, "elapsed_ms": 5200, "status_code": 200},
         ],
         domain="example.com",
     )),

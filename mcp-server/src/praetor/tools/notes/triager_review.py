@@ -132,7 +132,7 @@ def _check_impact_phrasing(finding: dict, blockers: list[str], suggestions: list
 
 def _check_repro_clarity(finding: dict, blockers: list[str], suggestions: list[str]) -> None:
     evidence = finding.get("evidence") or {}
-    has_index = any(evidence.get(k) for k in ("logger_index", "proxy_history_index", "collaborator_interaction_id"))
+    has_index = any(evidence.get(k) for k in ("proxy_history_index", "collaborator_interaction_id"))
     if not has_index:
         blockers.append("no Burp index in evidence — repro is not anchorable to captured traffic")
     if not finding.get("endpoint"):

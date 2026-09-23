@@ -37,10 +37,10 @@ class DedupeLockGuardTest(unittest.TestCase):
     def test_locked_same_status_merges_nonfrozen_fields(self):
         existing = [_f(status="confirmed", locked=True)]
         out, action, i = _dedupe_finding(
-            existing, _f(status="confirmed", evidence={"logger_index": 9}))
+            existing, _f(status="confirmed", evidence={"proxy_history_index": 9}))
         self.assertEqual(action, "updated_locked")
         self.assertEqual(out[i]["status"], "confirmed")
-        self.assertEqual(out[i]["evidence"], {"logger_index": 9})  # new evidence kept
+        self.assertEqual(out[i]["evidence"], {"proxy_history_index": 9})  # new evidence kept
         self.assertNotIn("discrepancy_log", out[i])  # no divergence
 
     def test_lock_flag_survives_merge(self):
@@ -59,7 +59,7 @@ class LockHelpersTest(unittest.TestCase):
         self.assertNotIn("locked_at", f)
 
     def test_evidence_line_shows_index(self):
-        line = _evidence_line(_f(evidence={"logger_index": 42}))
+        line = _evidence_line(_f(evidence={"proxy_history_index": 42}))
         self.assertIn("f001", line)
         self.assertIn("[high]", line)
         self.assertIn("evidence: 42", line)

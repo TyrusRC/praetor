@@ -1,13 +1,13 @@
 ---
 name: playbook-linux-privesc
 description: Linux local privilege escalation + post-foothold enumeration on a shell you already have — stabilize the TTY, triage fast, then work the five vectors (sudo, SUID/SGID, capabilities, cron, creds) plus group-based roots. Load when you have a non-root shell on a Linux host (network/red-team lane). Payloads defer to lookup_gtfobins.
-prerequisite: An interactive or semi-interactive shell on a Linux target (reverse shell, SSH, web-RCE foothold). This is the network/red-team lane — evidence is the operator log, not a Burp logger_index.
+prerequisite: An interactive or semi-interactive shell on a Linux target (reverse shell, SSH, web-RCE foothold). This is the network/red-team lane — evidence is the operator log, not a Burp proxy_history_index.
 stop_condition: Two full enumeration passes (manual triage + linpeas/pspy) with no writable-by-you root primitive AND no reusable credential → record what you mapped to the operator log and pivot (lateral movement, kernel-CVE path, or a different host).
 ---
 
 # Linux Local Privilege Escalation Playbook
 
-Load when: you hold a **non-root shell** on a Linux host and want root (or a lateral pivot). Foothold-host work is Burp-blind — record evidence with `record_redteam_action` / `record_loot`, crack with `crack_hashes`, and reuse creds with `record_credential` (the network lane's capture→crack→reuse loop). Cite operator-log ids, never a `logger_index`.
+Load when: you hold a **non-root shell** on a Linux host and want root (or a lateral pivot). Foothold-host work is Burp-blind — record evidence with `record_redteam_action` / `record_loot`, crack with `crack_hashes`, and reuse creds with `record_credential` (the network lane's capture→crack→reuse loop). Cite operator-log ids, never a `proxy_history_index`.
 
 ## SMART MOVE — first three actions
 

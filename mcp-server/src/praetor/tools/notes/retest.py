@@ -65,7 +65,7 @@ def register(mcp: FastMCP):
             domain: target domain
             status: confirmed | reopened | fixed | regressed
             date: YYYY-MM-DD of the retest (operator-supplied)
-            evidence: optional logger_index / interaction id / note
+            evidence: optional proxy_history_index / interaction id / note
             notes: free-text retest observation
         """
         try:

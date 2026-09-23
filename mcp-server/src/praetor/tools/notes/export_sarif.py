@@ -75,8 +75,6 @@ def _to_sarif_result(f: dict, mappings: dict) -> dict:
     }
     if evidence := f.get("evidence"):
         if isinstance(evidence, dict):
-            if li := evidence.get("logger_index"):
-                properties["logger_index"] = li
             if pi := evidence.get("proxy_history_index"):
                 properties["proxy_history_index"] = pi
             if ci := evidence.get("collaborator_interaction_id"):

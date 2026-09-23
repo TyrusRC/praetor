@@ -74,7 +74,7 @@ def _resp_fingerprint(resp: dict) -> dict[str, Any]:
         "length": len(body_bytes),
         "body_sha256": hashlib.sha256(body_bytes).hexdigest()[:16],
         "header_names": header_names,
-        "logger_index": resp.get("proxy_index", resp.get("history_index", -1)),
+        "proxy_history_index": resp.get("proxy_index", resp.get("history_index", -1)),
     }
 
 
@@ -158,7 +158,7 @@ def register(mcp: FastMCP) -> None:
                 "FAILED", 0.10,
                 "no Alt-Svc h3 advertisement found and no force_alt_used override",
                 vuln_type="http3_downgrade",
-                logger_indices=[base_fp["logger_index"]] if base_fp["logger_index"] >= 0 else [],
+                logger_indices=[base_fp["proxy_history_index"]] if base_fp["proxy_history_index"] >= 0 else [],
                 details={"url": url, "baseline": base_fp, "h3_advertised": False},
                 summary=(
                     "probe_http3_downgrade: no H3 advertisement\n"
@@ -196,7 +196,7 @@ def register(mcp: FastMCP) -> None:
         h3_fp = _resp_fingerprint(h3_resp)
         diff = _diff_fingerprints(base_fp, h3_fp)
 
-        logger_indices = [i for i in (base_fp["logger_index"], h3_fp["logger_index"])
+        logger_indices = [i for i in (base_fp["proxy_history_index"], h3_fp["proxy_history_index"])
                           if isinstance(i, int) and i >= 0]
         details = {
             "url": url,

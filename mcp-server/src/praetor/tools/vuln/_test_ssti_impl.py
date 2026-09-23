@@ -9,7 +9,7 @@ import time
 from praetor.tools.testing._verdict import make_verdict
 
 from ._ssti_payloads import _POLYGLOT, _POLYGLOT_HINTS, _DISTINGUISHERS, _CAPABILITIES, _BLIND_SLEEPS
-from ._ssti_helpers import _build_request, _send, _logger_index, _body
+from ._ssti_helpers import _build_request, _send, _proxy_history_index, _body
 
 
 async def _run_test_ssti(
@@ -37,7 +37,7 @@ async def _run_test_ssti(
     poly_resp = await _send(poly_req, session)
     if isinstance(poly_resp, dict) and "error" in poly_resp:
         return f"polyglot probe failed: {poly_resp['error']}"
-    poly_idx = _logger_index(poly_resp)
+    poly_idx = _proxy_history_index(poly_resp)
     poly_body = _body(poly_resp)
     poly_status = poly_resp.get("status_code", "?")
     polyglot_hint: str | None = None
@@ -65,7 +65,7 @@ async def _run_test_ssti(
             resp = await _send(req, session)
             if isinstance(resp, dict) and "error" in resp:
                 continue
-            idx = _logger_index(resp)
+            idx = _proxy_history_index(resp)
             body = _body(resp)
             hit = marker in body
             tag = "MATCH" if hit else "miss"
@@ -120,7 +120,7 @@ async def _run_test_ssti(
             if isinstance(resp, dict) and "error" in resp:
                 report.append(f"  ERR   {cap:18} {resp['error'][:60]}")
                 continue
-            idx = _logger_index(resp)
+            idx = _proxy_history_index(resp)
             body = _body(resp)
             hit = marker in body if marker else len(body) > 0
             capabilities.append((cap, idx, hit))
@@ -141,13 +141,13 @@ async def _run_test_ssti(
             t0 = time.monotonic()
             base_resp = await _send(base_req, session)
             base_ms = int((time.monotonic() - t0) * 1000)
-            base_idx = _logger_index(base_resp) if isinstance(base_resp, dict) else -1
+            base_idx = _proxy_history_index(base_resp) if isinstance(base_resp, dict) else -1
             # Sleep probe
             sleep_req = _build_request(endpoint, parameter, method, gadget)
             t0 = time.monotonic()
             sleep_resp = await _send(sleep_req, session)
             sleep_ms = int((time.monotonic() - t0) * 1000)
-            sleep_idx = _logger_index(sleep_resp) if isinstance(sleep_resp, dict) else -1
+            sleep_idx = _proxy_history_index(sleep_resp) if isinstance(sleep_resp, dict) else -1
             delta_ms = sleep_ms - base_ms
             expected_ms = secs * 1000
             # Consider it a hit if the delta is at least 70% of the
@@ -184,7 +184,7 @@ async def _run_test_ssti(
             report.append(f"  capabilities: {', '.join(confirmed_caps)}")
         if blind_verdict:
             report.append(f"  blind: timing hit on {blind_verdict}")
-        report.append(f"  evidence anchor: logger_index={evidence_idx}")
+        report.append(f"  evidence anchor: proxy_history_index={evidence_idx}")
         report.append("")
         report.append("Next steps:")
         report.append(
@@ -196,7 +196,7 @@ async def _run_test_ssti(
             f"command='id')           # only if engine allows OS exec"
         )
         report.append(
-            f"  - assess_finding(vuln_type='ssti', logger_index={evidence_idx}, "
+            f"  - assess_finding(vuln_type='ssti', proxy_history_index={evidence_idx}, "
             f"evidence='test_ssti engine={detected} caps={','.join(confirmed_caps) or 'reflection'}')"
         )
     elif detected:

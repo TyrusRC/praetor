@@ -170,8 +170,8 @@ def register(mcp: FastMCP) -> None:
                                  vuln_type="dns_rebind", reason="control_failed")
         control_status, control_len, control_hash = _shape(control_resp)
         logger_indices = []
-        if "logger_index" in control_resp:
-            logger_indices.append(control_resp["logger_index"])
+        if "proxy_history_index" in control_resp:
+            logger_indices.append(control_resp["proxy_history_index"])
 
         rebind_hosts: list[tuple[str, str]] = (
             [(custom_rebind_host, "operator-supplied")]
@@ -196,8 +196,8 @@ def register(mcp: FastMCP) -> None:
                         "error": resp.get("error", ""),
                     })
                     continue
-                if "logger_index" in resp:
-                    logger_indices.append(resp["logger_index"])
+                if "proxy_history_index" in resp:
+                    logger_indices.append(resp["proxy_history_index"])
                 status, length, h = _shape(resp)
                 body = resp.get("response_body") or ""
                 hit, marker = _internal_marker_hit(body)

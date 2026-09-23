@@ -223,7 +223,7 @@ def _synthesise(triage: dict[str, Any]) -> list[dict[str, Any]]:
             "suggested_call": (
                 f"save_finding(vuln_type='info_disclosure', endpoint={url!r}, "
                 f"title='Secret leaked: {sec['type']}', severity='medium', "
-                f"evidence={{'logger_index': {idx}, 'match': {sec['match'][:60]!r}}}, "
+                f"evidence={{'proxy_history_index': {idx}, 'match': {sec['match'][:60]!r}}}, "
                 f"chain_with=[<linked finding>])  "
                 f"# NEVER_SUBMIT alone — Rule 17"
             ),

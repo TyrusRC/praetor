@@ -3,7 +3,7 @@
 The inventory (`network.json`, at the domain root next to findings.json) is the
 machine source of truth for discovered hosts/services. Each tool execution is
 appended to `network/runs.jsonl` — the non-Burp evidence record a network-lane
-finding cites in place of a Burp logger_index.
+finding cites in place of a Burp proxy_history_index.
 """
 
 from __future__ import annotations

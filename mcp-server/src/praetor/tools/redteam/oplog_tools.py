@@ -7,7 +7,7 @@
   mark_cleanup_reconciled- check off one reconciled cleanup line
 
 These are the evidence a network/AD/post-ex finding cites (oplog id) in place
-of a Burp logger_index, and what the kill-chain report renders from.
+of a Burp proxy_history_index, and what the kill-chain report renders from.
 """
 
 from __future__ import annotations

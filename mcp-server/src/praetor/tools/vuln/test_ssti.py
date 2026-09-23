@@ -37,7 +37,7 @@ from mcp.server.fastmcp import FastMCP
 
 
 from ._ssti_payloads import _POLYGLOT, _POLYGLOT_HINTS, _DISTINGUISHERS, _CAPABILITIES, _BLIND_SLEEPS  # noqa: F401 (re-export)
-from ._ssti_helpers import _build_request, _send, _logger_index, _body  # noqa: F401 (re-export)
+from ._ssti_helpers import _build_request, _send, _proxy_history_index, _body  # noqa: F401 (re-export)
 from ._test_ssti_impl import _run_test_ssti
 
 
@@ -59,7 +59,7 @@ def register(mcp: FastMCP):
 
         Multi-phase: polyglot → math distinguisher → engine-specific
         read-only capability probes → optional blind time-delta. Every
-        probe is captured in Logger; the highest logger_index from a
+        probe is captured in Logger; the highest proxy_history_index from a
         confirmed phase is the citable evidence anchor.
 
         Args:

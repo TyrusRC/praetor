@@ -14,7 +14,7 @@ Loop shape per round
 
 This is the "senior engineer" loop — try, observe, mutate, try again.
 Anti-slop: bounded by max_rounds + per-round max_iters; every variant routes
-through Burp so logger_index evidence is preserved for assess_finding.
+through Burp so proxy_history_index evidence is preserved for assess_finding.
 """
 
 from __future__ import annotations

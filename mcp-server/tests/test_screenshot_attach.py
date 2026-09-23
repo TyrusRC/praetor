@@ -19,7 +19,7 @@ class AttachScreenshotTest(unittest.TestCase):
         self.dom_dir = Path(".burp-intel") / self.domain
         (self.dom_dir / "screenshots").mkdir(parents=True)
         self._shot("burp-repeater-x.png")
-        self._write_findings([{"id": "f001", "title": "IDOR", "evidence": {"logger_index": 5}}])
+        self._write_findings([{"id": "f001", "title": "IDOR", "evidence": {"proxy_history_index": 5}}])
 
     def _shot(self, name):
         (self.dom_dir / "screenshots" / name).write_bytes(b"\x89PNG-body")

@@ -47,9 +47,9 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 ## The Save-Finding Pipeline (10) — HARD, single canonical rule
 
 10. **`save_finding` requires three phases, in order:**
-    - **a) Replay (Step 0 of `verify-finding.md`):** fetch the candidate Logger/Proxy entry, `resend_with_modification(index)` to confirm the anomaly persists. The Logger index of the **confirming replay** (not the original suspicion) is what goes into `evidence.logger_index`. For timing/blind classes (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`), replay 2 more times — capture `{logger_index, elapsed_ms, status_code}` per replay → `reproductions[]` (≥3 entries total).
+    - **a) Replay (Step 0 of `verify-finding.md`):** fetch the candidate Logger/Proxy entry, `resend_with_modification(index)` to confirm the anomaly persists. The Logger index of the **confirming replay** (not the original suspicion) is what goes into `evidence.proxy_history_index`. For timing/blind classes (`*_blind`, `sqli_time`, `race_condition`, `request_smuggling`), replay 2 more times — capture `{proxy_history_index, elapsed_ms, status_code}` per replay → `reproductions[]` (≥3 entries total).
     - **b) Assess (`assess_finding`):** call `assess_finding(vuln_type, evidence, endpoint, parameter, domain)` BEFORE `save_finding`. Verdict `DO NOT REPORT` or `NEEDS MORE EVIDENCE` → do NOT save. The advisor handles scope, duplicate, NEVER-SUBMIT, weak-evidence, and triager-mass-report checks.
-    - **c) Save:** `save_finding` with `evidence` containing at least one of `logger_index` / `proxy_history_index` / `collaborator_interaction_id` (each must resolve in live Burp data). For NEVER-SUBMIT vuln_types, supply `chain_with[]`. Server hard-rejects violations with 400.
+    - **c) Save:** `save_finding` with `evidence` containing at least one of `proxy_history_index` / `collaborator_interaction_id` (each must resolve in live Burp data). For NEVER-SUBMIT vuln_types, supply `chain_with[]`. Server hard-rejects violations with 400.
 
 ## Evidence (11–13) — DEFAULT
 
@@ -63,7 +63,7 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
    - **Absence of evidence is not evidence of absence.** When test-validity is unproven or the body is ambiguous, the verdict is INCONCLUSIVE: keep testing (fix the payload, prove the sink, add a variant) or escalate/ask (Rule 32a). The tuple stays OPEN (Rule 19a) — do not record it covered.
    - **Run the disconfirmation check before ANY verdict:** "what would I observe if the opposite were true, and did I actually look for it?" Documented LLM overconfidence is that models declare "not exploitable" immediately after a *wrong* PoC — treat your own first "it's fine" / "it's vulnerable" as a hypothesis to disprove, not a conclusion.
 
-13c. **A scanner hit is a lead, not a finding — no proof-of-impact, no report.** Unverified scanner output (nuclei/nikto/wpscan/Burp active-scan/Nessus/ZAP/...) is ineligible on its own, even for an impact-inherent class where the class name would otherwise pass Q3. `assess_finding` enforces this: a scanner-sourced evidence string with no independent corroboration — no `logger_index`, no `reproductions[]`, no resolved OOB interaction, no `human_verified`, no attacker-capability wording — downgrades to NEEDS MORE EVIDENCE. Replay the candidate request yourself and cite the confirming `logger_index`; a scanner's verdict never substitutes for reaching the sink. Deliberate exception: `overrides=['scanner_proof:<reason>']`.
+13c. **A scanner hit is a lead, not a finding — no proof-of-impact, no report.** Unverified scanner output (nuclei/nikto/wpscan/Burp active-scan/Nessus/ZAP/...) is ineligible on its own, even for an impact-inherent class where the class name would otherwise pass Q3. `assess_finding` enforces this: a scanner-sourced evidence string with no independent corroboration — no `proxy_history_index`, no `reproductions[]`, no resolved OOB interaction, no `human_verified`, no attacker-capability wording — downgrades to NEEDS MORE EVIDENCE. Replay the candidate request yourself and cite the confirming `proxy_history_index`; a scanner's verdict never substitutes for reaching the sink. Deliberate exception: `overrides=['scanner_proof:<reason>']`.
 
 ## Reporting (14–17) — DEFAULT
 
@@ -133,12 +133,12 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
 
 26. **Know which tools hit Proxy history.** `browser_crawl`/`browser_navigate` populate **Proxy → HTTP history**. Burp HTTP-client tools (`curl_request`, `curl_request`, `send_raw_request`, `session_request`, probes, scans) appear in **Logger** + MCP store (not Proxy history) unless explicitly proxied. External recon (`run_nuclei`, `run_katana`, `run_subfinder`) routes through Burp proxy (127.0.0.1:8080) → Proxy history. Analysis tools that take an `index` read Proxy history only.
 
-26a. **Volume work is an MCP tool, not a Python script.** When a task needs >1 request, the default is `concurrent_requests`, `send_to_intruder_configured`, `fuzz_parameter`, `auto_probe`, `batch_probe`, `bulk_test`, `test_auth_matrix`, or `test_race_condition` — every one of those routes through Burp and is captured/replayable. **Do NOT write a Python script that calls `requests`/`httpx`/`fetch` directly** — those bypass Burp, leaving no Logger/Proxy entry, no `logger_index` to cite as evidence, no annotation, no replay. If a custom script is genuinely unavoidable (uncommon — usually means the right MCP tool wasn't picked), it MUST proxy through Burp:
+26a. **Volume work is an MCP tool, not a Python script.** When a task needs >1 request, the default is `concurrent_requests`, `send_to_intruder_configured`, `fuzz_parameter`, `auto_probe`, `batch_probe`, `bulk_test`, `test_auth_matrix`, or `test_race_condition` — every one of those routes through Burp and is captured/replayable. **Do NOT write a Python script that calls `requests`/`httpx`/`fetch` directly** — those bypass Burp, leaving no Logger/Proxy entry, no `proxy_history_index` to cite as evidence, no annotation, no replay. If a custom script is genuinely unavoidable (uncommon — usually means the right MCP tool wasn't picked), it MUST proxy through Burp:
    - `export HTTPS_PROXY=http://127.0.0.1:8080 HTTP_PROXY=http://127.0.0.1:8080`
    - Trust Burp's CA (`http://burp/cert`) or pass `verify=False` for testing only
    - Or call `get_burp_proxy_env()` MCP tool to get the exact env-var lines
 
-   A finding sourced from a non-proxied script cannot satisfy Rule 10b's `evidence.logger_index` requirement and will be hard-rejected by the assess gate.
+   A finding sourced from a non-proxied script cannot satisfy Rule 10b's `evidence.proxy_history_index` requirement and will be hard-rejected by the assess gate.
 
 ## Creative Hunting (27) — ADVISORY anti-checklist mandate
 

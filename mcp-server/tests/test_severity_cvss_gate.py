@@ -127,7 +127,7 @@ class TestNoFabricatedReportContent(unittest.TestCase):
 
     BARE = {
         "id": "f001", "title": "Reflected value", "vuln_type": "info_disclosure",
-        "severity": "LOW", "endpoint": "/api/x", "evidence": {"logger_index": 5},
+        "severity": "LOW", "endpoint": "/api/x", "evidence": {"proxy_history_index": 5},
     }
 
     def test_platform_output_does_not_invent_impact(self):
@@ -148,7 +148,7 @@ class TestNoFabricatedReportContent(unittest.TestCase):
 
     def test_platform_strips_burp_indices(self):
         out = format_platform_finding(dict(self.BARE), "hackerone", "example.com")
-        self.assertNotIn("logger_index", out)
+        self.assertNotIn("proxy_history_index", out)
 
     def test_projection_omits_sections_with_no_stored_source(self):
         md = render_finding_md(dict(self.BARE))
@@ -225,9 +225,9 @@ class TestFieldTestRegressions(unittest.TestCase):
             "title": "SQLi", "severity": "CRITICAL", "vuln_type": "sqli",
             "endpoint": "/x", "impact": "dumps users",
             "evidence": {"true_branch_index": 118, "false_branch_index": 119,
-                         "quote_break_index": 117, "logger_index": 119},
+                         "quote_break_index": 117, "proxy_history_index": 119},
         }, 1, internal=False)
-        for k in ("true_branch_index", "false_branch_index", "quote_break_index", "logger_index"):
+        for k in ("true_branch_index", "false_branch_index", "quote_break_index", "proxy_history_index"):
             self.assertNotIn(k, out)
 
     def test_internal_report_keeps_them(self):

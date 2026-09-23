@@ -84,7 +84,7 @@ save_finding(
     title="SSRF → AWS IMDS → IAM credential exposure",
     description="SSRF on /api/fetch?url= reaches IMDSv1; reads instance role credentials. Did NOT use credentials against AWS API.",
     url="https://target/api/fetch",
-    evidence={"logger_index": N, "collaborator_interaction_id": "..."},
+    evidence={"proxy_history_index": N, "collaborator_interaction_id": "..."},
     chain_with=[],  # this is the chain itself
 )
 ```
@@ -215,7 +215,7 @@ save_finding(
   severity="critical",
   title="mcp-atlassian path traversal — /etc/passwd extracted via attachment endpoint",
   endpoint="https://mcp-target.tld/attachment/../../etc/passwd",
-  evidence={"logger_index": N, "notes": "root:x:0:0: extracted; unauth"},
+  evidence={"proxy_history_index": N, "notes": "root:x:0:0: extracted; unauth"},
 )
 ```
 
