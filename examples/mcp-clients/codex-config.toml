@@ -8,3 +8,8 @@ args = ["--from", "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-s
 [mcp_servers.praetor.env]
 BURP_API_HOST = "127.0.0.1"
 BURP_API_PORT = "8111"
+# Tool profile — Codex eager-loads every tool schema at connect, so advertise only the
+# lanes you need (server default is 'all'). 'web' is a good default; use network / mobile
+# / llm / cloud / core or a comma list. A gated tool is never blocked — run_tool('<tool>',
+# {args}) reaches it and auto-enables its lane mid-engagement.
+PRAETOR_PROFILE = "web"

@@ -59,20 +59,20 @@ mcp__praetor__save_finding       mcp__praetor__list_skills   ...
 The dsh MCP client eager-loads **every** tool's full schema into the model call at
 connect (its `tools.ts` registers all of `tools/list` once, with no filtering, no
 lazy loading, and no `tools/list_changed` handling — unlike Claude Code, which defers
-schemas to names-only). Praetor's full surface is ~100k tokens of definitions, so
-that lands in dsh's first request. There is no dsh-side switch for this; the fix is
+schemas to names-only). Praetor's full surface is a large share of the context window,
+so that lands in dsh's first request. There is no dsh-side switch for this; the fix is
 server-side — advertise only the lanes you need via the `PRAETOR_PROFILE` env in the
 config above:
 
-| `PRAETOR_PROFILE` | lanes (core always on) | ~tools | ~tokens |
-|---|---|---|---|
-| `all` (default) | everything | 491 | ~100k |
-| `web` | + web attack/test surface | 372 | ~81k |
-| `network` | + nmap / AD / netexec / crack | 219 | ~42k |
-| `mobile` | + adb/frida device lane | 226 | ~41k |
-| `llm` | + LLM/AI + MCP-security | 220 | ~43k |
-| `cloud` | + SCA/IaC/cloud/k8s scanners | 228 | ~42k |
-| `core` | scope/intel/save-finding/report only | 201 | ~38k |
+| `PRAETOR_PROFILE` | advertises (core always on) |
+|---|---|
+| `all` (default) | everything — the full surface |
+| `web` | + web attack / test surface |
+| `network` | + nmap / AD / netexec / crack |
+| `mobile` | + adb / frida device lane |
+| `llm` | + LLM/AI + MCP-security |
+| `cloud` | + SCA / IaC / cloud / k8s scanners |
+| `core` | scope / intel / save-finding / report only — the smallest |
 
 Also accepts a comma list of lanes (`web,network,mobile`). Core (scope, intel,
 save-finding pipeline, reporting, evidence, the discovery + bridge tools) is always on,

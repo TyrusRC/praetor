@@ -78,7 +78,7 @@ def register(mcp: FastMCP) -> None:
             session: Session name with base_url configured
             depth: 'quick', 'standard', or 'deep'
             summary_only: Return compact dict (counts + top-3 per category)
-                instead of full multi-section listing. ≤1000 tokens.
+                instead of full multi-section listing.
         """
         lines = [f"FULL RECON (depth: {depth})\n"]
         summary: dict = {"depth": depth, "tech_stack": [], "endpoint_count": 0,

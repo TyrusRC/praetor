@@ -1,9 +1,10 @@
 """Tool-lane gating — advertise only the tools a given engagement needs.
 
 Why: a host that eager-loads every tool schema into its LLM call (dsh / Codex via
-the API) pays ~130k tokens of tool definitions before any work. Claude Code defers
-schemas (names-only until used) so it never pays that; other hosts have no such
-mechanism. The only server-side lever is to REGISTER fewer tools. This module
+the API) pays a large share of its context window on tool definitions before any
+work. Claude Code defers schemas (names-only until used) so it never pays that; other
+hosts have no such mechanism. The only server-side lever is to REGISTER fewer tools.
+This module
 classifies every tool into a lane and lets `apply_profile` drop the lanes an
 engagement is not using.
 

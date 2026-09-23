@@ -4,9 +4,9 @@ Pydantic emits a `"title"` for every model and every field — `{"domain": {"tit
 "Domain", "type": "string"}}`. The value is the property key title-cased, so it
 carries no information the client does not already have from the key itself.
 
-Across this server's tool surface that is ~34 KB (~9k tokens) of the tool
-manifest, paid on every session before the operator has asked for anything.
-Removing it is lossless: MCP treats `title` as an optional display hint, and the
+Across this server's tool surface that is a meaningful slice of the tool manifest,
+paid on every session before the operator has asked for anything. Removing it is
+lossless: MCP treats `title` as an optional display hint, and the
 JSON Schema validation semantics are unchanged.
 
 Only `title` is removed. `description`, `default`, `enum` and every type

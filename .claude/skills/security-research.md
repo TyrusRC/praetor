@@ -210,7 +210,7 @@ the axes into a concrete byte-level trigger. Numbers say *whether*; the diff say
 ## Token Discipline
 
 - Inline KB (DEEP-DIVE + OBSCURE + CHAIN) is free — comes back in one tool call.
-- Each WebFetch costs ~1-3K tokens for the fetched page. Budget 2-3 fetches per research cycle.
+- Each WebFetch pulls a whole page into context — it is not free. Budget 2-3 fetches per research cycle.
 - If you're 6+ fetches deep without a hypothesis, you've over-researched. Return to the router and pick a different target.
 
 ## Quick Examples
