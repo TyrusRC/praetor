@@ -32,6 +32,14 @@ class ClassifyTest(unittest.TestCase):
         self.assertFalse(is_noise({"url": "https://acme.tld/api/v1/orders"}))
         self.assertTrue(is_noise({"url": "https://www.googletagmanager.com/gtm.js"}))
 
+    def test_browser_extension_backends_are_noise(self):
+        # Grammarly & co fire from every page the operator visits — not the target
+        self.assertEqual(classify("https://gnar.grammarly.com/log"), "extension")
+        self.assertEqual(classify("https://api.languagetool.org/v2/check"), "extension")
+        self.assertTrue(is_noise({"url": "https://d.joinhoney.com/track"}))
+        # but a target that genuinely IS one of these hosts is out of this list's
+        # remit — scope is the real filter; the classifier stays conservative
+
 
 class _FakeMCP:
     def __init__(self):
@@ -93,6 +101,29 @@ class QueryDslNoiseTest(unittest.TestCase):
         out = self._run(query="noise = false")
         self.assertNotIn("hid ", out)
         self.assertIn("/oidc/callback", out)
+
+    def test_scope_wins_targeting_an_extension_host(self):
+        # classifier: an explicitly-kept host is never noise even if on the list
+        self.assertEqual(classify("https://gnar.grammarly.com/log",
+                                  keep_hosts=("grammarly.com",)), "")
+        self.assertFalse(is_noise({"url": "https://gnar.grammarly.com/log"},
+                                  keep_hosts=("grammarly.com",)))
+
+
+class KeepHostQueryTest(QueryDslNoiseTest):
+    def test_filtering_on_extension_host_keeps_it(self):
+        hist = {"items": [
+            {"index": 1, "method": "GET", "url": "https://gnar.grammarly.com/log",
+             "status_code": 200, "response_length": 10, "mime_type": "text/plain"},
+        ]}
+
+        async def fake_get(path, params=None):
+            return hist
+        with patch.object(httpql.client, "get", fake_get):
+            out = asyncio.run(self.mcp.tools["query_history_dsl"](query="host ~ grammarly.com"))
+        # targeting grammarly on purpose -> not dropped
+        self.assertIn("grammarly.com", out)
+        self.assertNotIn("hid 1", out)
 
 
 if __name__ == "__main__":

@@ -156,7 +156,10 @@ def register(mcp: FastMCP) -> None:
         # query owns the decision then.
         hidden = 0
         if drop_noise and not re.search(r"\bnoise\b", query, re.I):
-            kept = [e for e in entries if not is_noise(e)]
+            # A host the query filters on is a deliberate target — exempt it from the
+            # noise deny-list so testing an extension/CDN host still works.
+            keep = tuple(re.findall(r"\bhost\s*[=~]\s*[\"']?([^\s\"']+)", query, re.I))
+            kept = [e for e in entries if not is_noise(e, keep)]
             hidden = len(entries) - len(kept)
             entries = kept
         # The list view omits request/response bodies and headers; fetch detail
