@@ -8,14 +8,23 @@ rule set; the full Claude-Code manual is `CLAUDE.md`, the agent roster is
 
 ## Find capabilities and playbooks
 
+- **Bootstrap (do this first):** call `praetor_bootstrap()`. It returns the
+  session-start flow (web / network / mobile lanes + the save-finding pipeline) and
+  points to the rules, skills, and agent playbooks below.
 - **Tools (what to run):** call `list_tier1_tools()` or `pick_tool(task)`. Web lane
   routes through Burp (`127.0.0.1:8111`); network lane bypasses Burp.
+- **Rules (authoritative):** call `get_rules("hunting")` and
+  `get_rules("engineering")` — the always-active rules as a tool (also
+  `burp://rules/*` resources if your host supports them).
 - **Skills (how to run it):** call `list_skills()` then `get_skill("<name>")` — the
   procedural playbooks (verify-finding, chain-findings, lab-solve, craft-payload,
-  …). Same content is on `burp://skills/index` + `burp://skills/<name>` if you
-  prefer resources, or read `.claude/skills/*.md` directly.
-- **Rules:** `.claude/rules/hunting.md` + `.claude/rules/engineering.md` (also
-  `burp://rules/hunting` / `burp://rules/engineering`). They are authoritative.
+  …). Also on `burp://skills/*` for resource-capable hosts.
+- **Agents (strategy playbooks):** call `list_agents()` then `get_agent("<name>")`
+  (pentest-commander, recon-agent, auth-tester, …). If your host spawns sub-agents,
+  give each one a `get_agent` playbook as its system prompt.
+
+(Tools are the portable path — a host that bridges MCP Tools only still gets all of
+the above. Safety Rules 5–9 and the save-finding pipeline are enforced server-side.)
 
 ## HARD rules — always in force (never override)
 

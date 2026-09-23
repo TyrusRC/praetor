@@ -6,6 +6,8 @@ This project uses specialized agents for parallel pentesting. The orchestrator (
 
 Each role below corresponds to a file in `.claude/agents/<role>.md` that the `Agent` tool auto-loads when dispatched by name. Update both this file (role overview) AND the agent file (operational detail) when changing a role.
 
+**Host-agnostic access.** The `Agent`-tool dispatch above is Claude-Code-native, but the playbooks themselves are portable: any MCP host reaches them as tools via `list_agents()` / `get_agent("<role>")`. A host that spawns its own sub-agents (e.g. DeepSeek Harness) gives each one a `get_agent` playbook as its system prompt — the same roles, same tools, driven by that host's model. Parallel dispatch is the one host-provided piece; single-threaded hosts run the roles sequentially with the orchestration tools (`get_hunt_plan` / `get_next_action` / `route_signals` / `judge_completion`).
+
 The orchestrator role is split out: `grow-agent` is the session-lifecycle orchestrator, defined in `.claude/agents/grow-agent.md`. When invoked, grow-agent dispatches the 9 roles below.
 
 ## Command Tier (above grow-agent)
