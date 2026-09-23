@@ -285,3 +285,22 @@ slim_tool_schemas(mcp)
 import os as _os  # noqa: E402
 from praetor import _lanes  # noqa: E402
 _lanes.apply_profile(mcp, _os.environ.get("PRAETOR_PROFILE") or _lanes.DEFAULT_PROFILE)
+
+# Declare the tools.listChanged capability so a client arms its re-sync handler. When
+# run_tool / use_lane promote a gated lane they call session.send_tool_list_changed();
+# a client that honours it (dsh's mcp-client re-runs syncTools on the notification;
+# Claude Code re-lists) then re-fetches and the newly-advertised lane appears live —
+# the mid-engagement pivot auto-updates instead of only being reachable via run_tool.
+# FastMCP calls create_initialization_options() with no args (-> listChanged False), so
+# default the tools flag on here without forking FastMCP.
+from mcp.server.lowlevel.server import NotificationOptions as _NotifOpts  # noqa: E402
+_orig_init_opts = mcp._mcp_server.create_initialization_options
+
+
+def _init_opts_tools_changed(notification_options=None, experimental_capabilities=None):
+    if notification_options is None:
+        notification_options = _NotifOpts(tools_changed=True)
+    return _orig_init_opts(notification_options, experimental_capabilities)
+
+
+mcp._mcp_server.create_initialization_options = _init_opts_tools_changed

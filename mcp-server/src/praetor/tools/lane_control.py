@@ -9,10 +9,12 @@ eager-loading host, but a gated tool is never a dead end: it stays executable.
   provided by one always-present core tool.
 - `use_lane(lane)` re-advertises a whole lane.
 
-Both fire `tools/list_changed` so a host that honours it (Claude Code) shows promoted
-tools live; on dsh (which ignores it) `run_tool` still reaches everything, so a
-workflow is never blocked. These two tools are CORE — always advertised — so the
-escape hatch is always in the manifest.
+Both fire `tools/list_changed` so a host that honours it re-fetches and shows promoted
+tools live — Claude Code and the dsh MCP client both do (dsh's connection.ts wires
+onChanged -> refreshTools -> syncTools; Praetor advertises the tools.listChanged
+capability). `run_tool` executes a hidden tool even before promotion, so a workflow is
+never blocked regardless. These two tools are CORE — always advertised — so the escape
+hatch is always in the manifest.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from praetor import _lanes
 
 
 async def _notify(ctx: Context | None) -> None:
-    """Best-effort tools/list_changed. Harmless where the host ignores it."""
+    """Best-effort tools/list_changed. Harmless if the host does not act on it."""
     if ctx is None:
         return
     try:

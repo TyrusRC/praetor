@@ -21,12 +21,13 @@ Design:
 
 Gating NEVER blocks a workflow. A gated tool is removed from the advertised manifest
 (no tokens) but kept in HIDDEN, still fully executable. The core `run_tool` dispatcher
-runs any hidden tool (and fetches its schema on demand — app-layer lazy loading, the
-thing dsh's client lacks), and `promote_lane` re-advertises a lane. The dsh MCP client
-registers `tools/list` ONCE and ignores `notifications/tools/list_changed` (verified in
-its `tools.ts`), so promotion won't surface new tools mid-session there — but `run_tool`
-reaches them regardless, so nothing is ever a dead end. On Claude Code, promotion fires
-`tools/list_changed` and the lane appears live.
+runs any hidden tool (and fetches its schema on demand — app-layer lazy loading), and
+`promote_lane` re-advertises a lane. When a lane is promoted, `run_tool` / `use_lane`
+fire `tools/list_changed`; a client that honours it re-fetches and the lane appears
+live — both Claude Code and the dsh MCP client do (dsh's connection.ts wires
+`onChanged -> refreshTools -> syncTools`, and the server advertises the
+tools.listChanged capability in server.py). `run_tool` still executes a hidden tool
+even before promotion, so the mid-engagement pivot is never a dead end regardless.
 
 Safety Rules 5-9 and the save-finding gate are enforced in the tool layer regardless
 of which tools are advertised or hidden.
