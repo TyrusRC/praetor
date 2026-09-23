@@ -57,4 +57,24 @@ class EvidenceMatchTest {
         assertFalse(EvidenceMatch.pathsAgree("/login", "/logout"));
         assertFalse(EvidenceMatch.pathsAgree("/users/42/orders", "/users/42/profile"));
     }
+
+    /**
+     * A mismatch used to leave the caller (AnnotationHandler, NotesHandler) with
+     * a bare "these don't match" 400 and no way to find the request that DOES
+     * match. The hint is what turns that into something actionable.
+     */
+    @Test
+    void actionableHintNamesTheDerivedPath() {
+        String hint = EvidenceMatch.actionableHint("/v1/orders");
+        assertTrue(hint.contains("query_history_dsl"));
+        assertTrue(hint.contains("/v1/orders"), "hint should cite the endpoint's own path");
+        assertTrue(hint.contains("search_history"));
+    }
+
+    @Test
+    void actionableHintFallsBackWhenNoPathIsDerivable() {
+        String hint = EvidenceMatch.actionableHint("");
+        assertTrue(hint.contains("search_history") || hint.contains("query_history_dsl"));
+        assertFalse(hint.contains("url ~"), "no path to filter on -> no fabricated query_history_dsl clause");
+    }
 }

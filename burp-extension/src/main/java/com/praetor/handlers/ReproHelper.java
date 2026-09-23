@@ -45,7 +45,7 @@ final class ReproHelper {
 
         if (reproductions == null || reproductions.size() < 3) {
             HttpResponses.sendError(exchange, 400,
-                "'" + vulnType + "' requires reproductions[] with >= 3 verified Logger entries (Rule 10a)",
+                "'" + vulnType + "' requires reproductions[] with >= 3 verified proxy-history entries (Rule 10a)",
                 "reproductions_required",
                 "Replay the timing/blind probe 2 more times so the array totals 3 entries; pass reproductions=[{logger_index, elapsed_ms, status_code}, ...].");
             return false;
@@ -62,7 +62,7 @@ final class ReproHelper {
             if (ri < 0 || ri >= proxyHistorySize) {
                 HttpResponses.sendError(exchange, 400, "reproductions[].logger_index not found: " + ri,
                     "reproductions_invalid",
-                    "Logger index " + ri + " is out of range (history size = " + proxyHistorySize + ").");
+                    "Proxy-history index " + ri + " is out of range (history size = " + proxyHistorySize + ").");
                 return false;
             }
             String repMismatch = mismatchFn.apply(ri, findingEndpoint);

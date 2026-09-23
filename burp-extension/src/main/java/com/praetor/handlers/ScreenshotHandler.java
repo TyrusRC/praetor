@@ -60,6 +60,11 @@ public class ScreenshotHandler extends BaseHandler {
         String[] selected = BurpNavigator.selectTab(frame, requestedTab, requestedSubtab);
         String selectedTab = selected[0];
         String selectedSubtab = selected[1];
+        // The tab strip's ACTUAL top-level titles right now — an operator can hide
+        // any tool tab (right-click tab bar -> Hide), and Montoya has no API to see
+        // or undo that. When requestedTab was non-blank but selectedTab is empty,
+        // this list is how the caller tells "hidden" apart from "misspelled".
+        java.util.List<String> availableTabs = BurpNavigator.listTopLevelTabs(frame);
 
         // Optionally click a real Burp button (by text/tooltip/accessible-name)
         // in the selected tab so the action runs THROUGH the UI and its result
@@ -127,6 +132,10 @@ public class ScreenshotHandler extends BaseHandler {
             // The tab actually brought to front (null if not matched — the shot is
             // then the previously-selected tab).
             "selected_tab", selectedTab == null ? "" : selectedTab,
+            // Top-level tab titles Burp is actually showing — a requested tab
+            // absent from this list is HIDDEN by the operator (Montoya can't
+            // detect or un-hide it), not just unmatched by name.
+            "available_tabs", availableTabs,
             "requested_subtab", requestedSubtab,
             "selected_subtab", selectedSubtab == null ? "" : selectedSubtab,
             "clicked_button", clickedButton ? clickButton : "",

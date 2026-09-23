@@ -22,7 +22,7 @@ public class FindingsStore {
         Map.entry("CWE-1336", "Never pass user input directly to template engines. Use sandboxed rendering.")
     );
 
-    /** Vuln types that require reproductions[] with >= 3 verified Logger entries (Rule 10a). */
+    /** Vuln types that require reproductions[] with >= 3 verified proxy-history entries (Rule 10a). */
     public static final Set<String> TIMING_BLIND_TYPES = Set.of(
         "sqli_blind", "sqli_time", "ssrf_blind", "race_condition",
         "request_smuggling", "ssti_blind", "command_injection_blind", "xxe_blind"

@@ -132,6 +132,45 @@ class SuiteScreenshotTest {
         assertNull(BurpNavigator.selectTabIn(root, ""));
     }
 
+    /** available_tabs (ScreenshotHandler) must reflect the REAL tab strip, so a
+     *  caller can tell "operator hid this tab" apart from "I misspelled it". */
+    @Test
+    void listTopLevelTabsReturnsEveryTabInTheMainStrip() {
+        JPanel root = new JPanel();
+        JTabbedPane main = burpLikeStrip();
+        root.add(main);
+
+        java.util.List<String> tabs = BurpNavigator.listTopLevelTabsIn(root);
+
+        assertEquals(11, tabs.size());
+        assertTrue(tabs.contains("Logger"));
+        assertTrue(tabs.contains("Proxy"));
+    }
+
+    /** A tab the operator right-click-Hides in Burp never appears in the
+     *  JTabbedPane at all — Montoya has no API to see or undo that — so a
+     *  "hidden" tab is simply absent here, same as it would be live. */
+    @Test
+    void listTopLevelTabsOmitsAHiddenTab() {
+        JTabbedPane main = new JTabbedPane();
+        main.addTab("Dashboard", new JLabel());
+        main.addTab("Proxy", new JLabel());
+        main.addTab("Repeater", new JLabel());
+        // "Logger" intentionally not added -> simulates the operator hiding it.
+        JPanel root = new JPanel();
+        root.add(main);
+
+        java.util.List<String> tabs = BurpNavigator.listTopLevelTabsIn(root);
+
+        assertFalse(tabs.contains("Logger"));
+        assertEquals(java.util.List.of("Dashboard", "Proxy", "Repeater"), tabs);
+    }
+
+    @Test
+    void listTopLevelTabsEmptyWhenNoTabStripFound() {
+        assertTrue(BurpNavigator.listTopLevelTabsIn(new JPanel()).isEmpty());
+    }
+
     @Test
     void captureComponentRendersTheComponentNotAScreenRegion() {
         // printAll paints the component's own pixels — proving the capture is the

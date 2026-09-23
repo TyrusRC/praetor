@@ -139,7 +139,9 @@ public class NotesHandler extends BaseHandler {
             sendError(exchange, 400,
                 "evidence required: provide {logger_index, proxy_history_index, or collaborator_interaction_id}",
                 "evidence_missing",
-                "Pass evidence={'logger_index': <N>} where N is the index of the confirming replay in proxy/Logger history.");
+                "Pass evidence={'logger_index': <N>} where N is the index of the confirming replay in "
+                + "Burp's PROXY history (the field is named logger_index for historical reasons — "
+                + "Montoya has no API to read Burp's separate Logger tool).");
             return;
         }
 
@@ -164,8 +166,9 @@ public class NotesHandler extends BaseHandler {
         String findingEndpoint = (String) body.get("endpoint");
         if (hasLogger) {
             int idx = ((Number) loggerIdxObj).intValue();
-            // Logger entries in this codebase are sourced from proxy history
-            // (see BurpToolsHandler.handleLogger) — same bounds.
+            // "logger_index" is a PROXY-HISTORY ordinal, not an index into Burp's
+            // separate Logger tool — Montoya has no read API for Logger (see
+            // BurpToolsHandler class header). Same bounds as proxy_history_index.
             if (idx < 0 || idx >= proxyHistorySize) {
                 sendError(exchange, 400, "evidence.logger_index not found: " + idx);
                 return;

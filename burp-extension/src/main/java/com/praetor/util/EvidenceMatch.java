@@ -53,21 +53,37 @@ public final class EvidenceMatch {
         }
         if (actualUrl == null || actualUrl.isBlank()) return null;
 
+        // Computed once, up front, so both mismatch branches below can append the
+        // same actionable next-step (rather than leaving the caller with a bare
+        // "these don't match" and no way to find the request that does).
+        String wantPath = pathOf(endpoint);
+        String hint = actionableHint(wantPath);
+
         String wantHost = hostOf(endpoint);
         String gotHost = hostOf(actualUrl);
         if (!wantHost.isEmpty() && !gotHost.isEmpty() && !hostsAgree(wantHost, gotHost)) {
             return "index #" + index + " is " + req.method() + " " + actualUrl
                  + " (host " + gotHost + "), finding endpoint is " + endpoint
-                 + " (host " + wantHost + ")";
+                 + " (host " + wantHost + ")" + hint;
         }
 
-        String wantPath = pathOf(endpoint);
         String gotPath = pathOf(actualUrl);
         if (!wantPath.isEmpty() && !gotPath.isEmpty() && !pathsAgree(wantPath, gotPath)) {
             return "index #" + index + " is " + req.method() + " " + actualUrl
-                 + ", finding endpoint is " + endpoint;
+                 + ", finding endpoint is " + endpoint + hint;
         }
         return null;
+    }
+
+    /** One-line guidance appended to every mismatch description: how to find the
+     *  request the finding actually needs, instead of leaving the operator with
+     *  a bare rejection. Package-private so it's directly unit-testable, same as
+     *  the other string helpers here. */
+    static String actionableHint(String wantPath) {
+        return wantPath.isEmpty()
+            ? " — find the right request with search_history or query_history_dsl, then cite that index."
+            : " — find the right request with query_history_dsl('url ~ " + wantPath
+                + "') or search_history, then cite that index.";
     }
 
     /** Host portion of a URL or bare authority, lowercased and port-stripped. "" when absent. */
