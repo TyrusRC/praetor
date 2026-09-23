@@ -28,6 +28,7 @@ from ..advisor_kb import (
     q5_evidence,
     q6_never_submit,
     q7_triager,
+    scanner_proof,
 )
 from ._context import AssessContext
 from ._evidence_augment import augment_evidence
@@ -41,11 +42,17 @@ from ._severity import finalize_severity
 # Q3 runs after Q5 so it sees auto-derived evidence markers, and before Q7 so a
 # missing impact statement is reported as the impact problem it is rather than
 # as a generic triager-mass-report downgrade. Q7 last.
+# scanner_proof runs after Q5 (so derived markers / weak-evidence are set) and
+# before Q3: Q3 auto-passes impact-inherent classes, so a scanner-sourced SQLi/
+# RCE/IDOR with no independent proof must be caught first. It only fires on
+# scanner-provenance prose with zero corroboration, so it never touches the
+# existing scenarios.
 QUESTION_CHAIN = (
     ("q1_scope", q1_scope),
     ("q2_repro", q2_repro),
     ("q6_never_submit", q6_never_submit),
     ("q5_evidence", q5_evidence),
+    ("scanner_proof", scanner_proof),
     ("q3_impact", q3_impact),
     ("q4_dedup", q4_dedup),
     ("q7_triager", q7_triager),
