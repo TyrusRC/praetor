@@ -62,10 +62,11 @@ def register(mcp: FastMCP) -> None:
 
         Praetor can advertise only the tool lanes an engagement needs, to shrink the
         manifest an eager-loading host (dsh / Codex via the API) sends to the model.
-        This is set at startup by the `PRAETOR_PROFILE` env var (default `all`);
-        changing it means editing the MCP config and reconnecting — a running host is
-        NOT re-notified (the dsh client does not honour tools/list_changed). Claude
-        Code defers tool schemas, so it stays on `all` and pays nothing.
+        The starting profile is set by the `PRAETOR_PROFILE` env var. A gated tool is
+        never blocked: run_tool runs it and promotes its lane, firing tools/list_changed
+        so the host re-fetches and the lane appears live (Claude Code and the dsh client
+        both honour it). Claude Code also defers tool schemas, so it pays little either
+        way.
         """
         from praetor import _lanes
         live = _lanes.LAST_APPLIED

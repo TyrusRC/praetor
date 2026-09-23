@@ -305,16 +305,17 @@ lineage into its live graph) — is in
 
 **Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
 every tool's full schema into the model call at connect — a large share of the context
-window — because their MCP client has no schema deferral, tool filtering, or
-`tools/list_changed` handling. Claude Code defers schemas (names-only), so it is
-unaffected. To shrink the manifest on an eager host, set `PRAETOR_PROFILE` in the
-server's `env` to advertise only the lanes you need; default `all`. Core (scope, intel,
-save-finding pipeline, reporting, evidence, discovery + bridge tools) is always on.
+window — because their MCP client has no per-tool schema deferral. Claude Code defers
+schemas (names-only), so it is unaffected. To shrink the manifest on an eager host, set
+`PRAETOR_PROFILE` in the server's `env` to advertise only the lanes you need; default
+`all`. Core (scope, intel, save-finding pipeline, reporting, evidence, discovery +
+bridge tools) is always on.
 **Gating never blocks a workflow:** a gated tool is hidden but still runnable, so a web
 session can pivot to mobile/network/cloud mid-engagement — `run_tool('<tool>', {args})`
-runs any gated tool and auto-enables its lane (no reconnect), `run_tool('<tool>')` returns
-its schema, and `pick_tool` flags gated tools. `get_profile()` reports what is active vs
-gated.
+runs any gated tool and auto-enables its lane, `run_tool('<tool>')` returns its schema,
+and `pick_tool` flags gated tools. Promoting a lane fires `tools/list_changed`, which
+both Claude Code and dsh honour, so the newly-advertised lane appears in the model's
+tools live — no reconnect. `get_profile()` reports what is active vs gated.
 
 | `PRAETOR_PROFILE` | advertises (beyond core) |
 |---|---|

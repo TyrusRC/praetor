@@ -57,12 +57,13 @@ mcp__praetor__save_finding       mcp__praetor__list_skills   ...
 ### Context cost — pick a profile with `PRAETOR_PROFILE`
 
 The dsh MCP client eager-loads **every** tool's full schema into the model call at
-connect (its `tools.ts` registers all of `tools/list` once, with no filtering, no
-lazy loading, and no `tools/list_changed` handling — unlike Claude Code, which defers
-schemas to names-only). Praetor's full surface is a large share of the context window,
-so that lands in dsh's first request. There is no dsh-side switch for this; the fix is
+connect (its `tools.ts` registers all of `tools/list`; no per-tool lazy loading, unlike
+Claude Code, which defers schemas to names-only). Praetor's full surface is a large
+share of the context window, so that lands in dsh's first request. The fix is
 server-side — advertise only the lanes you need via the `PRAETOR_PROFILE` env in the
-config above:
+config above. dsh *does* honour `tools/list_changed` (its connection.ts re-runs
+`syncTools` on the notification), so a gated lane that gets promoted mid-session appears
+in dsh automatically — see the pivot note below.
 
 | `PRAETOR_PROFILE` | advertises (core always on) |
 |---|---|
@@ -84,10 +85,12 @@ web session that needs to pivot to mobile / network / cloud — just call
 `mcp__praetor__run_tool('<tool>', {args})`: it runs the hidden tool and auto-enables its
 lane, with no reconnect. `run_tool('<tool>')` (no args) returns the tool's schema first,
 and `mcp__praetor__pick_tool` flags gated tools with this hint. `get_profile` shows
-what is advertised vs gated; `use_lane('<lane>')` re-advertises a whole lane. (On dsh
-the re-advertise is not pushed to the model — it ignores `tools/list_changed` — but
-`run_tool` reaches everything regardless, so the pivot always works.) Safety Rules 5-9
-and the 7-gate save-finding pipeline are enforced in the tool layer on every profile.
+what is advertised vs gated; `use_lane('<lane>')` re-advertises a whole lane. Promotion
+fires `tools/list_changed`, which dsh honours — it re-runs `syncTools` and the newly
+advertised lane appears in the model's tools automatically, no reconnect. (`run_tool`
+also reaches a gated tool before promotion, so the pivot works even mid-call.) Safety
+Rules 5-9 and the 7-gate save-finding pipeline are enforced in the tool layer on every
+profile.
 
 ## 4. Verify
 
