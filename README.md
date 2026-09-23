@@ -464,7 +464,15 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Advanced | `test_host_header`, `test_request_smuggling`, `test_mass_assignment`, `test_business_logic` |
 | Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
-| Recon (third-party) | `run_subfinder`, `run_nuclei`, `run_katana`, `run_sqlmap`, `run_dalfox`, `run_ffuf`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls` |
+| Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls` |
+| Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
+| Secrets & SAST | `run_gitleaks`, `run_trufflehog`, `run_opengrep_source`, `inventory_source_routes`, `dump_exposed_git`, `extract_js_secrets` |
+| SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_poutine`, `run_octoscan`, `run_cosign_verify` |
+| IaC / container config | `run_checkov`, `run_tfsec`, `run_terrascan`, `run_hadolint` |
+| Cloud / Kubernetes | `run_prowler`, `run_scout_suite`, `run_cloudsploit`, `run_pacu`, `run_azurehound`, `run_kube_hunter`, `run_kubescape`, `run_kubeletctl`, `run_kdigger`, `run_peirates` |
+| LLM / AI red-team | `discover_llm_endpoint`, `run_garak`, `run_pyrit_orchestrator`, `run_web_llm_owasp_top10`, `run_owasp_asi_top10`, `run_nuclei_llm_infra`, `run_local_llm_prompt_injection` |
+| MCP / agent security | `enumerate_mcp_server`, `run_mcp_scan`, `run_mcptox`, `probe_mcp_server_attacks`, `detect_mcp_schema_drift`, `inspect_for_prompt_injection`, `scan_claude_code_project_hooks` |
+| Metasploit | `msf_search`, `msf_check`, `msf_exploit`, `msf_payload_gen`, `msfrpc_login`, `msfrpc_module_execute` |
 | Subdomain takeover | `test_subdomain_takeover` — 129 vendor fingerprints (W8 nuclei merge) + DNS-only signal mode (W9: ElasticBeanstalk regional, Azure trafficmanager / azureedge / redis.cache.windows.net). DNS-only entries flag takeover when CNAME resolves but target hostname has no A record (skip body fingerprint match). See `.claude/skills/recon-takeover.md`. |
 | Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
@@ -479,6 +487,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch) |
 | **Credential loop** | `crack_hashes` (offline hashcat/john), `record_credential`, `list_credentials` |
 | **Operator log / evidence** | `record_redteam_action`, `record_loot`, `get_operator_log` (timeline / attack / loot) |
+| **Mobile lane (device control)** | `mobile_devices`, `mobile_connect`, `mobile_set_proxy`, `mobile_frida_run`, `mobile_app_control`, `mobile_screenshot`, `mobile_shell`, `mobile_pull_file` — Frida (iOS+Android) + adb (Android) on the host running the server; 1-per-device |
 | **Red-team knowledge** | `lookup_gtfobins`, `lookup_lolbas`, `redteam_tool_guide` |
 | **Ghostwriter hub** | `ghostwriter_status`, `sync_to_ghostwriter` |
 
