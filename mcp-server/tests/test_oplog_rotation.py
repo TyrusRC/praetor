@@ -39,6 +39,28 @@ class _TempLedger(unittest.TestCase):
             _store.record({"url": f"http://h/{i}", "api": "POST /api/http/curl"})
 
 
+class TestByteSizeRotation(_TempLedger):
+    def test_rotate_if_needed_archives_to_unique_names_no_overwrite(self):
+        # The byte-size auto-rotation must NOT overwrite a prior archive — every
+        # rotation preserves a distinct generation (the bug: fixed _oplog.1.jsonl).
+        p = self.path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        orig_max = _store._MAX_BYTES
+        _store._MAX_BYTES = 100  # force rotation on tiny files
+        try:
+            p.write_text("x" * 200, encoding="utf-8")
+            _store._rotate_if_needed(p)          # first rotation -> archive #1
+            self.assertFalse(p.exists())
+            p.write_text("y" * 200, encoding="utf-8")
+            _store._rotate_if_needed(p)          # second rotation -> archive #2
+            archives = sorted(x.name for x in p.parent.glob("_oplog.*.jsonl"))
+            self.assertEqual(len(archives), 2, f"expected 2 distinct archives, got {archives}")
+            # neither archive is the legacy fixed name, and both survive
+            self.assertNotIn("_oplog.1.jsonl", archives)
+        finally:
+            _store._MAX_BYTES = orig_max
+
+
 class TestDryRun(_TempLedger):
     def test_dry_run_archives_nothing_and_reports_counts(self):
         self._seed(10)

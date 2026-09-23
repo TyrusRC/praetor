@@ -140,8 +140,10 @@ class TestRotation(_TempLedger):
         with mock.patch.object(_store, "_MAX_BYTES", 400):
             for i in range(40):
                 _store.record({"url": f"http://h/{i}", "api": "POST /api/http/curl"})
-        self.assertTrue(self.path().with_suffix(".1.jsonl").exists(),
-                        "expected a rotated generation")
+        # Rotation now archives to a unique timestamped name (not a fixed
+        # .1.jsonl it would overwrite), so at least one archive must exist.
+        archives = list(self.path().parent.glob("_oplog.*.jsonl"))
+        self.assertTrue(archives, "expected a rotated (archived) generation")
         self.assertLess(self.path().stat().st_size, 4000)
         # Entries from before the rotation are still reachable, in order.
         seqs = [e["seq"] for e in _store.read_entries()]

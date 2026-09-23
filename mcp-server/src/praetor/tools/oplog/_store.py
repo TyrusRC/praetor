@@ -104,10 +104,28 @@ def is_evidentiary(entry: dict) -> bool:
     return any(p in api for p in _AUDITED_APIS) and "GET " not in api
 
 
+def _archive_name(path: Path) -> Path:
+    """A collision-safe, timestamped archive path next to `path`
+    (`_oplog.<YYYYMMDD-HHMMSS>[-N].jsonl`) — never an existing file, so no
+    previous generation is overwritten. Shared by the byte-size auto-rotation
+    and rotate_operator_log so both preserve history the same way."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    archive = path.with_name(f"{path.stem}.{ts}.jsonl")
+    suffix = 0
+    while archive.exists():
+        suffix += 1
+        archive = path.with_name(f"{path.stem}.{ts}-{suffix}.jsonl")
+    return archive
+
+
 def _rotate_if_needed(path: Path) -> None:
+    # Archive-not-delete: on overflow, move the full ledger to a UNIQUE
+    # timestamped archive rather than a fixed `.1.jsonl` — the old fixed name
+    # overwrote the prior archive on every rotation, silently losing all but the
+    # last two generations of an audit-critical (chain-of-custody) log.
     try:
         if path.exists() and path.stat().st_size > _MAX_BYTES:
-            path.replace(path.with_suffix(".1.jsonl"))
+            path.replace(_archive_name(path))
     except OSError:
         pass
 
@@ -171,11 +189,11 @@ def _atomic_write_lines(path: Path, lines: list[str]) -> None:
 def rotate_operator_log(max_entries: int = 5000, apply: bool = False) -> dict:
     """Archive older ledger entries so the live file stays bounded — never deletes.
 
-    This is deliberately separate from `_rotate_if_needed` (byte-size triggered,
-    keeps exactly one previous generation in `_oplog.1.jsonl` and overwrites it
-    on the next rotation, so history past two generations is lost). The ledger
-    backs chain-of-custody / ATT&CK-adjacent evidence of what the tool layer
-    actually sent, so archive-not-delete is the only acceptable mode here: every
+    Complements `_rotate_if_needed` (byte-size triggered, whole-file): both now
+    archive to a unique `_archive_name` and never overwrite a prior generation.
+    This tool adds explicit, entry-count-based control with a dry-run preview.
+    The ledger backs chain-of-custody / ATT&CK-adjacent evidence of what the tool
+    layer actually sent, so archive-not-delete is the only acceptable mode: every
     entry pushed out of the live tail is written verbatim to a new, uniquely
     named `_oplog.<YYYYMMDD-HHMMSS>.jsonl` file next to the ledger — never
     overwritten, never truncated. Archive + live tail together always equal the
@@ -213,12 +231,7 @@ def rotate_operator_log(max_entries: int = 5000, apply: bool = False) -> dict:
         tail_lines = lines[-max_entries:] if max_entries > 0 else []
         archive_bytes = sum(len(ln.encode("utf-8")) + 1 for ln in archive_lines)
 
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        archive_path = path.with_name(f"{path.stem}.{ts}.jsonl")
-        suffix = 0
-        while archive_path.exists():
-            suffix += 1
-            archive_path = path.with_name(f"{path.stem}.{ts}-{suffix}.jsonl")
+        archive_path = _archive_name(path)
 
         result = {
             "path": str(path),
