@@ -165,5 +165,5 @@ def register(mcp: FastMCP) -> None:
             lines.append(f"Status: {', '.join(f'{s}x{c}' for s, c in dist.items())}\n")
         for r in data.get("results", []):
             title = f" [{r['title']}]" if r.get("title") else ""
-            lines.append(f"  {r.get('method', '?'):6s} {r.get('path', '?'):<40s} {r['status']} | {r['length']:>6}B | {r['time_ms']:>4}ms{title}")
+            lines.append(f"  {r.get('method', '?'):6s} {r.get('path', '?'):<40s} {r.get('status', '?')} | {r.get('length', 0):>6}B | {r.get('time_ms', 0):>4}ms{title}")
         return "\n".join(lines)

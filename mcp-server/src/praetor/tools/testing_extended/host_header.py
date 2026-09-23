@@ -36,7 +36,7 @@ def register(mcp: FastMCP):
             return error_verdict(str(err), vuln_type="host_header")
         scope_err = await scope_or_error(host, is_https, port)
         if scope_err:
-            return scope_err
+            return error_verdict(scope_err, vuln_type="host_header", reason="out_of_scope")
         scheme = "https" if is_https else "http"
         authority = host if (is_https and port == 443) or (not is_https and port == 80) else f"{host}:{port}"
         target_url = f"{scheme}://{authority}{path}"

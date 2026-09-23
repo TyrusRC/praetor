@@ -192,7 +192,9 @@ def register(mcp: FastMCP):
             mutations.append(("add_negative_price_item", negated))
 
         if not mutations:
-            return "\n".join(lines) + f"\n\nNo mutations matched strategy '{mutation_strategy}'."
+            return error_verdict(
+                f"no mutations matched strategy '{mutation_strategy}'",
+                vuln_type="business_logic", reason="bad_payload")
 
         findings = []
         for name, mutated_items in mutations:
