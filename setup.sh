@@ -685,6 +685,25 @@ elif has apt-get; then
     install_pd_tool "certipy"    "uv tool install certipy-ad"
     install_pd_tool "bloodhound-python" "uv tool install bloodhound"
     install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
+elif [ "$PLATFORM" = "macos" ]; then
+    info "macOS — installing the network lane via Homebrew + uv/go..."
+    # System tools Homebrew carries. Installed one per line via install_pd_tool
+    # so a single missing/renamed formula can't abort the rest of the bundle
+    # (a bare `brew install a b c` fails the whole line on one bad name).
+    install_pd_tool "nmap"        "brew install nmap"
+    install_pd_tool "john"        "brew install john"
+    install_pd_tool "hashcat"     "brew install hashcat"
+    install_pd_tool "gobuster"    "brew install gobuster"
+    install_pd_tool "feroxbuster" "brew install feroxbuster"
+    install_pd_tool "sshuttle"    "brew install sshuttle"
+    # smbmap has no brew formula — same PyPI source works cross-platform.
+    install_pd_tool "smbmap"      "uv tool install smbmap"
+    # Python/Go red-team tools — identical cross-platform sources to the Debian branch.
+    install_pd_tool "nxc"        "uv tool install git+https://github.com/Pennyw0rth/NetExec"
+    install_pd_tool "impacket-secretsdump" "uv tool install impacket"
+    install_pd_tool "certipy"    "uv tool install certipy-ad"
+    install_pd_tool "bloodhound-python" "uv tool install bloodhound"
+    install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
 else
     warn "Non-apt host — install red-team tools manually. redteam_tool_guide(tool='<name>')"
     warn "  in Praetor prints the apt/clone/go command for each."
