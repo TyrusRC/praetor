@@ -328,7 +328,7 @@ check_recon osv-scanner "release binary: https://github.com/google/osv-scanner/r
 check_recon trivy      "brew install aquasecurity/trivy/trivy               # or: https://github.com/aquasecurity/trivy/releases"
 check_recon grype      "brew install grype                                  # or: https://github.com/anchore/grype#installation"
 check_recon garak      "pipx install garak"
-check_recon mcp-scan   "pipx install mcp-scan                               # https://github.com/invariantlabs-ai/mcp-scan"
+check_recon snyk-agent-scan "uv tool install snyk-agent-scan                   # renamed from invariantlabs-ai/mcp-scan"
 check_recon kubescape  "release binary: https://github.com/kubescape/kubescape/releases (kubescape_<ver>_linux_amd64)"
 check_recon kube-hunter "pipx install kube-hunter"
 

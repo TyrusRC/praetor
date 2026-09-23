@@ -551,7 +551,9 @@ install_pd_tool "syft"      "curl -sSfL https://raw.githubusercontent.com/anchor
 echo ""
 info "LLM + MCP security tools..."
 install_pd_tool "garak"     "uv tool install garak"
-install_pd_tool "mcp-scan"  "uv tool install mcp-scan"
+# mcp-scan (invariantlabs) was renamed to snyk-agent-scan; the old package is
+# now a dead redirect stub that scans nothing. run_mcp_scan targets the new one.
+install_pd_tool "snyk-agent-scan"  "uv tool install snyk-agent-scan"
 
 # HTTP request smuggling has no external CLI dependency — Praetor ships it natively
 # (send_raw_request + testing_extended/_smuggle_capture + test_request_smuggling).
@@ -974,7 +976,7 @@ check trivy
 check grype
 check syft
 check garak
-check mcp-scan
+check snyk-agent-scan
 check prowler
 check checkov
 check kubescape

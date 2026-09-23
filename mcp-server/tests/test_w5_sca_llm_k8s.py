@@ -82,7 +82,7 @@ class W5MissingBinaryFallbackTest(unittest.TestCase):
     def test_mcp_scan_install_hint(self):
         with mock.patch.object(llm_redteam, "_check_tool", return_value=False):
             out = self._call(llm_redteam, "run_mcp_scan", "./server.py")
-        self.assertIn("mcp-scan not installed", out)
+        self.assertIn("snyk-agent-scan not installed", out)
 
     def test_kubescape_install_hint(self):
         with mock.patch.object(k8s_audit, "_check_tool", return_value=False):

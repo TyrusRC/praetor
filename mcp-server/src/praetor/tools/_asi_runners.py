@@ -78,8 +78,9 @@ async def _run_intent_breaking(
             "# JS/HTML PI sweep"
         )
         dispatched.append(
-            f"run_local_llm_prompt_injection(model_url=\"{endpoint}\", "
-            f"marker=\"{canary}\") # generic PI canary echo"
+            f"run_local_llm_prompt_injection(endpoint=\"{endpoint}\", "
+            f"backend=\"<backend>\", model=\"<model>\", marker=\"{canary}\") "
+            "# generic PI canary echo (local-LLM endpoints only)"
         )
     return {
         "verdict": "MANUAL_REQUIRED" if not dispatched else "SUSPECTED",
