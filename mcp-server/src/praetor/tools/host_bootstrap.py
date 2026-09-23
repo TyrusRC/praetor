@@ -69,18 +69,26 @@ def register(mcp: FastMCP) -> None:
         """
         from praetor import _lanes
         live = _lanes.LAST_APPLIED
+        hidden = _lanes.hidden_by_lane()
         return {
             "active_profile": live["profile"],
             "enabled_lanes": live["enabled_lanes"],
             "tools_advertised": live["kept"],
             "tools_gated_out": live["removed"],
+            "gated_lanes": {lane: len(names) for lane, names in sorted(hidden.items())},
             "all_lanes": list(_lanes.LANES),
             "named_profiles": sorted(_lanes.PROFILES),
+            "mid_engagement_pivot": (
+                "Need a gated tool (e.g. pivot from web to mobile/network/cloud)? It is "
+                "NEVER blocked: run_tool('<tool>', {args}) executes it and auto-enables "
+                "its lane; run_tool('<tool>') returns its schema; use_lane('<lane>') "
+                "re-advertises the whole lane. pick_tool(task) flags gated tools for you."
+            ),
             "change_it": (
-                "Set env PRAETOR_PROFILE in the MCP server config (e.g. dsh cordis.yml "
-                "env: { PRAETOR_PROFILE: 'web' }) then reconnect. Values: a named "
-                "profile (web/network/mobile/llm/cloud/core/all/...) or a comma list of "
-                "lanes (web,network). Core tools are always on regardless."
+                "To set the STARTING profile, set env PRAETOR_PROFILE in the MCP server "
+                "config (e.g. dsh cordis.yml env: { PRAETOR_PROFILE: 'web' }) then "
+                "reconnect. Values: a named profile (web/network/mobile/llm/cloud/core/"
+                "all/...) or a comma list of lanes (web,network). Core is always on."
             ),
             "note": (
                 "Safety Rules 5-9 and the 7-gate save-finding pipeline are enforced in "
@@ -127,6 +135,11 @@ def register(mcp: FastMCP) -> None:
             "save_finding_pipeline": [
                 "verify (replay >= 3x) -> assess_finding(7-gate) -> save_finding",
                 "tool-layer enforced: a finding failing scope/dedup/evidence/impact is rejected regardless of host",
+            ],
+            "profile_and_pivot": [
+                "get_profile()  — which tool lanes are advertised vs gated (context-saving on eager hosts)",
+                "a gated tool is NEVER blocked: run_tool('<tool>', {args}) runs it + auto-enables its lane; run_tool('<tool>') returns its schema",
+                "mid-engagement pivot (web -> mobile/network/cloud) just works via run_tool; pick_tool(task) flags gated tools",
             ],
             "model_tiers": [
                 "Agent playbooks are pinned to Claude tiers (opus / sonnet / haiku). On a non-Claude host, map the generic `tier` in list_agents to YOUR platform's nearest model:",

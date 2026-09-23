@@ -157,100 +157,32 @@ def register(mcp: FastMCP) -> None:
                               select_row: str = "", select_url: str = "",
                               select_proxy_index: int = -1, restore: bool = True,
                               auto_redact: bool = False, attach: str = "auto") -> dict:
-        """Screenshot the Burp Suite window for evidence — optionally a named tab.
+        """Screenshot the Burp window for evidence — optionally a named tab/sub-tab/row.
 
-        Pass `tab` to bring that top-level Burp tab to front before capturing
-        (Proxy, Repeater, Intruder, Organizer, Logger, Target, Dashboard, ...) and
-        `subtab` to select a nested sub-tab within it (e.g. tab='proxy',
-        subtab='http history'); both match case-insensitively (exact > prefix >
-        substring). Leave them empty to capture whatever is currently selected.
-        The return's `selected_tab` / `selected_subtab` say what was actually
-        shown (empty if the name didn't match — then it's the prior selection).
-        Note: tool-sent traffic (curl/send_*) shows in Logger, browser traffic in
-        Proxy > HTTP history.
-
-        `click_button='<label>'` clicks a real Burp button (matched by text /
-        tooltip / accessible-name) in the selected tab BEFORE capturing, so the
-        action runs THROUGH the UI and its result renders. Works for STANDARD Swing
-        buttons: Collaborator ('Poll now', 'Copy to clipboard', 'HTTP'/'DNS'/'SMTP'),
-        Settings, Help, Add, etc. `clicked_button` echoes the label if found+enabled+
-        clicked (waits ~2.5s to render); `available_buttons` lists what's clickable
-        in that tab (a disabled button won't click — e.g. 'Poll now' before a payload
-        exists). EXCEPTION: Repeater's 'Send' is a custom-painted control, NOT a
-        Swing button — it CANNOT be clicked from code. Fire Repeater with
-        repeater_resend / curl_request (they return the parsed response, which is
-        the evidence, Rule 13a) and screenshot the request for context.
-        Pair with tab=/subtab= to select the surface first.
-
-        To capture ONE specific request, pick the row by REQUEST IDENTITY, not by a
-        Praetor evidence index — a `proxy_history_index` is NOT the
-        value Burp prints in the table's "#" column (they diverge; a Praetor index
-        fed to select_row lands on unrelated traffic). Three selectors, in order of
-        preference:
-          - `select_url='<substring>'` — select the row whose host/method/URL text
-            contains the substring (the programmatic equivalent of typing into
-            Burp's search box). The reliable way to reach a browser-origin request
-            you can't renumber — e.g. an OAuth callback that only lives in Proxy >
-            HTTP history: burp_screenshot(tab='proxy', subtab='http history',
-            select_url='oidc/callback'). Space-separated tokens AND together
-            (e.g. 'accounts.example.com /oidc/callback' to disambiguate a path
-            shared by two hosts). Last (newest) match wins.
-          - `select_proxy_index=<N>` — pass the SAME index `get_proxy_history`
-            returned; the server resolves it to that request's URL path and matches
-            the row by text (no "#"-number guessing).
-          - `select_row='<#>'` — only when you literally read the "#" value off
-            Burp's table; or `select_row='last'`/`'newest'` for the most recent row.
-        `selected_row` is the chosen 0-based view row (-1 if no table / no match);
-        `selected_match` echoes the text needle used (empty for the numeric path).
-
-        Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
-        name — `burp-<tab>-<finding_id>-<note-slug>-<timestamp>.png` — so the
-        evidence is identifiable at a glance. It feeds screenshot_gallery(domain)
-        and per-finding evidence directly. Pass `finding_id` to attach it to that
-        finding straight away (renders in the report + PoC bundle). Requires Burp
-        running with its GUI (headless Burp returns a `headless` error).
-
-        NON-DISRUPTIVE by default (`restore=True`): the operator's current view —
-        selected tab, sub-tab, table row, split layout — is snapshotted before the
-        capture navigates and restored right after, so this never leaves a human's
-        Burp on a different tab/selection than they had it (the capture is also
-        occlusion-immune and doesn't steal window focus). A button CLICK is a real
-        action and is not undone. `restore=False` leaves the navigated view.
-
-        Capture is rendered at `scale`× (default 2×, capped to ~2K long side) so
-        text is readable on FHD/2K without bloating the PNG. `step` (e.g.
-        '1-baseline', '2-attack', '3-result') goes in the filename and orders the
-        shots in the finding's report — it does NOT draw on the image.
-
-        `banner` is OPT-IN and defaults OFF — ASK the operator before enabling it.
-        When on, a footer strip is appended BELOW the screenshot (nothing on the
-        image is covered) with the step/caption on the left and `trademark` (if
-        given) on the right.
-
-        `auto_redact=True` OCR-scans the saved shot and writes a redacted twin
-        (`out['redacted']`) with secrets (cookies / tokens / keys / JWTs / emails)
-        pixel-mosaicked — the naked shot stays at `out['saved']`, so the operator
-        keeps both. Needs tesseract (see setup.sh); for precise control use
-        `redact_screenshot(path, boxes)` / `auto_redact_screenshot(path)`.
-
-        `attach` picks which twin is linked to `finding_id` (⇒ what ships in the
-        report + PoC bundle): 'auto' (default) ships the REDACTED twin when one
-        exists — so a secret never reaches the deliverable — else the naked shot;
-        'naked' forces the raw shot; 'none' captures without attaching.
-        `attached_file` echoes the filename that was linked.
-
-        SENSITIVE: this captures the WHOLE Burp window, which may show unrelated
-        secrets (other tabs, tokens, other in-scope hosts, cross-customer proxy
-        rows). Prefer a specific `tab`, and review/redact before shipping it in a
-        client deliverable (export_poc_bundle copies the PNG out verbatim).
+        Brings `tab` (proxy/repeater/intruder/organizer/logger/target/dashboard) and
+        nested `subtab` to front before capturing (case-insensitive; empty = current
+        view). `click_button='<label>'` clicks a real Burp Swing button first — NOT
+        Repeater's custom 'Send' (fire that via repeater_resend/curl_request, whose
+        parsed response is the evidence). Select ONE request by identity, not a
+        Praetor index (it diverges from Burp's "#"): prefer `select_url='<host/URL
+        substring>'`, else `select_proxy_index=<get_proxy_history N>`, else
+        `select_row='<#>'`/'last'. Saves a PNG under .burp-intel/<domain>/screenshots/;
+        `finding_id` attaches it (renders in report + PoC bundle). NON-DISRUPTIVE by
+        default (`restore=True` snapshots+restores the operator's view; a button click
+        is not undone). `auto_redact=True` writes a pixel-mosaicked twin; `attach='auto'`
+        ships the redacted twin so secrets stay out of the deliverable. SENSITIVE:
+        captures the WHOLE window (may show unrelated secrets/hosts) — prefer a specific
+        tab and redact before shipping. Requires Burp GUI.
+        Full nav / click / selector / redaction reference: get_skill('evidence-and-tabs').
 
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
-            select_url: substring of the request (host/method/URL) to select its row —
-                the reliable selector for a specific captured request.
-            select_proxy_index: a get_proxy_history index; resolved server-side to the
-                request's URL path and matched by text (avoids the "#" mismatch).
-            tab: top-level Burp tab to bring to front + label (proxy/repeater/...).
+            tab: top-level Burp tab to bring to front (proxy/repeater/...); empty = current.
+            subtab: nested sub-tab within `tab` (e.g. 'http history').
+            select_url: substring of the request (host/method/URL) to select its row.
+            select_proxy_index: a get_proxy_history index, matched by resolved URL (not "#").
+            select_row: Burp "#" value off the table, or 'last'/'newest'.
+            click_button: label of a Burp Swing button to click before capture.
             note: short caption — finding caption + filename slug (+ footer if banner).
             finding_id: optional saved-finding id to attach the shot to.
             step: PoC step label (ordered in the report; footer text if banner on).
@@ -259,8 +191,7 @@ def register(mcp: FastMCP) -> None:
             trademark: optional brand text, right side of the footer (implies banner).
             auto_redact: OCR-detect secrets and write a pixel-mosaicked redacted twin.
             attach: which twin to link to finding_id — 'auto' (redacted if present,
-                else naked), 'naked', or 'none'. Default 'auto' keeps secrets out of
-                the deliverable.
+                else naked), 'naked', or 'none'. Default 'auto' keeps secrets out.
         """
         label = _caption(step, note) if (banner or trademark.strip()) else ""
         params = {"scale": str(scale)}

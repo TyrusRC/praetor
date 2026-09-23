@@ -67,6 +67,7 @@ from praetor.tools import (
     host_bootstrap,
     prompts_access,
     knowledge_access,
+    lane_control,
 )
 
 mcp = FastMCP(
@@ -81,6 +82,12 @@ knowledge base (list_knowledge / get_knowledge), the web / network / mobile flow
 model-tier mapping (map each agent's generic tier to your nearest model — not every host has
 Claude's opus/sonnet/haiku). Safety Rules 5-9 and the 7-gate save-finding pipeline are enforced
 in the tool layer and apply on every host regardless of what you load.
+
+TOOL PROFILE: to save context on an eager host, PRAETOR_PROFILE can advertise only some
+tool lanes. A gated tool is NEVER blocked — run_tool('<tool>', {args}) runs it and
+auto-enables its lane, run_tool('<tool>') returns its schema; get_profile() shows what
+is gated; pick_tool(task) flags gated tools. So a web session can pivot to mobile /
+network / cloud mid-engagement with no reconnect.
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.
@@ -181,6 +188,7 @@ agents_access.register(mcp)    # list_agents / get_agent — agent-playbook rost
 host_bootstrap.register(mcp)   # praetor_bootstrap / get_rules — session-start onboarding + rules (incl. project CLAUDE.md) as TOOLS for non-Claude hosts
 prompts_access.register(mcp)   # list_prompts / get_prompt — MCP Prompt launchers as TOOLS (tools-only hosts that defer the Prompts primitive)
 knowledge_access.register(mcp) # list_knowledge / get_knowledge — KB probe-class categories as TOOLS (mirror of burp://knowledge/* resources)
+lane_control.register(mcp)     # run_tool / use_lane — reach + auto-promote profile-gated tools so a mid-engagement lane pivot never blocks (core, always advertised)
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
 secrets.register(mcp)          # gitleaks / trufflehog / git-dumper wrappers — secret leakage + .git exposure chain
 analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies) + run_opengrep_source (repo SAST)

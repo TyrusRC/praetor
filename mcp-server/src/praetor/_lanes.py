@@ -18,13 +18,17 @@ Design:
   its MCP config to shrink the manifest it sends to the model. Claude Code defers
   tool schemas, so it stays on `all` and pays nothing.
 
-Why static and not dynamic: the dsh MCP client registers `tools/list` ONCE and does
-not honour `notifications/tools/list_changed` (verified in its `tools.ts`), so a
-runtime lane toggle would never reach it. The gate is chosen at startup via the env
-var; changing it means editing the config (dsh hot-reloads the connection).
+Gating NEVER blocks a workflow. A gated tool is removed from the advertised manifest
+(no tokens) but kept in HIDDEN, still fully executable. The core `run_tool` dispatcher
+runs any hidden tool (and fetches its schema on demand — app-layer lazy loading, the
+thing dsh's client lacks), and `promote_lane` re-advertises a lane. The dsh MCP client
+registers `tools/list` ONCE and ignores `notifications/tools/list_changed` (verified in
+its `tools.ts`), so promotion won't surface new tools mid-session there — but `run_tool`
+reaches them regardless, so nothing is ever a dead end. On Claude Code, promotion fires
+`tools/list_changed` and the lane appears live.
 
 Safety Rules 5-9 and the save-finding gate are enforced in the tool layer regardless
-of which tools are advertised.
+of which tools are advertised or hidden.
 """
 
 from __future__ import annotations
@@ -142,24 +146,63 @@ def resolve_lanes(profile: str) -> set[str]:
 LAST_APPLIED: dict = {"profile": DEFAULT_PROFILE, "enabled_lanes": sorted(ALL_LANES),
                       "kept": 0, "removed": 0}
 
+# Tools gated OUT of the manifest but kept EXECUTABLE. name -> Tool object. A gated
+# tool costs no manifest tokens (not in tools/list) yet is never blocked: the core
+# `run_tool` dispatcher runs it from here, and `promote_lane` can re-advertise it.
+HIDDEN: dict = {}
+
+
+def _lane_of(name: str, tool) -> str:
+    module = getattr(getattr(tool, "fn", None), "__module__", "") or ""
+    return tool_lane(name, module)
+
 
 def apply_profile(mcp, profile: str) -> dict:
-    """Drop every tool whose lane is not enabled by `profile`. Returns a summary.
+    """Gate tools not in `profile` OUT of the manifest — but keep them executable.
 
-    Core tools are never removed. Idempotent given the same registered set.
+    Removed tools move to HIDDEN (still runnable via `run_tool` / re-advertisable via
+    `promote_lane`), so gating shrinks the manifest without ever blocking a workflow.
+    Core tools are never gated. Idempotent given the same registered set.
     """
     global LAST_APPLIED
     enabled = resolve_lanes(profile)
     tm = mcp._tool_manager
-    removed, kept = [], 0
+    HIDDEN.clear()
+    kept = 0
     for name, tool in list(tm._tools.items()):
-        module = getattr(getattr(tool, "fn", None), "__module__", "") or ""
-        lane = tool_lane(name, module)
+        lane = _lane_of(name, tool)
         if lane != CORE and lane not in enabled:
+            HIDDEN[name] = tool
             tm.remove_tool(name)
-            removed.append(name)
         else:
             kept += 1
     LAST_APPLIED = {"profile": profile, "enabled_lanes": sorted(enabled),
-                    "kept": kept, "removed": len(removed)}
+                    "kept": kept, "removed": len(HIDDEN)}
     return LAST_APPLIED
+
+
+def hidden_by_lane() -> dict:
+    """{lane: [tool names]} for the currently-gated (hidden-but-runnable) tools."""
+    out: dict = {}
+    for name, tool in HIDDEN.items():
+        out.setdefault(_lane_of(name, tool), []).append(name)
+    for names in out.values():
+        names.sort()
+    return out
+
+
+def promote_lane(mcp, lane: str) -> list[str]:
+    """Re-advertise every hidden tool of `lane` (move it back into the manifest).
+
+    Returns the promoted tool names. A host that honours tools/list_changed then
+    sees them directly; on a host that does not, they were already reachable via
+    `run_tool`, so nothing was ever blocked.
+    """
+    tm = mcp._tool_manager
+    promoted = []
+    for name, tool in list(HIDDEN.items()):
+        if _lane_of(name, tool) == lane:
+            tm._tools[name] = tool
+            del HIDDEN[name]
+            promoted.append(name)
+    return promoted

@@ -75,11 +75,19 @@ config above:
 | `core` | scope/intel/save-finding/report only | 201 | ~38k |
 
 Also accepts a comma list of lanes (`web,network,mobile`). Core (scope, intel,
-save-finding pipeline, reporting, evidence, the discovery + bridge tools) is always
-on, so every profile is a working engagement. Call `mcp__praetor__get_profile` to see
-what is active and how to widen it. Changing the profile means editing this env and
-reconnecting — dsh is not re-notified mid-session. Safety Rules 5-9 and the 7-gate
-save-finding pipeline are enforced in the tool layer on every profile.
+save-finding pipeline, reporting, evidence, the discovery + bridge tools) is always on,
+so every profile is a working engagement.
+
+**A gated tool never blocks the workflow.** The env picks the *starting* manifest; a
+gated tool is hidden to save context but stays fully runnable. Mid-engagement — e.g. a
+web session that needs to pivot to mobile / network / cloud — just call
+`mcp__praetor__run_tool('<tool>', {args})`: it runs the hidden tool and auto-enables its
+lane, with no reconnect. `run_tool('<tool>')` (no args) returns the tool's schema first,
+and `mcp__praetor__pick_tool` flags gated tools with this hint. `get_profile` shows
+what is advertised vs gated; `use_lane('<lane>')` re-advertises a whole lane. (On dsh
+the re-advertise is not pushed to the model — it ignores `tools/list_changed` — but
+`run_tool` reaches everything regardless, so the pivot always works.) Safety Rules 5-9
+and the 7-gate save-finding pipeline are enforced in the tool layer on every profile.
 
 ## 4. Verify
 

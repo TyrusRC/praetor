@@ -311,7 +311,11 @@ so it is unaffected. To shrink the manifest on an eager host, set `PRAETOR_PROFI
 in the server's `env` to advertise only the lanes you need — `web` (~81k), `network`
 / `mobile` / `llm` / `cloud` (~42k), or `core` (~38k); default `all`. Core (scope,
 intel, save-finding pipeline, reporting, evidence, discovery + bridge tools) is always
-on. `get_profile()` reports what is active. See the profile table in the dsh guide.
+on. **Gating never blocks a workflow:** a gated tool is hidden but still runnable, so a
+web session can pivot to mobile/network/cloud mid-engagement — `run_tool('<tool>', {args})`
+runs any gated tool and auto-enables its lane (no reconnect), `run_tool('<tool>')` returns
+its schema, and `pick_tool` flags gated tools. `get_profile()` reports what is active vs
+gated. See the profile table in the dsh guide.
 
 ### Skills, rules & agents on other hosts
 

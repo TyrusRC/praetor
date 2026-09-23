@@ -63,12 +63,21 @@ class ApplyProfileTest(unittest.TestCase):
         self.addCleanup(lambda: _lanes._TOOL_LANE.pop("web_x", None))
         return m
 
-    def test_core_kept_optional_dropped(self):
+    def test_core_kept_optional_dropped_but_hidden_not_lost(self):
         m = self._mk()
         _lanes.apply_profile(m, "core")  # no optional lanes
         names = set(m._tool_manager._tools)
         self.assertIn("core_x", names)
-        self.assertNotIn("web_x", names)
+        self.assertNotIn("web_x", names)          # gated out of the manifest
+        self.assertIn("web_x", _lanes.HIDDEN)     # but kept executable
+        self.assertEqual(_lanes.hidden_by_lane().get("web"), ["web_x"])
+
+    def test_promote_lane_re_advertises(self):
+        m = self._mk()
+        _lanes.apply_profile(m, "core")
+        self.assertEqual(_lanes.promote_lane(m, "web"), ["web_x"])
+        self.assertIn("web_x", m._tool_manager._tools)
+        self.assertNotIn("web_x", _lanes.HIDDEN)
 
     def test_enabled_lane_kept(self):
         m = self._mk()
@@ -85,6 +94,62 @@ class ApplyProfileTest(unittest.TestCase):
         self.assertIs(_lanes.LAST_APPLIED, s)
 
 
+class LaneControlDispatcherTest(unittest.TestCase):
+    """run_tool reaches a gated tool (non-blocking) and promotes its lane."""
+
+    def _mk(self):
+        from praetor.tools import lane_control
+        m = FastMCP("t")
+
+        @m.tool()
+        async def core_x() -> int:
+            return 1
+
+        @m.tool()
+        async def web_x(n: int = 0) -> int:
+            return n + 7
+
+        _lanes._TOOL_LANE["web_x"] = "web"
+        self.addCleanup(lambda: _lanes._TOOL_LANE.pop("web_x", None))
+        lane_control.register(m)
+        _lanes.apply_profile(m, "core")  # hides web_x; run_tool/use_lane are core
+        return m
+
+    def _run(self, m, tool, args):
+        return asyncio.run(m._tool_manager._tools[tool].run(args))
+
+    def test_control_tools_are_core(self):
+        m = self._mk()
+        self.assertIn("run_tool", m._tool_manager._tools)
+        self.assertIn("use_lane", m._tool_manager._tools)
+
+    def test_run_tool_fetches_schema_without_running(self):
+        m = self._mk()
+        r = self._run(m, "run_tool", {"name": "web_x"})
+        self.assertTrue(r["gated"])
+        self.assertIn("input_schema", r)
+        self.assertNotIn("result", r)
+
+    def test_run_tool_executes_gated_and_promotes(self):
+        m = self._mk()
+        r = self._run(m, "run_tool", {"name": "web_x", "arguments": {"n": 5}})
+        self.assertEqual(r["result"], 12)
+        self.assertTrue(r["lane_promoted"])
+        self.assertIn("web_x", m._tool_manager._tools)  # now advertised
+
+    def test_run_tool_unknown_name_hints(self):
+        m = self._mk()
+        r = self._run(m, "run_tool", {"name": "nope"})
+        self.assertIn("error", r)
+        self.assertIn("pick_tool", r["hint"])
+
+    def test_use_lane_promotes(self):
+        m = self._mk()
+        r = self._run(m, "use_lane", {"lane": "web"})
+        self.assertEqual(r["promoted"], 1)
+        self.assertIn("web_x", m._tool_manager._tools)
+
+
 class RealRegistryGuardTest(unittest.TestCase):
     """Against the live server: no phantom overrides, and default `all` keeps all."""
 
@@ -97,6 +162,8 @@ class RealRegistryGuardTest(unittest.TestCase):
         # (Assert against the live registry, not the mutable LAST_APPLIED global,
         # which other tests in this file legitimately overwrite.)
         self.assertIn("get_profile", names)
+        self.assertIn("run_tool", names)      # non-blocking dispatcher (core)
+        self.assertIn("use_lane", names)      # core
         self.assertIn("save_finding", names)  # core
         self.assertIn("run_nmap", names)      # network lane
         self.assertIn("mobile_devices", names)  # mobile lane
