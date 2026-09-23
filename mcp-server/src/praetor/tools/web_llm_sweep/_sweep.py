@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from urllib.parse import urljoin
+
 from mcp.server.fastmcp import FastMCP
 
+from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 from ._detect import (
     _LLM_ENDPOINT_CANDIDATES,
+    _LLM02_PAYLOAD,
     _canary,
     _discovery_prompt,
     _PI_PAYLOADS,

@@ -212,5 +212,32 @@ class DedupCanonicalTest(unittest.TestCase):
         self.assertEqual(len(out), 1)
 
 
+# ── Wave 6: latent NameError crashes (used-but-not-imported) ─────────────
+
+class UndefinedNameCrashTest(unittest.IsolatedAsyncioTestCase):
+    """saml_xsw_probe used `client`/`base64` and web_llm_sweep used `client`/
+    `urljoin`/`_LLM02_PAYLOAD` without importing them — every call NameError'd on
+    the first scope check. Guard the exact names each module needs at runtime."""
+
+    def test_saml_xsw_probe_has_runtime_names(self):
+        import praetor.tools.saml_xsw_probe as m
+        for n in ("client", "base64"):
+            self.assertTrue(hasattr(m, n), f"saml_xsw_probe missing {n}")
+
+    def test_web_llm_sweep_has_runtime_names(self):
+        import praetor.tools.web_llm_sweep._sweep as m
+        for n in ("client", "urljoin", "_LLM02_PAYLOAD"):
+            self.assertTrue(hasattr(m, n), f"web_llm_sweep._sweep missing {n}")
+
+    async def test_saml_xsw_probe_runs_without_nameerror(self):
+        # Exercises the client.check_scope (line 79) and base64.b64decode (line 85)
+        # paths that used to raise NameError before the imports were added.
+        with patch("praetor.tools.saml_xsw_probe.client.check_scope",
+                   new=AsyncMock(return_value={"in_scope": True})):
+            fn = _tool("probe_saml_xsw")
+            out = await fn(acs_url="https://t/acs", saml_response_b64="aGVsbG8=")
+        self.assertIsInstance(out, dict)
+
+
 if __name__ == "__main__":
     unittest.main()
