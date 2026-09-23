@@ -131,6 +131,10 @@ public final class CurlSender {
                 "send_failed", hint);
             return;
         }
+        // The PoC is the ORIGINAL request; the redirect loop below reassigns
+        // `result` to the final hop, so keep a handle on the first exchange for
+        // the send_ref evidence store (which cites the payload-carrying request).
+        HttpRequestResponse originalResult = result;
         int redirectCount = 0;
 
         while (followRedirects && redirectCount < maxRedirects && result.response() != null) {
@@ -242,8 +246,16 @@ public final class CurlSender {
         if (idx >= 0) {
             out.put("history_index", idx);
         } else {
+            // Direct send (proxy-listener fallback): never entered proxy history,
+            // so there is no proxy_history_index to cite. Store the ORIGINAL
+            // exchange under a send_ref handle so the finding can still cite it as
+            // evidence={'send_ref': '...'} (same path as HttpSendHandler).
+            String sendRef = com.praetor.store.SendStore.get().store(originalResult);
             out.put("history_index", -1);
-            out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, visible in Logger)");
+            out.put("send_ref", sendRef);
+            out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, "
+                + "visible in Logger). Cite it as evidence={'send_ref': '" + sendRef + "'}; "
+                + "fetch it back with GET /api/http/stored/" + sendRef + ".");
         }
 
         out.put("redirects_followed", redirectCount);
