@@ -110,14 +110,14 @@ def register(mcp: FastMCP) -> None:
             resp = await _send(target_url, parameter, encoded, method, session)
             status = resp.get("status_code") or resp.get("status") or 0
             body = resp.get("response_body") or ""
-            li = resp.get("logger_index", -1)
+            li = resp.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
             marker_hit = next((m for m in markers if m in body), "")
             entry = {
                 "variant": label,
                 "status_code": status,
-                "logger_index": li,
+                "proxy_history_index": li,
                 "matched_marker": marker_hit,
             }
             reproductions.append(entry)

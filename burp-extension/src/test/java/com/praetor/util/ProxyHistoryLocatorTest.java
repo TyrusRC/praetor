@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * The send handlers used to report {@code history.size() - 1} as the index of
  * the request they sent. That is the LAST proxy-history entry, which is not the
  * request we sent whenever a redirect hop or another tool's request landed after
- * it. The wrong index then flowed into evidence.logger_index, the Burp
+ * it. The wrong index then flowed into evidence.proxy_history_index, the Burp
  * annotation, the screenshot, and the exported PoC bundle.
  *
  * These tests exercise the pure matcher against a simulated history window. The

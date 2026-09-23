@@ -2,7 +2,7 @@
 
 Device-control commands bypass Burp (like the network lane) and cite an
 operator-log id; unlocked app traffic still flows device-wifi-proxy -> Burp and
-cites a logger_index. HARD safety Rules 5-9 and the device allowlist apply.
+cites a proxy_history_index. HARD safety Rules 5-9 and the device allowlist apply.
 """
 
 from mcp.server.fastmcp import FastMCP

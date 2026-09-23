@@ -12,7 +12,7 @@ def _finding():
         "severity": "HIGH",
         "endpoint": "https://example.com/api/orders/2",
         "evidence": {
-            "logger_index": 42,  # internal, stripped from client
+            "proxy_history_index": 42,  # internal, stripped from client
             "screenshots": [
                 {"file": "screenshots/burp-repeater-x.png", "note": "id=2 -> victim order"},
             ],
@@ -62,13 +62,13 @@ class RenderScreenshotTest(unittest.TestCase):
         # No internal workspace path leaked, and the Burp index is stripped.
         self.assertNotIn(".burp-intel", out)
         self.assertNotIn("(`screenshots/burp-repeater-x.png`)", out)  # no canonical path for client
-        self.assertNotIn("logger_index", out)
+        self.assertNotIn("proxy_history_index", out)
 
     def test_internal_report_embeds_and_keeps_relative_path(self):
         out = build_finding_section(_finding(), 1, internal=True)
         self.assertIn("![id=2 -> victim order](../screenshots/burp-repeater-x.png)", out)
         self.assertIn("(`screenshots/burp-repeater-x.png`)", out)  # canonical path for the operator
-        self.assertIn("logger_index", out)  # internal keeps bookkeeping
+        self.assertIn("proxy_history_index", out)  # internal keeps bookkeeping
 
     def test_step_prefix_rendered(self):
         f = _finding()

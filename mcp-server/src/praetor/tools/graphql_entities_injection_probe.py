@@ -82,7 +82,7 @@ def register(mcp: FastMCP) -> None:
         variables = {"reps": representations}
 
         resp = await _send(graphql_url, query, variables, session, bearer_token)
-        logger_idx = resp.get("logger_index", -1)
+        logger_idx = resp.get("proxy_history_index", -1)
         logger_indices = [logger_idx] if isinstance(logger_idx, int) and logger_idx >= 0 else []
 
         body = resp.get("response_body", "") or ""
@@ -91,7 +91,7 @@ def register(mcp: FastMCP) -> None:
         reproductions = [{
             "variant": "entities_forged_representations",
             "status_code": resp.get("status_code"),
-            "logger_index": logger_idx,
+            "proxy_history_index": logger_idx,
             "keys_tried": keys,
         }]
 

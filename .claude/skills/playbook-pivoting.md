@@ -1,7 +1,7 @@
 ---
 name: playbook-pivoting
 description: Pivoting + tunneling into internal segments from a foothold — ligolo-ng agent/relay autoroute and double-pivot chaining, chisel reverse-SOCKS, proxychains to route tool traffic through the pivot, and a DNS-tunnel fallback (dnscat2) for egress-restricted networks. Load when a compromised host reaches a network segment your Kali box cannot route to directly (network/red-team lane).
-prerequisite: Code execution / a shell on a host that has an interface into a segment you cannot reach directly (dual-homed foothold, internal jump box, DMZ pivot). This is the network/red-team lane — evidence is the operator log, not a Burp logger_index.
+prerequisite: Code execution / a shell on a host that has an interface into a segment you cannot reach directly (dual-homed foothold, internal jump box, DMZ pivot). This is the network/red-team lane — evidence is the operator log, not a Burp proxy_history_index.
 stop_condition: The target internal segment is reachable through the tunnel AND at least one tool (nmap/nxc/impacket) has enumerated it through the pivot → checkpoint the route and move to the lateral/privesc playbooks. If no egress channel works (all TCP + DNS blocked), record the constraint and pivot to on-host-only enumeration.
 ---
 

@@ -120,8 +120,8 @@ def register(mcp: FastMCP) -> None:
             return error_verdict(baseline.get("error", ""),
                                  vuln_type="sse_injection", reason="baseline_failed")
         logger_indices: list[int] = []
-        if "logger_index" in baseline:
-            logger_indices.append(baseline["logger_index"])
+        if "proxy_history_index" in baseline:
+            logger_indices.append(baseline["proxy_history_index"])
 
         baseline_is_sse = _is_event_stream(baseline)
 
@@ -136,8 +136,8 @@ def register(mcp: FastMCP) -> None:
                 probe_results.append({"name": probe["name"],
                                       "error": resp.get("error", "")})
                 continue
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             body = resp.get("response_body") or ""
             is_sse = _is_event_stream(resp)
             matched = [m for m in probe["markers"] if m in body]

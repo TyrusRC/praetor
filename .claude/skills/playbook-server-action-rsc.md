@@ -130,7 +130,7 @@ save_finding(
     endpoint="https://target.com/profile",
     severity="critical",
     evidence={
-        "logger_index": <bypass-confirmed index>,
+        "proxy_history_index": <bypass-confirmed index>,
         "summary": "Server Action ID `9d3f...c2a8` (from /admin page bundle) invoked via POST to /profile with Next-Action header. Server executed admin action (delete user account) without per-action authz check.",
         "next_version": "15.0.3",
         "action_id": "9d3f...c2a8",

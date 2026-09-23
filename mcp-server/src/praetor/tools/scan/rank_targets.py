@@ -199,7 +199,7 @@ def register(mcp: FastMCP) -> None:
             cookie_keys = ep.get("cookie_keys") or []
             header_keys = ep.get("header_keys") or []
             path_params = ep.get("path_params") or []
-            baseline_index = ep.get("baseline_index") or ep.get("logger_index")
+            baseline_index = ep.get("baseline_index") or ep.get("proxy_history_index")
 
             tuples: list[tuple[str, str, int, list[str]]] = []
             for p in params:

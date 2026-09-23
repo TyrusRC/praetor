@@ -202,12 +202,12 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
             lines.append("")
             lines.append("Replays (timing/blind reproductions):")
             lines.append("")
-            lines.append("| # | logger_index | status | elapsed_ms |")
+            lines.append("| # | proxy_history_index | status | elapsed_ms |")
             lines.append("|---|---|---|---|")
             for i, r in enumerate(reproductions, 1):
                 if isinstance(r, dict):
                     lines.append(
-                        f"| {i} | {r.get('logger_index', '?')} | "
+                        f"| {i} | {r.get('proxy_history_index', '?')} | "
                         f"{r.get('status_code', '?')} | {r.get('elapsed_ms', '?')} |"
                     )
         elif reproductions and not internal:

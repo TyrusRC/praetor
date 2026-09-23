@@ -54,7 +54,7 @@ def register(mcp: FastMCP):
           §5 GET-based state change (method swap to GET)
           §6 SameSite on the cookie-issuing response (passive check)
 
-        Each probe fires through Burp; logger_index returned per row. A
+        Each probe fires through Burp; proxy_history_index returned per row. A
         sensitive endpoint that 200s under §1-§5 fails the CSRF gate.
 
         Args:

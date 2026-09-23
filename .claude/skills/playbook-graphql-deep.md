@@ -162,7 +162,7 @@ save_finding(
     endpoint="https://api.target.com/graphql",
     severity="high",
     evidence={
-        "logger_index": <success-confirming index>,
+        "proxy_history_index": <success-confirming index>,
         "summary": "Persisted query bypass — server falls back to raw query when sha256Hash unknown. Submitted { secret_admin_field } via unknown hash; received full admin data.",
         "engine": "apollo",
         "attack": "persisted_query_bypass",

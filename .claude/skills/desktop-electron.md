@@ -59,7 +59,7 @@ CloakBrowser does not apply — desktop testing is **out-of-process binary inspe
 - `vuln_type`: pick from the desktop_electron context list (`electron_node_integration`, `electron_context_isolation_disabled`, `electron_preload_overexposure`, `electron_shell_openexternal_rce`, `electron_ipc_no_origin_check`, `electron_autoupdate_mitm`, `electron_fuse_runasnode`, `electron_custom_protocol_traversal`, `tauri_capability_bypass`, `webview2_host_bridge_abuse`, `v8_patch_gap`)
 - `evidence` MUST include:
   - For static findings: `file_path` + `line_number` + grep match
-  - For dynamic findings: `logger_index` from Burp + reproductions[] ≥3
+  - For dynamic findings: `proxy_history_index` from Burp + reproductions[] ≥3
 - `chain_with[]` required when alone is NEVER_SUBMIT (Rule 17):
   - ASAR disclosure alone
   - `will-navigate` missing alone

@@ -83,7 +83,7 @@ class _SaveHarness(unittest.IsolatedAsyncioTestCase):
 
     async def save(self, **kw):
         base = dict(
-            title="t", description="d", evidence={"logger_index": 1},
+            title="t", description="d", evidence={"proxy_history_index": 1},
             endpoint="https://t.example/a", domain="t.example",
             parameter="p", vuln_type="xss", severity="LOW",
             force_recon_gate=True,
@@ -209,7 +209,7 @@ class TestAutoOrganizeOnConfirm(_SaveHarness):
 
     async def _save_capturing(self, **kw):
         base = dict(
-            title="t", description="d", evidence={"logger_index": 7},
+            title="t", description="d", evidence={"proxy_history_index": 7},
             endpoint="https://t.example/a", domain="t.example",
             parameter="p", vuln_type="xss", severity="LOW",
             status="confirmed", force_recon_gate=True,

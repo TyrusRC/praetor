@@ -10,8 +10,8 @@ import java.util.List;
  * Cross-validates a cited history index against the endpoint a finding /
  * annotation claims to be about.
  *
- * <p>Every evidence path in Praetor (save_finding's evidence.logger_index,
- * reproductions[].logger_index, annotate_request's index) used to check only
+ * <p>Every evidence path in Praetor (save_finding's evidence.proxy_history_index,
+ * reproductions[].proxy_history_index, annotate_request's index) used to check only
  * that the integer was in range. An in-range index pointing at completely
  * unrelated traffic passed the gate, and every downstream artifact — the Burp
  * comment, the generated finding markdown, the client report — then cited a

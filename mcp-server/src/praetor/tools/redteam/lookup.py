@@ -102,7 +102,7 @@ def register(mcp: FastMCP) -> None:
 
         Kali install names come first (apt), with a clone/pipx fallback. Tools
         tagged tier C do NOT route through Burp — their evidence is a session
-        log / loot file, not a Burp logger_index.
+        log / loot file, not a Burp proxy_history_index.
         """
         want_tier = tool_filter = None
         if tier:

@@ -75,7 +75,7 @@ def register(mcp: FastMCP) -> None:
                     f"baseline fetch failed: {baseline_resp['error']}",
                     vuln_type="nuxt_island_authz",
                 )
-            baseline_logger = baseline_resp.get("logger_index", -1)
+            baseline_logger = baseline_resp.get("proxy_history_index", -1)
             body = baseline_resp.get("response_body", "") or ""
             seen = []
             for m in _ISLAND_PATH_RE.finditer(body):
@@ -110,12 +110,12 @@ def register(mcp: FastMCP) -> None:
             })
             status = resp.get("status_code") or resp.get("status")
             body = resp.get("response_body") or ""
-            logger_idx = resp.get("logger_index", -1)
+            logger_idx = resp.get("proxy_history_index", -1)
 
             entry = {
                 "path": path,
                 "status_code": status,
-                "logger_index": logger_idx,
+                "proxy_history_index": logger_idx,
                 "body_size": len(body),
             }
 
@@ -133,7 +133,7 @@ def register(mcp: FastMCP) -> None:
                     suspected.append(entry)
             reproductions.append(entry)
 
-        logger_indices = [r["logger_index"] for r in reproductions if isinstance(r.get("logger_index"), int) and r["logger_index"] >= 0]
+        logger_indices = [r["proxy_history_index"] for r in reproductions if isinstance(r.get("proxy_history_index"), int) and r["proxy_history_index"] >= 0]
 
         if confirmed:
             sample = confirmed[0]

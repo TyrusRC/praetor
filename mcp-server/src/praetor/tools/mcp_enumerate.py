@@ -12,7 +12,7 @@ Steps:
   4. resources/list → [{uri, name, mimeType}, ...]
   5. prompts/list → [{name, description, arguments}, ...]
 
-Every request lands in Burp proxy history (Rule 26a) with logger_index
+Every request lands in Burp proxy history (Rule 26a) with proxy_history_index
 returned in the inventory entry for later cross-reference.
 """
 
@@ -44,7 +44,7 @@ def register(mcp: FastMCP) -> None:
 
         Runs the full canonical flow against an MCP server endpoint:
         initialize → tools/list → resources/list → prompts/list. Returns
-        structured inventory with logger_index per request so the operator
+        structured inventory with proxy_history_index per request so the operator
         can cross-reference with proxy history.
 
         Args:
@@ -62,9 +62,9 @@ def register(mcp: FastMCP) -> None:
               "initialized": bool,
               "server_info": dict | None,
               "server_capabilities": dict | None,
-              "tools": [{name, description, input_schema_summary, logger_index}],
-              "resources": [{uri, name, mime_type, logger_index}],
-              "prompts": [{name, description, arg_count, logger_index}],
+              "tools": [{name, description, input_schema_summary, proxy_history_index}],
+              "resources": [{uri, name, mime_type, proxy_history_index}],
+              "prompts": [{name, description, arg_count, proxy_history_index}],
               "logger_indices": [int, ...],   # every request, in order
               "errors": {step: str},
               "summary": str,
@@ -92,7 +92,7 @@ def register(mcp: FastMCP) -> None:
             "clientInfo": _DEFAULT_CLIENT_INFO,
             "capabilities": _DEFAULT_CAPABILITIES,
         }, request_id=1, headers=headers, timeout=timeout)
-        init_logger = init_resp.get("logger_index", -1)
+        init_logger = init_resp.get("proxy_history_index", -1)
         if isinstance(init_logger, int) and init_logger >= 0:
             result["logger_indices"].append(init_logger)
 
@@ -157,7 +157,7 @@ async def _enumerate_step(
     """Run one list endpoint and accumulate summarised entries."""
     resp = await _jsonrpc(endpoint_url, method, {}, request_id=request_id,
                           headers=headers, timeout=timeout)
-    logger_idx = resp.get("logger_index", -1)
+    logger_idx = resp.get("proxy_history_index", -1)
     if isinstance(logger_idx, int) and logger_idx >= 0:
         result["logger_indices"].append(logger_idx)
 
@@ -175,7 +175,7 @@ async def _enumerate_step(
         for item in raw_items:
             if isinstance(item, dict):
                 summary = summariser(item)
-                summary["logger_index"] = logger_idx
+                summary["proxy_history_index"] = logger_idx
                 result[key].append(summary)
 
 

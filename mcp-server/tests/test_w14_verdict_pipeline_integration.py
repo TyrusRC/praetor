@@ -29,9 +29,9 @@ class VerdictToAssessProjectionTest(unittest.TestCase):
             logger_indices=[42, 43],
             collaborator_interactions=["abc.oastify.com"],
             reproductions=[
-                {"logger_index": 42, "elapsed_ms": 120, "status_code": 200},
-                {"logger_index": 43, "elapsed_ms": 118, "status_code": 200},
-                {"logger_index": 44, "elapsed_ms": 121, "status_code": 200},
+                {"proxy_history_index": 42, "elapsed_ms": 120, "status_code": 200},
+                {"proxy_history_index": 43, "elapsed_ms": 118, "status_code": 200},
+                {"proxy_history_index": 44, "elapsed_ms": 121, "status_code": 200},
             ],
             details={"url": "https://t.example.com/api/fetch"},
             summary="*** SSRF CONFIRMED ***",
@@ -42,7 +42,7 @@ class VerdictToAssessProjectionTest(unittest.TestCase):
         # Collaborator wins over logger when both are present.
         self.assertEqual(ev["collaborator_interaction_id"], "abc.oastify.com")
         # Logger index still included.
-        self.assertEqual(ev["logger_index"], 42)
+        self.assertEqual(ev["proxy_history_index"], 42)
         # Reproductions pass through.
         self.assertEqual(len(ev["reproductions"]), 3)
         # Confidence pass through.
@@ -117,7 +117,7 @@ class FullPipelineTest(unittest.IsolatedAsyncioTestCase):
                 evidence=v["evidence_summary"],
                 endpoint="https://target.example.com/api/fetch",
                 parameter="url",
-                logger_index=ev["logger_index"],
+                proxy_history_index=ev["proxy_history_index"],
                 domain="target.example.com",
             )
 

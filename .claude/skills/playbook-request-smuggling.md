@@ -75,14 +75,14 @@ save_finding(
     endpoint="https://target.com/",
     severity="critical",
     evidence={
-        "logger_index": <smuggle-confirming index>,
+        "proxy_history_index": <smuggle-confirming index>,
         "collaborator_interaction_id": "<id>",
         "summary": "CL.TE smuggling — front-end Akamai uses Content-Length, origin (nginx) uses Transfer-Encoding. Smuggled GET /admin reaches origin and bypasses front-end ACL. Confirmed via Collaborator interaction on backend.",
         "variant": "CL.TE",
         "front_parser": "akamai",
         "back_parser": "nginx",
         "reproductions": [
-            {"logger_index": ..., "elapsed_ms": ..., "status_code": ...},  # 3 minimum
+            {"proxy_history_index": ..., "elapsed_ms": ..., "status_code": ...},  # 3 minimum
             ...,
         ],
     },

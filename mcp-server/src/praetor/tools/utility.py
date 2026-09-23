@@ -70,7 +70,7 @@ def register(mcp: FastMCP):
 
         Use BEFORE writing any custom Python script (curl/httpx/requests/fetch).
         Routing through Burp ensures every request appears in Proxy history with a
-        logger_index — required for save_finding evidence (Rule 26a). Without this,
+        proxy_history_index — required for save_finding evidence (Rule 26a). Without this,
         scripted findings are unverifiable and will be hard-rejected by assess_finding.
         """
         proxy = f"http://{BURP_PROXY_HOST}:{BURP_PROXY_PORT}"
@@ -91,7 +91,7 @@ def register(mcp: FastMCP):
             "\n"
             "Reminder: prefer concurrent_requests / send_to_intruder_configured / "
             "fuzz_parameter / auto_probe / batch_probe instead of writing a script. "
-            "Those are already proxied and produce logger_index for evidence."
+            "Those are already proxied and produce proxy_history_index for evidence."
         )
 
     @mcp.tool()

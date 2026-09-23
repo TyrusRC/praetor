@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * The row-by-text matcher is the translator between a Praetor evidence index and
  * the Burp table row it can't address by number (proxy-history ordinal /
- * logger_index != Burp's "#" column). It matches on the request text Burp shows.
+ * proxy_history_index != Burp's "#" column). It matches on the request text Burp shows.
  */
 class BurpNavigatorRowTextTest {
 

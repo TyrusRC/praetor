@@ -64,7 +64,7 @@ async def check(ctx: AssessContext) -> CheckResult:
         strong = any(k in ctx.evidence_lower for k in keywords)
         if strong and ctx.derived_markers:
             ctx.issues.append(
-                f"Q5 SATISFIED: auto-derived markers from logger_index={ctx.logger_index} "
+                f"Q5 SATISFIED: auto-derived markers from proxy_history_index={ctx.proxy_history_index} "
                 f"({', '.join(ctx.derived_markers[:4])}"
                 f"{', ...' if len(ctx.derived_markers) > 4 else ''})"
             )
@@ -72,7 +72,7 @@ async def check(ctx: AssessContext) -> CheckResult:
             ctx.issues.append(
                 f"Q5 WEAK EVIDENCE: {q5_class} needs at least one of: "
                 f"{', '.join(keywords[:6])}, ... ({len(keywords)} accepted markers). "
-                f"Pass logger_index=<N> to auto-derive, or human_verified=True if confirmed in UI."
+                f"Pass proxy_history_index=<N> to auto-derive, or human_verified=True if confirmed in UI."
             )
             ctx.weak_evidence = True
 
@@ -141,16 +141,16 @@ def _timing_check(ctx: AssessContext) -> None:
     if has_replays and replay_count >= 3:
         n_with_logger = sum(
             1 for r in ctx.reproductions
-            if isinstance(r, dict) and "logger_index" in r
+            if isinstance(r, dict) and "proxy_history_index" in r
         )
         ctx.issues.append(
             f"Q5 TIMING SATISFIED: reproductions[] has {replay_count} entries "
-            f"({n_with_logger} with logger_index)"
+            f"({n_with_logger} with proxy_history_index)"
         )
     if not has_replays:
         ctx.issues.append(
             "Q5 TIMING RULE: timing/blind vuln types require 3+ consistent "
-            "iterations — pass reproductions=[{logger_index, elapsed_ms, status_code}, ...] "
+            "iterations — pass reproductions=[{proxy_history_index, elapsed_ms, status_code}, ...] "
             "with len>=3, OR include '3/3' / 'confirmed 3' in evidence text"
         )
         ctx.weak_evidence = True

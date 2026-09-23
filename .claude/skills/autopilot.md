@@ -229,7 +229,7 @@ LOOP:
 Before a finding may enter findings[] / the board:
 1. verify — replay the confirming request (verify-finding.md Step 0).
    For *_blind / sqli_time / race_condition / request_smuggling: replay ≥3×,
-   capture {logger_index, elapsed_ms, status_code} per replay → reproductions[].
+   capture {proxy_history_index, elapsed_ms, status_code} per replay → reproductions[].
 2. assess_finding(vuln_type, evidence, endpoint, parameter, domain).
    Verdict DO NOT REPORT / NEEDS MORE EVIDENCE → do NOT save; route to
    save_target_notes. It is a note, never a report entry (Rule 14a).

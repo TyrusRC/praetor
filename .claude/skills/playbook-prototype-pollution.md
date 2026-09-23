@@ -107,7 +107,7 @@ save_finding(
     parameter="__proto__[ALLOWED_TAGS]",
     severity="high",
     evidence={
-        "logger_index": <dom-fire index>,
+        "proxy_history_index": <dom-fire index>,
         "summary": "CSPP via URL fragment → DOMPurify ALLOWED_TAGS pollution → <script> tag survives sanitization → DOM XSS",
         "gadget": "dompurify_allowed_tags",
         "sink": "innerHTML after DOMPurify.sanitize",
@@ -124,9 +124,9 @@ save_finding(
     parameter="__proto__.isAdmin",
     severity="critical",
     evidence={
-        "logger_index": <pollute index>,
+        "proxy_history_index": <pollute index>,
         "summary": "SSPP via Express body-parser merge → Object.prototype.isAdmin = true → subsequent GET /me returns admin=true for unauthenticated users → privilege escalation across all sessions until process restart",
-        "follow_up_logger_index": <verification index>,
+        "follow_up_proxy_history_index": <verification index>,
         "gadget": "express_isadmin_default",
         "impact_window": "until process restart",
     },

@@ -78,20 +78,20 @@ def register(mcp: FastMCP) -> None:
         )
 
         baseline = await _send_graphql(graphql_url, baseline_query, session, bearer_token)
-        b_logger = baseline.get("logger_index", -1)
+        b_logger = baseline.get("proxy_history_index", -1)
         if isinstance(b_logger, int) and b_logger >= 0:
             logger_indices.append(b_logger)
 
         bypass = await _send_graphql(graphql_url, bypass_query, session, bearer_token)
-        v_logger = bypass.get("logger_index", -1)
+        v_logger = bypass.get("proxy_history_index", -1)
         if isinstance(v_logger, int) and v_logger >= 0:
             logger_indices.append(v_logger)
 
         reproductions = [
             {"variant": "baseline_introspection", "status_code": baseline.get("status_code"),
-             "logger_index": b_logger},
+             "proxy_history_index": b_logger},
             {"variant": "interface_implementation_bypass",
-             "status_code": bypass.get("status_code"), "logger_index": v_logger,
+             "status_code": bypass.get("status_code"), "proxy_history_index": v_logger,
              "query": bypass_query},
         ]
 
@@ -163,7 +163,7 @@ def register(mcp: FastMCP) -> None:
                                  vuln_type="apollo_sdl_leak")
 
         resp = await _send_graphql(graphql_url, _SDL_QUERY, session, bearer_token)
-        logger_idx = resp.get("logger_index", -1)
+        logger_idx = resp.get("proxy_history_index", -1)
         logger_indices = [logger_idx] if isinstance(logger_idx, int) and logger_idx >= 0 else []
 
         body = resp.get("response_body", "") or ""
@@ -171,7 +171,7 @@ def register(mcp: FastMCP) -> None:
         reproductions = [{
             "variant": "sdl_query",
             "status_code": resp.get("status_code"),
-            "logger_index": logger_idx,
+            "proxy_history_index": logger_idx,
         }]
 
         if obj and isinstance(obj.get("data"), dict):

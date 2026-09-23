@@ -72,7 +72,7 @@ spreading the same finding across endpoints.
 ## 3. Replay BEFORE save, not after
 
 Rule 10a is non-negotiable: every save needs the replay to have already
-happened, captured at a confirmed `logger_index`. The replay is **the
+happened, captured at a confirmed `proxy_history_index`. The replay is **the
 finding**; the original suspicion is a clue. For timing/blind classes the
 3-replay `reproductions[]` is also required.
 

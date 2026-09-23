@@ -6,7 +6,7 @@ auth_bypass.json contexts (header_bypass / method_override / path_normalization)
 but runs them concretely instead of via auto_probe's parameter-injection
 model — these are full-request mutations, not URL parameter fuzz.
 
-Every request routes through Burp (logger_index captured per row).
+Every request routes through Burp (proxy_history_index captured per row).
 """
 
 from __future__ import annotations

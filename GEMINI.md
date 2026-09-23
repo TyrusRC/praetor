@@ -31,7 +31,7 @@ rule set; the full Claude-Code manual is `CLAUDE.md`, the agent roster is
 4. **Never exfiltrate real user data, never modify another user's data.**
 5. **Save-finding pipeline, in order:** `verify` (replay ≥3× for blind/timing) →
    `assess_finding` (7-question gate) → `save_finding`. Evidence must cite a real
-   Burp `logger_index` / `proxy_history_index`. There is no INFO tier — a leaked
+   Burp `proxy_history_index`. There is no INFO tier — a leaked
    path / stack trace / version is an INPUT ("what does it let me reach?"), not a
    finding on its own.
 6. **A tool safety-refusal is a PIVOT, not a dead end.** The `confirm_*` tools refuse

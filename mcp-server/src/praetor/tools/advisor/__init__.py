@@ -94,7 +94,7 @@ def register(mcp: FastMCP):
         domain: str = "",
         business_context: str = "",
         environment: str = "",
-        logger_index: int = -1,
+        proxy_history_index: int = -1,
         human_verified: bool = False,
         overrides: list[str] | None = None,
         chain_with: list[str] | None = None,
@@ -113,11 +113,11 @@ def register(mcp: FastMCP):
             domain: Target domain (scope + duplicate checks).
             business_context: Business type for impact scoring (ecommerce/healthcare/banking/saas/...).
             environment: Deployment env (production/staging/internal/public_api).
-            logger_index: Proxy index of the confirming response; auto-augments evidence with class markers.
+            proxy_history_index: Proxy index of the confirming response; auto-augments evidence with class markers.
             human_verified: Operator confirmed in Burp/browser. Skips Q5; Q1/Q4/Q6 still apply.
             overrides: Gate bypasses (R20), each "<gate>:<reason>". Gates: q1_scope/q2_repro/q4_dedup/q5_evidence/q6_never_submit/q7_triager.
             chain_with: Finding IDs to chain — allows NEVER-SUBMIT through Q6, skips Q7, boosts impact.
-            reproductions: Timing/blind classes — list of {logger_index, elapsed_ms, status_code}; len>=3 satisfies the timing rule.
+            reproductions: Timing/blind classes — list of {proxy_history_index, elapsed_ms, status_code}; len>=3 satisfies the timing rule.
             session_name: Active session; authenticated state boosts IDOR/BFLA/business-logic impact.
             intensity: safe | normal | aggressive — aggressive relaxes the Q7 mass-report downgrade.
         """
@@ -130,7 +130,7 @@ def register(mcp: FastMCP):
             domain=domain,
             business_context=business_context,
             environment=environment,
-            logger_index=logger_index,
+            proxy_history_index=proxy_history_index,
             human_verified=human_verified,
             overrides=overrides,
             chain_with=chain_with,

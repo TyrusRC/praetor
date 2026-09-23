@@ -209,7 +209,7 @@
     "Never test out-of-scope domains -- call check_scope first (Rule 1).",
     "Never send destructive payloads (DROP TABLE, rm -rf, shutdown, format). Use benign detection payloads + Collaborator (Rule 5).",
     "Use Burp Collaborator or operator-supplied callback for OOB tests -- never hardcode attacker domains (Rule 9a).",
-    "Save evidence (logger_index) BEFORE further exploitation -- targets get patched (Rule 12).",
+    "Save evidence (proxy_history_index) BEFORE further exploitation -- targets get patched (Rule 12).",
     "RCE-precondition probes detect only; real exploitation is operator-supervised (Copilot mode)."
   ],
   "marketplaces": {}

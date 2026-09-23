@@ -199,9 +199,9 @@ class Q5EvidenceTest(unittest.IsolatedAsyncioTestCase):
             vuln_type="sqli_blind",
             evidence="sleep(5) confirmed 3/3 iterations",
             reproductions=[
-                {"logger_index": 1, "elapsed_ms": 5000, "status_code": 200},
-                {"logger_index": 2, "elapsed_ms": 5050, "status_code": 200},
-                {"logger_index": 3, "elapsed_ms": 5100, "status_code": 200},
+                {"proxy_history_index": 1, "elapsed_ms": 5000, "status_code": 200},
+                {"proxy_history_index": 2, "elapsed_ms": 5050, "status_code": 200},
+                {"proxy_history_index": 3, "elapsed_ms": 5100, "status_code": 200},
             ],
         )
         ctx.vuln_lower = "sqli_blind"

@@ -117,7 +117,7 @@ save_finding(
     title="GraphQL nested IDOR exposes other users' emails via Post.author",
     description="...",
     url="https://target/graphql",
-    evidence={"logger_index": N},
+    evidence={"proxy_history_index": N},
 )
 ```
 

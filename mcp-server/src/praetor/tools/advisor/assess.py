@@ -68,7 +68,7 @@ def _build_context(
     domain: str,
     business_context: str,
     environment: str,
-    logger_index: int,
+    proxy_history_index: int,
     human_verified: bool,
     overrides: list[str] | None,
     chain_with: list[str] | None,
@@ -90,7 +90,7 @@ def _build_context(
         domain=domain,
         business_context=business_context,
         environment=environment,
-        logger_index=logger_index,
+        proxy_history_index=proxy_history_index,
         human_verified=human_verified,
         chain_with=chain_with or [],
         reproductions=reproductions or [],
@@ -236,7 +236,7 @@ def _render(ctx: AssessContext) -> str:
     elif ctx.verdict == "NEEDS MORE EVIDENCE":
         lines.append(
             "\n  Action: Strengthen the flagged evidence items, then re-assess before save_finding."
-            "\n  Fast path: pass logger_index=<N> to auto-derive evidence, "
+            "\n  Fast path: pass proxy_history_index=<N> to auto-derive evidence, "
             "or human_verified=True if confirmed in Burp UI."
         )
     else:
@@ -256,7 +256,7 @@ async def assess_finding_impl(
     domain: str = "",
     business_context: str = "",
     environment: str = "",
-    logger_index: int = -1,
+    proxy_history_index: int = -1,
     human_verified: bool = False,
     overrides: list[str] | None = None,
     chain_with: list[str] | None = None,
@@ -271,12 +271,12 @@ async def assess_finding_impl(
     """
     ctx = _build_context(
         vuln_type, evidence, endpoint, parameter, response_diff,
-        domain, business_context, environment, logger_index,
+        domain, business_context, environment, proxy_history_index,
         human_verified, overrides, chain_with, reproductions, session_name,
         intensity,
     )
 
-    # R1: auto-derive markers from logger_index (mutates ctx.derived_markers
+    # R1: auto-derive markers from proxy_history_index (mutates ctx.derived_markers
     # and ctx.evidence_lower). Runs BEFORE the question loop so Q5/Q6
     # see the augmented evidence.
     await augment_evidence(ctx)

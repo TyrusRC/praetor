@@ -25,7 +25,7 @@ Save the surface via `save_target_intel(domain, "profile", {"llm_endpoint": ...,
 
 ## Instruments — map to Praetor tools
 
-Automated sweeps run through Praetor's LLM MCP tools; targeted single sends go through the Burp send tools (payloads travel as request DATA — no shell escaping, and everything routes through Burp for a citable `logger_index`, Rule 26a).
+Automated sweeps run through Praetor's LLM MCP tools; targeted single sends go through the Burp send tools (payloads travel as request DATA — no shell escaping, and everything routes through Burp for a citable `proxy_history_index`, Rule 26a).
 
 | Task | Praetor tool |
 |---|---|
@@ -96,7 +96,7 @@ Hardened models resist one-shot payloads; conversation state is the lever when t
 - **Placeholder ≠ leak.** Confirm any "secret" is real.
 - **No-tools ≠ excessive agency.** Require an action actually performed (Collaborator hit / state change).
 
-Replay a confirmed compliance ≥3× (Rule 10a) → capture `logger_index` per send into `reproductions[]`. Then `assess_finding` → `save_finding`.
+Replay a confirmed compliance ≥3× (Rule 10a) → capture `proxy_history_index` per send into `reproductions[]`. Then `assess_finding` → `save_finding`.
 
 ## Severity & reporting (Rule 14)
 

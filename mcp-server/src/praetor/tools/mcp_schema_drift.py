@@ -148,7 +148,7 @@ def register(mcp: FastMCP) -> None:
 
 
 def _normalise_inventory(inv: dict) -> dict:
-    """Strip volatile fields (logger_index, timestamps) for stable hashing."""
+    """Strip volatile fields (proxy_history_index, timestamps) for stable hashing."""
     tools = []
     for t in inv.get("tools", []) or []:
         if not isinstance(t, dict):

@@ -122,7 +122,7 @@ save_finding(
     endpoint="wss://target.com/ws",
     severity="critical",
     evidence={
-        "logger_index": <upgrade-confirmed index>,
+        "proxy_history_index": <upgrade-confirmed index>,
         "summary": "CSWSH — Origin: https://evil.tld accepted on /ws upgrade. Attacker page can open a WS as victim and send `{action: 'getMessages'}` to receive victim's full message history.",
         "ws_url": "wss://target.com/ws",
         "tested_origin": "https://evil.tld",

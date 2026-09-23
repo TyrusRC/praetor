@@ -81,7 +81,7 @@ phar://upload.phar/test.txt                                       # PHP deserial
 
 ## Evidence ladder
 
-| Verdict | Evidence shape | logger_index | OOB | Save? |
+| Verdict | Evidence shape | proxy_history_index | OOB | Save? |
 |---|---|---|---|---|
 | **CONFIRMED CRITICAL** | Cloud metadata markers in body (`AccessKeyId` / `instance-id` / `computeMetadata`) | required | optional | yes |
 | **CONFIRMED HIGH** | Internal-service banner reflected (SSH, Redis -ERR, MySQL handshake) | required | optional | yes |
@@ -100,13 +100,13 @@ save_finding(
     parameter="url",
     severity="critical",                                  # cloud metadata = critical
     evidence={
-        "logger_index": <replay-confirming index>,
+        "proxy_history_index": <replay-confirming index>,
         "collaborator_interaction_id": "<id>",            # blind class
         "baseline_status": 200,
         "baseline_length": 1234,
         "summary": "SSRF to AWS IMDS — AccessKeyId reflected from /latest/meta-data/iam/security-credentials/role-name",
         "reproductions": [                                # blind class only
-            {"logger_index": ..., "elapsed_ms": ..., "status_code": ...},
+            {"proxy_history_index": ..., "elapsed_ms": ..., "status_code": ...},
             ...
         ],
     },

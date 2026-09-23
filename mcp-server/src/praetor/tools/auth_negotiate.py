@@ -69,8 +69,8 @@ def register(mcp: FastMCP) -> None:
             return error_verdict(resp.get("error", ""),
                                  vuln_type="enterprise_auth_gateway", reason="fetch_failed")
         logger_indices = []
-        if "logger_index" in resp:
-            logger_indices.append(resp["logger_index"])
+        if "proxy_history_index" in resp:
+            logger_indices.append(resp["proxy_history_index"])
 
         status = resp.get("status_code", 0)
         hdrs = {k.lower(): str(v) for k, v in

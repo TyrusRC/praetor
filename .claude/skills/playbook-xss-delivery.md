@@ -89,7 +89,7 @@ Delivery is not evidence until something fired. The pipeline:
    postMessage, the eval-JSON sink) so you deliver into the sink that actually executes.
 4. **OOB for blind/stored** — point the handler at a `generate_collaborator_payload()` URL;
    a `get_collaborator_interactions` hit is the fired-in-victim-context proof.
-5. **Evidence** — annotate the confirming request (Rule 18), cite its `logger_index` in
+5. **Evidence** — annotate the confirming request (Rule 18), cite its `proxy_history_index` in
    `evidence`. For self-firing handlers the executable reflection is the proof; for
    iframe-triggered ones, capture the attacker page + the Collaborator/console fire.
 

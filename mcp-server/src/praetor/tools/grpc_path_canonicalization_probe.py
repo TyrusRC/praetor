@@ -67,7 +67,7 @@ def register(mcp: FastMCP) -> None:
 
         baseline = await _send_grpc(target_url, path, session)
         baseline_status = baseline.get("status_code") or baseline.get("status")
-        baseline_logger = baseline.get("logger_index", -1)
+        baseline_logger = baseline.get("proxy_history_index", -1)
         logger_indices: list[int] = []
         if isinstance(baseline_logger, int) and baseline_logger >= 0:
             logger_indices.append(baseline_logger)
@@ -89,7 +89,7 @@ def register(mcp: FastMCP) -> None:
             "variant": "canonical_baseline",
             "path": path,
             "status_code": baseline_status,
-            "logger_index": baseline_logger,
+            "proxy_history_index": baseline_logger,
         }]
 
         bypass_hits: list[dict] = []
@@ -100,14 +100,14 @@ def register(mcp: FastMCP) -> None:
         for label, variant_path in variants:
             resp = await _send_grpc(target_url, variant_path, session)
             status = resp.get("status_code") or resp.get("status")
-            logger_idx = resp.get("logger_index", -1)
+            logger_idx = resp.get("proxy_history_index", -1)
             if isinstance(logger_idx, int) and logger_idx >= 0:
                 logger_indices.append(logger_idx)
             entry = {
                 "variant": label,
                 "path": variant_path,
                 "status_code": status,
-                "logger_index": logger_idx,
+                "proxy_history_index": logger_idx,
             }
             reproductions.append(entry)
 

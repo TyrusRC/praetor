@@ -34,7 +34,7 @@ final class ReproHelper {
 
     /**
      * Rule 10a gate for timing/blind classes: >=3 reproductions, each a numeric
-     * logger_index that is in range and hits the finding's endpoint. Sends the
+     * proxy_history_index that is in range and hits the finding's endpoint. Sends the
      * matching 400 and returns false on the first failure; true when the class
      * does not require reproductions or they all pass.
      */
@@ -47,20 +47,20 @@ final class ReproHelper {
             HttpResponses.sendError(exchange, 400,
                 "'" + vulnType + "' requires reproductions[] with >= 3 verified proxy-history entries (Rule 10a)",
                 "reproductions_required",
-                "Replay the timing/blind probe 2 more times so the array totals 3 entries; pass reproductions=[{logger_index, elapsed_ms, status_code}, ...].");
+                "Replay the timing/blind probe 2 more times so the array totals 3 entries; pass reproductions=[{proxy_history_index, elapsed_ms, status_code}, ...].");
             return false;
         }
         for (Map<String, Object> rep : reproductions) {
-            Object ridx = rep.get("logger_index");
+            Object ridx = rep.get("proxy_history_index");
             if (!(ridx instanceof Number)) {
-                HttpResponses.sendError(exchange, 400, "reproductions[].logger_index must be a number",
+                HttpResponses.sendError(exchange, 400, "reproductions[].proxy_history_index must be a number",
                     "reproductions_invalid",
-                    "Each entry in reproductions[] must include logger_index as an integer.");
+                    "Each entry in reproductions[] must include proxy_history_index as an integer.");
                 return false;
             }
             int ri = ((Number) ridx).intValue();
             if (ri < 0 || ri >= proxyHistorySize) {
-                HttpResponses.sendError(exchange, 400, "reproductions[].logger_index not found: " + ri,
+                HttpResponses.sendError(exchange, 400, "reproductions[].proxy_history_index not found: " + ri,
                     "reproductions_invalid",
                     "Proxy-history index " + ri + " is out of range (history size = " + proxyHistorySize + ").");
                 return false;
@@ -68,7 +68,7 @@ final class ReproHelper {
             String repMismatch = mismatchFn.apply(ri, findingEndpoint);
             if (repMismatch != null) {
                 HttpResponses.sendError(exchange, 400,
-                    "reproductions[].logger_index " + ri + " is a different request: " + repMismatch,
+                    "reproductions[].proxy_history_index " + ri + " is a different request: " + repMismatch,
                     "reproductions_invalid",
                     "Every replay in reproductions[] must hit the endpoint the finding describes. "
                     + "A replay of unrelated traffic is not a reproduction.");

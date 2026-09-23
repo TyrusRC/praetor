@@ -29,7 +29,7 @@ async def _send(req: dict, session: str) -> dict:
     return await client.post("/api/http/curl", json=req)
 
 
-def _logger_index(resp: dict) -> int:
+def _proxy_history_index(resp: dict) -> int:
     if not isinstance(resp, dict):
         return -1
     return int(resp.get("proxy_index", resp.get("index", resp.get("history_index", -1))))

@@ -124,7 +124,7 @@ def register(mcp: FastMCP) -> None:
             entry = {
                 "body": body,
                 "status": status,
-                "logger_index": idx,
+                "proxy_history_index": idx,
                 "verified_marker_hit": verified,
                 "assertion_required_marker_hit": required,
                 "marker": marker,

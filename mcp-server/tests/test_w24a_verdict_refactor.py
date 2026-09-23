@@ -93,7 +93,7 @@ class SessionLifecycleVerdictTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["vuln_type"], "session_not_invalidated")
         self.assertIn(12, out["logger_indices"])  # replay
         ev = to_assess_evidence(out)
-        self.assertEqual(ev["logger_index"], 10)  # first index
+        self.assertEqual(ev["proxy_history_index"], 10)  # first index
 
     async def test_revoked_failed(self):
         # Replay returns 401 → FAILED

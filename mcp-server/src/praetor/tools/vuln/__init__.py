@@ -14,7 +14,7 @@ Built natively (not as a third-party wrapper) because:
 - Prototype Pollution: PPScan exists for client-side; server-side detection
   has no good tool
 - SSTI: tplmap is unmaintained Python2; SSTImap (vladko312 fork) is the active
-  reference but spawning a subprocess breaks our `logger_index` chain. We
+  reference but spawning a subprocess breaks our `proxy_history_index` chain. We
   encode its engine catalog + multi-phase detection logic natively against
   our knowledge base instead.
 

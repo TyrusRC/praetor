@@ -22,7 +22,7 @@ class ScannerProofGate(unittest.IsolatedAsyncioTestCase):
         async def fake_post(path, json=None):
             return {"in_scope": True}
         async def fake_get(path, params=None):
-            # No captured request behind any logger_index in these tests.
+            # No captured request behind any proxy_history_index in these tests.
             return {}
         with patch("praetor.client.post", fake_post), \
              patch("praetor.client.get", fake_get):
@@ -85,9 +85,9 @@ class ScannerProofGate(unittest.IsolatedAsyncioTestCase):
             endpoint="/search",
             evidence="wpscan reported blind sqli; sleep(5) confirmed 3/3 iterations",
             reproductions=[
-                {"logger_index": 1, "elapsed_ms": 5100, "status_code": 200},
-                {"logger_index": 2, "elapsed_ms": 5050, "status_code": 200},
-                {"logger_index": 3, "elapsed_ms": 5200, "status_code": 200},
+                {"proxy_history_index": 1, "elapsed_ms": 5100, "status_code": 200},
+                {"proxy_history_index": 2, "elapsed_ms": 5050, "status_code": 200},
+                {"proxy_history_index": 3, "elapsed_ms": 5200, "status_code": 200},
             ],
             domain="example.com",
         )

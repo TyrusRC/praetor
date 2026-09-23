@@ -13,8 +13,8 @@ HEAVY_FINDING = {
     "id": "VULN-1", "title": "SQLi in id", "severity": "high", "status": "confirmed",
     "endpoint": "https://x.test/api", "vuln_type": "sqli",
     "poc_request": "GET /api?id=1'--" * 50,
-    "evidence": {"logger_index": 9, "blob": "x" * 2000},
-    "reproductions": [{"logger_index": 9}, {"logger_index": 10}],
+    "evidence": {"proxy_history_index": 9, "blob": "x" * 2000},
+    "reproductions": [{"proxy_history_index": 9}, {"proxy_history_index": 10}],
     "description": "long " * 200, "remediation": "fix " * 100,
 }
 

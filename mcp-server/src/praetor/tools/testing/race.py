@@ -190,11 +190,11 @@ def register(mcp: FastMCP):
             and 200 <= cr.get("status", 0) < 300 for cr in cross_results
         )
         logger_indices = [
-            int(r["logger_index"]) for r in data.get("results", [])
-            if isinstance(r.get("logger_index"), int) and r["logger_index"] >= 0
+            int(r["proxy_history_index"]) for r in data.get("results", [])
+            if isinstance(r.get("proxy_history_index"), int) and r["proxy_history_index"] >= 0
         ]
         reproductions = [
-            {"logger_index": r.get("logger_index", -1),
+            {"proxy_history_index": r.get("proxy_history_index", -1),
              "status_code": r.get("status"),
              "elapsed_ms": r.get("time_ms")}
             for r in data.get("results", [])

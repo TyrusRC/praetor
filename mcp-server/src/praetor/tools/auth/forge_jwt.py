@@ -19,7 +19,7 @@ Attack modes:
 
 The operator owns the forged-token risk — these tools do not send. Replay
 the curl line through Burp via curl_request / send_raw_request to get a
-logger_index for evidence.
+proxy_history_index for evidence.
 """
 
 from __future__ import annotations
@@ -111,7 +111,7 @@ def register(mcp: FastMCP):
             return f"Error during forge: {type(e).__name__}: {e}"
 
         # Output composition — keep tight; the operator pastes the curl line
-        # into curl_request or send_raw_request to get a logger_index.
+        # into curl_request or send_raw_request to get a proxy_history_index.
         lines = [
             f"Forged JWT ({mode}): {note}",
             "",

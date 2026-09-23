@@ -98,7 +98,7 @@ def register(mcp: FastMCP) -> None:
             )
             entry["variant"] = label
             reproductions.append(entry)
-            li = entry.get("logger_index", -1)
+            li = entry.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
 
@@ -118,7 +118,7 @@ def register(mcp: FastMCP) -> None:
         )
         trav_entry["variant"] = "path_traversal"
         reproductions.append(trav_entry)
-        li = trav_entry.get("logger_index", -1)
+        li = trav_entry.get("proxy_history_index", -1)
         if isinstance(li, int) and li >= 0:
             logger_indices.append(li)
         body = trav_entry.get("response_body", "") or ""
@@ -137,7 +137,7 @@ def register(mcp: FastMCP) -> None:
             )
             collab_entry["variant"] = "collaborator_oob"
             reproductions.append(collab_entry)
-            li = collab_entry.get("logger_index", -1)
+            li = collab_entry.get("proxy_history_index", -1)
             if isinstance(li, int) and li >= 0:
                 logger_indices.append(li)
             collab_interactions.append(collaborator_payload)

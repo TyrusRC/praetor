@@ -32,7 +32,7 @@ class VerdictShapeTest(unittest.TestCase):
         # The internal consumer must still work when empty keys are absent.
         v = make_verdict("FAILED", 0.1, "clean")
         ev = to_assess_evidence(v)
-        self.assertNotIn("logger_index", ev)
+        self.assertNotIn("proxy_history_index", ev)
         self.assertNotIn("collaborator_interaction_id", ev)
 
 

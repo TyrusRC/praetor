@@ -101,7 +101,7 @@ save_finding(
     endpoint="https://target.com/profile/x.css",
     severity="critical",
     evidence={
-        "logger_index": <cached-pii index>,
+        "proxy_history_index": <cached-pii index>,
         "summary": "Web Cache Deception via static-suffix bypass — /profile/x.css served victim's profile PII; X-Cache: HIT on second fetch from different IP confirms public cache.",
         "cdn": "Cloudflare",
         "suffix_variant": ".css",

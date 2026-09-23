@@ -75,14 +75,14 @@ def register(mcp: FastMCP) -> None:
                 )
                 status = resp.get("status_code") or resp.get("status")
                 body = resp.get("response_body", "") or ""
-                logger_idx = resp.get("logger_index", -1)
+                logger_idx = resp.get("proxy_history_index", -1)
                 if isinstance(logger_idx, int) and logger_idx >= 0:
                     logger_indices.append(logger_idx)
                 entry = {
                     "engine": engine_label,
                     "location": location,
                     "status_code": status,
-                    "logger_index": logger_idx,
+                    "proxy_history_index": logger_idx,
                 }
                 if _ARITHMETIC_MARKER in body:
                     entry["matched"] = "arithmetic_echo"

@@ -12,7 +12,7 @@ import java.util.List;
  *
  * <p>The obvious approach — {@code history.size() - 1} right after the send —
  * is wrong whenever the last entry is not the request we sent. That happens in
- * two routine cases, and every downstream artifact (evidence.logger_index, the
+ * two routine cases, and every downstream artifact (evidence.proxy_history_index, the
  * Burp annotation the operator screenshots, the exported PoC bundle) then cites
  * the wrong traffic:
  *

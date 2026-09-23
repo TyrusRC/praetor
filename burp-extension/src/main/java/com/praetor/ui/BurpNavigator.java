@@ -271,7 +271,7 @@ public final class BurpNavigator {
      *  none / empty table / blank needle.
      *
      *  <p>This is the translator the numeric {@link #rowForNumber} can't be: a
-     *  Praetor evidence index (proxy-history list ordinal, {@code logger_index})
+     *  Praetor evidence index (proxy-history list ordinal, {@code proxy_history_index})
      *  is NOT the value Burp prints in the "#" column, so a caller that only has
      *  an evidence index cannot address the right row by number. Matching on the
      *  request text Burp actually shows (host / method / URL columns) sidesteps

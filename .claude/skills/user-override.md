@@ -54,9 +54,9 @@ assess_finding(...,
   environment="production",            # +5% (live impact)
   session_name="hunt",                 # If session is authenticated, IDOR/BFLA boost +10% (Rule 28)
   reproductions=[                      # For timing/blind: 3 entries skip Q5 timing rule
-    {"logger_index": 41, "elapsed_ms": 5230, "status_code": 200},
-    {"logger_index": 42, "elapsed_ms": 5180, "status_code": 200},
-    {"logger_index": 43, "elapsed_ms": 5310, "status_code": 200},
+    {"proxy_history_index": 41, "elapsed_ms": 5230, "status_code": 200},
+    {"proxy_history_index": 42, "elapsed_ms": 5180, "status_code": 200},
+    {"proxy_history_index": 43, "elapsed_ms": 5310, "status_code": 200},
   ],
 )
 ```
@@ -133,7 +133,7 @@ Gate rejected a finding I know is real
 │
 ├── Was it Q5 (weak evidence)?
 │   ├── Verified in Burp UI? → human_verified=True (no override needed)
-│   ├── Have logger_index? → pass it; gate auto-derives markers
+│   ├── Have proxy_history_index? → pass it; gate auto-derives markers
 │   ├── Have reproductions[] (timing/blind)? → pass array; gate counts entries
 │   └── None of the above? → strengthen evidence first; do NOT override Q5 lightly
 │

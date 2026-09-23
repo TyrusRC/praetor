@@ -2,7 +2,7 @@
 
 This is the static counterpart to analyze_dom (dynamic). It runs opengrep
 (Semgrep fork, LGPL 2.1, no telemetry) against response bodies pulled from the
-proxy. Findings include the originating logger_index + URL so the operator
+proxy. Findings include the originating proxy_history_index + URL so the operator
 can pivot back to the live request that delivered the vulnerable JS.
 
 Bundled rulesets:
@@ -86,7 +86,7 @@ async def _proxy_bodies(domain: str, mimes: tuple[str, ...], max_bodies: int) ->
 
         out.append(
             {
-                "logger_index": int(idx),
+                "proxy_history_index": int(idx),
                 "url": detail.get("url") or entry.get("url") or "",
                 "mime": mime or "?",
                 "body": body,
@@ -144,7 +144,7 @@ def register(mcp: FastMCP) -> None:
         """Run opengrep over JS/HTML bodies captured in Burp proxy history.
 
         Static counterpart to analyze_dom. Each finding links back to a
-        logger_index so the operator can replay the request that delivered
+        proxy_history_index so the operator can replay the request that delivered
         the vulnerable artefact.
 
         Args:
@@ -182,7 +182,7 @@ def register(mcp: FastMCP) -> None:
                 (tmp / (fname + ".meta.json")).write_text(
                     json.dumps(
                         {
-                            "logger_index": body["logger_index"],
+                            "proxy_history_index": body["proxy_history_index"],
                             "url": body["url"],
                             "mime": body["mime"],
                         }
@@ -209,7 +209,7 @@ def register(mcp: FastMCP) -> None:
                     f"{len(bodies)} artefacts."
                 )
 
-            # Map file path -> meta sidecar (URL + logger_index)
+            # Map file path -> meta sidecar (URL + proxy_history_index)
             findings: list[dict] = []
             for r in results:
                 src = Path(r.get("path") or "")
@@ -225,7 +225,7 @@ def register(mcp: FastMCP) -> None:
                         "severity": (r.get("extra") or {}).get("severity"),
                         "line": (r.get("start") or {}).get("line"),
                         "snippet": ((r.get("extra") or {}).get("lines") or "")[:160],
-                        "logger_index": meta.get("logger_index"),
+                        "proxy_history_index": meta.get("proxy_history_index"),
                         "url": meta.get("url"),
                     }
                 )
@@ -247,7 +247,7 @@ def register(mcp: FastMCP) -> None:
         lines.append("Sample (first 15):")
         for f in findings[:15]:
             lines.append(
-                f"  [{f['severity'] or '?'}] {f['rule']}  logger_index={f['logger_index']}  "
+                f"  [{f['severity'] or '?'}] {f['rule']}  proxy_history_index={f['proxy_history_index']}  "
                 f"{f['url']} :{f['line']}\n    {f['snippet'][:120]}"
             )
         return "\n".join(lines)

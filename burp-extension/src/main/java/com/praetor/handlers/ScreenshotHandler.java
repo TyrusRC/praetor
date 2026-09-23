@@ -80,7 +80,7 @@ public class ScreenshotHandler extends BaseHandler {
         // entry number, or "last"/"newest" for the most recent row.
         // select_match resolves a row by REQUEST TEXT (host/method/URL substring) —
         // the reliable path when the caller only has a Praetor evidence index
-        // (proxy-history ordinal / logger_index), which is NOT Burp's "#" column
+        // (proxy-history ordinal / proxy_history_index), which is NOT Burp's "#" column
         // value. Takes precedence over the numeric select_row when both are given.
         String selectMatch = params.getOrDefault("select_match", "");
         String selectRow = params.getOrDefault("select_row", "");

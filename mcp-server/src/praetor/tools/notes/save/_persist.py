@@ -126,9 +126,9 @@ async def submit_and_persist(
         retry_advice = {
             "never_submit": "Either pass chain_with=[<id>] OR set_program_policy() to remove the class.",
             "chain_unknown_id": "Run get_findings() to list valid chain anchor IDs.",
-            "evidence_missing": "Pass evidence={'logger_index': <N>}.",
-            "reproductions_required": "Pass reproductions=[{logger_index,elapsed_ms,status_code}, ...] (>=3).",
-            "reproductions_invalid": "Each reproductions[] entry needs an integer logger_index in range.",
+            "evidence_missing": "Pass evidence={'proxy_history_index': <N>}.",
+            "reproductions_required": "Pass reproductions=[{proxy_history_index,elapsed_ms,status_code}, ...] (>=3).",
+            "reproductions_invalid": "Each reproductions[] entry needs an integer proxy_history_index in range.",
         }.get(err_code, "")
         parts = [f"Error (gate rejected — nothing persisted): {err_msg}"]
         if err_code:
@@ -254,9 +254,7 @@ async def _auto_annotate_organizer(
     # hiccup here must never fail the save.
     organizer_note = ""
     if status == "confirmed" and isinstance(evidence, dict):
-        ev_idx = evidence.get("logger_index")
-        if ev_idx is None:
-            ev_idx = evidence.get("proxy_history_index")
+        ev_idx = evidence.get("proxy_history_index")
         if isinstance(ev_idx, int) and ev_idx >= 0:
             color = {
                 "CRITICAL": "RED", "HIGH": "RED", "MEDIUM": "ORANGE",

@@ -51,10 +51,8 @@ def _finding_type_id(finding: dict) -> int:
 def _evidence_ref(finding: dict) -> str:
     ev = finding.get("evidence") or {}
     if isinstance(ev, dict):
-        if ev.get("logger_index") is not None:
-            return f"Burp logger_index={ev['logger_index']}"
         if ev.get("proxy_history_index") is not None:
-            return f"Burp proxy_index={ev['proxy_history_index']}"
+            return f"Burp proxy_history_index={ev['proxy_history_index']}"
         if ev.get("oplog_id"):
             return f"operator-log {ev['oplog_id']}"
     return ""
@@ -111,7 +109,7 @@ def map_reported_finding(finding: dict, report_id: int) -> dict:
 
     Maps onto the finding's real report fields (impact / mitigation /
     replication / cvss), so it renders in the deliverable — not just the oplog.
-    The evidence pointer (Burp logger_index or operator-log id) goes into
+    The evidence pointer (Burp proxy_history_index or operator-log id) goes into
     `references` and `extraFields` for traceability back to the source lane.
     """
     ev_ref = _evidence_ref(finding)

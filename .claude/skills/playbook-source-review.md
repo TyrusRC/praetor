@@ -24,11 +24,11 @@ codebases). This playbook is for when you hold the *actual* source of the target
 3. Trace       input → sink data-flow                      run_vulnhuntr / run_xvulnhuntr
 4. Rank        unauth-reachable sinks first                sast_to_endpoint_risk / risk_rank_endpoints
 5. Confirm     source-flagged sink → live proof            confirm_rce / confirm_sqli / confirm_ssti / ...
-6. Save        chain source_chain + logger_index           save_finding
+6. Save        chain source_chain + proxy_history_index           save_finding
 ```
 
 Steps 1-4 are cheap and non-touching (no traffic to target). Step 5 is where a
-candidate becomes a finding — and the only step that generates a `logger_index`.
+candidate becomes a finding — and the only step that generates a `proxy_history_index`.
 
 ## Step 0 — Reduce the tree (operator pre-step, not a Praetor tool)
 
@@ -230,7 +230,7 @@ how it's reached before dismissing.
 ## Step 5 — Confirm the source-flagged sink against the live target
 
 **This is the only step that makes it a finding.** A source trace is a hypothesis
-with a file:line; Rule 10 needs a live `logger_index`. Fire the `confirm_*` matched
+with a file:line; Rule 10 needs a live `proxy_history_index`. Fire the `confirm_*` matched
 to the sink class, against the ranked endpoint + the parameter you traced:
 
 | Source-flagged class | Confirm tool | Benign proof |
@@ -242,7 +242,7 @@ to the sink class, against the ranked endpoint + the parameter you traced:
 | XXE | `confirm_xxe(endpoint, mode="inband")` | reads `/etc/hostname` (Rule 7 — not `/etc/passwd`) |
 
 Pass a `session=` name for authed routes (grey-box). All route through Burp, so each
-produces a `logger_index` / `collaborator_interaction_id`. If the source said
+produces a `proxy_history_index` / `collaborator_interaction_id`. If the source said
 "vulnerable" but the confirm fails, the input is sanitised on the live path (WAF,
 middleware, a validator the trace missed) — record a documented negative with
 `record_probe_outcome`, don't file it. Source is the map; the live confirm is the
@@ -260,24 +260,24 @@ save_finding(
     impact="Unauthenticated DB read; CURRENT_USER() + VERSION() extracted. "
            "Query built by string concat at ReportDao.java:88 with no bind param.",
     evidence={
-        "logger_index": N,                    # the confirm_sqli replay — REQUIRED
+        "proxy_history_index": N,                    # the confirm_sqli replay — REQUIRED
         "source_chain": [                      # from run_xvulnhuntr / manual trace
             {"file": "controllers/ReportController.java", "line": 41, "symbol": "sort param"},
             {"file": "dao/ReportDao.java", "line": 88, "symbol": "executeQuery(str+sort)"},
         ],
         "summary": "sort → ReportController:41 → ReportDao.executeQuery:88 (concat, no PreparedStatement)",
-        "reproductions": [ {"logger_index": ..., "elapsed_ms": ..., "status_code": ...} ],
+        "reproductions": [ {"proxy_history_index": ..., "elapsed_ms": ..., "status_code": ...} ],
     },
 )
 ```
 
-The `logger_index` is the DAST confirm (Rule 10b). `source_chain` is corroboration,
-not a substitute — a chain with no live `logger_index` is not reportable.
+The `proxy_history_index` is the DAST confirm (Rule 10b). `source_chain` is corroboration,
+not a substitute — a chain with no live `proxy_history_index` is not reportable.
 
 ## Anti-patterns
 
 - **Don't file SAST output as findings.** opengrep/vulnhuntr produce candidates. No
-  `confirm_*` + `logger_index` = no finding. `assess_finding` hard-rejects.
+  `confirm_*` + `proxy_history_index` = no finding. `assess_finding` hard-rejects.
 - **Don't scan vendor code.** A CVE in a dependency → `playbook-cve-research.md`.
   Reduce the tree (Step 0) first.
 - **Don't trust the route regex.** `inventory_source_routes` misses dynamic routes

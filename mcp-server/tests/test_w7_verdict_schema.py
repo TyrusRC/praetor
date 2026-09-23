@@ -1,6 +1,6 @@
 """Tests for the W7 structured-verdict schema.
 
-Verifies the contract assess_finding depends on (logger_index pass-through,
+Verifies the contract assess_finding depends on (proxy_history_index pass-through,
 reproductions[] shape, confidence floor).
 """
 
@@ -58,7 +58,7 @@ class VerdictSchemaTest(unittest.TestCase):
         )
         ev = to_assess_evidence(v)
         self.assertEqual(ev["collaborator_interaction_id"], "x.oast")
-        self.assertEqual(ev["logger_index"], 7)
+        self.assertEqual(ev["proxy_history_index"], 7)
 
     def test_to_assess_evidence_logger_then_proxy(self):
         v = make_verdict(
@@ -67,8 +67,8 @@ class VerdictSchemaTest(unittest.TestCase):
             proxy_indices=[99],
         )
         ev = to_assess_evidence(v)
-        self.assertEqual(ev["logger_index"], 3)
-        self.assertNotIn("proxy_history_index", ev)
+        # logger_indices wins over proxy_indices; both map to proxy_history_index
+        self.assertEqual(ev["proxy_history_index"], 3)
 
         v2 = make_verdict("SUSPECTED", 0.6, "ev", proxy_indices=[99])
         ev2 = to_assess_evidence(v2)
@@ -84,9 +84,9 @@ class VerdictSchemaTest(unittest.TestCase):
 
     def test_reproductions_passed_through(self):
         reps = [
-            {"logger_index": 1, "elapsed_ms": 120, "status_code": 200},
-            {"logger_index": 2, "elapsed_ms": 119, "status_code": 200},
-            {"logger_index": 3, "elapsed_ms": 121, "status_code": 200},
+            {"proxy_history_index": 1, "elapsed_ms": 120, "status_code": 200},
+            {"proxy_history_index": 2, "elapsed_ms": 119, "status_code": 200},
+            {"proxy_history_index": 3, "elapsed_ms": 121, "status_code": 200},
         ]
         v = make_verdict("CONFIRMED", 0.8, "stable timing", reproductions=reps)
         self.assertEqual(len(v["reproductions"]), 3)

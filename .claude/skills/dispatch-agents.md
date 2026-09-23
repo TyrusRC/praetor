@@ -52,7 +52,7 @@ Every dispatched subagent MUST receive these three lines verbatim in addition to
 ```
 ORIENT FIRST: your first call is `target_brief(domain)` — it returns tech/auth context, findings posture, top findings, next-action hints, and copy-paste follow-up queries in one lean response. Read it before acting so you build on peers' prior-round findings (the shared .burp-intel/<domain>/ blackboard) instead of re-discovering. If it returns exists:False, the target is new — run recon first.
 
-VERIFY before reporting: every file:line you cite must be opened and read in this run; every symbol you name must be grepped in this run; every finding you claim must reference an existing logger_index from get_proxy_history. If you cannot verify a claim, mark it UNVERIFIED rather than reporting it as fact.
+VERIFY before reporting: every file:line you cite must be opened and read in this run; every symbol you name must be grepped in this run; every finding you claim must reference an existing proxy_history_index from get_proxy_history. If you cannot verify a claim, mark it UNVERIFIED rather than reporting it as fact.
 
 EVIDENCE FORMAT: persist full output to .burp-intel/<domain>/ and report back only lightweight references — finding ids, logger indices, top-N ranked — as `<severity> | <file>:<line> | <one-line problem> | <one-line fix>`. Never return full dumps; the orchestrator's context is finite across a long loop.
 

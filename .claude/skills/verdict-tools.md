@@ -17,7 +17,7 @@ globs:
   "logger_indices": [42, 43, ...],
   "proxy_indices": [],
   "collaborator_interactions": ["abc.oastify.com"],
-  "reproductions": [{"logger_index": ..., "elapsed_ms": ..., "status_code": ...}, ...],
+  "reproductions": [{"proxy_history_index": ..., "elapsed_ms": ..., "status_code": ...}, ...],
   "vuln_type": "ssrf | idor | csrf | ...",
   "details": {...},
   "human_summary": "...legacy pretty text..."
@@ -84,7 +84,7 @@ if is_actionable(result):
         vuln_type=result["vuln_type"],
         evidence=str(evidence),
         endpoint=...,
-        logger_index=result["logger_indices"][0] if result["logger_indices"] else -1,
+        proxy_history_index=result["logger_indices"][0] if result["logger_indices"] else -1,
     )
 ```
 

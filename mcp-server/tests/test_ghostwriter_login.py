@@ -134,13 +134,13 @@ class GhostwriterAuth(unittest.TestCase):
         f = {"id": "f001", "title": "SQLi", "vuln_type": "sqli_time",
              "severity": "critical", "endpoint": "http://x/showthread.asp",
              "poc_request": "GET /showthread.asp?id=0;WAITFOR...", "impact": "db read",
-             "evidence": {"logger_index": 22}}
+             "evidence": {"proxy_history_index": 22}}
         o = gw.map_finding_to_oplog(f)
         self.assertEqual(o["oplog"], config.GHOSTWRITER_OPLOG_ID)
         self.assertEqual(o["destIp"], "http://x/showthread.asp")
         self.assertIn("severity:CRITICAL", o["comments"])
         self.assertIn("vuln:sqli_time", o["comments"])
-        self.assertIn("Burp logger_index=22", o["comments"])
+        self.assertIn("Burp proxy_history_index=22", o["comments"])
         self.assertIn("finding", o["extraFields"]["tags"])
         self.assertIn("severity:CRITICAL", o["extraFields"]["tags"])
         self.assertEqual(o["extraFields"]["praetor_finding_id"], "f001")

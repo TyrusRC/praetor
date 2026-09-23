@@ -9,8 +9,8 @@ from praetor.tools.notes._projection import (
 FINDING = {
     "id": "VULN-001", "title": "Reflected XSS in q", "severity": "medium",
     "status": "confirmed", "endpoint": "https://x.test/search", "parameter": "q",
-    "evidence": {"logger_index": 42},
-    "reproductions": [{"logger_index": 42, "status_code": 200}],
+    "evidence": {"proxy_history_index": 42},
+    "reproductions": [{"proxy_history_index": 42, "status_code": 200}],
     "poc_steps": ["GET /search?q=<script>...", "observe alert"], "chain_with": [],
 }
 
@@ -29,7 +29,7 @@ class TestProjection(unittest.TestCase):
         self.assertIn("VULN-001", md)
         self.assertIn("medium", md)
         self.assertIn("/search", md)
-        self.assertIn("logger_index", md)
+        self.assertIn("proxy_history_index", md)
 
     def test_write_creates_current_md(self):
         write_finding_projection("x.test", FINDING)

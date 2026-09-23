@@ -168,8 +168,8 @@ def register(mcp: FastMCP) -> None:
             if resp.get("error"):
                 results.append({"method": method, "transport_error": resp.get("error", "")})
                 continue
-            if "logger_index" in resp:
-                logger_indices.append(resp["logger_index"])
+            if "proxy_history_index" in resp:
+                logger_indices.append(resp["proxy_history_index"])
             status = resp.get("status_code", 0)
             body = resp.get("response_body") or ""
             is_jrpc, parsed = _is_valid_jsonrpc(body if isinstance(body, str) else "")

@@ -245,8 +245,8 @@ save_finding(
     parameter="coupon_codes",
     evidence_text="Order #12345 at $0.00 after applying 5 stacked coupons "
                   "(50% + 50% + 50% + 50% + 50% — server multiplies, doesn't cap). "
-                  "Reproduced 3x; logger_index=247,251,254.",
-    evidence={"logger_index": 254},
+                  "Reproduced 3x; proxy_history_index=247,251,254.",
+    evidence={"proxy_history_index": 254},
     description=(
         "Backend applies coupon discount multiplicatively without capping. "
         "Attacker can reduce any order to $0 by submitting >=5 coupons. "

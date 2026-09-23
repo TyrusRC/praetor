@@ -136,7 +136,7 @@ class ProxyStatusCanaryTest(unittest.IsolatedAsyncioTestCase):
              mock.patch.object(proxy, "log_action", return_value="op1"):
             out = await cap["mobile_proxy_status"](domain="ex.com", canary=True)
         self.assertTrue(out["canary_landed"])
-        self.assertEqual(out["logger_index"], 4242)
+        self.assertEqual(out["proxy_history_index"], 4242)
 
     async def test_canary_lost(self):
         stub, cap = _stub_mcp(); proxy.register(stub)

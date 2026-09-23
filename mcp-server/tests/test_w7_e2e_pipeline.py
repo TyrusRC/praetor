@@ -81,7 +81,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
             "endpoint": "https://happy.example.com/admin/users",
             "parameter": "is_admin",
             "evidence": {
-                "logger_index": 42,
+                "proxy_history_index": 42,
                 "baseline_status": 403,
                 "summary": "is_admin=true accepted unauthenticated; attacker escalates self to admin",
             },
@@ -139,7 +139,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
             "id": "f-csrf-logout", "vuln_type": "csrf_logout",
             "severity": "low", "status": "confirmed",
             "endpoint": "https://happy.example.com/logout",
-            "evidence": {"logger_index": 7},
+            "evidence": {"proxy_history_index": 7},
             "impact": "logs user out cross-origin",
         }]}), encoding="utf-8")
 
@@ -158,7 +158,7 @@ class E2EPipelineTest(unittest.IsolatedAsyncioTestCase):
             "id": "f-inflated", "vuln_type": "open_redirect",
             "severity": "critical", "status": "confirmed",
             "endpoint": "https://happy.example.com/r?next=evil.com",
-            "evidence": {"logger_index": 1, "baseline_status": 302},
+            "evidence": {"proxy_history_index": 1, "baseline_status": 302},
             "impact": "attacker redirects victim to evil.com",
         }]}), encoding="utf-8")
 
