@@ -65,6 +65,8 @@ from praetor.tools import (
     skills_access,
     agents_access,
     host_bootstrap,
+    prompts_access,
+    knowledge_access,
 )
 
 mcp = FastMCP(
@@ -73,9 +75,12 @@ mcp = FastMCP(
 
 FIRST CALL, non-Claude hosts (dsh / Codex / any tools-only host): call praetor_bootstrap().
 It returns the operating context Claude Code auto-loads from files — which rules to load
-(get_rules), the skill and agent playbooks (list_skills / get_skill, list_agents / get_agent),
-and the web / network / mobile flows. Safety Rules 5-9 and the 7-gate save-finding pipeline are
-enforced in the tool layer and apply on every host regardless of what you load.
+(get_rules, incl. get_rules("project") for the project CLAUDE.md), the skill / prompt / agent
+playbooks (list_skills / get_skill, list_prompts / get_prompt, list_agents / get_agent), the
+knowledge base (list_knowledge / get_knowledge), the web / network / mobile flows, and the
+model-tier mapping (map each agent's generic tier to your nearest model — not every host has
+Claude's opus/sonnet/haiku). Safety Rules 5-9 and the 7-gate save-finding pipeline are enforced
+in the tool layer and apply on every host regardless of what you load.
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.
@@ -173,7 +178,9 @@ prompts.register(mcp)          # MCP Prompts — operator-invokable workflow tem
 resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, skills, knowledge, intel, findings) under burp:// URIs
 skills_access.register(mcp)    # list_skills / get_skill — skill library as TOOLS (for hosts without MCP-resource support)
 agents_access.register(mcp)    # list_agents / get_agent — agent-playbook roster as TOOLS (tools-only hosts: dsh/Codex)
-host_bootstrap.register(mcp)   # praetor_bootstrap / get_rules — session-start onboarding + rules as TOOLS for non-Claude hosts
+host_bootstrap.register(mcp)   # praetor_bootstrap / get_rules — session-start onboarding + rules (incl. project CLAUDE.md) as TOOLS for non-Claude hosts
+prompts_access.register(mcp)   # list_prompts / get_prompt — MCP Prompt launchers as TOOLS (tools-only hosts that defer the Prompts primitive)
+knowledge_access.register(mcp) # list_knowledge / get_knowledge — KB probe-class categories as TOOLS (mirror of burp://knowledge/* resources)
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
 secrets.register(mcp)          # gitleaks / trufflehog / git-dumper wrappers — secret leakage + .git exposure chain
 analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies) + run_opengrep_source (repo SAST)

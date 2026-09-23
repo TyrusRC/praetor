@@ -24,14 +24,27 @@ AGENTS_DIR = Path(__file__).resolve().parents[4] / ".claude" / "agents"
 _DESC = re.compile(r"^description:\s*(.+)$", re.MULTILINE)
 _MODEL = re.compile(r"^model:\s*(.+)$", re.MULTILINE)
 
+# Claude model pin -> host-agnostic tier. A non-Claude host maps the tier to its
+# own nearest model instead of the Anthropic name it cannot resolve.
+_TIER = {
+    "opus": "strategic",   # strongest reasoning model — commanders / hard decisions
+    "sonnet": "standard",  # balanced default — most workers
+    "haiku": "fast",       # cheapest/fastest — bulk, low-stakes
+}
+
 
 def _field(text: str, rx: re.Pattern) -> str:
     m = rx.search(text)
     return m.group(1).strip() if m else ""
 
 
+def _tier(model: str) -> str:
+    """Generic tier for a Claude model pin; 'default' when unpinned/unknown."""
+    return _TIER.get(model.split()[0].lower(), "default") if model else "default"
+
+
 def agent_entries() -> list[dict]:
-    """Pure: every agent's {name, description, model}, sorted. [] if no dir."""
+    """Pure: every agent's {name, description, model, tier}, sorted. [] if no dir."""
     if not AGENTS_DIR.exists():
         return []
     out = []
@@ -40,10 +53,12 @@ def agent_entries() -> list[dict]:
             text = p.read_text(encoding="utf-8")
         except OSError:
             text = ""
+        model = _field(text, _MODEL)
         out.append({
             "name": p.stem,
             "description": _field(text, _DESC),
-            "model": _field(text, _MODEL),
+            "model": model,
+            "tier": _tier(model),
         })
     return out
 
@@ -72,8 +87,10 @@ def register(mcp: FastMCP) -> None:
         (dsh / Codex) can't dispatch them but CAN read each playbook and follow it
         inline, driving the flow with the orchestration tools (get_hunt_plan /
         get_next_action / route_signals / judge_completion) instead of parallel
-        dispatch. Returns each agent's name, one-line description, and pinned
-        model. Load a full playbook with `get_agent(name)`.
+        dispatch. Returns each agent's name, one-line description, pinned Claude
+        `model`, and a host-agnostic `tier` (strategic / standard / fast /
+        default) — map the tier to your platform's nearest model when you are not
+        on Claude. Load a full playbook with `get_agent(name)`.
         """
         entries = agent_entries()
         if not entries:

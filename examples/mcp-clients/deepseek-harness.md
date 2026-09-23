@@ -64,21 +64,37 @@ zstdcat ~/.dsh/sessions/*/*/session*.jsonl.zstd | grep -E '"mcp__praetor__' | he
 ## 5. Rules, skills, agents on dsh — use the tools, not the resources
 
 `dsh-mcp-client` bridges the MCP **Tools** capability only; **Resources and Prompts
-are deferred**. So the `burp://rules/*` and `burp://skills/*` resources are invisible
-on dsh — but everything Claude Code auto-loads from disk is also exposed as **tools**,
-so dsh gets full parity. Call these; don't rely on resources:
+are deferred**. So the `burp://rules/*` and `burp://skills/*` resources and the MCP
+prompt launchers are invisible on dsh — but everything Claude Code auto-loads from
+disk (including CLAUDE.md and the prompt templates) is ALSO exposed as **tools**, so
+dsh gets full parity. Call these; don't rely on resources:
 
 - `mcp__praetor__praetor_bootstrap` → **call this first.** Returns the session-start
-  flow (web / network / mobile lanes + the save-finding pipeline) and points to
-  everything below. The one call that hands a non-Claude host the same operating
-  context Claude Code loads natively.
-- `mcp__praetor__get_rules` (`hunting` | `engineering`) → the always-active rule files.
+  flow (web / network / mobile lanes + the save-finding pipeline), the model-tier
+  mapping, and points to everything below. The one call that hands a non-Claude host
+  the same operating context Claude Code loads natively.
+- `mcp__praetor__get_rules` (`hunting` | `engineering` | `project`) → the always-active
+  rule files **and the project CLAUDE.md** (`project`) — the save-finding gates,
+  override surfaces and output discipline Claude Code auto-loads but dsh never sees.
 - `mcp__praetor__list_skills` / `mcp__praetor__get_skill` (`name`) → procedural
   playbooks (verify-finding, chain-findings, lab-solve, …).
+- `mcp__praetor__list_prompts` / `mcp__praetor__get_prompt` (`name`, `args`) → one-call
+  workflow launchers (hunt-target, triage-program, save-finding-checklist, …) — the
+  MCP prompts, as tools, so a Prompts-deferring host still gets them.
+- `mcp__praetor__list_knowledge` / `mcp__praetor__get_knowledge` (`category`) → the
+  probe-class knowledge base (matchers + craft guidance) `auto_probe` consumes — the
+  `burp://knowledge/*` resources, as tools.
 - `mcp__praetor__list_agents` / `mcp__praetor__get_agent` (`name`) → the agent-team
   strategy playbooks (pentest-commander, recon-agent, auth-tester, …). dsh spawns a
   sub-agent per playbook — give each the markdown from `get_agent` as its system
   prompt, exactly as Claude Code dispatches them.
+
+**Model tiers.** Agent playbooks pin Claude tiers (`opus` / `sonnet` / `haiku`);
+`list_agents` also returns a host-agnostic `tier` — map it to your platform's nearest
+model: **strategic** = your strongest reasoning model (commanders + hunting Rule 33's
+"what next and why" escalation), **standard** = your balanced default (most workers),
+**fast** = your cheapest/fastest (bulk steps). One model only? Run everything on it —
+the Rule 33 escalation becomes a no-op, not a blocker.
 
 Safety Rules 5–9 and the 7-gate save-finding pipeline are enforced in the tool layer,
 so they hold on dsh regardless of what the agent loads. Discovery of the rest:
@@ -93,13 +109,16 @@ in its preset / system prompt so it uses the tools under the HARD safety rules.
 
 ```text
 You are a penetration tester operating the Praetor toolset over DeepSeek Harness.
-Call mcp__praetor__praetor_bootstrap FIRST — it returns the flow and points to the
-rules, skills, and agent playbooks. Load the full rules with
-mcp__praetor__get_rules("hunting") and mcp__praetor__get_rules("engineering").
-Capabilities are the mcp__praetor__* tools; find them with
-mcp__praetor__list_tier1_tools / mcp__praetor__pick_tool. Load procedural playbooks
-with mcp__praetor__list_skills then mcp__praetor__get_skill("<name>"); load agent
-strategy playbooks with mcp__praetor__list_agents / mcp__praetor__get_agent("<name>").
+Call mcp__praetor__praetor_bootstrap FIRST — it returns the flow, the model-tier
+mapping, and points to the rules, skills, prompts, and agent playbooks. Load the full
+rules with mcp__praetor__get_rules("hunting"), mcp__praetor__get_rules("engineering"),
+and mcp__praetor__get_rules("project") (the project CLAUDE.md). Capabilities are the
+mcp__praetor__* tools; find them with mcp__praetor__list_tier1_tools /
+mcp__praetor__pick_tool. Load procedural playbooks with mcp__praetor__list_skills then
+mcp__praetor__get_skill("<name>"); one-call launchers with mcp__praetor__list_prompts /
+mcp__praetor__get_prompt("<name>"); load agent strategy playbooks with
+mcp__praetor__list_agents / mcp__praetor__get_agent("<name>") and map each agent's
+`tier` (strategic / standard / fast) to your nearest model.
 
 Track the engagement as a lineage: call mcp__praetor__record_goal once, then
 mcp__praetor__record_intent (a hypothesis) and mcp__praetor__record_fact (what you

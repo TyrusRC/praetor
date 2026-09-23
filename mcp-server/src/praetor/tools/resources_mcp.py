@@ -84,15 +84,12 @@ def register(mcp: FastMCP):
     @mcp.resource("burp://knowledge/index")
     def knowledge_index() -> str:
         """List of all knowledge-base categories with their context counts."""
-        rows = []
-        for f in sorted(KNOWLEDGE_DIR.glob("*.json")):
-            try:
-                data = json.loads(f.read_text(encoding="utf-8"))
-                ctx_count = len(data.get("contexts") or {})
-                desc = data.get("description") or data.get("category") or ""
-                rows.append(f"- {f.stem} ({ctx_count} contexts) — {desc[:80]}")
-            except Exception as e:
-                rows.append(f"- {f.stem} — parse error: {e}")
+        from praetor.tools.knowledge_access import knowledge_entries
+        entries = knowledge_entries()
+        if not entries:
+            return f"no knowledge categories under {KNOWLEDGE_DIR}"
+        rows = [f"- {e['name']} ({e['contexts']} contexts) — {e['description'][:80]}"
+                for e in entries]
         return "Knowledge base categories:\n" + "\n".join(rows)
 
     @mcp.resource("burp://knowledge/{category}")
