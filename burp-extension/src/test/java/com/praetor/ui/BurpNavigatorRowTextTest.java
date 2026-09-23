@@ -44,6 +44,18 @@ class BurpNavigatorRowTextTest {
     }
 
     @Test
+    void multiTokenAndsHostAndPathAcrossColumns() {
+        // host in one column + path in another; both must be present in the row
+        assertEquals(3, rowForText(history(), "accounts.example.com /oidc/callback"));
+    }
+
+    @Test
+    void allTokensMustMatchSameRow() {
+        // path exists (rows 1,3) but not on the google.com host -> no row has both
+        assertEquals(-1, rowForText(history(), "www.google.com /oidc/callback"));
+    }
+
+    @Test
     void noMatchReturnsMinusOne() {
         assertEquals(-1, rowForText(history(), "/does/not/exist"));
     }

@@ -230,8 +230,9 @@ public final class BurpNavigator {
         return table.getRowCount() - 1;
     }
 
-    /** View-row whose ANY column text contains {@code needle} (case-insensitive);
-     *  the LAST (newest) matching row, or -1 if none / empty table / blank needle.
+    /** View-row where EVERY whitespace-separated token of {@code needle} appears
+     *  in some column (case-insensitive AND); the LAST (newest) such row, or -1 if
+     *  none / empty table / blank needle.
      *
      *  <p>This is the translator the numeric {@link #rowForNumber} can't be: a
      *  Praetor evidence index (proxy-history list ordinal, {@code logger_index})
@@ -239,23 +240,40 @@ public final class BurpNavigator {
      *  an evidence index cannot address the right row by number. Matching on the
      *  request text Burp actually shows (host / method / URL columns) sidesteps
      *  both numbering spaces — the programmatic equivalent of typing into Burp's
-     *  search box. Last match wins so a repeated request lands on the newest. */
+     *  search box. A single token is a plain substring match; multiple tokens
+     *  (e.g. "host /path") AND across columns, so a caller can disambiguate a
+     *  path that repeats across hosts or a bare "/" root. Last match wins so a
+     *  repeated request lands on the newest. */
     static int rowForText(JTable table, String needle) {
         if (table.getRowCount() == 0 || needle == null || needle.isBlank()) {
             return -1;
         }
-        String want = needle.trim().toLowerCase(Locale.ROOT);
+        String[] tokens = needle.trim().toLowerCase(Locale.ROOT).split("\\s+");
         int hit = -1;
         for (int r = 0; r < table.getRowCount(); r++) {
-            for (int c = 0; c < table.getColumnCount(); c++) {
-                Object v = table.getValueAt(r, c);
-                if (v != null && v.toString().toLowerCase(Locale.ROOT).contains(want)) {
-                    hit = r;   // keep scanning: last (newest) match wins
-                    break;
-                }
+            if (rowHasAllTokens(table, r, tokens)) {
+                hit = r;   // keep scanning: last (newest) match wins
             }
         }
         return hit;
+    }
+
+    /** True when every token appears in at least one column of view-row {@code r}. */
+    private static boolean rowHasAllTokens(JTable table, int r, String[] tokens) {
+        for (String tok : tokens) {
+            boolean found = false;
+            for (int c = 0; c < table.getColumnCount(); c++) {
+                Object v = table.getValueAt(r, c);
+                if (v != null && v.toString().toLowerCase(Locale.ROOT).contains(tok)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The JTable with the most rows under {@code root} — the history/results

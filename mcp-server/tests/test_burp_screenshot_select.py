@@ -46,11 +46,13 @@ class SelectRowByIdentityTest(unittest.TestCase):
         # a URL substring must NOT trigger a history lookup
         self.assertFalse(any(p.startswith("/api/proxy/history/") for p, _ in self.calls))
 
-    def test_proxy_index_resolves_to_url_path(self):
+    def test_proxy_index_resolves_to_host_and_path(self):
         params = self._run(select_proxy_index=42)
-        # server looked the index up and matched by the request's PATH, not "#42"
+        # server looked the index up and matched by host+path (AND), not "#42" —
+        # host pins the request when a path repeats across hosts.
         self.assertIn(("/api/proxy/history/42", {}), self.calls)
-        self.assertEqual(params.get("select_match"), "/oidc/callback")
+        self.assertEqual(params.get("select_match"),
+                         "accounts.example.com /oidc/callback")
 
     def test_select_url_wins_over_index(self):
         params = self._run(select_url="wanted", select_proxy_index=42)
