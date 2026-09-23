@@ -52,6 +52,7 @@ from praetor.tools import (
     adhoc_probe,
     workspace,
     oplog,
+    ocr_read,
     redteam,
     network,
     offline,
@@ -239,6 +240,7 @@ mcp_invisible_unicode.register(mcp)             # detect_mcp_invisible_unicode �
 adhoc_probe.register(mcp)                        # run_adhoc_probe — F1 NL->probe (validate + run, fail-closed)
 workspace.register(mcp)                          # scaffold_workspace — engagement workspace tree (Spec 1)
 oplog.register(mcp)                              # get_operation_log / verify_operation_log — server-written action ledger
+ocr_read.register(mcp)                           # read_screenshot_text — OCR a saved screenshot into text (cheap recon vs vision-token Read)
 
 # After every register(): tag each tool so the Burp calls it makes are attributed
 # to it in the operation ledger. Done centrally because a per-tool decorator is
