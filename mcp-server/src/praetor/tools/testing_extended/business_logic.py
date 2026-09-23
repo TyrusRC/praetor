@@ -106,6 +106,7 @@ def register(mcp: FastMCP):
 
         anomalies = []
 
+        valid = 0  # probes that actually executed (Rule 13b positive control)
         for category, tests in test_cases.items():
             lines.append(f"--- {category} ---")
             for value, desc in tests:
@@ -118,6 +119,7 @@ def register(mcp: FastMCP):
                 if "error" in resp:
                     lines.append(f"  {desc} ({fmt_val(value)}): Error — {resp['error']}")
                     continue
+                valid += 1
 
                 status = resp.get("status", 0)
                 body = resp.get("response_body", "")
@@ -156,9 +158,12 @@ def register(mcp: FastMCP):
         elif anomalies:
             verdict, confidence = "SUSPECTED", 0.55
             ev = f"{len(anomalies)} business-logic anomalies — operator review per item"
-        else:
+        elif valid:
             verdict, confidence = "FAILED", 0.1
             ev = "no business-logic anomalies across boundary / negative / type-confusion inputs"
+        else:
+            verdict, confidence = "INCONCLUSIVE", 0.0
+            ev = "every business-logic probe errored — test never ran"
 
         return make_verdict(
             verdict, confidence, ev,

@@ -108,6 +108,7 @@ def register(mcp: FastMCP):
         ]
 
         findings: list[str] = []
+        valid = 0  # variants that actually executed (Rule 13b positive control)
 
         for ct, vbody, label in variants:
             send_headers = {"Content-Type": ct} if ct else {}
@@ -119,6 +120,7 @@ def register(mcp: FastMCP):
             if "error" in r:
                 lines.append(f"  {label}: error — {r['error']}")
                 continue
+            valid += 1
             s = r.get("status", 0)
             ln = len(r.get("response_body", ""))
 
@@ -148,9 +150,11 @@ def register(mcp: FastMCP):
             lines.append("No content-type parser divergence detected.")
 
         human = "\n".join(lines)
-        verdict, confidence = verdict_from_tally(len(findings))
+        verdict, confidence = verdict_from_tally(len(findings), valid_runs=valid)
         ev = (f"content-type parser divergence: {len(findings)} variant(s) accepted differently"
-              if findings else "no parser divergence across JSON / form / multipart / XML / plain")
+              if findings else
+              ("no parser divergence across JSON / form / multipart / XML / plain"
+               if valid else "every content-type variant errored — test never ran"))
 
         return make_verdict(
             verdict, confidence, ev,

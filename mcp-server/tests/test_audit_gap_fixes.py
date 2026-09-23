@@ -134,5 +134,36 @@ class RateLimitValidityTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "INCONCLUSIVE")
 
 
+# ── Wave 3b: probe-validity gate (all sub-probes errored) ────────────────
+
+class TallyValidityGateTest(unittest.TestCase):
+    """verdict_from_tally: zero valid runs is INCONCLUSIVE, not FAILED — the
+    shared guard behind the ~10 probe modules that count sub-probe hits."""
+
+    def test_zero_valid_runs_is_inconclusive(self):
+        from praetor.tools.testing._verdict import verdict_from_tally
+        self.assertEqual(verdict_from_tally(0, valid_runs=0)[0], "INCONCLUSIVE")
+        # untracked (None) keeps the old two-outcome behaviour
+        self.assertEqual(verdict_from_tally(0)[0], "FAILED")
+        self.assertEqual(verdict_from_tally(0, valid_runs=3)[0], "FAILED")
+        self.assertEqual(verdict_from_tally(2, valid_runs=3)[0], "CONFIRMED")
+
+
+class WorkflowReorderBrokenBaselineTest(unittest.IsolatedAsyncioTestCase):
+    """A broken legitimate happy-path used to still emit FAILED 'workflow
+    defended'. A baseline that does not complete is INCONCLUSIVE."""
+
+    async def test_broken_baseline_is_inconclusive(self):
+        async def fake_post(path, json=None):
+            return {"status": 500, "response_body": "err"}  # final step never 2xx
+        with patch("praetor.tools.testing_extended.workflow_reorder.client.post",
+                   new=AsyncMock(side_effect=fake_post)):
+            fn = _tool("probe_workflow_reorder")
+            out = await fn(session="s",
+                           steps=[{"method": "POST", "path": "/a"},
+                                  {"method": "POST", "path": "/b"}])
+        self.assertEqual(out["verdict"], "INCONCLUSIVE")
+
+
 if __name__ == "__main__":
     unittest.main()

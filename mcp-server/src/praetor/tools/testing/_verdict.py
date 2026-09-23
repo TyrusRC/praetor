@@ -180,6 +180,7 @@ def verdict_from_tally(
     confirmed_confidence: float = 0.85,
     suspected_confidence: float = 0.55,
     failed_confidence: float = 0.10,
+    valid_runs: int | None = None,
 ) -> tuple[str, float]:
     """Common pattern: derive (verdict, confidence) from a count of positive hits.
 
@@ -188,12 +189,20 @@ def verdict_from_tally(
         hits == 1 → SUSPECTED (0.55)
         hits == 0 → FAILED    (0.10)
 
+    `valid_runs` is the number of sub-probes that ACTUALLY executed (did not
+    error). When it is 0, the test never validly ran — every variant errored on
+    top of a good baseline — so `hits == 0` is NOT a covered-negative: the result
+    is ("INCONCLUSIVE", 0.0), never FAILED (Rule 13b). Callers that don't track it
+    leave it None and keep the old two-outcome behaviour.
+
     Tools needing custom thresholds pass their own values; tools needing
     custom verdict logic (e.g. CONFIRMED only when a CRITICAL subset is hit)
     keep using make_verdict directly.
 
     Returns: (verdict_string, confidence_float).
     """
+    if valid_runs == 0:
+        return ("INCONCLUSIVE", 0.0)
     if hits >= confirmed_threshold:
         return ("CONFIRMED", confirmed_confidence)
     if hits >= 1:
