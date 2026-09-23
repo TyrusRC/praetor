@@ -295,8 +295,10 @@ extension):
 ```
 
 Saving hot-reloads (no restart); tools appear as `mcp__praetor__*`. dsh bridges MCP
-**Tools only** (Resources/Prompts deferred), so skills come from the `list_skills` /
-`get_skill` tools. Full walkthrough — verification, a pentest system-prompt, and
+**Tools only** (Resources/Prompts deferred), so call `praetor_bootstrap()` first and pull
+everything Claude Code auto-loads via tools — `get_rules` (incl. `project`),
+`list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent`,
+`list_knowledge`/`get_knowledge`. Full walkthrough — verification, a pentest system-prompt, and
 running **alongside dsh-pentest** (`engagement_graph(format='dsh')` mirrors Praetor's
 lineage into its live graph) — is in
 [`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md).
@@ -467,7 +469,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
 | Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset); `engagement_graph(format='dsh')` mirrors into dsh-pentest |
-| Skills (cross-host) | `list_skills`, `get_skill` — the `.claude/skills` playbooks as tools, for any MCP host |
+| Host-parity bridge (cross-host) | `praetor_bootstrap` (call first on a non-Claude host), `get_rules` (`hunting`/`engineering`/`project`), `list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent`, `list_knowledge`/`get_knowledge` — everything Claude Code auto-loads from disk, exposed as tools for any MCP host |
 | Observability | `harness_log` (universal tool-call ledger — every call timed, secret-free), `get_operation_log` (Burp-call ledger), `verify_operation_log` |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
