@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import _toolcalls, _verify
 from ._store import oplog_path, read_entries
+from ._store import rotate_operator_log as _rotate_operator_log
 
 # Name of the MCP tool currently executing. Set by instrument_tools(), read by
 # client._log_operation so each ledger line says which tool caused it.
@@ -167,6 +168,32 @@ def register(mcp: FastMCP):
             "ledger": str(oplog_path()),
             "human_summary": "\n".join(lines),
         }
+
+    @mcp.tool()
+    async def rotate_operator_log(apply: bool = False, max_entries: int = 5000) -> dict:
+        """Archive-and-truncate the operation ledger so it stays bounded — never deletes.
+
+        The ledger (`.burp-intel/_oplog.jsonl`) is the tool layer's own
+        chain-of-custody record of what actually reached Burp/targets, so it
+        must never lose history to a size cap. When the live file holds more
+        than `max_entries` lines, the older entries are moved verbatim to a
+        new timestamped `_oplog.<YYYYMMDD-HHMMSS>.jsonl` file next to it, and
+        the live file is rewritten with only the most-recent `max_entries`
+        tail — archive + tail together always equal the original entries.
+        This is separate from the existing byte-size auto-rotation
+        (`_rotate_if_needed`), which keeps only one previous generation.
+
+        Dry-run by default (`apply=False`): reports how many entries would
+        archive, the archive filename, and bytes — writes/moves nothing.
+        Pass `apply=True` to perform the archive + truncate. Atomic via
+        tempfile + os.replace for both files, so a crash mid-rotation cannot
+        corrupt the live ledger.
+
+        Args:
+            apply: perform the archive + truncate. Default False (report only).
+            max_entries: live-ledger entry cap that triggers archival.
+        """
+        return _rotate_operator_log(max_entries=max(1, int(max_entries or 5000)), apply=apply)
 
     @mcp.tool()
     async def verify_operation_log(host: str = "", limit: int = 500) -> dict:

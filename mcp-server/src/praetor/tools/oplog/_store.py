@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -146,6 +147,107 @@ def record(entry: dict) -> None:
                 fh.write(json.dumps(packed, default=str, separators=(",", ":")) + "\n")
     except Exception:
         pass
+
+
+def _atomic_write_lines(path: Path, lines: list[str]) -> None:
+    """Write `lines` to `path` atomically: temp file in the same directory,
+    then os.replace() — same tempfile+os.replace pattern used elsewhere in the
+    codebase for JSON stores, so a crash mid-write can never leave a torn file.
+    """
+    fd, tmp_name = tempfile.mkstemp(prefix=".oplog-", suffix=".jsonl", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            for line in lines:
+                fh.write(line + "\n")
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+def rotate_operator_log(max_entries: int = 5000, apply: bool = False) -> dict:
+    """Archive older ledger entries so the live file stays bounded — never deletes.
+
+    This is deliberately separate from `_rotate_if_needed` (byte-size triggered,
+    keeps exactly one previous generation in `_oplog.1.jsonl` and overwrites it
+    on the next rotation, so history past two generations is lost). The ledger
+    backs chain-of-custody / ATT&CK-adjacent evidence of what the tool layer
+    actually sent, so archive-not-delete is the only acceptable mode here: every
+    entry pushed out of the live tail is written verbatim to a new, uniquely
+    named `_oplog.<YYYYMMDD-HHMMSS>.jsonl` file next to the ledger — never
+    overwritten, never truncated. Archive + live tail together always equal the
+    original entries.
+
+    Dry-run by default (`apply=False`): reports what would move, touches
+    nothing. `apply=True` performs the archive write and the live-file rewrite
+    each via tempfile + os.replace, so a crash mid-rotation cannot corrupt
+    either file — worst case on a crash between the two replaces is a few
+    entries duplicated across archive and live, never a gap.
+    """
+    path = oplog_path()
+    if not path.exists():
+        return {
+            "path": str(path), "total_entries": 0, "archived": 0, "kept": 0,
+            "archive_path": None, "dry_run": not apply,
+            "summary": "no ledger file yet — nothing to rotate",
+        }
+
+    with _LOCK:
+        try:
+            lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        except OSError as exc:
+            return {"error": f"cannot read ledger: {exc}"}
+
+        total = len(lines)
+        if total <= max_entries:
+            return {
+                "path": str(path), "total_entries": total, "archived": 0,
+                "kept": total, "archive_path": None, "dry_run": not apply,
+                "summary": f"{total} entries <= max_entries={max_entries}; nothing to rotate",
+            }
+
+        archive_lines = lines[:-max_entries] if max_entries > 0 else lines
+        tail_lines = lines[-max_entries:] if max_entries > 0 else []
+        archive_bytes = sum(len(ln.encode("utf-8")) + 1 for ln in archive_lines)
+
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        archive_path = path.with_name(f"{path.stem}.{ts}.jsonl")
+        suffix = 0
+        while archive_path.exists():
+            suffix += 1
+            archive_path = path.with_name(f"{path.stem}.{ts}-{suffix}.jsonl")
+
+        result = {
+            "path": str(path),
+            "total_entries": total,
+            "archived": len(archive_lines),
+            "kept": len(tail_lines),
+            "archive_path": str(archive_path),
+            "archive_bytes": archive_bytes,
+            "dry_run": not apply,
+        }
+
+        if not apply:
+            result["summary"] = (
+                f"[dry-run] would archive {len(archive_lines)} entries "
+                f"({archive_bytes}B) to {archive_path.name}, keep {len(tail_lines)} in live ledger"
+            )
+            return result
+
+        try:
+            _atomic_write_lines(archive_path, archive_lines)
+            _atomic_write_lines(path, tail_lines)
+        except OSError as exc:
+            return {"error": f"rotation failed: {exc}"}
+
+        result["summary"] = (
+            f"Archived {len(archive_lines)} entries to {archive_path.name}, "
+            f"live ledger now holds {len(tail_lines)} entries"
+        )
+        return result
 
 
 def _unpack(row: dict) -> dict:
