@@ -7,6 +7,8 @@ CVSS 4.0 metric reference:
   Calculator: https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator
 """
 
+from praetor.tools._vuln_class import canonical
+
 CVSS4_CALCULATOR_URL = "https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator"
 
 # Severity caps for vulnerability classes that are informative at best
@@ -66,6 +68,14 @@ SEVERITY_CAPS_BY_TITLE = {
 
 # Backward-compat alias for any older callers reaching SEVERITY_CAPS directly.
 SEVERITY_CAPS = SEVERITY_CAPS_BY_VULN_TYPE
+
+# Canonicalized view of the cap table. The keys above are human spellings
+# (missing_security_header, cookie_flag, cors_no_credentials, ...) but callers
+# pass the canonical class (missing_headers, cookie_flags, cors_no_creds), so a
+# raw-lower lookup missed the cap and could FALSE-REJECT an honestly-capped LOW.
+# Match on canonical() at both lookup sites instead (Rule 14d — caps stable
+# across spellings).
+_SEVERITY_CAPS_CANON = {canonical(k): v for k, v in SEVERITY_CAPS_BY_VULN_TYPE.items()}
 
 SEVERITY_RANK = {"CRITICAL": 5, "HIGH": 4, "MEDIUM": 3, "LOW": 2, "INFO": 1}
 
@@ -139,9 +149,9 @@ def honest_severity(claimed: str, vuln_type: str, title: str, evidence: str, imp
     matched_key = None
 
     # Tier 1: exact vuln_type match (operator-controlled label is authoritative)
-    vt = (vuln_type or "").strip().lower()
-    if vt and vt in SEVERITY_CAPS_BY_VULN_TYPE:
-        cap = SEVERITY_CAPS_BY_VULN_TYPE[vt]
+    vt = canonical(vuln_type or "")
+    if vt and vt in _SEVERITY_CAPS_CANON:
+        cap = _SEVERITY_CAPS_CANON[vt]
         matched_key = vt
 
     # Tier 2: title-substring fallback ONLY when no vuln_type (or vuln_type didn't match)
@@ -214,9 +224,9 @@ def cvss4_for_finding(
 
 def severity_cap_for(vuln_type: str, title: str = "") -> str:
     """Return the honest-severity cap for a class, or '' when uncapped."""
-    vt = (vuln_type or "").strip().lower()
-    if vt and vt in SEVERITY_CAPS_BY_VULN_TYPE:
-        return SEVERITY_CAPS_BY_VULN_TYPE[vt]
+    vt = canonical(vuln_type or "")
+    if vt and vt in _SEVERITY_CAPS_CANON:
+        return _SEVERITY_CAPS_CANON[vt]
     title_l = (title or "").lower()
     for key, cap in SEVERITY_CAPS_BY_TITLE.items():
         if key in title_l:

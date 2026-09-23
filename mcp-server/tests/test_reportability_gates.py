@@ -98,12 +98,15 @@ class _SaveHarness(unittest.IsolatedAsyncioTestCase):
 
 class TestInfoGate(_SaveHarness):
     async def test_info_severity_is_refused(self):
-        out = await self.save(severity="INFO", vuln_type="info_disclosure")
+        # Use a class that is not itself a NEVER-SUBMIT class, so the INFO gate is
+        # what fires (info_disclosure is now caught earlier by the conditional
+        # never-submit gate — see NeverSubmitConditionalGateTest).
+        out = await self.save(severity="INFO", vuln_type="xss")
         self.assertIn("INFO GATE", out)
         self.assertIn("lead, not a result", out)
 
     async def test_refusal_names_the_escalation_to_try(self):
-        out = await self.save(severity="INFO", vuln_type="info_disclosure")
+        out = await self.save(severity="INFO", vuln_type="xss")
         self.assertIn("ENABLES", out)
 
     async def test_low_and_above_pass_the_info_gate(self):

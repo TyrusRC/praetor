@@ -165,5 +165,52 @@ class WorkflowReorderBrokenBaselineTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out["verdict"], "INCONCLUSIVE")
 
 
+# ── Wave 4: save-finding gate holes ──────────────────────────────────────
+
+class NeverSubmitConditionalGateTest(unittest.TestCase):
+    """save_finding's never_submit_gate enforced only the unconditional set, so a
+    conditional class (cors_no_creds) persisted standalone. It now mirrors q6."""
+
+    def test_conditional_class_standalone_rejected(self):
+        from praetor.tools.notes.save._gates import never_submit_gate
+        self.assertIsNotNone(never_submit_gate("cors_no_creds", None, set(), "/api/x"))
+
+    def test_conditional_class_chained_allowed(self):
+        from praetor.tools.notes.save._gates import never_submit_gate
+        self.assertIsNone(never_submit_gate("cors_no_creds", ["f1"], set(), "/api/x"))
+
+    def test_conditional_class_override_allowed(self):
+        from praetor.tools.notes.save._gates import never_submit_gate
+        self.assertIsNone(
+            never_submit_gate("cors_no_creds", None, {"q6_never_submit"}, "/api/x"))
+
+
+class SeverityCapCanonicalTest(unittest.TestCase):
+    """severity_cap_for keyed on non-canonical spellings, so the canonical class
+    missed its cap and could false-reject an honestly-capped LOW."""
+
+    def test_canonical_class_hits_noncanonical_cap_key(self):
+        from praetor.tools.report.severity import severity_cap_for
+        canon_cap = severity_cap_for("missing_headers")
+        raw_cap = severity_cap_for("missing_security_header")
+        self.assertTrue(canon_cap)                 # canonical spelling now finds a cap
+        self.assertEqual(canon_cap, raw_cap)
+
+
+class DedupCanonicalTest(unittest.TestCase):
+    """Dedup keyed on raw-lower vuln_type, so two spellings of one class on the
+    same endpoint created two records instead of merging."""
+
+    def test_spelling_variants_merge(self):
+        from praetor.tools.notes._findings_dedupe import _dedupe_finding
+        existing = [{"id": "f1", "endpoint": "/x", "vuln_type": "reflected_xss",
+                     "title": "xss", "parameter": "q", "status": "confirmed"}]
+        new = {"endpoint": "/x", "vuln_type": "xss_reflected", "title": "xss",
+               "parameter": "q", "status": "confirmed"}
+        out, action, _idx = _dedupe_finding(existing, new)
+        self.assertEqual(action, "updated")        # merged, not a second record
+        self.assertEqual(len(out), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
