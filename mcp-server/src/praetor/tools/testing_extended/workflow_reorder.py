@@ -20,7 +20,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
-from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools.testing._verdict import error_verdict, inconclusive_verdict, make_verdict
 
 
 def _send_step(session: str, step: dict) -> dict:
@@ -91,7 +91,15 @@ def register(mcp: FastMCP):
             baseline_results.append(r)
         lines.append(_summary("[baseline]", baseline_results))
         if not _final_succeeded(baseline_results):
-            lines.append("WARNING: baseline final step did not return 2xx — flow may be misconfigured. Findings below are unreliable.")
+            # The legitimate happy-path itself did not complete, so every permutation
+            # would be measured against a broken baseline — the test never validly ran.
+            # Rule 13b: INCONCLUSIVE, not a "workflow defended" FAILED.
+            lines.append("baseline final step did not return 2xx — flow misconfigured "
+                         "or session invalid; cannot assess reordering.")
+            return inconclusive_verdict(
+                "workflow-reorder baseline (legitimate happy-path) did not complete — "
+                "cannot assess reordering; fix the session/flow and re-run",
+                vuln_type="business_logic", reason="baseline_failed")
 
         findings = []
 

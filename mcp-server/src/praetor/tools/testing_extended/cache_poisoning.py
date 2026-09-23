@@ -45,6 +45,7 @@ def register(mcp: FastMCP):
             ("X-Forwarded-Prefix", "/evil"),
         ]
 
+        valid = 0  # probes that actually executed (Rule 13b positive control)
         for header_name, header_value in unkeyed_headers:
             cache_path = f"{path}?cb={cb}-{header_name[:4]}"
             resp1 = await client.post("/api/session/request", json={
@@ -54,6 +55,7 @@ def register(mcp: FastMCP):
             if "error" in resp1:
                 lines.append(f"  {header_name}: Error — {resp1['error']}")
                 continue
+            valid += 1
 
             body1 = resp1.get("response_body", "")
             reflected = header_value.lower() in body1.lower()
@@ -110,6 +112,7 @@ def register(mcp: FastMCP):
             if "error" in resp:
                 lines.append(f"  {test_path}: Error")
                 continue
+            valid += 1
 
             status = resp.get("status", 0)
             body = resp.get("response_body", "")
@@ -158,6 +161,7 @@ def register(mcp: FastMCP):
             if "error" in resp:
                 lines.append(f"  Separator '{separator}': Error")
                 continue
+            valid += 1
 
             body = resp.get("response_body", "")
             if "evil<script>" in body or "evil%3Cscript%3E" in body.lower():
@@ -187,9 +191,12 @@ def register(mcp: FastMCP):
         elif findings:
             verdict, confidence = "SUSPECTED", 0.55
             ev = f"single cache vector flagged: {findings[0]}"
-        else:
+        elif valid:
             verdict, confidence = "FAILED", 0.1
             ev = "no cache poisoning across unkeyed headers / parameter cloaking"
+        else:
+            verdict, confidence = "INCONCLUSIVE", 0.0
+            ev = "every cache probe errored — test never ran"
 
         return make_verdict(
             verdict, confidence, ev,

@@ -108,6 +108,20 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 **Returns:** Confirmed LLM findings (injection/leak/agency/output-sink) with reproductions[], suspected candidates, and anomalies. Candidates from `run_*` sweeps are leads, not verdicts — each is verified (refusal ≠ compromise, echo ≠ sink) before save.
 **Constraint:** HARD Rule 5 — no unbounded-consumption flooding / token bombs (LLM10 is a rate-limit observation only); benign English canary markers, no destructive payloads. OOB via Collaborator only (Rule 9a). Indirect DOM-planted injection is `cua-hunt.md` / `probe_cua_injection_surface`, not this agent's echo tests. See `.claude/skills/playbook-llm-security.md`.
 
+### desktop-agent
+**Purpose:** Desktop application security testing — Electron / Tauri / WebView2 binary inspection, IPC fuzzing, and auto-update MITM. Dynamic + static of the desktop shell around the same backend other agents test.
+**When to dispatch:** The target ships a desktop client (Electron/Tauri/WebView2) and the operator has the binary installed. Triggered by `.claude/skills/dispatch-agents.md`.
+**Tools it should use:** `Bash` (unpack asar / inspect the binary), `get_proxy_history`, `extract_api_endpoints`, `search_history`, `build_target_header_profile`, `save_target_intel`, `annotate_request`.
+**Returns:** IPC sink map, exposed `nodeIntegration`/preload surface, captured backend endpoints + headers, auto-update channel + signature-check status.
+**Constraint:** One desktop-agent per binary; no recursion. Don't submit shell-hardening gaps as standalone findings — they are the means, not the bug.
+
+### screenshot-triage
+**Purpose:** Read ONE saved screenshot and return a compact list of leads (forms, endpoints, error strings, auth markers) — cheap OCR-first triage that keeps vision tokens out of the main agent's context.
+**When to dispatch:** A screenshot has been captured and the orchestrator needs its leads without loading the image into its own context. Triggered by `.claude/skills/screenshot-token-economy.md`.
+**Tools it should use:** `read_screenshot_text`, `redact_screenshot`, `save_target_notes`.
+**Returns:** Compact lead list (forms / endpoints / error strings / auth markers); no image tokens leave the sub-agent.
+**Constraint:** One screenshot per dispatch; OCR-first — only fall back to vision when OCR is insufficient.
+
 ## Dispatch Rules
 
 1. **Never dispatch agents that make requests to the SAME endpoint simultaneously** — this can trigger WAF rate limiting and corrupt results.

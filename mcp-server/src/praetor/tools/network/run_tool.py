@@ -113,18 +113,28 @@ async def run_sanctioned(
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     out_path = ""
+    write_err = ""
     try:
         safe = b.replace("/", "_").replace(".", "_")
         out_path = str(write_tool_output(resolved_domain, f"{safe}-{ts}.txt", combined))
-    except (OSError, ValueError):
-        pass
+    except (OSError, ValueError) as _e:
+        # Don't swallow silently — a lost dump is otherwise invisible. Record the
+        # failure in the oplog output so the gap is at least traceable.
+        write_err = f"tool-output file not saved: {_e}"
+        combined += f"\n[{write_err}]"
 
     from praetor.tools.redteam._oplog import record_action
     op_id = record_action(resolved_domain, binary, " ".join(cmd), description=description,
                           target=target, output=combined, output_path=out_path, returncode=rc)
 
-    return {"ok": True, "error": "", "oplog_id": op_id, "rc": rc,
-            "output": combined, "output_path": out_path, "tool": binary, "target": target}
+    # A tool that exited non-zero with NO stdout did not enumerate — it was
+    # refused / auth-failed / unreachable. Reporting ok=True there renders a failed
+    # run as "enumerated, no leads" and silently drops kill-chain legs.
+    tool_failed = rc != 0 and not stdout.strip()
+    return {"ok": not tool_failed,
+            "error": (f"{binary} exited rc={rc} with no output" if tool_failed else ""),
+            "oplog_id": op_id, "rc": rc, "output": combined, "output_path": out_path,
+            "tool": binary, "target": target, "output_write_error": write_err}
 
 
 def register(mcp: FastMCP) -> None:

@@ -123,13 +123,15 @@ def register(mcp: FastMCP) -> None:
         if cracker == "hashcat":
             run = ["hashcat", "-m", mode, "-a", "0", str(hfile), wl,
                    "--potfile-path", potfile, "--quiet"]
-            await _run_cmd(run, timeout=timeout, bypass_proxy=True)
+            _rout, run_err, run_rc = await _run_cmd(run, timeout=timeout, bypass_proxy=True)
+            ok_rc = run_rc in (0, 1)  # hashcat: 0=cracked, 1=exhausted — both normal
             show = ["hashcat", "-m", mode, str(hfile), "--show",
                     "--potfile-path", potfile, "--quiet"]
             out, _err, _rc = await _run_cmd(show, timeout=120, bypass_proxy=True)
         else:  # john
             run = ["john", f"--format=raw-{hash_type}", f"--wordlist={wl}", str(hfile)]
-            await _run_cmd(run, timeout=timeout, bypass_proxy=True)
+            _rout, run_err, run_rc = await _run_cmd(run, timeout=timeout, bypass_proxy=True)
+            ok_rc = run_rc == 0  # john returns 0 on normal completion
             out, _err, _rc = await _run_cmd(["john", "--show", str(hfile)], timeout=120, bypass_proxy=True)
 
         # Parse `hash:password` lines; last colon-field is the password.
@@ -146,9 +148,17 @@ def register(mcp: FastMCP) -> None:
             domain, cracker, " ".join(run), target="(offline)",
             description=f"crack {len(hash_list)} {hash_type} hashes",
             technique="T1110.002", tactic="Credential Access",
-            output=f"{len(cracked)} cracked", returncode=0)
+            output=f"{len(cracked)} cracked (rc={run_rc})", returncode=run_rc)
 
         if not cracked:
+            if not ok_rc:
+                # The cracker errored (bad -m mode, "No hashes loaded", GPU error,
+                # timeout) — an empty potfile here is NOT proof the hashes are
+                # uncrackable. Surface the failure instead of a clean "0 cracked".
+                return (f"crack_hashes ERROR: {cracker} exited rc={run_rc} without "
+                        f"cracking — the run FAILED (check -m {mode} / hash format / "
+                        f"GPU), not proof the hashes are safe. "
+                        f"stderr: {run_err.strip()[:200]} [{op_id}]")
             return (f"crack_hashes: 0/{len(hash_list)} {hash_type} cracked with "
                     f"{Path(wl).name} [{cracker}, {op_id}]. Try a bigger wordlist / rules.")
 

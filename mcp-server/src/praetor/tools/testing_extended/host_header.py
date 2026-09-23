@@ -36,7 +36,7 @@ def register(mcp: FastMCP):
             return error_verdict(str(err), vuln_type="host_header")
         scope_err = await scope_or_error(host, is_https, port)
         if scope_err:
-            return scope_err
+            return error_verdict(scope_err, vuln_type="host_header", reason="out_of_scope")
         scheme = "https" if is_https else "http"
         authority = host if (is_https and port == 443) or (not is_https and port == 80) else f"{host}:{port}"
         target_url = f"{scheme}://{authority}{path}"
@@ -49,6 +49,7 @@ def register(mcp: FastMCP):
             ("X-Rewrite-URL", {"X-Rewrite-URL": "/admin"}, "/admin"),
         ]
 
+        valid = 0  # variants that actually executed (Rule 13b positive control)
         for test_name, headers, check_value in tests:
             resp = await client.post("/api/http/send", json={
                 "method": "GET",
@@ -58,6 +59,7 @@ def register(mcp: FastMCP):
             if "error" in resp:
                 lines.append(f"  [{test_name}] Error: {resp['error']}")
                 continue
+            valid += 1
 
             body = resp.get("response_body", resp.get("body", ""))
             status = resp.get("status_code", resp.get("status", 0))
@@ -109,9 +111,12 @@ def register(mcp: FastMCP):
         elif findings:
             verdict, confidence = "SUSPECTED", 0.55
             ev = f"single host-header variant: {findings[0][0]}"
-        else:
+        elif valid:
             verdict, confidence = "FAILED", 0.1
             ev = "no host header injection detected"
+        else:
+            verdict, confidence = "INCONCLUSIVE", 0.0
+            ev = "every host-header variant errored — test never ran"
 
         return make_verdict(
             verdict, confidence, ev,

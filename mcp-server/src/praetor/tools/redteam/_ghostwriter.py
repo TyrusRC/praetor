@@ -118,14 +118,16 @@ async def sync(domain: str, what: str = "all") -> dict:
                 if "error" in res:
                     errors.append(f"finding {f['id']}: {res['error']}")
                     break
+                # The reportedFinding insert is the non-idempotent write — mark it
+                # synced NOW so a later retry never re-inserts a duplicate into the
+                # deliverable, even if the (secondary) timeline mirror below fails.
+                synced.add(f["id"])
+                pushed["findings"] += 1
                 # mirror onto the Oplog timeline so the finding is visible there
                 # too (tool contract: findings ride the timeline tagged vuln:/severity:)
                 tl = await _gql(_INSERT_OPLOG_ENTRY, {"obj": map_finding_to_oplog(f)})
                 if "error" in tl:
                     errors.append(f"finding {f['id']} timeline: {tl['error']}")
-                    break
-                synced.add(f["id"])
-                pushed["findings"] += 1
         marker["findings"] = sorted(synced)
 
     _save_marker(domain, marker)

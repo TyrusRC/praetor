@@ -217,14 +217,17 @@ def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, i
     Returns (updated_list, action, index) where action is 'created' or 'updated'
     and index points at the finding's position in the returned list.
     """
+    from praetor.tools._vuln_class import canonical
     key_ep = new.get("endpoint", "")
-    key_vuln = (new.get("vuln_type", "") or "").lower()
+    # Canonicalize so two spellings of one class (reflected_xss / xss_reflected)
+    # on the same endpoint+title+param merge instead of creating two records.
+    key_vuln = canonical(new.get("vuln_type", "") or "")
     key_title = new.get("title", "").lower()
     key_param = new.get("parameter", "")
 
     for i, f in enumerate(existing):
         same_ep = f.get("endpoint", "") == key_ep
-        same_vuln = (f.get("vuln_type", "") or "").lower() == key_vuln
+        same_vuln = canonical(f.get("vuln_type", "") or "") == key_vuln
         same_title = f.get("title", "").lower() == key_title
         same_param = f.get("parameter", "") == key_param
         if same_ep and same_vuln and same_title and same_param:

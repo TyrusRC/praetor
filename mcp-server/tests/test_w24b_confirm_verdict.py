@@ -210,7 +210,9 @@ class ConfirmSsrfVerdictTest(unittest.IsolatedAsyncioTestCase):
         ev = to_assess_evidence(out)
         self.assertEqual(ev["collaborator_interaction_id"], "abc123")
 
-    async def test_no_callback_failed(self):
+    async def test_no_callback_inconclusive(self):
+        # A missing OOB callback is not a clean negative (Rule 13b) — the callback
+        # is async/slow and egress may block it, so the verdict is INCONCLUSIVE.
         post_responses = iter([
             {"payload": "xyz.oastify.com"},
             *[{"proxy_index": 10 + i, "status_code": 200} for i in range(6)],
@@ -230,7 +232,7 @@ class ConfirmSsrfVerdictTest(unittest.IsolatedAsyncioTestCase):
                    new=AsyncMock(return_value=None)):
             fn = _tool("confirm_ssrf")
             out = await fn(endpoint="https://t/fetch", parameter="url", poll_seconds=1)
-        self.assertEqual(out["verdict"], "FAILED")
+        self.assertEqual(out["verdict"], "INCONCLUSIVE")
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -243,13 +245,12 @@ class ConfirmXxeVerdictTest(unittest.IsolatedAsyncioTestCase):
         out = await fn(endpoint="https://t/x", mode="hybrid")
         self.assertEqual(out["verdict"], "ERROR")
 
-    async def test_inband_hostname_extracted_confirmed(self):
-        # Parser greps lines that look like file content; a bare hostname-style
-        # line (alphanum + -_.) qualifies. Build a response where the entity
-        # expansion yields exactly such a line.
+    async def test_inband_passwd_row_confirmed(self):
+        # Only a file-content SHAPE (an /etc/passwd row) confirms entity
+        # resolution — a bare token no longer does (see the inconclusive test).
         async def fake_post(path, json=None):
             return {
-                "response_body": "Result:\nsomehostname\nthat is the host",
+                "response_body": "Result:\nroot:x:0:0:root:/root:/bin/bash\nend",
                 "status_code": 200,
                 "proxy_index": 99,
             }
@@ -259,6 +260,17 @@ class ConfirmXxeVerdictTest(unittest.IsolatedAsyncioTestCase):
             out = await fn(endpoint="https://t/xml", mode="inband")
         self.assertEqual(out["verdict"], "CONFIRMED")
         self.assertEqual(out["details"]["mode"], "inband")
+
+    async def test_inband_bare_token_is_inconclusive(self):
+        # A short alnum token could be file content OR a page nonce — not proof.
+        async def fake_post(path, json=None):
+            return {"response_body": "Result:\nsomehostname\nthat is the host",
+                    "status_code": 200, "proxy_index": 99}
+        with patch("praetor.tools.exploit.confirm_xxe.client.post",
+                   new=AsyncMock(side_effect=fake_post)):
+            fn = _tool("confirm_xxe")
+            out = await fn(endpoint="https://t/xml", mode="inband")
+        self.assertEqual(out["verdict"], "INCONCLUSIVE")
 
     async def test_inband_no_extract_failed(self):
         async def fake_post(path, json=None):

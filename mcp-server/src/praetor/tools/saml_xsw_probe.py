@@ -29,8 +29,11 @@ VerdictResult:
 
 from __future__ import annotations
 
+import base64
+
 from mcp.server.fastmcp import FastMCP
 
+from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 from ._saml_xsw_mutations import (  # re-exported for tests/importers
     _AUTH_OK_MARKERS, _SIG_REJECT_MARKERS, _SIG_RE, _ASSERTION_RE, _NAMEID_RE,

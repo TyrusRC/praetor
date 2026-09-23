@@ -102,6 +102,7 @@ def register(mcp: FastMCP):
         ]
 
         findings: list[str] = []
+        valid = 0  # variants that actually executed (Rule 13b positive control)
         for value, intent in _VARIANTS:
             mutated = deepcopy(body)
             try:
@@ -118,6 +119,7 @@ def register(mcp: FastMCP):
             if "error" in r:
                 lines.append(f"  {value!r} ({intent}): error — {r['error']}")
                 continue
+            valid += 1
             s = r.get("status", 0)
             rbody = r.get("response_body", "")
             ln = len(rbody)
@@ -156,9 +158,11 @@ def register(mcp: FastMCP):
             lines.append("No numeric-edge anomalies detected.")
 
         human = "\n".join(lines)
-        verdict, confidence = verdict_from_tally(len(findings))
+        verdict, confidence = verdict_from_tally(len(findings), valid_runs=valid)
         ev = (f"float/decimal rounding: {len(findings)}/{len(_VARIANTS)} variants accepted edge-case numerics"
-              if findings else "amount field rejects edge-case numerics — float rounding intact")
+              if findings else
+              ("amount field rejects edge-case numerics — float rounding intact"
+               if valid else "every numeric variant errored — test never ran"))
 
         return make_verdict(
             verdict, confidence, ev,

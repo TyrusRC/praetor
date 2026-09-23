@@ -180,6 +180,7 @@ def register(mcp: FastMCP):
             lines.append("")
 
         hits = []
+        valid = 0  # candidates that actually executed (Rule 13b positive control)
         for delta, candidate in candidates:
             cpath = path_template.replace("{ID}", candidate)
             r = await client.post("/api/session/request", json={
@@ -187,6 +188,7 @@ def register(mcp: FastMCP):
             })
             if "error" in r:
                 continue
+            valid += 1
             s = r.get("status", 0)
             ln = len(r.get("response_body", ""))
             # A hit is: 2xx AND length similar to baseline (so we know it's a real record, not an empty 200)
@@ -204,9 +206,11 @@ def register(mcp: FastMCP):
             lines.append("No additional valid IDs found in window.")
 
         human = "\n".join(lines)
-        verdict, confidence = verdict_from_tally(len(hits))
+        verdict, confidence = verdict_from_tally(len(hits), valid_runs=valid)
         ev = (f"monotonic-ID IDOR: {len(hits)} foreign records reachable in window of {len(candidates)} "
-              f"(kind={kind})" if hits else "no IDOR — monotonic-ID window probed clean")
+              f"(kind={kind})" if hits else
+              ("no IDOR — monotonic-ID window probed clean"
+               if valid else "every ID candidate errored — test never ran"))
 
         return make_verdict(
             verdict, confidence, ev,

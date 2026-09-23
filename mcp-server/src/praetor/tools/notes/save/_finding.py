@@ -107,7 +107,7 @@ def register(mcp: FastMCP):
                         for o in (overrides or [])}
 
         # ── Pre-persist validation gates (error string aborts the save) ──
-        never_err = _gates.never_submit_gate(vuln_type, chain_with, override_set)
+        never_err = _gates.never_submit_gate(vuln_type, chain_with, override_set, endpoint)
         if never_err is not None:
             return never_err
 
@@ -118,6 +118,13 @@ def register(mcp: FastMCP):
         impact_err = _gates.impact_gate(severity, impact, override_set)
         if impact_err is not None:
             return impact_err
+
+        scanner_err = _gates.scanner_proof_gate(
+            evidence_text, evidence, reproductions, human_verified,
+            impact, description, override_set
+        )
+        if scanner_err is not None:
+            return scanner_err
 
         cvss4_vector, cvss4_severity = cvss4_for_finding(
             vuln_type, evidence=evidence if isinstance(evidence, dict) else {},

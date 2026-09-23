@@ -125,11 +125,14 @@ def register(mcp: FastMCP) -> None:
                     res = await run_sanctioned(
                         tool, args, resolved, target=ip,
                         description=f"{step['why']} ({svc}/{pnum})", timeout=300)
-                    covered.add(sig)
                     if not res["ok"]:
+                        # Do NOT mark a failed/errored run covered — otherwise a
+                        # not-installed / scope-rejected / conn-refused tuple is
+                        # skipped forever on re-run, with no signal it never ran.
                         enum_runs.append({"ip": ip, "svc": svc, "tool": tool,
                                           "ok": False, "error": res["error"]})
                         continue
+                    covered.add(sig)
                     out = res["output"]
                     # Feed a captured value into the per-host context so a
                     # chained follow-up step can interpolate it.

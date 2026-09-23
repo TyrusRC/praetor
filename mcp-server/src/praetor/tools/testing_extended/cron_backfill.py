@@ -105,6 +105,7 @@ def register(mcp: FastMCP):
 
         lines = [f"probe_cron_backfill base_url={base_url}", f"Testing {len(paths)} paths × {len(trigger_methods)} methods", ""]
         findings: list[dict] = []
+        valid = 0  # trigger attempts that actually executed (Rule 13b positive control)
 
         async def _send(path: str, method: str, headers: dict, body: str = "{}") -> dict:
             target_url = base_url + path
@@ -126,6 +127,7 @@ def register(mcp: FastMCP):
                 r = await _send(path, method, {"Content-Type": "application/json"})
                 if "error" in r:
                     continue
+                valid += 1
                 s = r.get("status", 0) or r.get("status_code", 0)
                 body = r.get("response_body", "") or r.get("body", "")
                 if 200 <= s < 300:
@@ -172,9 +174,11 @@ def register(mcp: FastMCP):
             lines.append("No auth-less scheduled-job endpoints detected.")
 
         human = "\n".join(lines)
-        verdict, confidence = verdict_from_tally(len(findings))
+        verdict, confidence = verdict_from_tally(len(findings), valid_runs=valid)
         ev = (f"cron / backfill: {len(findings)} auth-less scheduled-job paths reachable"
-              if findings else "no exposed scheduled-job / webhook / backfill paths")
+              if findings else
+              ("no exposed scheduled-job / webhook / backfill paths"
+               if valid else "every trigger attempt errored — test never ran"))
 
         return make_verdict(
             verdict, confidence, ev,

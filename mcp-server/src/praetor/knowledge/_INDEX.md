@@ -13,7 +13,7 @@ Split categories:
 - `graphql` → `graphql.json` + `graphql_engines.json`
 - `cloud` → `cloud_webapp.json` + `cloud_storage_misconfig.json`, `cloud_function_url.json`, `cloud_api_gateway.json`
 
-**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks (promoted), mobile_deeplink, race_condition, rag_injection (promoted), request_smuggling, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
+**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, desktop_electron, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks (promoted), mobile_deeplink, race_condition, rag_injection (promoted), request_smuggling, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
 
 ## 2026-05-29 W7 additions (PortSwigger Top 10 of 2025)
 

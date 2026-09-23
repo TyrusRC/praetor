@@ -1,5 +1,7 @@
 """OOB test tools: auto-collaborator, encrypted-OAST build/decrypt."""
 
+import base64
+
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client

@@ -172,7 +172,7 @@ def register(mcp: FastMCP):
         human = "\n".join(lines)
         # CONFIRMED when off-by-one detected (both T-1s and T+1s succeed).
         off_by_one = any("OFF-BY-ONE" in f.upper() or "BOTH SUCCESS" in f.upper() or
-                        "DOUBLE CONSUME" in f.upper() for f in findings)
+                        "DOUBLE_CONSUME" in f.upper() for f in findings)
         if off_by_one:
             verdict, confidence = "CONFIRMED", 0.85
             ev = "quota-window off-by-one — double-consume across reset boundary"

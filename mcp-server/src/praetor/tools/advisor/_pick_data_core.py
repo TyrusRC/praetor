@@ -24,7 +24,7 @@ _CORE = [
     # Bookmark evidence for the report (Rule 31)
     (["bookmark", "save for report", "organize evidence", "send to organizer", "organizer",
       "remember this request"], "send_to_organizer",
-     "send_to_organizer(index=<N>)  # then later: get_organizer_entries() to retrieve"),
+     "send_to_organizer(index=<N>)  # bookmark the request in Burp's Organizer (write-only)"),
     # Read existing captured req/resp without re-sending
     (["read request", "read response", "show request", "show response",
       "view captured", "request detail"], "get_request_detail",

@@ -125,7 +125,7 @@ def register(mcp: FastMCP):
 
         scope_err = await scope_or_error(host, is_https, port)
         if scope_err:
-            return scope_err
+            return error_verdict(scope_err, vuln_type="request_smuggling", reason="out_of_scope")
 
         clte_raw = (
             f"POST {path} HTTP/1.1\r\n"

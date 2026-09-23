@@ -92,6 +92,7 @@ def register(mcp: FastMCP):
 
         lines.append("\n[test post-downgrade access on session_post]")
         retained: list[dict] = []
+        valid = 0  # endpoints that actually executed (Rule 13b positive control)
         for ep in privileged_endpoints:
             r = await client.post("/api/session/request", json={
                 "session": session_post,
@@ -103,6 +104,7 @@ def register(mcp: FastMCP):
             if "error" in r:
                 lines.append(f"  {ep.get('method','GET')} {ep['path']}: ERROR — {r['error']}")
                 continue
+            valid += 1
             s = r.get("status", 0)
             body = r.get("response_body", "")
             length = len(body)
@@ -127,9 +129,11 @@ def register(mcp: FastMCP):
             lines.append("All privileged endpoints properly deny the post-downgrade session.")
 
         human = "\n".join(lines)
-        verdict, confidence = verdict_from_tally(len(retained))
+        verdict, confidence = verdict_from_tally(len(retained), valid_runs=valid)
         ev = (f"stale privileges retained on {len(retained)}/{len(privileged_endpoints)} endpoints after downgrade"
-              if retained else "all privileged endpoints properly deny post-downgrade session")
+              if retained else
+              ("all privileged endpoints properly deny post-downgrade session"
+               if valid else "every privileged endpoint errored — test never ran"))
 
         return make_verdict(
             verdict, confidence, ev,

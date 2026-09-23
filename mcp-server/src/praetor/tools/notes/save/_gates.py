@@ -6,7 +6,11 @@ an inline import at call time so the test patch target stays valid.
 """
 
 from praetor.tools._vuln_class import canonical
-from praetor.tools.advisor_kb import NEVER_SUBMIT_TYPES
+from praetor.tools.advisor_kb import (
+    CONDITIONAL_NEVER_SUBMIT_TYPES,
+    NEVER_SUBMIT_TYPES,
+    SENSITIVE_ENDPOINT_PATTERNS,
+)
 from praetor.tools.report.severity import (
     SEVERITY_RANK,
     severity_cap_for,
@@ -48,7 +52,8 @@ def evidence_leak_gate(evidence_text: str) -> str | None:
     return None
 
 
-def never_submit_gate(vuln_type: str, chain_with, override_set: set) -> str | None:
+def never_submit_gate(vuln_type: str, chain_with, override_set: set,
+                      endpoint: str = "") -> str | None:
     # ── NEVER-SUBMIT gate (canonicalized) ─────────────────────
     # The authoritative Java gate matches vuln_type raw against a
     # differently-spelled set (open_redirect_no_chain, missing_security_header,
@@ -59,12 +64,8 @@ def never_submit_gate(vuln_type: str, chain_with, override_set: set) -> str | No
     # Close it here, in the layer that owns canonicalization: an
     # unconditional NEVER-SUBMIT class is reportable only chained.
     canon_vuln = canonical(vuln_type)
-    if (
-        canon_vuln in NEVER_SUBMIT_TYPES
-        and not chain_with
-        and "q6_never_submit" not in override_set
-        and "never_submit" not in override_set
-    ):
+    overridden = ("q6_never_submit" in override_set or "never_submit" in override_set)
+    if canon_vuln in NEVER_SUBMIT_TYPES and not chain_with and not overridden:
         return (
             f"NEVER-SUBMIT GATE: '{vuln_type}' ({canon_vuln}) — "
             f"{NEVER_SUBMIT_TYPES[canon_vuln]}.\n"
@@ -72,7 +73,72 @@ def never_submit_gate(vuln_type: str, chain_with, override_set: set) -> str | No
             "  only chained into real impact: pass chain_with=['fNNN'].\n"
             "  Deliberate exception: overrides=['q6_never_submit:<reason>']."
         )
+    # ── CONDITIONAL NEVER-SUBMIT (mirror q6_never_submit on the save path) ──
+    # These classes flip to reportable ONLY when chained, or — for the
+    # endpoint-gated subset (rate_limit / clickjacking / csrf_logout /
+    # host_header_no_cache / options_method) — when the endpoint is sensitive.
+    # assess_finding enforces this; save_finding did not, so a direct save of
+    # cors_no_creds / options_method / info_disclosure on a non-sensitive
+    # endpoint persisted standalone. Close that here too.
+    if canon_vuln in CONDITIONAL_NEVER_SUBMIT_TYPES and not chain_with and not overridden:
+        # Prefixes whose conditional class flips on a sensitive endpoint. Kept in
+        # sync with q6_never_submit.ENDPOINT_GATED_KEYS.
+        endpoint_gated_prefixes = (
+            "rate_limit", "clickjacking", "csrf_logout",
+            "host_header_no_cache", "options_method",
+        )
+        endpoint_gated = any(canon_vuln.startswith(p) for p in endpoint_gated_prefixes)
+        sensitive = any(p in (endpoint or "").lower() for p in SENSITIVE_ENDPOINT_PATTERNS)
+        if endpoint_gated and sensitive:
+            return None  # sensitive-flow impact applies — reportable (mirrors q6)
+        return (
+            f"NEVER-SUBMIT GATE (conditional): '{vuln_type}' ({canon_vuln}) — "
+            f"{CONDITIONAL_NEVER_SUBMIT_TYPES[canon_vuln]}.\n"
+            "  Reportable only chained (chain_with=['fNNN'])"
+            + (" or on a sensitive endpoint (auth/reset/payment)."
+               if endpoint_gated else ".") + "\n"
+            "  Deliberate exception: overrides=['q6_never_submit:<reason>']."
+        )
     return None
+
+
+def scanner_proof_gate(evidence_text: str, evidence, reproductions,
+                       human_verified: bool, impact: str, description: str,
+                       override_set: set) -> str | None:
+    # ── Rule 13c: an unverified scanner hit is not a finding ──
+    # assess_finding runs this (advisor_kb.scanner_proof); a DIRECT save_finding
+    # skipped it, so a nuclei/nikto/ZAP claim whose only basis was the scanner's
+    # own output could persist. Mirror the advisory check here: scanner-sourced
+    # evidence with NO independent corroboration (captured index, reproductions,
+    # OOB/Collaborator interaction, or attacker-capability wording) is ineligible.
+    if "scanner_proof" in override_set or human_verified:
+        return None
+    from praetor.tools.advisor_kb.scanner_proof import _SCANNER_SIGNALS
+    from praetor.tools.advisor_kb.q3_impact import _ASSET_SIGNALS, _CAPABILITY_SIGNALS
+    from praetor.tools.advisor_kb.q5_evidence import _OOB_MARKERS
+    prose = (evidence_text or "").lower()
+    if not any(s in prose for s in _SCANNER_SIGNALS):
+        return None
+    ev = evidence if isinstance(evidence, dict) else {}
+    idx = ev.get("proxy_history_index")
+    has_handle = isinstance(idx, int) and idx >= 0
+    has_repros = bool(reproductions)
+    has_oob = bool(ev.get("collaborator_interaction_id")) or any(m in prose for m in _OOB_MARKERS)
+    cap_hay = " ".join(p for p in (prose, (impact or "").lower(),
+                                   (description or "").lower()) if p)
+    has_capability = (any(s in cap_hay for s in _CAPABILITY_SIGNALS)
+                      or any(s in cap_hay for s in _ASSET_SIGNALS))
+    if has_handle or has_repros or has_oob or has_capability:
+        return None
+    return (
+        "SCANNER-PROOF GATE: evidence_text only repeats a scanner's own hit — "
+        "nothing here was independently reproduced, so this is a lead, not a finding.\n"
+        "  Next proof: replay the candidate request yourself "
+        "(resend_with_modification) and pass evidence={'proxy_history_index': <N>}, "
+        "add reproductions=[{proxy_history_index, ...}], resolve an OOB/Collaborator "
+        "interaction, or pass human_verified=True after confirming in Burp.\n"
+        "  Deliberate exception: overrides=['scanner_proof:<reason>']."
+    )
 
 
 def info_gate(severity: str, title: str, override_set: set) -> str | None:

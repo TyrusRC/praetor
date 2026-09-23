@@ -65,6 +65,12 @@ _PACKAGE_LANE = {
     "auth_negotiate": "web",
     # infra recon CLIs (ProjectDiscovery suite)
     "recon_pd": "recon_ext",
+    # external OSINT / DNS / CVE-DB / attack-surface recon — same family as
+    # recon_pd; without these keys they defaulted to CORE and shipped in every
+    # profile (incl. `core`), defeating a lean manifest on an eager host.
+    "recon_extended": "recon_ext", "cve": "recon_ext",
+    "easm": "recon_ext", "visual_easm": "recon_ext",
+    "secret_audit": "web", "gcp_key_audit": "web",
     # SCA / IaC / cloud / k8s / CI / SAST scanners
     "sca": "scanners", "k8s_audit": "scanners", "cloud_audit": "scanners",
     "iac_scan": "scanners", "ci_audit": "scanners", "source_aware": "scanners",
@@ -98,6 +104,9 @@ _TOOL_LANE = {
     "ghostwriter_status": CORE, "sync_to_ghostwriter": CORE,
     # recon pkg: tool-availability diagnostic is core
     "check_recon_tools": CORE,
+    # analysis pkg is web, but this one is a source SAST scanner — group it with
+    # the other scanners so a `scanners`/`cloud` profile actually carries it.
+    "run_opengrep_source": "scanners",
 }
 
 # named profiles -> the optional lanes they enable (core is always on).

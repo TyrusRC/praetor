@@ -114,10 +114,12 @@ def register(mcp: FastMCP):
 
         accepted = []
         rejected = []
+        valid = 0  # probes that actually executed (Rule 13b positive control)
 
         if "error" in combined_resp:
             lines.append(f"Combined request error: {combined_resp['error']}")
         else:
+            valid += 1
             combined_status = combined_resp.get("status", 0)
             combined_body = combined_resp.get("response_body", "")
 
@@ -147,6 +149,7 @@ def register(mcp: FastMCP):
             if "error" in resp:
                 lines.append(f"  {param}={fmt_val(value)}: Error")
                 continue
+            valid += 1
 
             status = resp.get("status", 0)
             body = resp.get("response_body", "")
@@ -195,6 +198,7 @@ def register(mcp: FastMCP):
                 })
                 if "error" in resp:
                     continue
+                valid += 1
                 rstatus = resp.get("status", 0)
                 rbody = resp.get("response_body", "")
                 if rstatus == baseline_status:
@@ -229,9 +233,12 @@ def register(mcp: FastMCP):
         elif accepted or nested_accepted:
             verdict, confidence = "SUSPECTED", 0.55
             ev = f"mass assignment of non-admin keys: {accepted + nested_accepted}"
-        else:
+        elif valid:
             verdict, confidence = "FAILED", 0.1
             ev = "no mass assignment — extra parameters rejected or ignored"
+        else:
+            verdict, confidence = "INCONCLUSIVE", 0.0
+            ev = "every mass-assignment probe errored — test never ran"
 
         return make_verdict(
             verdict, confidence, ev,

@@ -20,7 +20,7 @@ from copy import deepcopy
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
-from praetor.tools.testing._verdict import make_verdict
+from praetor.tools.testing._verdict import error_verdict, make_verdict
 
 
 _DEFAULT_HEADER = "Idempotency-Key"
@@ -96,7 +96,8 @@ def register(mcp: FastMCP):
             "headers": canonical_headers, "body": json.dumps(body),
         })
         if "error" in canon:
-            return f"Error on canonical send: {canon['error']}"
+            return error_verdict(f"canonical send failed: {canon['error']}",
+                                 vuln_type="business_logic", reason="baseline_failed")
         canon_status = canon.get("status", 0)
         canon_body = canon.get("response_body", "")
         canon_len = len(canon_body)
@@ -214,7 +215,7 @@ def register(mcp: FastMCP):
             lines.append("No idempotency-key violations detected.")
 
         human = "\n".join(lines)
-        critical_keywords = ("MUTATE", "DIFFERENT_PRINCIPAL", "CLONE")
+        critical_keywords = ("CROSS_PRINCIPAL", "MUTATION")
         critical_hits = sum(1 for f in findings if any(k in f.upper() for k in critical_keywords))
         if critical_hits:
             verdict, confidence = "CONFIRMED", 0.85
