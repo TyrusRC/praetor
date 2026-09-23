@@ -15,8 +15,8 @@ def register(mcp: FastMCP):
         Args:
             index: Proxy history index
             summary_only: Return compact dict (tech_stack, top-5 injection points,
-                param counts, form count) — ≤1000 tokens. Use for triage; pass
-                False to get the full multi-section narrative.
+                param counts, form count). Use for triage; pass False to get the
+                full multi-section narrative.
         """
         data = await client.post("/api/analysis/smart", json={"index": index})
         if "error" in data:

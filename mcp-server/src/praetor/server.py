@@ -275,7 +275,7 @@ prune_tool_output.register(mcp)                  # prune_tool_output — safe di
 oplog.instrument_tools(mcp)
 
 # Last: drop pydantic's redundant `title` keys from the assembled tool schemas.
-# ~9k tokens off the manifest every session, no information lost. See _schema_slim.
+# Trims the manifest every session, no information lost. See _schema_slim.
 slim_tool_schemas(mcp)
 
 # Profile gating: an eager-loading host (dsh / Codex via the API) ships every tool
