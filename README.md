@@ -304,31 +304,12 @@ lineage into its live graph) — is in
 [`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md).
 
 **Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
-every tool's full schema into the model call at connect — a large share of the context
-window — because their MCP client has no per-tool schema deferral. Claude Code defers
-schemas (names-only), so it is unaffected. To shrink the manifest on an eager host, set
-`PRAETOR_PROFILE` in the server's `env` to advertise only the lanes you need; default
-`all`. Core (scope, intel, save-finding pipeline, reporting, evidence, discovery +
-bridge tools) is always on.
-**Gating never blocks a workflow:** a gated tool is hidden but still runnable, so a web
-session can pivot to mobile/network/cloud mid-engagement — `run_tool('<tool>', {args})`
-runs any gated tool and auto-enables its lane, `run_tool('<tool>')` returns its schema,
-and `pick_tool` flags gated tools. Promoting a lane fires `tools/list_changed`, which
-both Claude Code and dsh honour, so the newly-advertised lane appears in the model's
-tools live — no reconnect. `get_profile()` reports what is active vs gated.
-
-| `PRAETOR_PROFILE` | advertises (beyond core) |
-|---|---|
-| `all` (default) | every lane — the full surface |
-| `web` | web attack / test surface |
-| `network` | nmap / AD / netexec / crack |
-| `mobile` | adb / frida device lane |
-| `llm` | LLM/AI + MCP-security |
-| `cloud` | SCA / IaC / cloud / k8s scanners |
-| `core` | scope / intel / save-finding / report only — the smallest |
-
-Also accepts a comma list of lanes (`web,network`). Full walkthrough in the
-[dsh guide](examples/mcp-clients/deepseek-harness.md).
+every tool's full schema into the model call at connect, because their MCP client has no
+per-tool schema deferral; Claude Code defers schemas, so it is unaffected. On an eager
+host, set `PRAETOR_PROFILE` in the server's `env` (e.g. `web`) to advertise a smaller set
+— it never limits you: a gated tool stays runnable via `run_tool`, which auto-enables its
+lane and fires `tools/list_changed` so the tools appear live. See the
+[dsh guide](examples/mcp-clients/deepseek-harness.md) for the profile options.
 
 ### Skills, rules & agents on other hosts
 
