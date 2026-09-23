@@ -303,6 +303,20 @@ running **alongside dsh-pentest** (`engagement_graph(format='dsh')` mirrors Prae
 lineage into its live graph) — is in
 [`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md).
 
+**Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
+every tool's full schema into the model call at connect (Praetor's full surface is
+~100k tokens), because their MCP client has no schema deferral, tool filtering, or
+`tools/list_changed` handling. Claude Code defers schemas (names-only, ~600 tokens),
+so it is unaffected. To shrink the manifest on an eager host, set `PRAETOR_PROFILE`
+in the server's `env` to advertise only the lanes you need — `web` (~81k), `network`
+/ `mobile` / `llm` / `cloud` (~42k), or `core` (~38k); default `all`. Core (scope,
+intel, save-finding pipeline, reporting, evidence, discovery + bridge tools) is always
+on. **Gating never blocks a workflow:** a gated tool is hidden but still runnable, so a
+web session can pivot to mobile/network/cloud mid-engagement — `run_tool('<tool>', {args})`
+runs any gated tool and auto-enables its lane (no reconnect), `run_tool('<tool>')` returns
+its schema, and `pick_tool` flags gated tools. `get_profile()` reports what is active vs
+gated. See the profile table in the dsh guide.
+
 ### Skills, rules & agents on other hosts
 
 Praetor ships three layers; they port to non-Claude hosts differently:

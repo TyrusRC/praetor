@@ -39,6 +39,22 @@ def _score_mappings(task_lower: str):
     return scored
 
 
+def _gated_note(tool: str) -> list[str]:
+    """If `tool` is gated out by the active profile, tell the model how to reach it —
+    the mid-engagement lane pivot (web -> mobile/network/cloud) must never block."""
+    from praetor import _lanes
+    hidden = _lanes.HIDDEN.get(tool)
+    if hidden is None:
+        return []
+    lane = _lanes._lane_of(tool, hidden)
+    return [
+        f"NOTE: {tool} is gated by the current profile (lane '{lane}', not advertised "
+        f"to save context). It is NOT blocked — run it now with "
+        f"run_tool('{tool}', {{...args...}}); that auto-enables the '{lane}' lane for "
+        f"the rest of the session. run_tool('{tool}') with no args returns its schema."
+    ]
+
+
 async def pick_tool_impl(task: str) -> str:
     task_lower = task.lower()
 
@@ -52,6 +68,7 @@ async def pick_tool_impl(task: str) -> str:
     if primary is not None:
         tool, example = primary
         out = [f"Use: {tool}", f"Example: {example}"]
+        out.extend(_gated_note(tool))
         # Surface up to 2 distinct specificity-ranked runners-up so the model
         # can course-correct when the top route is wrong — cheaper than
         # re-querying, and directly counters first-match shadowing.
@@ -71,9 +88,23 @@ async def pick_tool_impl(task: str) -> str:
     # Tier-1 fallback — list the core hunt-loop tools so the model can pick
     # one rather than blindly searching the 300+ tool surface.
     tier1_list = "\n".join(f"  - {name}: {desc}" for name, desc in TIER1_HUNT_LOOP[:12])
-    return (
-        f"No direct match for '{task}'. Tier-1 hunt-loop entry points:\n"
-        f"{tier1_list}\n"
-        f"  ... ({len(TIER1_HUNT_LOOP)} total — see list_tier1_tools())\n\n"
-        f"Default chain: load_target_intel → discover_attack_surface → auto_probe."
-    )
+    out = [
+        f"No direct match for '{task}'. Tier-1 hunt-loop entry points:",
+        tier1_list,
+        f"  ... ({len(TIER1_HUNT_LOOP)} total — see list_tier1_tools())",
+        "",
+        "Default chain: load_target_intel → discover_attack_surface → auto_probe.",
+    ]
+    # If the profile has gated lanes, the answer may be a hidden tool (e.g. a
+    # network/mobile/cloud pivot mid-web-engagement). Point at the escape hatch.
+    from praetor import _lanes
+    gated = _lanes.hidden_by_lane()
+    if gated:
+        lanes = ", ".join(f"{lane}({len(n)})" for lane, n in sorted(gated.items()))
+        out += [
+            "",
+            f"Gated lanes (not advertised, still runnable): {lanes}. If your task is a "
+            f"network/mobile/cloud/llm pivot, the tool is there — get_profile() lists "
+            f"them, run_tool('<tool>', {{args}}) runs any of them (auto-enables the lane).",
+        ]
+    return "\n".join(out)

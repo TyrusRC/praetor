@@ -41,7 +41,7 @@ plugin row for Praetor. Put the row from
             - '--from'
             - 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server'
             - 'praetor-mcp'
-          env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111' }
+          env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111', PRAETOR_PROFILE: 'web' }
           toolCallTimeoutMs: 120000
   ```
 
@@ -53,6 +53,41 @@ model as `mcp__praetor__<tool>`:
 mcp__praetor__list_tier1_tools   mcp__praetor__auto_probe
 mcp__praetor__save_finding       mcp__praetor__list_skills   ...
 ```
+
+### Context cost — pick a profile with `PRAETOR_PROFILE`
+
+The dsh MCP client eager-loads **every** tool's full schema into the model call at
+connect (its `tools.ts` registers all of `tools/list` once, with no filtering, no
+lazy loading, and no `tools/list_changed` handling — unlike Claude Code, which defers
+schemas to names-only). Praetor's full surface is ~100k tokens of definitions, so
+that lands in dsh's first request. There is no dsh-side switch for this; the fix is
+server-side — advertise only the lanes you need via the `PRAETOR_PROFILE` env in the
+config above:
+
+| `PRAETOR_PROFILE` | lanes (core always on) | ~tools | ~tokens |
+|---|---|---|---|
+| `all` (default) | everything | 491 | ~100k |
+| `web` | + web attack/test surface | 372 | ~81k |
+| `network` | + nmap / AD / netexec / crack | 219 | ~42k |
+| `mobile` | + adb/frida device lane | 226 | ~41k |
+| `llm` | + LLM/AI + MCP-security | 220 | ~43k |
+| `cloud` | + SCA/IaC/cloud/k8s scanners | 228 | ~42k |
+| `core` | scope/intel/save-finding/report only | 201 | ~38k |
+
+Also accepts a comma list of lanes (`web,network,mobile`). Core (scope, intel,
+save-finding pipeline, reporting, evidence, the discovery + bridge tools) is always on,
+so every profile is a working engagement.
+
+**A gated tool never blocks the workflow.** The env picks the *starting* manifest; a
+gated tool is hidden to save context but stays fully runnable. Mid-engagement — e.g. a
+web session that needs to pivot to mobile / network / cloud — just call
+`mcp__praetor__run_tool('<tool>', {args})`: it runs the hidden tool and auto-enables its
+lane, with no reconnect. `run_tool('<tool>')` (no args) returns the tool's schema first,
+and `mcp__praetor__pick_tool` flags gated tools with this hint. `get_profile` shows
+what is advertised vs gated; `use_lane('<lane>')` re-advertises a whole lane. (On dsh
+the re-advertise is not pushed to the model — it ignores `tools/list_changed` — but
+`run_tool` reaches everything regardless, so the pivot always works.) Safety Rules 5-9
+and the 7-gate save-finding pipeline are enforced in the tool layer on every profile.
 
 ## 4. Verify
 

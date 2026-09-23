@@ -57,6 +57,46 @@ def register(mcp: FastMCP) -> None:
         return {"name": name, "markdown": path.read_text(encoding="utf-8")}
 
     @mcp.tool()
+    async def get_profile() -> dict:
+        """Report the active tool PROFILE and how to change it.
+
+        Praetor can advertise only the tool lanes an engagement needs, to shrink the
+        manifest an eager-loading host (dsh / Codex via the API) sends to the model.
+        This is set at startup by the `PRAETOR_PROFILE` env var (default `all`);
+        changing it means editing the MCP config and reconnecting — a running host is
+        NOT re-notified (the dsh client does not honour tools/list_changed). Claude
+        Code defers tool schemas, so it stays on `all` and pays nothing.
+        """
+        from praetor import _lanes
+        live = _lanes.LAST_APPLIED
+        hidden = _lanes.hidden_by_lane()
+        return {
+            "active_profile": live["profile"],
+            "enabled_lanes": live["enabled_lanes"],
+            "tools_advertised": live["kept"],
+            "tools_gated_out": live["removed"],
+            "gated_lanes": {lane: len(names) for lane, names in sorted(hidden.items())},
+            "all_lanes": list(_lanes.LANES),
+            "named_profiles": sorted(_lanes.PROFILES),
+            "mid_engagement_pivot": (
+                "Need a gated tool (e.g. pivot from web to mobile/network/cloud)? It is "
+                "NEVER blocked: run_tool('<tool>', {args}) executes it and auto-enables "
+                "its lane; run_tool('<tool>') returns its schema; use_lane('<lane>') "
+                "re-advertises the whole lane. pick_tool(task) flags gated tools for you."
+            ),
+            "change_it": (
+                "To set the STARTING profile, set env PRAETOR_PROFILE in the MCP server "
+                "config (e.g. dsh cordis.yml env: { PRAETOR_PROFILE: 'web' }) then "
+                "reconnect. Values: a named profile (web/network/mobile/llm/cloud/core/"
+                "all/...) or a comma list of lanes (web,network). Core is always on."
+            ),
+            "note": (
+                "Safety Rules 5-9 and the 7-gate save-finding pipeline are enforced in "
+                "the tool layer and unaffected by the profile."
+            ),
+        }
+
+    @mcp.tool()
     async def praetor_bootstrap() -> dict:
         """Session-start onboarding for a non-Claude MCP host. CALL THIS FIRST.
 
@@ -95,6 +135,11 @@ def register(mcp: FastMCP) -> None:
             "save_finding_pipeline": [
                 "verify (replay >= 3x) -> assess_finding(7-gate) -> save_finding",
                 "tool-layer enforced: a finding failing scope/dedup/evidence/impact is rejected regardless of host",
+            ],
+            "profile_and_pivot": [
+                "get_profile()  — which tool lanes are advertised vs gated (context-saving on eager hosts)",
+                "a gated tool is NEVER blocked: run_tool('<tool>', {args}) runs it + auto-enables its lane; run_tool('<tool>') returns its schema",
+                "mid-engagement pivot (web -> mobile/network/cloud) just works via run_tool; pick_tool(task) flags gated tools",
             ],
             "model_tiers": [
                 "Agent playbooks are pinned to Claude tiers (opus / sonnet / haiku). On a non-Claude host, map the generic `tier` in list_agents to YOUR platform's nearest model:",
