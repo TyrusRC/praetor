@@ -263,12 +263,18 @@ head "Recon tools (core — web lane)"
 # ════════════════════════════════════════════════════════════════════
 
 check_recon() {
-    local tool="$1" install_hint="$2"
-    if has "$tool"; then
-        pass "$tool"
-    else
-        skip "$tool" "$install_hint"
-    fi
+    # check_recon <tool> <install_hint> [alt-bin...] — passes if <tool> OR any
+    # alternate binary name is on PATH. Alternates cover tools whose executable
+    # differs by install source: impacket is `impacket-secretsdump` from Debian
+    # apt but `secretsdump.py` from PyPI (`uv tool install impacket`), and
+    # run_network_tool accepts either. Existing 2-arg calls are unaffected.
+    local tool="$1" install_hint="$2"; shift 2
+    if has "$tool"; then pass "$tool"; return; fi
+    local alt
+    for alt in "$@"; do
+        if has "$alt"; then pass "$tool"; return; fi
+    done
+    skip "$tool" "$install_hint"
 }
 
 check_recon subfinder  "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
@@ -354,7 +360,7 @@ head "Red-team / network lane (core)"
 # does NOT route through Burp; evidence lands in the operator log instead.
 check_recon nmap       "sudo apt install nmap                               # Kali: preinstalled"
 check_recon nxc        "sudo apt install netexec                            # or: uv tool install git+https://github.com/Pennyw0rth/NetExec"
-check_recon impacket-secretsdump "sudo apt install impacket-scripts        # or: uv tool install impacket"
+check_recon impacket-secretsdump "sudo apt install impacket-scripts        # or: uv tool install impacket" secretsdump.py
 check_recon responder  "sudo apt install responder                          # or: git clone https://github.com/lgandx/Responder"
 check_recon bloodhound-python "sudo apt install bloodhound.py               # or: uv tool install bloodhound"
 check_recon certipy    "sudo apt install certipy-ad                         # or: uv tool install certipy-ad"
