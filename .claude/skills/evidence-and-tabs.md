@@ -226,14 +226,26 @@ Rules:
 - **Caption every shot** (`note=`) — it becomes the filename slug AND the report caption.
 - **Don't shoot noise.** No full HTTP-history dumps, no unrelated tabs, no other apps in
   front (printAll captures Burp regardless of z-order, but a wrong TAB is still wrong).
-- **No secrets in frame.** If a real credential/token/PII is visible in the panel and it
-  isn't the point of the finding, scroll it out or capture the isolated Repeater tab, not
-  the whole session. When a secret must stay in shot for context, **redact it before the
-  screenshot ships**: read the saved PNG (you get its coordinate mapping), then
-  `redact_screenshot(path, boxes=[[x,y,w,h], ...])` draws opaque, irreversible boxes over
-  the sensitive spans (cookies, session tokens, API keys, PII) — no re-capture. Size each
-  box to cover only the sensitive part so a prefix stays legible (`PHPSESSID=25d7…▮`).
-  Redact BEFORE `attach_screenshot` / `export_poc_bundle` / client delivery.
+- **No secrets in frame — but redact, don't blank.** A PoC screenshot exists so the reader
+  can READ the request/response and follow the proof; hiding it defeats the purpose. When a
+  secret must stay in shot for context, redact it before the screenshot ships — three rules,
+  always:
+  1. **Pixelize, not black bars.** Use the coarse pixel-mosaic (`style="pixel"` — the default
+     of `redact_screenshot` / `auto_redact_screenshot`): a non-invertible blur, not an opaque
+     fill that reads as "something was deleted here." (Solid fill only when maximum
+     irreversibility is explicitly required.)
+  2. **Redact the sensitive TAIL only, line by line — leave the rest readable.** Cover about
+     the back half of each sensitive value so its label/prefix stays legible
+     (`PHPSESSID=25d7…▮`, `Authorization: Bearer eyJ…▮`); only cookies, tokens, API keys,
+     passwords and real PII get a box. Everything non-sensitive — method, path, headers,
+     params, and the response body that IS the finding — stays fully readable.
+     `auto_redact_screenshot` does exactly this per line via OCR (`coverage=0.5` default).
+  3. **NEVER redact a whole request or response.** A fully-blacked shot proves nothing and
+     wastes the reader's time — it is the opposite of evidence. If nearly everything on
+     screen is sensitive, you framed the wrong thing: scroll it out, or capture the isolated
+     Repeater tab — don't box the entire panel.
+  Read the saved PNG first (you get its coordinate mapping), pass boxes in the image's own
+  pixels, and redact BEFORE `attach_screenshot` / `export_poc_bundle` / client delivery.
 
 ## Naming Conventions (use these consistently)
 

@@ -363,6 +363,8 @@ def register(mcp: FastMCP) -> None:
         mapping), find the sensitive spans, then pass their boxes. Size each box to
         cover only the sensitive part — redact half a value and leave a prefix
         (e.g. cover the tail of `PHPSESSID=abcd…`), so the finding stays legible.
+        NEVER box a whole request or response: a screenshot is PoC the reader must
+        READ, so redact only the sensitive spans and keep everything else readable.
 
         Args:
             path: the screenshot to redact (e.g. a burp_screenshot `saved` path).
