@@ -305,17 +305,21 @@ lineage into its live graph) — is in
 
 Praetor ships three layers; they port to non-Claude hosts differently:
 
-| Layer | What | On Codex / Gemini / Antigravity / Cursor / Windsurf |
+| Layer | What | On dsh / Codex / Gemini / Antigravity / Cursor / Windsurf |
 |---|---|---|
-| **Tools** (~470) | the capabilities | **Universal** — every MCP host gets them once the server is registered. |
-| **Skills / rules / KB** | the how-to playbooks (`.claude/skills/`), the rules (`.claude/rules/`), probe data | **Portable.** Load them three ways: the `list_skills()` / `get_skill(name)` **tools**; the `burp://skills/index`, `burp://skills/<name>`, `burp://rules/hunting`, `burp://knowledge/*` **resources**; or the raw `.claude/skills/*.md` files. |
-| **Agents** (`.claude/agents/`) | the sub-agent roster + auto-dispatch | **Claude-Code-native orchestration.** No universal multi-agent standard — see below. |
+| **Tools** (~490) | the capabilities | **Universal** — every MCP host gets them once the server is registered. |
+| **Bootstrap** | one-call onboarding | `praetor_bootstrap()` — **call first** on a non-Claude host. Returns the session-start flow (web / network / mobile lanes + save-finding pipeline) and points to everything below. |
+| **Rules** (`.claude/rules/`) | the always-active hunting/engineering rules | **Portable as a tool.** `get_rules("hunting")` / `get_rules("engineering")` (or the `burp://rules/*` resources, or the raw files). |
+| **Skills** (`.claude/skills/`) | the how-to playbooks | **Portable as tools.** `list_skills()` / `get_skill(name)` (or `burp://skills/*` resources, or raw files). |
+| **Agents** (`.claude/agents/`) | the sub-agent roster + playbooks | **Playbooks portable as tools** — `list_agents()` / `get_agent(name)`. A host that spawns its own sub-agents (dsh, …) gives each a `get_agent(<name>)` playbook, exactly as Claude Code dispatches them. Parallel dispatch itself is host-provided; single-threaded hosts use the orchestration tools (`get_hunt_plan` / `get_next_action`). |
 
-**Skills on any host.** `list_skills()` returns every playbook's name + description;
-`get_skill("verify-finding")` returns its full text. These are MCP *tools*, so they
-work even on hosts that don't implement MCP resources (e.g. DeepSeek Harness, whose
-MCP bridge is Tools-only — that's exactly why the skills are offered as tools).
-Resource-capable hosts can use `burp://skills/index` + `burp://skills/<name>` instead.
+**Everything auto-loaded on any host.** Claude Code loads the rules, skills and agent
+playbooks from disk; every other host reaches the same content as MCP *tools* —
+`praetor_bootstrap`, `get_rules`, `list_skills`/`get_skill`, `list_agents`/`get_agent` —
+so it works even on hosts that don't implement MCP resources (e.g. DeepSeek Harness,
+whose bridge is Tools-only). Resource-capable hosts can use the `burp://` resources
+instead. Safety Rules 5–9 and the save-finding pipeline are enforced in the tool layer,
+so they hold on every host regardless of what is loaded.
 
 **Per-host rule files are included** so each host auto-loads the core guidance and the
 HARD safety rules, pointing at the tools + skills:

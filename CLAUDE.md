@@ -277,6 +277,8 @@ Roster and dispatch contracts: `AGENTS.md`. Command tier → `grow-agent` (per-d
 workers. Anti-recursion: a commander never dispatches a commander; grow-agent never
 dispatches grow-agent. Dispatch on demand:
 `Agent(subagent_type="grow-agent", prompt="<domain>, <objective>, max_rounds=<N>")`.
+The roster is also exposed as tools (`list_agents` / `get_agent`) so non-Claude hosts
+reach the same playbooks; Claude Code uses native `Agent` dispatch.
 Never two agents on one endpoint at once (WAF); max 3–4 concurrent; `browser-agent` and
 `fuzz-agent` are 1-per-host, `mobile-dynamic-agent` 1-per-device.
 
