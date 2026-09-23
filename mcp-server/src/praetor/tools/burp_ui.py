@@ -16,6 +16,7 @@ import base64
 import re
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -153,7 +154,8 @@ def register(mcp: FastMCP) -> None:
                               note: str = "", finding_id: str = "", step: str = "",
                               scale: float = 2.0, banner: bool = False,
                               trademark: str = "", click_button: str = "",
-                              select_row: str = "", restore: bool = True,
+                              select_row: str = "", select_url: str = "",
+                              select_proxy_index: int = -1, restore: bool = True,
                               auto_redact: bool = False, attach: str = "auto") -> dict:
         """Screenshot the Burp Suite window for evidence — optionally a named tab.
 
@@ -180,12 +182,24 @@ def register(mcp: FastMCP) -> None:
         the evidence, Rule 13a) and screenshot the request for context.
         Pair with tab=/subtab= to select the surface first.
 
-        `select_row='<#>'` (a Burp "#" entry number) or `select_row='last'` selects
-        that row in the selected tab's main TABLE (Proxy HTTP history, Logger, ...)
-        and scrolls it into view, so the row's request/response detail renders and
-        the shot shows a SPECIFIC request — e.g.
-        burp_screenshot(tab='proxy', subtab='http history', select_row='last').
-        `selected_row` in the return is the chosen 0-based view row (-1 if none).
+        To capture ONE specific request, pick the row by REQUEST IDENTITY, not by a
+        Praetor evidence index — a `logger_index` / `proxy_history_index` is NOT the
+        value Burp prints in the table's "#" column (they diverge; a Praetor index
+        fed to select_row lands on unrelated traffic). Three selectors, in order of
+        preference:
+          - `select_url='<substring>'` — select the row whose host/method/URL text
+            contains the substring (the programmatic equivalent of typing into
+            Burp's search box). The reliable way to reach a browser-origin request
+            you can't renumber — e.g. an OAuth callback that only lives in Proxy >
+            HTTP history: burp_screenshot(tab='proxy', subtab='http history',
+            select_url='oidc/callback'). Last (newest) match wins.
+          - `select_proxy_index=<N>` — pass the SAME index `get_proxy_history`
+            returned; the server resolves it to that request's URL path and matches
+            the row by text (no "#"-number guessing).
+          - `select_row='<#>'` — only when you literally read the "#" value off
+            Burp's table; or `select_row='last'`/`'newest'` for the most recent row.
+        `selected_row` is the chosen 0-based view row (-1 if no table / no match);
+        `selected_match` echoes the text needle used (empty for the numeric path).
 
         Saves a PNG under .burp-intel/<domain>/screenshots/ with a self-describing
         name — `burp-<tab>-<finding_id>-<note-slug>-<timestamp>.png` — so the
@@ -230,6 +244,10 @@ def register(mcp: FastMCP) -> None:
 
         Args:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
+            select_url: substring of the request (host/method/URL) to select its row —
+                the reliable selector for a specific captured request.
+            select_proxy_index: a get_proxy_history index; resolved server-side to the
+                request's URL path and matched by text (avoids the "#" mismatch).
             tab: top-level Burp tab to bring to front + label (proxy/repeater/...).
             note: short caption — finding caption + filename slug (+ footer if banner).
             finding_id: optional saved-finding id to attach the shot to.
@@ -252,6 +270,16 @@ def register(mcp: FastMCP) -> None:
             params["click_button"] = click_button.strip()
         if select_row.strip():
             params["select_row"] = select_row.strip()
+        # Row-by-request-identity: an explicit URL substring, or a proxy-history
+        # index resolved server-side to that request's URL path. Either becomes a
+        # text needle the extension matches against the table (see docstring).
+        needle = select_url.strip()
+        if not needle and select_proxy_index >= 0:
+            detail = await client.get(f"/api/proxy/history/{select_proxy_index}")
+            if isinstance(detail, dict) and "error" not in detail:
+                needle = urlparse(str(detail.get("url", ""))).path or ""
+        if needle:
+            params["select_match"] = needle
         if not restore:
             params["restore"] = "false"
         if label:
@@ -269,6 +297,7 @@ def register(mcp: FastMCP) -> None:
             out["selected_subtab"] = data.get("selected_subtab", "")
             out["clicked_button"] = data.get("clicked_button", "")
             out["selected_row"] = data.get("selected_row", -1)
+            out["selected_match"] = data.get("selected_match", "")
             # Auto-redact: OCR-detect secrets and save a redacted twin. The naked
             # shot (out['saved']) stays; the operator picks which goes in the report.
             if auto_redact:

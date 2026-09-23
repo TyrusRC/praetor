@@ -73,9 +73,17 @@ public class ScreenshotHandler extends BaseHandler {
         // history, Logger, ...) and scroll it into view, so the row's req/resp
         // detail renders and the shot shows a SPECIFIC request. Value: a "#"
         // entry number, or "last"/"newest" for the most recent row.
+        // select_match resolves a row by REQUEST TEXT (host/method/URL substring) —
+        // the reliable path when the caller only has a Praetor evidence index
+        // (proxy-history ordinal / logger_index), which is NOT Burp's "#" column
+        // value. Takes precedence over the numeric select_row when both are given.
+        String selectMatch = params.getOrDefault("select_match", "");
         String selectRow = params.getOrDefault("select_row", "");
         int selectedRow = -1;
-        if (!selectRow.isBlank()) {
+        if (!selectMatch.isBlank()) {
+            selectedRow = BurpNavigator.selectRowByText(frame, selectMatch);
+            sleepQuietly(400);   // let the req/resp detail pane render
+        } else if (!selectRow.isBlank()) {
             int want = -1;   // <0 = last/newest
             if (!selectRow.equalsIgnoreCase("last") && !selectRow.equalsIgnoreCase("newest")) {
                 try {
@@ -85,11 +93,7 @@ public class ScreenshotHandler extends BaseHandler {
                 }
             }
             selectedRow = BurpNavigator.selectTableRow(frame, want);
-            try {
-                Thread.sleep(400);   // let the req/resp detail pane render
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
+            sleepQuietly(400);   // let the req/resp detail pane render
         }
 
         boolean clickedButton = false;
@@ -101,11 +105,7 @@ public class ScreenshotHandler extends BaseHandler {
             availableButtons = BurpNavigator.listButtons(frame);
             clickedButton = BurpNavigator.clickButton(frame, clickButton);
             if (clickedButton) {
-                try {
-                    Thread.sleep(2500);   // let the action round-trip + the pane render
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
+                sleepQuietly(2500);   // let the action round-trip + the pane render
             }
         }
 
@@ -132,6 +132,10 @@ public class ScreenshotHandler extends BaseHandler {
             "clicked_button", clickedButton ? clickButton : "",
             "available_buttons", availableButtons,
             "selected_row", selectedRow,
+            // Echo the text needle that addressed the row (empty when select_row's
+            // numeric path was used) so the caller can confirm the match resolved
+            // (selected_row == -1 with a non-empty needle => no row matched).
+            "selected_match", selectMatch,
             "label", label,
             "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is
@@ -150,6 +154,15 @@ public class ScreenshotHandler extends BaseHandler {
             return Double.isFinite(v) ? v : fallback;   // reject NaN/Infinity
         } catch (NumberFormatException e) {
             return fallback;
+        }
+    }
+
+    /** Sleep {@code ms}, restoring the interrupt flag if interrupted. */
+    private static void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 }
