@@ -44,7 +44,17 @@ public class FindingsStore {
         "host_header_no_cache_poison", "cors_no_credentials",
         "ssl_tls_config", "version_disclosure",
         "text_injection", "idn_homograph",
-        "missing_autocomplete_off", "options_method_enabled"
+        "missing_autocomplete_off", "options_method_enabled",
+        // Canonical Python spellings (tools/_vuln_class.canonical) for the SAME
+        // unconditional classes above — findings arrive tagged in these, so the
+        // human spellings alone let a canonical-spelled never-submit slip past
+        // this backstop. Conditional classes (cors_no_creds / options_method /
+        // clickjacking / host_header_no_cache) are DELIBERATELY excluded — they
+        // are reportable when chained, and the Python layer owns that decision.
+        "missing_headers", "cookie_flags", "csrf_non_state_changing",
+        "stack_trace", "user_enumeration", "email_enumeration",
+        "referrer_policy", "spf", "dmarc", "content_spoofing",
+        "ssl_config", "autocomplete"
     );
 
     /** Conditional NEVER SUBMIT — informational. These vuln types were

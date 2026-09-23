@@ -185,6 +185,38 @@ class NeverSubmitConditionalGateTest(unittest.TestCase):
             never_submit_gate("cors_no_creds", None, {"q6_never_submit"}, "/api/x"))
 
 
+class ScannerProofGateTest(unittest.TestCase):
+    """Rule 13c on the save path: a scanner-sourced claim with no independent
+    corroboration is ineligible (assess enforced it; a direct save did not)."""
+
+    def _g(self, **kw):
+        from praetor.tools.notes.save._gates import scanner_proof_gate
+        args = dict(evidence_text="", evidence={}, reproductions=None,
+                    human_verified=False, impact="", description="", override_set=set())
+        args.update(kw)
+        return scanner_proof_gate(
+            args["evidence_text"], args["evidence"], args["reproductions"],
+            args["human_verified"], args["impact"], args["description"],
+            args["override_set"])
+
+    def test_bare_scanner_claim_rejected(self):
+        self.assertIsNotNone(self._g(evidence_text="nuclei template matched on /x"))
+
+    def test_scanner_with_captured_index_passes(self):
+        self.assertIsNone(self._g(evidence_text="nuclei flagged",
+                                  evidence={"proxy_history_index": 5}))
+
+    def test_scanner_human_verified_passes(self):
+        self.assertIsNone(self._g(evidence_text="nuclei flagged", human_verified=True))
+
+    def test_scanner_override_passes(self):
+        self.assertIsNone(self._g(evidence_text="nuclei flagged",
+                                  override_set={"scanner_proof"}))
+
+    def test_non_scanner_evidence_passes(self):
+        self.assertIsNone(self._g(evidence_text="manual UNION SELECT extracted version()"))
+
+
 class SeverityCapCanonicalTest(unittest.TestCase):
     """severity_cap_for keyed on non-canonical spellings, so the canonical class
     missed its cap and could false-reject an honestly-capped LOW."""

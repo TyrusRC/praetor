@@ -102,6 +102,45 @@ def never_submit_gate(vuln_type: str, chain_with, override_set: set,
     return None
 
 
+def scanner_proof_gate(evidence_text: str, evidence, reproductions,
+                       human_verified: bool, impact: str, description: str,
+                       override_set: set) -> str | None:
+    # ── Rule 13c: an unverified scanner hit is not a finding ──
+    # assess_finding runs this (advisor_kb.scanner_proof); a DIRECT save_finding
+    # skipped it, so a nuclei/nikto/ZAP claim whose only basis was the scanner's
+    # own output could persist. Mirror the advisory check here: scanner-sourced
+    # evidence with NO independent corroboration (captured index, reproductions,
+    # OOB/Collaborator interaction, or attacker-capability wording) is ineligible.
+    if "scanner_proof" in override_set or human_verified:
+        return None
+    from praetor.tools.advisor_kb.scanner_proof import _SCANNER_SIGNALS
+    from praetor.tools.advisor_kb.q3_impact import _ASSET_SIGNALS, _CAPABILITY_SIGNALS
+    from praetor.tools.advisor_kb.q5_evidence import _OOB_MARKERS
+    prose = (evidence_text or "").lower()
+    if not any(s in prose for s in _SCANNER_SIGNALS):
+        return None
+    ev = evidence if isinstance(evidence, dict) else {}
+    idx = ev.get("proxy_history_index")
+    has_handle = isinstance(idx, int) and idx >= 0
+    has_repros = bool(reproductions)
+    has_oob = bool(ev.get("collaborator_interaction_id")) or any(m in prose for m in _OOB_MARKERS)
+    cap_hay = " ".join(p for p in (prose, (impact or "").lower(),
+                                   (description or "").lower()) if p)
+    has_capability = (any(s in cap_hay for s in _CAPABILITY_SIGNALS)
+                      or any(s in cap_hay for s in _ASSET_SIGNALS))
+    if has_handle or has_repros or has_oob or has_capability:
+        return None
+    return (
+        "SCANNER-PROOF GATE: evidence_text only repeats a scanner's own hit — "
+        "nothing here was independently reproduced, so this is a lead, not a finding.\n"
+        "  Next proof: replay the candidate request yourself "
+        "(resend_with_modification) and pass evidence={'proxy_history_index': <N>}, "
+        "add reproductions=[{proxy_history_index, ...}], resolve an OOB/Collaborator "
+        "interaction, or pass human_verified=True after confirming in Burp.\n"
+        "  Deliberate exception: overrides=['scanner_proof:<reason>']."
+    )
+
+
 def info_gate(severity: str, title: str, override_set: set) -> str | None:
     # ── INFO gate: a finding board starts at LOW ──
     # An INFO observation is an input to the next question, not an output to

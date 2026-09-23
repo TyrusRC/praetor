@@ -119,6 +119,13 @@ def register(mcp: FastMCP):
         if impact_err is not None:
             return impact_err
 
+        scanner_err = _gates.scanner_proof_gate(
+            evidence_text, evidence, reproductions, human_verified,
+            impact, description, override_set
+        )
+        if scanner_err is not None:
+            return scanner_err
+
         cvss4_vector, cvss4_severity = cvss4_for_finding(
             vuln_type, evidence=evidence if isinstance(evidence, dict) else {},
             explicit_vector=cvss_vector,
