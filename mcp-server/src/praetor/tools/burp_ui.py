@@ -192,7 +192,9 @@ def register(mcp: FastMCP) -> None:
             Burp's search box). The reliable way to reach a browser-origin request
             you can't renumber — e.g. an OAuth callback that only lives in Proxy >
             HTTP history: burp_screenshot(tab='proxy', subtab='http history',
-            select_url='oidc/callback'). Last (newest) match wins.
+            select_url='oidc/callback'). Space-separated tokens AND together
+            (e.g. 'accounts.example.com /oidc/callback' to disambiguate a path
+            shared by two hosts). Last (newest) match wins.
           - `select_proxy_index=<N>` — pass the SAME index `get_proxy_history`
             returned; the server resolves it to that request's URL path and matches
             the row by text (no "#"-number guessing).
@@ -277,7 +279,10 @@ def register(mcp: FastMCP) -> None:
         if not needle and select_proxy_index >= 0:
             detail = await client.get(f"/api/proxy/history/{select_proxy_index}")
             if isinstance(detail, dict) and "error" not in detail:
-                needle = urlparse(str(detail.get("url", ""))).path or ""
+                u = urlparse(str(detail.get("url", "")))
+                # host + path: the path alone repeats across hosts (and "/" matches
+                # every row), so AND the host in to pin the exact request.
+                needle = f"{u.netloc} {u.path}".strip()
         if needle:
             params["select_match"] = needle
         if not restore:
