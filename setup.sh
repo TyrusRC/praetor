@@ -707,6 +707,10 @@ elif has apt-get; then
     install_pd_tool "certipy"    "uv tool install certipy-ad"
     install_pd_tool "bloodhound-python" "uv tool install bloodhound"
     install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
+    # Responder (LLMNR/NBT-NS/MDNS poisoner). Not on PyPI under this name — that
+    # is an unrelated web framework — so install from git; the repo's pyproject
+    # installs the `responder` console script and supports Linux + macOS.
+    install_pd_tool "responder"  "uv tool install git+https://github.com/lgandx/Responder"
 elif [ "$PLATFORM" = "macos" ]; then
     info "macOS — installing the network lane via Homebrew + uv/go..."
     # System tools Homebrew carries. Installed one per line via install_pd_tool
@@ -727,6 +731,10 @@ elif [ "$PLATFORM" = "macos" ]; then
     install_pd_tool "certipy"    "uv tool install certipy-ad"
     install_pd_tool "bloodhound-python" "uv tool install bloodhound"
     install_pd_tool "kerbrute"   "go install github.com/ropnop/kerbrute@latest"
+    # Responder — git install (see the Debian branch note). netifaces, one of
+    # its deps, is a C extension; on macOS it needs the Xcode CLT that preflight
+    # already checks for.
+    install_pd_tool "responder"  "uv tool install git+https://github.com/lgandx/Responder"
 else
     warn "Non-apt host — install red-team tools manually. redteam_tool_guide(tool='<name>')"
     warn "  in Praetor prints the apt/clone/go command for each."
