@@ -66,11 +66,21 @@ to verify fast:
 - [ ] In scope and not a duplicate (Rules 1 / 16c); severity honest (Rule 14); no vanity
       metrics or activity counts (Rule 16a).
 
-## CVSS 4.0 — Use the Calculator
+## CVSS 4.0 — Computed by the tool (offline, via the `cvss` library)
 
-Calculator: https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator
+Score with `compute_cvss(vuln_type, requires_auth=, requires_admin=,
+requires_interaction=, oob_only=, subsequent_impact=)`. It derives the vector
+**deterministically** using the bundled FIRST.org `cvss` library — no network, no web
+calculator — and stores it on the finding as `cvss4_vector`; the severity band is read
+FROM the vector, never the reverse.
 
-CVSS v4 metrics (Scope is REMOVED; replaced by Vulnerable / Subsequent System axes):
+**Do NOT hand-score or use the web calculator (Rule 14d).** A hand-built score drifts
+every time you "check again" and destroys trust in the report. On any re-check or
+re-report, CITE the stored `cvss4_vector`; recompute (once) only if the finding's shape
+genuinely changed — then note why.
+
+The table below is REFERENCE — to read and sanity-check the computed vector, not to build
+one by hand. CVSS v4 metrics (Scope is REMOVED; replaced by Vulnerable / Subsequent System axes):
 
 | Metric | Values | Notes |
 |---|---|---|
@@ -84,7 +94,8 @@ CVSS v4 metrics (Scope is REMOVED; replaced by Vulnerable / Subsequent System ax
 
 Severity bands (CVSS-BR base): None 0.0 / Low 0.1–3.9 / Medium 4.0–6.9 / High 7.0–8.9 / Critical 9.0–10.0.
 
-**Common starting vectors** (replace AT/PR/UI/SC/SI/SA per target):
+**Reference vectors** (illustrative of what `compute_cvss` produces per class — it derives
+the exact vector from the finding's shape flags; don't copy these by hand):
 - RCE unauth: `CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N` (~9.3)
 - SQLi data extraction: `CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N` (~8.7)
 - Stored XSS hitting admin: `CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:A/VC:L/VI:L/VA:N/SC:H/SI:H/SA:N` (~7.x)
@@ -334,7 +345,8 @@ Immunefi tips: remediation REQUIRED; severity by funds at risk (Critical $10M+, 
 - **Finding lifecycle:** `verify-finding.md`
 - **NEVER SUBMIT list + 7-Question Gate:** `.claude/rules/hunting.md`
 - **Chain low-severity into high-severity:** `chain-findings.md`
-- **CVSS 4.0 calculator:** https://nvd.nist.gov/vuln-metrics/cvss/v4-calculator
+- **CVSS 4.0 scoring:** `compute_cvss(...)` — deterministic, offline, via the bundled
+  FIRST.org `cvss` library (Rule 14d); do not hand-score or use the web calculator.
 
 ## Per-vuln-class report skeletons (W16-W17 deep-dive companions)
 
