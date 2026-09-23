@@ -57,6 +57,38 @@ def register(mcp: FastMCP) -> None:
         return {"name": name, "markdown": path.read_text(encoding="utf-8")}
 
     @mcp.tool()
+    async def get_profile() -> dict:
+        """Report the active tool PROFILE and how to change it.
+
+        Praetor can advertise only the tool lanes an engagement needs, to shrink the
+        manifest an eager-loading host (dsh / Codex via the API) sends to the model.
+        This is set at startup by the `PRAETOR_PROFILE` env var (default `all`);
+        changing it means editing the MCP config and reconnecting — a running host is
+        NOT re-notified (the dsh client does not honour tools/list_changed). Claude
+        Code defers tool schemas, so it stays on `all` and pays nothing.
+        """
+        from praetor import _lanes
+        live = _lanes.LAST_APPLIED
+        return {
+            "active_profile": live["profile"],
+            "enabled_lanes": live["enabled_lanes"],
+            "tools_advertised": live["kept"],
+            "tools_gated_out": live["removed"],
+            "all_lanes": list(_lanes.LANES),
+            "named_profiles": sorted(_lanes.PROFILES),
+            "change_it": (
+                "Set env PRAETOR_PROFILE in the MCP server config (e.g. dsh cordis.yml "
+                "env: { PRAETOR_PROFILE: 'web' }) then reconnect. Values: a named "
+                "profile (web/network/mobile/llm/cloud/core/all/...) or a comma list of "
+                "lanes (web,network). Core tools are always on regardless."
+            ),
+            "note": (
+                "Safety Rules 5-9 and the 7-gate save-finding pipeline are enforced in "
+                "the tool layer and unaffected by the profile."
+            ),
+        }
+
+    @mcp.tool()
     async def praetor_bootstrap() -> dict:
         """Session-start onboarding for a non-Claude MCP host. CALL THIS FIRST.
 

@@ -269,3 +269,11 @@ oplog.instrument_tools(mcp)
 # Last: drop pydantic's redundant `title` keys from the assembled tool schemas.
 # ~9k tokens off the manifest every session, no information lost. See _schema_slim.
 slim_tool_schemas(mcp)
+
+# Profile gating: an eager-loading host (dsh / Codex via the API) ships every tool
+# schema to the model at connect (~100k tokens). PRAETOR_PROFILE=web|network|core|...
+# drops the lanes an engagement is not using so that host's manifest shrinks. Default
+# `all` = no change; Claude Code defers schemas so it stays on `all`. See _lanes.
+import os as _os  # noqa: E402
+from praetor import _lanes  # noqa: E402
+_lanes.apply_profile(mcp, _os.environ.get("PRAETOR_PROFILE") or _lanes.DEFAULT_PROFILE)
