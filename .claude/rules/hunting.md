@@ -63,6 +63,8 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
    - **Absence of evidence is not evidence of absence.** When test-validity is unproven or the body is ambiguous, the verdict is INCONCLUSIVE: keep testing (fix the payload, prove the sink, add a variant) or escalate/ask (Rule 32a). The tuple stays OPEN (Rule 19a) — do not record it covered.
    - **Run the disconfirmation check before ANY verdict:** "what would I observe if the opposite were true, and did I actually look for it?" Documented LLM overconfidence is that models declare "not exploitable" immediately after a *wrong* PoC — treat your own first "it's fine" / "it's vulnerable" as a hypothesis to disprove, not a conclusion.
 
+13c. **A scanner hit is a lead, not a finding — no proof-of-impact, no report.** Unverified scanner output (nuclei/nikto/wpscan/Burp active-scan/Nessus/ZAP/...) is ineligible on its own, even for an impact-inherent class where the class name would otherwise pass Q3. `assess_finding` enforces this: a scanner-sourced evidence string with no independent corroboration — no `logger_index`, no `reproductions[]`, no resolved OOB interaction, no `human_verified`, no attacker-capability wording — downgrades to NEEDS MORE EVIDENCE. Replay the candidate request yourself and cite the confirming `logger_index`; a scanner's verdict never substitutes for reaching the sink. Deliberate exception: `overrides=['scanner_proof:<reason>']`.
+
 ## Reporting (14–17) — DEFAULT
 
 14. **Never inflate severity, and never file an INFO.** Reflected XSS is not CRITICAL. Open redirect alone is not MEDIUM. Cap honestly.
