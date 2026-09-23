@@ -77,4 +77,48 @@ class EvidenceMatchTest {
         assertTrue(hint.contains("search_history") || hint.contains("query_history_dsl"));
         assertFalse(hint.contains("url ~"), "no path to filter on -> no fabricated query_history_dsl clause");
     }
+
+    // ── describeMismatchForUrl: the send_ref twin of the index check ──
+    // A stored direct send (no proxy_history_index) is cross-checked against the
+    // finding endpoint by URL. Same host/path helpers as the index path.
+
+    @Test
+    void urlMatchReturnsNull() {
+        assertNull(EvidenceMatch.describeMismatchForUrl(
+            "https://api.example.com/v1/orders?id=1", "https://api.example.com/v1/orders"),
+            "same host + path -> no mismatch");
+        assertNull(EvidenceMatch.describeMismatchForUrl(
+            "https://api.example.com/users/42", "https://api.example.com/users/{id}"),
+            "placeholder path segment -> match");
+    }
+
+    @Test
+    void urlHostMismatchIsDescribedWithHint() {
+        String m = EvidenceMatch.describeMismatchForUrl(
+            "https://evil.com/v1/orders", "https://api.example.com/v1/orders");
+        assertNotNull(m, "different host must be flagged");
+        assertTrue(m.contains("evil.com"), "message cites the actual host");
+        assertTrue(m.contains("api.example.com"), "message cites the finding endpoint");
+        assertTrue(m.contains("query_history_dsl") || m.contains("search_history"),
+            "mismatch must carry an actionable next-step");
+    }
+
+    @Test
+    void urlPathMismatchIsDescribedWithHint() {
+        String m = EvidenceMatch.describeMismatchForUrl(
+            "https://api.example.com/static/logo.png", "https://api.example.com/v1/orders");
+        assertNotNull(m, "unrelated path on same host must be flagged");
+        assertTrue(m.contains("/static/logo.png"), "message cites the actual URL");
+        assertTrue(m.contains("/v1/orders") || m.contains("api.example.com/v1/orders"),
+            "message cites the finding endpoint");
+    }
+
+    @Test
+    void urlBlankInputsAreLenient() {
+        assertNull(EvidenceMatch.describeMismatchForUrl("https://x/y", ""),
+            "blank endpoint -> nothing to compare");
+        assertNull(EvidenceMatch.describeMismatchForUrl(null, "https://x/y"),
+            "null url -> lenient, no NPE");
+        assertNull(EvidenceMatch.describeMismatchForUrl("", "https://x/y"));
+    }
 }

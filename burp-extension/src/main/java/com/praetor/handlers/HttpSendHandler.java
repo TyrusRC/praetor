@@ -35,12 +35,22 @@ public class HttpSendHandler extends BaseHandler {
 
     @Override
     protected void handleRequest(HttpExchange exchange) throws Exception {
+        String path = exchange.getRequestURI().getPath();
+
+        // GET /api/http/stored/{id} — fetch a direct send that never entered
+        // proxy history (stored under a send_ref handle). Read-only, so it
+        // takes GET while every other route on this handler is POST.
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())
+                && path.startsWith("/api/http/stored/")) {
+            handleStoredGet(exchange, path);
+            return;
+        }
+
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendError(exchange, 405, "Method not allowed");
             return;
         }
 
-        String path = exchange.getRequestURI().getPath();
         Map<String, Object> body = readJsonBody(exchange);
 
         switch (path) {
@@ -369,6 +379,69 @@ public class HttpSendHandler extends BaseHandler {
         sendOk(exchange, "Sent to Intruder");
     }
 
+    /**
+     * GET /api/http/stored/{id} — return a stored direct send in the same shape
+     * as ProxyHandler's history/{index} detail (method, url, request_headers,
+     * request_body, status_code, response_headers, response_body, ...).
+     */
+    private void handleStoredGet(HttpExchange exchange, String path) throws Exception {
+        String id = path.substring("/api/http/stored/".length());
+        if (id.isEmpty()) {
+            sendError(exchange, 400, "Missing send id in path");
+            return;
+        }
+        HttpRequestResponse rr = com.praetor.store.SendStore.get().get(id);
+        if (rr == null) {
+            sendError(exchange, 404,
+                "No stored send with id " + id,
+                "send_ref_not_found",
+                "Stored direct sends are bounded (most recent "
+                    + com.praetor.store.SendStore.MAX_ENTRIES + "); this handle may have been "
+                    + "evicted. Re-send the request to mint a fresh send_ref.");
+            return;
+        }
+
+        HttpRequest req = rr.request();
+        HttpResponse resp = rr.response();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("send_ref", id);
+        result.put("method", req != null ? req.method() : "");
+        result.put("url", req != null ? req.url() : "");
+        result.put("request_headers", req != null ? headersToList(req.headers()) : new ArrayList<>());
+        result.put("request_body", req != null ? req.bodyToString() : "");
+
+        if (resp != null) {
+            result.put("status_code", resp.statusCode());
+            result.put("response_headers", headersToList(resp.headers()));
+            String body = resp.bodyToString();
+            int cap = com.praetor.server.ResponseLimits.MAX_RESPONSE_BODY;
+            boolean truncated = body.length() > cap;
+            if (truncated) {
+                int half = cap / 2;
+                body = body.substring(0, half)
+                    + "\n\n[... TRUNCATED " + (body.length() - cap) + " chars ...]\n\n"
+                    + body.substring(body.length() - half);
+            }
+            result.put("response_body", body);
+            result.put("response_length", resp.body().length());
+            result.put("body_truncated", truncated);
+        }
+
+        sendJson(exchange, JsonUtil.toJson(result));
+    }
+
+    private List<Map<String, Object>> headersToList(List<HttpHeader> headers) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (HttpHeader h : headers) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", h.name());
+            m.put("value", h.value());
+            list.add(m);
+        }
+        return list;
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private void sendResponseJson(HttpExchange exchange, HttpRequestResponse result, int preSendHistorySize) throws Exception {
@@ -396,8 +469,15 @@ public class HttpSendHandler extends BaseHandler {
         if (idx >= 0) {
             out.put("history_index", idx);
         } else {
+            // Direct send: never entered proxy history, so there is no
+            // proxy_history_index to cite. Store it under a send_ref handle so
+            // the finding can still cite it as evidence={'send_ref': '...'}.
+            String sendRef = com.praetor.store.SendStore.get().store(result);
             out.put("history_index", -1);
-            out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, visible in Logger)");
+            out.put("send_ref", sendRef);
+            out.put("history_note", "Request did not appear in proxy history (sent via HTTP client, "
+                + "visible in Logger). Cite it as evidence={'send_ref': '" + sendRef + "'}; "
+                + "fetch it back with GET /api/http/stored/" + sendRef + ".");
         }
 
         if (resp != null) {

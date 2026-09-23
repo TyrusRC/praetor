@@ -51,6 +51,26 @@ public final class EvidenceMatch {
         } catch (Exception e) {
             return null;
         }
+
+        // Delegate the host/path comparison to the URL-based check so the two
+        // evidence handles (proxy_history_index here, send_ref for stored direct
+        // sends) share ONE matching implementation. This caller only adds the
+        // index + method context that the URL-based check can't know about.
+        String desc = describeMismatchForUrl(actualUrl, endpoint);
+        if (desc == null) return null;
+        return "index #" + index + " (" + req.method() + ") " + desc;
+    }
+
+    /**
+     * URL-based twin of {@link #describeMismatch}: cross-checks an already-known
+     * request URL (e.g. a stored direct send that never entered proxy history,
+     * cited via {@code evidence.send_ref}) against a finding's {@code endpoint}.
+     *
+     * @return null when {@code actualUrl} plausibly belongs to {@code endpoint};
+     *         otherwise a one-line human description of the disagreement.
+     */
+    public static String describeMismatchForUrl(String actualUrl, String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) return null;
         if (actualUrl == null || actualUrl.isBlank()) return null;
 
         // Computed once, up front, so both mismatch branches below can append the
@@ -62,15 +82,13 @@ public final class EvidenceMatch {
         String wantHost = hostOf(endpoint);
         String gotHost = hostOf(actualUrl);
         if (!wantHost.isEmpty() && !gotHost.isEmpty() && !hostsAgree(wantHost, gotHost)) {
-            return "index #" + index + " is " + req.method() + " " + actualUrl
-                 + " (host " + gotHost + "), finding endpoint is " + endpoint
-                 + " (host " + wantHost + ")" + hint;
+            return actualUrl + " (host " + gotHost + ") does not match finding endpoint "
+                 + endpoint + " (host " + wantHost + ")" + hint;
         }
 
         String gotPath = pathOf(actualUrl);
         if (!wantPath.isEmpty() && !gotPath.isEmpty() && !pathsAgree(wantPath, gotPath)) {
-            return "index #" + index + " is " + req.method() + " " + actualUrl
-                 + ", finding endpoint is " + endpoint + hint;
+            return actualUrl + " does not match finding endpoint " + endpoint + hint;
         }
         return null;
     }

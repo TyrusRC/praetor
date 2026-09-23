@@ -56,6 +56,11 @@ def register(mcp: FastMCP):
         to origin-form and defeats the attack. Such a send is Logger-visible, not
         in Proxy history.
 
+        A direct send has no proxy_history_index, but IS still citable: the
+        response carries a `send_ref` ('send-N') that save_finding accepts via
+        evidence={'send_ref': 'send-N'}. Fetch the stored request/response back
+        with get_sent_request(send_ref).
+
         Args:
             raw: Complete raw HTTP request string (LF endings are normalised to CRLF)
             host: Target hostname (also the cookie-jar lookup key)
@@ -219,3 +224,21 @@ def register(mcp: FastMCP):
             return f"Error: {resp['error']}"
 
         return _format_curl_response(resp)
+
+    @mcp.tool()
+    async def get_sent_request(send_ref: str) -> str:
+        """Fetch a stored direct send by its send_ref handle.
+
+        Direct sends (request smuggling, absolute-target SSRF, pinned HTTP
+        version) bypass Burp's proxy history, so they have no
+        proxy_history_index. send_raw_request returns a `send_ref` ('send-N')
+        for each; this fetches the full stored request/response. The send is
+        citable in save_finding as evidence={'send_ref': 'send-N'}.
+
+        Args:
+            send_ref: The 'send-N' handle from a direct send's response.
+        """
+        data = await client.get(f"/api/http/stored/{send_ref}")
+        if "error" in data:
+            return f"Error: {data['error']}"
+        return _format_response(data)
