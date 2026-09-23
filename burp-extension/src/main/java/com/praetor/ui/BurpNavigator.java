@@ -12,6 +12,7 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -229,6 +230,34 @@ public final class BurpNavigator {
         return table.getRowCount() - 1;
     }
 
+    /** View-row whose ANY column text contains {@code needle} (case-insensitive);
+     *  the LAST (newest) matching row, or -1 if none / empty table / blank needle.
+     *
+     *  <p>This is the translator the numeric {@link #rowForNumber} can't be: a
+     *  Praetor evidence index (proxy-history list ordinal, {@code logger_index})
+     *  is NOT the value Burp prints in the "#" column, so a caller that only has
+     *  an evidence index cannot address the right row by number. Matching on the
+     *  request text Burp actually shows (host / method / URL columns) sidesteps
+     *  both numbering spaces — the programmatic equivalent of typing into Burp's
+     *  search box. Last match wins so a repeated request lands on the newest. */
+    static int rowForText(JTable table, String needle) {
+        if (table.getRowCount() == 0 || needle == null || needle.isBlank()) {
+            return -1;
+        }
+        String want = needle.trim().toLowerCase(Locale.ROOT);
+        int hit = -1;
+        for (int r = 0; r < table.getRowCount(); r++) {
+            for (int c = 0; c < table.getColumnCount(); c++) {
+                Object v = table.getValueAt(r, c);
+                if (v != null && v.toString().toLowerCase(Locale.ROOT).contains(want)) {
+                    hit = r;   // keep scanning: last (newest) match wins
+                    break;
+                }
+            }
+        }
+        return hit;
+    }
+
     /** The JTable with the most rows under {@code root} — the history/results
      *  table rather than a small side table. Null if none.
      *
@@ -276,6 +305,37 @@ public final class BurpNavigator {
                 // FIRST so the editors are laid out, then drive the row so Burp
                 // loads its request/response into them.
                 ensureDetailPaneVisible(selectedTopComponent(frame));
+                result[0] = driveRowSelection(table, viewRow);
+            });
+        } catch (RuntimeException e) {
+            return -1;
+        }
+        return result[0];
+    }
+
+    /**
+     * Select the row whose text matches {@code needle} in the selected tab's main
+     * table (Proxy HTTP history, Logger, ...) and load its request/response into
+     * the editors — the programmatic equivalent of typing {@code needle} into
+     * Burp's search box. Use this to reach a SPECIFIC request the caller can only
+     * identify by URL/host/method (e.g. a browser-origin OAuth callback), since a
+     * Praetor evidence index is not Burp's "#" column value. Returns the selected
+     * 0-based view row, or -1 if no table / no match.
+     */
+    public static int selectRowByText(Frame frame, String needle) {
+        int[] result = {-1};
+        try {
+            SwingUi.runOnEdt(() -> {
+                Component top = selectedTopComponent(frame);
+                JTable table = findLargestTable(top);
+                if (table == null || table.getRowCount() == 0) {
+                    return;
+                }
+                int viewRow = rowForText(table, needle);
+                if (viewRow < 0) {
+                    return;   // no match -> leave the operator's selection alone
+                }
+                ensureDetailPaneVisible(top);
                 result[0] = driveRowSelection(table, viewRow);
             });
         } catch (RuntimeException e) {
