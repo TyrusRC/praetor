@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from praetor import client
 from praetor.processing.formatters import format_proxy_table, format_findings
 from ._helpers import _format_raw_findings, _slice_request_detail
+from ._noise import is_noise
 
 
 def register(mcp: FastMCP):
@@ -18,8 +19,15 @@ def register(mcp: FastMCP):
         filter_status: str = "",
         host: str = "",
         since_index: int = -1,
+        drop_noise: bool = True,
     ) -> str:
         """Get HTTP proxy history from Burp Suite with optional filters.
+
+        `drop_noise=True` (default) hides third-party CDN / ads / analytics /
+        telemetry / static-media rows so the dump is the target's app + API
+        traffic instead of the beacon/asset flood a real browser session captures
+        — far cheaper to read. A footer notes how many were hidden; pass
+        `drop_noise=False` for the raw list. JS/CSS/JSON/source-maps are kept.
 
         Performance notes:
           - `host` (exact domain match) is faster than `filter_url`
@@ -57,7 +65,16 @@ def register(mcp: FastMCP):
         data = await client.get("/api/proxy/history", params=params)
         if "error" in data:
             return f"Error: {data['error']}"
-        return format_proxy_table(data)
+        hidden = 0
+        if drop_noise:
+            items = data.get("items") or []
+            kept = [e for e in items if not is_noise(e)]
+            hidden = len(items) - len(kept)
+            data["items"] = kept
+        out = format_proxy_table(data)
+        if hidden:
+            out += f"\n\n(hid {hidden} noise rows — drop_noise=False to include)"
+        return out
 
     @mcp.tool()
     async def get_proxy_count() -> str:
