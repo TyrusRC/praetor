@@ -363,7 +363,7 @@ check_recon nxc        "sudo apt install netexec                            # or
 check_recon impacket-secretsdump "sudo apt install impacket-scripts        # or: uv tool install impacket" secretsdump.py
 check_recon responder  "sudo apt install responder                          # or: git clone https://github.com/lgandx/Responder"
 check_recon bloodhound-python "sudo apt install bloodhound.py               # or: uv tool install bloodhound"
-check_recon certipy    "sudo apt install certipy-ad                         # or: uv tool install certipy-ad"
+check_recon certipy    "sudo apt install certipy-ad                         # or: uv tool install certipy-ad" certipy-ad
 check_recon kerbrute   "sudo apt install kerbrute                           # or: go install github.com/ropnop/kerbrute@latest"
 check_recon enum4linux-ng "sudo apt install enum4linux-ng"
 check_recon smbmap     "sudo apt install smbmap"

@@ -987,7 +987,7 @@ check nxc
 check_any "impacket (secretsdump)" impacket-secretsdump secretsdump.py
 check responder
 check bloodhound-python
-check certipy
+check_any "certipy" certipy certipy-ad
 check kerbrute
 check hashcat
 check john
