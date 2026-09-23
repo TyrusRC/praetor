@@ -315,7 +315,20 @@ on. **Gating never blocks a workflow:** a gated tool is hidden but still runnabl
 web session can pivot to mobile/network/cloud mid-engagement — `run_tool('<tool>', {args})`
 runs any gated tool and auto-enables its lane (no reconnect), `run_tool('<tool>')` returns
 its schema, and `pick_tool` flags gated tools. `get_profile()` reports what is active vs
-gated. See the profile table in the dsh guide.
+gated.
+
+| `PRAETOR_PROFILE` | adds to core | ~tools | ~tokens |
+|---|---|---|---|
+| `all` (default) | every lane | 494 | ~100k |
+| `web` | web attack/test surface | 375 | ~81k |
+| `network` | nmap / AD / netexec / crack | 220 | ~42k |
+| `mobile` | adb / frida device lane | 226 | ~41k |
+| `llm` | LLM/AI + MCP-security | 220 | ~43k |
+| `cloud` | SCA / IaC / cloud / k8s scanners | 228 | ~42k |
+| `core` | scope/intel/save-finding/report only | 204 | ~37k |
+
+Also accepts a comma list of lanes (`web,network`). Full walkthrough in the
+[dsh guide](examples/mcp-clients/deepseek-harness.md).
 
 ### Skills, rules & agents on other hosts
 
@@ -492,6 +505,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
 | Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset); `engagement_graph(format='dsh')` mirrors into dsh-pentest |
 | Host-parity bridge (cross-host) | `praetor_bootstrap` (call first on a non-Claude host), `get_rules` (`hunting`/`engineering`/`project`), `list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent`, `list_knowledge`/`get_knowledge` — everything Claude Code auto-loads from disk, exposed as tools for any MCP host |
+| Context & profiles | `get_profile` (active vs gated lanes), `run_tool` (run any gated tool + auto-enable its lane — a lane pivot never blocks), `use_lane` (re-advertise a lane) — `PRAETOR_PROFILE` advertises only the lanes an eager host needs (~37-81k vs ~100k) |
 | Observability | `harness_log` (universal tool-call ledger — every call timed, secret-free), `get_operation_log` (Burp-call ledger), `verify_operation_log` |
 | Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
