@@ -63,11 +63,19 @@ from praetor.tools import (
     hub,
     burp_settings,
     skills_access,
+    agents_access,
+    host_bootstrap,
 )
 
 mcp = FastMCP(
     "praetor",
     instructions="""You are connected to Burp Suite via the Praetor MCP server.
+
+FIRST CALL, non-Claude hosts (dsh / Codex / any tools-only host): call praetor_bootstrap().
+It returns the operating context Claude Code auto-loads from files — which rules to load
+(get_rules), the skill and agent playbooks (list_skills / get_skill, list_agents / get_agent),
+and the web / network / mobile flows. Safety Rules 5-9 and the 7-gate save-finding pipeline are
+enforced in the tool layer and apply on every host regardless of what you load.
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.
@@ -164,6 +172,8 @@ dom_probe.register(mcp)        # DOM-aware probe — closes the client-side gap 
 prompts.register(mcp)          # MCP Prompts — operator-invokable workflow templates (hunt-target, verify-finding, chain-findings, save-finding-checklist, triage-program)
 resources_mcp.register(mcp)    # MCP Resources — read-only context (rules, skills, knowledge, intel, findings) under burp:// URIs
 skills_access.register(mcp)    # list_skills / get_skill — skill library as TOOLS (for hosts without MCP-resource support)
+agents_access.register(mcp)    # list_agents / get_agent — agent-playbook roster as TOOLS (tools-only hosts: dsh/Codex)
+host_bootstrap.register(mcp)   # praetor_bootstrap / get_rules — session-start onboarding + rules as TOOLS for non-Claude hosts
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
 secrets.register(mcp)          # gitleaks / trufflehog / git-dumper wrappers — secret leakage + .git exposure chain
 analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies) + run_opengrep_source (repo SAST)
