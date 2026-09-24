@@ -51,6 +51,19 @@ def _apply_retest(domain: str, finding_id: str, status: str, date: str,
     fdir.mkdir(parents=True, exist_ok=True)
     (fdir / f"v{version}_{date}_{status}.md").write_text(render_finding_md(finding), encoding="utf-8")
     write_finding_projection(domain, finding)
+    # Calibration ground truth: a re-confirmed / regressed / reopened / fixed
+    # finding was REAL — feed (predicted confidence → true positive) to the
+    # calibration ledger. Best-effort; a ledger failure never breaks the retest.
+    # Local import mirrors the workspace import above (avoid a load-time cycle).
+    from praetor.tools.intel.calibration import record_calibration
+    record_calibration(
+        finding.get("vuln_type", ""),
+        finding.get("confidence", 0.5),
+        status,
+        verdict=str(finding.get("verdict", "")),
+        source="record_retest",
+        domain=domain,
+    )
     return entry
 
 
