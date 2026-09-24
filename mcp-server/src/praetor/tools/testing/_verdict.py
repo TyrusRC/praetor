@@ -28,8 +28,13 @@ Verdict semantics
 
 Confidence
 ----------
-0.0 - 1.0. Calibrated so `assess_finding` Q5 floor (~0.45 default) maps to a
+0.0 - 1.0. Intended so `assess_finding` Q5 floor (~0.45 default) maps to a
 strong-suspected verdict. Confirmed ≥ 0.70, suspected 0.45-0.69, failed < 0.45.
+These are a starting hypothesis, not a measured truth: the constants below
+(0.85 / 0.55 / 0.10) are validated against real outcomes by the calibration layer
+(`tools/_calibration.py` + `calibration_report`). Re-tune a class's constant
+toward its `calibration_report` suggested value once outcomes accumulate — never
+hand-adjust a confidence to make a single finding pass.
 """
 
 from __future__ import annotations
