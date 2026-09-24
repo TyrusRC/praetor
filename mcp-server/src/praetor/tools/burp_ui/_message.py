@@ -18,7 +18,7 @@ def register(mcp: FastMCP) -> None:
                                  which: str = "both", layout: str = "side",
                                  search: str = "", payload: str = "",
                                  keywords: list[str] | None = None,
-                                 highlight: str = "box",
+                                 highlight: str = "box", tool: str = "proxy",
                                  include_history_row: bool = True,
                                  viewport_height: int = 640, viewport_width: int = 0,
                                  scale: float = 2.5, note: str = "", finding_id: str = "",
@@ -43,6 +43,9 @@ def register(mcp: FastMCP) -> None:
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
             which: 'both' (default, request+response), 'response', or 'request'.
             layout: 'side' (default, Repeater-style Request | Response) or 'stacked'.
+            tool: chrome to draw around the panes — 'proxy' (default, HTTP-history
+                row), 'logger' (Logger row), or 'repeater' (numbered request tabs,
+                no table). Use the tool the evidence traffic actually came from.
             search: explicit search expression (skips auto-pick).
             payload: the finding's payload — auto-search highlights it when reflected.
             keywords: operator keywords to try (in order) before the evidence shapes.
@@ -118,7 +121,7 @@ def register(mcp: FastMCP) -> None:
             out["history_header_px"] = await asyncio.to_thread(
                 prepend_history_header, out["saved"], detail, proxy_history_index,
                 max(1.0, scale * 0.77), data.get("burp_title", ""),
-                data.get("burp_icon_b64", ""))
+                data.get("burp_icon_b64", ""), tool)
         if auto_redact:
             r = await _run_auto_redact(out["saved"])
             out["redacted"] = r.get("redacted", "")

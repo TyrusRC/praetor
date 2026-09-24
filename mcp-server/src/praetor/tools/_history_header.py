@@ -28,6 +28,46 @@ _COLS = [
 ]
 
 
+# Logger's own columns (differ from Proxy history).
+_LOGGER_COLS = [
+    ("#", 2.5), ("Time", 9.5), ("Tool", 4.5), ("Method", 4.5), ("Host", 13),
+    ("Path", 15), ("Query", 12), ("Param count", 6), ("Status code", 6),
+    ("Length", 5.5), ("Start response timer", 9), ("Comment", 8),
+]
+
+_MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+           "Oct", "Nov", "Dec"]
+
+
+def _time_full(iso: str) -> str:
+    """'2026-09-24T20:22:32...' -> '20:22:32 24 Sep 2026' (Logger's Time format)."""
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2}:\d{2})", iso or "")
+    if not m:
+        return (iso or "")[:19]
+    y, mo, da, hms = m.groups()
+    return f"{hms} {int(da)} {_MONTHS[int(mo)]} {y}"
+
+
+def logger_row(entry: dict, index: int) -> dict:
+    url = str(entry.get("url", ""))
+    p = urlparse(url)
+    q = p.query
+    return {
+        "#": str(entry.get("entry_number", index)),
+        "Time": _time_full(str(entry.get("time", ""))),
+        "Tool": "Proxy",
+        "Method": str(entry.get("method", "")),
+        "Host": p.netloc,
+        "Path": p.path or "/",
+        "Query": q,
+        "Param count": str(len([x for x in q.split("&") if x]) if q else 0),
+        "Status code": str(entry.get("status_code", "")),
+        "Length": str(entry.get("response_length", "")),
+        "Start response timer": "",
+        "Comment": "",
+    }
+
+
 def title_from_body(body: str) -> str:
     """Extract <title> text from a response body (Burp's Title column)."""
     m = re.search(r"<title[^>]*>(.*?)</title>", body or "", re.I | re.S)
@@ -138,37 +178,49 @@ def _paste_icon(img, icon_b64: str, x: int, y_center: int, size: int) -> bool:
 
 
 def build_header(entry: dict, index: int, width: int, scale: float = 2.0,
-                 title: str = "", icon_b64: str = ""):
-    """A Burp-style header: title bar + menu + tab bar + Proxy sub-tabs + filter
-    bar + the selected HTTP-history row, matched to Burp's real colours. `title`
-    and `icon_b64` (from the live window) render the exact chrome when supplied."""
+                 title: str = "", icon_b64: str = "", tool: str = "proxy"):
+    """A Burp-style chrome header matched to Burp's real colours, for the source
+    `tool`: 'proxy' (Proxy>HTTP history tabs + history row), 'logger' (Logger tab
+    + row, no sub-tabs), or 'repeater' (Repeater tab + numbered request tabs, no
+    table). `title`/`icon_b64` (from the live window) render the exact chrome."""
     from PIL import ImageDraw
     from PIL import Image as PImage
     s = scale
     fs = int(13 * s)            # top-level tabs
-    fs_sm = int(11 * s)         # menu / title / sub-tabs / filter / columns
+    fs_sm = int(11 * s)         # menu / sub-tabs / filter / columns
+    fs_ttl = int(10 * s)        # window title (smallest)
     pad = int(9 * s)
-    # Compact chrome so the HTTP message panes below get the most room.
-    titlemenu_h = int(26 * s)   # icon + menu + title on ONE row
+    titlemenu_h = int(26 * s)
     tabbar_h, subbar_h, filt_h = int(26 * s), int(22 * s), int(20 * s)
     colhdr_h, row_h = int(21 * s), int(25 * s)
-    H = titlemenu_h + tabbar_h + subbar_h + filt_h + colhdr_h + row_h
+
+    tool = (tool or "proxy").strip().lower()
+    active = {"logger": "Logger", "repeater": "Repeater"}.get(tool, "Proxy")
+    has_sub = tool in ("proxy", "repeater")          # HTTP-history or numbered tabs
+    has_table = tool in ("proxy", "logger")          # filter(s) + columns + row
+    toolbar_h = int(30 * s)                          # Repeater Send/Target toolbar
+    label_h = int(22 * s)                            # Request / Response labels
+    n_filters = 2 if tool == "logger" else 1         # Logger has capture + view filters
+    H = titlemenu_h + tabbar_h
+    H += subbar_h if has_sub else 0
+    H += toolbar_h if tool == "repeater" else 0
+    H += (n_filters * filt_h + colhdr_h + row_h) if has_table else 0
+    H += label_h
 
     img = PImage.new("RGB", (width, H), _BG)
     d = ImageDraw.Draw(img)
-    fs_ttl = int(10 * s)                     # window title (smallest)
-    font, bold = _load_fonts(fs)             # tabs
-    sfont, sbold = _load_fonts(fs_sm)        # menu / sub-tabs / columns
-    _, tbold = _load_fonts(fs_ttl)           # title
+    font, bold = _load_fonts(fs)
+    sfont, sbold = _load_fonts(fs_sm)
+    _, tbold = _load_fonts(fs_ttl)
 
-    def strip(y, h, items, active, gap, fnt, bfnt, fsz, x0=None):
-        x = pad if x0 is None else x0
+    def strip(y, h, items, act, gap, fnt, bfnt, fsz):
+        x = pad
         for name in items:
-            f = bfnt if name == active else fnt
+            f = bfnt if name == act else fnt
             d.text((x, y + (h - fsz) // 2 - int(1 * s)), name,
-                   fill=_TEXT if name == active else _GRAY, font=f)
+                   fill=_TEXT if name == act else _GRAY, font=f)
             w = d.textlength(name, font=f)
-            if name == active:
+            if name == act:
                 d.rectangle([x, y + h - int(3 * s), x + w, y + h - 1], fill=_ORANGE)
             x += int(w) + gap
         d.line([0, y + h, width, y + h], fill=_SEP)
@@ -186,52 +238,97 @@ def build_header(entry: dict, index: int, width: int, scale: float = 2.0,
     d.text(((width - d.textlength(ttl, font=tbold)) // 2, (titlemenu_h - fs_ttl) // 2), ttl,
            fill=_TEXT, font=tbold)
     d.line([0, titlemenu_h, width, titlemenu_h], fill=_SEP)
-    # top-level tabs (larger) + Proxy sub-tabs (smaller)
+
+    # top-level tabs
     y = titlemenu_h
-    strip(y, tabbar_h, _TOP_TABS, "Proxy", int(18 * s), font, bold, fs)
-    strip(y + tabbar_h, subbar_h, _SUB_TABS, "HTTP history", int(16 * s), sfont, sbold, fs_sm)
-    # filter bar
-    yf = y + tabbar_h + subbar_h
-    d.text((pad, yf + (filt_h - fs_sm) // 2), "Filter settings: Hiding CSS and image "
-           "content; hiding specific extensions", fill=_GRAY, font=sfont)
-    d.line([0, yf + filt_h, width, yf + filt_h], fill=_SEP)
+    strip(y, tabbar_h, _TOP_TABS, active, int(18 * s), font, bold, fs)
+    y += tabbar_h
+    # sub-tabs
+    if has_sub:
+        if tool == "repeater":
+            # a single open request tab "1 ✕" then "+"
+            d.text((pad, y + (subbar_h - fs_sm) // 2 - int(1 * s)), "1", fill=_TEXT, font=sbold)
+            w1 = d.textlength("1", font=sbold)
+            d.text((pad + w1 + int(6 * s), y + (subbar_h - fs_sm) // 2 - int(1 * s)),
+                   "✕", fill=_GRAY, font=sfont)
+            d.rectangle([pad, y + subbar_h - int(3 * s), pad + w1, y + subbar_h - 1], fill=_ORANGE)
+            d.text((pad + w1 + int(28 * s), y + (subbar_h - fs_sm) // 2 - int(1 * s)),
+                   "+", fill=_GRAY, font=sfont)
+            d.line([0, y + subbar_h, width, y + subbar_h], fill=_SEP)
+        else:
+            strip(y, subbar_h, _SUB_TABS, "HTTP history", int(16 * s), sfont, sbold, fs_sm)
+        y += subbar_h
 
-    # normalise column weights -> pixel positions/widths
-    total = sum(wgt for _, wgt in _COLS)
-    xs, widths, acc = [], [], 0.0
-    for _, wgt in _COLS:
-        xs.append(int(acc / total * width))
-        widths.append(int(wgt / total * width))
-        acc += wgt
+    # Repeater toolbar: Send + Cancel + arrows + Burp AI + right-aligned Target
+    if tool == "repeater":
+        by = y + (toolbar_h - int(20 * s)) // 2
+        d.rounded_rectangle([pad, by, pad + int(56 * s), by + int(20 * s)],
+                            radius=int(3 * s), fill=_ORANGE)
+        d.text((pad + int(14 * s), by + (int(20 * s) - fs_sm) // 2), "Send",
+               fill=(255, 255, 255), font=sbold)
+        tx = pad + int(70 * s)
+        for lbl in ("Cancel", "‹", "›", "Burp AI"):
+            d.text((tx, y + (toolbar_h - fs_sm) // 2), lbl, fill=_GRAY, font=sfont)
+            tx += int(d.textlength(lbl, font=sfont)) + int(16 * s)
+        tgt = "Target: " + (urlparse(str(entry.get("url", ""))).scheme + "://" +
+                            urlparse(str(entry.get("url", ""))).netloc) + "    HTTP/1"
+        d.text((width - d.textlength(tgt, font=sfont) - pad,
+                y + (toolbar_h - fs_sm) // 2), tgt, fill=_TEXT, font=sfont)
+        d.line([0, y + toolbar_h, width, y + toolbar_h], fill=_SEP)
+        y += toolbar_h
 
-    # column-header band
-    y0 = yf + filt_h
-    d.rectangle([0, y0, width, y0 + colhdr_h], fill=_BAND)
-    for (name, _), x, cw in zip(_COLS, xs, widths):
-        d.text((x + pad, y0 + (colhdr_h - fs_sm) // 2), _clip(d, name, sfont, cw - 2 * pad),
-               fill=_GRAY, font=sfont)
-        if x > 0:
-            d.line([x, y0, x, y0 + colhdr_h + row_h], fill=_SEP)
+    if has_table:
+        cols = _LOGGER_COLS if tool == "logger" else _COLS
+        vals = logger_row(entry, index) if tool == "logger" else row_values(entry, index)
+        # filter bar(s)
+        if tool == "logger":
+            for txt in ("Capture filter: Logger memory limit set to 100MB | Capturing "
+                        "requests up to 1MB; capturing responses up to 1MB",
+                        "View filter: Showing all items"):
+                d.text((pad, y + (filt_h - fs_sm) // 2), txt, fill=_GRAY, font=sfont)
+                d.line([0, y + filt_h, width, y + filt_h], fill=_SEP)
+                y += filt_h
+        else:
+            d.text((pad, y + (filt_h - fs_sm) // 2), "Filter settings: Hiding CSS and "
+                   "image content; hiding specific extensions", fill=_GRAY, font=sfont)
+            d.line([0, y + filt_h, width, y + filt_h], fill=_SEP)
+            y += filt_h
 
-    # selected data row — pale blue, dark text (Burp's real selection)
-    y1 = y0 + colhdr_h
-    d.rectangle([0, y1, width, y1 + row_h], fill=_SEL)
-    d.rectangle([0, y1, width, y1 + int(1 * s)], fill=_SEL_EDGE)
-    vals = row_values(entry, index)
-    for (name, _), x, cw in zip(_COLS, xs, widths):
-        d.text((x + pad, y1 + (row_h - fs_sm) // 2),
-               _clip(d, vals.get(name, ""), sfont, cw - 2 * pad), fill=_TEXT, font=sfont)
+        # columns
+        total = sum(wgt for _, wgt in cols)
+        xs, cws, acc = [], [], 0.0
+        for _, wgt in cols:
+            xs.append(int(acc / total * width))
+            cws.append(int(wgt / total * width))
+            acc += wgt
+        d.rectangle([0, y, width, y + colhdr_h], fill=_BAND)
+        for (name, _), x, cw in zip(cols, xs, cws):
+            d.text((x + pad, y + (colhdr_h - fs_sm) // 2), _clip(d, name, sfont, cw - 2 * pad),
+                   fill=_GRAY, font=sfont)
+            if x > 0:
+                d.line([x, y, x, y + colhdr_h + row_h], fill=_SEP)
+        y1 = y + colhdr_h
+        d.rectangle([0, y1, width, y1 + row_h], fill=_SEL)
+        d.rectangle([0, y1, width, y1 + int(1 * s)], fill=_SEL_EDGE)
+        for (name, _), x, cw in zip(cols, xs, cws):
+            d.text((x + pad, y1 + (row_h - fs_sm) // 2),
+                   _clip(d, vals.get(name, ""), sfont, cw - 2 * pad), fill=_TEXT, font=sfont)
+        y = y1 + row_h
+
+    # Request | Response labels above the panes (side-by-side halves)
+    d.text((pad, y + (label_h - fs) // 2), "Request", fill=_TEXT, font=bold)
+    d.text((width // 2 + pad, y + (label_h - fs) // 2), "Response", fill=_TEXT, font=bold)
     return img
 
 
 def prepend_history_header(panes_path: str, entry: dict, index: int,
                            scale: float = 2.0, title: str = "",
-                           icon_b64: str = "") -> int:
-    """Stack a history-context header above the panes image at `panes_path`
+                           icon_b64: str = "", tool: str = "proxy") -> int:
+    """Stack a `tool` chrome header above the panes image at `panes_path`
     (overwrites it). Returns the header height in px."""
     from PIL import Image
     panes = Image.open(panes_path).convert("RGB")
-    header = build_header(entry, index, panes.width, scale, title, icon_b64)
+    header = build_header(entry, index, panes.width, scale, title, icon_b64, tool)
     out = Image.new("RGB", (panes.width, panes.height + header.height), (255, 255, 255))
     out.paste(header, (0, 0))
     out.paste(panes, (0, header.height))
