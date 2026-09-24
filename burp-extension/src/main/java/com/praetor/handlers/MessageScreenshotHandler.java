@@ -51,30 +51,47 @@ public class MessageScreenshotHandler extends BaseHandler {
         }
         Map<String, Object> body = readJsonBody(exchange);
 
-        int index = intOf(body.get("proxy_index"), -1);
-        List<ProxyHttpRequestResponse> history = api.proxy().history();
-        if (index < 0 || index >= history.size()) {
-            sendError(exchange, 404,
-                "proxy_index out of range (have 0.." + (history.size() - 1) + ")");
-            return;
+        // Source: a Praetor-sent request (send_ref, e.g. Logger/Repeater evidence)
+        // or a proxy-history entry (proxy_index). send_ref wins when present.
+        String sendRef = strOf(body.get("send_ref"), "");
+        HttpRequest req;
+        HttpResponse resp;
+        if (!sendRef.isEmpty()) {
+            burp.api.montoya.http.message.HttpRequestResponse rr =
+                com.praetor.store.SendStore.get().get(sendRef);
+            if (rr == null) {
+                sendError(exchange, 404, "No stored send with id " + sendRef,
+                    "send_ref_not_found", "Re-send the request to mint a fresh send_ref.");
+                return;
+            }
+            req = rr.request();
+            resp = rr.response();
+        } else {
+            int index = intOf(body.get("proxy_index"), -1);
+            List<ProxyHttpRequestResponse> history = api.proxy().history();
+            if (index < 0 || index >= history.size()) {
+                sendError(exchange, 404,
+                    "proxy_index out of range (have 0.." + (history.size() - 1) + ")");
+                return;
+            }
+            ProxyHttpRequestResponse item = history.get(index);
+            req = item.finalRequest();
+            resp = item.originalResponse();
         }
-        ProxyHttpRequestResponse item = history.get(index);
 
-        // 'both' (default) stacks request over response — real proxy-history
-        // evidence. 'request'/'response' render just one.
+        // 'both' (default) stacks/side-by-sides request + response. 'request'/
+        // 'response' render just one.
         String which = strOf(body.get("which"), "both").toLowerCase();
         if (!which.equals("request") && !which.equals("response")) {
             which = "both";
         }
-        HttpRequest req = item.finalRequest();
-        HttpResponse resp = item.originalResponse();
-        // No response captured for this entry — fall back to the request alone
-        // rather than render an empty response pane.
+        // No response captured — fall back to the request alone rather than an
+        // empty response pane.
         if (resp == null) {
             if (which.equals("response")) {
                 sendError(exchange, 409,
-                    "history entry " + index + " has no response to render — "
-                    + "capture the request instead (which='request').");
+                    "this entry has no response to render — capture the request "
+                    + "instead (which='request').");
                 return;
             }
             which = "request";
@@ -120,7 +137,7 @@ public class MessageScreenshotHandler extends BaseHandler {
             // Echo the search expression actually applied — empty => captured from
             // the top of the message (no keyword given / matched).
             "search", search,
-            "proxy_index", index,
+            "send_ref", sendRef,
             // Capture engine, so a caller can verify this build is loaded (native
             // editor search + printAll, not a full-window grab).
             "engine", "editor-search"

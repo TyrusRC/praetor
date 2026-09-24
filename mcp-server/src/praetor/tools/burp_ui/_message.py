@@ -14,7 +14,8 @@ from ._shared import _pick_attach, _run_auto_redact, _save_shot, _scan_text
 
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
-    async def screenshot_message(proxy_history_index: int, domain: str = "",
+    async def screenshot_message(proxy_history_index: int = -1, domain: str = "",
+                                 send_ref: str = "",
                                  which: str = "both", layout: str = "side",
                                  search: str = "", payload: str = "",
                                  keywords: list[str] | None = None,
@@ -39,7 +40,10 @@ def register(mcp: FastMCP) -> None:
         JWT, SQL/stack-trace error, exposed path). Empty match => shot from the top.
 
         Args:
-            proxy_history_index: get_proxy_history index of the entry to render.
+            proxy_history_index: get_proxy_history index of the entry to render
+                (proxied traffic). Omit when send_ref is given.
+            send_ref: a Praetor send handle ('send-N') from send_raw_request — renders
+                that stored request/response (non-proxied Logger/Repeater evidence).
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
             which: 'both' (default, request+response), 'response', or 'request'.
             layout: 'side' (default, Repeater-style Request | Response) or 'stacked'.
@@ -61,17 +65,23 @@ def register(mcp: FastMCP) -> None:
             auto_redact: OCR-detect secrets and write a pixel-mosaicked twin.
             attach: which twin to link to finding_id — 'auto'/'naked'/'none'.
         """
-        if proxy_history_index < 0:
-            return {"error": "proxy_history_index must be >= 0"}
+        send_ref = send_ref.strip()
+        if not send_ref and proxy_history_index < 0:
+            return {"error": "pass proxy_history_index >= 0, or send_ref for a "
+                             "Praetor-sent request (Logger/Repeater evidence)"}
+        # Source detail: a stored Praetor send, or a proxy-history entry.
+        detail_path = (f"/api/http/stored/{send_ref}" if send_ref
+                       else f"/api/proxy/history/{proxy_history_index}")
+        row_index = 0 if send_ref else proxy_history_index
         w = which.strip().lower()
         which_l = "request" if w.startswith("req") else ("response" if w.startswith("res") else "both")
         # Scan the response for the keyword (richest evidence) unless request-only.
         scan_side = "request" if which_l == "request" else "response"
         # Fetch the entry detail if we need it — to auto-pick the keyword and/or to
-        # draw the HTTP-history context row on top.
+        # draw the tool context row on top.
         detail = None
         if not search.strip() or include_history_row:
-            detail = await client.get(f"/api/proxy/history/{proxy_history_index}")
+            detail = await client.get(detail_path)
             if isinstance(detail, dict) and "error" in detail:
                 return detail
         term, reason = search.strip(), "explicit"
@@ -81,9 +91,13 @@ def register(mcp: FastMCP) -> None:
                 _scan_text(detail, scan_side), payload, tuple(keywords or ()))
         layout_l = "stacked" if layout.strip().lower().startswith("stack") else "side"
         payload_json = {
-            "proxy_index": proxy_history_index, "which": which_l, "layout": layout_l,
+            "which": which_l, "layout": layout_l,
             "search": term, "height": viewport_height, "scale": scale,
         }
+        if send_ref:
+            payload_json["send_ref"] = send_ref
+        else:
+            payload_json["proxy_index"] = proxy_history_index
         if viewport_width > 0:   # 0 = let the handler auto-size (1600 side / 1000 else)
             payload_json["width"] = viewport_width
         data = await client.post("/api/ui/message-screenshot", json=payload_json)
@@ -119,7 +133,7 @@ def register(mcp: FastMCP) -> None:
             # Draw the chrome header at ~0.77x the pane scale so the HTTP message
             # text stays the largest, most prominent element (evidence-first).
             out["history_header_px"] = await asyncio.to_thread(
-                prepend_history_header, out["saved"], detail, proxy_history_index,
+                prepend_history_header, out["saved"], detail, row_index,
                 max(1.0, scale * 0.77), data.get("burp_title", ""),
                 data.get("burp_icon_b64", ""), tool)
         if auto_redact:
