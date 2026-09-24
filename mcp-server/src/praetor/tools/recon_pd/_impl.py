@@ -77,8 +77,12 @@ async def run_tlsx(targets: list[str], timeout: int = 120) -> str:
         fh.write("\n".join(targets))
         inp = fh.name
     try:
+        # tlsx rejects `-san`/`-cn` alongside any probe ("san or cn flag cannot
+        # be used with other probes"), which made every call fail fatally. In
+        # `-json` mode subject_cn / subject_an are emitted anyway, so the display
+        # flags are dropped and only the JARM/expiry probes remain.
         out, err, rc = await _run_cmd(
-            ["tlsx", "-l", inp, "-silent", "-json", "-san", "-cn", "-jarm", "-expired"],
+            ["tlsx", "-l", inp, "-silent", "-json", "-jarm", "-expired"],
             timeout=timeout, bypass_proxy=True,
         )
     finally:
