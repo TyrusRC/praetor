@@ -17,14 +17,34 @@ import shutil
 import subprocess
 from collections import defaultdict
 
-# A key on a line means "redact the rest of this line" (the value is sensitive).
-_SENSITIVE_KEYS = (
+# A key on a line means "the value on this line is sensitive". Matched as a WHOLE
+# normalised token (header/field NAME), never as a substring — substring matching
+# made "Author" hit "auth", "session_count" hit "session", and body field names /
+# prose words redact whole lines (the over-redaction + false-positive bug). Known
+# compound secret header names are listed explicitly so exact matching still catches
+# them; anything unlisted still falls to the standalone value-shape net below.
+_SENSITIVE_KEYS = frozenset((
     "cookie", "set-cookie", "authorization", "proxy-authorization",
     "phpsessid", "jsessionid", "asp.net_sessionid", "sessionid", "session",
     "token", "access_token", "refresh_token", "id_token", "csrf",
-    "api_key", "apikey", "x-api-key", "secret", "client_secret",
-    "password", "passwd", "pwd", "bearer", "auth", "x-auth-token",
-)
+    "access-token", "refresh-token", "id-token", "csrf-token", "xsrf-token",
+    "auth_token", "auth-token", "x-auth-token", "x-csrf-token", "x-xsrf-token",
+    "api_key", "apikey", "api-key", "x-api-key", "secret", "client_secret",
+    "client-secret", "password", "passwd", "pwd", "bearer", "auth",
+    "x-amz-security-token", "x-access-token", "private_key", "private-key",
+))
+
+_KEY_DELIM = re.compile(r"[:=]")
+
+
+def _norm_key_token(token: str) -> str:
+    """Normalise an OCR token to its bare key NAME for exact matching.
+
+    Takes the part before the first `:`/`=` (so `Cookie:` and `api_key=v` reduce
+    to their names), strips surrounding quotes/brackets/punctuation, lowercases.
+    """
+    head = _KEY_DELIM.split(token, 1)[0]
+    return head.strip().strip("'\"{}[](),;").lower()
 
 # High-precision standalone value shapes (low false-positive). base64 is
 # deliberately NOT matched standalone — it false-hits MIME types / header values;
@@ -40,8 +60,8 @@ def _is_sensitive_value(word: str) -> bool:
 
 
 def _has_key(token: str) -> bool:
-    low = token.lower()
-    return any(k in low for k in _SENSITIVE_KEYS)
+    """True only when the token's normalised NAME is exactly a known key."""
+    return _norm_key_token(token) in _SENSITIVE_KEYS
 
 
 def _sensitive_boxes(words: list[dict], y_tol: int = 8) -> list[list[int]]:
@@ -69,6 +89,18 @@ def _sensitive_boxes(words: list[dict], y_tol: int = 8) -> list[list[int]]:
         ln.sort(key=lambda w: w["left"])
         key_idx = next((i for i, w in enumerate(ln)
                         if _has_key(str(w.get("text", "")))), None)
+        # A key only redacts when the line actually carries a value: the key
+        # token has a `:`/`=` delimiter, the next token starts one (OCR split the
+        # colon off), or a value-shaped token follows. A bare key WORD in prose
+        # ("...enter your password below") has none of these — don't redact it.
+        if key_idx is not None:
+            rest = ln[key_idx + 1:]
+            kt = str(ln[key_idx].get("text", ""))
+            has_delim = bool(_KEY_DELIM.search(kt))
+            next_is_delim = bool(rest) and str(rest[0].get("text", "")).strip()[:1] in (":", "=")
+            has_value_shape = any(_is_sensitive_value(str(w.get("text", ""))) for w in rest)
+            if not (has_delim or next_is_delim or has_value_shape):
+                key_idx = None
         if key_idx is not None:
             key = ln[key_idx]
             kt = str(key.get("text", ""))
