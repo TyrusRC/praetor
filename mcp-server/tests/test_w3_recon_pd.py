@@ -43,6 +43,43 @@ class W3ToolRegistrationTest(unittest.TestCase):
             self.assertIn(t, tools, f"missing tool {t}")
 
 
+class W3TlsxFlagTest(unittest.TestCase):
+    """Regression: tlsx rejects `-san`/`-cn` combined with any probe with
+    'san or cn flag cannot be used with other probes' — every baremetal call
+    failed. `-json` already carries subject_cn/subject_an, so the display flags
+    are dropped and only the probe (`-jarm`/`-expired`) stays."""
+
+    def test_tlsx_does_not_combine_san_cn_with_probes(self):
+        captured: dict = {}
+
+        async def fake_run_cmd(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return ("", "", 0)
+
+        async def _async():
+            holders: dict = {}
+
+            class _Stub:
+                def tool(self):
+                    def _wrap(fn):
+                        holders[fn.__name__] = fn
+                        return fn
+                    return _wrap
+
+            recon_pd.register(_Stub())
+            with mock.patch.object(recon_pd._impl, "_check_tool", return_value=True), \
+                 mock.patch.object(recon_pd._impl, "_run_cmd", side_effect=fake_run_cmd):
+                return await holders["run_tlsx"](["example.com"])
+
+        asyncio.run(_async())
+        cmd = captured["cmd"]
+        has_probe = any(p in cmd for p in ("-jarm", "-expired", "-cipher"))
+        self.assertTrue(has_probe, "tlsx should still request at least one probe")
+        # The forbidden combination that made tlsx exit fatally.
+        self.assertNotIn("-san", cmd)
+        self.assertNotIn("-cn", cmd)
+
+
 class W3MissingBinaryFallsThroughTest(unittest.TestCase):
 
     def _call(self, tool_name, *args, **kwargs):

@@ -112,8 +112,7 @@ def register(mcp: FastMCP):
         if not _check_tool("wpscan"):
             return (
                 "Error: wpscan not installed.\n"
-                "  gem install wpscan  OR  apt install wpscan  OR\n"
-                "  docker run -it --rm wpscanteam/wpscan --url TARGET"
+                "  gem install wpscan  OR  apt install wpscan"
             )
         cmd = [
             "wpscan", "--url", target,

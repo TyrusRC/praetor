@@ -155,6 +155,24 @@ public class ProxyHandler extends BaseHandler {
         result.put("url", req.url());
         result.put("request_headers", headersToList(req.headers()));
         result.put("request_body", req.bodyToString());
+        // Extra HTTP-history columns (for evidence screenshots that mirror Burp's
+        // history row) — the values Montoya exposes on the entry.
+        result.put("entry_number", item.id());       // Burp's "#" column
+        result.put("host", item.host());
+        result.put("secure", item.secure());         // TLS column
+        result.put("listener_port", item.listenerPort());
+        result.put("edited", item.edited());
+        try {
+            result.put("ip", item.httpService() != null ? item.httpService().ipAddress() : "");
+        } catch (RuntimeException e) {
+            result.put("ip", "");
+        }
+        try {
+            result.put("time", item.time() != null ? item.time().toString() : "");
+        } catch (RuntimeException e) {
+            result.put("time", "");
+        }
+        result.put("notes", item.annotations() != null ? item.annotations().notes() : "");
 
         if (resp != null) {
             result.put("status_code", resp.statusCode());
