@@ -46,6 +46,14 @@ The Q5 evidence gate in `assess_finding` floors at ~0.45. The mapping `verdict_f
 
 This is the canonical mapping for tools whose verdict is "did any of N probe axes succeed". Tools with non-tally logic (e.g. CONFIRMED only when a CRITICAL subset is hit) call `make_verdict` directly.
 
+## Confidence calibration (validate the constants)
+
+Those constants (0.85 / 0.55 / 0.45 / 0.10) are a starting hypothesis, not gospel. A `confidence` is a *predicted probability the finding is real* — the thing `is_actionable` (CONFIRMED, or SUSPECTED ≥ 0.45) and Rule-33 escalation act on. The calibration layer measures whether they hold:
+
+- Ground truth is logged automatically at the only two moments it is known: `record_retest` (confirmed/regressed/reopened/fixed → true positive) and `mark_finding_false_positive` (→ false positive). `record_calibration_outcome(vuln_type, confidence, outcome)` folds in external truth (triager accept/reject). All land in a global ledger, `~/.praetor/calibration/ledger.jsonl` — calibration is a property of the vuln *class*, not the target.
+- `calibration_report(vuln_type="", min_samples=3)` scores them: a reliability table (predicted vs. observed true-positive rate per band), Brier score, ECE, and a per-class verdict (`overconfident` / `underconfident` / `calibrated` / `insufficient`) with a **suggested confidence** = the observed hit rate.
+- **Re-tune with data, never vibes.** When a class shows a stable gap over enough samples, move its constant in `_verdict.py` toward the suggested value — do not hand-adjust a confidence to make one finding pass. Pure scoring math lives in `tools/_calibration.py` (standalone, unit-tested).
+
 ## Authoring a new tool
 
 ```python

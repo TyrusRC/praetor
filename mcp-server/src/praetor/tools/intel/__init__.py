@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from . import (
     brief,
     business_context,
+    calibration,
     checkpoint,
     cost_cap,
     cross_target,
@@ -66,6 +67,7 @@ def register(mcp: FastMCP) -> None:
     episodes.register(mcp)
     checkpoint.register(mcp)  # W37 — durable engagement checkpoint + task ledger
     brief.register(mcp)       # target_brief — one-call situational orientation (Spec E)
+    calibration.register(mcp)  # verdict-confidence calibration ledger + report (RLCD-inspired)
 
 
 __all__ = [

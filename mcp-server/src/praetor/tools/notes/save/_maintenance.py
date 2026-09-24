@@ -100,6 +100,15 @@ def register(mcp: FastMCP):
 
         # Tier 1: low-conf or all gates passed → hard delete.
         deleted_locally, burp_msg = await _hard_delete_finding(domain, target)
+        # Calibration ground truth: this prediction (conf) was wrong — the finding
+        # was not real. Feed (predicted confidence → false positive) to the ledger.
+        # Best-effort; a ledger failure never breaks the deletion.
+        from praetor.tools.intel.calibration import record_calibration
+        record_calibration(
+            target.get("vuln_type", ""), conf, "false_positive",
+            verdict=str(target.get("verdict", "")),
+            source="mark_finding_false_positive", domain=domain,
+        )
         audit = []
         audit.append(f"Hard-deleted {finding_id} (confidence={conf:.2f}, "
                      f"severity={target.get('severity', 'INFO')}) from {domain}.")
