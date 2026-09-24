@@ -15,7 +15,7 @@ from ._shared import _pick_attach, _run_auto_redact, _save_shot, _scan_text
 def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def screenshot_message(proxy_history_index: int, domain: str = "",
-                                 which: str = "response", search: str = "",
+                                 which: str = "both", search: str = "",
                                  payload: str = "", keywords: list[str] | None = None,
                                  viewport_height: int = 760, viewport_width: int = 1000,
                                  scale: float = 2.0, note: str = "", finding_id: str = "",
@@ -24,7 +24,8 @@ def register(mcp: FastMCP) -> None:
         """Screenshot ONE request/response auto-scrolled to + highlighting a keyword.
 
         For evidence when the message is too long to fit a Burp viewport: renders the
-        proxy-history entry in a private read-only Burp editor, applies Burp's NATIVE
+        proxy-history entry's request AND response in private read-only Burp editors
+        (Raw view, stacked — real proxy-history evidence), applies Burp's NATIVE
         search (highlights every match, scrolls the first into view), and captures
         that — so the shot lands ON the interesting line, not the top of a 3000-line
         body. The operator's live Burp UI is never navigated.
@@ -37,7 +38,7 @@ def register(mcp: FastMCP) -> None:
         Args:
             proxy_history_index: get_proxy_history index of the entry to render.
             domain: target the shot belongs to (its screenshots dir). Empty -> _burp.
-            which: 'response' (default) or 'request'.
+            which: 'both' (default, request+response stacked), 'response', or 'request'.
             search: explicit search expression (skips auto-pick).
             payload: the finding's payload — auto-search highlights it when reflected.
             keywords: operator keywords to try (in order) before the evidence shapes.
@@ -50,7 +51,10 @@ def register(mcp: FastMCP) -> None:
         """
         if proxy_history_index < 0:
             return {"error": "proxy_history_index must be >= 0"}
-        which_l = "request" if which.strip().lower().startswith("req") else "response"
+        w = which.strip().lower()
+        which_l = "request" if w.startswith("req") else ("response" if w.startswith("res") else "both")
+        # Scan the response for the keyword (richest evidence) unless request-only.
+        scan_side = "request" if which_l == "request" else "response"
         term, reason = search.strip(), "explicit"
         if not term:
             detail = await client.get(f"/api/proxy/history/{proxy_history_index}")
@@ -58,7 +62,7 @@ def register(mcp: FastMCP) -> None:
                 return detail
             from praetor.tools._evidence_keywords import pick_search_term
             term, reason = pick_search_term(
-                _scan_text(detail, which_l), payload, tuple(keywords or ()))
+                _scan_text(detail, scan_side), payload, tuple(keywords or ()))
         data = await client.post("/api/ui/message-screenshot", json={
             "proxy_index": proxy_history_index, "which": which_l, "search": term,
             "width": viewport_width, "height": viewport_height, "scale": scale,

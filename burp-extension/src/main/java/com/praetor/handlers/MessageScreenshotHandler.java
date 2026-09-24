@@ -57,15 +57,24 @@ public class MessageScreenshotHandler extends BaseHandler {
         }
         ProxyHttpRequestResponse item = history.get(index);
 
-        String which = strOf(body.get("which"), "response").toLowerCase();
-        boolean isResponse = !which.startsWith("req");
+        // 'both' (default) stacks request over response — real proxy-history
+        // evidence. 'request'/'response' render just one.
+        String which = strOf(body.get("which"), "both").toLowerCase();
+        if (!which.equals("request") && !which.equals("response")) {
+            which = "both";
+        }
         HttpRequest req = item.finalRequest();
         HttpResponse resp = item.originalResponse();
-        if (isResponse && resp == null) {
-            sendError(exchange, 409,
-                "history entry " + index + " has no response to render — "
-                + "capture the request instead (which='request').");
-            return;
+        // No response captured for this entry — fall back to the request alone
+        // rather than render an empty response pane.
+        if (resp == null) {
+            if (which.equals("response")) {
+                sendError(exchange, 409,
+                    "history entry " + index + " has no response to render — "
+                    + "capture the request instead (which='request').");
+                return;
+            }
+            which = "request";
         }
 
         String search = strOf(body.get("search"), "");
@@ -74,13 +83,13 @@ public class MessageScreenshotHandler extends BaseHandler {
         double scale = parseScale(body.get("scale"));
 
         BufferedImage img = MessageEditorShot.capture(
-            api, isResponse, req, resp, search, width, height, scale);
+            api, which, req, resp, search, width, height, scale);
 
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
             "height", img.getHeight(),
-            "which", isResponse ? "response" : "request",
+            "which", which,
             // Echo the search expression actually applied — empty => captured from
             // the top of the message (no keyword given / matched).
             "search", search,

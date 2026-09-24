@@ -44,7 +44,7 @@ class ScreenshotMessageTest(unittest.IsolatedAsyncioTestCase):
             posted["path"] = path
             posted["json"] = json
             return {"png_base64": _PNG_B64, "width": 10, "height": 10,
-                    "which": "response", "search": json["search"],
+                    "which": json["which"], "search": json["search"],
                     "engine": "editor-search"}
 
         with patch.object(burp_ui.client, "get", new=AsyncMock(side_effect=fake_get)), \
@@ -53,8 +53,8 @@ class ScreenshotMessageTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(posted["path"], "/api/ui/message-screenshot")
         self.assertEqual(posted["json"]["proxy_index"], 7)
-        self.assertEqual(posted["json"]["which"], "response")
-        self.assertTrue(posted["json"]["search"].startswith("eyJ"))  # JWT auto-picked
+        self.assertEqual(posted["json"]["which"], "both")   # default request+response
+        self.assertTrue(posted["json"]["search"].startswith("eyJ"))  # JWT auto-picked from response
         self.assertEqual(out["search_reason"], "jwt")
         self.assertEqual(out["engine"], "editor-search")
         self.assertTrue(Path(out["saved"]).exists())
