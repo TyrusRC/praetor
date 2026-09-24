@@ -189,6 +189,9 @@ public class ApiServer {
         // Redact sensitive regions in an existing screenshot (opaque boxes)
         server.createContext("/api/ui/redact", new RedactHandler());
 
+        // Screenshot one proxy-history message auto-scrolled to + highlighting a keyword
+        server.createContext("/api/ui/message-screenshot", new MessageScreenshotHandler(api));
+
         server.start();
     }
 
