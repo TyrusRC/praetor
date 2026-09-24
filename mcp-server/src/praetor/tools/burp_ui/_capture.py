@@ -21,6 +21,7 @@ def register(mcp: FastMCP) -> None:
                               trademark: str = "", click_button: str = "",
                               select_row: str = "", select_url: str = "",
                               select_proxy_index: int = -1, restore: bool = True,
+                              highlight_box: bool = False,
                               auto_redact: bool = False, attach: str = "auto") -> dict:
         """Screenshot the Burp window for evidence — optionally a named tab/sub-tab/row.
 
@@ -54,6 +55,12 @@ def register(mcp: FastMCP) -> None:
             scale: render scale (default 2×; capped so the long side stays ~2K).
             banner: append a footer caption strip below the shot (ask first; default off).
             trademark: optional brand text, right side of the footer (implies banner).
+            highlight_box: draw a RED call-out box around the match(es) Burp is
+                already highlighting. WORKFLOW: first search the keyword in Burp's
+                request/response editor yourself (Burp has no external-search API, so
+                it must be a real search in the UI — it highlights + scrolls to the
+                match), THEN call this with highlight_box=True to frame it in red.
+                Burp's yellow is cleared, leaving one clean red marker.
             auto_redact: OCR-detect secrets and write a pixel-mosaicked redacted twin.
             attach: which twin to link to finding_id — 'auto' (redacted if present,
                 else naked), 'naked', or 'none'. Default 'auto' keeps secrets out.
@@ -99,6 +106,12 @@ def register(mcp: FastMCP) -> None:
             out["clicked_button"] = data.get("clicked_button", "")
             out["selected_row"] = data.get("selected_row", -1)
             out["selected_match"] = data.get("selected_match", "")
+            # Red call-out box around whatever Burp is highlighting (from the
+            # operator's own search); yellow cleared, leaving one clean red marker.
+            if highlight_box:
+                from praetor.tools._highlight_box import annotate_highlights
+                out["highlight_boxes"] = await asyncio.to_thread(
+                    annotate_highlights, out["saved"])
             # Auto-redact: OCR-detect secrets and save a redacted twin. The naked
             # shot (out['saved']) stays; the operator picks which goes in the report.
             if auto_redact:

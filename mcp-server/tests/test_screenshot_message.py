@@ -54,6 +54,8 @@ class ScreenshotMessageTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(posted["path"], "/api/ui/message-screenshot")
         self.assertEqual(posted["json"]["proxy_index"], 7)
         self.assertEqual(posted["json"]["which"], "both")   # default request+response
+        self.assertEqual(posted["json"]["layout"], "side")  # default Repeater-style
+        self.assertNotIn("width", posted["json"])           # 0 => handler auto-sizes
         self.assertTrue(posted["json"]["search"].startswith("eyJ"))  # JWT auto-picked from response
         self.assertEqual(out["search_reason"], "jwt")
         self.assertEqual(out["engine"], "editor-search")
@@ -73,7 +75,8 @@ class ScreenshotMessageTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(burp_ui.client, "get", new=AsyncMock(side_effect=boom)), \
              patch.object(burp_ui.client, "post", new=AsyncMock(side_effect=fake_post)):
             out = await _resolve()(proxy_history_index=2, domain="t.example",
-                                   which="request", search="{{7*7}}")
+                                   which="request", search="{{7*7}}",
+                                   include_history_row=False)   # else the header fetch runs
 
         self.assertEqual(posted["json"]["search"], "{{7*7}}")
         self.assertEqual(posted["json"]["which"], "request")

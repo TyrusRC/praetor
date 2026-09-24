@@ -56,12 +56,14 @@ public final class MessageEditorShot {
      * shown they are stacked request-over-response in a split pane. The off-screen
      * host is disposed before returning.
      */
-    public static BufferedImage capture(MontoyaApi api, String which,
+    public static BufferedImage capture(MontoyaApi api, String which, String layout,
                                         HttpRequest req, HttpResponse resp,
                                         String searchExpr, int width, int height,
                                         double scale) {
         boolean wantReq = !"response".equalsIgnoreCase(which);
         boolean wantResp = !"request".equalsIgnoreCase(which);
+        // "side" = Repeater-style Request | Response (horizontal); "stacked" = vertical.
+        boolean sideBySide = !"stacked".equalsIgnoreCase(layout);
         // [0] = the Component to paint (a pane or the split), [1] = its host JFrame.
         Object[] holder = {null, null};
         SwingUi.runOnEdt(() -> {
@@ -93,10 +95,15 @@ public final class MessageEditorShot {
 
             Component root;
             if (panes.size() == 2) {
-                JSplitPane split = new JSplitPane(
-                    JSplitPane.VERTICAL_SPLIT, panes.get(0), panes.get(1));
-                split.setResizeWeight(0.35);            // request smaller, response fills
-                split.setDividerLocation((int) (height * 0.35));
+                // Repeater-style Request | Response side by side (the report standard),
+                // or stacked. Divider ~45% so the request (usually shorter) gets the
+                // left/top and the response fills the rest.
+                int orient = sideBySide ? JSplitPane.HORIZONTAL_SPLIT
+                                        : JSplitPane.VERTICAL_SPLIT;
+                int span = sideBySide ? width : height;
+                JSplitPane split = new JSplitPane(orient, panes.get(0), panes.get(1));
+                split.setResizeWeight(sideBySide ? 0.45 : 0.35);
+                split.setDividerLocation((int) (span * (sideBySide ? 0.45 : 0.35)));
                 root = split;
             } else {
                 root = panes.get(0);

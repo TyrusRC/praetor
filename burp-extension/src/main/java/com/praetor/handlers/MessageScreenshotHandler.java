@@ -10,6 +10,9 @@ import com.praetor.ui.MessageEditorShot;
 import com.praetor.ui.SuiteScreenshot;
 import com.praetor.util.JsonUtil;
 
+import java.awt.Frame;
+import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.Map;
@@ -77,19 +80,43 @@ public class MessageScreenshotHandler extends BaseHandler {
             which = "request";
         }
 
+        String layout = strOf(body.get("layout"), "side").toLowerCase();
+        if (!layout.equals("stacked")) {
+            layout = "side";
+        }
         String search = strOf(body.get("search"), "");
-        int width = MessageEditorShot.clampDim(intOf(body.get("width"), 1000), 300, 2000);
+        // Side-by-side halves each pane's width, so default wider there for readable
+        // HTTP lines (the report standard: don't shrink text past legibility).
+        int defW = which.equals("both") && layout.equals("side") ? 1600 : 1000;
+        int width = MessageEditorShot.clampDim(intOf(body.get("width"), defW), 300, 2600);
         int height = MessageEditorShot.clampDim(intOf(body.get("height"), 760), 200, 4000);
         double scale = parseScale(body.get("scale"));
 
         BufferedImage img = MessageEditorShot.capture(
-            api, which, req, resp, search, width, height, scale);
+            api, which, layout, req, resp, search, width, height, scale);
+
+        // Real Burp window title (with version/project/licence) and window icon,
+        // so a composite header can render the exact chrome instead of guessing.
+        String burpTitle = "";
+        String burpIconB64 = "";
+        try {
+            Frame frame = api.userInterface().swingUtils().suiteFrame();
+            if (frame != null) {
+                burpTitle = frame.getTitle() != null ? frame.getTitle() : "";
+                burpIconB64 = iconBase64(frame);
+            }
+        } catch (RuntimeException ignored) {
+            // best-effort — the shot still returns without the chrome extras
+        }
 
         sendJson(exchange, JsonUtil.object(
             "png_base64", SuiteScreenshot.pngBase64(img),
             "width", img.getWidth(),
             "height", img.getHeight(),
+            "burp_title", burpTitle,
+            "burp_icon_b64", burpIconB64,
             "which", which,
+            "layout", layout,
             // Echo the search expression actually applied — empty => captured from
             // the top of the message (no keyword given / matched).
             "search", search,
@@ -98,6 +125,35 @@ public class MessageScreenshotHandler extends BaseHandler {
             // editor search + printAll, not a full-window grab).
             "engine", "editor-search"
         ));
+    }
+
+    /** The frame's largest window icon as a PNG base64 (Burp's logo), or "". */
+    private static String iconBase64(Frame frame) throws Exception {
+        java.util.List<Image> icons = frame.getIconImages();
+        if (icons == null || icons.isEmpty()) {
+            return "";
+        }
+        Image best = null;
+        int bestW = -1;
+        for (Image im : icons) {
+            int w = im.getWidth(null);
+            if (w > bestW) {
+                bestW = w;
+                best = im;
+            }
+        }
+        if (best == null || bestW <= 0) {
+            return "";
+        }
+        int h = Math.max(1, best.getHeight(null));
+        BufferedImage bi = new BufferedImage(bestW, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = bi.createGraphics();
+        try {
+            g.drawImage(best, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return SuiteScreenshot.pngBase64(bi);
     }
 
     private static int intOf(Object o, int fallback) {
