@@ -182,16 +182,84 @@ def per_class_calibration(
     return rows
 
 
+def wilson_lower_bound(successes: int, n: int, z: float = 1.96) -> float:
+    """Wilson score-interval LOWER bound on a binomial proportion (0..1).
+
+    A small-sample-robust, fail-closed floor: unlike the raw rate k/n (which reads
+    1.0 after a single hit), the Wilson lower bound stays low until enough evidence
+    accrues — 1/1 gives ~0.21, 7/7 ~0.65, 20/20 ~0.84. That is exactly the property
+    a trust gate needs: never claim a source is reliable on thin data.
+    z=1.96 is the 95% one-sided-ish bound. Returns 0.0 for n<=0.
+    """
+    if n <= 0:
+        return 0.0
+    phat = successes / n
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    centre = phat + z2 / (2 * n)
+    margin = z * ((phat * (1 - phat) / n + z2 / (4 * n * n)) ** 0.5)
+    return round(max(0.0, (centre - margin) / denom), 3)
+
+
+def trust_gate(
+    records: list[dict[str, Any]],
+    *,
+    min_samples: int = 5,
+    z: float = 1.96,
+    trust_floor: float = 0.7,
+) -> list[dict[str, Any]]:
+    """Per vuln_type: how much a class's CONFIRMED verdicts can be trusted.
+
+    `trust_lb` is the Wilson lower bound on the observed true-positive rate — the
+    conservative floor on how often a 'confirmed' finding of this class is actually
+    real. Fail-closed (model_scorecard pattern): a class is only `trusted` (its
+    verdicts may skip the heaviest re-validation) when `trust_lb >= trust_floor`
+    AND `n >= min_samples`; otherwise `verify` (full re-confirmation, Rule 10a).
+    Thin data is `insufficient` — never trusted. This gates re-work, never the
+    evidence bar: a trusted class still cites its `proxy_history_index` (Rule 16b).
+
+    Each row: {vuln_type, n, true_positives, tp_rate, trust_lb, status}. Sorted
+    most-trusted first; insufficient last.
+    """
+    scored = _scored(records)
+    by_class: dict[str, list[int]] = {}
+    for _c, y, vt in scored:
+        by_class.setdefault(vt, []).append(y)
+    rows: list[dict[str, Any]] = []
+    for vt, ys in by_class.items():
+        n = len(ys)
+        k = sum(ys)
+        lb = wilson_lower_bound(k, n, z)
+        if n < min_samples:
+            status = "insufficient"
+        elif lb >= trust_floor:
+            status = "trusted"
+        else:
+            status = "verify"
+        rows.append({
+            "vuln_type": vt,
+            "n": n,
+            "true_positives": k,
+            "tp_rate": round(k / n, 3),
+            "trust_lb": lb,
+            "status": status,
+        })
+    rows.sort(key=lambda r: (r["status"] == "insufficient", -r["trust_lb"]))
+    return rows
+
+
 def calibration_summary(
     records: list[dict[str, Any]],
     *,
     min_samples: int = 3,
+    trust_floor: float = 0.7,
 ) -> dict[str, Any]:
     """Full calibration report over a ledger of records.
 
-    Returns overall Brier + ECE, the reliability table, per-class breakdown, and
-    counts. `scored` is the number of records with resolved ground truth;
-    `unresolved` the number excluded for lacking it.
+    Returns overall Brier + ECE, the reliability table, per-class breakdown, the
+    per-class trust gate (Wilson-bounded), and counts. `scored` is the number of
+    records with resolved ground truth; `unresolved` the number excluded for
+    lacking it.
     """
     scored = _scored(records)
     n_scored = len(scored)
@@ -207,4 +275,5 @@ def calibration_summary(
         "expected_calibration_error": expected_calibration_error(records),
         "reliability_table": reliability_table(records),
         "per_class": per_class_calibration(records, min_samples=min_samples),
+        "trust": trust_gate(records, trust_floor=trust_floor),
     }

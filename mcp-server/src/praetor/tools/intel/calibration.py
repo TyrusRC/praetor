@@ -197,8 +197,21 @@ def register(mcp: FastMCP) -> None:
             )
         lines += [
             "",
+            "  Trust gate (Wilson lower bound on true-positive rate — fail-closed):",
+        ]
+        for row in s["trust"]:
+            lines.append(
+                f"    {row['vuln_type']:<20} n={row['n']:<3} "
+                f"tp={row['true_positives']}/{row['n']} "
+                f"trust_lb={row['trust_lb']:.2f} [{row['status']}]"
+            )
+        lines += [
+            "",
             "  gap = predicted - actual. Positive = overconfident (verdict claims "
             "real more often than it is).",
+            "  trust_lb = conservative floor on this class's confirmed-verdict "
+            "reliability; only 'trusted' classes may skip heavy re-validation "
+            "(evidence still cited, Rule 16b).",
             "  Re-tune the constants in tools/testing/_verdict.py toward each "
             "class's suggested value once n is adequate.",
         ]

@@ -7,7 +7,7 @@ cites a proxy_history_index. HARD safety Rules 5-9 and the device allowlist appl
 
 from mcp.server.fastmcp import FastMCP
 
-from . import connect, control, frida, payloads, proxy
+from . import connect, control, frida, payloads, proxy, static
 
 
 def register(mcp: FastMCP) -> None:
@@ -16,6 +16,7 @@ def register(mcp: FastMCP) -> None:
     connect.register(mcp)
     frida.register(mcp)
     proxy.register(mcp)
+    static.register(mcp)
 
 
 __all__ = ["register"]

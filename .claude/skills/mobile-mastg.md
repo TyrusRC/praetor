@@ -5,7 +5,7 @@ globs:
 
 # Mobile MASTG Workflow
 
-Use when: target has an Android/iOS app in scope (APK / IPA / store URL), or a web finding points at a mobile-specific surface (deep link, universal link, WebView bridge). Pair with `mobile-dynamic-agent`. NOT a substitute for static analysis — Praetor mobile is **supporter tier**, not focus.
+Use when: target has an Android/iOS app in scope (APK / IPA / store URL), or a web finding points at a mobile-specific surface (deep link, universal link, WebView bridge). Pair with `mobile-dynamic-agent`. Static decompile now available (`mobile_decompile_apk` → jadx + `run_opengrep_source`); Praetor mobile is **supporter tier**, not focus.
 
 ## Decision gate
 
@@ -29,7 +29,7 @@ Use when: target has an Android/iOS app in scope (APK / IPA / store URL), or a w
 ## Attacker workflow (per session)
 
 1. **Inventory** — `adb shell pm list packages -3 | grep <target>`, pull APK with `adb shell pm path <pkg>` then `adb pull <apk>`. Record SHA256.
-2. **Surface enumeration** — adb command pack (`mobile_adb_pack`). Capture exported activities, exported services, content providers, custom URL schemes, intent filters.
+2. **Surface enumeration (static + dynamic)** — static (no device): `mobile_decompile_apk(<apk>)` decompiles with jadx and reports exported components, risky manifest flags (debuggable / cleartext / allowBackup), permissions, and hardcoded secret/endpoint leads; follow with `run_opengrep_source(<out>/sources)` for full SAST. Dynamic: adb command pack (`mobile_adb_pack`) confirms exported activities/services, content providers, custom URL schemes, intent filters on the running app.
 3. **Network unwrapping** — load SSL-pin bypass (`mobile_frida_snippet('ssl_pin_universal_android')`) + Burp CA. Confirm traffic in Burp proxy history. If still pinned, try the OkHttp3-specific variant (`ssl_pin_okhttp_specific`).
 4. **Deep link / intent fuzzing** — `am start -a android.intent.action.VIEW -d "<scheme>://<path>"` against each registered scheme. WebView load-URL parameters are highest-yield. Probe with `mobile_deeplink` KB contexts.
 5. **WebView bridge audit** — Frida `webview_debug_enable` snippet (#4) lists every exposed `@JavascriptInterface` method. Cross-reference with deep link entry points.
