@@ -12,6 +12,23 @@ final class UiHelpers {
 
     private UiHelpers() {}
 
+    /**
+     * A font in {@code style}, scaled to {@code ratio}× the component's inherited
+     * (Burp-scaled) font size. Deriving from the current font — instead of a
+     * hardcoded point size — makes the UI follow Burp's display-scaling / font
+     * setting, so it matches native panels on HiDPI and custom scales.
+     * ratio 1.0 keeps the base size (style-only change).
+     */
+    static Font scaled(Component c, int style, float ratio) {
+        Font f = c.getFont();
+        return f.deriveFont(style, f.getSize2D() * ratio);
+    }
+
+    /** Monospaced at the component's inherited (Burp-scaled) size. */
+    static Font mono(Component c) {
+        return new Font(Font.MONOSPACED, Font.PLAIN, Math.round(c.getFont().getSize2D()));
+    }
+
     // Theme colors
     static final Color ACCENT = new Color(64, 128, 64);
     static final Color BG_SUCCESS = new Color(230, 250, 230);
@@ -28,14 +45,14 @@ final class UiHelpers {
 
     static JLabel sectionTitle(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(l.getFont().deriveFont(Font.BOLD, 14f));
+        l.setFont(scaled(l, Font.BOLD, 1.17f));
         l.setBorder(BorderFactory.createEmptyBorder(4, 0, 6, 0));
         return l;
     }
 
     static JLabel hint(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(l.getFont().deriveFont(Font.ITALIC, 11f));
+        l.setFont(scaled(l, Font.ITALIC, 0.92f));
         l.setForeground(Color.GRAY);
         l.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
         return l;
@@ -43,15 +60,15 @@ final class UiHelpers {
 
     static JLabel label(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(l.getFont().deriveFont(Font.BOLD, 12f));
+        l.setFont(l.getFont().deriveFont(Font.BOLD));   // bold, inherit Burp size
         return l;
     }
 
     static void styleTable(JTable table, int[] widths) {
         table.setFillsViewportHeight(true);
-        table.setRowHeight(24);
-        table.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
-        table.getTableHeader().setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        // Row height tracks the (Burp-scaled) font so rows don't clip on HiDPI.
+        table.setRowHeight(Math.round(table.getFont().getSize2D() * 2f));
+        table.getTableHeader().setFont(table.getTableHeader().getFont().deriveFont(Font.BOLD));
         table.getTableHeader().setBackground(SECTION_BG);
         table.setGridColor(BORDER_COLOR);
         table.setShowGrid(true);

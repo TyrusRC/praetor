@@ -86,11 +86,11 @@ public class DashboardPanel extends JPanel {
             BorderFactory.createEmptyBorder(0, 0, 6, 0)
         ));
         JLabel title = new JLabel("Praetor MCP");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 20f));
+        title.setFont(UiHelpers.scaled(title, Font.BOLD, 1.6f));
         title.setForeground(UiHelpers.ACCENT);
         header.add(title, BorderLayout.WEST);
         JLabel ver = new JLabel("v" + version);
-        ver.setFont(ver.getFont().deriveFont(Font.PLAIN, 13f));
+        ver.setFont(UiHelpers.scaled(ver, Font.PLAIN, 1.05f));
         ver.setForeground(Color.GRAY);
         header.add(ver, BorderLayout.EAST);
         top.add(header, BorderLayout.NORTH);
@@ -121,7 +121,7 @@ public class DashboardPanel extends JPanel {
                 BorderFactory.createLineBorder(UiHelpers.BORDER_COLOR),
                 "  Findings (double-click to view details)  ",
                 TitledBorder.LEFT, TitledBorder.TOP,
-                centerSection.getFont().deriveFont(Font.BOLD, 12f)
+                centerSection.getFont().deriveFont(Font.BOLD)
             ),
             BorderFactory.createEmptyBorder(4, 4, 4, 4)
         ));
@@ -166,7 +166,7 @@ public class DashboardPanel extends JPanel {
             BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(UiHelpers.BORDER_COLOR), "  API Server  ",
                 TitledBorder.LEFT, TitledBorder.TOP,
-                configRow.getFont().deriveFont(Font.BOLD, 12f)
+                configRow.getFont().deriveFont(Font.BOLD)
             ),
             BorderFactory.createEmptyBorder(4, 6, 4, 6)
         ));
@@ -213,7 +213,7 @@ public class DashboardPanel extends JPanel {
         statusLabel = new JLabel(" Running on " + host + ":" + port + " ");
         statusLabel.setOpaque(true);
         statusLabel.setBackground(UiHelpers.BG_SUCCESS);
-        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD, 11f));
+        statusLabel.setFont(UiHelpers.scaled(statusLabel, Font.BOLD, 0.92f));
         statusLabel.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(UiHelpers.ACCENT),
             BorderFactory.createEmptyBorder(3, 6, 3, 6)));
@@ -277,7 +277,7 @@ public class DashboardPanel extends JPanel {
 
     private JLabel makeBadge(String text, Color color) {
         JLabel badge = new JLabel(text);
-        badge.setFont(badge.getFont().deriveFont(Font.BOLD, 11f));
+        badge.setFont(UiHelpers.scaled(badge, Font.BOLD, 0.92f));
         badge.setForeground(color);
         badge.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(color, 1),

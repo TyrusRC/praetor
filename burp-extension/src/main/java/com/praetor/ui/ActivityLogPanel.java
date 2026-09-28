@@ -31,7 +31,7 @@ public class ActivityLogPanel extends JPanel {
         add(top, BorderLayout.NORTH);
 
         JList<String> logList = new JList<>(logModel);
-        logList.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        logList.setFont(UiHelpers.mono(logList));
         logList.setBackground(new Color(252, 252, 252));
         logList.setSelectionBackground(UiHelpers.BG_INFO);
         add(new JScrollPane(logList), BorderLayout.CENTER);

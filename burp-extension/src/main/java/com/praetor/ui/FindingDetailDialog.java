@@ -47,7 +47,7 @@ final class FindingDetailDialog {
         headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel sevLabel = new JLabel(" " + severity + " ");
         sevLabel.setOpaque(true);
-        sevLabel.setFont(sevLabel.getFont().deriveFont(Font.BOLD, 12f));
+        sevLabel.setFont(sevLabel.getFont().deriveFont(Font.BOLD));
         Color sevColor = switch (severity) {
             case "CRITICAL" -> UiHelpers.SEV_CRITICAL;
             case "HIGH" -> UiHelpers.SEV_HIGH;
@@ -60,7 +60,7 @@ final class FindingDetailDialog {
         sevLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
         headerPanel.add(sevLabel);
         JLabel titleLabel = new JLabel(titleText);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 16f));
+        titleLabel.setFont(UiHelpers.scaled(titleLabel, Font.BOLD, 1.33f));
         headerPanel.add(titleLabel);
         content.add(headerPanel);
         content.add(Box.createVerticalStrut(8));
@@ -86,7 +86,7 @@ final class FindingDetailDialog {
             // Evidence stays byte-faithful (payloads must remain visible) —
             // only literal escape sequences are normalised, no tag stripping.
             JTextArea evidenceArea = makeTextArea(UiHelpers.toReadableText(evidence, false));
-            evidenceArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            evidenceArea.setFont(UiHelpers.mono(evidenceArea));
             evidenceArea.setBackground(new Color(245, 245, 245));
             JScrollPane evidenceScroll = new JScrollPane(evidenceArea);
             evidenceScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -131,9 +131,9 @@ final class FindingDetailDialog {
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         row.setBorder(BorderFactory.createEmptyBorder(1, 0, 1, 0));
         JLabel nameLabel = new JLabel(name + ": ");
-        nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
+        nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD));
         JLabel valueLabel = new JLabel(value);
-        valueLabel.setFont(valueLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        valueLabel.setFont(valueLabel.getFont().deriveFont(Font.PLAIN));
         row.add(nameLabel);
         row.add(valueLabel);
         return row;
@@ -141,7 +141,7 @@ final class FindingDetailDialog {
 
     private static JLabel makeSectionLabel(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(l.getFont().deriveFont(Font.BOLD, 13f));
+        l.setFont(UiHelpers.scaled(l, Font.BOLD, 1.08f));
         l.setAlignmentX(Component.LEFT_ALIGNMENT);
         l.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
         return l;
@@ -152,7 +152,7 @@ final class FindingDetailDialog {
         area.setEditable(false);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
-        area.setFont(area.getFont().deriveFont(12f));
+        area.setFont(UiHelpers.scaled(area, Font.PLAIN, 1.0f));
         area.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
         return area;
     }
