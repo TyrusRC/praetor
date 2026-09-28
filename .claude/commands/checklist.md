@@ -3,7 +3,7 @@ description: Run a coverage-driven pentest and produce the full scoped checklist
 argument-hint: <target-domain> [scope: web api mobile llm]
 ---
 
-You are running a **pentest engagement** on `$ARGUMENTS`.
+You are running `/checklist` — a **full-coverage pentest** on `$ARGUMENTS`.
 
 Goal: full-coverage testing against the latest OWASP standards + Praetor's KB
 edge cases, ending in a single markdown checklist file the operator can read and
