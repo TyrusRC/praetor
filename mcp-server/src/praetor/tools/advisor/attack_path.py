@@ -24,7 +24,7 @@ from mcp.server.fastmcp import FastMCP
 from praetor.tools.intel._internals import _intel_path
 
 from ._attack_path_data import (
-    _CAP_HUMAN, _CLASS_GRANTS, _OBJECTIVES, _TRANSITIONS,
+    _CAP_HUMAN, _CLASS_GRANTS, _CONTROLS, _OBJECTIVES, _TRANSITIONS,
 )
 
 _SEVERITY_WEIGHT = {"critical": 1.0, "high": 0.8, "medium": 0.6, "low": 0.4}
@@ -74,7 +74,7 @@ def _closure(held: set[str]) -> set[str]:
     changed = True
     while changed:
         changed = False
-        for need, gives, _u, _t, _d in _TRANSITIONS:
+        for need, gives, _u, _t, _d, _s in _TRANSITIONS:
             if gives not in caps and need <= caps:
                 caps.add(gives)
                 changed = True
@@ -101,7 +101,7 @@ def _beam_chains(
     for _ in range(max_depth):
         nxt: list[dict[str, Any]] = []
         for st in frontier:
-            for need, gives, uplift, tech, desc in _TRANSITIONS:
+            for need, gives, uplift, tech, desc, sev_by in _TRANSITIONS:
                 if gives in st["caps"] or not need <= st["caps"]:
                     continue
                 ns = {
@@ -109,6 +109,8 @@ def _beam_chains(
                     "path": st["path"] + [{
                         "capability": gives, "uplift": uplift,
                         "attack_ck": tech, "action": desc,
+                        # the control that severs THIS hop (breaks the chain here).
+                        "severed_by": _CONTROLS.get(sev_by, sev_by),
                         # seed caps consumed by this step (attribution).
                         "from": sorted(need & seed_caps),
                     }],
@@ -131,12 +133,21 @@ def _beam_chains(
         nxt.sort(key=lambda s: s["mult"], reverse=True)
         frontier = nxt[:beam_width]
 
-    # Attach the seed findings each chain actually rests on.
+    # Attach the seed findings each chain actually rests on, plus the controls
+    # that would sever it — any one breaks the chain; the earliest is the cheapest.
     for chain in best_by_obj.values():
         used_caps = {c for step in chain["steps"] for c in step["from"]}
         chain["seed_findings"] = sorted(
             {f"{seeds[c]['fid']} ({seeds[c]['vuln_type']})" for c in used_caps if c in seeds}
         )
+        controls: list[str] = []
+        for step in chain["steps"]:
+            c = step["severed_by"]
+            if c not in controls:
+                controls.append(c)
+        chain["severed_by"] = controls
+        # The control on the first hop cuts the chain earliest (upstream).
+        chain["earliest_control"] = chain["steps"][0]["severed_by"] if chain["steps"] else ""
     return sorted(best_by_obj.values(), key=lambda c: c["score"], reverse=True)
 
 
@@ -150,7 +161,7 @@ def _near_misses(reachable: set[str], seeds: dict[str, dict[str, Any]]) -> list[
 
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for need, gives, _u, _t, desc in _TRANSITIONS:
+    for need, gives, _u, _t, desc, _s in _TRANSITIONS:
         if gives not in _OBJECTIVES or gives in reachable:
             continue
         missing = need - reachable
@@ -240,9 +251,13 @@ def register(mcp: FastMCP) -> None:
         (confirmed + suspected), then searches escalation transitions to the
         objectives RCE / cloud-cred theft / ATO / forced-admin-action / mass-PII.
         Returns ranked kill_chains (ordered steps, ATT&CK ids, seed findings,
-        evidence-weighted score) AND near_misses — objectives blocked by exactly
-        one missing capability, naming the vuln class that would grant it (your
-        next proof, Rule 29). Complements propose_chains; does not replace it.
+        evidence-weighted score, plus per-step `severed_by` control and a
+        chain-level `severed_by` / `earliest_control` remediation — any one control
+        breaks the chain, the earliest is the cheapest upstream cut) AND near_misses
+        — objectives blocked by exactly one missing capability, naming the vuln class
+        that would grant it (your next proof, Rule 29). The severed_by mapping turns
+        each proposed chain into report remediation guidance. Complements
+        propose_chains; does not replace it.
 
         Args:
             domain: target domain (findings.json lookup).
