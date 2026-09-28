@@ -1,0 +1,48 @@
+---
+description: Run an objective-driven red-team — hunt quick wins / low-hanging high-impact, exploit to prove impact, produce the attack-path map markdown
+argument-hint: <target-domain-or-scope> [objective]
+---
+
+You are running a **red-team engagement** on `$ARGUMENTS`.
+
+Goal: reach the objective via the **cheapest high-impact path** — quick wins and
+low-hanging fruit first — and deliver a **full attack-path map** markdown, not a
+vulnerability checklist. Follow `.claude/rules/hunting.md`, the
+`command-engagement` and `playbook-red-team-web` skills, and stay inside the
+safety model (benign PoC proves impact; Rules 5–9 HARD; confirm-before-dangerous
+on the raw tools).
+
+## Phase 0 — confirm (R28/R32, ask once if unstated)
+1. Parse target/scope from the arguments; if none, ask.
+2. Confirm the **objective** (data exfil / account takeover / admin access /
+   specific flag or asset) and the **stealth/noise budget** — red team is
+   kill-chain to objective, not full coverage.
+
+## Phase 1 — quick-win sweep (low effort, high impact FIRST)
+Prioritise the cheapest paths to real impact before deep testing:
+- default / weak creds on exposed panels, `check_tech_vulns` + `map_tech_to_cves`
+  for a known-CVE quick win, exposed secrets (`extract_js_secrets`,
+  `dump_exposed_git`, `run_trufflehog`), exposed admin/debug endpoints,
+  auth bypass (`test_login_bypass`), SSRF → cloud IMDS creds, IDOR/BOLA on
+  predictable IDs, subdomain takeover.
+- Network lane where in scope: `run_network_recon` → sanctioned
+  impacket/netexec, `crack_hashes` → credential reuse.
+Rank targets with `rank_attack_targets` / `risk_rank_endpoints`; pursue the
+highest impact-per-effort first (R29).
+
+## Phase 2 — exploit to prove impact (benign PoC)
+Confirm each win by REACHING the sink — a read marker / version / benign action
+proves you could go further (Rule 8). Log every action to the ATT&CK operator
+log (`record_redteam_action` / it is auto-tagged). For a genuinely dangerous
+state-changing action, ASK the operator first (the raw tools enforce this).
+
+## Phase 3 — build the attack-path map
+- `plan_attack_paths(domain)` — beam-searches confirmed findings to high-value
+  objectives, names the missing capability on near-misses, and emits the
+  severing control per chain.
+- `propose_chains` / `engagement_graph` for the lineage.
+
+## Phase 4 — deliverable
+`generate_report(format='redteam')` — the kill-chain / ATT&CK narrative to the
+objective with the attack path, written to `reports/`. Hand back that markdown
+plus the attack-path map. Prefer dispatching `redteam-commander` for scale.
