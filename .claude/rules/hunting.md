@@ -224,6 +224,11 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
      traffic that does not exist.
    - **On resume, read state before acting**: `load_checkpoint` + `load_target_intel(domain,
      "all")` + `coverage_summary`. Do not re-crawl to rebuild what is already on disk.
+   - **When a re-check disagrees with stored state, or after bulk edits, run
+     `sync_workspace(domain)`** — it regenerates every derived writeup from the canonical
+     `findings.json` and surfaces the drift that needs a decision (duplicates, findings with
+     no evidence, MEDIUM+ with no impact, stale checkpoint/coverage refs). It is the single
+     place to re-align all the related files instead of hand-editing each.
 
 ## Ambiguity (32) — ADVISORY
 
