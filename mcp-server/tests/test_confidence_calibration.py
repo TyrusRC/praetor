@@ -132,6 +132,38 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(s["false_positives"], 1)
         self.assertAlmostEqual(s["base_rate"], 0.5)
 
+    def test_summary_includes_trust(self):
+        s = C.calibration_summary([{"vuln_type": "sqli", "confidence": 0.8, "outcome": "tp"}])
+        self.assertIn("trust", s)
+
+
+class WilsonTrustGateTest(unittest.TestCase):
+
+    def test_wilson_is_fail_closed_on_thin_data(self):
+        # 1/1 must NOT read as fully reliable — the whole point of the lower bound.
+        self.assertLess(C.wilson_lower_bound(1, 1), 0.5)
+        # bound rises with corroborating evidence (all-positive at n=1 vs n=20).
+        self.assertLess(C.wilson_lower_bound(1, 1), C.wilson_lower_bound(20, 20))
+        # never exceeds the point estimate, never below 0.
+        self.assertLessEqual(C.wilson_lower_bound(7, 10), 0.7)
+        self.assertEqual(C.wilson_lower_bound(0, 0), 0.0)
+
+    def test_trust_status_transitions(self):
+        recs = (
+            [{"vuln_type": "sqli", "confidence": 0.9, "outcome": "tp"}] * 20  # proven
+            + [{"vuln_type": "xss", "confidence": 0.9, "outcome": "tp"}] * 2  # thin
+            + [{"vuln_type": "csrf", "confidence": 0.9, "outcome": "tp"}] * 3
+            + [{"vuln_type": "csrf", "confidence": 0.9, "outcome": "fp"}] * 5  # mixed
+        )
+        by = {r["vuln_type"]: r for r in C.trust_gate(recs)}
+        self.assertEqual(by["sqli"]["status"], "trusted")       # 20/20 clears the floor
+        self.assertEqual(by["xss"]["status"], "insufficient")   # n<min_samples
+        self.assertEqual(by["csrf"]["status"], "verify")        # mostly FP -> not trusted
+        # most-trusted first, insufficient last.
+        rows = C.trust_gate(recs)
+        self.assertEqual(rows[0]["vuln_type"], "sqli")
+        self.assertEqual(rows[-1]["status"], "insufficient")
+
 
 # --------------------------------------------------------------------------- #
 # Ledger + tools (temp ledger, no ~/.praetor pollution)                       #

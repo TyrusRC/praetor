@@ -61,6 +61,32 @@ class CVSS4Test(unittest.TestCase):
         self.assertEqual(parsed.get("CR"), "H")
         self.assertNotIn("INVALID", v)
 
+    def test_exposure_env_mapping(self):
+        self.assertEqual(_cvss4.exposure_env("ip_allowlist"), {"MAV": "A"})
+        self.assertEqual(_cvss4.exposure_env("local"), {"MAV": "L"})
+        self.assertEqual(_cvss4.exposure_env("physical"), {"MAV": "P"})
+        self.assertEqual(_cvss4.exposure_env("internet"), {})           # default AV kept
+        self.assertEqual(_cvss4.exposure_env(""), {})
+        self.assertEqual(_cvss4.exposure_env("internal", exploit_demonstrated=True),
+                         {"MAV": "A", "E": "A"})
+
+    def test_network_exposure_flows_from_evidence_and_lowers_band(self):
+        # The IP-allowlist case: SQLi on an internal-only backend must score its
+        # true internal risk (MAV:A), dropping CRITICAL -> HIGH, not stay CRITICAL.
+        inet = _cvss4.build_vector("sqli", evidence={})
+        gated = _cvss4.build_vector("sqli", evidence={"network_exposure": "ip_allowlist"})
+        self.assertNotIn("MAV", inet)
+        self.assertIn("MAV:A", gated)
+        self.assertEqual(_cvss4.severity_band(inet).upper(), "CRITICAL")
+        self.assertEqual(_cvss4.severity_band(gated).upper(), "HIGH")
+
+    def test_explicit_env_mav_overrides_evidence_exposure(self):
+        # An operator MAV in env wins over the one derived from exposure.
+        v = _cvss4.build_vector("sqli", evidence={"network_exposure": "physical"},
+                                env={"MAV": "A"})
+        self.assertIn("MAV:A", v)
+        self.assertNotIn("MAV:P", v)
+
     def test_parse_rejects_bad_prefix(self):
         with self.assertRaises(ValueError):
             _cvss4.parse_vector("CVSS:3.1/AV:N/AC:L")
@@ -85,6 +111,25 @@ class CVSS4Test(unittest.TestCase):
         self.assertTrue(v31.startswith("CVSS:3.1/"))
         self.assertIn("AV:N", v31)
         self.assertIn("C:H", v31)
+
+
+class ExposureSeverityCapTest(unittest.TestCase):
+    """assess_finding inferred severity follows the exposure-adjusted CVSS band."""
+
+    class _Ctx:
+        def __init__(self, exposure, cls):
+            self.network_exposure = exposure
+            self.q2_class_root = cls
+            self.vuln_lower = cls
+
+    def test_band_drop_measured_by_real_scorer(self):
+        from praetor.tools.advisor._severity import _exposure_band_drop
+        # internet-facing = no drop; IP-allowlisted SQLi drops one band.
+        self.assertEqual(_exposure_band_drop(self._Ctx("internet", "sqli")), 0)
+        self.assertEqual(_exposure_band_drop(self._Ctx("ip_allowlist", "sqli")), 1)
+        self.assertEqual(_exposure_band_drop(self._Ctx("", "sqli")), 0)
+        # a scope-changing RCE stays maxed even internally (faithful, not forced).
+        self.assertEqual(_exposure_band_drop(self._Ctx("ip_allowlist", "rce")), 0)
 
 
 class CvssDeterminismTest(unittest.TestCase):
