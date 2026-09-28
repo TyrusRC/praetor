@@ -114,5 +114,39 @@ class ToolTest(unittest.TestCase):
         self.assertIn("run_opengrep_source", report)       # SAST handoff
 
 
+class IpaAnalysisTest(unittest.TestCase):
+
+    def test_analyze_ipa_surfaces_manifest_entitlements_secrets(self):
+        import asyncio
+        import plistlib
+        import zipfile
+        from praetor import server
+        work = Path(tempfile.mkdtemp(prefix="ipa-"))
+        self.addCleanup(shutil.rmtree, work, ignore_errors=True)
+        info = {"CFBundleIdentifier": "com.acme.app", "CFBundleShortVersionString": "1.2",
+                "CFBundleURLTypes": [{"CFBundleURLSchemes": ["acme", "acme-oauth"]}],
+                "NSAppTransportSecurity": {"NSAllowsArbitraryLoads": True}}
+        ipa = work / "app.ipa"
+        with zipfile.ZipFile(ipa, "w") as z:
+            z.writestr("Payload/Acme.app/Info.plist", plistlib.dumps(info))
+            z.writestr("Payload/Acme.app/Acme",
+                       "k=AIza0123456789012345678901234567890123456 https://api.acme.com/v1")
+        fn = server.mcp._tool_manager._tools["mobile_analyze_ipa"].fn
+        out = asyncio.run(fn(str(ipa)))
+        self.assertIn("com.acme.app", out)
+        self.assertIn("acme-oauth", out)                # URL scheme surfaced
+        self.assertIn("cleartext", out)                 # ATS risky flag
+        self.assertIn("google_api_key", out)            # secret lead
+
+    def test_bad_ipa_rejected(self):
+        import asyncio
+        from praetor import server
+        work = Path(tempfile.mkdtemp(prefix="ipa-"))
+        self.addCleanup(shutil.rmtree, work, ignore_errors=True)
+        bad = work / "x.ipa"; bad.write_bytes(b"not a zip")
+        fn = server.mcp._tool_manager._tools["mobile_analyze_ipa"].fn
+        self.assertIn("Error", asyncio.run(fn(str(bad))))
+
+
 if __name__ == "__main__":
     unittest.main()

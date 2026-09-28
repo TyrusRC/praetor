@@ -13,8 +13,10 @@ All work is local/offline (no target traffic); nothing routes through Burp.
 
 from __future__ import annotations
 
+import plistlib
 import re
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -115,6 +117,87 @@ def _scan_sources(src_root: Path, cap: int) -> tuple[list[str], list[str]]:
     return secrets, sorted(endpoints)
 
 
+def _ipa_info(app_dir: Path) -> dict:
+    """Attack-surface signals from an iOS app's Info.plist (binary or XML)."""
+    p = app_dir / "Info.plist"
+    if not p.is_file():
+        return {"error": "no Info.plist"}
+    try:
+        with p.open("rb") as fh:
+            pl = plistlib.load(fh)
+    except (OSError, plistlib.InvalidFileException, ValueError):
+        return {"error": "could not parse Info.plist"}
+    schemes: list[str] = []
+    for url_type in pl.get("CFBundleURLTypes", []) or []:
+        schemes += list(url_type.get("CFBundleURLSchemes", []) or [])
+    ats = pl.get("NSAppTransportSecurity", {}) or {}
+    usage = {k: v for k, v in pl.items() if k.endswith("UsageDescription")}
+    return {
+        "bundle_id": pl.get("CFBundleIdentifier", ""),
+        "version": pl.get("CFBundleShortVersionString", ""),
+        "min_os": pl.get("MinimumOSVersion", ""),
+        "url_schemes": schemes,                      # deep-link attack surface
+        "ats_allows_cleartext": bool(ats.get("NSAllowsArbitraryLoads")),
+        "background_modes": pl.get("UIBackgroundModes", []) or [],
+        "permission_usages": sorted(usage.keys()),
+    }
+
+
+def _ipa_entitlements(app_dir: Path) -> dict:
+    """Entitlements from embedded.mobileprovision (the plist is inside a CMS blob;
+    slice it out by the <plist>..</plist> markers — no openssl needed)."""
+    p = app_dir / "embedded.mobileprovision"
+    if not p.is_file():
+        return {}
+    try:
+        raw = p.read_bytes()
+    except OSError:
+        return {}
+    start, end = raw.find(b"<plist"), raw.find(b"</plist>")
+    if start == -1 or end == -1:
+        return {}
+    try:
+        pl = plistlib.loads(raw[start:end + 8])
+    except (plistlib.InvalidFileException, ValueError):
+        return {}
+    ent = pl.get("Entitlements", {}) or {}
+    return {
+        "get_task_allow": bool(ent.get("get-task-allow")),   # debuggable build
+        "aps_environment": ent.get("aps-environment", ""),
+        "associated_domains": ent.get("com.apple.developer.associated-domains", []),
+        "keychain_groups": ent.get("keychain-access-groups", []),
+        "team_id": pl.get("TeamName", ""),
+    }
+
+
+def _macho_secrets(app_dir: Path, cap: int) -> tuple[list[str], list[str]]:
+    """Secret/endpoint leads from the app's Mach-O binary + bundled text (bounded)."""
+    secrets: list[str] = []
+    endpoints: set[str] = set()
+    files = 0
+    for f in app_dir.rglob("*"):
+        if not f.is_file() or files > 4000 or len(secrets) >= cap:
+            continue
+        if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".car", ".nib", ".ttf", ".otf"):
+            continue
+        files += 1
+        try:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for name, pat in _SECRET_PATTERNS:
+            m = pat.search(text)
+            if m:
+                secrets.append(f"{name}: {f.name}: {m.group(0)[:80]}")
+                if len(secrets) >= cap:
+                    break
+        for m in _ENDPOINT.finditer(text):
+            endpoints.add(m.group(0)[:120])
+            if len(endpoints) >= 200:
+                break
+    return secrets, sorted(endpoints)
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -204,4 +287,80 @@ def register(mcp: FastMCP) -> None:
 
         lines.append(f"\n  Next: run_opengrep_source('{src_root}') for full SAST; "
                      "Frida-hook the exported components dynamically.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def mobile_analyze_ipa(
+        ipa_path: str,
+        out_dir: str = "",
+        max_secret_hits: int = 60,
+    ) -> str:
+        """Static-analyze an iOS .ipa — the MASVS-CODE/STORAGE half jadx can't do.
+
+        Unzips the IPA (no jailbreak/device needed) and reports the attack
+        surface: bundle id, custom URL schemes (deep-link surface), ATS cleartext
+        allowance, permission usage strings, entitlements from
+        embedded.mobileprovision (get-task-allow = debuggable, associated-domains
+        = universal links, keychain groups), and secret/endpoint leads from the
+        Mach-O binary + bundled resources.
+
+        Args:
+            ipa_path: Path to the .ipa (pull one from the device / App Store).
+            out_dir: Unzip dir (default: <ipa>_ipa beside the file).
+            max_secret_hits: Cap on reported secret leads (default 60).
+        """
+        ipa = Path(ipa_path).expanduser()
+        if not ipa.exists():
+            return f"Error: ipa not found: {ipa_path}"
+        out = Path(out_dir).expanduser() if out_dir else ipa.with_name(ipa.stem + "_ipa")
+        try:
+            with zipfile.ZipFile(ipa) as z:
+                # zip-slip guard: refuse entries that escape the output dir.
+                for n in z.namelist():
+                    if n.startswith("/") or ".." in Path(n).parts:
+                        return f"Error: unsafe path in IPA: {n!r}"
+                z.extractall(out)
+        except (zipfile.BadZipFile, OSError) as exc:
+            return f"Error: not a valid IPA/zip: {exc}"
+        apps = list((out / "Payload").glob("*.app")) if (out / "Payload").is_dir() else []
+        if not apps:
+            return f"Error: no Payload/*.app in {out} — not a standard IPA."
+        app = apps[0]
+
+        info = _ipa_info(app)
+        ent = _ipa_entitlements(app)
+        secrets, endpoints = _macho_secrets(app, max_secret_hits)
+
+        lines = [f"mobile_analyze_ipa: {ipa.name} -> {app.name}"]
+        if info.get("bundle_id"):
+            lines.append(f"  bundle: {info['bundle_id']} v{info.get('version','')} "
+                         f"(min iOS {info.get('min_os','?')})")
+        risky = []
+        if info.get("ats_allows_cleartext"):
+            risky.append("ATS NSAllowsArbitraryLoads=true (cleartext allowed)")
+        if ent.get("get_task_allow"):
+            risky.append("get-task-allow=true (debuggable build)")
+        if risky:
+            lines.append("  RISKY: " + "; ".join(risky))
+        if info.get("url_schemes"):
+            lines.append(f"\n  Custom URL schemes (deep-link surface): "
+                         f"{', '.join(info['url_schemes'][:20])}")
+        if ent.get("associated_domains"):
+            lines.append(f"  Universal links: {', '.join(ent['associated_domains'][:12])}")
+        if info.get("permission_usages"):
+            lines.append(f"  Permissions requested: "
+                         f"{', '.join(p.replace('UsageDescription','') for p in info['permission_usages'][:14])}")
+        if ent.get("keychain_groups"):
+            lines.append(f"  Keychain groups: {', '.join(ent['keychain_groups'][:8])}")
+
+        lines.append(f"\n  Secret leads ({len(secrets)} — VERIFY, do not assume live):")
+        for s in secrets[:max_secret_hits]:
+            lines.append(f"    {s}")
+        if not secrets:
+            lines.append("    (none matched the high-precision patterns)")
+        lines.append(f"\n  Endpoints ({len(endpoints)} unique, first 30):")
+        for e in endpoints[:30]:
+            lines.append(f"    {e}")
+        lines.append(f"\n  Next: run_opengrep_source('{app}') over the bundle; "
+                     "fuzz the URL schemes with mobile_deeplink; Frida-hook at runtime.")
         return "\n".join(lines)
