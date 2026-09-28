@@ -8,7 +8,7 @@ Each role below corresponds to a file in `.claude/agents/<role>.md` that the `Ag
 
 **Host-agnostic access.** The `Agent`-tool dispatch above is Claude-Code-native, but the playbooks themselves are portable: any MCP host reaches them as tools via `list_agents()` / `get_agent("<role>")`. A host that spawns its own sub-agents (e.g. DeepSeek Harness) gives each one a `get_agent` playbook as its system prompt — the same roles, same tools, driven by that host's model. `list_agents()` returns a host-agnostic `tier` per role (`strategic` / `standard` / `fast`, from the Claude `model` pin) — a non-Claude host maps that tier to its nearest model instead of the `opus`/`sonnet`/`haiku` name it can't resolve; a single-model host runs everything on that model and Rule 33's Opus escalation becomes a no-op. Parallel dispatch is the one host-provided piece; single-threaded hosts run the roles sequentially with the orchestration tools (`get_hunt_plan` / `get_next_action` / `route_signals` / `judge_completion`).
 
-The orchestrator role is split out: `grow-agent` is the session-lifecycle orchestrator, defined in `.claude/agents/grow-agent.md`. When invoked, grow-agent dispatches the 9 roles below.
+The orchestrator role is split out: `grow-agent` is the session-lifecycle orchestrator, defined in `.claude/agents/grow-agent.md`. When invoked, grow-agent dispatches the worker roles below (including the network and cloud lane owners).
 
 ## Command Tier (above grow-agent)
 
@@ -17,7 +17,7 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 ```
 {pentest|redteam}-commander        engagement lead — research, plan, synthesize, report
   └─ grow-agent(domain)   × N      per-domain executor (bounded: 2–3 in flight)
-       └─ 11 workers
+       └─ workers (web + network + cloud + mobile lanes)
 ```
 
 ### pentest-commander

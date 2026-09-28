@@ -63,6 +63,7 @@ def register(mcp: FastMCP):
         path: str = "/",
         injection_point: str = "query",
         extra_headers: dict | None = None,
+        imdsv2: bool = False,
     ) -> dict:
         """Test SSRF to cloud metadata + container creds (AWS ECS/EKS/IMDS, GCP, Azure, DO, Alibaba, Oracle).
 
@@ -73,8 +74,12 @@ def register(mcp: FastMCP):
             injection_point: Where to inject: 'query' or 'body'
             extra_headers: Outer-request headers (e.g. {"Metadata-Flavor": "Google"})
                 for header-forwarding SSRF only — GCP/Azure IMDS are header-gated.
+            imdsv2: Also attempt the AWS IMDSv2 two-step (PUT token → GET creds
+                with the token header) — the default on modern EC2. Needs a
+                method/header-forwarding SSRF (gopher / full-request); set True
+                only when the SSRF is known to forward the PUT + token header.
         """
-        return await test_cloud_metadata_impl(session=session, parameter=parameter, path=path, injection_point=injection_point, extra_headers=extra_headers)
+        return await test_cloud_metadata_impl(session=session, parameter=parameter, path=path, injection_point=injection_point, extra_headers=extra_headers, imdsv2=imdsv2)
 
     @mcp.tool()
     async def discover_common_files(
