@@ -240,15 +240,43 @@ def register(mcp: FastMCP) -> None:
         corpus_used = corpus_dir is not None
         corpus_findings: list[dict] = []
         if corpus_used:
-            # Lazy: list .json files in the corpus dir; load up to 50 for
-            # this single-session ship. Full driver is a v2 task.
-            payload_files = sorted(corpus_dir.glob("*.json"))[:50]
-            corpus_findings.append({
-                "note": f"corpus dir present ({corpus_dir}); "
-                        f"{len(payload_files)} payload file(s) found; "
-                        "v1 ships heuristic audit only — corpus driver in v2",
-                "files_seen": len(payload_files),
-            })
+            # Real corpus driver: load each pattern file, flatten its string
+            # values into attack patterns, and match them (case-insensitively)
+            # against every advertised tool's name + description + input schema.
+            # This evaluates the corpus AGAINST the target's tools (detection) —
+            # it does NOT fire tools/call, which could have side effects on the
+            # target (Rule 8a); a live call is an operator-gated follow-up.
+            def _flatten(obj) -> list[str]:
+                out: list[str] = []
+                if isinstance(obj, str):
+                    if len(obj.strip()) >= 4:
+                        out.append(obj.strip())
+                elif isinstance(obj, dict):
+                    for v in obj.values():
+                        out += _flatten(v)
+                elif isinstance(obj, list):
+                    for v in obj:
+                        out += _flatten(v)
+                return out
+
+            patterns: list[str] = []
+            for pf in sorted(corpus_dir.glob("*.json"))[:200]:
+                try:
+                    patterns += _flatten(json.loads(pf.read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    continue
+            patterns = list(dict.fromkeys(patterns))[:500]  # dedup, cap
+            for t in tools:
+                if not isinstance(t, dict):
+                    continue
+                hay = (str(t.get("name", "")) + " " + str(t.get("description", ""))
+                       + " " + json.dumps(t.get("inputSchema") or t.get("input_schema") or {})).lower()
+                hits = [p for p in patterns if p.lower() in hay]
+                if hits:
+                    corpus_findings.append({
+                        "tool_name": t.get("name", "?"),
+                        "matched_patterns": hits[:8],
+                    })
 
         lines = [f"run_mcptox — {base_url} ({len(tools)} tools advertised):"]
         for f in findings:
@@ -258,7 +286,13 @@ def register(mcp: FastMCP) -> None:
             lines.append("  no heuristic signals across tool descriptions")
         if corpus_used:
             lines.append("")
-            lines.append(f"  corpus: {corpus_findings[0]['note']}")
+            if corpus_findings:
+                lines.append(f"  corpus: {len(corpus_findings)} tool(s) matched attack patterns:")
+                for cf in corpus_findings[:20]:
+                    lines.append(f"    [CORPUS] {cf['tool_name']!r} matched: "
+                                 f"{', '.join(repr(p[:40]) for p in cf['matched_patterns'])}")
+            else:
+                lines.append("  corpus: no tool matched any corpus attack pattern")
         else:
             lines.append("")
             lines.append("  corpus: not configured (set MCPTOX_CORPUS_DIR after "
@@ -272,15 +306,16 @@ def register(mcp: FastMCP) -> None:
             "corpus_findings": corpus_findings,
         }
 
-        if findings:
+        if findings or corpus_findings:
             severity_signals = {s for f in findings for s in f["signals"]}
             crit = any(s in severity_signals
                        for s in ("covert_tool_invocation", "persistence_hijack"))
-            confidence = 0.85 if crit else 0.70
+            confidence = 0.85 if crit else (0.70 if findings else 0.60)
+            reason = (f"MCP server advertises {len(findings)} suspicious tool(s) — "
+                      f"signals: {sorted(severity_signals)}") if findings else \
+                     (f"{len(corpus_findings)} tool(s) matched MCPTox corpus attack patterns")
             return make_verdict(
-                "CONFIRMED", confidence,
-                f"MCP server advertises {len(findings)} suspicious tool(s) — "
-                f"signals: {sorted(severity_signals)}",
+                "CONFIRMED", confidence, reason,
                 vuln_type="mcptox_self_audit",
                 logger_indices=logger_indices,
                 details=details,

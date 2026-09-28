@@ -248,3 +248,55 @@ def register(mcp: FastMCP) -> None:
             if rc != 0 and err.strip():
                 all_out.append(f"[stderr] {err[:200]}")
         return "\n\n".join(all_out)
+
+    @mcp.tool()
+    async def run_gcp_scanner(
+        target: str = "",
+        access_token: str = "",
+        key_path: str = "",
+        output_dir: str = "gcp-scan",
+        timeout: int = 1200,
+    ) -> str:
+        """Enumerate GCP access + privilege-escalation surface with gcp_scanner.
+
+        Fills the GCP active-recon gap (AWS has pacu, Azure has azurehound). From
+        an OAuth access token OR a service-account key, gcp_scanner walks what the
+        identity can reach — projects, IAM bindings, service accounts (impersonation
+        / actAs privesc), GCS buckets, GCE, GKE, Cloud Functions, secrets — the
+        read-only inventory a GCP attack path is built from. Credentials are passed
+        to the process only, never echoed.
+
+        Args:
+            target: optional project/org id to scope to (blank = everything reachable).
+            access_token: a GCP OAuth access token (ya29....) — one auth method.
+            key_path: path to a service-account JSON key — the other auth method.
+            output_dir: directory gcp_scanner writes results to.
+            timeout: seconds.
+        """
+        if not _check_tool("gcp_scanner") and not _check_tool("gcp-scanner"):
+            return _hint("gcp_scanner",
+                         "pipx install gcp-scanner  |  "
+                         "https://github.com/google/gcp_scanner")
+        tool = "gcp_scanner" if _check_tool("gcp_scanner") else "gcp-scanner"
+        if not access_token and not key_path:
+            return ("Error: provide one auth method — access_token (ya29....) or "
+                    "key_path (service-account JSON). gcp_scanner needs GCP "
+                    "credentials the operator is authorized to use.")
+        cmd = [tool, "-o", output_dir]
+        if access_token:
+            cmd += ["-at", access_token]
+        elif key_path:
+            cmd += ["-k", key_path]
+        if target:
+            cmd += ["-p", target]
+        out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
+        safe_err = err.replace(access_token or "\x00", "***")
+        lines = [f"gcp_scanner [{target or 'all reachable'}]: rc={rc}, output -> {output_dir}/"]
+        tail = "\n".join(out.splitlines()[-40:])
+        if tail.strip():
+            lines.append(tail)
+        if rc != 0 and safe_err.strip():
+            lines.append(f"[rc={rc}] {safe_err[:200]}")
+        lines.append("Next: from what the identity can reach, find the privesc edge "
+                     "(SA impersonation / actAs / setIamPolicy) — plan_attack_paths.")
+        return "\n".join(lines)

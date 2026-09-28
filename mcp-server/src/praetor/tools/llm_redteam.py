@@ -50,19 +50,23 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def run_pyrit_orchestrator(
-        script_path: str,
+        script_path: str = "",
         timeout: int = 900,
     ) -> str:
         """Run a PyRIT orchestrator SCRIPT. PyRIT is a Python LIBRARY, not a CLI.
 
         Azure PyRIT ships no `pyrit` command — you drive it from Python. Point
         this at a .py orchestrator written against the PyRIT API; it runs on the
-        server's own interpreter with the installed `pyrit` library. (The old
-        implementation shelled out to a non-existent `pyrit run -c` CLI and could
-        never succeed.)
+        server's own interpreter with the installed `pyrit` library.
+
+        Leave `script_path` EMPTY to run the bundled DEFAULT orchestrator — a
+        single-turn PromptSendingOrchestrator that fires a small jailbreak /
+        prompt-injection seed set at a target read from env
+        (PYRIT_OPENAI_ENDPOINT / PYRIT_OPENAI_KEY / PYRIT_OPENAI_MODEL), so PyRIT
+        is usable out of the box without authoring a script first.
 
         Args:
-            script_path: path to a PyRIT Python orchestrator script.
+            script_path: PyRIT orchestrator script; empty = bundled default.
             timeout: seconds.
         """
         # Gate on the LIBRARY being importable by this interpreter, not on a
@@ -73,6 +77,12 @@ def register(mcp: FastMCP) -> None:
                 "pyrit (Python library)",
                 "uv pip install pyrit  |  https://github.com/Azure/PyRIT  (library, no CLI)",
             )
+        if not script_path.strip():
+            import tempfile
+            from praetor.tools._pyrit_default import DEFAULT_ORCHESTRATOR
+            fh = tempfile.NamedTemporaryFile("w", suffix="_pyrit_default.py", delete=False)
+            fh.write(DEFAULT_ORCHESTRATOR); fh.close()
+            script_path = fh.name
         out, err, rc = await _run_cmd(
             [sys.executable, script_path],
             timeout=timeout, bypass_proxy=True,
