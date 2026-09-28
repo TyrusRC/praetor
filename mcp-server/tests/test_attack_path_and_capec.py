@@ -10,6 +10,7 @@ from __future__ import annotations
 import unittest
 
 from praetor.tools._framework_map import attack_tag_list, framework_tags
+from praetor.tools.advisor._attack_path_data import _CONTROLS, _TRANSITIONS
 from praetor.tools.advisor.attack_path import (
     _beam_chains, _closure, _near_misses, _seed_capabilities,
 )
@@ -47,6 +48,26 @@ class AttackPathPlannerTest(unittest.TestCase):
     def test_no_findings_map_to_capability(self):
         seeds = _seed_capabilities([{"id": "f3", "vuln_type": "missing_headers"}])
         self.assertEqual(seeds, {})
+
+    def test_chain_carries_severing_controls(self):
+        # Every kill-chain must name the controls that break it, and the earliest
+        # control must be a real remediation string (the first hop's control).
+        pool = [{"id": "f1", "vuln_type": "ssrf", "severity": "high", "status": "confirmed"}]
+        chains = _beam_chains(_seed_capabilities(pool), 6, 5)
+        chain = next(c for c in chains if c["objective_cap"] == "cloud_creds")
+        self.assertTrue(chain["severed_by"])                       # non-empty control list
+        self.assertEqual(chain["earliest_control"], chain["steps"][0]["severed_by"])
+        # SSRF->IMDS first hop is broken by network segmentation.
+        self.assertIn("segmentation", chain["steps"][0]["severed_by"])
+        # every step carries a severing control drawn from the vocabulary
+        for step in chain["steps"]:
+            self.assertIn(step["severed_by"], _CONTROLS.values())
+
+    def test_every_transition_control_is_defined(self):
+        # A severed_by token with no _CONTROLS entry would leak a bare token into
+        # the report — guard the vocabulary stays complete.
+        for _need, _gives, _u, _t, _d, sev_by in _TRANSITIONS:
+            self.assertIn(sev_by, _CONTROLS, f"undefined control token: {sev_by}")
 
 
 class CapecDerivationTest(unittest.TestCase):
