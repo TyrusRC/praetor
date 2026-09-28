@@ -102,6 +102,33 @@
         }
       ]
     },
+    "hg_bzr_exposure": {
+      "description": "Exposed Mercurial (.hg) or Bazaar (.bzr) working copy -- like .git/.svn, a deployed DVCS directory leaks full source history and often credentials. Rarer than git but same root cause: the VCS metadata was published under the web root.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/.hg/requires",
+          "description": "Mercurial repo marker -- /.hg/requires lists repo format capabilities (revlogv1, dotencode, store, fncache). 200 with these = exposed .hg; pull history via /.hg/store.",
+          "matchers": [
+            {"type": "word", "words": ["revlogv1", "dotencode", "fncache", "store", "generaldelta"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "/.bzr/branch-format",
+          "description": "Bazaar control dir marker -- /.bzr/branch-format returns 'Bazaar-NG meta directory' / 'Bazaar meta directory'. 200 = exposed .bzr working tree; source recoverable.",
+          "matchers": [
+            {"type": "word", "words": ["Bazaar-NG meta directory", "Bazaar meta directory", "Bazaar"], "condition": "or"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        }
+      ]
+    },
     "env_file_exposure": {
       "description": "Exposed environment/config files -- .env, config.yml, settings files containing credentials and API keys",
       "tech_match": [],

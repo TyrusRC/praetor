@@ -62,6 +62,7 @@ class TestReconScanningShim(unittest.TestCase):
             "run_sqlmap",
             "run_ghauri",
             "run_wpscan",
+            "run_droopescan",
             "run_nikto",
             "generate_deserialization_gadget",
             "run_ffuf",

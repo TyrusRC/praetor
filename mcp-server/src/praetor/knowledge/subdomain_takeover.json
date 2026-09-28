@@ -85,6 +85,43 @@
           "confidence_boost": 75
         }
       ]
+    },
+    "dangling_script_include": {
+      "description": "Dangling script-src supply chain -- the page loads a <script src> from an EXTERNAL host on a takeover-prone platform (S3 bucket, github.io, Heroku, Azure, Netlify, Surge, or an expired CDN). If that host is unclaimed / the domain is unregistered, an attacker claims it and serves malicious JS to every visitor -> persistent XSS with no per-victim interaction. Each probe flags the include as a LEAD; the operator MUST then verify the host is actually claimable (NXDOMAIN on the src domain, or the platform-takeover fingerprint from `dangling_cname`) before reporting. A resolving, owned CDN is not a finding.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Script loaded from an S3 bucket host -- if the bucket is unclaimed the include is hijackable (persistent XSS). Verify bucket ownership before reporting.",
+          "matchers": [
+            {"type": "regex", "pattern": "<script[^>]+src\\s*=\\s*[\"']?https?://[^\"'>]+\\.s3[.-][a-z0-9-]*\\.?amazonaws\\.com"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Script loaded from a *.github.io host -- if the Pages site is unclaimed the include is hijackable. Confirm with the GitHub Pages takeover fingerprint.",
+          "matchers": [
+            {"type": "regex", "pattern": "<script[^>]+src\\s*=\\s*[\"']?https?://[^\"'>]+\\.github\\.io"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Script loaded from a Heroku / Azure / Netlify / Surge host -- takeover-prone PaaS; verify the app/site is unclaimed before reporting.",
+          "matchers": [
+            {"type": "regex", "pattern": "<script[^>]+src\\s*=\\s*[\"']?https?://[^\"'>]+\\.(herokuapp\\.com|azurewebsites\\.net|netlify\\.app|surge\\.sh|fly\\.dev|pages\\.dev)"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }

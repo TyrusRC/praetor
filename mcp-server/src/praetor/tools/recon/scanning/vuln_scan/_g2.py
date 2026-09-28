@@ -1,3 +1,5 @@
+import re
+
 from mcp.server.fastmcp import FastMCP
 from ._shared import (
     BURP_PROXY_URL,
@@ -151,6 +153,62 @@ def register(mcp: FastMCP):
             lines.append("Note: no api_token passed; CVE lookups skipped. Free token: https://wpscan.com")
         if use_proxy:
             lines.append("\nAll requests routed through Burp proxy.")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_droopescan(
+        target: str,
+        cms: str = "drupal",
+        enumerate: str = "a",
+        timeout: int = 600,
+    ) -> str:
+        """Run droopescan against a Drupal / Joomla / SilverStripe target.
+
+        Fills the CMS gap `run_wpscan` (WordPress-only) leaves. droopescan
+        fingerprints the CMS version and enumerates plugins/themes/modules with
+        known-vuln versions — surface that nuclei's generic templates miss.
+        Requests route through Burp automatically (HTTPS_PROXY env, Rule 26a).
+
+        Args:
+            target: Target URL (CMS root).
+            cms: One of drupal, joomla, silverstripe, wordpress (default drupal).
+            enumerate: a (all), p (plugins/modules), t (themes), v (version).
+            timeout: Max seconds (default 600).
+        """
+        if not _check_tool("droopescan"):
+            return (
+                "Error: droopescan not installed.\n"
+                "  pip install droopescan  (https://github.com/SamJoan/droopescan)"
+            )
+        cms = cms.strip().lower()
+        allowed = {"drupal", "joomla", "silverstripe", "wordpress"}
+        if cms not in allowed:
+            return f"Error: cms must be one of {sorted(allowed)} (got {cms!r})."
+        cmd = [
+            "droopescan", "scan", cms,
+            "--url", target,
+            "--enumerate", enumerate,
+            "--hide-progressbar",
+        ]
+        stdout, stderr, code = await _run_cmd(cmd, timeout)
+        out = (stdout + "\n" + stderr).strip()
+        if not out:
+            return f"droopescan produced no output (exit {code})"
+        # Keep hit/section lines AND indented continuations that carry a version
+        # (droopescan prints "[+] Possible version(s):" then the number on its own
+        # indented line — dropping it would lose the finding).
+        key_lines = [
+            l.rstrip() for l in out.split("\n")
+            if any(k in l for k in ("[+]", "[!]", "version", "Version", "found",
+                                    "Found", "CVE-", "vulnerab", "Plugins", "Themes"))
+            or re.search(r"\b\d+\.\d+", l)
+        ]
+        lines = [f"droopescan {cms} for {target} ({len(key_lines)} significant lines):", ""]
+        if key_lines:
+            lines.extend(f"  {l[:200]}" for l in key_lines[:120])
+        else:
+            lines.append("  No CMS artefacts surfaced — wrong cms= for this target, or hardened.")
+        lines.append("\nAll requests routed through Burp proxy (HTTPS_PROXY env).")
         return "\n".join(lines)
 
     @mcp.tool()
