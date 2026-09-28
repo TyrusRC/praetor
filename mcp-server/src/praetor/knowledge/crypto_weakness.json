@@ -195,6 +195,22 @@
           "confidence_boost": 45
         }
       ]
+    },
+    "hash_length_extension": {
+      "description": "WSTG-CRYP hash length-extension -- server authenticates client-controlled data with a naive MAC = H(secret || message) using a Merkle-Damgard hash (MD5 / SHA-1 / SHA-256). Knowing only message, its MAC, and the secret LENGTH (often guessable/bruteable), an attacker forges a valid MAC for `message || padding || attacker_data` WITHOUT the secret -- appending e.g. `&admin=true` or `&role=1` to a signed request. Detection flags the signed-parameter shape (a hex MAC beside the data it signs); exploitation uses hashpumpy over a small length range. The fix is HMAC (H(secret,H(secret,message))), which is not extendable.",
+      "tech_match": [],
+      "param_match": ["sig", "signature", "hmac", "mac", "hash", "digest", "checksum", "token", "sign"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Signed-parameter shape -- a hex MAC (32/40/64 chars = MD5/SHA1/SHA256) travels beside the data it authenticates. LEAD: if the MAC is H(secret||data) rather than HMAC, it is length-extension forgeable. Confirm the length range with hashpumpy, then append attacker params and replay.",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)(sig|signature|hmac|mac|hash|digest|checksum)=[0-9a-f]{32}(?:[0-9a-f]{8})?(?:[0-9a-f]{24})?\\b"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
     }
   }
 }

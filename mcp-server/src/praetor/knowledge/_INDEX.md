@@ -237,7 +237,7 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | `insecure_randomness` *(ref-only)* | predictable_tokens, weak_session_id, uuid_v1_leak | high | asp.net, custom, java, node.js, php |
 | `h2_continuation_flood` *(ref-only)* | continuation_unbounded | high | apache, envoy, h2, nginx, node.js |
 | `resource_exhaustion` | sms_pump_no_ratelimit, email_pump_no_ratelimit, otp_brute_no_lockout, expensive_query_no_limit, graphql_alias_DoS, file_upload_no_size_limit, biometric_or_paid_provider_call, zip_bomb_decompression | critical | apollo, aws-sns, graphql, mailgun, sendgrid, twilio |
-| `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity | critical | asp.net, java, jwt, php, ruby |
+| `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity, hash_length_extension *(hashpumpy to exploit)* | critical | asp.net, java, jwt, php, ruby |
 
 ## AI / LLM (4)
 
