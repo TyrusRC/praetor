@@ -19,6 +19,7 @@ Mutation classes:
     length_pad          prefix junk to push past length matchers
 """
 
+import re
 import urllib.parse
 
 
@@ -125,6 +126,85 @@ def _length_pad_short(s: str) -> str:
     return "/" * 64 + s
 
 
+# ── Keyword-aware SQL/XSS bypasses (WAFs match whole keywords) ──────────────
+_SQL_KEYWORDS = (
+    "UNION", "SELECT", "INSERT", "UPDATE", "DELETE", "WHERE", "FROM", "ORDER",
+    "GROUP", "HAVING", "AND", "OR", "SLEEP", "BENCHMARK", "CONCAT", "SUBSTRING",
+    "VERSION", "DATABASE", "INFORMATION_SCHEMA", "LIMIT", "JOIN", "NULL",
+)
+
+
+def _comment_inject_keywords(s: str) -> str:
+    """Split SQL keywords with an inline comment: UNION -> UN/**/ION. Defeats a
+    WAF that regexes whole keywords; the DB parser ignores /**/."""
+    out = s
+    for kw in _SQL_KEYWORDS:
+        if len(kw) < 3:
+            continue
+        mid = len(kw) // 2
+        broken = kw[:mid] + "/**/" + kw[mid:]
+        out = re.sub(rf"(?i)\b{re.escape(kw)}\b", broken, out)
+    return out
+
+
+def _sql_versioned_comment(s: str) -> str:
+    """Wrap SQL keywords in a MySQL versioned comment: UNION -> /*!50000UNION*/.
+    Executes on MySQL, invisible to many signature WAFs."""
+    out = s
+    for kw in _SQL_KEYWORDS:
+        out = re.sub(rf"(?i)\b{re.escape(kw)}\b", lambda m: f"/*!50000{m.group(0)}*/", out)
+    return out
+
+
+def _whitespace_sql_comment(s: str) -> str:
+    return s.replace(" ", "/**/")
+
+
+def _whitespace_vtab(s: str) -> str:
+    return s.replace(" ", "%0b")
+
+
+def _whitespace_nbsp(s: str) -> str:
+    return s.replace(" ", "%a0")
+
+
+def _unicode_fullwidth(s: str) -> str:
+    """Map ASCII ! .. ~ to fullwidth homoglyphs (U+FF01..FF5E). NFKC on the
+    server normalises them back to ASCII AFTER the filter has passed them."""
+    return "".join(
+        chr(ord(c) - 0x21 + 0xFF01) if "!" <= c <= "~" else c for c in s
+    )
+
+
+def _overlong_utf8_path(s: str) -> str:
+    """Overlong-UTF8 encode path-traversal bytes: '.' -> %c0%ae, '/' -> %c0%af.
+    Legacy decoders accept them; path filters that match literal ../ miss them."""
+    return s.replace(".", "%c0%ae").replace("/", "%c0%af").replace("\\", "%c0%5c")
+
+
+def _html_entity_no_semicolon(s: str) -> str:
+    """HTML hex entity WITHOUT the trailing semicolon (&#x3c) — many browsers
+    still decode it, several XSS filters only strip the semicolon-terminated form."""
+    specials = {"<": "&#x3c", ">": "&#x3e", '"': "&#x22", "'": "&#x27",
+                "(": "&#x28", ")": "&#x29", "/": "&#x2f"}
+    return "".join(specials.get(c, c) for c in s)
+
+
+_SPECIAL = set("<>\"'()/ ;=&")
+
+
+def _double_encode_special(s: str) -> str:
+    """Double-URL-encode ONLY the filter-relevant chars — quieter than encoding
+    the whole payload, and slips a decode-once gateway that re-inspects."""
+    out = []
+    for c in s:
+        if c in _SPECIAL:
+            out.append("%25" + format(ord(c), "02X"))
+        else:
+            out.append(c)
+    return "".join(out)
+
+
 _MUTATORS: dict[str, list] = {
     "encoding_url":     [_url_encode_all],
     "encoding_double":  [_url_encode_double],
@@ -138,6 +218,15 @@ _MUTATORS: dict[str, list] = {
     "whitespace_alt":   [_whitespace_tab, _whitespace_plus, _whitespace_url_tab, _whitespace_formfeed],
     "quote_rotate":     [_quote_to_double, _quote_to_backtick, _quote_strip],
     "length_pad":       [_length_pad_short, _length_pad],
+    # Keyword-aware SQL bypasses (WAF matches whole keywords, DB parser doesn't).
+    "comment_inject":   [_comment_inject_keywords],
+    "sql_versioned":    [_sql_versioned_comment],
+    "whitespace_sql":   [_whitespace_sql_comment, _whitespace_vtab, _whitespace_nbsp],
+    # Unicode / encoding normalisation bypasses.
+    "unicode_fullwidth": [_unicode_fullwidth],
+    "overlong_utf8":    [_overlong_utf8_path],
+    "html_no_semi":     [_html_entity_no_semicolon],
+    "encoding_special": [_double_encode_special],
 }
 
 
@@ -147,9 +236,12 @@ _DEFAULT_CLASSES = (
     "case_toggle",
     "case_mixed",
     "comment_sql",
+    "comment_inject",
+    "whitespace_sql",
     "null_byte",
     "whitespace_alt",
     "quote_rotate",
+    "encoding_special",
 )
 
 
@@ -202,17 +294,20 @@ def register(mcp) -> None:
 
         Pure-Python primitive. Feed the variants into fuzz_with_feedback,
         fuzz_parameter, concurrent_requests, or send_to_intruder_configured.
-        Twelve mutation classes available — pass `classes=[]` (omit) for the
+        Nineteen mutation classes available — pass `classes=[]` (omit) for the
         recommended default subset, or list explicit classes to narrow.
 
         Args:
             payload: Seed payload to mutate.
             classes: Mutation classes. Default subset covers the most productive
-                bypasses (url, double-url, case, sql-comment, null, whitespace,
-                quote rotation). Available:
+                bypasses (url, double-url, case, sql-comment, keyword-inject,
+                sql-whitespace, null, whitespace, quote rotation, special-encode).
+                Available:
                 encoding_url, encoding_double, encoding_unicode, encoding_html,
-                case_toggle, case_mixed, comment_sql, null_byte, crlf,
-                whitespace_alt, quote_rotate, length_pad.
+                encoding_special, case_toggle, case_mixed, comment_sql,
+                comment_inject, sql_versioned, whitespace_alt, whitespace_sql,
+                null_byte, crlf, quote_rotate, unicode_fullwidth, overlong_utf8,
+                html_no_semi, length_pad.
             count: Cap on output (0 = no cap).
         """
         variants = generate_variants(payload, classes=classes, count=count)
