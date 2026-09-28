@@ -148,7 +148,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `path_traversal` | linux, windows, encoding_bypass, null_byte, windows_specific | critical | apache, asp.net, django, flask, iis |
 | `file_upload` | php_upload, jsp_upload, asp_upload, general, polyglot_files | critical | apache, asp.net, drupal, iis, java |
-| `source_code_exposure` *(ref-only)* | git_exposure, svn_exposure, env_file_exposure, debug_endpoints, vite_devserver_optimized_deps_path_traversal_2026 (CVE-2026-39365) | critical | apache, astro, django, laravel, php, qwik, rails, svelte-kit, vite, vue-cli |
+| `source_code_exposure` *(ref-only)* | git_exposure, svn_exposure, hg_bzr_exposure, env_file_exposure, debug_endpoints, vite_devserver_optimized_deps_path_traversal_2026 (CVE-2026-39365) | critical | apache, astro, django, laravel, php, qwik, rails, svelte-kit, vite, vue-cli |
 
 ## Deserialization (4)
 
@@ -216,7 +216,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `info_disclosure` | stack_trace, debug_info, version_leak, sensitive_files | critical | - |
-| `subdomain_takeover` | dangling_cname | high | aws s3, azure, fastly, fly.io, ghost |
+| `subdomain_takeover` | dangling_cname, dangling_script_include | high | aws s3, azure, fastly, fly.io, ghost |
 | `tech_vulns` *(ref-only)* |  | ? | - |
 | `dependency_confusion` *(ref-only)* | npm_confusion, pypi_confusion | critical | django, fastapi, flask, node.js, npm |
 | `captcha_bypass` *(ref-only)* | implementation_flaws, rate_limit_bypass | medium | asp.net, java, node.js, php, python |
