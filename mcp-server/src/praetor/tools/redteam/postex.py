@@ -198,9 +198,10 @@ def register(mcp: FastMCP) -> None:
         row = _record_credential(domain, username, secret, secret_type=secret_type, realm=realm,
                   source=source, valid_on=hosts)
         verb = "merged into" if row.get("merged") else "stored as"
+        note = f"\n  {row['key_note']}" if row.get("key_note") else ""
         return (f"Credential {verb} {row['_id']}: "
                 f"{(realm + chr(92)) if realm else ''}{username} [{secret_type}] "
-                f"= {row['secret']} (source={source or '?'})")
+                f"= {row['secret']} (source={source or '?'}){note}")
 
     @mcp.tool()
     async def list_credentials(domain: str, realm: str = "") -> str:

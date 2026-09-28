@@ -16,7 +16,38 @@ Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any 
 - **Web lane (Burp):** HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), and native vuln-class orchestrators. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
 - **Network / red-team lane:** advanced network recon and post-exploitation that Burp can't see — `run_network_recon` (a chained discover → service-aware enum → leads pipeline), `run_nmap`, a sanctioned runner for impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm, offline cracking (`crack_hashes`), and a reusable **credential store**. Every action is recorded in a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody** — the non-Burp evidence a red-team report cites in place of a Logger index.
 
-Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (nuclei/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core.
+Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (nuclei/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core. Supporter lanes (**mobile** — MASTG/Frida/jadx; **cloud** — prowler/scout-suite/pacu; **LLM/AI + MCP** — prompt-injection / tool-poisoning) plug into the same evidence model.
+
+## Table of Contents
+
+- [Authorized Use](#authorized-use)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Requirements](#requirements)
+  - [Burp Edition Compatibility](#burp-edition-compatibility)
+- [First-Time Setup](#first-time-setup)
+- [Installation](#installation)
+  - [Install into your agent](#install-into-your-agent-claude-code-codex-gemini-antigravity-)
+  - [Skills, rules & agents on other hosts](#skills-rules--agents-on-other-hosts)
+- [Configuration](#configuration)
+  - [WSL (Burp on the Windows host)](#wsl-burp-on-the-windows-host)
+  - [Environment Variables](#environment-variables)
+- [Usage](#usage)
+  - [Ghostwriter reporting hub](#ghostwriter-reporting-hub)
+- [Tool Surface](#tool-surface)
+- [MCP Prompts](#mcp-prompts)
+- [MCP Resources](#mcp-resources)
+- [Knowledge Base](#knowledge-base)
+  - [Coverage](#coverage)
+  - [Scope & Non-Goals](#scope--non-goals)
+- [Save-Finding Pipeline](#save-finding-pipeline)
+- [Severity & CVSS Scoring](#severity--cvss-scoring)
+- [Safety Model](#safety-model)
+- [Skills](#skills)
+- [Agents](#agents)
+- [Supported Platforms](#supported-platforms)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Authorized Use
 
@@ -60,6 +91,15 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - **Engagement-narrative graph**: a first-class `goal → intent → fact → finding → asset` lineage (`record_goal` / `record_intent` / `record_fact` / `link_finding` / `engagement_graph`) over `.burp-intel`, capturing the pre-finding reasoning the finding stores don't. `engagement_graph` renders text / Mermaid / JSON, or a `dsh` replay that mirrors into [`dsh-pentest`](https://github.com/howmp/dsh-pentest) — same vocabulary, so Praetor (the moves) and dsh-pentest (the map) interoperate on DeepSeek Harness.
 - **Runs in any MCP host**: Claude Code, Codex, Gemini CLI, Antigravity, Cursor, Windsurf, VS Code, DeepSeek Harness — one stdio launch, per-host configs in [`examples/mcp-clients/`](examples/mcp-clients/). Everything Claude Code auto-loads from disk — the hunting/engineering rules, the project CLAUDE.md, the skill library, the workflow-launcher prompts, and the agent-team playbooks — is also exposed as **tools** (`praetor_bootstrap` → `get_rules` / `list_skills`+`get_skill` / `list_prompts`+`get_prompt` / `list_agents`+`get_agent`), so a host that bridges Tools-only (dsh, Codex, …) reaches the full operating context. Non-Claude hosts call `praetor_bootstrap()` first; a host that spawns its own sub-agents gives each one a `get_agent(<name>)` playbook and maps its `tier` to the nearest local model, exactly as Claude Code dispatches them.
 - Operator override surfaces for severity, scope filter, NEVER-SUBMIT class, confidence floor.
+- **Mobile lane (MASTG/MASVS)**: dynamic via Frida + adb (SSL-pinning / root-detection bypass, exported-component + deep-link abuse, `phone-control` device driver) and **static** via `mobile_decompile_apk` (jadx decompile → exported-component attack surface, risky manifest flags, secret/endpoint leads → SAST handoff to `run_opengrep_source`). Findings cite `apk_sha256` / `package_name` / Frida output.
+- **Cloud lane**: `run_prowler` / `run_scout_suite` / `run_pacu` (AWS/Azure/GCP audit + exploitation), IaC scanning (`run_checkov` / `run_tfsec` / `run_terrascan`), container/K8s (`run_trivy` / `run_kube_hunter` / `run_kdigger` / `run_peirates`), and cloud-webapp KB (IMDS/SSRF-to-creds chains).
+- **Exposure-aware severity + CVSS** (see [Severity & CVSS Scoring](#severity--cvss-scoring)): `network_exposure` (internal / ip_allowlist / vpn_only / local / physical) drives CVSS 4.0 Modified Attack Vector and `exploit_demonstrated` drives Exploit Maturity, so an IP-allowlisted backend scores its true internal risk instead of a raw CRITICAL — the vector and inferred severity follow the real FIRST.org environmental score.
+- **Verdict-trust calibration**: on top of the reliability/Brier report, a Wilson-lower-bound trust gate (`trust_gate`) marks a class's confirmed verdicts *trusted* (may skip heavy re-validation) only on a proven track record — fail-closed, never after one hit.
+- **Attack-path planning**: `plan_attack_paths` beam-searches confirmed findings to high-value objectives (RCE / cloud-cred theft / ATO / mass-PII), names the single missing capability on a near-miss (your next proof), and emits per-chain **severing controls** (the one remediation that breaks each hop) for the report.
+- **WAF/filter bypass**: `mutate_payload` (19 transform classes — keyword-internal SQL comments, MySQL versioned comments, SQL-whitespace alternatives, fullwidth-unicode/NFKC, overlong-UTF-8 path bytes, entity-without-semicolon, targeted double-encoding), plus `run_nomore403` / `run_byp4xx` / `probe_40x_bypass` for 403 bypass.
+- **Workspace reconcile**: `sync_workspace(domain)` re-aligns every derived `.burp-intel` file with the canonical `findings.json` — regenerates writeups, removes orphans, and surfaces drift (duplicates, missing evidence, MEDIUM+ with no impact, stale checkpoint/coverage refs) when a re-check disagrees with stored state.
+- **Coverage & checklists**: `coverage_status` (OWASP Top 10 / API / WSTG / MASTG / AI roll-up), `checklist` / `checklist_autotest` (per-item WSTG/AI/MASTG test tracking), `asset_role_matrix` (feature × role authz map).
+- **Credentials encrypted at rest**: the reuse store keeps secrets as Fernet ciphertext (never plaintext on disk), redacts every render, and surfaces the decryption-key location — usable for spray/auth, safe from a stray grep or accidental commit.
 
 ## Requirements
 
@@ -579,6 +619,23 @@ Three phases enforced by the gate:
 3. **Save.** `save_finding(...)` persists if the gate passed. The Java extension hard-rejects calls without resolvable evidence, NEVER-SUBMIT classes without `chain_with[]`, and timing/blind classes without `reproductions[]`.
 
 Operators can override individual gate questions with `overrides=["q5_evidence:<reason>", ...]` (audit-trailed), pass `human_verified=True`, or change engagement policy with `set_program_policy`. See `.claude/skills/user-override.md`.
+
+## Severity & CVSS Scoring
+
+Severity is **derived, not eyeballed**. `compute_cvss` builds a deterministic CVSS 4.0 vector from the vuln class + finding-shape flags (the same shape always yields the same vector — Rule 14d), stored on the finding as `cvss4_vector`; the qualitative band comes from the real FIRST.org score, and the reportable tier is business-impact against the target's assets (LOW → CRITICAL).
+
+- **Environment-aware.** `network_exposure` maps to the CVSS **Modified Attack Vector** — `internet` keeps AV:N, `internal` / `ip_allowlist` / `vpn_only` / `adjacent` → MAV:A, `local` → MAV:L, `physical` → MAV:P. An IP-allowlisted SQLi/SSRF therefore scores its true internal band (CRITICAL → HIGH), and both the stored vector and `assess_finding`'s inferred severity follow that environmental score — no manual re-scoring. A scope-changing RCE stays CRITICAL (faithful, not forced).
+- **Exploit maturity.** `exploit_demonstrated=True` sets **E:A** (a working exploit was run, not a theory).
+- **Guards.** `save_finding` refuses a severity two+ bands off the vector; MEDIUM+ requires an `impact` string; `validate_severity` reconciles a claimed severity against the CVSS band before it reaches a report. `lock_findings` freezes a shipped verdict — a later re-test logs to `discrepancy_log` instead of silently flipping it (Rule 16b).
+
+## Safety Model
+
+Praetor is built for **authorized** engagements and the professional benign-PoC standard: reaching the sink proves impact (`SELECT VERSION()` proves you *could* DROP; a read marker proves RCE), so you almost never execute irreversible harm.
+
+- **HARD tool-layer block (Rules 5–9, non-overridable).** The `confirm_*` exploit tools refuse irreversible target-state payloads (DROP/DELETE, `rm -rf`, `useradd`, SSH-key implant, miner loaders). A refusal is a **pivot**, not a dead end — prove it benignly, or drop to the operator-owned raw tools.
+- **Confirm-before-dangerous.** The unrestricted raw tools (`send_raw_request` / `curl_request`) pause with a *CONFIRM REQUIRED* notice on a clearly dangerous state-changing action (delete-user / change-password / money-movement / privilege-change / prod-op / any DELETE); the agent asks the operator, then re-calls with `confirmed=True`. GET and ordinary pentest traffic are untouched.
+- **Bounded auth-control testing (Rule 6a).** Weak-password spray, rate-limit, lockout and offline hash/JWT cracking are allowed (netexec spray, `test_rate_limit`, `crack_hashes`, `crack_jwt_secret`); only large-scale dictionary brute for account takeover (hydra/medusa/ncrack/patator) is blocked, with the allowed path named.
+- **Engagement modes.** `configure_scope(mode='operator')` (default) audit-logs out-of-scope and proceeds (private contract trust model); `mode='strict'` hard-blocks for public bounty scope. Safety Rules 5–9 stay HARD in both.
 
 ## Skills
 

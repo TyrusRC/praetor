@@ -38,6 +38,15 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
    - Tools: `test_rate_limit`, `test_login_bypass`, or a bounded `concurrent_requests` / `session_request` login loop. Save as `vuln_type='auth_lockout'` / `weak_password` / `no_rate_limit` with the attempt count and observed behaviour in evidence.
 7. **Never exfiltrate real user data.** SQLi PoC = `SELECT version()` / `SELECT current_user()`, not `SELECT * FROM users`.
 8. **Never modify or delete other users' data.** Prove IDOR with READ access, not WRITE.
+   **8a. Confirm dangerous state-changing actions with the operator FIRST.** Before a
+   send that would delete a user/account, change a password/credential, move money,
+   change privileges, or trigger a production operation — even on the unrestricted
+   raw path (`send_raw_request` / `curl_request`) — STOP and ASK the operator to
+   approve that exact action (AskUserQuestion), then re-call with `confirmed=True`.
+   The tool layer enforces this (a matching request pauses with a CONFIRM REQUIRED
+   notice); it is a human-in-the-loop pause, not a block. Prefer the benign proof
+   (Rule 8: a READ/marker already shows you *could* do it) — only execute the real
+   action when the operator explicitly approves it.
 9. **Prefer Collaborator for blind testing** over payloads with visible side effects.
 9a. **OOB testing MUST use Burp Collaborator or a user-provided callback domain.** Two cases:
     - **OOB data exfiltration** (blind SQLi via DNS, blind XXE, blind SSRF, blind SSTI, blind command injection): Call `generate_collaborator_payload()` to get a real Collaborator subdomain, then inject it into the payload. If Collaborator is unavailable (Community Edition), ASK the user: "Provide your OOB callback URL (interact.sh, webhook.site, or similar)." Never fabricate callback domains.
@@ -215,6 +224,11 @@ When tier text and per-skill text disagree, the rule number wins. Skill files re
      traffic that does not exist.
    - **On resume, read state before acting**: `load_checkpoint` + `load_target_intel(domain,
      "all")` + `coverage_summary`. Do not re-crawl to rebuild what is already on disk.
+   - **When a re-check disagrees with stored state, or after bulk edits, run
+     `sync_workspace(domain)`** — it regenerates every derived writeup from the canonical
+     `findings.json` and surfaces the drift that needs a decision (duplicates, findings with
+     no evidence, MEDIUM+ with no impact, stale checkpoint/coverage refs). It is the single
+     place to re-align all the related files instead of hand-editing each.
 
 ## Ambiguity (32) — ADVISORY
 

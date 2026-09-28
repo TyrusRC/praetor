@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools._request_headers import apply_realistic_headers
+from ._danger import confirmation_notice, dangerous_action, parse_raw
 from ._format import _format_curl_response, _format_response
 
 _MAX_RAW_REPEAT = 500
@@ -47,6 +48,7 @@ def register(mcp: FastMCP):
         cookie_jar: bool = True,
         count: int = 1,
         interval_ms: int = 0,
+        confirmed: bool = False,
     ) -> str:
         """Send a raw HTTP request through Burp for exact byte-level control.
 
@@ -89,7 +91,15 @@ def register(mcp: FastMCP):
             interval_ms: Delay between repeats when count>1 (default 0). A few hundred
                 ms widens the window for a victim's request to land on a poisoned
                 connection before the next self-send fills it.
+            confirmed: Operator sign-off for a dangerous, state-changing action
+                (user deletion / password change / money movement / prod op).
+                Leave False; if the request performs one, the tool pauses and asks
+                you to confirm with the operator, then re-call with confirmed=True.
         """
+        _m, _p, _b = parse_raw(raw)
+        _action = dangerous_action(_m, _p, _b)
+        if _action and not confirmed:
+            return confirmation_notice(_action, host)
         payload: dict = {
             "raw": raw,
             "host": host,
@@ -173,6 +183,7 @@ def register(mcp: FastMCP):
         max_redirects: int = 10,
         bare_headers: bool = False,
         unsafe_headers: bool = False,
+        confirmed: bool = False,
     ) -> str:
         """Flexible HTTP request through Burp with auth, cookies, and optional redirect following.
 
@@ -193,7 +204,12 @@ def register(mcp: FastMCP):
             max_redirects: Max redirect hops (default 10).
             bare_headers: Skip realistic-header injection (WAF detection / raw wire tests).
             unsafe_headers: Keep fingerprint but pass profile's Host/Content-Length/Transfer-Encoding/Content-Type through (header/host-header injection, HPP, smuggling).
+            confirmed: Operator sign-off for a dangerous, state-changing action (user deletion / password change / money movement / prod op). Leave False; if the request performs one, the tool pauses and asks you to confirm with the operator, then re-call with confirmed=True.
         """
+        _dbody = body or data or (str(json_body) if json_body else "")
+        _action = dangerous_action(method, url, _dbody)
+        if _action and not confirmed:
+            return confirmation_notice(_action, url)
         merged = apply_realistic_headers(
             url, headers, bare=bare_headers, unsafe_headers=unsafe_headers,
         )

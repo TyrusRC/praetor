@@ -171,5 +171,49 @@ class FuzzWithFeedbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("signals dict is required", out.get("evidence_summary", ""))
 
 
+class WafBypassTransformsTest(unittest.TestCase):
+    """New keyword-aware + unicode WAF-bypass mutators."""
+
+    def _variant(self, seed, cls):
+        out = generate_variants(seed, classes=[cls])
+        self.assertTrue(out, f"{cls} produced nothing for {seed!r}")
+        return out[0]["variant"]
+
+    def test_comment_inject_splits_keywords(self):
+        v = self._variant("UNION SELECT", "comment_inject")
+        self.assertIn("/**/", v)
+        self.assertNotRegex(v, r"\bUNION\b")     # whole keyword no longer present
+
+    def test_sql_versioned_comment(self):
+        v = self._variant("UNION SELECT", "sql_versioned")
+        self.assertIn("/*!50000", v)
+
+    def test_whitespace_sql_alternatives(self):
+        vs = [d["variant"] for d in generate_variants("OR 1=1", classes=["whitespace_sql"])]
+        self.assertTrue(any("/**/" in v for v in vs))
+        self.assertTrue(any("%0b" in v or "%a0" in v for v in vs))
+
+    def test_unicode_fullwidth_roundtrips_under_nfkc(self):
+        import unicodedata
+        v = self._variant("<script>", "unicode_fullwidth")
+        self.assertNotIn("<", v)                 # filter won't see ASCII '<'
+        self.assertEqual(unicodedata.normalize("NFKC", v), "<script>")
+
+    def test_overlong_utf8_path(self):
+        v = self._variant("../etc/passwd", "overlong_utf8")
+        self.assertIn("%c0%ae", v)
+        self.assertIn("%c0%af", v)
+
+    def test_html_entity_no_semicolon(self):
+        v = self._variant("<img>", "html_no_semi")
+        self.assertIn("&#x3c", v)
+        self.assertNotIn("&#x3c;", v)            # deliberately no trailing ';'
+
+    def test_double_encode_only_specials(self):
+        v = self._variant("a<b c", "encoding_special")
+        self.assertIn("%253c", v.lower())        # '<' double-encoded
+        self.assertIn("a", v)                     # ordinary chars untouched
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
