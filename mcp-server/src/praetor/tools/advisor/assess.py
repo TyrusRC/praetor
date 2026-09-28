@@ -75,6 +75,8 @@ def _build_context(
     reproductions: list[dict] | None,
     session_name: str,
     intensity: str = "normal",
+    network_exposure: str = "",
+    exploit_demonstrated: bool = False,
 ) -> AssessContext:
     """Allocate + populate the per-call AssessContext."""
     norm_intensity = (intensity or "normal").strip().lower()
@@ -90,6 +92,8 @@ def _build_context(
         domain=domain,
         business_context=business_context,
         environment=environment,
+        network_exposure=network_exposure,
+        exploit_demonstrated=exploit_demonstrated,
         proxy_history_index=proxy_history_index,
         human_verified=human_verified,
         chain_with=chain_with or [],
@@ -263,6 +267,8 @@ async def assess_finding_impl(
     reproductions: list[dict] | None = None,
     session_name: str = "",
     intensity: str = "normal",
+    network_exposure: str = "",
+    exploit_demonstrated: bool = False,
 ) -> str:
     """Run the 7-question validation gate and return a formatted verdict string.
 
@@ -273,7 +279,7 @@ async def assess_finding_impl(
         vuln_type, evidence, endpoint, parameter, response_diff,
         domain, business_context, environment, proxy_history_index,
         human_verified, overrides, chain_with, reproductions, session_name,
-        intensity,
+        intensity, network_exposure, exploit_demonstrated,
     )
 
     # R1: auto-derive markers from proxy_history_index (mutates ctx.derived_markers

@@ -29,6 +29,8 @@ class AssessContext:
     domain: str = ""
     business_context: str = ""
     environment: str = ""
+    network_exposure: str = ""
+    exploit_demonstrated: bool = False
     proxy_history_index: int = -1
     human_verified: bool = False
     chain_with: list[str] = field(default_factory=list)

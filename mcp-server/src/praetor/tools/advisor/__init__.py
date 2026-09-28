@@ -101,6 +101,8 @@ def register(mcp: FastMCP):
         reproductions: list[dict] | None = None,
         session_name: str = "",
         intensity: str = "normal",
+        network_exposure: str = "",
+        exploit_demonstrated: bool = False,
     ) -> str:
         """Assess a suspected finding against the 7-Question Validation Gate before save_finding.
 
@@ -120,6 +122,8 @@ def register(mcp: FastMCP):
             reproductions: Timing/blind classes — list of {proxy_history_index, elapsed_ms, status_code}; len>=3 satisfies the timing rule.
             session_name: Active session; authenticated state boosts IDOR/BFLA/business-logic impact.
             intensity: safe | normal | aggressive — aggressive relaxes the Q7 mass-report downgrade.
+            network_exposure: reachability — internet (default) / internal / ip_allowlist / vpn_only / adjacent / local / physical. Non-internet lowers the inferred severity to its true internal risk (CVSS Modified Attack Vector), so an IP-allowlisted backend is not graded CRITICAL.
+            exploit_demonstrated: True when a working exploit was actually run (not theory) → CVSS Exploit Maturity E:A.
         """
         return await assess_finding_impl(
             vuln_type=vuln_type,
@@ -137,6 +141,8 @@ def register(mcp: FastMCP):
             reproductions=reproductions,
             session_name=session_name,
             intensity=intensity,
+            network_exposure=network_exposure,
+            exploit_demonstrated=exploit_demonstrated,
         )
 
     @mcp.tool()
@@ -144,11 +150,12 @@ def register(mcp: FastMCP):
         vuln_type: str, requires_auth: bool = False, requires_admin: bool = False,
         requires_interaction: bool = False, oob_only: bool = False,
         subsequent_impact: str = "", exploit_maturity: str = "X",
-        env_overrides: dict | None = None,
+        network_exposure: str = "", env_overrides: dict | None = None,
     ) -> dict:
-        """Build CVSS 4.0 + 3.1 vectors + categorical band for a finding. See advisor/_scoring."""
+        """Build CVSS 4.0 + 3.1 vectors + categorical band for a finding. `network_exposure` (internal/ip_allowlist/vpn_only/local/physical) sets Modified Attack Vector so internal-only findings score their true band. See advisor/_scoring."""
         return await compute_cvss_impl(vuln_type, requires_auth, requires_admin,
-            requires_interaction, oob_only, subsequent_impact, exploit_maturity, env_overrides)
+            requires_interaction, oob_only, subsequent_impact, exploit_maturity,
+            network_exposure, env_overrides)
 
     @mcp.tool()
     async def validate_severity(

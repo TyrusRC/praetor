@@ -16,6 +16,7 @@ async def compute_cvss_impl(
     oob_only: bool = False,
     subsequent_impact: str = "",
     exploit_maturity: str = "X",
+    network_exposure: str = "",
     env_overrides: dict | None = None,
 ) -> dict:
     """Build CVSS 4.0 + CVSS 3.1 vectors for a finding, with categorical severity band.
@@ -34,8 +35,13 @@ async def compute_cvss_impl(
         subsequent_impact: "high" → SC:H SI:H SA:H (scope change).
         exploit_maturity: CVSS 4.0 E metric — A (Attacked) / P (PoC) / U
             (Unreported) / X (Not Defined, default).
+        network_exposure: reachability of the affected surface — internet
+            (default) / internal / ip_allowlist / vpn_only / adjacent / local /
+            physical → CVSS Modified Attack Vector (internal/allowlist/vpn → A,
+            local → L, physical → P). Drops the band for non-internet targets.
         env_overrides: optional dict of valid 4.0 metric:value (E, CR, IR,
-            AR, MAV, ...). Invalid entries silently dropped.
+            AR, MAV, ...). Invalid entries silently dropped. An explicit MAV
+            here overrides the one derived from network_exposure.
     """
     evidence = {
         "requires_auth": requires_auth,
@@ -43,6 +49,7 @@ async def compute_cvss_impl(
         "requires_interaction": requires_interaction,
         "oob_only": oob_only,
         "subsequent_impact": subsequent_impact,
+        "network_exposure": network_exposure,
     }
     env = dict(env_overrides or {})
     if exploit_maturity and exploit_maturity != "X":

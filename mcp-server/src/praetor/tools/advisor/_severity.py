@@ -61,6 +61,35 @@ def _cap(value: str, ceiling: str) -> str:
     return value if _SEV_ORDER.index(value) <= _SEV_ORDER.index(ceiling) else ceiling
 
 
+def _exposure_band_drop(ctx) -> int:
+    """Bands the CVSS 4.0 environmental score drops for this class because the
+    surface is not internet-reachable — MEASURED with the real scorer (same
+    class + shape, with vs without the Modified Attack Vector), never guessed.
+
+    Internet-facing / unset → 0. An IP-allowlisted / internal / VPN-gated
+    backend (MAV:A) typically drops 1 band; local 2; physical 2-3. This is what
+    turns a raw CRITICAL into its true internal risk.
+    """
+    exp = (getattr(ctx, "network_exposure", "") or "").strip()
+    if not exp:
+        return 0
+    try:
+        from praetor.tools.advisor import _cvss4
+        cls = ctx.q2_class_root or ctx.vuln_lower
+        base = _cvss4.severity_band(_cvss4.build_vector(cls, {}))
+        adj = _cvss4.severity_band(
+            _cvss4.build_vector(cls, {"network_exposure": exp}))
+    except Exception:
+        return 0
+
+    def _norm(b: str) -> str:
+        b = (b or "").upper()
+        return "INFO" if b in ("NONE", "") else b
+
+    order = {s: i for i, s in enumerate(_SEV_ORDER)}
+    return max(0, order.get(_norm(base), 0) - order.get(_norm(adj), 0))
+
+
 def finalize_severity(ctx: AssessContext) -> None:
     """Compute suggested_confidence, inferred_severity, severity_color.
 
@@ -107,6 +136,22 @@ def finalize_severity(ctx: AssessContext) -> None:
         if ctx.impact_boost >= 0.15 and band != "CRITICAL":
             sev = _SEV_ORDER[min(len(_SEV_ORDER) - 1, _SEV_ORDER.index(band) + 1)]
         ctx.inferred_severity = sev
+
+    # Reduced network reachability (internal / IP-allowlist / VPN-only / local)
+    # lowers the finding to its true internal risk via CVSS Modified Attack
+    # Vector — the "internal, not critical" adjustment, done by the scorer.
+    if ctx.verdict != "DO NOT REPORT":
+        drop = _exposure_band_drop(ctx)
+        if drop:
+            idx = max(0, _SEV_ORDER.index(ctx.inferred_severity) - drop)
+            if idx < _SEV_ORDER.index(ctx.inferred_severity):
+                ctx.inferred_severity = _SEV_ORDER[idx]
+                ctx.impact_notes.append(
+                    f"Network exposure '{ctx.network_exposure}': CVSS Modified "
+                    f"Attack Vector lowers severity by {drop} band(s) "
+                    f"(internal/gated reachability, not internet-facing)."
+                )
+
     ctx.severity_color = _SEV_TO_COLOR.get(ctx.inferred_severity, "YELLOW")
 
     # Bug-bounty reality check: a LOW/INFO submission is a triager's

@@ -35,6 +35,8 @@ def register(mcp: FastMCP):
         reproduction_steps: list[str] | None = None,
         cwe: str = "",
         cvss_vector: str = "",
+        network_exposure: str = "",
+        exploit_demonstrated: bool = False,
         force_recon_gate: bool = False,
         human_verified: bool = False,
         overrides: list[str] | None = None,
@@ -70,6 +72,13 @@ def register(mcp: FastMCP):
             cvss_vector: Explicit CVSS 4.0 vector. Blank derives one from
                 vuln_type + evidence shape flags; the derived band is
                 cross-checked against `severity`.
+            network_exposure: Reachability of the affected surface — internet
+                (default) / internal / ip_allowlist / vpn_only / adjacent /
+                local / physical. Anything but internet sets CVSS Modified
+                Attack Vector, dropping the band (e.g. an IP-allowlisted backend
+                scores its true internal risk instead of a raw CRITICAL).
+            exploit_demonstrated: True when a working exploit was actually run
+                (not theory) → CVSS Exploit Maturity E:A.
             force_recon_gate: Bypass session-start recon gate (Rule 20a); only if recon is in flight and not yet persisted.
             human_verified: Operator confirmed visually in Burp/DevTools. Logged in metadata.
             overrides: Audit-trailed gate bypasses (R20), each "<gate>:<reason>".
@@ -126,6 +135,15 @@ def register(mcp: FastMCP):
         if scanner_err is not None:
             return scanner_err
 
+        # Reachability + real-exploit facts drive the CVSS environmental/threat
+        # metrics (MAV / E) so an internal-only or IP-allowlisted finding scores
+        # its true band instead of the internet-facing default. Stored on the
+        # finding's evidence so the vector is reproducible (Rule 14d).
+        if isinstance(evidence, dict):
+            if network_exposure:
+                evidence.setdefault("network_exposure", network_exposure)
+            if exploit_demonstrated:
+                evidence.setdefault("exploit_demonstrated", True)
         cvss4_vector, cvss4_severity = cvss4_for_finding(
             vuln_type, evidence=evidence if isinstance(evidence, dict) else {},
             explicit_vector=cvss_vector,

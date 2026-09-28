@@ -42,6 +42,39 @@ def _default(vuln_type: str) -> dict[str, str]:
     return dict(_VULN_DEFAULTS["info_disclosure"])
 
 
+# Human network-reachability -> CVSS 4.0 Modified Attack Vector. An
+# internet-facing service keeps the class default (AV:N); an internal-only /
+# IP-allowlisted / VPN-gated backend is only reachable from an adjacent network
+# (MAV:A), and the environmental score drops ~1 band (e.g. RCE 9.3 CRITICAL ->
+# 8.7 HIGH). This is the "internal risk, not critical" adjustment operators were
+# making by hand. Unlisted / internet / external / public -> no override.
+_EXPOSURE_MAV: dict[str, str] = {
+    "internal": "A", "ip_allowlist": "A", "allowlist": "A", "allowlisted": "A",
+    "vpn_only": "A", "vpn": "A", "intranet": "A", "adjacent": "A",
+    "local": "L", "host_local": "L", "physical": "P",
+}
+
+
+def exposure_env(network_exposure: str = "", exploit_demonstrated: bool = False) -> dict[str, str]:
+    """Map human exposure / exploit facts to CVSS 4.0 env + threat metrics.
+
+    `network_exposure` -> Modified Attack Vector (internet/external/public or
+    unset keep the base AV:N; internal / ip_allowlist / vpn_only / adjacent ->
+    MAV:A; local -> MAV:L; physical -> MAV:P). `exploit_demonstrated` -> Exploit
+    Maturity E:A (a working exploit was actually run, not a theoretical claim).
+    Returns only the metrics that differ from default; empty dict when the
+    finding is internet-facing and unproven.
+    """
+    env: dict[str, str] = {}
+    key = (network_exposure or "").strip().lower().replace("-", "_").replace(" ", "_")
+    mav = _EXPOSURE_MAV.get(key)
+    if mav:
+        env["MAV"] = mav
+    if exploit_demonstrated:
+        env["E"] = "A"
+    return env
+
+
 def build_vector(
     vuln_type: str,
     evidence: dict[str, Any] | None = None,
@@ -53,9 +86,12 @@ def build_vector(
         vuln_type: Praetor vuln_type (sqli, xss, ssrf, ...). Looked up in
             _VULN_DEFAULTS; longest-prefix match falls back to info_disclosure.
         evidence: optional finding evidence dict — keys like 'requires_auth',
-            'requires_interaction', 'subsequent_impact' nudge base metrics.
+            'requires_interaction', 'subsequent_impact' nudge base metrics;
+            'network_exposure' / 'exploit_demonstrated' flow into the
+            environmental + threat metrics via exposure_env() (single data path).
         env: optional environmental + threat overrides — keys MUST be valid
-            CVSS 4.0 metric symbols (E, CR, IR, AR, MAV, ...).
+            CVSS 4.0 metric symbols (E, CR, IR, AR, MAV, ...). An explicit key
+            here WINS over the same key derived from evidence exposure.
     """
     metrics = _default(vuln_type)
     ev = evidence or {}
@@ -72,6 +108,11 @@ def build_vector(
         metrics["SC"] = metrics["SI"] = metrics["SA"] = "H"
 
     e = dict(env or {})
+    # Exposure/exploit facts on the finding flow in unless explicitly overridden.
+    for k, v in exposure_env(
+        str(ev.get("network_exposure", "")), bool(ev.get("exploit_demonstrated"))
+    ).items():
+        e.setdefault(k, v)
     # Validate optionals.
     for k, v in list(e.items()):
         if k not in _VALID_METRICS or v not in _VALID_METRICS[k]:
