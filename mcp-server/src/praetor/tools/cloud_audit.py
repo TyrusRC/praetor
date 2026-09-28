@@ -221,11 +221,14 @@ def register(mcp: FastMCP) -> None:
                          "pipx install pacu  |  https://github.com/RhinoSecurityLabs/pacu")
         if not modules:
             return "run_pacu: at least one module required."
-        # Rule 5 denylist — match common destructive pacu module names.
+        # Rule 5 denylist — only modules that PERSIST a backdoor, delete audit
+        # trails, or run code on the target. Read-only enumeration is NOT
+        # destructive: iam__privesc_scan (analyses permissions, writes nothing),
+        # s3__bucket_finder (discovery) and guardduty__list_ip_sets (a list_ API)
+        # were mislabeled and are the highest-value AWS recon — they stay allowed.
         destructive = {"iam__backdoor_users_keys", "iam__backdoor_users_password",
-                       "iam__privesc_scan", "ec2__startup_shell_script",
-                       "cloudtrail__delete", "guardduty__list_ip_sets",
-                       "s3__bucket_finder", "lambda__backdoor_new_users"}
+                       "ec2__startup_shell_script", "cloudtrail__delete",
+                       "lambda__backdoor_new_users"}
         blocked = [m for m in modules if m in destructive]
         if blocked:
             return (f"BLOCKED (Rule 5 denylist): {blocked}\n"

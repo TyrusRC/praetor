@@ -247,10 +247,72 @@ _MASTG_CHECKLIST: list[dict[str, str]] = [
 ]
 
 
+# OWASP Top 10 (2025) — per-test-case list mapped to a Praetor tool.
+_OWASP_TOP10_CHECKLIST: list[dict[str, str]] = [
+    {"id": "A01-1", "category": "A01", "name": "IDOR / BOLA across auth states", "tool": "test_auth_matrix"},
+    {"id": "A01-2", "category": "A01", "name": "Forced browsing / function-level access", "tool": "auto_probe(categories=['access_control'])"},
+    {"id": "A01-3", "category": "A01", "name": "Privilege escalation between roles", "tool": "test_auth_matrix"},
+    {"id": "A01-4", "category": "A01", "name": "CSRF on state-changing actions", "tool": "test_csrf"},
+    {"id": "A01-5", "category": "A01", "name": "Path traversal / LFI", "tool": "test_lfi"},
+    {"id": "A02-1", "category": "A02", "name": "Default / weak credentials", "tool": "test_login_bypass"},
+    {"id": "A02-2", "category": "A02", "name": "Debug endpoints / verbose config exposure", "tool": "discover_common_files"},
+    {"id": "A02-3", "category": "A02", "name": "CORS misconfiguration", "tool": "test_cors"},
+    {"id": "A02-4", "category": "A02", "name": "Directory listing / index enabled", "tool": "discover_common_files"},
+    {"id": "A03-1", "category": "A03", "name": "Vulnerable / outdated components", "tool": "check_tech_vulns / map_tech_to_cves"},
+    {"id": "A03-2", "category": "A03", "name": "Dependency confusion", "tool": "auto_probe(categories=['dependency_confusion'])"},
+    {"id": "A03-3", "category": "A03", "name": "CI/CD pipeline / GitHub Actions injection", "tool": "run_poutine / run_octoscan"},
+    {"id": "A03-4", "category": "A03", "name": "Exposed .git / source repo", "tool": "dump_exposed_git"},
+    {"id": "A04-1", "category": "A04", "name": "Weak / deprecated cryptography", "tool": "auto_probe(categories=['crypto_weakness'])"},
+    {"id": "A04-2", "category": "A04", "name": "Sensitive data over cleartext / weak session flags", "tool": "auto_probe(categories=['session_security'])"},
+    {"id": "A04-3", "category": "A04", "name": "Padding oracle / unauthenticated ciphertext", "tool": "auto_probe(categories=['crypto_weakness'])"},
+    {"id": "A04-4", "category": "A04", "name": "JWT algorithm / key weaknesses", "tool": "test_jwt"},
+    {"id": "A05-1", "category": "A05", "name": "SQL injection", "tool": "run_sqlmap / auto_probe(categories=['sqli'])"},
+    {"id": "A05-2", "category": "A05", "name": "Cross-site scripting (executed)", "tool": "probe_xss_executed / auto_probe(categories=['xss'])"},
+    {"id": "A05-3", "category": "A05", "name": "OS command injection", "tool": "auto_probe(categories=['command_injection'])"},
+    {"id": "A05-4", "category": "A05", "name": "SSTI", "tool": "test_ssti"},
+    {"id": "A05-5", "category": "A05", "name": "XXE", "tool": "test_xxe"},
+    {"id": "A05-6", "category": "A05", "name": "SSRF", "tool": "test_ssrf"},
+    {"id": "A06-1", "category": "A06", "name": "Business-logic abuse", "tool": "test_business_logic"},
+    {"id": "A06-2", "category": "A06", "name": "Race conditions", "tool": "test_race_condition"},
+    {"id": "A06-3", "category": "A06", "name": "Mass assignment", "tool": "test_mass_assignment"},
+    {"id": "A07-1", "category": "A07", "name": "Weak password policy / no lockout / rate-limit", "tool": "test_rate_limit"},
+    {"id": "A07-2", "category": "A07", "name": "MFA bypass", "tool": "test_mfa_bypass"},
+    {"id": "A07-3", "category": "A07", "name": "Session lifecycle (fixation, no-invalidate)", "tool": "test_session_lifecycle"},
+    {"id": "A07-4", "category": "A07", "name": "Password-reset token weakness", "tool": "analyze_reset_tokens"},
+    {"id": "A07-5", "category": "A07", "name": "OAuth / OIDC flow abuse", "tool": "auto_probe(categories=['oauth'])"},
+    {"id": "A08-1", "category": "A08", "name": "Insecure deserialization", "tool": "auto_probe(categories=['deserialization'])"},
+    {"id": "A08-2", "category": "A08", "name": "Prototype pollution", "tool": "test_prototype_pollution"},
+    {"id": "A08-3", "category": "A08", "name": "Unsigned / unverified update or integrity control", "tool": "manual + research_attack_vector"},
+    {"id": "A09-1", "category": "A09", "name": "Log injection (CRLF)", "tool": "auto_probe(categories=['crlf_injection'])"},
+    {"id": "A09-2", "category": "A09", "name": "Missing rate-limit / alerting on sensitive actions", "tool": "test_rate_limit"},
+    {"id": "A10-1", "category": "A10", "name": "Verbose error / exception disclosure", "tool": "auto_probe(categories=['error_handling_misuse'])"},
+    {"id": "A10-2", "category": "A10", "name": "Fail-open on exceptional conditions", "tool": "manual + investigate"},
+]
+
+# OWASP API Security Top 10 (2023) — per-test-case list mapped to a Praetor tool.
+_API_TOP10_CHECKLIST: list[dict[str, str]] = [
+    {"id": "API1-1", "category": "API1", "name": "Broken Object Level Authorization (BOLA/IDOR)", "tool": "test_auth_matrix / auto_probe(categories=['idor'])"},
+    {"id": "API2-1", "category": "API2", "name": "Broken authentication (creds/JWT/session)", "tool": "test_login_bypass / test_jwt"},
+    {"id": "API2-2", "category": "API2", "name": "MFA / token weaknesses", "tool": "test_mfa_bypass"},
+    {"id": "API3-1", "category": "API3", "name": "Broken Object Property Level Authz / mass assignment", "tool": "test_mass_assignment"},
+    {"id": "API3-2", "category": "API3", "name": "Excessive data exposure in responses", "tool": "auto_probe(categories=['excessive_data_exposure'])"},
+    {"id": "API4-1", "category": "API4", "name": "Unrestricted resource consumption (no rate limit)", "tool": "test_rate_limit"},
+    {"id": "API4-2", "category": "API4", "name": "Resource-exhaustion / cost amplification", "tool": "auto_probe(categories=['resource_exhaustion'])"},
+    {"id": "API5-1", "category": "API5", "name": "Broken Function Level Authorization (BFLA)", "tool": "test_auth_matrix"},
+    {"id": "API6-1", "category": "API6", "name": "Unrestricted access to sensitive business flows", "tool": "test_business_logic"},
+    {"id": "API7-1", "category": "API7", "name": "Server-Side Request Forgery", "tool": "test_ssrf"},
+    {"id": "API8-1", "category": "API8", "name": "Security misconfiguration (CORS/headers/verbose)", "tool": "test_cors / discover_common_files"},
+    {"id": "API9-1", "category": "API9", "name": "Improper inventory (shadow/old API versions)", "tool": "parse_api_schema / discover_common_files"},
+    {"id": "API10-1", "category": "API10", "name": "Unsafe consumption of third-party APIs", "tool": "auto_probe(categories=['unsafe_consumption'])"},
+]
+
+
 CHECKLISTS: dict[str, list[dict[str, str]]] = {
     "ai_testing": _AI_CHECKLIST,
     "wstg": _build_wstg(),
     "mastg": _MASTG_CHECKLIST,
+    "owasp_top10": _OWASP_TOP10_CHECKLIST,
+    "api_top10": _API_TOP10_CHECKLIST,
 }
 
 

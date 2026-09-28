@@ -46,7 +46,15 @@ class RenderTest(unittest.TestCase):
         self.assertIn("OWASP WSTG v4.2", md)
         self.assertIn("knowledge-base test classes", md)
         self.assertIn("WSTG-INFO-01", md)          # a real WSTG item rendered
+        self.assertIn("A01-1", md)                  # OWASP Top 10 test case rendered
+        self.assertIn("A05-1", md)                  # (was missing before the catalog fix)
         self.assertIn("auto_probe(categories=['sqli'])", md)
+
+    def test_api_scope_renders_api_top10_cases(self):
+        md = render_engagement_md("t.example", ["api"])
+        self.assertIn("OWASP API Security Top 10 (2023)", md)
+        self.assertIn("API1-1", md)                 # BOLA
+        self.assertIn("API7-1", md)                 # SSRF — API top-10 items now present
 
     def test_mobile_scope_includes_masvs(self):
         md = render_engagement_md("t.example", ["mobile"])
