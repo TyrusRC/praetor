@@ -33,6 +33,7 @@ Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwri
   - [WSL (Burp on the Windows host)](#wsl-burp-on-the-windows-host)
   - [Environment Variables](#environment-variables)
 - [Usage](#usage)
+  - [Commands (Claude Code)](#commands-claude-code)
   - [Ghostwriter reporting hub](#ghostwriter-reporting-hub)
 - [Tool Surface](#tool-surface)
 - [MCP Prompts](#mcp-prompts)
@@ -464,6 +465,15 @@ The Java extension also accepts JVM system properties `praetor.proxy.host` and `
 
 Once `.mcp.json` is loaded by your MCP client, the tools are available to the agent. Pick the lane that fits the target (or run both — a box often has web *and* network surface).
 
+### Commands (Claude Code)
+
+Two slash-commands in [`.claude/commands/`](.claude/commands/) drive a whole engagement; if you just say "test `<target>`" without one, the agent asks which:
+
+- **`/checklist <domain> [web api mobile llm]`** — full-coverage **pentest**. Confirms scope → recon gate → `build_engagement_checklist` writes one markdown file `.burp-intel/<domain>/reports/<domain>-checklist.md` combining the **latest** standards for the scope (OWASP Top 10 2025 + WSTG v4.2 for web, API Top 10 2023 if api, MASVS v2/MASTG if mobile, AI Testing Guide if llm) **plus every applicable KB test class as edge cases** → works it to coverage → client report. Mobile/API/LLM checklists are added only when those surfaces are in scope.
+- **`/exploit <target> [objective]`** — objective-driven **red-team**. Quick-win / low-hanging-high-impact sweep → benign proof-of-impact → `plan_attack_paths` → `generate_report(format='redteam')` **attack-path map** markdown.
+
+`build_engagement_checklist(domain, scope)` is also callable directly as a tool; `handle-docx` (skill) ingests a Word SoW/scope/RoE or exports a report to `.docx`.
+
 **Web lane (a webapp / API):**
 
 1. `configure_scope` to set include/exclude patterns and auto-filter tracker domains.
@@ -653,6 +663,8 @@ Behavioral skills live in `.claude/skills/`:
 - `user-override.md` — operator override surfaces when defaults block legitimate findings
 - `operational-discipline.md` — cross-role discipline (pentester / BBH / red team / researcher): read before you send, replay before save, annotate live, stop when impact is proved, honour the noise budget
 - `security-research.md` — deep-dive an interesting anomaly via `research_attack_vector` + WebFetch on disclosed reports / writeups; operationalizes Rule 27's 20% creative-hunting budget
+- `command-engagement.md` — engagement-lead SOP (drives `/checklist` and `/exploit`; asks pentest-vs-red-team when unstated)
+- `handle-docx.md` — read a supplied Word SoW/scope/RoE (stdlib, untrusted-input safe) or export a report to `.docx`
 
 Always-active rules in `.claude/rules/`:
 
