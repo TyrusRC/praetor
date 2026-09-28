@@ -202,3 +202,40 @@ def register(mcp: FastMCP) -> None:
         """Remove an Expedition match-and-replace rule by id."""
         d = await _client.delete(f"/matchreplace/{rule_id}")
         return f"Removed rule #{rule_id}." if d.get("ok") else f"Error: {d.get('error', d)}"
+
+    @mcp.tool()
+    async def tcp_intercept_enable(enabled: bool = True) -> str:
+        """Turn Expedition live intercept on/off. When on, each relayed message is
+        HELD until you forward or drop it (tcp_intercept_status → tcp_intercept_forward)."""
+        d = await _client.post("/intercept/enable", json={"enabled": enabled})
+        if "error" in d:
+            return f"Error: {d['error']}"
+        return f"Intercept {'ON' if d.get('enabled') else 'OFF'}."
+
+    @mcp.tool()
+    async def tcp_intercept_status() -> str:
+        """List messages currently HELD by Expedition intercept (id, direction, hex, preview)."""
+        d = await _client.get("/intercept")
+        if "error" in d:
+            return d["error"]
+        held = d.get("held", [])
+        lines = [f"Intercept {'ON' if d.get('enabled') else 'OFF'} — {len(held)} held:"]
+        for h in held[:40]:
+            arrow = "C->U" if h.get("direction") == "CLIENT_TO_UPSTREAM" else "U->C"
+            lines.append(f"  held#{h.get('id')} conn#{h.get('connection_id')} {arrow} "
+                         f"{h.get('length')}B  {str(h.get('text',''))[:70]!r}")
+        return "\n".join(lines) if held else lines[0] + " (queue empty)"
+
+    @mcp.tool()
+    async def tcp_intercept_forward(held_id: int, hex: str = "", text: str = "") -> str:
+        """Forward a held message — edited (pass hex or text) or unchanged (pass neither)."""
+        d = await _client.post(f"/intercept/{held_id}/forward", json={"hex": hex, "text": text})
+        if "error" in d:
+            return f"Error: {d['error']}"
+        return f"Forwarded held#{held_id} ({d.get('forwarded_len')}B)."
+
+    @mcp.tool()
+    async def tcp_intercept_drop(held_id: int) -> str:
+        """Drop a held message (do not forward it to the upstream)."""
+        d = await _client.post(f"/intercept/{held_id}/drop")
+        return f"Dropped held#{held_id}." if d.get("ok") else f"Error: {d.get('error', d)}"
