@@ -36,7 +36,7 @@ public class ConfigTab {
 
         JTabbedPane tabs = new JTabbedPane();
         // Plain weight to match Burp's native tab strip (bold looked out of place).
-        tabs.setFont(tabs.getFont().deriveFont(Font.PLAIN, 12f));
+        tabs.setFont(tabs.getFont().deriveFont(Font.PLAIN, 11f));
         tabs.addTab(" Dashboard ", dashboardPanel);
         tabs.addTab(" Sessions ", sessionsPanel);
         tabs.addTab(" Activity Log ", activityLogPanel);
