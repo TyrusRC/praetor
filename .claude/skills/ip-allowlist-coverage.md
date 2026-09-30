@@ -109,6 +109,70 @@ Read the BODY, not just the status: a 200 that says "invalid token" is BAD_AUTH,
 and a 403 for an unrelated reason is not an allowlist block — tune `blocked_regex`
 to the target's actual block page.
 
+## More bypass classes
+
+The honest-architecture note above holds for a **network/TCP** allowlist. Three
+adjacent classes are where the allowlist is actually a per-request check the app
+(or a fronting proxy) gets wrong — test them when the surface has one.
+
+### 1. Header-trust bypass — the app trusts a client-IP header as its ACL source
+
+Distinct from the network allowlist: here the app reads `X-Forwarded-For` /
+`Forwarded` / `True-Client-IP` and treats that value as the client IP for its
+allow/deny decision. Inject a trusted/loopback value and the check is bypassed —
+no pivot needed. This is a real, common misconfiguration (CloudStack
+CVE-2024-29006, OpenClaw leftmost-XFF, 1Panel CVE-2025-66508, Heimdall
+`Forwarded`).
+
+Turn it on with `spoof_headers`:
+```
+ip_allowlist_coverage(
+  surfaces='[{"label":"admin","url":"https://app.example.com/admin"}]',
+  spoof_headers="auto",          # the standard set below; or a comma list
+  spoof_value="127.0.0.1",       # the trusted/loopback IP to inject
+  domain="example",
+)
+```
+Standard set (`auto`): `X-Forwarded-For`, `X-Real-IP`, `X-Client-IP`,
+`True-Client-IP`, `CF-Connecting-IP`, `X-Originating-IP`, `X-Forwarded-Host`,
+`Forwarded` (sent as `for=<spoof_value>`).
+
+**Leftmost vs rightmost parser differential.** With multiple hops
+(`X-Forwarded-For: a, b, c`) different parsers pick a different value as "the
+client". The tool sends both `<spoof_value>, 203.0.113.9` (leftmost) and
+`203.0.113.9, <spoof_value>` (rightmost) for `X-Forwarded-For` and `Forwarded`
+and records which position won — that position is the finding's key detail (it
+tells the org exactly which parser to fix).
+
+**Verdict:** the header test runs per surface **only after** the normal
+baseline probe was BLOCKED (an already-served surface is a GAP already — the
+header probe is N/A there, not double-counted). A spoof probe that returns 2xx
+is a `HEADER_TRUST_BYPASS` for that `{header, position}`; see per-surface
+`header_trust[]` and the top-level `header_bypasses[]`. Read-only, one request
+per header, capped at ~12 extra probes/surface, credential redacted as always.
+
+### 2. Partial-match / prefix allowlist flaw
+
+The allowlist compares by **substring/prefix** or confuses IPv4/IPv6, so an IP is
+accepted merely because it *contains* — or shares a prefix with — a trusted entry
+(n8n CVE-2025-68949: an IP is accepted if it merely contains a trusted entry).
+Methodology note — proving this fully needs **control of the source IP**: inspect
+the target's allowlist config, and where you control the egress, test with
+near-prefix / substring-adjacent IPs (e.g. a trusted `10.0.0.1` vs a probe from
+`10.0.0.10` or `110.0.0.1`). Report it as a config finding when the comparison
+logic is visible even if you cannot source every candidate IP.
+
+### 3. Request smuggling -> front-end ACL bypass
+
+When the IP allowlist is enforced at a **front-end proxy** but the back-end
+serves an allowlisted/localhost-only path, a desync smuggles a request past the
+proxy's ACL to that path — CL.TE / TE.CL / TE.0 / CL.0 / h2c (Gunicorn
+CVE-2024-1135, HAProxy CVE-2024-53008, Kong CVE-2024-33452, TE.0 on GCP LB).
+Do **not** hand-roll this — cross-reference Praetor's existing smuggling tools:
+`test_request_smuggling`, `build_capture_smuggle`, and the h2c/raw path
+(`send_raw_request http_version=2`). Prove reach to the restricted path with a
+benign marker (a localhost-only status/health endpoint), not a destructive call.
+
 ## Reporting
 
 The deliverable is the **gap list** for the org to remediate: each surface that

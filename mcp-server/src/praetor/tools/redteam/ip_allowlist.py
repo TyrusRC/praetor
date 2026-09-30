@@ -56,6 +56,23 @@ DEFAULT_BLOCK_PHRASES = (
 _MATCH_WINDOW = 4096
 _SNIPPET = 160
 
+# Header-trust bypass: client-IP headers an app may WRONGLY trust as its ACL
+# source (distinct from a network/TCP allowlist — see the skill). Injecting a
+# trusted/loopback value into one of these bypasses the check when the app reads
+# it. Order = the `spoof_headers='auto'` set. `Forwarded` carries `for=<ip>`.
+STANDARD_SPOOF_HEADERS = (
+    "X-Forwarded-For", "X-Real-IP", "X-Client-IP", "True-Client-IP",
+    "CF-Connecting-IP", "X-Originating-IP", "X-Forwarded-Host", "Forwarded",
+)
+# Multi-value headers whose leftmost-vs-rightmost parse decides which IP wins
+# (CloudStack CVE-2024-29006, 1Panel CVE-2025-66508, Heimdall Forwarded). Each
+# gets a single-value probe PLUS a leftmost and a rightmost differential variant.
+_DIFFERENTIAL_SPOOF_HEADERS = {"x-forwarded-for", "forwarded"}
+# Non-trusted decoy for the parser-differential variants (TEST-NET-3, RFC 5737).
+_SPOOF_DECOY_IP = "203.0.113.9"
+# Hard cap on extra probes per surface (8 headers + 2×2 variants = 12).
+_SPOOF_CAP = 12
+
 # Optional convenience presets — read-only identity probes only. NOT the core
 # path; operator-supplied surfaces are. gitlab/okta self-managed hosts come from
 # $PRAETOR_ALLOWLIST_BASE (else those entries are skipped with a note).
@@ -207,6 +224,44 @@ def _surface_verdict(off_raw: str, on_raw: str | None) -> str:
     return "INCONCLUSIVE"  # off blocked + on blocked/bad, or off bad-auth
 
 
+def _spoof_header_value(header: str, ip: str) -> str:
+    """`Forwarded` uses the `for=<ip>` syntax; every other header is the raw IP."""
+    return f"for={ip}" if header.strip().lower() == "forwarded" else ip
+
+
+def _spoof_probes(spoof_headers: str, spoof_value: str) -> list[dict]:
+    """Build the header-trust probe list -> [{header, value, position}].
+
+    Empty spoof_headers = off ([]). 'auto' = STANDARD_SPOOF_HEADERS; otherwise a
+    comma list of header names. XFF/Forwarded each add leftmost + rightmost
+    parser-differential variants. Capped at _SPOOF_CAP.
+    """
+    spec = (spoof_headers or "").strip()
+    if not spec:
+        return []
+    names = (list(STANDARD_SPOOF_HEADERS) if spec.lower() == "auto"
+             else [h.strip() for h in spec.split(",") if h.strip()])
+    ip = (spoof_value or "127.0.0.1").strip() or "127.0.0.1"
+    decoy = _SPOOF_DECOY_IP
+    probes: list[dict] = []
+    seen: set[str] = set()
+    for h in names:
+        key = h.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        probes.append({"header": h, "value": _spoof_header_value(h, ip),
+                       "position": "single"})
+        if key in _DIFFERENTIAL_SPOOF_HEADERS:
+            trusted = _spoof_header_value(h, ip)
+            noise = _spoof_header_value(h, decoy)
+            probes.append({"header": h, "value": f"{trusted}, {noise}",
+                           "position": "leftmost"})
+            probes.append({"header": h, "value": f"{noise}, {trusted}",
+                           "position": "rightmost"})
+    return probes[:_SPOOF_CAP]
+
+
 def _socks_available() -> bool:
     try:
         import socksio  # noqa: F401
@@ -235,6 +290,19 @@ async def _probe(client: httpx.AsyncClient, surface: dict, auth_value: str,
         return None, "", f"{type(e).__name__}: {e}"
 
 
+async def _probe_spoofed(client: httpx.AsyncClient, surface: dict, auth_value: str,
+                         timeout: int, header: str, value: str
+                         ) -> tuple[int | None, str, str]:
+    """One READ-ONLY probe with a single client-IP header injected. Caller wins
+    ties only for real conflicts — the spoof header is added on top of the
+    surface's own headers so the app sees the trusted value."""
+    spoofed = dict(surface)
+    merged = dict(surface.get("headers") or {})
+    merged[header] = value
+    spoofed["headers"] = merged
+    return await _probe(client, spoofed, auth_value, timeout)
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -246,6 +314,8 @@ def register(mcp: FastMCP) -> None:
         baseline_proxy: str = "",
         blocked_status: str = "403,451",
         blocked_regex: str = "",
+        spoof_headers: str = "",
+        spoof_value: str = "127.0.0.1",
         preset: str = "",
         domain: str = "",
         timeout: int = 20,
@@ -279,6 +349,19 @@ def register(mcp: FastMCP) -> None:
             blocked_regex: if set, a blocked status is only a block when the
                 body matches this regex; if unset, default allowlist phrases are
                 used as the corroboration heuristic.
+            spoof_headers: header-trust probe mode (distinct from a network
+                allowlist — tests whether the APP trusts a client-IP header as
+                its ACL source). Empty = off. 'auto' = the standard set
+                (X-Forwarded-For, X-Real-IP, X-Client-IP, True-Client-IP,
+                CF-Connecting-IP, X-Originating-IP, X-Forwarded-Host, Forwarded).
+                Or a comma list of header names. When set, each surface whose
+                BASELINE probe was BLOCKED gets one extra READ-ONLY probe per
+                header injecting spoof_value; X-Forwarded-For and Forwarded also
+                get leftmost/rightmost parser-differential variants. A spoof
+                probe that returns 2xx = HEADER_TRUST_BYPASS. Capped at
+                ~12 extra probes/surface.
+            spoof_value: the trusted/loopback IP injected into the spoof headers
+                (default '127.0.0.1').
             preset: optional convenience expansion of benign identity probes —
                 'github' | 'gitlab' | 'okta' | 'generic'. Merged with `surfaces`.
                 gitlab/okta self-managed hosts read $PRAETOR_ALLOWLIST_BASE.
@@ -286,8 +369,11 @@ def register(mcp: FastMCP) -> None:
             timeout: per-request seconds (default 20).
 
         Returns a matrix dict: {source, baseline, results:[{label,url,method,
-        off_list:{status,verdict}, on_list?:{status,verdict}, verdict, evidence}],
-        gaps:[labels], summary}. verdict is ENFORCED / GAP / INCONCLUSIVE.
+        off_list:{status,verdict}, on_list?:{status,verdict}, verdict, evidence,
+        header_trust?:[{header,position,status,verdict}]}], gaps:[labels],
+        header_bypasses:[{label,header,position}], summary}. verdict is
+        ENFORCED / GAP / INCONCLUSIVE; header_trust/header_bypasses appear only
+        when spoof mode is on.
         """
         auth_value = auth_header.strip() or (os.environ.get(auth_env, "").strip() if auth_env else "")
         auth_shape = _shape_secret(auth_value)
@@ -311,6 +397,7 @@ def register(mcp: FastMCP) -> None:
 
         source = proxy.strip() or "direct"
         differential = bool(baseline_proxy.strip())
+        spoof_probe_list = _spoof_probes(spoof_headers, spoof_value)
 
         common = dict(follow_redirects=False, verify=True,
                       headers={"User-Agent": "praetor-allowlist-audit"})
@@ -319,6 +406,7 @@ def register(mcp: FastMCP) -> None:
                      if differential else None)
 
         results: list[dict] = []
+        header_bypasses: list[dict] = []
         try:
             for surf in surface_list:
                 off_status, off_body, off_err = await _probe(off_client, surf, auth_value, timeout)
@@ -351,6 +439,31 @@ def register(mcp: FastMCP) -> None:
                 }
                 if on_entry is not None:
                     row["on_list"] = on_entry
+
+                # Header-trust probes (additive; does NOT change the verdict above).
+                # Only when baseline (off_list) was BLOCKED — an already-ALLOWED
+                # surface is a GAP already; probing it would double-count (N/A).
+                if spoof_probe_list:
+                    header_trust: list[dict] = []
+                    if off_raw == "BLOCKED":
+                        for sp in spoof_probe_list:
+                            s_status, s_body, _ = await _probe_spoofed(
+                                off_client, surf, auth_value, timeout,
+                                sp["header"], sp["value"])
+                            s_raw, _ = _probe_verdict(s_status, s_body,
+                                                      blocked_statuses, blocked_regex)
+                            ht = "HEADER_TRUST_BYPASS" if s_raw == "ALLOWED" else s_raw
+                            header_trust.append({
+                                "header": sp["header"], "position": sp["position"],
+                                "status": s_status, "verdict": ht,
+                            })
+                            if ht == "HEADER_TRUST_BYPASS":
+                                header_bypasses.append({
+                                    "label": surf["label"],
+                                    "header": sp["header"],
+                                    "position": sp["position"],
+                                })
+                    row["header_trust"] = header_trust
                 results.append(row)
         finally:
             await off_client.aclose()
@@ -363,12 +476,19 @@ def register(mcp: FastMCP) -> None:
         summary = (f"{len(results)} surface(s): {enforced} ENFORCED, {len(gaps)} GAP, "
                    f"{inconc} INCONCLUSIVE"
                    + (f". GAPS: {', '.join(gaps)}" if gaps else ""))
+        if spoof_probe_list:
+            summary += (f". HEADER-TRUST BYPASSES: {len(header_bypasses)}"
+                        + (" (" + ", ".join(sorted({b["label"] for b in header_bypasses}))
+                           + ")" if header_bypasses else ""))
 
         # Operator log — benign recon of the control. Auth REDACTED in command.
         if domain:
+            spoof_note = (f"{spoof_headers.strip()}({len(spoof_probe_list)}/surface,{spoof_value.strip()})"
+                          if spoof_probe_list else "off")
             cmd = (f"ip_allowlist_coverage surfaces={len(surface_list)} source={source} "
                    f"baseline={baseline_proxy.strip() or 'none'} "
-                   f"auth={auth_shape or 'none'} blocked_status={sorted(blocked_statuses)}")
+                   f"auth={auth_shape or 'none'} blocked_status={sorted(blocked_statuses)} "
+                   f"spoof={spoof_note}")
             record_action(
                 domain, "ip_allowlist_coverage", _redact(cmd, auth_value),
                 description=f"IP-allowlist coverage audit: {summary}",
@@ -383,5 +503,6 @@ def register(mcp: FastMCP) -> None:
             "auth": auth_shape or None,
             "results": results,
             "gaps": gaps,
+            "header_bypasses": header_bypasses,
             "summary": summary,
         }
