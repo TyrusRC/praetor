@@ -17,7 +17,8 @@ from mcp.server.fastmcp import FastMCP
 
 
 def register(mcp: FastMCP) -> None:
-    from . import upload, cve_verdict
+    from . import upload, cve_verdict, afl
 
     upload.register(mcp)
     cve_verdict.register(mcp)
+    afl.register(mcp)

@@ -89,6 +89,57 @@ def _is_memory_corruption(cwe: str, summary: str) -> bool:
     return any(kw in s for kw in _MEMCORR_KEYWORDS)
 
 
+# --- CVE->AFL bridge: file-format inference + concrete handoff ---------------
+
+# Keyword -> the fuzz lane's built-in seed/dictionary format (tools/fuzzing/_seeds).
+# Ordered: check the more specific token first (e.g. 'jbig2' before 'pdf').
+_FMT_KEYWORDS = (
+    ("webp", "webp"), ("libwebp", "webp"), ("vp8", "webp"),
+    ("png", "png"), ("libpng", "png"),
+    ("jpeg", "jpeg"), ("jpg", "jpeg"), ("libjpeg", "jpeg"), ("jfif", "jpeg"),
+    ("gif", "gif"),
+    ("svg", "svg"),
+    ("pdf", "pdf"), ("ghostscript", "pdf"), ("jbig2", "pdf"), ("poppler", "pdf"),
+    ("zip", "zip"), ("archive", "zip"), ("zlib", "zip"), ("libarchive", "zip"),
+)
+
+
+def _infer_fmt(summary: str) -> str:
+    """Best-effort fuzz-lane format from the CVE summary ('' when none matches)."""
+    s = (summary or "").lower()
+    for kw, fmt in _FMT_KEYWORDS:
+        if kw in s:
+            return fmt
+    return ""
+
+
+def _afl_handoff(cve: str, fmt: str, target_url: str, domain: str) -> str:
+    """Concrete, parameterized CVE->AFL bridge handoff (the verdict's `next`).
+
+    Starts with 'memory-corruption' so callers/tests keying on that prefix, and
+    the summary counter, keep working. Names the real 3-call path, seeded with
+    this CVE's format + structural dictionary. Operator-invoked — NOT auto-run.
+    """
+    f = fmt or "<fmt>"
+    seed_note = (f"auto-seeds a {fmt} corpus + AFL dictionary from _seeds"
+                 if fmt else "supply seed_files / fmt (format not inferable from the summary)")
+    upload = target_url or "<server upload URL>"
+    dom = domain or "<domain>"
+    return (
+        f"memory-corruption/parser CWE -> CVE->AFL bridge for {cve} "
+        f"(operator-invoked, not auto-run):\n"
+        f"  1) afl_build_harness(source='<harness driving the affected {f} parser>', "
+        f"fmt='{f}', sanitizer='asan+ubsan', cmplog=True)\n"
+        f"  2) afl_fuzz_target(harness='<harness_path>', fmt='{f}', timeout=600, "
+        f"domain='{dom}')  # {seed_note}\n"
+        f"  3) triage_crashes(target='<afl out_dir>', harness='<harness_path>', "
+        f"upload_endpoint='{upload}', domain='{dom}')  # exploitability rubric + "
+        f"server-side crash confirm\n"
+        f"A reproduced crash with a LIKELY-EXPLOITABLE triage class is a "
+        f"HIGH/CRITICAL finding; exploitable_here stays False until then."
+    )
+
+
 # --- small pure helpers ------------------------------------------------------
 
 def _split_tech_version(item: str) -> tuple[str, str]:
@@ -134,6 +185,7 @@ def _assemble_cve_verdict(
     evidence: dict[str, Any],
     poc_summary: str,
     memcorr: bool,
+    memcorr_handoff: str = "",
 ) -> dict[str, Any]:
     """Pure verdict assembly — the exploitable_here gate. No I/O; unit-tested.
 
@@ -149,9 +201,10 @@ def _assemble_cve_verdict(
 
     if memcorr:
         # Memory-corruption / parser CVE: a benign web PoC cannot prove it.
+        # exploitable_here stays False until the fuzz lane reproduces the crash.
         exploitable_here = False
         confidence = "medium" if precondition_met else "low"
-        nxt = (
+        nxt = memcorr_handoff or (
             "memory-corruption/parser CWE -> Phase-2 CVE->AFL bridge: seed the "
             "fuzz lane (afl_fuzz_target with a local build, else fuzz_upload) "
             "with the CVE PoC corpus + format dictionary to reproduce the crash. "
@@ -401,13 +454,18 @@ def register(mcp: FastMCP) -> None:
                 "", version, "") if version else ("UNKNOWN", "")
 
             poc_verdict, poc_idx, poc_reason = "NOT_FIRED", -1, ""
+            memcorr_handoff = ""
             if memcorr:
-                # TODO(Phase-2 CVE->AFL bridge): when memcorr, hand off to the
-                # fuzz lane instead of a web probe — seed afl_fuzz_target (local
-                # build) or fuzz_upload with this CVE's PoC corpus + format
-                # dictionary, reproduce the crash, triage exploitability, then
-                # confirm on target. Marked here; NOT implemented in Phase 1.
-                poc_reason = "memory-corruption/parser class — deferred to fuzz lane"
+                # CVE->AFL bridge: a memory-corruption/parser CVE cannot be proven
+                # over a benign web probe (the deliverable is a crash/sanitizer
+                # report). Build the concrete, ready-to-run fuzz-lane handoff
+                # (afl_build_harness -> afl_fuzz_target -> triage_crashes), seeded
+                # with this CVE's inferred format + structural dictionary. It is
+                # operator-invoked — we return the call path, not a fired campaign.
+                cve_fmt = _infer_fmt(summary)
+                memcorr_handoff = _afl_handoff(cid, cve_fmt, url, domain)
+                poc_reason = (f"memory-corruption/parser class (fmt={cve_fmt or '?'})"
+                              " — CVE->AFL bridge handoff ready (see next)")
             elif reachable:
                 poc_verdict, poc_idx, poc_reason = await _fire_benign_poc(cid, url)
             else:
@@ -428,6 +486,7 @@ def register(mcp: FastMCP) -> None:
                 evidence={"proxy_history_index": poc_idx},
                 poc_summary=poc_summary,
                 memcorr=memcorr,
+                memcorr_handoff=memcorr_handoff,
             ))
 
         exploitable = sum(1 for a in assessed if a["exploitable_here"])
