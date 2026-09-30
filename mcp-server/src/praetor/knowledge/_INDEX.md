@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**153 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**154 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 

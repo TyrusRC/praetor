@@ -271,8 +271,9 @@ class A2aKbTest(unittest.TestCase):
         # 137 → 138 (a2a_protocol added); → 150 (W34-a +12 edge-appliance packs);
         # → 151 (W38/Spec D: ssti_elixir.json new Elixir SSTI parent);
         # → 153 (DanglingTree class: smartermail.json + windows_admin_center.json)
+        # → 154 (reflected_file_download.json new RFD parent)
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 153, f"KB count expected 153, got {count}")
+        self.assertEqual(count, 154, f"KB count expected 154, got {count}")
 
 
 if __name__ == "__main__":
