@@ -135,7 +135,8 @@ th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-ali
 th{background:#f4f6f8}
 blockquote{border-left:3px solid var(--accent);margin:1em 0;padding:.2em 1em;color:var(--muted)}
 hr{border:0;border-top:1px solid var(--line);margin:1.6em 0}
-.mermaid{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;margin:1em 0;text-align:center}
+.mermaid{background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px;margin:1em 0;text-align:center;overflow:auto}
+.mermaid svg{width:100%!important;height:auto!important;max-width:100%!important;min-height:420px}
 a{color:var(--accent)}
 """
 
@@ -159,21 +160,27 @@ th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-ali
 th{background:#161b22;color:#cdd9e5}
 blockquote{border-left:3px solid var(--accent);margin:1em 0;padding:.2em 1em;color:var(--muted)}
 hr{border:0;border-top:1px solid var(--line);margin:1.6em 0}
-.mermaid{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:18px;margin:1em 0;text-align:center}
+.mermaid{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:18px;margin:1em 0;text-align:center;overflow:auto}
+.mermaid svg{width:100%!important;height:auto!important;max-width:100%!important;min-height:480px}
 a{color:var(--accent)}
 """
 
+# useMaxWidth:false + width:100% CSS = the SVG scales to fill the wide container
+# crisply on 2K/4K (vector, no pixelation); larger font + spacing = legible.
+_FLOW = "flowchart:{useMaxWidth:false,htmlLabels:true,nodeSpacing:55,rankSpacing:70,padding:12},fontSize:17"
+
 _MERMAID_DARK_INIT = (
-    "{startOnLoad:true,securityLevel:'strict',theme:'dark',"
+    "{startOnLoad:true,securityLevel:'strict',theme:'dark'," + _FLOW + ","
     "themeVariables:{background:'#0b0f14',primaryColor:'#161b22',"
     "primaryBorderColor:'#4aa3ff',primaryTextColor:'#e6edf3',"
-    "lineColor:'#4aa3ff',fontFamily:'Segoe UI,Roboto,sans-serif'}}"
+    "lineColor:'#4aa3ff',fontSize:'17px',fontFamily:'Segoe UI,Roboto,sans-serif'}}"
 )
+_MERMAID_LIGHT_INIT = "{startOnLoad:true,securityLevel:'strict'," + _FLOW + "}"
 
 
 def wrap_html(title: str, body_html: str, dark: bool = False) -> str:
     css = _CSS_DARK if dark else _CSS
-    init = _MERMAID_DARK_INIT if dark else "{startOnLoad:true,securityLevel:'strict'}"
+    init = _MERMAID_DARK_INIT if dark else _MERMAID_LIGHT_INIT
     return (
         "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n"
         f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
