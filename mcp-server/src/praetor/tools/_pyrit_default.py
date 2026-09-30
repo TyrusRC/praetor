@@ -33,10 +33,7 @@ if not ENDPOINT or not API_KEY:
 async def main():
     from pyrit.common import initialize_pyrit, IN_MEMORY
     from pyrit.prompt_target import OpenAIChatTarget
-    try:
-        from pyrit.orchestrator import PromptSendingOrchestrator
-    except Exception:
-        from pyrit.orchestrator import PromptSendingOrchestrator  # noqa
+    from pyrit.orchestrator import PromptSendingOrchestrator
 
     initialize_pyrit(memory_db_type=IN_MEMORY)
     target = OpenAIChatTarget(endpoint=ENDPOINT, api_key=API_KEY, model_name=MODEL)

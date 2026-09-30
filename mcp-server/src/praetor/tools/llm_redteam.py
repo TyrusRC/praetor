@@ -77,16 +77,25 @@ def register(mcp: FastMCP) -> None:
                 "pyrit (Python library)",
                 "uv pip install pyrit  |  https://github.com/Azure/PyRIT  (library, no CLI)",
             )
+        temp_script = ""
         if not script_path.strip():
             import tempfile
             from praetor.tools._pyrit_default import DEFAULT_ORCHESTRATOR
             fh = tempfile.NamedTemporaryFile("w", suffix="_pyrit_default.py", delete=False)
             fh.write(DEFAULT_ORCHESTRATOR); fh.close()
-            script_path = fh.name
-        out, err, rc = await _run_cmd(
-            [sys.executable, script_path],
-            timeout=timeout, bypass_proxy=True,
-        )
+            script_path = temp_script = fh.name
+        try:
+            out, err, rc = await _run_cmd(
+                [sys.executable, script_path],
+                timeout=timeout, bypass_proxy=True,
+            )
+        finally:
+            if temp_script:
+                import os as _os
+                try:
+                    _os.unlink(temp_script)   # don't leave the default script behind
+                except OSError:
+                    pass
         if rc != 0 and not out:
             return f"pyrit script failed [rc={rc}]: {err[:300]}"
         return f"# pyrit — {script_path}\n\n{out.strip()[:5000]}"

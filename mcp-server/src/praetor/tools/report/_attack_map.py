@@ -28,7 +28,8 @@ def _mermaid(data: dict) -> list[str]:
 
     def node(nid: str, label: str, cls: str = "") -> None:
         if nid not in seen:
-            lbl = str(label).replace('"', "'")[:48]
+            # Strip chars that break a quoted mermaid label (its own brackets, #).
+            lbl = re.sub(r'["\[\]{}()#|]', " ", str(label))[:48].strip()
             out.append(f'  {nid}["{lbl}"]' + (f":::{cls}" if cls else ""))
             seen.add(nid)
 
@@ -52,7 +53,9 @@ def _mermaid(data: dict) -> list[str]:
     # Near-miss objectives: one capability away — dashed "todo" node with the class.
     for nm in data.get("near_misses", []):
         cls = "/".join(nm.get("next_proof_needed", [])[:2])
-        nid = "N_" + _san(nm.get("objective", ""))
+        # Include the missing capability in the id — two near-misses for the same
+        # objective (different missing caps) must not collide on node id.
+        nid = "N_" + _san(nm.get("objective", "")) + "_" + _san(cls)
         node(nid, f"⚠ {nm['objective']} — get {cls}", "todo")
 
     out += [

@@ -176,9 +176,10 @@ def _macho_secrets(app_dir: Path, cap: int) -> tuple[list[str], list[str]]:
     endpoints: set[str] = set()
     files = 0
     for f in app_dir.rglob("*"):
-        if not f.is_file() or files > 4000 or len(secrets) >= cap:
-            continue
-        if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".car", ".nib", ".ttf", ".otf"):
+        if files > 4000 or len(secrets) >= cap:
+            break                                    # caps hit — stop walking
+        if not f.is_file() or f.suffix.lower() in (
+                ".png", ".jpg", ".jpeg", ".car", ".nib", ".ttf", ".otf"):
             continue
         files += 1
         try:
