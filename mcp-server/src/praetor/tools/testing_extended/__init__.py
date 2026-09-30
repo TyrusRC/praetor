@@ -41,6 +41,7 @@ from praetor.tools.testing_extended import (
     mass_assignment,
     quota_window,
     role_cleanup,
+    smuggle_acl,
     smuggling,
     workflow_reorder,
 )
@@ -53,6 +54,7 @@ def register(mcp: FastMCP):
     host_header.register(mcp)
     crlf.register(mcp)
     smuggling.register(mcp)
+    smuggle_acl.register(mcp)
     mass_assignment.register(mcp)
     cache_poisoning.register(mcp)
     idempotency_key.register(mcp)

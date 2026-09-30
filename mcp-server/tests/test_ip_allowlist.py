@@ -280,5 +280,146 @@ class TestHeaderTrustRun(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res["header_bypasses"], [])
 
 
+class TestIpFormatVariants(unittest.TestCase):
+    def test_loopback_encodings_present(self):
+        vals = {v for _, v in ipa._ip_format_variants("127.0.0.1")}
+        self.assertIn("2130706433", vals)      # dotless-decimal
+        self.assertIn("0x7f000001", vals)      # hex-dword
+        self.assertIn("127.1", vals)           # mixed/short
+        self.assertIn("::ffff:127.0.0.1", vals)  # IPv6-mapped
+        self.assertIn("127.0.0.1.", vals)      # trailing-dot
+        self.assertIn("::1", vals)             # IPv6 loopback (input is loopback)
+
+    def test_non_loopback_skips_ipv6_loopback(self):
+        vals = {v for _, v in ipa._ip_format_variants("8.8.8.8")}
+        self.assertNotIn("::1", vals)
+        self.assertNotIn("[::1]", vals)
+        self.assertIn("::ffff:8.8.8.8", vals)   # mapped still generated
+        self.assertIn("134744072", vals)        # dotless-decimal of 8.8.8.8
+
+    def test_invalid_ip_returns_empty(self):
+        self.assertEqual(ipa._ip_format_variants("nope"), [])
+        self.assertEqual(ipa._ip_format_variants(""), [])
+
+    def test_values_are_unique(self):
+        vals = [v for _, v in ipa._ip_format_variants("127.0.0.1")]
+        self.assertEqual(len(vals), len(set(vals)))
+
+
+class TestIpFormatProbes(unittest.TestCase):
+    def test_only_ip_bearing_headers(self):
+        headers = ipa._ip_format_header_set("auto")
+        self.assertIn("X-Forwarded-For", headers)
+        self.assertIn("X-Real-IP", headers)
+        # Forwarded (for= syntax) and X-Forwarded-Host (hostname) are excluded.
+        self.assertNotIn("Forwarded", headers)
+        self.assertNotIn("X-Forwarded-Host", headers)
+
+    def test_custom_list_intersects_and_dedupes(self):
+        headers = ipa._ip_format_header_set("X-Real-IP, Forwarded, x-real-ip")
+        self.assertEqual(headers, ["X-Real-IP"])
+
+    def test_empty_spoof_no_probes(self):
+        self.assertEqual(ipa._ip_format_probes("", "127.0.0.1"), [])
+
+    def test_probes_capped(self):
+        probes = ipa._ip_format_probes("auto", "127.0.0.1")
+        self.assertLessEqual(len(probes), ipa._FMT_CAP)
+        self.assertTrue(all({"header", "label", "value"} <= p.keys() for p in probes))
+
+
+class TestSourceBindCheck(unittest.TestCase):
+    def test_invalid_ip(self):
+        self.assertIn("not a valid IP", ipa._check_source_bind("not-an-ip"))
+
+    def test_loopback_bindable(self):
+        self.assertEqual(ipa._check_source_bind("127.0.0.1"), "")
+
+    def test_unowned_ip_reports_clear_error(self):
+        with mock.patch("socket.socket") as ms:
+            ms.return_value.bind.side_effect = OSError(99, "Cannot assign requested address")
+            msg = ipa._check_source_bind("192.0.2.1")
+        self.assertIn("cannot be bound", msg)
+
+
+class TestIpFormatRun(unittest.IsolatedAsyncioTestCase):
+    async def test_format_variant_flips_block_to_bypass(self):
+        # Baseline 403; the dotless-decimal encoding of 127.0.0.1 is served (200).
+        def responder(surface):
+            hdr, val = _spoof_header_in(surface)
+            if hdr is None:
+                return 403, "Forbidden"
+            return (200, "ok") if val == "2130706433" else (403, "Forbidden")
+
+        with mock.patch.object(ipa, "_probe", _fake_probe(responder)):
+            res = await _tool_fn()(
+                surfaces="api|https://api.example.test/user|GET",
+                auth_header=f"Bearer {_TOKEN}",
+                spoof_headers="X-Real-IP",
+                timeout=1,
+            )
+        row = res["results"][0]
+        self.assertEqual(row["off_list"]["verdict"], "BLOCKED")
+        fmt = {e["value"]: e["verdict"] for e in row["ip_format"]}
+        self.assertEqual(fmt["2130706433"], "IP_FORMAT_BYPASS")
+        # Other encodings stayed blocked.
+        self.assertTrue(any(v == "BLOCKED" for v in fmt.values()))
+        # Top-level record carries header + format + value.
+        self.assertIn(
+            {"label": "api", "header": "X-Real-IP",
+             "format": "dotless-decimal", "value": "2130706433"},
+            res["ip_format_bypasses"])
+        # Auth never leaks in format-probe mode.
+        self.assertNotIn(_TOKEN, _json.dumps(res))
+        self.assertEqual(res["auth"], ipa._shape_secret(f"Bearer {_TOKEN}"))
+
+    async def test_baseline_allowed_no_format_probing(self):
+        def responder(surface):
+            return 200, "ok"  # already served -> GAP, no re-probe
+
+        with mock.patch.object(ipa, "_probe", _fake_probe(responder)):
+            res = await _tool_fn()(
+                surfaces="api|https://api.example.test/user|GET",
+                spoof_headers="X-Real-IP",
+                timeout=1,
+            )
+        row = res["results"][0]
+        self.assertEqual(row["verdict"], "GAP")
+        self.assertEqual(row["ip_format"], [])
+        self.assertEqual(res["ip_format_bypasses"], [])
+
+
+class TestSourceBindRun(unittest.IsolatedAsyncioTestCase):
+    async def test_source_bind_plumbs_local_address(self):
+        seen = {}
+
+        def fake_transport(*args, **kwargs):
+            seen.update(kwargs)
+            return mock.AsyncMock()
+
+        with mock.patch.object(ipa.httpx, "AsyncHTTPTransport",
+                               side_effect=fake_transport) as tp, \
+             mock.patch.object(ipa, "_probe",
+                               _fake_probe(lambda s: (403, "Forbidden"))):
+            res = await _tool_fn()(
+                surfaces="api|https://api.example.test/user|GET",
+                source_bind="127.0.0.1",
+                timeout=1,
+            )
+        tp.assert_called()
+        self.assertEqual(seen.get("local_address"), "127.0.0.1")
+        self.assertNotIn("error", res)
+        self.assertEqual(res["source_bind"], "127.0.0.1")
+
+    async def test_invalid_source_bind_errors_before_probing(self):
+        res = await _tool_fn()(
+            surfaces="api|https://api.example.test/user|GET",
+            source_bind="999.999.999.999",
+            timeout=1,
+        )
+        self.assertIn("error", res)
+        self.assertNotIn("results", res)
+
+
 if __name__ == "__main__":
     unittest.main()

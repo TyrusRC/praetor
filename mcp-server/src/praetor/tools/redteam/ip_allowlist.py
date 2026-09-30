@@ -31,9 +31,11 @@ Enforcement model (per surface):
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
+import socket
 from typing import Any
 
 import httpx
@@ -72,6 +74,20 @@ _DIFFERENTIAL_SPOOF_HEADERS = {"x-forwarded-for", "forwarded"}
 _SPOOF_DECOY_IP = "203.0.113.9"
 # Hard cap on extra probes per surface (8 headers + 2×2 variants = 12).
 _SPOOF_CAP = 12
+
+# IP-format normalisation bypass (partial-match / prefix-allowlist class, n8n
+# CVE-2025-68949 + classic SSRF/allowlist filter bypass): a filter that
+# string-compares — or a fronting proxy that re-parses — a client-IP header can
+# be fooled by an ALTERNATE ENCODING of the trusted IP (dotless-decimal, octal,
+# hex, IPv6-mapped, short form, trailing dot). Only the headers that actually
+# CARRY a bare IP get the format variants (Forwarded uses `for=` syntax and
+# X-Forwarded-Host is a hostname — both excluded here).
+_IP_FORMAT_HEADERS = (
+    "X-Forwarded-For", "X-Real-IP", "X-Client-IP",
+    "True-Client-IP", "CF-Connecting-IP", "X-Originating-IP",
+)
+# Hard cap on IP-format probes per surface (separate budget from _SPOOF_CAP).
+_FMT_CAP = 24
 
 # Optional convenience presets — read-only identity probes only. NOT the core
 # path; operator-supplied surfaces are. gitlab/okta self-managed hosts come from
@@ -262,6 +278,110 @@ def _spoof_probes(spoof_headers: str, spoof_value: str) -> list[dict]:
     return probes[:_SPOOF_CAP]
 
 
+def _ip_format_variants(ip: str) -> list[tuple[str, str]]:
+    """Alternate encodings of an IPv4 address that normalise back to it.
+
+    Returns [(label, value)] — de-duped, order preserved. Covers dotless-decimal
+    (2130706433), full octal (0177.0.0.1), per-octet hex (0x7f.0x0.0x0.0x1),
+    hex-dword (0x7f000001), short form (127.1), IPv6-mapped
+    (::ffff:127.0.0.1 + bracketed) and a trailing dot (127.0.0.1.). When the
+    input is a loopback address the IPv6 loopback forms (::1 + bracketed) are
+    added too. Returns [] for anything that is not a plain IPv4 literal.
+    """
+    try:
+        addr = ipaddress.IPv4Address((ip or "").strip())
+    except ValueError:
+        return []
+    o = [int(p) for p in addr.exploded.split(".")]
+    dword = int(addr)
+    short = (o[1] << 16) | (o[2] << 8) | o[3]  # last 3 octets fold into one field
+    variants: list[tuple[str, str]] = [
+        ("dotless-decimal", str(dword)),
+        ("dotted-octal", ".".join(f"0{x:o}" for x in o)),
+        ("hex-octet", ".".join(f"0x{x:x}" for x in o)),
+        ("hex-dword", f"0x{dword:x}"),
+        ("mixed-short", f"{o[0]}.{short}"),
+        ("ipv6-mapped", f"::ffff:{addr}"),
+        ("ipv6-mapped-bracketed", f"[::ffff:{addr}]"),
+        ("trailing-dot", f"{addr}."),
+    ]
+    if addr.is_loopback:  # 127.0.0.0/8 — the IPv6 loopback aliases the same host
+        variants += [("ipv6-loopback", "::1"), ("ipv6-loopback-bracketed", "[::1]")]
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for label, val in variants:
+        if val in seen:
+            continue
+        seen.add(val)
+        out.append((label, val))
+    return out
+
+
+def _ip_format_header_set(spoof_headers: str) -> list[str]:
+    """The requested spoof headers that CARRY a bare IP (canonical casing).
+
+    Intersects the spoof_headers spec ('auto' or a comma list) with
+    _IP_FORMAT_HEADERS, so Forwarded / X-Forwarded-Host never receive IP-format
+    variants. De-duped, order = _IP_FORMAT_HEADERS' first appearance.
+    """
+    spec = (spoof_headers or "").strip()
+    if not spec:
+        return []
+    names = (list(STANDARD_SPOOF_HEADERS) if spec.lower() == "auto"
+             else [h.strip() for h in spec.split(",") if h.strip()])
+    ipf = {h.lower(): h for h in _IP_FORMAT_HEADERS}
+    out: list[str] = []
+    seen: set[str] = set()
+    for h in names:
+        k = h.lower()
+        if k in ipf and k not in seen:
+            seen.add(k)
+            out.append(ipf[k])
+    return out
+
+
+def _ip_format_probes(spoof_headers: str, spoof_value: str) -> list[dict]:
+    """Build the IP-format probe list -> [{header, label, value}], capped.
+
+    For each IP-bearing header, one probe per encoding of spoof_value. Bounded
+    by _FMT_CAP across the whole surface (separate from _SPOOF_CAP).
+    """
+    headers = _ip_format_header_set(spoof_headers)
+    variants = _ip_format_variants(spoof_value)
+    if not headers or not variants:
+        return []
+    probes: list[dict] = []
+    for h in headers:
+        for label, val in variants:
+            probes.append({"header": h, "label": label, "value": val})
+    return probes[:_FMT_CAP]
+
+
+def _check_source_bind(addr: str) -> str:
+    """Pre-flight for source_bind: '' when this host can bind `addr`, else why.
+
+    Validates it is an IP literal and that the host actually owns it (a bind to
+    an unassigned address fails EADDRNOTAVAIL) — an honest source-IP test needs
+    an operator-owned local address, never a spoof.
+    """
+    a = (addr or "").strip()
+    try:
+        ip = ipaddress.ip_address(a)
+    except ValueError:
+        return f"source_bind '{a}' is not a valid IP address."
+    family = socket.AF_INET6 if ip.version == 6 else socket.AF_INET
+    s = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        s.bind((a, 0))
+    except OSError as e:
+        return (f"source_bind '{a}' cannot be bound on this host "
+                f"({type(e).__name__}: {e}) — it must be an IP assigned to a "
+                f"local interface this host owns.")
+    finally:
+        s.close()
+    return ""
+
+
 def _socks_available() -> bool:
     try:
         import socksio  # noqa: F401
@@ -316,6 +436,7 @@ def register(mcp: FastMCP) -> None:
         blocked_regex: str = "",
         spoof_headers: str = "",
         spoof_value: str = "127.0.0.1",
+        source_bind: str = "",
         preset: str = "",
         domain: str = "",
         timeout: int = 20,
@@ -359,21 +480,40 @@ def register(mcp: FastMCP) -> None:
                 header injecting spoof_value; X-Forwarded-For and Forwarded also
                 get leftmost/rightmost parser-differential variants. A spoof
                 probe that returns 2xx = HEADER_TRUST_BYPASS. Capped at
-                ~12 extra probes/surface.
-            spoof_value: the trusted/loopback IP injected into the spoof headers
-                (default '127.0.0.1').
+                ~12 extra probes/surface. When set, the IP-BEARING headers
+                (X-Forwarded-For, X-Real-IP, X-Client-IP, True-Client-IP,
+                CF-Connecting-IP, X-Originating-IP — NOT X-Forwarded-Host /
+                Forwarded) ALSO get one probe per ALTERNATE ENCODING of
+                spoof_value (dotless-decimal, octal, hex-octet, hex-dword,
+                short form, IPv6-mapped, trailing dot). A format probe that
+                returns 2xx = IP_FORMAT_BYPASS (partial-match / prefix-allowlist
+                class, n8n CVE-2025-68949). Capped at ~24 extra probes/surface,
+                separate from the header-trust budget.
+            spoof_value: the trusted/loopback IP injected into the spoof headers,
+                and the IP whose alternate encodings are generated for the
+                IP-format probes (default '127.0.0.1').
+            source_bind: OPTIONAL local source IP to bind outgoing connections
+                to (httpx local_address). This is the HONEST way to test a real
+                source-IP prefix/near-IP acceptance flaw: source the probe from
+                an IP you CONTROL (adjacent to a trusted entry) — NOT spoofing,
+                which is impossible for TCP. Requires an operator-owned address
+                assigned to a local interface; if the host cannot bind it the run
+                returns a clear error instead of proceeding.
             preset: optional convenience expansion of benign identity probes —
                 'github' | 'gitlab' | 'okta' | 'generic'. Merged with `surfaces`.
                 gitlab/okta self-managed hosts read $PRAETOR_ALLOWLIST_BASE.
             domain: engagement key for the operator log (recon evidence).
             timeout: per-request seconds (default 20).
 
-        Returns a matrix dict: {source, baseline, results:[{label,url,method,
-        off_list:{status,verdict}, on_list?:{status,verdict}, verdict, evidence,
-        header_trust?:[{header,position,status,verdict}]}], gaps:[labels],
-        header_bypasses:[{label,header,position}], summary}. verdict is
-        ENFORCED / GAP / INCONCLUSIVE; header_trust/header_bypasses appear only
-        when spoof mode is on.
+        Returns a matrix dict: {source, baseline, source_bind, auth,
+        results:[{label,url,method, off_list:{status,verdict},
+        on_list?:{status,verdict}, verdict, evidence,
+        header_trust?:[{header,position,status,verdict}],
+        ip_format?:[{header,format,value,status,verdict}]}], gaps:[labels],
+        header_bypasses:[{label,header,position}],
+        ip_format_bypasses:[{label,header,format,value}], summary}. verdict is
+        ENFORCED / GAP / INCONCLUSIVE; header_trust / ip_format and their
+        top-level bypass lists appear only when spoof mode is on.
         """
         auth_value = auth_header.strip() or (os.environ.get(auth_env, "").strip() if auth_env else "")
         auth_shape = _shape_secret(auth_value)
@@ -395,18 +535,36 @@ def register(mcp: FastMCP) -> None:
                                  "or `uv pip install httpx[socks]`.",
                         "proxy": proxy, "baseline_proxy": baseline_proxy}
 
+        # Optional real-source-IP binding — honest prefix/near-IP test, no spoof.
+        bind = source_bind.strip()
+        if bind:
+            bind_err = _check_source_bind(bind)
+            if bind_err:
+                return {"error": bind_err, "source_bind": bind}
+
         source = proxy.strip() or "direct"
         differential = bool(baseline_proxy.strip())
         spoof_probe_list = _spoof_probes(spoof_headers, spoof_value)
+        ip_format_probe_list = _ip_format_probes(spoof_headers, spoof_value)
 
-        common = dict(follow_redirects=False, verify=True,
+        common = dict(follow_redirects=False,
                       headers={"User-Agent": "praetor-allowlist-audit"})
-        off_client = httpx.AsyncClient(proxy=(proxy.strip() or None), **common)
-        on_client = (httpx.AsyncClient(proxy=baseline_proxy.strip(), **common)
-                     if differential else None)
+
+        def _mk_client(proxy_url: str | None) -> httpx.AsyncClient:
+            # local_address binding needs an explicit transport (also carries the
+            # proxy); without it, the plain client keeps the existing behaviour.
+            if bind:
+                transport = httpx.AsyncHTTPTransport(
+                    local_address=bind, proxy=proxy_url, verify=True)
+                return httpx.AsyncClient(transport=transport, **common)
+            return httpx.AsyncClient(proxy=proxy_url, verify=True, **common)
+
+        off_client = _mk_client(proxy.strip() or None)
+        on_client = _mk_client(baseline_proxy.strip()) if differential else None
 
         results: list[dict] = []
         header_bypasses: list[dict] = []
+        ip_format_bypasses: list[dict] = []
         try:
             for surf in surface_list:
                 off_status, off_body, off_err = await _probe(off_client, surf, auth_value, timeout)
@@ -464,6 +622,33 @@ def register(mcp: FastMCP) -> None:
                                     "position": sp["position"],
                                 })
                     row["header_trust"] = header_trust
+
+                # IP-format normalisation probes (additive; verdict unchanged).
+                # Same gate as header-trust: only a BLOCKED baseline surface is
+                # worth re-probing with an alternate encoding of the trusted IP.
+                if ip_format_probe_list:
+                    ip_format: list[dict] = []
+                    if off_raw == "BLOCKED":
+                        for fp in ip_format_probe_list:
+                            f_status, f_body, _ = await _probe_spoofed(
+                                off_client, surf, auth_value, timeout,
+                                fp["header"], fp["value"])
+                            f_raw, _ = _probe_verdict(f_status, f_body,
+                                                      blocked_statuses, blocked_regex)
+                            fv = "IP_FORMAT_BYPASS" if f_raw == "ALLOWED" else f_raw
+                            ip_format.append({
+                                "header": fp["header"], "format": fp["label"],
+                                "value": fp["value"], "status": f_status,
+                                "verdict": fv,
+                            })
+                            if fv == "IP_FORMAT_BYPASS":
+                                ip_format_bypasses.append({
+                                    "label": surf["label"],
+                                    "header": fp["header"],
+                                    "format": fp["label"],
+                                    "value": fp["value"],
+                                })
+                    row["ip_format"] = ip_format
                 results.append(row)
         finally:
             await off_client.aclose()
@@ -480,15 +665,22 @@ def register(mcp: FastMCP) -> None:
             summary += (f". HEADER-TRUST BYPASSES: {len(header_bypasses)}"
                         + (" (" + ", ".join(sorted({b["label"] for b in header_bypasses}))
                            + ")" if header_bypasses else ""))
+        if ip_format_probe_list:
+            summary += (f". IP-FORMAT BYPASSES: {len(ip_format_bypasses)}"
+                        + (" (" + ", ".join(sorted({b["label"] for b in ip_format_bypasses}))
+                           + ")" if ip_format_bypasses else ""))
 
         # Operator log — benign recon of the control. Auth REDACTED in command.
         if domain:
             spoof_note = (f"{spoof_headers.strip()}({len(spoof_probe_list)}/surface,{spoof_value.strip()})"
                           if spoof_probe_list else "off")
+            fmt_note = (f"{len(ip_format_probe_list)}/surface,{spoof_value.strip()}"
+                        if ip_format_probe_list else "off")
             cmd = (f"ip_allowlist_coverage surfaces={len(surface_list)} source={source} "
                    f"baseline={baseline_proxy.strip() or 'none'} "
+                   f"bind={bind or 'none'} "
                    f"auth={auth_shape or 'none'} blocked_status={sorted(blocked_statuses)} "
-                   f"spoof={spoof_note}")
+                   f"spoof={spoof_note} ip_format={fmt_note}")
             record_action(
                 domain, "ip_allowlist_coverage", _redact(cmd, auth_value),
                 description=f"IP-allowlist coverage audit: {summary}",
@@ -500,9 +692,11 @@ def register(mcp: FastMCP) -> None:
         return {
             "source": source,
             "baseline": baseline_proxy.strip() or None,
+            "source_bind": bind or None,
             "auth": auth_shape or None,
             "results": results,
             "gaps": gaps,
             "header_bypasses": header_bypasses,
+            "ip_format_bypasses": ip_format_bypasses,
             "summary": summary,
         }

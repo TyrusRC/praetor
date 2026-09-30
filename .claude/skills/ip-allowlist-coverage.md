@@ -153,14 +153,64 @@ per header, capped at ~12 extra probes/surface, credential redacted as always.
 
 ### 2. Partial-match / prefix allowlist flaw
 
-The allowlist compares by **substring/prefix** or confuses IPv4/IPv6, so an IP is
-accepted merely because it *contains* — or shares a prefix with — a trusted entry
-(n8n CVE-2025-68949: an IP is accepted if it merely contains a trusted entry).
-Methodology note — proving this fully needs **control of the source IP**: inspect
-the target's allowlist config, and where you control the egress, test with
-near-prefix / substring-adjacent IPs (e.g. a trusted `10.0.0.1` vs a probe from
-`10.0.0.10` or `110.0.0.1`). Report it as a config finding when the comparison
-logic is visible even if you cannot source every candidate IP.
+The allowlist compares by **substring/prefix**, string-compares an unnormalised
+value, or confuses IPv4/IPv6 — so an IP is accepted merely because it *contains*,
+shares a prefix with, or is an alternate encoding of a trusted entry (n8n
+CVE-2025-68949: an IP is accepted if it merely contains a trusted entry; the same
+class as the classic SSRF/allowlist filter bypass). Two honest ways to test it —
+one for a per-request header check, one for a real network source-IP check.
+
+**(a) IP-format normalisation variants (header/filter re-parse).** When a filter
+or a fronting proxy string-compares or re-parses a client-IP HEADER, an alternate
+encoding of the trusted IP normalises back to it but dodges the comparison. Turn
+it on with `spoof_headers` (same switch as header-trust): each IP-BEARING header
+— `X-Forwarded-For`, `X-Real-IP`, `X-Client-IP`, `True-Client-IP`,
+`CF-Connecting-IP`, `X-Originating-IP` (NOT `Forwarded`/`X-Forwarded-Host`, which
+are not bare-IP fields) — is also sent one probe per encoding of `spoof_value`:
+
+| Label | `127.0.0.1` becomes |
+|---|---|
+| dotless-decimal | `2130706433` |
+| dotted/full octal | `0177.00.00.01` |
+| per-octet hex | `0x7f.0x0.0x0.0x1` |
+| hex-dword | `0x7f000001` |
+| mixed/short | `127.1` |
+| IPv6-mapped (+ bracketed) | `::ffff:127.0.0.1`, `[::ffff:127.0.0.1]` |
+| trailing-dot | `127.0.0.1.` |
+| IPv6 loopback (loopback input only) | `::1`, `[::1]` |
+
+```
+ip_allowlist_coverage(
+  surfaces='[{"label":"admin","url":"https://app.example.com/admin"}]',
+  spoof_headers="auto",          # or an IP-bearing header comma list
+  spoof_value="127.0.0.1",       # the trusted IP whose encodings are generated
+  domain="example",
+)
+```
+Same gate as header-trust: format probes run per surface only after the baseline
+was BLOCKED. A variant that returns 2xx is an `IP_FORMAT_BYPASS` for
+`{header, format, value}` — see per-surface `ip_format[]` and top-level
+`ip_format_bypasses[]`. Read-only, one request per variant, capped at ~24 extra
+probes/surface (separate budget from the header-trust cap), credential redacted.
+
+**(b) Real source-IP prefix/near-IP acceptance (`source_bind`).** A NETWORK
+allowlist keyed on the real TCP source cannot be spoofed — the only honest test is
+to actually source the probe from an IP you CONTROL that is adjacent to a trusted
+entry (a trusted `10.0.0.1` vs a probe from `10.0.0.10` or `110.0.0.1`). Bind the
+outgoing connection to an operator-owned local address:
+```
+ip_allowlist_coverage(
+  surfaces=<...>,
+  source_bind="10.0.0.10",       # an IP THIS host owns, near a trusted entry
+  domain="example",
+)
+```
+`source_bind` must be assigned to a local interface this host owns; if it cannot
+be bound the run returns a clear error (it is not spoofing — that is impossible
+for TCP). Combine with the pivot (`baseline_proxy`) when the near-IP lives behind
+an allowlisted egress. Where you can only read the allowlist config and cannot
+source every candidate IP, still report it as a config finding when the
+comparison logic is visibly substring/prefix/unnormalised.
 
 ### 3. Request smuggling -> front-end ACL bypass
 
