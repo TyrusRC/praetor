@@ -4,9 +4,15 @@ Pure stdlib (unittest). No AFL binaries needed. Run with:
     uv run python -m unittest tests.test_afl_triage -v
 """
 
+import tempfile
 import unittest
+from pathlib import Path
 
-from praetor.tools.fuzzing.afl import _parse_sanitizer, _classify_exploitability
+from praetor.tools.fuzzing.afl import (
+    _parse_sanitizer, _classify_exploitability,
+    _primitive_from_report, _refine_class,
+)
+from praetor.tools.fuzzing import _corpus, _seeds
 
 # --- sample sanitizer reports -------------------------------------------------
 
@@ -93,6 +99,94 @@ class StackHashDedupTests(unittest.TestCase):
                 seen.add(sh)
                 unique.append(sh)
         self.assertEqual(len(unique), 2)   # two heap-writes collapse, UAF stays
+
+
+class PrimitiveTests(unittest.TestCase):
+    def test_heap_write_is_wxw(self):
+        prim = _primitive_from_report(_parse_sanitizer(_HEAP_WRITE))
+        self.assertEqual(prim["primitive"], "write-what-where")
+        self.assertTrue(prim["wxw_potential"])
+        self.assertEqual(prim["access_size"], 4)
+
+    def test_heap_read_is_read_oob(self):
+        prim = _primitive_from_report(_parse_sanitizer(_HEAP_READ))
+        self.assertEqual(prim["primitive"], "read-oob")
+        self.assertFalse(prim["wxw_potential"])
+
+    def test_adjacent_write_downgrades_to_linear(self):
+        # A small "located N bytes to the right" offset => linear, not wxw.
+        report = _HEAP_WRITE + "\n0x602000000018 is located 0 bytes to the right of 8-byte region\n"
+        prim = _primitive_from_report(_parse_sanitizer(report))
+        self.assertEqual(prim["primitive"], "linear-write")
+        self.assertFalse(prim["wxw_potential"])
+
+    def test_null_deref_primitive_unknown(self):
+        prim = _primitive_from_report(_parse_sanitizer(_NULL_SEGV))
+        self.assertEqual(prim["primitive"], "unknown")
+
+
+class RefineClassTests(unittest.TestCase):
+    def test_write_zero_controlling_downgraded(self):
+        prim = _primitive_from_report(_parse_sanitizer(_HEAP_WRITE))
+        refined = _refine_class("LIKELY-EXPLOITABLE", prim,
+                                {"controlling_bytes": 0, "sampled": 32}, None)
+        self.assertTrue(refined.startswith("MEDIUM"), refined)
+
+    def test_write_many_controlling_likely_exploitable(self):
+        prim = _primitive_from_report(_parse_sanitizer(_HEAP_WRITE))
+        refined = _refine_class("LIKELY-EXPLOITABLE", prim,
+                                {"controlling_bytes": 20, "sampled": 32}, None)
+        self.assertTrue(refined.startswith("LIKELY-EXPLOITABLE"), refined)
+
+    def test_benign_never_upgraded(self):
+        prim = _primitive_from_report(_parse_sanitizer(_NULL_SEGV))
+        refined = _refine_class("BENIGN", prim,
+                                {"controlling_bytes": 30, "sampled": 30}, "EXPLOITABLE")
+        self.assertTrue(refined.startswith("BENIGN"), refined)
+
+
+class CorpusDedupTests(unittest.TestCase):
+    def setUp(self):
+        self._prev = Path.cwd()
+        self._tmp = tempfile.TemporaryDirectory()
+        import os
+        os.chdir(self._tmp.name)
+
+    def tearDown(self):
+        import os
+        os.chdir(self._prev)
+        self._tmp.cleanup()
+
+    def test_seed_dedup_identical_inputs_one_file(self):
+        payload = b"IDENTICAL-CORPUS-INPUT-BYTES-\x00\x01\x02"
+        a = Path(self._tmp.name) / "a.png"
+        b = Path(self._tmp.name) / "b.png"
+        a.write_bytes(payload)
+        b.write_bytes(payload)
+
+        cdir = Path(_corpus.seed_corpus("corpus-test.local", "png", [str(a), str(b)]))
+        matches = [p for p in cdir.iterdir()
+                   if p.is_file() and p.read_bytes() == payload]
+        self.assertEqual(len(matches), 1)            # two identical -> one file
+        # the built-in valid PNG seed is also present (distinct content)
+        self.assertIn(_seeds.seed_for("png"),
+                      [p.read_bytes() for p in cdir.iterdir() if p.is_file()])
+
+    def test_merge_back_dedup(self):
+        dom, fmt = "corpus-test.local", "png"
+        _corpus.seed_corpus(dom, fmt)                 # prime store with the builtin seed
+        out = Path(self._tmp.name) / "out"
+        queue = out / "default" / "queue"
+        queue.mkdir(parents=True)
+        dup = b"NEW-QUEUE-ENTRY-\xff\xfe"
+        (queue / "id:000000").write_bytes(dup)
+        (queue / "id:000001").write_bytes(dup)        # identical -> should dedup
+
+        added = _corpus.merge_back(dom, fmt, str(out))
+        self.assertEqual(added, 1)
+        cdir = _corpus.corpus_dir(dom, fmt)
+        self.assertEqual(sum(1 for p in cdir.iterdir()
+                             if p.is_file() and p.read_bytes() == dup), 1)
 
 
 if __name__ == "__main__":

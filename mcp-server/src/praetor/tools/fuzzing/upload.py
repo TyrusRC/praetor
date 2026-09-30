@@ -126,13 +126,24 @@ async def _gen_mutants(seeds: list[bytes], fmt: str, count: int,
             uniq = [m for m in collected if not (m in seen or seen.add(m))]
             return "radamsa" + afl_note, uniq[:count]
 
-    # In-process, structure-aware, deterministic.
+    # In-process, structure-aware, deterministic. Blend ~70% grammar-aware
+    # (valid-envelope, corrupt-payload — reaches the deep decoder) with ~30%
+    # dumb structure-aware edits (breadth). Fixed rng seed => reproducible corpus.
     rng = random.Random(_RNG_SEED)
+
+    def _blend(sd: bytes, want: int) -> list[bytes]:
+        g = max(1, (want * 7) // 10)
+        m = want - g
+        got = _seeds.grammar_mutate(sd, fmt, g, rng)
+        if m > 0:
+            got += _seeds.mutate(sd, fmt, m, rng)
+        return got
+
     out: list[bytes] = []
     for sd in seeds:
-        out.extend(_seeds.mutate(sd, fmt, per_seed, rng))
+        out.extend(_blend(sd, per_seed))
     if len(out) < count and seeds:
-        out.extend(_seeds.mutate(seeds[0], fmt, count - len(out), rng))
+        out.extend(_blend(seeds[0], count - len(out)))
     seen2: set[bytes] = set()
     uniq2 = [m for m in out if not (m in seen2 or seen2.add(m))]
     return "in-process" + afl_note, uniq2[:count]
