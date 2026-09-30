@@ -13,7 +13,7 @@ of it** over the MCP server:
 | `pentest_add_goal/intent/fact/asset` + `add_finding` | `record_goal` / `record_intent` / `record_fact` / `record_asset` / `link_finding` |
 | edges spawns/yields/derived_from/proves/parent, `<kind>-<n>` ids | identical |
 | `pentest_state` / `graph` / `report` | `engagement_graph` (text / report / json / **dsh** replay) |
-| React web UI (flow / vulns / assets / report) | `engagement_graph(format='html')` → self-contained **Wiz-style** page |
+| React web UI (flow / vulns / assets / report) | `engagement_graph(format='html')` → self-contained **Wiz-style** page: an interactive cytoscape.js security graph + tabs for **Operations** (operator-log timeline / ATT&CK actions + loot — the dsh-pentest operations view, native), Findings and Report |
 
 `dsh-reverse-skill` bundled 87 reverse-engineering / binary / malware skills —
 out of Praetor's authorized benign-PoC scope (web / network+AD / mobile / cloud),

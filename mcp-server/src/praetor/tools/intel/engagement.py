@@ -190,10 +190,12 @@ def register(mcp: FastMCP) -> None:
           - dsh      : an ordered `pentest_add_*` replay so the DeepSeek-Harness agent
                        mirrors this graph into dsh-pentest's live view (Praetor = the
                        moves, dsh-pentest = the map).
-          - html     : a self-contained HTML page (rendered exploration-flow graph +
-                       report/vulns + asset tree via mermaid.js) written to
-                       reports/<domain>-engagement.html — Praetor's NATIVE equivalent
-                       of dsh-pentest's web view, no DSH plugin required.
+          - html     : a self-contained TABBED Wiz-style page written to
+                       reports/<domain>-engagement.html — an interactive
+                       cytoscape.js security graph (goal→intent→fact→asset→finding
+                       + ATT&CK operation nodes), plus Operations (operator-log
+                       timeline + loot), Findings and Report tabs. Praetor's NATIVE
+                       equivalent of dsh-pentest's web view, no DSH plugin required.
 
         Args:
             domain: target domain.
@@ -212,20 +214,16 @@ def register(mcp: FastMCP) -> None:
         if fmt == "dsh":
             return json.dumps(E.render_dsh(graph), indent=2, default=str)
         if fmt == "html":
-            from praetor.tools.report._html import markdown_to_html, wrap_html
             from praetor.tools.workspace import ensure_workspace
-            md = (f"# Engagement — {domain}\n\n"
-                  + E.render_report(graph)
-                  + "\n\n## Exploration Flow\n\n"
-                  + E.render_mermaid(graph))
+            from ._engagement_html import render_engagement_html
             safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in domain) or "target"
             out = ensure_workspace(domain)["reports"] / f"{safe}-engagement.html"
             try:
-                out.write_text(
-                    wrap_html(f"Engagement — {domain}", markdown_to_html(md), dark=True),
-                    encoding="utf-8")
+                out.write_text(render_engagement_html(domain, graph), encoding="utf-8")
             except OSError as exc:
                 return f"error writing engagement HTML: {exc}"
-            return (f"Wrote {out} — open in a browser for the rendered exploration-flow "
-                    "graph + findings + asset tree (dsh-pentest's web view, native, no DSH).")
+            return (f"Wrote {out} — a tabbed Wiz-style page: an interactive security graph "
+                    "(goal→intent→fact→asset→finding + ATT&CK operation nodes), plus "
+                    "Operations (operator-log timeline + loot), Findings and Report tabs "
+                    "(dsh-pentest's web view, native, no DSH).")
         return E.render_text(graph)

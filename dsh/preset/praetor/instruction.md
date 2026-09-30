@@ -30,9 +30,12 @@ the budget on impact classes (authz/authn/logic/injection-to-sink), not scanner
 noise. A blocker is an ASK, never a silent skip.
 
 ## Deliverables
-- `engagement_graph(domain, format='html')` → a self-contained
-  `reports/<domain>-engagement.html`: the exploration-flow graph + findings +
-  asset tree, rendered in-browser (Wiz-style dark security graph). This is the
+- `engagement_graph(domain, format='html')` → a self-contained TABBED
+  `reports/<domain>-engagement.html` (Wiz-style dark security graph): an
+  interactive cytoscape.js node canvas (goal→intent→fact→asset→finding, with
+  each read_oplog action an ATT&CK-tagged **operation** node edged to the asset
+  it hit), plus an **Operations** tab (operator-log timeline + loot — the
+  dsh-pentest operations view, native), Findings and Report tabs. This is the
   native equivalent of dsh-pentest's web UI.
 - `export_report_html(domain, format='redteam'|'pentest')` → the report with the
   **Attack Path Map & Next Steps** (findings → objectives + the next proof).
