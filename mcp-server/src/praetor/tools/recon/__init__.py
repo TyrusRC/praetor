@@ -17,7 +17,7 @@ are co-equal.
 
 from mcp.server.fastmcp import FastMCP
 
-from . import inventory, subdomain, crawling, scanning, pipeline
+from . import inventory, subdomain, crawling, scanning, pipeline, osint, vhost
 
 
 def register(mcp: FastMCP):
@@ -26,3 +26,5 @@ def register(mcp: FastMCP):
     crawling.register(mcp)
     scanning.register(mcp)
     pipeline.register(mcp)
+    osint.register(mcp)
+    vhost.register(mcp)

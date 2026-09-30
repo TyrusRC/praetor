@@ -229,4 +229,17 @@ REDTEAM_TOOLS: dict[str, dict] = {
         "install": {"kali": "curl the script", "other": "https://github.com/sleventyeleven/linuxprivchecker"},
         "note": "Needs python on target. Complements linpeas; weaker on modern caps/systemd.",
     },
+    # ── Tier C: Azure AD / Entra + SCCM/MECM (cloud/on-prem directory recon) ──
+    "roadrecon": {
+        "tier": "C", "routes_burp": False,
+        "purpose": "Azure AD / Entra ID data dump — gather/auth the directory (users, groups, apps, roles, devices) via the Graph.",
+        "install": {"kali": "pipx install roadrecon", "other": "https://github.com/dirkjanm/ROADtools"},
+        "note": "`roadrecon auth -u user@tenant -p pw` then `roadrecon gather` -> local roadrecon.db, `roadrecon dump`/GUI to explore. ROADtools family: `roadtx` is the token-exchange/auth sibling (interactive/device-code/PRT flows) — both are sanctioned. Cloud API traffic; evidence = local db + loot, not proxy_history_index.",
+    },
+    "sccmhunter": {
+        "tier": "C", "routes_burp": False,
+        "purpose": "SCCM/MECM site + management-point enumeration and attack — credential and PXE abuse.",
+        "install": {"kali": "git clone https://github.com/garrettfoster13/sccmhunter && pip install -r sccmhunter/requirements.txt", "other": "https://github.com/garrettfoster13/sccmhunter"},
+        "note": "`python3 sccmhunter.py find/smb/http -u user -p pw -d dom.htb -dc-ip <ip>` enumerates site servers / MPs; `admin`, `dpapi`, `pxe` modules attack. Destructive sub-actions (device add, DPAPI cred abuse) stay subject to validate_payload + confirm-before-dangerous. LDAP/SMB/HTTP mix — Burp-blind; evidence = loot + operator log.",
+    },
 }

@@ -115,5 +115,78 @@ class TestImporter(unittest.TestCase):
         self.assertEqual(len(merged), 1)
 
 
+_BURP_XML = """<issues burpVersion="2024.1">
+<issue><name>SQL injection</name><host ip="1.2.3.4">http://ex.com</host>
+<path><![CDATA[/login]]></path><severity>High</severity>
+<issueDetail>id param</issueDetail></issue>
+<issue><name>Info leak</name><host>http://ex.com</host><path>/x</path>
+<severity>Information</severity></issue></issues>"""
+
+_OPENVAS_XML = """<report><results>
+<result><name>OpenSSL flaw</name><host>10.0.0.5</host><port>443/tcp</port>
+<severity>7.5</severity><threat>High</threat><description>vuln</description></result>
+<result><name>Log line</name><host>10.0.0.5</host><severity>0.0</severity>
+<threat>Log</threat></result></results></report>"""
+
+_ZAP_JSON = ('{"site":[{"@name":"http://ex.com","alerts":['
+             '{"riskcode":"3","alert":"XSS","desc":"reflected",'
+             '"instances":[{"uri":"http://ex.com/q","param":"q"}]},'
+             '{"riskcode":"0","alert":"Info","instances":[]}]}]}')
+
+
+class TestImporterExtraParsers(unittest.TestCase):
+    def setUp(self):
+        from praetor.tools.hub import importer as imp
+        self.imp = imp
+
+    def test_parse_burp_drops_information(self):
+        rows = self.imp.parse_burp_xml(_BURP_XML)
+        self.assertEqual(len(rows), 1)              # 'Information' dropped
+        f = rows[0]
+        self.assertEqual(f["severity"], "high")
+        self.assertEqual(f["endpoint"], "http://ex.com/login")
+        self.assertEqual(f["source"], "burp")
+
+    def test_parse_openvas_cvss_band_and_drop_log(self):
+        rows = self.imp.parse_openvas(_OPENVAS_XML)
+        self.assertEqual(len(rows), 1)              # 0.0/Log dropped
+        f = rows[0]
+        self.assertEqual(f["severity"], "high")     # 7.5 -> high
+        self.assertEqual(f["endpoint"], "10.0.0.5:443/tcp")
+
+    def test_parse_zap_riskcode_and_param(self):
+        rows = self.imp.parse_zap(_ZAP_JSON)
+        self.assertEqual(len(rows), 1)              # riskcode 0 dropped
+        f = rows[0]
+        self.assertEqual(f["severity"], "high")     # riskcode 3 -> high
+        self.assertEqual(f["parameter"], "q")
+        self.assertEqual(f["endpoint"], "http://ex.com/q")
+
+    def test_detect_format(self):
+        self.assertEqual(self.imp._detect_format("x.xml", _BURP_XML), "burp")
+        self.assertEqual(self.imp._detect_format("x.xml", _OPENVAS_XML), "openvas")
+        self.assertEqual(self.imp._detect_format("x.json", _ZAP_JSON), "zap")
+
+
+class TestTrackerAndEgress(unittest.TestCase):
+    _F = {"id": "f001", "title": "SQLi", "severity": "high",
+          "endpoint": "http://ex.com/login", "parameter": "id",
+          "vuln_type": "sqli", "cwe": "CWE-89", "cvss4_vector": "CVSS:4.0/AV:N",
+          "impact": "DB read", "remediation": "params", "status": "confirmed"}
+
+    def test_issue_body_has_sections(self):
+        from praetor.tools.hub.tracker import _issue_from_finding
+        title, body = _issue_from_finding(self._F)
+        self.assertTrue(title.startswith("[HIGH]"))
+        self.assertIn("## Impact", body)
+        self.assertIn("## Remediation", body)
+
+    def test_cef_line_shape(self):
+        from praetor.tools.hub.egress import _cef_line
+        line = _cef_line(self._F, "ex.com")
+        self.assertTrue(line.startswith("CEF:0|Praetor|Praetor|1.0|sqli|SQLi|8|"))
+        self.assertIn("cs2=f001", line)
+
+
 if __name__ == "__main__":
     unittest.main()

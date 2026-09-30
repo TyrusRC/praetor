@@ -9,7 +9,7 @@ TAKEOVER_FINGERPRINTS` and `recon_extended.register(mcp)` working.
 
 from mcp.server.fastmcp import FastMCP
 
-from . import crtsh, dns_analysis, passive_dns, rdap, takeover, wayback
+from . import crtsh, dns_analysis, hibp, passive_dns, rdap, takeover, wayback
 from ._common import _dig, _dig_available, _sanitize_domain
 from .fingerprints import TAKEOVER_FINGERPRINTS
 
@@ -24,6 +24,7 @@ __all__ = [
 
 def register(mcp: FastMCP) -> None:
     crtsh.register(mcp)
+    hibp.register(mcp)
     wayback.register(mcp)
     dns_analysis.register(mcp)
     takeover.register(mcp)

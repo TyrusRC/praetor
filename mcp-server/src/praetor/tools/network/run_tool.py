@@ -52,6 +52,14 @@ _SANCTIONED = {
     # walk, SMTP user enum (VRFY/EXPN). Read-only recon; validate_payload
     # still refuses shell-injection / destructive args on the full command.
     "showmount", "snmpwalk", "snmp-check", "smtp-user-enum",
+    # Azure AD / Entra recon (ROADtools). roadrecon dumps directory data via
+    # Graph; roadtx is the token/auth sibling. Recon — validate_payload still
+    # refuses destructive args on the full command.
+    "roadrecon", "roadtx",
+    # SCCM/MECM enumeration + attack (sccmhunter). Site/MP enum, credential +
+    # PXE abuse. Destructive sub-actions (add device, DPAPI abuse) stay subject
+    # to validate_payload + the confirm-before-dangerous contract.
+    "sccmhunter", "sccmhunter.py",
 }
 # Online credential brute — HARD Rule 6. Blocked regardless of mode.
 _ONLINE_BRUTE = {"hydra", "medusa", "ncrack", "patator"}
