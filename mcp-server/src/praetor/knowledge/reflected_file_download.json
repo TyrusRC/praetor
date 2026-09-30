@@ -1,0 +1,33 @@
+{
+  "category": "reflected_file_download",
+  "contexts": {
+    "reflected_callback_no_disposition": {
+      "description": "Reflected File Download (RFD) -- a reflective JSON/API/JSONP endpoint echoes attacker-controlled input into a downloadable response with NO Content-Disposition filename forcing, so a URL like /api/data;/setup.bat?cb=||calc|| makes the browser save an attacker-named .bat/.cmd whose body is attacker-controlled commands. Chains to command execution on the victim host. Detection: input reflected in the body AND the response does not force a safe filename/inline disposition.",
+      "tech_match": ["jsonp", "express", "asp.net", "spring", "api"],
+      "param_match": ["callback", "cb", "jsonp", "q", "query", "name", "redirect", "return", "data"],
+      "probes": [
+        {
+          "payload": "||calc.exe||",
+          "description": "Reflected callback value -- if ||calc.exe|| is echoed into a downloadable body with no Content-Disposition, an attacker sets the URL to force a .bat download that runs on open.",
+          "matchers": [
+            {"type": "reflection", "words": ["||calc.exe||"]},
+            {"type": "not_header", "header": "content-disposition", "words": ["attachment", "filename"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 45
+        },
+        {
+          "payload": "$2699$rfdmarker",
+          "description": "Leading-command marker -- a body starting with the reflected value (JSONP callback / echoed field) lets `setup.bat` execute `rfdmarker` first. Confirm the value lands at/near the body start.",
+          "matchers": [
+            {"type": "reflection", "words": ["rfdmarker"]},
+            {"type": "not_header", "header": "content-disposition", "words": ["attachment"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}

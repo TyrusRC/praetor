@@ -105,7 +105,54 @@ def parse_nessus(xml: str) -> list[dict]:
     return out
 
 
-_PARSERS = {"nuclei": parse_nuclei, "nessus": parse_nessus}
+_SARIF_LEVEL = {"error": "high", "warning": "medium", "note": "low"}
+
+
+def _sarif_sev(result: dict, rule: dict) -> str:
+    """SARIF severity: prefer a CVSS security-severity, else the level."""
+    props = {**(rule.get("properties") or {}), **(result.get("properties") or {})}
+    ss = props.get("security-severity")
+    if ss is not None:
+        try:
+            v = float(ss)
+            return ("critical" if v >= 9 else "high" if v >= 7
+                    else "medium" if v >= 4 else "low")
+        except (TypeError, ValueError):
+            pass
+    return _SARIF_LEVEL.get(str(result.get("level", "")).lower(), "")
+
+
+def parse_sarif(text: str) -> list[dict]:
+    """SARIF 2.1.0 (SAST/DAST/IaC/SCA) -> finding dicts. Drops info/none level."""
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return []
+    out: list[dict] = []
+    for run in doc.get("runs", []) or []:
+        tool = (((run.get("tool") or {}).get("driver") or {}).get("name")) or "sarif"
+        rules = {r.get("id"): r for r in
+                 (((run.get("tool") or {}).get("driver") or {}).get("rules") or [])}
+        for res in run.get("results", []) or []:
+            rule = rules.get(res.get("ruleId"), {})
+            sev = _sarif_sev(res, rule)
+            if sev not in _REAL_SEV:
+                continue
+            title = (res.get("ruleId") or (rule.get("name")) or "sarif finding")
+            loc = ""
+            try:
+                pl = res["locations"][0]["physicalLocation"]
+                uri = pl["artifactLocation"]["uri"]
+                line = (pl.get("region") or {}).get("startLine")
+                loc = f"{uri}:{line}" if line else uri
+            except (KeyError, IndexError, TypeError):
+                pass
+            msg = (res.get("message") or {}).get("text", "")
+            out.append(_finding(title, sev, loc, f"sarif:{tool}", evidence=msg))
+    return out
+
+
+_PARSERS = {"nuclei": parse_nuclei, "nessus": parse_nessus, "sarif": parse_sarif}
 
 
 def _detect_format(path: str, text: str) -> str:

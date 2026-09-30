@@ -34,7 +34,7 @@ _SANCTIONED = {
     # MSSQL lateral + Kerberos delegation / coercion / ticket handling
     "mssqlclient.py", "getst.py", "ticketconverter.py", "ticketer.py",
     "describeticket.py", "raisechild.py", "krbrelayx.py", "printerbug.py",
-    "petitpotam.py", "dfscoerce.py", "coercer",
+    "petitpotam.py", "dfscoerce.py", "coercer", "mitm6",
     "impacket-secretsdump", "impacket-psexec", "impacket-wmiexec",
     "impacket-getuserspns", "impacket-getnpusers", "impacket-ntlmrelayx",
     "impacket-smbexec", "impacket-smbclient", "impacket-lookupsid",
