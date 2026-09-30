@@ -1,0 +1,31 @@
+# Praetor Pentest Mode — DeepSeek Harness (DSH) preset.
+#
+# Native replacement for the (unmaintained) dsh-pentest plugin: Praetor already
+# provides the engagement graph (goal→intent→fact→finding→asset, identical
+# spawns/yields/derived_from/proves/parent edges + <kind>-<n> ids), the tools,
+# and a Wiz-style HTML view — all over the Praetor MCP server, nothing else to
+# install. This preset just points DSH at Praetor and loads the protocol.
+#
+# Load (web profile):  dsh plugin --profile web add file:./dsh/preset/praetor
+# or mount this directory as a custom preset dir in your DSH config.
+
+name: "Praetor Pentest Mode"
+description: >
+  Agentic pentest / red-team across two co-equal lanes (web via Burp, network/AD),
+  with a native engagement graph and Wiz-style attack-path view. Authorized
+  security testing only.
+
+# Praetor speaks MCP over stdio; DSH launches it and reaches every tool.
+mcpServers:
+  praetor:
+    # Installed checkout:
+    command: uv
+    args: ["run", "--project", "mcp-server", "python", "-m", "praetor"]
+    # Or, published package:  command: uvx  args: ["--from","praetor-mcp","praetor"]
+
+# The engagement protocol DSH loads as the mode's system instruction.
+instruction: instruction.md
+
+# First call on a non-Claude host — returns the rules/skills/agents/knowledge to
+# load and the model-tier mapping. Everything else is discovered from there.
+bootstrap_tool: praetor_bootstrap

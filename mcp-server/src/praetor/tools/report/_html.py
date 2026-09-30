@@ -140,13 +140,46 @@ a{color:var(--accent)}
 """
 
 
-def wrap_html(title: str, body_html: str) -> str:
+# Dark "security-graph" theme (Wiz-style) for the engagement / attack-path view:
+# near-black canvas, neon edges, crown-jewel objectives in red, findings in cyan.
+_CSS_DARK = """
+:root{--fg:#e6edf3;--muted:#8b98a5;--line:#26303b;--crit:#ff5c6c;--accent:#4aa3ff}
+*{box-sizing:border-box}
+body{font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  color:var(--fg);margin:0;background:#0b0f14}
+.report{max-width:1100px;margin:0 auto;padding:32px 24px;background:#0d1117}
+h1{font-size:1.8em;border-bottom:2px solid var(--accent);padding-bottom:.2em}
+h2{font-size:1.35em;margin-top:1.6em;color:#cdd9e5;border-bottom:1px solid var(--line);padding-bottom:.2em}
+h3{font-size:1.12em;margin-top:1.2em;color:#cdd9e5}
+code{background:#161b22;color:#79c0ff;padding:1px 5px;border-radius:3px;font-size:.9em}
+pre{background:#0d1117;border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto}
+pre code{background:none;color:#c9d1d9}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.93em}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:#161b22;color:#cdd9e5}
+blockquote{border-left:3px solid var(--accent);margin:1em 0;padding:.2em 1em;color:var(--muted)}
+hr{border:0;border-top:1px solid var(--line);margin:1.6em 0}
+.mermaid{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:18px;margin:1em 0;text-align:center}
+a{color:var(--accent)}
+"""
+
+_MERMAID_DARK_INIT = (
+    "{startOnLoad:true,securityLevel:'strict',theme:'dark',"
+    "themeVariables:{background:'#0b0f14',primaryColor:'#161b22',"
+    "primaryBorderColor:'#4aa3ff',primaryTextColor:'#e6edf3',"
+    "lineColor:'#4aa3ff',fontFamily:'Segoe UI,Roboto,sans-serif'}}"
+)
+
+
+def wrap_html(title: str, body_html: str, dark: bool = False) -> str:
+    css = _CSS_DARK if dark else _CSS
+    init = _MERMAID_DARK_INIT if dark else "{startOnLoad:true,securityLevel:'strict'}"
     return (
         "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n"
         f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-        f"<title>{html.escape(title)}</title>\n<style>{_CSS}</style>\n"
+        f"<title>{html.escape(title)}</title>\n<style>{css}</style>\n"
         "<script src=\"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js\"></script>\n"
         "<script>document.addEventListener('DOMContentLoaded',function(){"
-        "if(window.mermaid){mermaid.initialize({startOnLoad:true,securityLevel:'strict'});}});</script>\n"
+        f"if(window.mermaid){{mermaid.initialize({init});}}}});</script>\n"
         f"</head>\n<body><div class=\"report\">\n{body_html}\n</div></body></html>\n"
     )

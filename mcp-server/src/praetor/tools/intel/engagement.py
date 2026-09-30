@@ -221,8 +221,9 @@ def register(mcp: FastMCP) -> None:
             safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in domain) or "target"
             out = ensure_workspace(domain)["reports"] / f"{safe}-engagement.html"
             try:
-                out.write_text(wrap_html(f"Engagement — {domain}", markdown_to_html(md)),
-                               encoding="utf-8")
+                out.write_text(
+                    wrap_html(f"Engagement — {domain}", markdown_to_html(md), dark=True),
+                    encoding="utf-8")
             except OSError as exc:
                 return f"error writing engagement HTML: {exc}"
             return (f"Wrote {out} — open in a browser for the rendered exploration-flow "
