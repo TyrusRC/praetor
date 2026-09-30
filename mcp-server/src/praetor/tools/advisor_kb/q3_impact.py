@@ -19,23 +19,29 @@ Failing the gate is not a rejection — it downgrades to NEEDS MORE EVIDENCE and
 names the specific next proof to collect.
 """
 
+from .._vuln_class import canonical
 from ..advisor._context import AssessContext
 from . import CheckResult
 
 
 # Classes where demonstrating the class demonstrates the impact. No separate
 # impact statement demanded — asking for one just adds friction to real bugs.
+#
+# Keys are CANONICAL class names only. The gate tests canonical(vuln_lower), so
+# an alias the canonicaliser already collapses (command_injection -> rce,
+# bola -> idor, ssrf_blind -> ssrf, lfi -> path_traversal, account_takeover ->
+# ato, login_bypass -> auth_bypass, ...) must NOT be re-listed here — it would
+# be dead weight that drifts from _vuln_class. Add a spelling to _vuln_class,
+# not to this set.
 IMPACT_INHERENT_CLASSES = {
-    "rce", "command_injection", "code_injection",
+    "rce",
     "sqli", "sqli_blind", "sqli_time", "sqli_error", "sqli_union", "nosqli",
     "ssti", "ssti_blind", "xxe", "xxe_blind", "deserialization",
-    "ssrf", "ssrf_blind", "request_smuggling", "cache_poisoning",
-    "idor", "bola", "bfla", "bopla", "broken_object_level_auth",
-    "broken_function_level_auth", "id_enumeration",
-    "auth_bypass", "auth_bypass_403_to_200", "login_bypass",
-    "privilege_escalation", "account_takeover", "ato",
+    "ssrf", "request_smuggling", "cache_poisoning",
+    "idor", "bopla", "broken_function_level_auth", "id_enumeration",
+    "auth_bypass", "privilege_escalation", "ato",
     "mass_assignment", "business_logic", "race_condition",
-    "path_traversal", "lfi", "rfi", "file_upload_rce",
+    "path_traversal", "rfi", "file_upload_rce",
     "xss_stored", "jwt_alg_none", "jwt_kid", "jwt_forge",
     "saml_xsw", "mfa_bypass", "2fa_bypass", "password_reset_takeover",
     "prototype_pollution", "graphql_batching_bypass", "subdomain_takeover",
@@ -122,8 +128,13 @@ async def check(ctx: AssessContext) -> CheckResult:
     if ctx.verdict == "DO NOT REPORT":
         return {"passed": True, "reason": "already-rejected", "evidence": {}}
 
-    root = ctx.q2_class_root or ctx.vuln_lower
-    if ctx.vuln_lower in IMPACT_INHERENT_CLASSES or root in IMPACT_INHERENT_CLASSES:
+    # ctx.q2_class_root is already canonical (assess._build_context). Also
+    # canonicalize vuln_lower directly so an alias with no strip-suffix
+    # (sql_injection, remote_code_execution, insecure_direct_object_reference)
+    # still resolves to its impact-inherent canonical name.
+    canon_vuln = canonical(ctx.vuln_lower)
+    root = ctx.q2_class_root or canon_vuln
+    if canon_vuln in IMPACT_INHERENT_CLASSES or root in IMPACT_INHERENT_CLASSES:
         return {"passed": True, "reason": "class-is-impact", "evidence": {"class": root}}
 
     # A chain anchor is the impact statement — that is what chaining is for.

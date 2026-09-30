@@ -91,7 +91,7 @@
     "field_suggestion": {
       "description": "GraphQL field suggestion exploitation \u2014 leak schema via typos",
       "tech_match": [],
-      "param_match": [],
+      "param_match": ["query", "mutation", "variables", "operationName", "graphql"],
       "probes": [
         {
           "payload": "{\"query\":\"{userss{id}}\"}",
@@ -114,7 +114,7 @@
     "injection": {
       "description": "GraphQL injection via resolver arguments",
       "tech_match": [],
-      "param_match": [],
+      "param_match": ["query", "mutation", "variables", "operationName", "graphql"],
       "probes": [
         {
           "payload": "{\"query\":\"{user(id:\\\"1' OR '1'='1\\\"){id name email}}\"}",
@@ -139,7 +139,7 @@
     "mutation_injection": {
       "description": "Injection via GraphQL mutations \u2014 SQLi/XSS in mutation arguments",
       "tech_match": [],
-      "param_match": [],
+      "param_match": ["query", "mutation", "variables", "operationName", "graphql"],
       "probes": [
         {
           "payload": "{\"query\":\"mutation{createUser(name:\\\"admin' OR '1'='1\\\"){id}}\"}",

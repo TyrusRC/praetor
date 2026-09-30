@@ -143,7 +143,10 @@ def register(mcp: FastMCP) -> None:
 
         if mode == "passive":
             hit_count = len(hits)
-            verdict, confidence = verdict_from_tally(hit_count)
+            # Reaching here means the page was fetched and scanned (empty HTML
+            # returned _err above), so the scan is a proven positive control:
+            # zero hits is a real covered-negative, not an unrun test (Rule 13b).
+            verdict, confidence = verdict_from_tally(hit_count, valid_runs=1)
             cua_hits = [h for h in hits if h["kind"] == "cua_instruction"]
             pii_hits = [h for h in hits if h["kind"] == "pii_leak"]
             human = (
@@ -223,7 +226,10 @@ def register(mcp: FastMCP) -> None:
                 f"would have followed the injected instruction."
             )
         else:
-            v, c = verdict_from_tally(len(hits))
+            # No Collaborator hit — fall back to the passive DOM tally. The passive
+            # scan ran on real HTML (a proven positive control), so grade that
+            # surface as a covered-negative rather than an unrun test (Rule 13b).
+            v, c = verdict_from_tally(len(hits), valid_runs=1)
             verdict, confidence = v, c
             human = (
                 f"Active probe planted canary but Collaborator did not receive "

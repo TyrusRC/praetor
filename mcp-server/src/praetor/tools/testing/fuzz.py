@@ -75,9 +75,21 @@ def register(mcp: FastMCP):
         # Count anomalies — fuzz reports them in anomaly_summary or per-row flags.
         summary = data.get("anomaly_summary", {}) or {}
         anomaly_count = sum(int(v or 0) for v in summary.values())
-        verdict, confidence = verdict_from_tally(anomaly_count)
-        ev = (f"fuzz: {anomaly_count} anomalies across {data.get('total_requests', 0)} requests"
-              if anomaly_count else "no anomalies across fuzz payloads")
+        # Rule 13b positive control: a payload only exercised the target if it got a
+        # real response back. Rows with an integer status_code executed; if none did
+        # (transport errors, empty result set) the run never validly tested anything
+        # -> INCONCLUSIVE, not a covered-negative.
+        results = data.get("results", []) or []
+        valid_runs = sum(1 for r in results if isinstance(r.get("status_code"), int))
+        if not results:
+            valid_runs = int(data.get("total_requests", 0) or 0)
+        verdict, confidence = verdict_from_tally(anomaly_count, valid_runs=valid_runs)
+        if anomaly_count:
+            ev = f"fuzz: {anomaly_count} anomalies across {data.get('total_requests', 0)} requests"
+        elif valid_runs:
+            ev = "no anomalies across fuzz payloads"
+        else:
+            ev = "fuzz payloads returned no valid response — test inconclusive, not benign"
 
         return make_verdict(
             verdict, confidence, ev,

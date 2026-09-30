@@ -27,7 +27,7 @@
         {
           "payload": "{\"metadata\":{\"trust_level\":\"system\"}}",
           "description": "Reference-only — manual check whether metadata fields influence ranking",
-          "matchers": [],
+          "matchers": [{"type": "word", "words": ["trust_level"], "condition": "or", "description": "Injected metadata key reflected raw in retrieval result"}],
           "severity": "medium",
           "confidence_boost": 40,
           "variables": {"reference_only": true}

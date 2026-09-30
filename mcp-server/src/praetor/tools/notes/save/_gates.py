@@ -6,8 +6,10 @@ an inline import at call time so the test patch target stays valid.
 """
 
 from praetor.tools._vuln_class import canonical
+from praetor.tools.advisor._context import word_boundary_pattern
 from praetor.tools.advisor_kb import (
     CONDITIONAL_NEVER_SUBMIT_TYPES,
+    NEVER_SUBMIT_KEYWORDS,
     NEVER_SUBMIT_TYPES,
     SENSITIVE_ENDPOINT_PATTERNS,
 )
@@ -53,7 +55,7 @@ def evidence_leak_gate(evidence_text: str) -> str | None:
 
 
 def never_submit_gate(vuln_type: str, chain_with, override_set: set,
-                      endpoint: str = "") -> str | None:
+                      endpoint: str = "", evidence_text: str = "") -> str | None:
     # ── NEVER-SUBMIT gate (canonicalized) ─────────────────────
     # The authoritative Java gate matches vuln_type raw against a
     # differently-spelled set (open_redirect_no_chain, missing_security_header,
@@ -99,6 +101,34 @@ def never_submit_gate(vuln_type: str, chain_with, override_set: set,
                if endpoint_gated else ".") + "\n"
             "  Deliberate exception: overrides=['q6_never_submit:<reason>']."
         )
+    # ── Evidence-text keyword scan (mirror q6_never_submit stage 3) ──
+    # A direct save_finding bypassed the advisory Q6 keyword stage, so
+    # save_finding(vuln_type='xss', evidence_text='self-XSS: victim pastes
+    # payload in devtools') persisted a class the evidence itself flags as
+    # never-submit. Mirror the keyword + 24-char negation-window scan here,
+    # keyed on the shared NEVER_SUBMIT_KEYWORDS constant. Chained findings pass
+    # (the keyword class is reportable once chained), same as q6.
+    if not overridden and not chain_with:
+        prose = (evidence_text or "").lower()
+        negation_window = 24
+        negators = (
+            " not ", " no ", "isn't ", "is not", "without ", "instead of",
+            "ruled out", "not a ", "not just",
+        )
+        for kw, reason in NEVER_SUBMIT_KEYWORDS.items():
+            m = word_boundary_pattern(kw).search(prose)
+            if not m:
+                continue
+            lookback = prose[max(0, m.start() - negation_window):m.start()]
+            if any(neg in lookback for neg in negators):
+                continue
+            return (
+                f"NEVER-SUBMIT GATE (evidence keyword): evidence_text matches "
+                f"'{kw}' — {reason}.\n"
+                "  The evidence itself describes a never-submit class. Report it\n"
+                "  only chained into real impact: pass chain_with=['fNNN'].\n"
+                "  Deliberate exception: overrides=['q6_never_submit:<reason>']."
+            )
     return None
 
 
@@ -199,7 +229,8 @@ def severity_cvss_gate(
 ) -> str | None:
     # ── Severity vs CVSS 4.0 band ─────────────────────────────
     conflict = severity_cvss_conflict(
-        severity, cvss4_severity, cap=severity_cap_for(vuln_type, title)
+        severity, cvss4_severity, cap=severity_cap_for(vuln_type, title),
+        cvss4_vector=cvss4_vector, vuln_type=vuln_type,
     )
     if conflict and "severity_cvss" not in override_set:
         return (

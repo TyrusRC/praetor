@@ -13,6 +13,8 @@ import com.praetor.util.JsonUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -171,14 +173,46 @@ public final class AutoProbeOrchestrator {
 
                 int probesRun = 0;
                 Set<String> catsProbed = new LinkedHashSet<>();
+                // NOTE: per-class probe cap (heuristic maxProbes/4, min 1).
+                // maxProbes is ONE shared budget over classes ordered by
+                // prioritise(); without a cap the top-ranked class drains it and
+                // a second targeted class is starved in a single pass (sqli eats
+                // all 20, idor never runs). Capping each class at ~1/4 of the
+                // budget guarantees the top ~4 ranked classes each get a share.
+                // Ceiling: if fewer than 4 classes match AND each has >cap
+                // probes, some budget goes unused this pass — unrealistic given
+                // the KB's many universal classes that fill any remainder; the
+                // upgrade path is raising max_probes_per_param to widen slices.
+                Map<String, Integer> perCatProbes = new HashMap<>();
+                int perClassCap = Math.max(1, maxProbes / 4);
                 for (Map<String, Object> kb : knowledgeBase) {
                     if (probesRun >= maxProbes) break;
                     String category = (String) kb.get("category");
                     Map<String, Object> contexts = (Map<String, Object>) kb.get("contexts");
                     if (contexts == null) continue;
 
-                    for (Map.Entry<String, Object> ctxEntry : contexts.entrySet()) {
+                    // L6: probe param_match/tech_match-constrained contexts
+                    // before universal (unconstrained) ones — the same targeting
+                    // rule prioritise() applies across files, now applied WITHIN
+                    // a file so the per-class budget above is spent on targeted
+                    // contexts first, not on a universal context that happens to
+                    // sit earlier in the raw JSON. Stable sort: contexts keep
+                    // their JSON order within each group.
+                    List<Map.Entry<String, Object>> ctxEntries = new ArrayList<>(contexts.entrySet());
+                    ctxEntries.sort(Comparator.comparingInt(e -> {
+                        Object c = e.getValue();
+                        if (!(c instanceof Map)) return 1;
+                        Object pm = ((Map<String, Object>) c).get("param_match");
+                        Object tm = ((Map<String, Object>) c).get("tech_match");
+                        boolean constrained =
+                            (pm instanceof List && !((List<?>) pm).isEmpty())
+                            || (tm instanceof List && !((List<?>) tm).isEmpty());
+                        return constrained ? 0 : 1;
+                    }));
+
+                    for (Map.Entry<String, Object> ctxEntry : ctxEntries) {
                         if (probesRun >= maxProbes) break;
+                        if (category != null && perCatProbes.getOrDefault(category, 0) >= perClassCap) break;
                         String contextName = ctxEntry.getKey();
                         Map<String, Object> context = (Map<String, Object>) ctxEntry.getValue();
 
@@ -201,6 +235,7 @@ public final class AutoProbeOrchestrator {
                             (List<Map<String, Object>>) context.get("matchers");
                         for (Map<String, Object> probe : probes) {
                             if (probesRun >= maxProbes) break;
+                            if (category != null && perCatProbes.getOrDefault(category, 0) >= perClassCap) break;
 
                             String payloadTemplate = (String) probe.get("payload");
                             ProbePayloadBuilder.Prepared prep = ProbePayloadBuilder.prepare(
@@ -221,9 +256,15 @@ public final class AutoProbeOrchestrator {
                             long elapsedMs = (System.nanoTime() - startMs) / 1_000_000;
                             totalProbes++;
                             probesRun++;
-                            if (category != null) catsProbed.add(category);
+                            if (category != null) perCatProbes.merge(category, 1, Integer::sum);
 
+                            // L1: a probe that produced no response (WAF RST /
+                            // scope reject / timeout) must NOT mark its category
+                            // covered — recording it here let skip_already_covered
+                            // permanently suppress a class that never actually ran.
+                            // Record coverage only AFTER a non-null response.
                             if (probeResult == null || probeResult.response() == null) continue;
+                            if (category != null) catsProbed.add(category);
                             executor.updateCookiesFromResponse(session, probeResult);
 
                             String probeUrl = probeResult.request() != null ? probeResult.request().url() : "";

@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**154 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**153 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -69,11 +69,12 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `nosql` | mongodb, redis, mongodb_blind, mongodb_auth_bypass, couchdb, cassandra (+1) | critical | cassandra, couchdb, express, java, mean |
 | `orm_leak` | django_filter, rails_arel, sequelize_injection | high | django, express, node.js, python, rails |
 
-## Injection (client-side) (9)
+## Injection (client-side) (10)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
 | `xss` | html, attribute, angular, javascript_context, dom_based, stored_indicator (+4) | critical | angularjs |
+| `reflected_file_download` | reflected_callback_no_disposition | medium | api, asp.net, express, jsonp, spring |
 | `dom_xss` | hash_injection, postmessage_sink, url_source, jquery_sink, open_redirect_dom, document_domain (+3) | critical | angular, csp, dompurify, javascript, jquery |
 | `dom_clobbering` | form_clobbering, iframe_srcdoc_clobber | critical | - |
 | `dom_clobbering_2024` | id_name_property_clobber, htmlcollection_clobber | high | - |
@@ -150,12 +151,11 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `file_upload` | php_upload, jsp_upload, asp_upload, general, polyglot_files | critical | apache, asp.net, drupal, iis, java |
 | `source_code_exposure` *(ref-only)* | git_exposure, svn_exposure, hg_bzr_exposure, env_file_exposure, debug_endpoints, vite_devserver_optimized_deps_path_traversal_2026 (CVE-2026-39365) | critical | apache, astro, django, laravel, php, qwik, rails, svelte-kit, vite, vue-cli |
 
-## Deserialization (4)
+## Deserialization (3)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell, magento_mirasvit_php_unserialize_rce_2026 (CVE-2026-45247 KEV) (+6) | critical | .net, adobe-commerce, asp.net, django, express, fastjson, magento, magento2, mirasvit |
-| `insecure_deserialization` | java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser | critical | django, drupal, fastapi, flask, java |
+| `deserialization` | java, php, python, dotnet_viewstate, ruby, log4shell, magento_mirasvit_php_unserialize_rce_2026 (CVE-2026-45247 KEV), java_gadgets, php_unserialize, ruby_yaml, python_unsafe_deser (+8, insecure_deserialization merged in) | critical | .net, adobe-commerce, asp.net, django, express, fastjson, magento, magento2, mirasvit |
 | `prototype_pollution` | server_side, client_side, detection, ejs_template_gadget, pug_compile_options_gadget, express_default_property_pollution, fastify_ajv_pollution, exec_argv_rce_chain, hapi_event_pollution, side_channel_status_delta, axios_rce_gadget_2026 (CVE-2026-40175), n8n_node_pp_rce_2026 (CVE-2026-44789/90/91) (+4) | critical | angularjs, axios, ejs, express, express-fileupload, fastify, hapi, koa, n8n, nestjs, node.js |
 | `trpc_sspp` | trpc_form_data_proto, trpc_batch_input_proto, next_app_dir_caller_sniff | high | trpc, @trpc/server, next |
 

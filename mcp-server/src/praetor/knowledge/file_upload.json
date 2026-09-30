@@ -417,7 +417,7 @@
     "polyglot_files": {
       "description": "Polyglot files satisfy multiple format parsers simultaneously. PNG+PHP, JPEG+ZIP, PDF+HTML, GIF+JS \u2014 bypass MIME sniffing, file-type allowlists, and content-disposition checks. Combined with image-parser CVE chains (ImageMagick, libheif, libwebp 2024) for RCE.",
       "tech_match": [],
-      "param_match": [],
+      "param_match": ["file", "upload", "attachment", "image", "photo", "avatar", "media", "document", "import"],
       "probes": [
         {
           "payload": "[crafted PNG with PHP appended after IEND chunk]",
@@ -709,7 +709,7 @@
     "backup_extension_disclosure": {
       "description": "Backup file extensions left on web root. Source / archive / temp suffixes appended to known routes.",
       "tech_match": [],
-      "param_match": [],
+      "param_match": ["file", "upload", "attachment", "image", "photo", "avatar", "media", "document", "import"],
       "probes": [
         {
           "payload": "{{baseline}}",

@@ -208,11 +208,16 @@ async def _hard_delete_finding(domain: str, finding: dict) -> tuple[bool, str]:
 
 
 def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, int]:
-    """Merge `new` into `existing` by (endpoint + vuln_type + title + parameter).
+    """Merge `new` into `existing` by (endpoint + canonical(vuln_type) + parameter).
 
     vuln_type is part of the key so two distinct classes (e.g. xss vs csrf)
-    that happen to share an endpoint+title don't silently collapse — that
-    used to delete the earlier finding's evidence on the second save.
+    that happen to share an endpoint don't silently collapse — that used to
+    delete the earlier finding's evidence on the second save.
+
+    `title` is deliberately NOT in the key. It is a mutable, reworded field:
+    the same defect on the same endpoint+parameter+class with a rephrased title
+    is one finding (systemic-duplicate merge), not two records. Keying on title
+    let a reword create a duplicate that a triager pays nothing for.
 
     Returns (updated_list, action, index) where action is 'created' or 'updated'
     and index points at the finding's position in the returned list.
@@ -220,17 +225,15 @@ def _dedupe_finding(existing: list[dict], new: dict) -> tuple[list[dict], str, i
     from praetor.tools._vuln_class import canonical
     key_ep = new.get("endpoint", "")
     # Canonicalize so two spellings of one class (reflected_xss / xss_reflected)
-    # on the same endpoint+title+param merge instead of creating two records.
+    # on the same endpoint+param merge instead of creating two records.
     key_vuln = canonical(new.get("vuln_type", "") or "")
-    key_title = new.get("title", "").lower()
     key_param = new.get("parameter", "")
 
     for i, f in enumerate(existing):
         same_ep = f.get("endpoint", "") == key_ep
         same_vuln = canonical(f.get("vuln_type", "") or "") == key_vuln
-        same_title = f.get("title", "").lower() == key_title
         same_param = f.get("parameter", "") == key_param
-        if same_ep and same_vuln and same_title and same_param:
+        if same_ep and same_vuln and same_param:
             if f.get("locked"):
                 # Report-integrity: a locked finding's reported verdict is frozen.
                 # New evidence/fields still merge (audit value), but status /

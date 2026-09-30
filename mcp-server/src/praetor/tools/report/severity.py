@@ -245,7 +245,27 @@ def severity_cap_for(vuln_type: str, title: str = "") -> str:
 CVSS_BAND_TOLERANCE = 1
 
 
-def severity_cvss_conflict(claimed: str, cvss_severity: str, cap: str = "") -> str:
+def _derive_cvss_band(cvss4_vector: str, vuln_type: str) -> str:
+    """Best-effort CVSS 4.0 band, from an explicit vector first, then the class.
+
+    Mirrors cvss4_for_finding's precedence and returns only the band label, or
+    '' when nothing is derivable. Never trusts an empty band handed in by a
+    caller — that emptiness is the signal to re-derive, not to pass.
+    """
+    try:
+        _, band = cvss4_for_finding(vuln_type or "", explicit_vector=cvss4_vector or "")
+        return band
+    except Exception:
+        return ""
+
+
+def severity_cvss_conflict(
+    claimed: str,
+    cvss_severity: str,
+    cap: str = "",
+    cvss4_vector: str = "",
+    vuln_type: str = "",
+) -> str:
     """Describe a claimed-severity / CVSS-band disagreement. '' when consistent.
 
     Inflation conflicts once the gap exceeds the scorer's tolerance: claiming
@@ -257,9 +277,27 @@ def severity_cvss_conflict(claimed: str, cvss_severity: str, cap: str = "") -> s
     honest-severity cap (info disclosure -> LOW, missing header -> INFO) sits
     below its own vector by design. Treating that as an error would force every
     capped class *up* a band — the exact inflation the cap exists to prevent.
+
+    Fail CLOSED on an empty band. An unparseable vector upstream yielded an
+    empty `cvss_severity`, and the old early-return then passed ANY claim
+    unchecked — an inflated HIGH sailed through precisely when the score that
+    would catch it was missing. Re-derive the band from the vector, then the
+    class; if it is still underivable, a MEDIUM+ claim is surfaced for review
+    rather than silently accepted. LOW/INFO stay lenient.
     """
     claimed_up = (claimed or "").upper()
-    if not cvss_severity or claimed_up not in SEVERITY_RANK:
+    if claimed_up not in SEVERITY_RANK:
+        return ""
+    if not cvss_severity:
+        cvss_severity = _derive_cvss_band(cvss4_vector, vuln_type)
+    if not cvss_severity:
+        if SEVERITY_RANK[claimed_up] >= SEVERITY_RANK["MEDIUM"]:
+            return (
+                f"severity {claimed_up} could not be checked: the CVSS 4.0 "
+                f"vector did not parse and no band was derivable, so the "
+                f"inflation check was skipped. Supply a parseable "
+                f"cvss_vector='CVSS:4.0/...' or a recognised vuln_type"
+            )
         return ""
     delta = SEVERITY_RANK[claimed_up] - SEVERITY_RANK[cvss_severity]
     if abs(delta) <= CVSS_BAND_TOLERANCE:

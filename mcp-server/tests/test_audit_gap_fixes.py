@@ -243,6 +243,20 @@ class DedupCanonicalTest(unittest.TestCase):
         self.assertEqual(action, "updated")        # merged, not a second record
         self.assertEqual(len(out), 1)
 
+    def test_reworded_title_still_merges(self):
+        # L3 regression: title is NOT in the dedup key. Same endpoint + param +
+        # class with a rephrased title is one finding, not a second record.
+        from praetor.tools.notes._findings_dedupe import _dedupe_finding
+        existing = [{"id": "f1", "endpoint": "/x", "vuln_type": "sqli",
+                     "title": "SQL injection in id", "parameter": "id",
+                     "status": "confirmed"}]
+        new = {"endpoint": "/x", "vuln_type": "sqli", "parameter": "id",
+               "title": "Time-based blind SQLi via id parameter",
+               "status": "confirmed"}
+        out, action, _idx = _dedupe_finding(existing, new)
+        self.assertEqual(action, "updated")
+        self.assertEqual(len(out), 1)
+
 
 # ── Wave 6: latent NameError crashes (used-but-not-imported) ─────────────
 

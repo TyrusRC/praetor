@@ -11,6 +11,7 @@
 Q5 may mutate ctx.weak_evidence (read later by Q7 and severity scoring).
 """
 
+from .._vuln_class import canonical
 from ..advisor._context import AssessContext
 from . import CheckResult, Q5_ALIASES, Q5_KEYWORDS, TIMING_VULN_TYPES
 
@@ -57,7 +58,12 @@ async def check(ctx: AssessContext) -> CheckResult:
         _timing_check(ctx)
         return {"passed": True, "reason": "override", "evidence": {}}
 
-    q5_class = Q5_ALIASES.get(ctx.vuln_lower, ctx.vuln_lower)
+    # Resolve the keyword class on the raw value first (preserves existing
+    # Q5_ALIASES behavior), then on the canonical form so aliases like
+    # `sql_injection`/`remote_code_execution` reach their keyword set instead of
+    # falling through to UNKNOWN — mirrors the Q3 canonicalization fix.
+    _canon = canonical(ctx.vuln_lower) or ctx.vuln_lower
+    q5_class = Q5_ALIASES.get(ctx.vuln_lower) or Q5_ALIASES.get(_canon, _canon)
 
     if q5_class in Q5_KEYWORDS:
         keywords = Q5_KEYWORDS[q5_class]

@@ -39,12 +39,21 @@ _tier((
     "sqli", "nosql", "rce", "command_injection", "ssti", "ssrf", "xxe",
     "deserialization", "path_traversal", "lfi", "file_upload",
     "request_smuggling", "prototype_pollution", "graphql_injection",
+    # RCE / SSRF / request-smuggling / prototype-pollution siblings that a
+    # stale tier list left dropping to _DEFAULT_VALUE (below XSS).
+    "log4shell", "request_splitting", "http_desync", "parser_differential",
+    "cspp", "trpc_sspp", "edge_worker_ssrf",
 ), 6)
 _tier((
     "idor", "bola", "bfla", "bopla", "access_control", "auth_bypass",
     "authentication", "authorization", "jwt", "oauth", "saml", "session",
     "mass_assignment", "business_logic", "race_condition", "state_machine_race",
     "second_order", "privilege_escalation",
+    # Authz / logic / data-exposure paying classes missed by the prefix
+    # fallback (web_llm KB verified present; insecure_deserialization is
+    # intentionally omitted — it merges into deserialization at tier 6).
+    "payment_flow", "excessive_data_exposure", "mobile_api",
+    "scim_provisioning", "webhook_replay", "orm_leak", "web_llm",
 ), 5)
 _tier((
     "xss", "dom_xss", "csrf", "cache_poisoning", "cors", "open_redirect",

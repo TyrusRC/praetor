@@ -97,6 +97,23 @@ class AssessFindingCalibration(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("VERDICT: REPORT", out)
 
+    async def test_sqli_alias_passes_q3_impact(self):
+        # L2 regression: vuln_type alias 'sql_injection' must canonicalize to
+        # 'sqli' so the Q3 impact-inherent gate passes. The alias used to fail
+        # Q3 (impact-not-demonstrated -> NEEDS MORE EVIDENCE), and Rule 10b then
+        # blocked the save of a real SQLi. human_verified=True isolates Q3 from
+        # the separate Q5 keyword lookup.
+        out = await self._call(
+            vuln_type="sql_injection",
+            endpoint="/search",
+            evidence="response time 5.2s with sleep(5), 0.1s baseline, confirmed 3/3 iterations",
+            domain="example.com",
+            human_verified=True,
+        )
+        # Q3 no longer rejects the alias, and the finding reaches REPORT.
+        self.assertNotIn("Q3 IMPACT NOT DEMONSTRATED", out)
+        self.assertIn("VERDICT: REPORT", out)
+
     async def test_open_redirect_no_chain_blocked(self):
         out = await self._call(
             vuln_type="open_redirect_no_chain",

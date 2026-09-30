@@ -30,6 +30,7 @@ from ..advisor_kb import (
     q7_triager,
     scanner_proof,
 )
+from .._vuln_class import canonical
 from ._context import AssessContext
 from ._evidence_augment import augment_evidence
 from ._impact import apply_impact_scoring
@@ -119,13 +120,17 @@ def _build_context(
         except Exception:
             ctx.effective_domain = ""
 
-    # Q2 class-root strip
+    # Q2 class-root strip, then canonicalize. Every gate keys on the canonical
+    # spelling (missing_headers, sqli, idor, ...); leaving the root as a raw
+    # alias (sql_injection, remote_code_execution, insecure_direct_object_
+    # reference) meant Q3's impact-inherent check never matched and a genuine
+    # SQLi/RCE was downgraded to NEEDS MORE EVIDENCE. Canonicalise once here.
     root = ctx.vuln_lower
     for sep in ("_blind", "_time", "_stored", "_reflected"):
         if root.endswith(sep):
             root = root[: -len(sep)]
             break
-    ctx.q2_class_root = root
+    ctx.q2_class_root = canonical(root)
 
     # Endpoint sensitivity (used by Q6 conditional)
     ctx.endpoint_lower = (endpoint or "").lower()

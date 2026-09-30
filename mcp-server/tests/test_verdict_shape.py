@@ -6,6 +6,7 @@ from praetor.tools.testing._verdict import (
     is_actionable,
     make_verdict,
     to_assess_evidence,
+    verdict_from_tally,
 )
 
 
@@ -64,6 +65,20 @@ class InconclusiveVerdictTest(unittest.TestCase):
             inconclusive_verdict("unproven")["verdict"],
             make_verdict("FAILED", 0.1, "clean")["verdict"],
         )
+
+
+class TallyValidRunsTest(unittest.TestCase):
+    """Rule 13b: an all-errored run (zero valid sub-probes) is INCONCLUSIVE, not FAILED."""
+
+    def test_zero_valid_runs_is_inconclusive_not_failed(self):
+        # Every sub-probe errored on a good baseline -> tuple stays OPEN.
+        verdict, _ = verdict_from_tally(0, valid_runs=0)
+        self.assertEqual(verdict, "INCONCLUSIVE")
+
+    def test_valid_run_zero_hits_is_still_covered_negative(self):
+        # A real payload against a valid baseline with no anomaly is FAILED.
+        verdict, _ = verdict_from_tally(0, valid_runs=3)
+        self.assertEqual(verdict, "FAILED")
 
 
 if __name__ == "__main__":

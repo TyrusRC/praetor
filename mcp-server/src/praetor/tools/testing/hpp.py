@@ -61,9 +61,18 @@ def register(mcp: FastMCP):
             lines.append(f"\n{anomalies} anomalies found — backend may parse polluted parameters differently")
 
         human = "\n".join(lines)
-        verdict, confidence = verdict_from_tally(int(anomalies))
-        ev = (f"HPP anomalies across {anomalies} polluted variant(s) — backend parses differently"
-              if anomalies else "no HPP anomalies — backend parsing consistent across locations")
+        # Rule 13b positive control: a variant only tested parsing if it got a
+        # response (a status). If none did — every pollution variant errored on a
+        # good baseline — the run proves nothing -> INCONCLUSIVE, not covered-negative.
+        results = data.get("results", []) or []
+        valid_runs = sum(1 for r in results if r.get("status") is not None)
+        verdict, confidence = verdict_from_tally(int(anomalies), valid_runs=valid_runs)
+        if anomalies:
+            ev = f"HPP anomalies across {anomalies} polluted variant(s) — backend parses differently"
+        elif valid_runs:
+            ev = "no HPP anomalies — backend parsing consistent across locations"
+        else:
+            ev = "every HPP variant errored — test never ran, inconclusive not benign"
 
         return make_verdict(
             verdict, confidence, ev,

@@ -38,7 +38,7 @@
         {
           "payload": "<compare tool descriptions across MCP server versions>",
           "description": "Reference-only \u2014 supply-chain class, manual review",
-          "matchers": [],
+          "matchers": [{"type": "regex", "pattern": "(?i)(ignore (all )?previous|system:|<\\|im_start\\|>|tool (description|semantics) (changed|updated|differs))", "description": "Post-update tool-description injection / semantic drift marker"}],
           "severity": "medium",
           "confidence_boost": 30,
           "variables": {

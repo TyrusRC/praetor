@@ -41,6 +41,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "; echo "
+              ]
             }
           ],
           "severity": "critical",
@@ -54,6 +60,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "| echo "
+              ]
             }
           ],
           "severity": "critical",
@@ -67,6 +79,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "$(echo "
+              ]
             }
           ],
           "severity": "critical",
@@ -93,6 +111,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "`echo "
+              ]
             }
           ],
           "severity": "critical",
@@ -106,6 +130,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "&& echo "
+              ]
             }
           ],
           "severity": "critical",
@@ -139,6 +169,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "& echo "
+              ]
             }
           ],
           "severity": "critical",
@@ -152,6 +188,12 @@
             {
               "type": "reflection",
               "check_variants": true
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "| echo "
+              ]
             }
           ],
           "severity": "critical",
