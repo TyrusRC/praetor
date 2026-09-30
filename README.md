@@ -457,6 +457,11 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `GHOSTWRITER_USERNAME` | `praetor` | login user when no admin-secret/token is set |
 | `GHOSTWRITER_PASSWORD` | `praetor` | login password — **change for any shared/remote instance** |
 | `GHOSTWRITER_INSECURE_TLS` | `false` | `1` to accept Ghostwriter's self-signed localhost cert |
+| `GITHUB_TOKEN` | — | `push_finding_to_tracker(tracker='github')` — issue-create PAT |
+| `GITLAB_TOKEN` / `GITLAB_URL` | — / `https://gitlab.com` | `push_finding_to_tracker(tracker='gitlab')` — token + optional self-hosted base |
+| `JIRA_URL` / `JIRA_USER` / `JIRA_TOKEN` | — | `push_finding_to_tracker(tracker='jira')` — base URL + basic-auth |
+| `SIEM_WEBHOOK_URL` / `SIEM_WEBHOOK_TOKEN` | — | `send_finding_to_siem` — collector URL + optional bearer |
+| `HIBP_API_KEY` | — | `hibp_breach_lookup` account queries (domain queries need no key) |
 
 Ghostwriter auth precedence: **admin-secret → API token → username/password login**. With neither secret set, Praetor logs in to Ghostwriter's `login` action with `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` (default `praetor`/`praetor`) and mints/refreshes a JWT itself — so a fresh instance with a `praetor` account works with only `GHOSTWRITER_URL` + `GHOSTWRITER_OPLOG_ID` set.
 
@@ -523,18 +528,18 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Session | `create_session`, `session_request`, `extract_token`, `run_flow` |
 | Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` |
 | Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
-| Vuln-class natives | `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-style multi-phase), `test_xxe`, `test_websocket` (CSWSH), `test_prototype_pollution` |
+| Vuln-class natives | `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-style multi-phase), `test_xxe`, `test_websocket` (CSWSH), `test_prototype_pollution`, `confirm_padding_oracle` (CBC padding-oracle PoC — decrypt/detect only, routes through Burp) |
 | Auth attack | `forge_jwt`, `crack_jwt_secret`, `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens`, `test_auth_matrix`, `compare_auth_states` |
 | Edge cases | `test_cors`, `test_jwt`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect` |
 | Advanced | `test_host_header`, `test_request_smuggling`, `test_mass_assignment`, `test_business_logic` |
 | Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
-| Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls` |
-| Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
+| Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
+| Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_vhost_fuzz` (ffuf virtual-host discovery via Burp), `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
 | Secrets & SAST | `run_gitleaks`, `run_trufflehog`, `run_opengrep_source`, `inventory_source_routes`, `dump_exposed_git`, `extract_js_secrets` |
 | SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_poutine`, `run_octoscan`, `run_cosign_verify` |
 | IaC / container config | `run_checkov`, `run_tfsec`, `run_terrascan`, `run_hadolint` |
-| Cloud / Kubernetes | `run_prowler`, `run_scout_suite`, `run_cloudsploit`, `run_pacu`, `run_azurehound`, `run_kube_hunter`, `run_kubescape`, `run_kubeletctl`, `run_kdigger`, `run_peirates` |
+| Cloud / Kubernetes | `run_prowler`, `run_scout_suite`, `run_cloudsploit`, `run_pacu`, `run_gcp_scanner`, `run_azurehound`, `enum_public_buckets` (anonymous S3 / Azure blob / GCS enumeration, read-only), `run_kube_hunter`, `run_kubescape`, `run_kubeletctl`, `run_kdigger`, `run_peirates` |
 | LLM / AI red-team | `discover_llm_endpoint`, `run_garak`, `run_pyrit_orchestrator`, `run_web_llm_owasp_top10`, `run_owasp_asi_top10`, `run_nuclei_llm_infra`, `run_local_llm_prompt_injection` |
 | MCP / agent security | `enumerate_mcp_server`, `run_mcp_scan`, `run_mcptox`, `probe_mcp_server_attacks`, `detect_mcp_schema_drift`, `inspect_for_prompt_injection`, `scan_claude_code_project_hooks` |
 | Metasploit | `msf_search`, `msf_check`, `msf_exploit`, `msf_payload_gen`, `msfrpc_login`, `msfrpc_module_execute` |
@@ -549,8 +554,9 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
 | Report evidence | `burp_screenshot` (GUI capture + tab/sub-tab/row/click nav + auto-redaction), `auto_redact_screenshot`, `redact_screenshot`, `attach_screenshot`, `screenshot_gallery`, `export_poc_bundle` |
+| Findings hub & egress | `import_scan_results` (nuclei / nessus / SARIF / Burp XML / OpenVAS / ZAP → dedup-merge), `push_finding_to_tracker` (GitHub / GitLab / Jira issue, creds via env), `send_finding_to_siem` (webhook / CEF egress), `set_remediation`, `remediation_status` |
 | **Network recon (lane)** | `run_network_recon` (chained discover→enum→leads pipeline), `run_nmap`, `get_network_inventory` |
-| **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch) |
+| **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch / mitm6 / roadrecon + roadtx (Entra/Azure AD) / sccmhunter (SCCM/MECM)) |
 | **Credential loop** | `crack_hashes` (offline hashcat/john), `record_credential`, `list_credentials` |
 | **Operator log / evidence** | `record_redteam_action`, `record_loot`, `get_operator_log` (timeline / attack / loot) |
 | **Mobile lane (device control)** | `mobile_devices`, `mobile_connect`, `mobile_set_proxy`, `mobile_frida_run`, `mobile_app_control`, `mobile_screenshot`, `mobile_shell`, `mobile_pull_file` — Frida (iOS+Android) + adb (Android) on the host running the server; 1-per-device |
