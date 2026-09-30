@@ -190,10 +190,14 @@ def register(mcp: FastMCP) -> None:
           - dsh      : an ordered `pentest_add_*` replay so the DeepSeek-Harness agent
                        mirrors this graph into dsh-pentest's live view (Praetor = the
                        moves, dsh-pentest = the map).
+          - html     : a self-contained HTML page (rendered exploration-flow graph +
+                       report/vulns + asset tree via mermaid.js) written to
+                       reports/<domain>-engagement.html — Praetor's NATIVE equivalent
+                       of dsh-pentest's web view, no DSH plugin required.
 
         Args:
             domain: target domain.
-            format: text | report | mermaid | json | dsh.
+            format: text | report | mermaid | json | dsh | html.
         """
         graph = _load(domain)
         if graph is None:
@@ -207,4 +211,20 @@ def register(mcp: FastMCP) -> None:
             return json.dumps(graph, indent=2, default=str)
         if fmt == "dsh":
             return json.dumps(E.render_dsh(graph), indent=2, default=str)
+        if fmt == "html":
+            from praetor.tools.report._html import markdown_to_html, wrap_html
+            from praetor.tools.workspace import ensure_workspace
+            md = (f"# Engagement — {domain}\n\n"
+                  + E.render_report(graph)
+                  + "\n\n## Exploration Flow\n\n"
+                  + E.render_mermaid(graph))
+            safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in domain) or "target"
+            out = ensure_workspace(domain)["reports"] / f"{safe}-engagement.html"
+            try:
+                out.write_text(wrap_html(f"Engagement — {domain}", markdown_to_html(md)),
+                               encoding="utf-8")
+            except OSError as exc:
+                return f"error writing engagement HTML: {exc}"
+            return (f"Wrote {out} — open in a browser for the rendered exploration-flow "
+                    "graph + findings + asset tree (dsh-pentest's web view, native, no DSH).")
         return E.render_text(graph)
