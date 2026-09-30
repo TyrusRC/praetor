@@ -38,7 +38,7 @@ from __future__ import annotations
 # ---- lanes -----------------------------------------------------------------
 
 CORE = "core"
-LANES = ("web", "recon_ext", "scanners", "network", "msf", "llm", "mobile", "bench")
+LANES = ("web", "recon_ext", "scanners", "network", "msf", "llm", "mobile", "bench", "fuzz")
 ALL_LANES = frozenset(LANES)
 
 # package (fn.__module__ split('.')[2]) -> lane. Packages not listed are CORE.
@@ -88,6 +88,8 @@ _PACKAGE_LANE = {
     "mobile": "mobile",
     # AI-pentest eval harnesses (rarely used in a live engagement)
     "benchmark": "bench",
+    # file-fuzzing + CVE-exploitability lane (heavy/loud — bounded, DoS-gated)
+    "fuzzing": "fuzz",
 }
 
 # per-tool overrides for packages that span lanes. tool name -> lane.

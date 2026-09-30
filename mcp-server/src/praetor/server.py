@@ -61,6 +61,7 @@ from praetor.tools import (
     evidence,
     assurance,
     hub,
+    fuzzing,
     burp_settings,
     skills_access,
     agents_access,
@@ -213,6 +214,7 @@ cloud_audit.register(mcp)      # prowler / scout_suite / cloudsploit — multi-c
 iac_scan.register(mcp)         # checkov / tfsec / terrascan / hadolint — IaC + Dockerfile policy
 ci_audit.register(mcp)         # poutine / octoscan — GitHub Actions / GitLab CI injection + pwn-request
 visual_easm.register(mcp)      # visual_easm_diff — gowitness screenshot + hash delta vs prior run
+fuzzing.register(mcp)          # fuzz_upload (structure-aware mutation-upload) + assess_cve_exploitability (exploitable-here verdict); fuzz lane, benign-PoC, DoS-gated
 source_aware.register(mcp)     # xvulnhuntr / vulnhuntr — LLM-chain SAST input→sink (white-box mode)
 benchmark.register(mcp)        # run_autopenbench / run_caibench — publishable AI-pentest benchmarks (W7)
 mobile.register(mcp)  # mobile lane — device control (adb/idb/frida) + payload corpus

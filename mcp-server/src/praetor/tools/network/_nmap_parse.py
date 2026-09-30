@@ -78,6 +78,120 @@ def parse_nmap_xml(xml_text: str) -> dict:
     return {"hosts": hosts}
 
 
+# ---------------------------------------------------------------------------
+# Interpretation — nmap output is INFERENCE from probe responses, not ground
+# truth. parse_nmap_xml() keeps only `open` ports for the inventory; the
+# interpretation below reads ALL port states (filtered/unfiltered/closed/
+# open|filtered) because that is where an ACK/FIN/NULL/XMAS/UDP scan's meaning
+# lives, and turns them into the human-readable notes a verdict needs.
+# ---------------------------------------------------------------------------
+
+# One-line reminder carried in every scan result (full version in the skill).
+KEY_PRINCIPLE = (
+    "nmap output is INFERENCE from probe responses, not ground truth — "
+    "corroborate a surprising verdict with packet-level observation (Wireshark, "
+    "or Praetor's tcp_proxy_* TCP capture) before trusting it."
+)
+
+
+def _state_tally(root: ET.Element) -> dict[str, int]:
+    """Count port states across all hosts (all states, not just open)."""
+    tally: dict[str, int] = {}
+    for host in root.findall("host"):
+        status = host.find("status")
+        if status is not None and status.get("state") not in (None, "up"):
+            continue
+        for port in host.findall("ports/port"):
+            st = port.find("state")
+            s = st.get("state", "") if st is not None else ""
+            if s:
+                tally[s] = tally.get(s, 0) + 1
+    return tally
+
+
+def interpret_scan(xml_text: str, scan_type: str) -> list[str]:
+    """Human-readable interpretation notes for a given scan_type.
+
+    Best-effort and advisory: never raises. Returns [] when the scan_type has
+    no special interpretation (syn/connect read open/closed directly) or the
+    XML is unparseable.
+    """
+    st = (scan_type or "").strip().lower()
+    if st in ("", "syn", "connect"):
+        return []
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return []
+    tally = _state_tally(root)
+    notes: list[str] = []
+
+    if st == "ack":
+        unfiltered = tally.get("unfiltered", 0)
+        filtered = tally.get("filtered", 0)
+        notes.append(
+            "ACK scan maps FIREWALL filtering, not open/closed: it cannot tell "
+            "you which ports are open."
+        )
+        notes.append(
+            f"  {unfiltered} unfiltered (ACK got an RST back -> no stateful "
+            f"firewall dropping this port), {filtered} filtered (no response / "
+            "ICMP unreachable -> a stateful firewall is dropping the ACK)."
+        )
+        if unfiltered and not filtered:
+            notes.append("  All-unfiltered -> no stateful packet filter in the path "
+                         "(or it fails open). Follow up with -sS to find open ports.")
+        elif filtered and not unfiltered:
+            notes.append("  All-filtered -> a stateful firewall is in the path. "
+                         "Try FIN/NULL/XMAS (-sF/-sN/-sX) to slip past it.")
+
+    elif st in ("fin", "null", "xmas"):
+        openfilt = tally.get("open|filtered", 0)
+        closed = tally.get("closed", 0)
+        filtered = tally.get("filtered", 0)
+        notes.append(
+            f"{st.upper()} scan (stateless-firewall bypass + OS inference): "
+            "RFC 793 stacks reply RST to a closed port and DROP on open|filtered."
+        )
+        notes.append(
+            f"  {openfilt} open|filtered (no RST -> port may be open, RFC-compliant "
+            f"stack), {closed} closed (RST received), {filtered} filtered."
+        )
+        if closed and not openfilt:
+            notes.append(
+                "  OS INFERENCE: every probed port replied RST (all 'closed'), never "
+                "silent -> a NON-RFC-793 stack that RSTs regardless of state. Likely "
+                "Windows / Cisco IOS / BSD-derived device, and this scan type cannot "
+                "distinguish open from closed here. Confirm with -sS + -O."
+            )
+        elif openfilt:
+            notes.append(
+                "  OS INFERENCE: some ports went silent (open|filtered) -> an "
+                "RFC-793-compliant stack (typical Linux/Unix). The open|filtered set "
+                "is your open-port candidate list; confirm each with -sS."
+            )
+
+    elif st == "udp":
+        openp = tally.get("open", 0)
+        openfilt = tally.get("open|filtered", 0)
+        closed = tally.get("closed", 0)
+        notes.append(
+            "UDP scan is connectionless: 'open|filtered' means NO reply was seen "
+            "(the service may be open and silent, OR a firewall dropped the probe) "
+            "-- it is NOT a confirmed-open verdict."
+        )
+        notes.append(
+            f"  {openp} open (a UDP payload came back), {openfilt} open|filtered "
+            f"(no response), {closed} closed (ICMP port-unreachable received)."
+        )
+        notes.append(
+            "  UDP is slow (ICMP-unreachable rate limiting) -- pair with --top-ports "
+            "and a service-specific NSE script to disambiguate open|filtered."
+        )
+
+    return notes
+
+
 def is_http_service(port: dict) -> bool:
     """True if a parsed port entry looks like a web server."""
     svc = (port.get("service") or "").lower()
