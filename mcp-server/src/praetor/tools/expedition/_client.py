@@ -1,9 +1,9 @@
-"""Async client for the burp-expedition control API (TCP/UDP proxy on :8112).
+"""Async client for the burp-expedition control API (TCP/UDP proxy on :18112).
 
 Separate from praetor.client (which targets the praetor-burp-ext REST on :8111);
 burp-expedition is a distinct Burp extension exposing its own loopback API. Same
 host as Burp (BURP_API_HOST, so WSL works), port EXPEDITION_API_PORT (default
-8112). Every call returns a dict; a connection failure returns {"error": ...}
+18112). Every call returns a dict; a connection failure returns {"error": ...}
 rather than raising, so a tool degrades to a clear message when the extension
 isn't loaded.
 """
@@ -16,14 +16,14 @@ import httpx
 
 from praetor.config import BURP_API_HOST
 
-_PORT = int(os.environ.get("EXPEDITION_API_PORT", "8112"))
+_PORT = int(os.environ.get("EXPEDITION_API_PORT", "18112"))
 _BASE = f"http://{BURP_API_HOST}:{_PORT}"
 _TIMEOUT = float(os.environ.get("EXPEDITION_API_TIMEOUT", "15"))
 
 _UNREACHABLE = {
     "error": (
         f"Cannot reach burp-expedition control API at {_BASE}. Load the "
-        "burp-expedition extension in Burp (it starts the API on :8112), or set "
+        "burp-expedition extension in Burp (it starts the API on :18112), or set "
         "EXPEDITION_API_PORT. Verify: curl -s " + _BASE + "/status"
     )
 }

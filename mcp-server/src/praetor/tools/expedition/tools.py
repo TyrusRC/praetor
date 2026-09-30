@@ -58,39 +58,74 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool()
     async def tcp_proxy_add_listener(
         name: str,
-        upstream_host: str,
-        upstream_port: int,
         bind_port: int,
+        upstream_host: str = "",
+        upstream_port: int = 0,
         protocol: str = "tcp",
         bind_host: str = "127.0.0.1",
         tls: str = "none",
+        upstream_proxy: str = "",
+        client_cert: str = "",
+        client_cert_password: str = "",
     ) -> str:
-        """Start an explicit-proxy TCP/UDP listener (bind -> upstream) in Expedition.
+        """Start a TCP/UDP/SOCKS5 listener (bind -> upstream) in Expedition.
 
         Point a client at bind_host:bind_port and it relays to
         upstream_host:upstream_port while capturing every message. Use for
         non-HTTP protocols Burp can't proxy (Redis 6379, MySQL 3306, PostgreSQL
-        5432, MongoDB 27017, MQTT 1883, DNS 53, gRPC, …).
+        5432, MongoDB 27017, MQTT 1883, DNS 53, gRPC, Modbus/DNP3 ICS, …).
 
         Args:
             name: Unique listener name.
-            upstream_host: Real service host to relay to.
-            upstream_port: Real service port.
             bind_port: Local port the client connects to.
-            protocol: tcp (default) or udp.
+            upstream_host: Real service host to relay to (not needed for socks5).
+            upstream_port: Real service port (not needed for socks5).
+            protocol: tcp (default), udp, or socks5 (dynamic — destination is
+                negotiated per connection, so no fixed upstream).
             bind_host: Local bind address (default 127.0.0.1).
-            tls: 'mitm' to terminate client TLS with a Burp-CA leaf cert, else 'none'.
+            tls: 'none' (default), 'mitm' (terminate client TLS with the
+                per-machine auto-CA leaf — works out of the box, no manual cert
+                import), or 'starttls' (upgrade an in-band STARTTLS session).
+            upstream_proxy: 'host:port' to relay the upstream leg through an
+                onward proxy (chaining). Empty = direct.
+            client_cert: path to a .p12/.pfx for mutual-TLS upstream auth.
+            client_cert_password: password for client_cert (if any).
         """
-        d = await _client.post("/listeners", json={
+        is_socks = protocol.lower() == "socks5"
+        if not is_socks and (not upstream_host or upstream_port <= 0):
+            return ("Error: upstream_host and upstream_port are required for "
+                    f"protocol '{protocol}'. Use protocol='socks5' for a dynamic "
+                    "listener with no fixed upstream.")
+        payload: dict = {
             "name": name, "protocol": protocol, "bind_host": bind_host,
-            "bind_port": bind_port, "upstream_host": upstream_host,
-            "upstream_port": upstream_port, "tls": tls,
-        })
+            "bind_port": bind_port, "tls": tls,
+        }
+        if not is_socks:
+            payload["upstream_host"] = upstream_host
+            payload["upstream_port"] = upstream_port
+        if upstream_proxy:
+            payload["upstream_proxy"] = upstream_proxy
+        if client_cert:
+            payload["client_cert"] = client_cert
+            if client_cert_password:
+                payload["client_cert_password"] = client_cert_password
+        d = await _client.post("/listeners", json=payload)
         if "error" in d:
             return f"Error: {d['error']}"
+        dest = "dynamic (SOCKS5)" if is_socks else f"{upstream_host}:{upstream_port}"
+        extras = []
+        tl = tls.lower()
+        if tl == "mitm":
+            extras.append("TLS MITM")
+        elif tl == "starttls":
+            extras.append("STARTTLS")
+        if upstream_proxy:
+            extras.append(f"via {upstream_proxy}")
+        if client_cert:
+            extras.append("client-cert")
+        tag = f" ({', '.join(extras)})" if extras else ""
         return (f"Listener '{name}' [{protocol.upper()}] up on {bind_host}:{bind_port} "
-                f"-> {upstream_host}:{upstream_port}"
-                f"{' (TLS MITM)' if tls.lower() == 'mitm' else ''}.")
+                f"-> {dest}{tag}.")
 
     @mcp.tool()
     async def tcp_proxy_listeners() -> str:

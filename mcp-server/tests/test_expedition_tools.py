@@ -31,6 +31,27 @@ class ExpeditionToolsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("redis", out)
         self.assertIn("TLS MITM", out)
 
+    async def test_socks5_listener_needs_no_upstream(self):
+        captured = {}
+
+        async def fake_post(path, json=None):
+            captured["json"] = json
+            return {"ok": True, "name": json["name"]}
+
+        with patch.object(_client, "post", new=AsyncMock(side_effect=fake_post)):
+            out = await _fn("tcp_proxy_add_listener")(
+                name="dyn", bind_port=11080, protocol="socks5",
+                upstream_proxy="10.0.0.9:9050")
+        # socks5 payload omits the fixed upstream, forwards the chain proxy
+        self.assertNotIn("upstream_host", captured["json"])
+        self.assertEqual(captured["json"]["upstream_proxy"], "10.0.0.9:9050")
+        self.assertIn("SOCKS5", out)
+
+    async def test_tcp_listener_requires_upstream(self):
+        out = await _fn("tcp_proxy_add_listener")(
+            name="bad", bind_port=1234, protocol="tcp")
+        self.assertIn("upstream_host and upstream_port are required", out)
+
     async def test_repeat_requires_payload(self):
         out = await _fn("tcp_repeat")(host="10.0.0.5", port=6379)
         self.assertIn("supply a payload", out)
