@@ -69,6 +69,7 @@ from praetor.tools import (
     prompts_access,
     knowledge_access,
     lane_control,
+    decide,
 )
 
 mcp = FastMCP(
@@ -167,6 +168,7 @@ redteam.register(mcp)  # red-team knowledge: lookup_gtfobins / lookup_lolbas / r
 network.register(mcp)  # network recon lane: run_nmap / get_network_inventory (non-Burp evidence + web-lane bridge)
 offline.register(mcp)  # analyze_artifact — offline artifact analysis (raw request / JS / project) — no Burp
 router.register(mcp)   # signal->tool auto-routing (Balanced policy; ask-gates red-team/cloud/exploit)
+decide.register(mcp)   # JEV-style typed+calibrated decision envelope (run/ask/escalate/report/keep_testing/stop) over route_signals + judge_completion
 evidence.register(mcp) # curate_evidence / audit_history_noise (history is read-only; curate+audit, not prune)
 assurance.register(mcp) # standards_coverage heatmap, generate_posture_dashboard, generate_compliance_report
 hub.register(mcp)       # set_remediation / remediation_status (SLA+MTTR) + import_scan_results (nuclei/nessus dedup-merge)

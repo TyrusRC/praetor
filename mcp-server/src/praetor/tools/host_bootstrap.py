@@ -127,6 +127,13 @@ def register(mcp: FastMCP) -> None:
                 "auto_probe(...)  — knowledge-base-driven vuln sweep",
                 "get_next_action(domain) / get_hunt_plan(domain)  — sequential orchestration (replaces subagent dispatch)",
             ],
+            "decision_loop": [
+                "decide(domain, question='next')  — the ONE call at every branch point: returns a typed CHOICE + calibrated confidence + a routing ACTION (run/ask/escalate/report/keep_testing/stop). Consume `action` and `route`; don't re-reason the move.",
+                "decide(question='verdict', vuln_type=, verdict=, confidence=)  — turn a probe's make_verdict result into a routed decision (report / keep_testing / escalate). INCONCLUSIVE on a high-value class routes to escalate, never to benign (Rule 13b).",
+                "decide(domain, question='complete')  — stop condition (wraps judge_completion).",
+                "action=='escalate' is Rule 33 made concrete: hand the strategic decision to your strongest model with the intel in route.input; single-model host: reassess with that intel, then decide.",
+                "close the loop: record_calibration_outcome(vuln_type, confidence, outcome) so decide's confidence bands track reality (Brier/ECE/Wilson — calibration_report).",
+            ],
             "network_lane": [
                 "run_network_recon(target)  — discover -> service enum -> leads -> auto-loot -> web-lane bridge",
                 "run_nmap / run_httpx / run_nuclei / run_ffuf / run_subfinder / run_network_tool(...)  — external CLIs, all driven through Praetor",
@@ -150,12 +157,13 @@ def register(mcp: FastMCP) -> None:
                 "  strategic (opus)  -> your strongest reasoning model — commanders + hard 'what next and why' decisions (hunting Rule 33)",
                 "  standard  (sonnet) -> your balanced default model — most workers",
                 "  fast      (haiku)  -> your cheapest/fastest model — bulk, low-stakes steps",
-                "If your host has only one model, run everything on it; the escalation in Rule 33 becomes a no-op, not a blocker.",
+                "If your host has only one model, run everything on it; a decide() action=='escalate' then means 'reassess with full intel', not a handoff.",
             ],
             "note": (
                 "Everything Claude Code does via auto-loaded files, a tools-only host does via "
                 "these tools. The one thing it cannot replicate is PARALLEL multi-agent execution; "
-                "the orchestration tools (get_hunt_plan / get_next_action / route_signals / "
-                "judge_completion) give the single-threaded equivalent."
+                "the orchestration tools (decide / get_hunt_plan / get_next_action / route_signals / "
+                "judge_completion) give the single-threaded equivalent — decide() is the unified "
+                "typed-decision entry point that wraps the others into one run/ask/escalate/report/stop envelope."
             ),
         }
