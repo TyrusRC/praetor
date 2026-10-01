@@ -25,6 +25,14 @@ SETTABLE actions (call `praetor.client`, verbatim endpoints):
                                                               to override)
     match_replace_delete  DELETE /api/match-replace/{rule_id}
     match_replace_clear   POST /api/match-replace/clear
+    options_get           GET  /api/burp-control/options?level=project|user  (export
+                             Burp options as JSON — Montoya exportProjectOptionsAsJson /
+                             exportUserOptionsAsJson)
+    options_set           POST /api/burp-control/options  {level, json: options_json}
+                             (import — importProjectOptionsFromJson / importUserOptions…)
+    task_engine_get       GET  /api/burp-control/task-engine  ({state: RUNNING|PAUSED})
+    task_engine_set       POST /api/burp-control/task-engine  {state}  (pause/resume
+                             Burp's global task execution engine — TaskExecutionEngine)
 
 NOT SETTABLE via Montoya (returns a documented {"manual": ..., "montoya": False} dict;
 `praetor.client` is never called, no silent error):
@@ -35,7 +43,13 @@ NOT SETTABLE via Montoya (returns a documented {"manual": ..., "montoya": False}
                              rule table — distinct from Praetor's extension-owned
                              match_replace_* rule set, which IS settable above)
     intercept_state_read  — Proxy > Intercept (live held request/response body has no
-                             Montoya getter)
+                             Montoya getter; the on/off state IS readable via
+                             intercept_status)
+    active_editor         — the request/response the operator has focused in a Burp
+                             message editor: Montoya UserInterface only CREATES/REGISTERS
+                             editors, it has no getter for the active one (the official
+                             PortSwigger server uses first-party internals). Send the item
+                             to Repeater/Organizer or cite its proxy_history_index instead.
 
 Unknown action -> {"error": "unknown action '<a>' — see docstring for the supported set"}
 """
@@ -71,7 +85,15 @@ _MANUAL: dict[str, str] = {
     "intercept_state_read": (
         "intercept_state_read: Burp's Montoya API has no getter for the live "
         "contents of a currently-intercepted (held) request/response — inspect it "
-        "in the Burp UI: Proxy > Intercept"
+        "in the Burp UI: Proxy > Intercept. (The intercept on/off STATE is readable "
+        "via action='intercept_status'.)"
+    ),
+    "active_editor": (
+        "active_editor: Burp's Montoya UserInterface API only creates/registers "
+        "message editors — it exposes no getter for the request/response the operator "
+        "currently has focused (the official PortSwigger server reads it via first-party "
+        "internals outside public Montoya). Send the item to Repeater/Organizer, or work "
+        "from its proxy_history_index, instead."
     ),
 }
 
@@ -87,6 +109,9 @@ def register(mcp: FastMCP):
         rule_id: str = "",
         force: bool = False,
         mode: str = "operator",
+        level: str = "project",
+        options_json: str = "",
+        state: str = "",
     ) -> dict:
         """Control Burp settings actually exposed by Montoya, dispatched by `action`.
 
@@ -94,11 +119,12 @@ def register(mcp: FastMCP):
         get_scope/intercept/match_replace — see module docstring for exact
         endpoints/payloads): scope_get, scope_check, scope_add, scope_exclude,
         intercept_on, intercept_off, intercept_status, match_replace_list,
-        match_replace_add, match_replace_delete, match_replace_clear.
+        match_replace_add, match_replace_delete, match_replace_clear, options_get,
+        options_set, task_engine_get, task_engine_set.
 
         Not settable via Montoya — returns {"manual": "...", "montoya": False}
         naming the Burp UI location, WITHOUT calling the extension: proxy_listener,
-        upstream_proxy, tls, native_match_replace, intercept_state_read.
+        upstream_proxy, tls, native_match_replace, intercept_state_read, active_editor.
 
         Args:
             action: one of the actions listed above.
@@ -110,6 +136,10 @@ def register(mcp: FastMCP):
                 pattern (Host/Authorization/Cookie/Content-Length/Transfer-Encoding).
             mode: 'operator' (default, warn-and-log) or 'strict' (hard-block) —
                 used by scope_add / scope_exclude (see `configure_scope`).
+            level: 'project' (default) or 'user' — used by options_get / options_set.
+            options_json: a Burp options JSON string — used by options_set (pair it
+                with the JSON from a prior options_get, edited).
+            state: 'RUNNING' or 'PAUSED' — used by task_engine_set.
         """
         a = action.lower()
 
@@ -159,6 +189,43 @@ def register(mcp: FastMCP):
 
         if a == "intercept_status":
             data = await client.get("/api/intercept/status")
+            if "error" in data:
+                return {"error": data["error"]}
+            return data
+
+        if a == "options_get":
+            lvl = (level or "project").lower()
+            if lvl not in ("project", "user"):
+                return {"error": "level must be 'project' or 'user'"}
+            data = await client.get("/api/burp-control/options", params={"level": lvl})
+            if "error" in data:
+                return {"error": data["error"]}
+            return data
+
+        if a == "options_set":
+            lvl = (level or "project").lower()
+            if lvl not in ("project", "user"):
+                return {"error": "level must be 'project' or 'user'"}
+            if not options_json:
+                return {"error": "options_set requires options_json (a Burp options JSON string)"}
+            data = await client.post(
+                "/api/burp-control/options", json={"level": lvl, "json": options_json})
+            if "error" in data:
+                return {"error": data["error"]}
+            return data
+
+        if a == "task_engine_get":
+            data = await client.get("/api/burp-control/task-engine")
+            if "error" in data:
+                return {"error": data["error"]}
+            return data
+
+        if a == "task_engine_set":
+            want = (state or "").strip().upper()
+            if want not in ("RUNNING", "PAUSED"):
+                return {"error": "task_engine_set requires state='RUNNING' or 'PAUSED'"}
+            data = await client.post(
+                "/api/burp-control/task-engine", json={"state": want})
             if "error" in data:
                 return {"error": data["error"]}
             return data

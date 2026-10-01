@@ -534,6 +534,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Advanced | `test_host_header`, `test_request_smuggling`, `test_mass_assignment`, `test_business_logic` |
 | Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
+| Burp control & utility | `burp_settings` (scope / intercept on-off + read / match-replace / options JSON export-import / task-engine pause-resume), `send_to_organizer` + `get_organizer_items` (write & read Burp's Organizer), `decode_encode`, `generate_random_string` |
 | Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
 | Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_vhost_fuzz` (ffuf virtual-host discovery via Burp), `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
 | Secrets & SAST | `run_gitleaks`, `run_trufflehog`, `run_opengrep_source`, `inventory_source_routes`, `dump_exposed_git`, `extract_js_secrets` |

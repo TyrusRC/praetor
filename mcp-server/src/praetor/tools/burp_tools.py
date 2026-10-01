@@ -103,6 +103,33 @@ def register(mcp: FastMCP):
             return f"Error: {data['error']}"
         return f"Sent {data.get('sent', 0)} items to Organizer"
 
+    @mcp.tool()
+    async def get_organizer_items(regex: str = "") -> str:
+        """Read the items currently stored in Burp's Organizer tab.
+
+        PortSwigger-MCP parity (get_organizer_items / _regex): lists each stored
+        request/response with its Organizer id, status, method+URL, response code
+        and length — so an agent can recall what was set aside for later without
+        the operator re-sending it.
+
+        Args:
+            regex: optional regex filtered against "METHOD url" (empty = all items).
+        """
+        params = {"regex": regex} if regex else {}
+        data = await client.get("/api/organizer/items", params=params)
+        if "error" in data:
+            return f"Error: {data['error']}"
+        items = data.get("items", []) or []
+        if not items:
+            return "Organizer is empty (or no item matched the regex)."
+        lines = [f"Organizer: {data.get('count', len(items))} item(s):"]
+        for it in items[:200]:
+            lines.append(
+                f"  #{it.get('id')} [{it.get('status', '')}] "
+                f"{it.get('method', '')} {it.get('url', '')} -> "
+                f"{it.get('status_code', 0)} ({it.get('response_length', 0)}B)")
+        return "\n".join(lines)
+
     # ── Pro Feature Check ─────────────────────────────────────
 
     @mcp.tool()

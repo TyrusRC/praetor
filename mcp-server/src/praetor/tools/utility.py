@@ -231,6 +231,33 @@ def register(mcp: FastMCP):
         return _curl_for_request(_normalize_entry(detail))
 
     @mcp.tool()
+    async def generate_random_string(length: int = 16, charset: str = "alphanumeric") -> str:
+        """Generate a cryptographically-random string (PortSwigger-MCP parity).
+
+        Uses `secrets` (CSPRNG) — suitable for nonces, CSRF-token guesses, cache
+        busters, boundary markers, unique probe canaries.
+
+        Args:
+            length: number of characters (1-4096, default 16).
+            charset: alphanumeric (default) | alpha | numeric | hex | ascii | url-safe.
+        """
+        import secrets
+        import string
+        sets = {
+            "alphanumeric": string.ascii_letters + string.digits,
+            "alpha": string.ascii_letters,
+            "numeric": string.digits,
+            "hex": "0123456789abcdef",
+            "ascii": string.ascii_letters + string.digits + string.punctuation,
+            "url-safe": string.ascii_letters + string.digits + "-_",
+        }
+        pool = sets.get((charset or "").lower().strip())
+        if not pool:
+            return f"Error: unknown charset '{charset}'. Use one of: {', '.join(sets)}."
+        n = max(1, min(int(length), 4096))
+        return "".join(secrets.choice(pool) for _ in range(n))
+
+    @mcp.tool()
     async def decode_encode(
         input_text: str,
         operation: str,
