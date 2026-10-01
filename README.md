@@ -524,7 +524,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Read | `get_proxy_history`, `get_proxy_count`, `get_sitemap`, `get_scanner_findings`, `get_websocket_history` |
 | Analyze | `smart_analyze`, `detect_tech_stack`, `extract_js_secrets`, `analyze_dom` |
 | Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater`, `import_curl` (parse a `curl` line → replayable request), `request_to_curl` (export any proxy entry as curl) |
-| Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js`, `browser_storage` (localStorage / sessionStorage / IndexedDB dump, secret-flagged) |
+| Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js`, `browser_storage` (localStorage / sessionStorage / IndexedDB dump, secret-flagged), `browser_iast_enable` + `browser_iast` (passive in-browser DOM-sink instrumentation with taint source→sink correlation) |
 | Session | `create_session`, `session_request`, `extract_token`, `run_flow` |
 | Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` |
 | Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
