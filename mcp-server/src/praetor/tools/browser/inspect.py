@@ -80,6 +80,75 @@ def register(mcp: FastMCP):
             return f"Error executing JS: {e}"
 
     @mcp.tool()
+    async def browser_storage(max_value_len: int = 200) -> str:
+        """Dump client-side storage of the current page (PTK-style storage inspection).
+
+        Reads localStorage + sessionStorage key/value pairs and the IndexedDB
+        database names for the current origin — the client-side state Burp's
+        proxy view can't show. Assumes a prior browser_navigate / browser_crawl.
+        Values are truncated to max_value_len; keys that look like secrets
+        (token/jwt/session/key/secret/password/auth) are flagged so a leaked
+        bearer in localStorage (the classic SPA XSS-to-ATO pivot) is obvious.
+
+        Args:
+            max_value_len: per-value truncation length (default 200).
+        """
+        _, _, page = await _ensure_browser()
+        try:
+            data = await page.evaluate(
+                """(cap) => {
+                    const dump = (s) => {
+                        const o = {};
+                        for (let i = 0; i < s.length; i++) {
+                            const k = s.key(i);
+                            let v = s.getItem(k);
+                            if (v && v.length > cap)
+                                v = v.slice(0, cap) + '…(+' + (v.length - cap) + 'B)';
+                            o[k] = v;
+                        }
+                        return o;
+                    };
+                    const p = (async () => {
+                        let dbs = [];
+                        try {
+                            if (indexedDB.databases)
+                                dbs = (await indexedDB.databases())
+                                    .map(d => d.name + (d.version ? ' v' + d.version : ''));
+                        } catch (e) {}
+                        return dbs;
+                    })();
+                    return p.then(dbs => ({
+                        origin: location.origin,
+                        local: dump(window.localStorage),
+                        session: dump(window.sessionStorage),
+                        indexedDB: dbs,
+                    }));
+                }""",
+                max_value_len,
+            )
+        except Exception as e:  # noqa: BLE001 — surface any eval failure as text
+            return f"Error reading storage: {e}"
+
+        import re
+        sens = re.compile(r"token|jwt|session|secret|password|passwd|auth|api[-_]?key|bearer", re.I)
+
+        def _section(title: str, kv: dict) -> list[str]:
+            if not kv:
+                return [f"  {title}: (empty)"]
+            rows = [f"  {title} ({len(kv)}):"]
+            for k, v in kv.items():
+                tag = " [sensitive]" if sens.search(k or "") else ""
+                rows.append(f"    {k}{tag} = {v}")
+            return rows
+
+        lines = [f"Client-side storage — origin {data.get('origin', '?')}"]
+        lines += _section("localStorage", data.get("local", {}))
+        lines += _section("sessionStorage", data.get("session", {}))
+        dbs = data.get("indexedDB", []) or []
+        lines.append(f"  IndexedDB databases: {', '.join(dbs) if dbs else '(none)'}")
+        return "\n".join(lines)
+
+    @mcp.tool()
     async def browser_screenshot(
         url: str = "",
         full_page: bool = True,

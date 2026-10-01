@@ -2,11 +2,87 @@
 
 import base64
 import json
+import shlex
 from hashlib import md5, sha1, sha256
 
 from mcp.server.fastmcp import FastMCP
 
 from praetor.config import BURP_PROXY_HOST, BURP_PROXY_PORT
+
+
+def _arg(toks: list[str], i: int) -> str:
+    return toks[i + 1] if i + 1 < len(toks) else ""
+
+
+# curl flags that consume the NEXT token but that we don't model (proxy, resolve,
+# output, timing) — skip the flag AND its value so they don't get read as the URL.
+_CURL_SKIP_VALUE = {
+    "-x", "--proxy", "--connect-to", "--resolve", "-o", "--output",
+    "-w", "--write-out", "-m", "--max-time", "--retry", "--cacert",
+    "-E", "--cert", "--key", "--limit-rate",
+}
+
+
+def _parse_curl(cmd: str) -> dict:
+    """Parse a curl command line into {method, url, headers, body} (or {error}).
+
+    shlex-tokenised and NEVER executed. Best-effort over the flags a 'Copy as
+    cURL' produces: -X, -H, -d/--data*, -b/--cookie, -A, -e, -u, --url, -G.
+    Unmodelled value-flags are skipped; bare valueless flags (-s -k -L -i -v
+    --compressed and bundled shorts like -fsSL) are ignored.
+    """
+    try:
+        toks = shlex.split(cmd.strip())
+    except ValueError as e:
+        return {"error": f"could not tokenise curl command: {e}"}
+    if toks and toks[0] == "curl":
+        toks = toks[1:]
+    method = ""
+    url = ""
+    headers: dict[str, str] = {}
+    data_parts: list[str] = []
+    force_get = False
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        if t in ("-X", "--request"):
+            method = _arg(toks, i).upper(); i += 2; continue
+        if t in ("-H", "--header"):
+            h = _arg(toks, i); i += 2
+            if ":" in h:
+                k, _, v = h.partition(":")
+                headers[k.strip()] = v.strip()
+            continue
+        if t in ("-d", "--data", "--data-raw", "--data-binary",
+                 "--data-ascii", "--data-urlencode"):
+            data_parts.append(_arg(toks, i)); i += 2; continue
+        if t in ("-b", "--cookie"):
+            headers["Cookie"] = _arg(toks, i); i += 2; continue
+        if t in ("-A", "--user-agent"):
+            headers["User-Agent"] = _arg(toks, i); i += 2; continue
+        if t in ("-e", "--referer"):
+            headers["Referer"] = _arg(toks, i); i += 2; continue
+        if t in ("-u", "--user"):
+            cred = _arg(toks, i); i += 2
+            headers["Authorization"] = "Basic " + base64.b64encode(cred.encode()).decode()
+            continue
+        if t == "--url":
+            url = _arg(toks, i); i += 2; continue
+        if t in ("-G", "--get"):
+            force_get = True; i += 1; continue
+        if t in _CURL_SKIP_VALUE:
+            i += 2; continue
+        if t.startswith("-"):
+            i += 1; continue  # valueless flag / bundled shorts
+        if not url:
+            url = t
+        i += 1
+    body = "&".join(p for p in data_parts if p)
+    if force_get:
+        method = "GET"
+    elif not method:
+        method = "POST" if body else "GET"
+    return {"method": method, "url": url, "headers": headers, "body": body}
 
 
 def register(mcp: FastMCP):
@@ -93,6 +169,66 @@ def register(mcp: FastMCP):
             "fuzz_parameter / auto_probe / batch_probe instead of writing a script. "
             "Those are already proxied and produce proxy_history_index for evidence."
         )
+
+    @mcp.tool()
+    async def import_curl(curl_command: str) -> str:
+        """Parse a cURL command into a request + the Praetor call to replay it (PTK cURL import).
+
+        Paste a `curl ...` line (e.g. the browser Network tab's 'Copy as cURL');
+        this tokenises it with shlex — it is NEVER executed — and extracts
+        method / url / headers / cookies / body / basic-auth. Returns the parsed
+        request and a ready curl_request(...) call that replays it THROUGH Burp
+        (so the replay lands in Logger/Proxy history with a citable index). It
+        does not send — run the emitted call yourself.
+
+        Args:
+            curl_command: the full curl command line (quotes preserved).
+        """
+        parsed = _parse_curl(curl_command)
+        if "error" in parsed:
+            return f"Error: {parsed['error']}"
+        method, url = parsed["method"], parsed["url"]
+        headers, body = parsed["headers"], parsed["body"]
+        if not url:
+            return "Error: no URL found in the curl command."
+        lines = ["Parsed cURL:", f"  {method} {url}"]
+        if headers:
+            lines.append(f"  headers ({len(headers)}):")
+            for k, v in headers.items():
+                # shape obviously-sensitive values in the summary (full values
+                # still flow into the replay call below, which the agent executes)
+                shown = (str(v)[:18] + "…") if k.lower() in ("authorization", "cookie") else v
+                lines.append(f"    {k}: {shown}")
+        if body:
+            lines.append(f"  body ({len(body)}B): {body[:200]}")
+        call = f"curl_request(method={method!r}, url={url!r}"
+        if headers:
+            call += f", headers={headers!r}"
+        if body:
+            call += f", data={body!r}"
+        call += ")"
+        lines += ["", "Replay through Burp (run this):", f"  {call}"]
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def request_to_curl(index: int) -> str:
+        """Export a captured proxy-history request as a copy-paste cURL command (PTK cURL export).
+
+        For any request by proxy-history index — the general-purpose counterpart
+        to generate_repro_script (which is finding-scoped). Fetches entry <index>
+        and renders a curl that reproduces it.
+
+        Args:
+            index: proxy-history index to export.
+        """
+        from praetor import client
+        from praetor.tools.notes._proxy_entry import _normalize_entry
+        from praetor.tools.notes.repro_script import _curl_for_request
+        detail = await client.get(
+            f"/api/proxy/history/{int(index)}", params={"include_body": "true"})
+        if "error" in detail:
+            return f"Error fetching proxy entry {index}: {detail['error']}"
+        return _curl_for_request(_normalize_entry(detail))
 
     @mcp.tool()
     async def decode_encode(

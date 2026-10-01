@@ -523,8 +523,8 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Scope & configuration | `configure_scope`, `check_scope`, `get_scope` |
 | Read | `get_proxy_history`, `get_proxy_count`, `get_sitemap`, `get_scanner_findings`, `get_websocket_history` |
 | Analyze | `smart_analyze`, `detect_tech_stack`, `extract_js_secrets`, `analyze_dom` |
-| Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater` |
-| Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js` |
+| Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater`, `import_curl` (parse a `curl` line → replayable request), `request_to_curl` (export any proxy entry as curl) |
+| Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js`, `browser_storage` (localStorage / sessionStorage / IndexedDB dump, secret-flagged) |
 | Session | `create_session`, `session_request`, `extract_token`, `run_flow` |
 | Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` |
 | Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
@@ -537,7 +537,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
 | Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_vhost_fuzz` (ffuf virtual-host discovery via Burp), `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
 | Secrets & SAST | `run_gitleaks`, `run_trufflehog`, `run_opengrep_source`, `inventory_source_routes`, `dump_exposed_git`, `extract_js_secrets` |
-| SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_poutine`, `run_octoscan`, `run_cosign_verify` |
+| SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_retirejs` (client-side JS library → CVE), `run_poutine`, `run_octoscan`, `run_cosign_verify` |
 | IaC / container config | `run_checkov`, `run_tfsec`, `run_terrascan`, `run_hadolint` |
 | Cloud / Kubernetes | `run_prowler`, `run_scout_suite`, `run_cloudsploit`, `run_pacu`, `run_gcp_scanner`, `run_azurehound`, `enum_public_buckets` (anonymous S3 / Azure blob / GCS enumeration, read-only), `run_kube_hunter`, `run_kubescape`, `run_kubeletctl`, `run_kdigger`, `run_peirates` |
 | LLM / AI red-team | `discover_llm_endpoint`, `run_garak`, `run_pyrit_orchestrator`, `run_web_llm_owasp_top10`, `run_owasp_asi_top10`, `run_nuclei_llm_infra`, `run_local_llm_prompt_injection` |

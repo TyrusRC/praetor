@@ -17,6 +17,33 @@ def _hint(tool: str, hint: str) -> str:
     return f"Error: {tool} not installed.\nInstall: {hint}"
 
 
+def _fmt_retire(data) -> str:
+    """Format retire.js JSON (v2/v3 list or v4 {data:[...]}) into vuln findings."""
+    items = data.get("data", []) if isinstance(data, dict) else data
+    if not isinstance(items, list) or not items:
+        return "retire.js: no vulnerable client-side libraries found."
+    lines: list[str] = []
+    total = 0
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        fname = entry.get("file", "?")
+        for res in entry.get("results", []) or []:
+            comp = res.get("component", "?")
+            ver = res.get("version", "?")
+            for v in res.get("vulnerabilities", []) or []:
+                total += 1
+                sev = str(v.get("severity") or "?").upper()
+                ids = v.get("identifiers", {}) or {}
+                cves = ", ".join(ids.get("CVE", []) or [])
+                label = cves or ids.get("summary", "") or "advisory"
+                lines.append(f"  [{sev}] {comp}@{ver} — {label}  ({fname})")
+    if not lines:
+        return "retire.js: no vulnerable client-side libraries found."
+    return (f"retire.js: {total} vulnerable client-side library finding(s):\n"
+            + "\n".join(lines))
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -216,3 +243,31 @@ def register(mcp: FastMCP) -> None:
         else:
             lines.append(f"[rc={rc}] {(err or out)[:600]}")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def run_retirejs(path: str, timeout: int = 300) -> str:
+        """Client-side SCA — scan JS for known-vulnerable library versions (retire.js).
+
+        PTK-style client-library SCA: maps each detected front-end library@version
+        to its known CVEs/advisories. Point it at JavaScript pulled FROM the target
+        — e.g. saved by fetch_resource / fetch_page_resources under
+        .burp-intel/<domain>/material, or a checked-out front-end bundle. retire.js
+        exits non-zero when it finds vulns — that is a HIT, not an error.
+
+        Args:
+            path: directory or .js file to scan.
+            timeout: seconds.
+        """
+        if not _check_tool("retire"):
+            return _hint("retire", "npm install -g retire   (or run: npx retire)")
+        out, err, rc = await _run_cmd(
+            ["retire", "--path", path, "--outputformat", "json"],
+            timeout=timeout, bypass_proxy=True,
+        )
+        if not out.strip() and err.strip() and "vulnerab" not in err.lower():
+            return f"retire.js error [rc={rc}]: {err[:600]}"
+        try:
+            data = json.loads(out) if out.strip() else {}
+        except json.JSONDecodeError:
+            return f"retire.js ran but output was not JSON:\n{(out or err)[:800]}"
+        return _fmt_retire(data)
