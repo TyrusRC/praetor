@@ -237,7 +237,7 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | `insecure_randomness` *(ref-only)* | predictable_tokens, weak_session_id, uuid_v1_leak | high | asp.net, custom, java, node.js, php |
 | `h2_continuation_flood` *(ref-only)* | continuation_unbounded | high | apache, envoy, h2, nginx, node.js |
 | `resource_exhaustion` | sms_pump_no_ratelimit, email_pump_no_ratelimit, otp_brute_no_lockout, expensive_query_no_limit, graphql_alias_DoS, file_upload_no_size_limit, biometric_or_paid_provider_call, zip_bomb_decompression | critical | apollo, aws-sns, graphql, mailgun, sendgrid, twilio |
-| `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity, hash_length_extension *(hashpumpy to exploit)* | critical | asp.net, java, jwt, php, ruby |
+| `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity, hash_length_extension *(hashpumpy to exploit)*, ecb_mode_repeated_blocks, cbc_bitflip_tamper, stream_cipher_iv_nonce_reuse | critical | asp.net, java, jwt, php, ruby |
 
 ## AI / LLM (4)
 
@@ -355,5 +355,17 @@ Grep-verified diff of the KB against every PortSwigger Web Security Academy lab 
 | `prototype_pollution` | (probes in `client_side`) | client-side PP via flawed sanitization + alternative `constructor[prototype]` vector |
 | `api_abuse` | `server_side_param_pollution` | SSPP field-masking in a query string and REST URL (`%2523`/`%2526`) |
 | `file_upload` | `filename_path_traversal` | web-shell upload via traversal/null-byte filename |
+
+## 2026-10-03 additions — symmetric-crypto token attacks (ToB CTF Field Guide gap pass)
+
+Diff of the KB against the Trail of Bits CTF Field Guide. The guide's web section is already a strict subset of the KB; binary-pwn is covered by the fuzzing/AFL tool lane; RE/forensics/stego/pcap/memory are CTF-only and out of scope for a web+network harness. The one in-scope gap was classic symmetric-crypto attacks on encrypted web tokens — `crypto_weakness` had only padding-oracle. Three detection-only (LEAD) contexts merged into the `crypto_weakness` parent (no new file; count stays 153):
+
+| Context | Signal | Technique |
+|---|---|---|
+| `ecb_mode_repeated_blocks` | repeated 32-hex (16-byte) block in a token | ECB fingerprint → structure leak + cut-and-paste / byte-at-a-time |
+| `cbc_bitflip_tamper` | block-aligned ciphertext in an auth/role param, no integrity marker | CBC bit-flip → tamper adjacent plaintext block (role/privilege) |
+| `stream_cipher_iv_nonce_reuse` | static / all-zero iv=/nonce= | keystream reuse → crib-drag recovery; GCM nonce reuse → forgery |
+
+Exploitation (block shuffle, flip-and-replay, cross-request keystream XOR) stays operator-driven; the probes flag the falsifiable shape only.
 
 Confirmed already-covered (NOT re-added): error-based blind SSTI (`ssti_*:error_based_blind`), SSRF redirect-loop (`ssrf_bypass:redirect_loop_full_response_leak`), GraphQL CSRF (`graphql:csrf_via_get`), CSTI (`xss:angular`), XXE-via-SVG (`xxe:svg_xxe`), fat-GET cache, PHP filter chains, single-packet race, PAR/DPoP OAuth, 0.CL/CL.0/browser-powered desync, DOM clobbering. Research-only / low-priority (not added): SMTP smuggling, timeless-timing KB↔tool parity, "Successful Errors" (overlaps ssti/info_disclosure).

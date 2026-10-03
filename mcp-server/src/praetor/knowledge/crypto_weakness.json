@@ -211,6 +211,55 @@
           "confidence_boost": 30
         }
       ]
+    },
+    "ecb_mode_repeated_blocks": {
+      "description": "WSTG-CRYP-02 -- an encrypted token/cookie shows the ECB fingerprint: identical plaintext blocks encrypt to identical ciphertext blocks, so a repeated block appears verbatim in the ciphertext (a repeated 32-hex / 16-byte AES block run). Leaks structure and enables block cut-and-paste and byte-at-a-time recovery when the attacker controls adjacent plaintext. Detection is the shape; block-shuffle / byte-at-a-time exploitation is operator-driven.",
+      "tech_match": [],
+      "param_match": ["token","session","cookie","auth","data","state","blob","ct","encrypted","sid"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Repeated 16-byte block in a hex-encoded token (ECB signature) -- a 32-hex run recurs within the same value. LEAD: ciphertext is ECB (or a block mode leaking repeated blocks); structure leaks and cut-and-paste tampering is possible. Chance collision of a 128-bit block is negligible, so a repeat is real signal.",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)([0-9a-f]{32})[0-9a-f]*\\1"}
+          ],
+          "severity": "high",
+          "confidence_boost": 45
+        }
+      ]
+    },
+    "cbc_bitflip_tamper": {
+      "description": "WSTG-CRYP-02 -- a block-aligned ciphertext token (length a multiple of the 16-byte block) carries authorization/role/identity data with no integrity check (no HMAC/signature). In CBC mode flipping byte i of ciphertext block N deterministically flips byte i of plaintext block N+1 (garbling block N), so a role=user / admin=0 field can be tampered without the key. LEAD only -- the flip-and-replay is operator-driven; this flags the vulnerable shape (block-aligned ciphertext + no integrity marker).",
+      "tech_match": [],
+      "param_match": ["token","session","cookie","auth","role","user","data","state","blob","perm","grant"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Block-aligned hex ciphertext (>=2 AES blocks, length a multiple of 32 hex) in an auth/role-bearing parameter, with no integrity marker in the response -- CBC bit-flip tamper candidate.",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)(token|session|auth|role|data|state|blob)[\"':=]\\s*[\"']?(?:[0-9a-f]{32}){2,}[\"'&;\\s]"},
+            {"type": "not_word", "words": ["hmac","signature","mac","integrity","tag"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "stream_cipher_iv_nonce_reuse": {
+      "description": "WSTG-CRYP-02 -- a stream cipher (CTR/OFB/CFB) or GCM used with a STATIC or all-zero IV/nonce reuses the keystream across messages. XOR of two same-keystream ciphertexts cancels the key (crib-drag plaintext recovery), and GCM nonce reuse additionally enables authentication-tag forgery. Flags a fixed/zero nonce exposed in a token or an explicit iv=/nonce= parameter; cross-request keystream comparison is the operator/tool confirmation step.",
+      "tech_match": [],
+      "param_match": ["iv","nonce","token","session","ct","data","counter"],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "All-zero or single-repeated-character IV/nonce in a parameter or token -- a fixed nonce reuses the keystream across messages (crib-drag recovery; GCM forgery). LEAD: confirm reuse by comparing the nonce across two captured requests.",
+          "matchers": [
+            {"type": "regex", "pattern": "(?i)(iv|nonce)[\"':=]\\s*[\"']?(?:0{16,}|([0-9a-f])\\2{15,})"}
+          ],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }
