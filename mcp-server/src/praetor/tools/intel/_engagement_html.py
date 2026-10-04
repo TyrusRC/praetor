@@ -1,14 +1,17 @@
 """Tabbed engagement view — the self-contained HTML page builder.
 
 `engagement_graph(domain, format='html')` calls `render_engagement_html` here.
-The centerpiece is an INTERACTIVE, Wiz-Security-Graph-style force-directed node
-canvas (cytoscape.js + fcose layout, both from jsdelivr — the only external
-resources) that mirrors dsh-pentest's web view, including OPERATIONS: every
-read_oplog action becomes an ATT&CK-tagged node edged to the asset it acted on.
+The centerpiece is an INTERACTIVE cytoscape.js security graph with a layout
+toggle: Flow (dagre left-to-right exploration chain — the dsh-pentest flow look,
+default) or Force (fcose Wiz-Security-Graph blob). Both layouts + dagre come from
+jsdelivr (the only external resources). OPERATIONS are included: every read_oplog
+action becomes an ATT&CK-tagged node edged to the asset it acted on.
 
-Tabs: Security Graph (default centerpiece) · Operations (chronological oplog +
-loot timeline) · Findings · Report. Reuses the dark theme + markdown renderer
-from report/_html and the graph model / render_report from _engagement.
+The header carries count chips (Intents · Facts · Findings · Assets · Operations).
+Tabs: Security Graph (default) · Operations (oplog + loot timeline) · Findings(N) ·
+Assets(N) (the asset tree) · Report. Reuses the dark theme + markdown renderer
+from report/_html and the graph model / render_report from _engagement. UI is
+English-only.
 
 Graph node/edge data is embedded as JSON and rendered on a canvas by cytoscape
 (labels are canvas text, not HTML — no injection). The detail panel builds its
@@ -279,6 +282,57 @@ def _operations_panel(oplog: list[dict], loot: list[dict]) -> str:
     return "\n".join(out)
 
 
+def _assets_panel(graph: dict) -> str:
+    """The asset tree (Assets tab) — roots with nested children, type-tagged."""
+    assets = E._nodes_of(graph, "asset")
+    if not assets:
+        return '<p class="empty">No assets recorded — record_asset(name, atype, parent).</p>'
+    amap = {a["id"]: a for a in assets}
+    children: dict[str, list[dict]] = {}
+    roots: list[dict] = []
+    for a in assets:
+        p = a.get("parent")
+        if p and p in amap:
+            children.setdefault(p, []).append(a)
+        else:
+            roots.append(a)
+
+    def render(a: dict, seen: set) -> str:
+        if a["id"] in seen:                      # cycle guard
+            return ""
+        seen.add(a["id"])
+        atype = f'<span class="atype">[{_esc(a.get("atype") or "?")}]</span>'
+        inner = f'<span class="adot"></span>{_esc(a.get("name") or a["id"])}{atype}'
+        kids = children.get(a["id"], [])
+        if kids:
+            return f'<li>{inner}<ul>{"".join(render(c, seen) for c in kids)}</ul></li>'
+        return f'<li>{inner}</li>'
+
+    seen: set = set()
+    items = "".join(render(a, seen) for a in roots)
+    return f'<ul class="asset-tree">{items}</ul>'
+
+
+_CHIP_SPEC = [
+    ("intent", "Intents", "#4aa3ff"), ("fact", "Facts", "#586b7d"),
+    ("finding", "Findings", "#ff5c6c"), ("asset", "Assets", "#1f9e8f"),
+    ("operation", "Operations", "#b48ead"),
+]
+
+
+def _count_chips(counts: dict) -> str:
+    """Header summary chips (Intents N · Facts N · Findings N · Assets N)."""
+    chips = []
+    for key, label, color in _CHIP_SPEC:
+        n = counts.get(key, 0)
+        if key == "operation" and not n:         # hide ops chip when none
+            continue
+        chips.append(
+            f'<div class="chip"><span class="cdot" style="background:{color}"></span>'
+            f'{label} <b>{n}</b></div>')
+    return '<div class="chips">' + "".join(chips) + "</div>"
+
+
 # ------------------------------------------------------------------ CSS / JS
 
 _TAB_CSS = """
@@ -329,6 +383,26 @@ _TAB_CSS = """
 .detail .close{position:absolute;top:8px;right:10px;cursor:pointer;color:var(--muted);font-size:1.1em}
 .hint{bottom:12px;left:12px;color:var(--muted);font-size:.76em;background:none;border:none}
 .cy-fail{padding:22px;color:#ff8894}
+/* --- header count chips (intents/facts/findings/assets) --- */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:7px;background:#0d1117;border:1px solid var(--line);
+  border-radius:20px;padding:4px 13px;font-size:.84em;color:var(--muted)}
+.chip b{color:#e6edf3;font-size:1.08em}
+.chip .cdot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.tab .cnt{color:var(--muted);font-size:.86em;margin-left:5px}
+.tab.active .cnt{color:#dceaff}
+/* --- graph layout toggle (Flow = dsh LR chain · Force = Wiz blob) --- */
+.controls{bottom:12px;right:12px;display:flex;gap:4px;padding:5px}
+.ctl-btn{background:#161b22;color:var(--muted);border:1px solid var(--line);border-radius:6px;
+  padding:4px 12px;font-size:.8em;cursor:pointer;font-family:inherit}
+.ctl-btn:hover{color:var(--fg);border-color:var(--accent)}
+.ctl-btn.active{color:#fff;background:var(--accent);border-color:var(--accent)}
+/* --- assets tab tree --- */
+.asset-tree{list-style:none;padding-left:2px;line-height:1.9}
+.asset-tree ul{list-style:none;padding-left:18px;border-left:1px solid var(--line);margin:2px 0 2px 5px}
+.asset-tree li{padding:1px 0}
+.asset-tree .atype{color:var(--muted);font-size:.82em;margin-left:7px}
+.asset-tree .adot{display:inline-block;width:8px;height:8px;border-radius:2px;background:#1f9e8f;margin-right:7px}
 """
 
 # Node palette by kind — deep navy canvas, Wiz-style typed nodes.
@@ -374,6 +448,12 @@ _FCOSE = json.dumps({"name": "fcose", "quality": "proof", "animate": True, "anim
                      "nodeSeparation": 90, "idealEdgeLength": 105, "nodeRepulsion": 8500,
                      "padding": 30, "randomize": True})
 
+# Left-to-right hierarchical "exploration chain" — the dsh-pentest flow.png look
+# (goal → intent → fact → finding reads as a pipeline, not a force blob).
+_DAGRE = json.dumps({"name": "dagre", "rankDir": "LR", "nodeSep": 26, "rankSep": 70,
+                     "edgeSep": 12, "animate": True, "animationDuration": 500,
+                     "padding": 30, "fit": True})
+
 _LEGEND_KINDS = [
     ("goal", "Goal", ""), ("intent", "Intent", ""), ("fact", "Fact", "round"),
     ("asset", "Asset", ""), ("finding", "Finding", ""), ("operation", "Operation", ""),
@@ -401,8 +481,22 @@ def _script(elements: list[dict]) -> str:
 (function(){{
   var GRAPH = {data};
   var STYLE = {_STYLE};
-  var LAYOUT = {_FCOSE};
-  var cy=null, hidden={{}};
+  var LAYOUT_FORCE = {_FCOSE};
+  var LAYOUT_FLOW = {_DAGRE};
+  var cy=null, hidden={{}}, currentLayout="flow";
+
+  function layoutFor(name){{
+    if(name==="force") return window.cytoscapeFcose ? LAYOUT_FORCE : {{name:"cose",animate:false}};
+    if(window.cytoscapeDagre) return LAYOUT_FLOW;           // preferred LR flow
+    if(window.cytoscapeFcose) return LAYOUT_FORCE;          // fallback: force
+    return {{name:"breadthfirst",directed:true,spacingFactor:1.15,animate:true}};  // built-in
+  }}
+  function runLayout(name){{
+    currentLayout=name;
+    if(cy){{ cy.layout(layoutFor(name)).run(); }}
+    document.querySelectorAll(".ctl-btn").forEach(function(b){{
+      b.classList.toggle("active", b.dataset.layout===name); }});
+  }}
 
   function fieldRows(d){{
     var rows=[];
@@ -438,8 +532,9 @@ def _script(elements: list[dict]) -> str:
     var host=document.getElementById("cy");
     if(!window.cytoscape){{ host.innerHTML='<div class="cy-fail">Security graph unavailable: cytoscape.js failed to load from jsdelivr (offline?). Retry with network access.</div>'; return; }}
     if(window.cytoscapeFcose){{ try{{ cytoscape.use(window.cytoscapeFcose); }}catch(e){{}} }}
+    if(window.cytoscapeDagre){{ try{{ cytoscape.use(window.cytoscapeDagre); }}catch(e){{}} }}
     cy=cytoscape({{ container:host, elements:GRAPH.elements, style:STYLE,
-                    layout:LAYOUT, wheelSensitivity:0.25 }});
+                    layout:layoutFor(currentLayout), wheelSensitivity:0.25 }});
     cy.on("tap","node",function(ev){{ cy.$(".sel").removeClass("sel"); ev.target.addClass("sel"); showDetail(ev.target.data()); }});
     cy.on("tap",function(ev){{ if(ev.target===cy){{ document.getElementById("detail").classList.remove("show"); cy.$(".sel").removeClass("sel"); }} }});
     cy.on("mouseover","node",function(ev){{ var n=ev.target; var keep=n.closedNeighborhood(); cy.elements().not(keep).addClass("faded"); }});
@@ -469,8 +564,10 @@ def _script(elements: list[dict]) -> str:
   }}
   document.addEventListener("DOMContentLoaded",function(){{
     document.querySelectorAll(".tab").forEach(function(t){{ t.addEventListener("click",function(){{ show(t.dataset.tab); }}); }});
+    document.querySelectorAll(".ctl-btn").forEach(function(b){{ b.addEventListener("click",function(){{ runLayout(b.dataset.layout); }}); }});
     wireLegend();
     initGraph();  // graph is the default-active panel — its container is visible now.
+    document.querySelectorAll(".ctl-btn").forEach(function(b){{ b.classList.toggle("active", b.dataset.layout===currentLayout); }});
   }});
 }})();
 </script>
@@ -478,13 +575,15 @@ def _script(elements: list[dict]) -> str:
 
 
 _TABS = (("graph", "Security Graph"), ("operations", "Operations"),
-         ("findings", "Findings"), ("report", "Report"))
+         ("findings", "Findings"), ("assets", "Assets"), ("report", "Report"))
 
 _CDN = (
     '<script src="https://cdn.jsdelivr.net/npm/cytoscape@3/dist/cytoscape.min.js"></script>\n'
     '<script src="https://cdn.jsdelivr.net/npm/layout-base/layout-base.js"></script>\n'
     '<script src="https://cdn.jsdelivr.net/npm/cose-base/cose-base.js"></script>\n'
     '<script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2/cytoscape-fcose.js"></script>\n'
+    '<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>\n'
+    '<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2/cytoscape-dagre.js"></script>\n'
 )
 
 
@@ -501,25 +600,47 @@ def render_engagement_html(domain: str, graph: dict) -> str:
     loot = read_loot(domain)
     elements = _build_elements(graph, oplog, loot)
 
+    counts = {
+        "intent": len(E._nodes_of(graph, "intent")),
+        "fact": len(E._nodes_of(graph, "fact")),
+        "finding": len(E._nodes_of(graph, "finding")),
+        "asset": len(E._nodes_of(graph, "asset")),
+        "operation": len(oplog),
+    }
+
     graph_panel = (
         '<div class="graph-wrap">'
         '<div id="cy"></div>'
         + _legend_html()
         + '<div class="gx detail" id="detail"></div>'
-        + '<div class="gx hint">drag to pan · scroll to zoom · click a node for detail · hover to focus</div>'
+        + '<div class="gx controls">'
+          '<button class="ctl-btn" data-layout="flow">Flow</button>'
+          '<button class="ctl-btn" data-layout="force">Force</button></div>'
+        + '<div class="gx hint">Flow = exploration chain · Force = Wiz graph · '
+          'drag to pan · scroll to zoom · click a node for detail</div>'
         + "</div>")
     panels = {
         "graph": graph_panel,
         "operations": _operations_panel(oplog, loot),
         "findings": _findings_panel(graph),
+        "assets": _assets_panel(graph),
         "report": markdown_to_html(E.render_report(graph)),
     }
-    nav = "".join(
-        f'<button class="tab{" active" if key == "graph" else ""}" data-tab="{key}">{label}</button>'
-        for key, label in _TABS)
+    # Tab labels carry counts (Findings(1) · Assets(3)); None = no count shown.
+    tab_counts = {"operations": counts["operation"] or None,
+                  "findings": counts["finding"], "assets": counts["asset"]}
+    nav_parts = []
+    for key, label in _TABS:
+        c = tab_counts.get(key)
+        cnt = f' <span class="cnt">({c})</span>' if c is not None else ""
+        nav_parts.append(
+            f'<button class="tab{" active" if key == "graph" else ""}" '
+            f'data-tab="{key}">{label}{cnt}</button>')
+    nav = "".join(nav_parts)
     body = [f'<h1>{_esc(g.get("target") or domain)}</h1>',
             f'<div class="meta">Objective: {_esc(g.get("objective") or "—")} · '
             f'Authorization: {_esc(g.get("authorization") or "—")}</div>',
+            _count_chips(counts),
             f'<div class="tabs">{nav}</div>']
     for key, _label in _TABS:
         active = " active" if key == "graph" else ""
