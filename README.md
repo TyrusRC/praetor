@@ -525,7 +525,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Analyze | `smart_analyze`, `detect_tech_stack`, `extract_js_secrets`, `analyze_dom` |
 | Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater`, `import_curl` (parse a `curl` line → replayable request), `request_to_curl` (export any proxy entry as curl) |
 | Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js`, `browser_storage` (localStorage / sessionStorage / IndexedDB dump, secret-flagged), `browser_iast_enable` + `browser_iast` (passive in-browser DOM-sink instrumentation with taint source→sink correlation) |
-| Session | `create_session`, `session_request`, `extract_token`, `run_flow` |
+| Session | `create_session`, `session_request`, `extract_token`, `run_flow`, `resend_with_csrf_refresh` (replay a captured request as another account, auto-refreshing its anti-CSRF token — account-swap IDOR/BOLA without stale-token false 403s) |
 | Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` |
 | Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
 | Vuln-class natives | `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-style multi-phase), `test_xxe`, `test_websocket` (CSWSH), `test_prototype_pollution`, `confirm_padding_oracle` (CBC padding-oracle PoC — decrypt/detect only, routes through Burp) |
