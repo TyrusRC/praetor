@@ -15,6 +15,9 @@ constraint are load-bearing and stay.
 
 from __future__ import annotations
 
+import os
+import re
+
 # Keys whose values are maps of name -> schema. Descending into these means the
 # child KEYS are names (a property may legitimately be called "title"), so the
 # recursion must not treat them as schema nodes.
@@ -64,3 +67,74 @@ def slim_tool_schemas(mcp) -> int:
         if isinstance(params, dict):
             strip_titles(params)
     return len(tools)
+
+
+# ------------------------------------------------------------------ descriptions
+#
+# Tool descriptions are ~70% of the assembled manifest. An eager-loading host
+# (Codex / dsh) pays the whole thing on every request. Trimming each description
+# to its one-line summary cuts the manifest by roughly 4x; the full docstring
+# stays reachable on demand via pick_tool(task) / run_tool('<tool>'). Lossy, so
+# it is OPT-IN: explicit PRAETOR_SLIM_DESCRIPTIONS, else auto for a lean
+# (non-`all`) profile — the exact case where the host is eager and context-bound.
+
+_FIRST_SENTENCE = re.compile(r"^(.*?[.!?])(?:\s|$)", re.S)
+
+
+def first_sentence(text: str) -> str:
+    """The one-line summary of a docstring: its first non-empty line, truncated
+    to the first sentence when that line itself runs long (>160 chars)."""
+    if not text:
+        return text
+    line = ""
+    for ln in text.strip().splitlines():
+        if ln.strip():
+            line = ln.strip()
+            break
+    if len(line) <= 160:
+        return line
+    m = _FIRST_SENTENCE.match(line)
+    return m.group(1) if m else line[:157] + "…"
+
+
+def should_slim_descriptions() -> bool:
+    """True when the manifest's descriptions should be trimmed to summaries.
+
+    PRAETOR_SLIM_DESCRIPTIONS wins (1/true/yes/on or 0/false/no/off); otherwise
+    auto-on for any lean profile (PRAETOR_PROFILE set and not `all`), the eager,
+    context-bound case. Default (no profile, no flag) = off (Claude Code).
+    """
+    v = os.environ.get("PRAETOR_SLIM_DESCRIPTIONS", "").strip().lower()
+    if v in ("1", "true", "yes", "on"):
+        return True
+    if v in ("0", "false", "no", "off"):
+        return False
+    prof = (os.environ.get("PRAETOR_PROFILE") or "").strip().lower()
+    return bool(prof) and prof != "all"
+
+
+def slim_descriptions(mcp, enabled: bool | None = None) -> int:
+    """Trim each registered tool's description to its one-line summary. Returns
+    the number trimmed (0 when disabled or registry unreachable). Full guidance
+    stays available through pick_tool / run_tool, so nothing is lost permanently.
+    """
+    if enabled is None:
+        enabled = should_slim_descriptions()
+    if not enabled:
+        return 0
+    manager = getattr(mcp, "_tool_manager", None)
+    tools = getattr(manager, "_tools", None)
+    if not isinstance(tools, dict):
+        return 0
+    n = 0
+    for tool in tools.values():
+        d = getattr(tool, "description", None)
+        if isinstance(d, str) and d:
+            s = first_sentence(d)
+            if s and s != d:
+                try:
+                    tool.description = s
+                    n += 1
+                except (AttributeError, TypeError, ValueError):
+                    pass
+    return n

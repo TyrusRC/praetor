@@ -2,7 +2,7 @@
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor._schema_slim import slim_tool_schemas
+from praetor._schema_slim import slim_descriptions, slim_tool_schemas
 from praetor.tools import (
     read, analyze, send, correlate, collaborate, notes,
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
@@ -290,6 +290,11 @@ slim_tool_schemas(mcp)
 import os as _os  # noqa: E402
 from praetor import _lanes  # noqa: E402
 _lanes.apply_profile(mcp, _os.environ.get("PRAETOR_PROFILE") or _lanes.DEFAULT_PROFILE)
+
+# Eager-host description trim (Codex): tool descriptions are ~70% of the manifest.
+# Trim each to its one-line summary — auto for a lean profile, or forced via
+# PRAETOR_SLIM_DESCRIPTIONS. Full guidance stays reachable via pick_tool / run_tool.
+slim_descriptions(mcp)
 
 # Declare the tools.listChanged capability so a client arms its re-sync handler. When
 # run_tool / use_lane promote a gated lane they call session.send_tool_list_changed();

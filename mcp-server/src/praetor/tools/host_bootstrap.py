@@ -91,8 +91,15 @@ def register(mcp: FastMCP) -> None:
             "change_it": (
                 "To set the STARTING profile, set env PRAETOR_PROFILE in the MCP server "
                 "config (e.g. dsh cordis.yml env: { PRAETOR_PROFILE: 'web' }) then "
-                "reconnect. Values: a named profile (web/network/mobile/llm/cloud/core/"
-                "all/...) or a comma list of lanes (web,network). Core is always on."
+                "reconnect. Values: a named profile (codex/web/network/mobile/llm/cloud/"
+                "core/all/...) or a comma list of lanes (web,network). Core is always on. "
+                "'codex' = lean web lane for OpenAI Codex / eager hosts."
+            ),
+            "trim_descriptions": (
+                "Tool descriptions are ~70% of the manifest. Set env "
+                "PRAETOR_SLIM_DESCRIPTIONS=1 (auto-on for any non-'all' profile) to trim "
+                "each to its one-line summary — full text stays reachable via pick_tool / "
+                "run_tool. Together with a lean profile this roughly quarters the manifest."
             ),
             "note": (
                 "Safety Rules 5-9 and the 7-gate save-finding pipeline are enforced in "
@@ -149,6 +156,7 @@ def register(mcp: FastMCP) -> None:
             ],
             "profile_and_pivot": [
                 "get_profile()  — which tool lanes are advertised vs gated (context-saving on eager hosts)",
+                "eager hosts (Codex/dsh): set env PRAETOR_PROFILE=codex (lean web lane) + PRAETOR_SLIM_DESCRIPTIONS=1 to roughly quarter the ~115k-token manifest",
                 "a gated tool is NEVER blocked: run_tool('<tool>', {args}) runs it + auto-enables its lane; run_tool('<tool>') returns its schema",
                 "mid-engagement pivot (web -> mobile/network/cloud) just works via run_tool; pick_tool(task) flags gated tools",
             ],

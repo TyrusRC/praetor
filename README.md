@@ -281,7 +281,8 @@ Antigravity, Cursor, Windsurf) takes the *same* block:
 }
 ```
 
-OpenAI Codex CLI uses TOML instead:
+OpenAI Codex CLI uses TOML instead (note the `PRAETOR_PROFILE` — Codex eager-loads
+the whole tool manifest, so trim it; see [Eager-loading hosts](#eager-loading-hosts-codex-dsh-trim-the-manifest)):
 
 ```toml
 [mcp_servers.praetor]
@@ -290,6 +291,8 @@ args = ["--from", "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-s
 [mcp_servers.praetor.env]
 BURP_API_HOST = "127.0.0.1"
 BURP_API_PORT = "8111"
+PRAETOR_PROFILE = "codex"           # lean web-pentest lane; others auto-promote via run_tool
+PRAETOR_SLIM_DESCRIPTIONS = "1"     # one-line tool summaries (full text via pick_tool/run_tool)
 ```
 
 Where each host reads that block:
@@ -316,6 +319,34 @@ command/args/env inside. The `env` block is optional — omit it on a single hos
 
 Ready-to-copy config files for each host (one per client, with a where-does-it-go
 table) live in [`examples/mcp-clients/`](examples/mcp-clients/).
+
+#### Eager-loading hosts (Codex, dsh): trim the manifest
+
+Claude Code **defers** tool schemas — it loads names only and fetches a schema when a
+tool is first used, so a large tool surface costs it nothing up front. OpenAI Codex (and
+dsh) **eager-load**: the entire tool manifest — every description + input schema — is
+sent to the model on *every* request. Praetor's full surface is ~115k tokens, so leaving
+it at the `all` default wastes a large slice of Codex's context before any work.
+
+Two env vars cut it (set them in the Codex `[mcp_servers.praetor.env]` block above):
+
+- **`PRAETOR_PROFILE`** advertises only the lanes you need (`codex` = lean web lane;
+  also `web` / `network` / `mobile` / `llm` / `cloud` / `core`, or a comma list like
+  `web,network`). A gated tool is **never blocked** — `run_tool('<tool>', {args})` runs
+  it and auto-promotes its lane mid-engagement.
+- **`PRAETOR_SLIM_DESCRIPTIONS=1`** trims each tool description to its one-line summary
+  (auto-on whenever a non-`all` profile is set). The full docstring stays reachable via
+  `pick_tool(task)` and `run_tool('<tool>')`.
+
+| `PRAETOR_PROFILE` | tools | ~manifest tokens | + `SLIM_DESCRIPTIONS` |
+|---|---|---|---|
+| `all` (default) | 542 | 115k | ~44k |
+| `web` | 390 | 85k | ~33k |
+| `codex` / lean web | 390 | 85k | ~31k |
+| `core` (minimum) | 210 | 40k | ~16k |
+
+First call on any eager host: **`praetor_bootstrap()`** — it returns the same operating
+context Claude Code auto-loads (rules, skills, the hunt loop, the profile/pivot model).
 
 #### DeepSeek Harness (dsh)
 

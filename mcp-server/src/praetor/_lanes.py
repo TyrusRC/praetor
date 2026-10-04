@@ -115,6 +115,8 @@ _TOOL_LANE = {
 PROFILES = {
     "all": set(ALL_LANES),
     "core": set(),
+    "codex": {"web"},  # lean default for OpenAI Codex / eager tools-only hosts;
+                       # other lanes auto-promote on demand via run_tool.
     "web": {"web"},
     "bugbounty": {"web", "recon_ext"},
     "recon": {"web", "recon_ext"},
