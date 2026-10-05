@@ -189,13 +189,18 @@ def register(mcp: FastMCP) -> None:
           - json     : the raw graph (nodes + typed edges).
           - dsh      : an ordered `pentest_add_*` replay so the DeepSeek-Harness agent
                        mirrors this graph into dsh-pentest's live view (Praetor = the
-                       moves, dsh-pentest = the map).
-          - html     : a self-contained TABBED Wiz-style page written to
-                       reports/<domain>-engagement.html — an interactive
-                       cytoscape.js security graph (goal→intent→fact→asset→finding
-                       + ATT&CK operation nodes), plus Operations (operator-log
-                       timeline + loot), Findings and Report tabs. Praetor's NATIVE
-                       equivalent of dsh-pentest's web view, no DSH plugin required.
+                       moves, dsh-pentest = the map). REQUIRES the dsh-pentest plugins
+                       (`@deepseek-ai/dsh-pentest` + `dsh-client-ui-pentest`) installed
+                       in dsh (an npm build) — Praetor, being Python, cannot ship that
+                       React UI; without the plugin the replay commands have no target.
+                       For a UI with no plugin / no dsh, use `format='html'`.
+          - html     : a STANDALONE, self-contained TABBED page written to
+                       reports/<domain>-engagement.html — Praetor's OWN page that LOOKS
+                       LIKE dsh-pentest's web view: an interactive cytoscape.js security
+                       graph (goal→intent→fact→asset→finding + ATT&CK operation nodes),
+                       plus Operations (operator-log timeline + loot), Findings and
+                       Report tabs. Just open the file in a browser — NO npm, NO dsh
+                       plugin, no server. This is the recommended UI on any host.
 
         Args:
             domain: target domain.
@@ -222,8 +227,10 @@ def register(mcp: FastMCP) -> None:
                 out.write_text(render_engagement_html(domain, graph), encoding="utf-8")
             except OSError as exc:
                 return f"error writing engagement HTML: {exc}"
-            return (f"Wrote {out} — a tabbed Wiz-style page: an interactive security graph "
-                    "(goal→intent→fact→asset→finding + ATT&CK operation nodes), plus "
-                    "Operations (operator-log timeline + loot), Findings and Report tabs "
-                    "(dsh-pentest's web view, native, no DSH).")
+            return (f"Wrote {out} — a STANDALONE tabbed Wiz-style page: an interactive "
+                    "security graph (goal→intent→fact→asset→finding + ATT&CK operation "
+                    "nodes), plus Operations (operator-log timeline + loot), Findings and "
+                    "Report tabs. Open it in a browser — no npm, no dsh plugin, no server. "
+                    "(For the graph INSIDE dsh instead, use format='dsh' — that needs the "
+                    "dsh-pentest npm plugin loaded in dsh.)")
         return E.render_text(graph)
