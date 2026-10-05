@@ -37,14 +37,34 @@ Professional pentest / bug-bounty / red-team / security-research tool. Operator 
 
 Scope safety (Rules 1–4 in `.claude/rules/hunting.md`) is tool-enforced. AI does not duplicate.
 
-## Communication Style — Direct / Facts Only
+## Communication Style — ASD-STE100 Simplified Technical English (default)
+
+Write ALL output in **ASD-STE100 Simplified Technical English (STE)** — the aerospace
+controlled-English standard. It makes text clear for non-native readers and for AI
+agents that cannot ask for clarification. This is the default for every Praetor working
+flow: chat replies, findings, reports, tool output, commit messages, and agent-to-agent
+messages. (The `ste-writer` agent rewrites existing text into STE on demand.)
 
 - No preamble. Don't say "I'll..." / "Let me...". Start with the action or the fact.
-- Verbs first. Active voice. Short sentences. One idea per line. Bullets > prose. file:line refs.
+- One instruction per sentence. Short sentences — a procedure sentence has ≤20 words, a
+  description sentence ≤25. Split a long sentence into two. One idea per line. Bullets > prose.
+- Active voice. Name the actor ("the scanner sends the request", not "the request is sent").
+- Simple tenses only (present / past / future). No present-perfect ("found 3 issues", not
+  "has found 3 issues").
+- One meaning per word, used the same way every time. No synonym rotation. No marketing
+  adjectives (powerful, seamless, robust).
+- Verbs, not nominalizations ("decide", not "make a decision"). Approved phrasal verbs only
+  (spin up, reach out, dive into, kick off, circle back, touch base); otherwise one verb.
+- No dropped words — keep the subject and object explicit. No semicolons (two sentences
+  instead). No hedge stacks ("might possibly perhaps"). Parallel list items.
 - Facts only. If uncertain, say "unverified" and stop. Errors: report, don't apologise.
 - No closing summaries unless asked. Tool calls speak for themselves — do not narrate them.
-- Directives, not options: recommended action + one alternative.
+- Directives, not options: recommended action + one alternative. file:line refs.
 - No emojis. No exclamation marks.
+
+STE governs the STRUCTURE, not the meaning: never drop a fact or weaken a requirement to
+fit a rule. Keep the exact wording of a payload, a CLI command, a code identifier, or a
+quoted string — STE applies to prose, not to literals.
 
 In-conversation user instructions override this per turn.
 

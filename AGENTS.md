@@ -122,6 +122,13 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 **Returns:** Compact lead list (forms / endpoints / error strings / auth markers); no image tokens leave the sub-agent.
 **Constraint:** One screenshot per dispatch; OCR-first — only fall back to vision when OCR is insufficient.
 
+### ste-writer
+**Purpose:** Rewrite text into ASD-STE100 Simplified Technical English — short, unambiguous, controlled English for reports, tool descriptions, agent-to-agent messages, and error messages. Returns the rewritten text only.
+**When to dispatch:** The orchestrator has a report section, a finding write-up, or a message that must read clearly for a non-native reader or an AI agent, and wants it normalised to STE. Note: STE is already the default output style for all Praetor flows (project CLAUDE.md) — dispatch this agent only to rewrite EXISTING text in bulk.
+**Tools it should use:** none (pure text transform).
+**Returns:** The rewritten text only; no preamble, no summary. On "show the diff", a short list naming each STE rule applied.
+**Constraint:** Rewrites structure, not meaning — never drops a fact or weakens a requirement; keeps payloads, CLI commands, and code identifiers verbatim.
+
 ## Dispatch Rules
 
 1. **Never dispatch agents that make requests to the SAME endpoint simultaneously** — this can trigger WAF rate limiting and corrupt results.
