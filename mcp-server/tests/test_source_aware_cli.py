@@ -5,11 +5,16 @@ The old wrappers passed flags that do not exist (--output, --repo, --output-form
 (-r, -a, -l, --llm), Go support, and the text-report fallback.
 """
 
+import os
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
 from praetor.tools import source_aware as SA
+
+# A fake LLM key so the key pre-check passes and the CLI is built (the flag tests
+# care about the command, not the key).
+_KEYS = {"ANTHROPIC_API_KEY": "test", "OPENAI_API_KEY": "test"}
 
 
 def _fn(name):
@@ -27,6 +32,7 @@ class VulnhuntrCliTest(unittest.IsolatedAsyncioTestCase):
             return ('{"findings": []}', "", 0)   # JSON path
 
         with tempfile.TemporaryDirectory() as d, \
+             patch.dict(os.environ, _KEYS), \
              patch.object(SA, "_check_tool", return_value=True), \
              patch.object(SA, "_run_cmd", new=AsyncMock(side_effect=fake_run)):
             out = await _fn(tool)(repo_path=d, **kw)
@@ -57,11 +63,21 @@ class VulnhuntrCliTest(unittest.IsolatedAsyncioTestCase):
         async def fake_run(cmd, timeout=0, bypass_proxy=False):
             return ("scratchpad: ...\nconfidence_score: 8\nvulnerability_types: [RCE]", "", 0)
         with tempfile.TemporaryDirectory() as d, \
+             patch.dict(os.environ, _KEYS), \
              patch.object(SA, "_check_tool", return_value=True), \
              patch.object(SA, "_run_cmd", new=AsyncMock(side_effect=fake_run)):
             out = await _fn("run_vulnhuntr")(repo_path=d)
         self.assertEqual(out["format"], "text")       # not an error — report handed back
         self.assertIn("confidence_score", out["report"])
+
+    async def test_missing_llm_key_gives_clean_hint(self):
+        # No LLM key set -> clean hint, never a deep LLM-client failure.
+        with tempfile.TemporaryDirectory() as d, \
+             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "", "OPENAI_API_KEY": ""}, clear=False), \
+             patch.object(SA, "_check_tool", return_value=True):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            out = await _fn("run_vulnhuntr")(repo_path=d, llm="claude")
+        self.assertIn("ANTHROPIC_API_KEY not set", out["error"])
 
 
 class SteWriterAgentTest(unittest.IsolatedAsyncioTestCase):

@@ -20,11 +20,32 @@ W7 research (Praetor had no source-aware probe pipeline).
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from praetor.tools.recon._common import _check_tool, _run_cmd
+
+
+def _llm_key_hint(llm: str) -> str | None:
+    """Return a hint when the chosen LLM provider's key/endpoint is unset.
+
+    These two tools are OPTIONAL white-box enhancers, not the keyless core flow.
+    Report the missing key cleanly here instead of failing deep in the LLM client.
+    """
+    p = (llm or "claude").lower()
+    if p == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
+        return ("ANTHROPIC_API_KEY not set (required for llm='claude'). "
+                "export ANTHROPIC_API_KEY=... or pass llm='gpt' / 'ollama'. "
+                "This is an optional white-box tool; the core hunt loop needs no key.")
+    if p == "gpt" and not os.environ.get("OPENAI_API_KEY"):
+        return ("OPENAI_API_KEY not set (required for llm='gpt'). "
+                "export OPENAI_API_KEY=... or pass llm='claude'.")
+    if p == "ollama" and not os.environ.get("OLLAMA_BASE_URL"):
+        return ("OLLAMA_BASE_URL not set (required for llm='ollama'). "
+                "export OLLAMA_BASE_URL=http://127.0.0.1:11434.")
+    return None
 
 
 _XVULNHUNTR_HINT = (
@@ -143,6 +164,9 @@ def register(mcp: FastMCP) -> None:
             return {"error": f"language must be one of {sorted(_XVULN_LANGS)}"}
         if (llm or "claude").lower() not in _XVULN_LLMS:
             return {"error": f"llm must be one of {sorted(_XVULN_LLMS)}"}
+        key_hint = _llm_key_hint(llm)
+        if key_hint:
+            return {"error": key_hint, "tool": "xvulnhuntr"}
 
         cmd = ["xvulnhuntr", "-r", repo_path, "-l", lang.upper(), "--llm", llm.lower()]
         if analyze:
@@ -177,6 +201,9 @@ def register(mcp: FastMCP) -> None:
             return {"error": "vulnhuntr not installed", "hint": _VULNHUNTR_HINT}
         if (llm or "claude").lower() not in _VULN_LLMS:
             return {"error": f"llm must be one of {sorted(_VULN_LLMS)}"}
+        key_hint = _llm_key_hint(llm)
+        if key_hint:
+            return {"error": key_hint, "tool": "vulnhuntr"}
 
         cmd = ["vulnhuntr", "-r", repo_path, "-l", llm.lower()]
         if analyze:
