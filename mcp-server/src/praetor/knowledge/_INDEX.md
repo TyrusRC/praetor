@@ -297,6 +297,9 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | PayloadsAllTheThings | Every named injection class mapped. ZIP Slip, ARGV Injection, GraphQL engines added in 2026-05-22 pass. |
 | HackTricks Web | All major sections (path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, file upload, WebDAV) covered. |
 | HackTricks Cloud (anonymous-only) | First-phase external enum covered: cloud_storage_misconfig + cloud_function_url + cloud_api_gateway + kubernetes_exposed + anon_cloud_expansion (etcd/kubelet/Docker/Consul/Vault/Nomad/Spinnaker/Firebase/Firestore/Terraform) + ssrf cloud_metadata. Credentialed audit and active post-exploit added in W6: `run_prowler` / `run_scout_suite` / `run_cloudsploit` (audit); `run_pacu` (post-exploit, Rule 5 destructive denylist enforced). |
+| OWASP ASVS 5.0 (web verification) | All 17 chapters (V1 Encoding/Sanitization … V17 WebRTC) mapped in `standards_coverage(standard='asvs')` — the web vuln classes roll up by keyword (`_ASVS_KEYWORDS` in `tools/assurance/_standards.py`). A verification lens over the same KB; `coverage_status(standards=['asvs'])` shows tested vs untested chapters. |
+| OWASP AISVS 1.0 (AI verification) | All 12 chapters (C01 Training-Data … C12 Monitoring/Logging) mapped in `standards_coverage(standard='aisvs')` over the AI/LLM KB (ai_prompt_injection→C02, mcp_server_attacks→C10, a2a_protocol→C09, rag/vector_db/echoleak→C08, web_llm→C02). Distinct from the AI Testing Guide (`ai_testing`), which stays mapped too. |
+| OWASP MASVS v2 (mobile) | Already covered as the `mastg` framework — the 8 MASVS-v2 control groups (STORAGE/CRYPTO/AUTH/NETWORK/PLATFORM/CODE/RESILIENCE/PRIVACY). Not a gap. |
 
 ## 2026-05-24 W6 additions — Cloud / IaC / CI / Visual EASM / K8s active
 

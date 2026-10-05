@@ -90,6 +90,45 @@ STANDARDS: dict[str, dict[str, Any]] = {
             "DATA": "AI Data Testing",
         },
     },
+    "aisvs": {
+        "name": "OWASP AISVS 1.0",
+        "categories": {
+            "C01": "Training Data Integrity and Traceability",
+            "C02": "Input Validation",
+            "C03": "Model Lifecycle Management",
+            "C04": "Infrastructure",
+            "C05": "Access Control and Identity",
+            "C06": "Supply Chain",
+            "C07": "Model Behavior",
+            "C08": "Memory, Embeddings, and Vector Database",
+            "C09": "Orchestration and Agentic Action",
+            "C10": "MCP Security",
+            "C11": "Adversarial Robustness",
+            "C12": "Monitoring and Logging",
+        },
+    },
+    "asvs": {
+        "name": "OWASP ASVS 5.0",
+        "categories": {
+            "V1": "Encoding and Sanitization",
+            "V2": "Validation and Business Logic",
+            "V3": "Web Frontend Security",
+            "V4": "API and Web Service",
+            "V5": "File Handling",
+            "V6": "Authentication",
+            "V7": "Session Management",
+            "V8": "Authorization",
+            "V9": "Self-contained Tokens",
+            "V10": "OAuth and OIDC",
+            "V11": "Cryptography",
+            "V12": "Secure Communication",
+            "V13": "Configuration",
+            "V14": "Data Protection",
+            "V15": "Secure Coding and Architecture",
+            "V16": "Security Logging and Error Handling",
+            "V17": "WebRTC",
+        },
+    },
 }
 
 # The framework map still tags classes with OWASP Top 10 2021 codes; the 2025
@@ -189,6 +228,67 @@ _WSTG_KEYWORDS: dict[str, tuple[str, ...]] = {
     "IDNT": ("registration", "enumeration", "provisioning", "identity"),
 }
 
+# ASVS 5.0 has no per-class tag in the framework map, so roll classes up by
+# keyword (like MASVS/AI). Order matters — _keyword_category returns the FIRST
+# matching bucket, so narrower chapters (OAuth, tokens, WebRTC) precede broader
+# ones (authentication, injection). A class matching nothing stays untested.
+_ASVS_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "V17": ("webrtc", "turn_server", "stun", "sdp", "datachannel"),
+    "V10": ("oauth", "oidc", "openid", "pkce", "device_flow", "dpop"),
+    "V9": ("jwt", "self_contained_token", "jws", "jwe", "paseto", "saml"),
+    "V8": ("idor", "bola", "bfla", "bopla", "authz", "access_control", "privilege",
+           "priv_esc", "forced_browsing", "auth_bypass", "403_to_200", "tenant",
+           "mass_assignment"),
+    "V6": ("auth", "login", "password", "mfa", "otp", "lockout", "credential",
+           "passkey", "webauthn", "sso", "kerberos", "spnego"),
+    "V7": ("session", "cookie", "csrf", "logout", "fixation", "token_reuse"),
+    "V5": ("file_upload", "path_traversal", "lfi", "rfi", "zip_slip", "webdav",
+           "file_inclusion"),
+    "V4": ("api_", "graphql", "grpc", "rest", "openapi", "soap", "ssrf", "swagger"),
+    "V3": ("dom", "client_side", "postmessage", "cspp", "clickjack", "cors",
+           "csp_", "dangling_markup", "browser_storage", "websocket", "cswsh",
+           "tabnabbing", "xs_leak", "web_message", "css_injection"),
+    "V12": ("tls", "ssl", "cert", "hsts", "cleartext", "mixed_content", "starttls"),
+    "V11": ("crypto", "cipher", "hash", "padding_oracle", "weak_random", "hmac",
+            "ecb_", "cbc_bitflip", "nonce_reuse"),
+    "V15": ("supply_chain", "dependency", "deserial", "insecure_design",
+            "prototype", "component", "cve", "known_vuln", "actions_injection"),
+    "V16": ("logging", "error_handling", "stack_trace", "verbose_error",
+            "exception", "monitor", "audit", "alerting"),
+    "V14": ("data_exposure", "excessive_data", "pii", "sensitive_disclosure",
+            "info_disclosure", "data_leak", "disclosure"),
+    "V13": ("misconfig", "debug", "default_cred", "directory_listing", "exposed_",
+            "actuator", "options_method", "host_header"),
+    "V2": ("logic", "race", "workflow", "reorder", "idempotency", "quota",
+           "float_rounding", "business_flow", "validation", "second_order"),
+    "V1": ("sqli", "xss", "ssti", "xxe", "injection", "command", "cmdi", "ldap",
+           "xpath", "nosql", "template", "crlf", "header_injection", "hpp",
+           "parameter_pollution", "ognl", "el_injection", "ssi_", "latex"),
+}
+
+# AISVS 1.0 (C01-C12) keyword rollup over Praetor's AI/LLM vuln classes. Narrower
+# chapters (MCP, agentic, vector DB) precede broader ones (input validation).
+_AISVS_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "C10": ("mcp", "model_context_protocol", "tool_poison", "tool_description"),
+    "C09": ("agentic", "a2a", "agent_card", "orchestration", "excessive_agency",
+            "tool_call", "cua", "autonomous", "multi_agent"),
+    "C08": ("vector", "embedding", "rag", "pinecone", "weaviate", "chroma", "qdrant",
+            "memory_", "echoleak"),
+    "C02": ("prompt_injection", "indirect_injection", "jailbreak", "input_validation",
+            "system_prompt_leak", "encoding_bypass", "web_llm"),
+    "C07": ("model_behavior", "insecure_output", "hallucination",
+            "sensitive_disclosure", "output_handling", "data_exfil"),
+    "C11": ("adversarial", "evasion", "robustness", "membership_inference",
+            "inversion", "model_extraction"),
+    "C06": ("supply_chain", "model_poison", "plugin", "fine_tuning", "model_theft"),
+    "C01": ("training_data", "dataset", "data_poison", "provenance", "traceability"),
+    "C05": ("access_control", "identity", "api_key", "authz", "authentication"),
+    "C04": ("infrastructure", "infra", "resource_exhaust", "gpu", "sandbox"),
+    "C03": ("model_lifecycle", "model_management", "versioning", "deployment"),
+    "C12": ("monitoring", "logging", "audit", "gateway_blind", "observability",
+            "alerting"),
+}
+
 _COMPLIANCE_PATH = (
     Path(__file__).resolve().parent.parent.parent / "data" / "compliance_mappings.json"
 )
@@ -252,6 +352,14 @@ def category_of(standard: str, vuln_class: str) -> str | None:
             return ai
         return _keyword_category(_AI_KEYWORDS, vuln_class,
                                  STANDARDS["ai_testing"]["categories"])
+
+    if standard == "asvs":
+        return _keyword_category(_ASVS_KEYWORDS, vuln_class,
+                                 STANDARDS["asvs"]["categories"])
+
+    if standard == "aisvs":
+        return _keyword_category(_AISVS_KEYWORDS, vuln_class,
+                                 STANDARDS["aisvs"]["categories"])
 
     for code in _owasp_codes(vuln_class):
         # "A03:2021-Injection" -> "A03"; "API1:2023" -> "API1"

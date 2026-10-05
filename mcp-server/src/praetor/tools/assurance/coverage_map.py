@@ -140,7 +140,8 @@ def register(mcp: FastMCP) -> None:
 
         Args:
             domain: target in .burp-intel/<domain>/.
-            standards: subset of owasp_top10 / api_top10 / wstg (default: all three).
+            standards: subset of owasp_top10 / api_top10 / wstg / asvs / aisvs /
+                mastg / ai_testing (default: owasp_top10 + api_top10 + wstg).
         """
         stds = standards or ["owasp_top10", "api_top10", "wstg"]
         findings = load_intel(domain, "findings").get("findings", [])
@@ -161,7 +162,8 @@ def register(mcp: FastMCP) -> None:
 
         Args:
             domain: target in .burp-intel/<domain>/.
-            standard: one of owasp_top10, api_top10, wstg.
+            standard: one of owasp_top10, api_top10, wstg, asvs (ASVS 5.0),
+                aisvs (AISVS 1.0, AI), mastg (MASVS v2, mobile), ai_testing.
 
         Returns: {standard, coverage_pct, categories:{id:{name,tested,findings,status}}}.
         """
