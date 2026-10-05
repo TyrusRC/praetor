@@ -45,3 +45,7 @@ docs/superpowers/
 
 # Operator-local browser launch helper (Chrome+FoxyProxy -> Burp)
 launch-proxied-chrome.sh
+
+# dsh plugin fork (integrations/dsh) — Node deps + tsdown build output
+node_modules/
+integrations/dsh/**/lib/

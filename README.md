@@ -395,15 +395,16 @@ renders it. Two ways to see it as an interactive graph:
   **Force** layout toggle, header count chips, and **Security Graph / Operations /
   Findings / Assets / Report** tabs. **Just open the file in a browser.** No npm, no
   plugin, no server — it is Praetor's own page, not a dsh component.
-- **Inside dsh (native dsh-pentest tabs).** `engagement_graph(domain, format='dsh')`
-  returns `pentest_add_*` commands that populate **dsh-pentest's own** web view.
-  **Praetor ships no dsh plugin of its own** — it is a Python MCP server, so it cannot
-  provide a React UI inside dsh. This path renders only if you install the **separate
-  dsh-pentest plugins** (`@deepseek-ai/dsh-pentest` + `@deepseek-ai/dsh-client-ui-pentest`)
-  in dsh. To install them, follow [dsh-pentest's README](https://github.com/howmp/dsh-pentest)
-  (its own Cordis plugin rows, the same way you add the Praetor MCP row above). After the
-  plugins load, Praetor's `format='dsh'` output fills their view. If you just want the
-  graph, use the `html` path above — it needs no plugin.
+- **Inside dsh (native tab).** `engagement_graph(domain, format='dsh')` returns
+  `pentest_add_*` commands that populate a native dsh view. Praetor is a Python MCP
+  server, so it cannot render a React UI itself — a dsh plugin does that. Praetor ships
+  its **own fork** of the dsh plugin in [`integrations/dsh/`](integrations/dsh/):
+  `praetor-dsh-pentest` (the tools + projection) and `praetor-dsh-ui-pentest` (the view,
+  English-only, dark Wiz-style theme). You build it with `tsdown` and load it in dsh — then
+  `format='dsh'` fills the tab. It is a fork of [`howmp/dsh-pentest`](https://github.com/howmp/dsh-pentest)
+  (MIT) that you own and customize, so you do not depend on the upstream package. Any dsh
+  plugin couples to dsh's version; see the fork's README for the build, install, and
+  version notes. If you do not use dsh, use the `html` path above — it needs no plugin.
 
 **Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
 every tool's full schema into the model call at connect, because their MCP client has no
