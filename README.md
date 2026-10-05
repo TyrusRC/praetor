@@ -89,7 +89,7 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - Stealth headless browser ([CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — patched Chromium binary with source-level fingerprint fixes, not JS shims) that proxies through Burp.
 - Fast history queries: `get_proxy_count` (sub-ms), `since_index` tail polling, `host` exact-match filter, ByteArray in-place body search.
 - Persistent target memory with staleness detection and cross-target pattern reuse.
-- **Engagement-narrative graph**: a first-class `goal → intent → fact → finding → asset` lineage (`record_goal` / `record_intent` / `record_fact` / `link_finding` / `engagement_graph`) over `.burp-intel`, capturing the pre-finding reasoning the finding stores don't. `engagement_graph` renders text / Mermaid / JSON, or a `dsh` replay that mirrors into [`dsh-pentest`](https://github.com/howmp/dsh-pentest) — same vocabulary, so Praetor (the moves) and dsh-pentest (the map) interoperate on DeepSeek Harness.
+- **Engagement-narrative graph**: a first-class `goal → intent → fact → finding → asset` lineage (`record_goal` / `record_intent` / `record_fact` / `link_finding` / `engagement_graph`) over `.burp-intel`, capturing the pre-finding reasoning the finding stores don't. `engagement_graph` renders `text` / `mermaid` / `json`; a **standalone interactive `html` page** (`format='html'` → `reports/<domain>-engagement.html`: a Wiz-style cytoscape security graph with a Flow/Force layout toggle, header count chips, and Security-Graph / Operations / Findings / Assets / Report tabs — just open it in a browser, **no npm, no plugin, no server**); or a `dsh` replay that mirrors into [`dsh-pentest`](https://github.com/howmp/dsh-pentest)'s **native** view — same vocabulary, so Praetor (the moves) and dsh-pentest (the map) interoperate on DeepSeek Harness. The `dsh` path needs dsh-pentest's own npm plugin loaded in dsh; the `html` path is the plugin-free UI on any host. See [Viewing the engagement graph](#viewing-the-engagement-graph).
 - **Runs in any MCP host**: Claude Code, Codex, Gemini CLI, Antigravity, Cursor, Windsurf, VS Code, DeepSeek Harness — one stdio launch, per-host configs in [`examples/mcp-clients/`](examples/mcp-clients/). Everything Claude Code auto-loads from disk — the hunting/engineering rules, the project CLAUDE.md, the skill library, the workflow-launcher prompts, and the agent-team playbooks — is also exposed as **tools** (`praetor_bootstrap` → `get_rules` / `list_skills`+`get_skill` / `list_prompts`+`get_prompt` / `list_agents`+`get_agent`), so a host that bridges Tools-only (dsh, Codex, …) reaches the full operating context. Non-Claude hosts call `praetor_bootstrap()` first; a host that spawns its own sub-agents gives each one a `get_agent(<name>)` playbook and maps its `tier` to the nearest local model, exactly as Claude Code dispatches them.
 - Operator override surfaces for severity, scope filter, NEVER-SUBMIT class, confidence floor.
 - **Mobile lane (MASTG/MASVS)**: dynamic via Frida + adb (SSL-pinning / root-detection bypass, exported-component + deep-link abuse, `phone-control` device driver) and **static** via `mobile_decompile_apk` (jadx decompile → exported-component attack surface, risky manifest flags, secret/endpoint leads → SAST handoff to `run_opengrep_source`). Findings cite `apk_sha256` / `package_name` / Frida output.
@@ -100,7 +100,7 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - **Attack-path planning**: `plan_attack_paths` beam-searches confirmed findings to high-value objectives (RCE / cloud-cred theft / ATO / mass-PII), names the single missing capability on a near-miss (your next proof), and emits per-chain **severing controls** (the one remediation that breaks each hop) for the report.
 - **WAF/filter bypass**: `mutate_payload` (19 transform classes — keyword-internal SQL comments, MySQL versioned comments, SQL-whitespace alternatives, fullwidth-unicode/NFKC, overlong-UTF-8 path bytes, entity-without-semicolon, targeted double-encoding), plus `run_nomore403` / `run_byp4xx` / `probe_40x_bypass` for 403 bypass.
 - **Workspace reconcile**: `sync_workspace(domain)` re-aligns every derived `.burp-intel` file with the canonical `findings.json` — regenerates writeups, removes orphans, and surfaces drift (duplicates, missing evidence, MEDIUM+ with no impact, stale checkpoint/coverage refs) when a re-check disagrees with stored state.
-- **Coverage & checklists**: `coverage_status` (OWASP Top 10 / API / WSTG / MASTG / AI roll-up), `checklist` / `checklist_autotest` (per-item WSTG/AI/MASTG test tracking), `asset_role_matrix` (feature × role authz map).
+- **Coverage & checklists**: `coverage_status` / `standards_coverage` (tested-vs-untested roll-up against OWASP Top 10 / API Top 10 / WSTG / **ASVS 5.0** / **AISVS 1.0** / MASVS v2 / AI Testing Guide), `checklist` / `checklist_autotest` (per-item WSTG/AI/MASTG test tracking), `asset_role_matrix` (feature × role authz map).
 - **Credentials encrypted at rest**: the reuse store keeps secrets as Fernet ciphertext (never plaintext on disk), redacts every render, and surfaces the decryption-key location — usable for spray/auth, safe from a stray grep or accidental commit.
 
 ## Requirements
@@ -382,6 +382,26 @@ running **alongside dsh-pentest** (`engagement_graph(format='dsh')` mirrors Prae
 lineage into its live graph) — is in
 [`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md).
 
+#### Viewing the engagement graph
+
+Praetor records the engagement lineage (goal → intent → fact → finding → asset) with
+`record_goal` / `record_intent` / `record_fact` / `link_finding`; `engagement_graph`
+renders it. Two ways to see it as an interactive graph:
+
+- **Standalone HTML — recommended, works on every host (Claude Code, Codex, Gemini, …).**
+  `engagement_graph(domain, format='html')` writes
+  `.burp-intel/<domain>/reports/<domain>-engagement.html` — a self-contained Wiz-style
+  page (cytoscape.js from a CDN) with a **Flow** (left-to-right exploration chain) or
+  **Force** layout toggle, header count chips, and **Security Graph / Operations /
+  Findings / Assets / Report** tabs. **Just open the file in a browser.** No npm, no
+  plugin, no server — it is Praetor's own page, not a dsh component.
+- **Inside dsh (native dsh-pentest tabs).** `engagement_graph(domain, format='dsh')`
+  returns `pentest_add_*` commands that populate **dsh-pentest's own** web view. This
+  renders **only if the dsh-pentest plugins** (`@deepseek-ai/dsh-pentest` +
+  `@deepseek-ai/dsh-client-ui-pentest`) are installed in dsh — that is dsh's own npm
+  build. Praetor (Python) cannot ship a React UI, so without those plugins the commands
+  have nowhere to land. If you just want the graph, use the `html` path above.
+
 **Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
 every tool's full schema into the model call at connect, because their MCP client has no
 per-tool schema deferral; Claude Code defers schemas, so it is unaffected. On an eager
@@ -578,7 +598,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Subdomain takeover | `test_subdomain_takeover` — 129 vendor fingerprints (W8 nuclei merge) + DNS-only signal mode (W9: ElasticBeanstalk regional, Azure trafficmanager / azureedge / redis.cache.windows.net). DNS-only entries flag takeover when CNAME resolves but target hostname has no A record (skip body fingerprint match). See `.claude/skills/recon-takeover.md`. |
 | Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
 | Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
-| Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset); `engagement_graph(format='dsh')` mirrors into dsh-pentest |
+| Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset). `engagement_graph(format='html')` = a standalone interactive Wiz-style page (Flow/Force layout, count chips, Security-Graph/Operations/Findings/Assets/Report tabs — open in a browser, no plugin); `format='dsh'` mirrors into dsh-pentest's native view (needs its npm plugin). See [Viewing the engagement graph](#viewing-the-engagement-graph). |
 | Host-parity bridge (cross-host) | `praetor_bootstrap` (call first on a non-Claude host), `get_rules` (`hunting`/`engineering`/`project`), `list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent`, `list_knowledge`/`get_knowledge` — everything Claude Code auto-loads from disk, exposed as tools for any MCP host |
 | Context & profiles | `get_profile` (active vs gated lanes), `run_tool` (run any gated tool + auto-enable its lane — a lane pivot never blocks), `use_lane` (re-advertise a lane) — `PRAETOR_PROFILE` advertises only the lanes an eager host needs |
 | Observability | `harness_log` (universal tool-call ledger — every call timed, secret-free), `get_operation_log` (Burp-call ledger), `verify_operation_log` |
@@ -641,6 +661,9 @@ The adaptive scan engine reads JSON files from `mcp-server/src/praetor/knowledge
 | OWASP LLM Top 10 (2025) | 9 / 10 (LLM09 misinformation out-of-scope for active testing) |
 | OWASP Mobile Top 10 (2024) | Application surface covered (deep-link, WebView, mobile API, payments). M5 insecure comms handled by the `mobile-dynamic-agent` Frida pinning bypass; M7 binary protections out-of-scope. |
 | OWASP WSTG (Web Security Testing Guide) | All sections — information gathering, configuration, identity, authentication, authorization, session, input validation, error handling, cryptography, business logic, client-side, API |
+| OWASP ASVS 5.0 (verification) | All 17 chapters (V1 Encoding/Sanitization … V17 WebRTC) as a coverage lens — `standards_coverage(standard='asvs')` / `coverage_status(standards=['asvs'])` |
+| OWASP AISVS 1.0 (AI verification) | All 12 chapters (C01 Training-Data … C12 Monitoring/Logging), mapping the AI/LLM KB — `standards_coverage(standard='aisvs')`. Distinct from the AI Testing Guide lens |
+| OWASP MASVS v2 (mobile verification) | All 8 control groups (STORAGE / CRYPTO / AUTH / NETWORK / PLATFORM / CODE / RESILIENCE / PRIVACY) — `standards_coverage(standard='mastg')` |
 | PayloadsAllTheThings | Every named injection / abuse class mapped, including ZIP Slip, argument injection, GraphQL engine-specific |
 | HackTricks Web | Path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, WebDAV, file upload |
 | HackTricks Cloud | Anonymous external surface covered: object storage misconfig (S3 / GCS / Azure Blob / R2 / B2 / Spaces / OCI / MinIO), function URLs (Lambda / Cloud Run / Cloud Functions / Azure / OpenFaaS), API gateway (AWS / GCP / Azure APIM / Kong / KrakenD / Tyk), Kubernetes (kubelet / kube-apiserver / etcd / dashboard / ArgoCD / Tekton / Rancher / Portainer / registries). Credential-based privesc (Pacu class) out-of-scope per operator policy. |
