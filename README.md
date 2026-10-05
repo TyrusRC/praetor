@@ -396,11 +396,14 @@ renders it. Two ways to see it as an interactive graph:
   Findings / Assets / Report** tabs. **Just open the file in a browser.** No npm, no
   plugin, no server — it is Praetor's own page, not a dsh component.
 - **Inside dsh (native dsh-pentest tabs).** `engagement_graph(domain, format='dsh')`
-  returns `pentest_add_*` commands that populate **dsh-pentest's own** web view. This
-  renders **only if the dsh-pentest plugins** (`@deepseek-ai/dsh-pentest` +
-  `@deepseek-ai/dsh-client-ui-pentest`) are installed in dsh — that is dsh's own npm
-  build. Praetor (Python) cannot ship a React UI, so without those plugins the commands
-  have nowhere to land. If you just want the graph, use the `html` path above.
+  returns `pentest_add_*` commands that populate **dsh-pentest's own** web view.
+  **Praetor ships no dsh plugin of its own** — it is a Python MCP server, so it cannot
+  provide a React UI inside dsh. This path renders only if you install the **separate
+  dsh-pentest plugins** (`@deepseek-ai/dsh-pentest` + `@deepseek-ai/dsh-client-ui-pentest`)
+  in dsh. To install them, follow [dsh-pentest's README](https://github.com/howmp/dsh-pentest)
+  (its own Cordis plugin rows, the same way you add the Praetor MCP row above). After the
+  plugins load, Praetor's `format='dsh'` output fills their view. If you just want the
+  graph, use the `html` path above — it needs no plugin.
 
 **Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
 every tool's full schema into the model call at connect, because their MCP client has no
