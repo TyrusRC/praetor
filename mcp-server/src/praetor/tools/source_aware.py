@@ -28,24 +28,30 @@ from mcp.server.fastmcp import FastMCP
 from praetor.tools.recon._common import _check_tool, _run_cmd
 
 
-def _llm_key_hint(llm: str) -> str | None:
-    """Return a hint when the chosen LLM provider's key/endpoint is unset.
+_PROVIDER_OF = {"claude": "anthropic", "gpt": "openai", "ollama": "ollama"}
 
-    These two tools are OPTIONAL white-box enhancers, not the keyless core flow.
-    Report the missing key cleanly here instead of failing deep in the LLM client.
+
+def _llm_key_hint(llm: str) -> str | None:
+    """Resolve the LLM key via the unified config; return a hint when unset.
+
+    Honors the provider-agnostic PRAETOR_LLM_* config (praetor.tools._llm) AND the
+    native vars (ANTHROPIC_API_KEY / OPENAI_API_KEY / OLLAMA_BASE_URL). These two
+    tools are OPTIONAL white-box enhancers, not the keyless core flow, so report a
+    clean hint instead of failing deep in the LLM client. On success, populate the
+    native var the external tool reads from the resolved config.
     """
-    p = (llm or "claude").lower()
-    if p == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
-        return ("ANTHROPIC_API_KEY not set (required for llm='claude'). "
-                "export ANTHROPIC_API_KEY=... or pass llm='gpt' / 'ollama'. "
-                "This is an optional white-box tool; the core hunt loop needs no key.")
-    if p == "gpt" and not os.environ.get("OPENAI_API_KEY"):
-        return ("OPENAI_API_KEY not set (required for llm='gpt'). "
-                "export OPENAI_API_KEY=... or pass llm='claude'.")
-    if p == "ollama" and not os.environ.get("OLLAMA_BASE_URL"):
-        return ("OLLAMA_BASE_URL not set (required for llm='ollama'). "
-                "export OLLAMA_BASE_URL=http://127.0.0.1:11434.")
-    return None
+    from praetor.tools import _llm
+    provider = _PROVIDER_OF.get((llm or "claude").lower(), (llm or "").lower())
+    cfg = _llm.resolve_llm(preferred=provider)
+    if cfg.ok:
+        if provider == "anthropic" and cfg.api_key:
+            os.environ.setdefault("ANTHROPIC_API_KEY", cfg.api_key)
+        elif provider == "openai" and cfg.api_key:
+            os.environ.setdefault("OPENAI_API_KEY", cfg.api_key)
+        elif provider == "ollama" and cfg.base_url:
+            os.environ.setdefault("OLLAMA_BASE_URL", cfg.base_url)
+        return None
+    return cfg.reason + " — optional white-box tool; the core hunt loop needs no key."
 
 
 _XVULNHUNTR_HINT = (

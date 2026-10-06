@@ -517,6 +517,25 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `JIRA_URL` / `JIRA_USER` / `JIRA_TOKEN` | — | `push_finding_to_tracker(tracker='jira')` — base URL + basic-auth |
 | `SIEM_WEBHOOK_URL` / `SIEM_WEBHOOK_TOKEN` | — | `send_finding_to_siem` — collector URL + optional bearer |
 | `HIBP_API_KEY` | — | `hibp_breach_lookup` account queries (domain queries need no key) |
+| `PRAETOR_LLM_PROVIDER` | inferred | LLM for the analysis tools: `openai` / `anthropic` / `ollama` / `google`(gemini) / `deepseek` / `qwen` / `zhipu` / `moonshot` / `groq` / `openrouter` / `together` / `mistral` / `openai-compat` |
+| `PRAETOR_LLM_API_KEY` | — | unified LLM key (fallback: the provider native var, e.g. `OPENAI_API_KEY` / `GEMINI_API_KEY` / `DEEPSEEK_API_KEY`) |
+| `PRAETOR_LLM_BASE_URL` | provider default | endpoint — **required** for `openai-compat` / self-hosted models |
+| `PRAETOR_LLM_MODEL` | provider default | model id |
+| `PRAETOR_LLM_SYSTEM` / `PRAETOR_LLM_TEMPERATURE` | — / `0.0` | response style (system prompt + randomness) |
+| `VT_API_KEY` | — | `vt_lookup` (VirusTotal, free public API) |
+| `SHODAN_API_KEY` | — | `shodan_host` full API (keyless InternetDB works without it) |
+| `OTX_API_KEY` / `GREYNOISE_API_KEY` / `ABUSEIPDB_API_KEY` | — | `otx_lookup` / `greynoise_lookup` / `abuseipdb_lookup` (all free tier) |
+| `URLSCAN_API_KEY` | — | `urlscan_search` rate-limit only (search is keyless) |
+
+**Where do API keys go, and are they required?** Every key above is **optional** — the
+core hunt loop (recon, `auto_probe`, the `test_*`/`probe_*` orchestrators, network/AD,
+browser) runs with **no key**. Keys only turn on optional enhancers (LLM source SAST,
+threat-intel OSINT, egress/reporting). Put them where your host passes env to the MCP
+server: the `env` block of your client config — Codex `~/.codex/config.toml`
+(`[mcp_servers.praetor.env]`), Claude `.mcp.json` / `~/.claude.json`, dsh `cordis.yml`
+`env:` — or a `.env` file next to the server. `llm_status()` and `ti_status()` report
+which keys are live (the key value is shown as a shape, never raw). Copy `.env.example`
+for the full list and where to get each free key.
 
 Ghostwriter auth precedence: **admin-secret → API token → username/password login**. With neither secret set, Praetor logs in to Ghostwriter's `login` action with `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` (default `praetor`/`praetor`) and mints/refreshes a JWT itself — so a fresh instance with a `praetor` account works with only `GHOSTWRITER_URL` + `GHOSTWRITER_OPLOG_ID` set.
 
@@ -591,6 +610,8 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
 | Burp control & utility | `burp_settings` (scope / intercept on-off + read / match-replace / options JSON export-import / task-engine pause-resume), `send_to_organizer` + `get_organizer_items` (write & read Burp's Organizer), `decode_encode`, `generate_random_string` |
 | Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
+| Threat-intel / OSINT (free-tier) | `shodan_host` (Shodan exposure — **keyless** InternetDB, richer with `SHODAN_API_KEY`), `urlscan_search` (**keyless** related-URL/infra discovery), `vt_lookup` (VirusTotal reputation), `otx_lookup` (AlienVault OTX passive-DNS/malware), `greynoise_lookup` (scanner-vs-targeted triage), `abuseipdb_lookup` (IP abuse score), `ti_status` (which keys are live) |
+| LLM analysis config | `llm_status` (resolved provider/model) — provider-agnostic config for the source-SAST tools; OpenAI / Anthropic / Ollama / Gemini / DeepSeek / Qwen / Zhipu / Moonshot / any OpenAI-compatible or self-hosted endpoint |
 | Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_vhost_fuzz` (ffuf virtual-host discovery via Burp), `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
 | Secrets & SAST | `run_gitleaks`, `run_trufflehog`, `run_opengrep_source`, `inventory_source_routes`, `dump_exposed_git`, `extract_js_secrets`, `suggest_finding_owner` (CODEOWNERS + git-blame attribution of a source finding, for remediation routing) |
 | SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_retirejs` (client-side JS library → CVE), `run_poutine`, `run_octoscan`, `run_cosign_verify` |

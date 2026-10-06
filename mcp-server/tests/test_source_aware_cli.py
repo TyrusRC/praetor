@@ -77,7 +77,8 @@ class VulnhuntrCliTest(unittest.IsolatedAsyncioTestCase):
              patch.object(SA, "_check_tool", return_value=True):
             os.environ.pop("ANTHROPIC_API_KEY", None)
             out = await _fn("run_vulnhuntr")(repo_path=d, llm="claude")
-        self.assertIn("ANTHROPIC_API_KEY not set", out["error"])
+        self.assertIn("no API key", out["error"])
+        self.assertIn("ANTHROPIC_API_KEY", out["error"])
 
 
 class SteWriterAgentTest(unittest.IsolatedAsyncioTestCase):

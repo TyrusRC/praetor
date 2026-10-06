@@ -71,6 +71,8 @@ from praetor.tools import (
     lane_control,
     decide,
     code_owners,
+    llm_config,
+    threat_intel,
 )
 
 mcp = FastMCP(
@@ -171,6 +173,8 @@ offline.register(mcp)  # analyze_artifact — offline artifact analysis (raw req
 router.register(mcp)   # signal->tool auto-routing (Balanced policy; ask-gates red-team/cloud/exploit)
 decide.register(mcp)   # JEV-style typed+calibrated decision envelope (run/ask/escalate/report/keep_testing/stop) over route_signals + judge_completion
 code_owners.register(mcp)  # suggest_finding_owner — CODEOWNERS + git-blame attribution of a source finding (codex-security parity)
+llm_config.register(mcp)   # llm_status — provider-agnostic LLM config (OpenAI/Anthropic/Ollama/compat) for the analysis tools
+threat_intel.register(mcp) # vt_lookup / shodan_host / ti_status — VirusTotal + Shodan OSINT enrichment (keyless-first)
 evidence.register(mcp) # curate_evidence / audit_history_noise (history is read-only; curate+audit, not prune)
 assurance.register(mcp) # standards_coverage heatmap, generate_posture_dashboard, generate_compliance_report
 hub.register(mcp)       # set_remediation / remediation_status (SLA+MTTR) + import_scan_results (nuclei/nessus dedup-merge)
