@@ -1,5 +1,6 @@
 """Recon pipeline: orchestrates subfinder → katana → nuclei in sequence."""
 
+import json
 import os
 
 from mcp.server.fastmcp import FastMCP
@@ -113,39 +114,37 @@ def register(mcp: FastMCP):
 
         lines.append("")
 
-        # Step 4: Nuclei scan per live host
-        if depth in ("standard", "deep") and _check_tool("nuclei"):
-            templates_dir = os.path.expanduser("~/nuclei-templates")
-            if not os.path.isdir(templates_dir) or len(os.listdir(templates_dir)) < 5:
-                lines.append("[4/4] Downloading nuclei templates...")
-                await _run_cmd(["nuclei", "-ut"], timeout=120)
-
-            lines.append(f"[4/4] Running nuclei against {len(live_hosts)} hosts...")
-            # Nuclei accepts -l with a list file; simpler to pass multiple -u flags inline
-            cmd = ["nuclei", "-silent", "-no-color", "-as", "-duc",
-                   "-H", f"User-Agent: {_USER_AGENT}",
-                   "-rl", "100", "-c", "25", "-bs", "10", "-timeout", "10", "-mhe", "10"]
+        # Step 4: deep scan per live host with assay (the web-scan engine).
+        if depth in ("standard", "deep") and _check_tool("assay"):
+            profile = "thorough" if depth == "deep" else "quick"
+            # Share the step's time budget across hosts so the whole step stays
+            # within `timeout`.
+            per_host = max(60, timeout // max(1, len(live_hosts)))
+            lines.append(
+                f"[4/4] Running assay ({profile}) against {len(live_hosts)} hosts...")
+            total = 0
             for host_url in live_hosts:
-                cmd.extend(["-u", host_url])
-            if use_proxy:
-                # Nuclei v3 dropped -insecure; HTTPS through Burp MITM needs
-                # Burp CA in the system trust store.
-                cmd.extend(["-proxy", BURP_PROXY_URL])
-            if depth == "standard":
-                cmd.extend(["-severity", "critical,high"])
-
-            stdout, stderr, code = await _run_cmd(cmd, timeout)
-            if stdout.strip():
-                findings_raw = [l.strip() for l in stdout.strip().split("\n") if l.strip()]
-                lines.append(f"  {len(findings_raw)} findings:")
-                for fr in findings_raw[:30]:
-                    lines.append(f"    {fr}")
-                if len(findings_raw) > 30:
-                    lines.append(f"    ... +{len(findings_raw) - 30} more")
-            else:
-                lines.append("  No findings from nuclei")
+                cmd = ["assay", "scan", host_url, "--json",
+                       "--profile", profile, "--timeout", f"{per_host}s"]
+                if use_proxy:
+                    cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
+                stdout, _stderr, _code = await _run_cmd(
+                    cmd, per_host + 30, bypass_proxy=not use_proxy)
+                fs = []
+                if stdout.strip():
+                    try:
+                        fs = (json.loads(stdout).get("scan_result") or {}).get("findings") or []
+                    except ValueError:
+                        fs = []
+                for fdg in fs[:20]:
+                    sev = str(fdg.get("severity", "?")).upper()
+                    name = fdg.get("title") or fdg.get("type") or "?"
+                    lines.append(f"    [{sev}] {name} → {fdg.get('url', '')}")
+                total += len(fs)
+            lines.append(f"  {total} findings across {len(live_hosts)} hosts")
         elif depth in ("standard", "deep"):
-            lines.append("[4/4] nuclei not installed — use auto_probe as alternative")
+            lines.append("[4/4] assay not installed — use auto_probe as alternative "
+                         "(build: go build -o ~/go/bin/assay ./cmd/assay)")
         else:
             lines.append("[4/4] Skipped (quick mode)")
 

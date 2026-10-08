@@ -94,7 +94,7 @@ class W29ToolRegistration(unittest.IsolatedAsyncioTestCase):
             "probe_postmessage_listeners",
             "analyze_csp",
             "probe_sse_injection",
-            "run_nuclei_llm_infra",
+            "scan_llm_infra",
             "probe_kerberos_spnego_auth",
             "probe_mcp_jsonrpc_methods",
         }
@@ -149,7 +149,7 @@ class W29PickToolRouting(unittest.IsolatedAsyncioTestCase):
 
     async def test_nuclei_llm_routes(self):
         out = await self._route("nuclei llm infra sweep")
-        self.assertIn("run_nuclei_llm_infra", out)
+        self.assertIn("scan_llm_infra", out)
 
     async def test_kerberos_routes(self):
         out = await self._route("kerberos auth detect")

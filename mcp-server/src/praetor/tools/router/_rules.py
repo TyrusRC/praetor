@@ -21,13 +21,14 @@ HARD_DENY = ["DROP TABLE", "rm -rf", "shutdown", "format ", "DELETE FROM",
 
 IMPACT_WEIGHT = {
     "run_sqlmap": 90, "test_ssti": 90, "run_commix": 88, "run_dalfox": 70,
-    "run_wpscan": 60, "run_nuclei": 55, "crack_jwt_secret": 50,
+    "run_wpscan": 60, "run_assay": 60, "crack_jwt_secret": 50,
     "auto_probe": 40, "scan_url": 80, "run_network_tool": 85,
     "run_prowler": 80, "run_scout_suite": 75, "run_azurehound": 82,
 }
 
-# nuclei tag mapping by detected tech (targeted, not all templates)
-_NUCLEI_TAGS = {
+# Known web-tech signals that warrant a deep engine scan (assay auto-detects the
+# stack itself, so these just gate WHEN the rule fires).
+_WEB_TECH_TAGS = {
     "wordpress": "wordpress,wp-plugin", "php": "php", "asp.net": "aspx,iis",
     "java": "java,spring", "nginx": "nginx", "apache": "apache",
     "nodejs": "nodejs,express", "django": "django", "laravel": "laravel",
@@ -48,9 +49,9 @@ def _baseline_when(sigs):
             and s.get("target") not in covered]
 
 
-def _nuclei_when(sigs):
+def _web_tech_when(sigs):
     return [s for s in sigs if s["type"] == "tech"
-            and s["value"].lower() in _NUCLEI_TAGS]
+            and s["value"].lower() in _WEB_TECH_TAGS]
 
 
 ROUTING_TABLE = [
@@ -63,12 +64,11 @@ ROUTING_TABLE = [
      "rationale": "WordPress detected -> wpscan",
      "when": lambda s: _tech(s, "wordpress"),
      "fire": lambda s: [{"tool": "run_wpscan", "args": {"url": s.get("target", "")}}]},
-    {"id": "tech_nuclei", "policy": "auto",
-     "rationale": "tech-targeted nuclei tags (not all templates)",
-     "when": _nuclei_when,
-     "fire": lambda s: [{"tool": "run_nuclei",
-                         "args": {"target": s.get("target", ""),
-                                  "tags": _NUCLEI_TAGS[s["value"].lower()]}}]},
+    {"id": "tech_engine", "policy": "auto",
+     "rationale": "known web tech -> assay deep context-aware scan (default engine; auto-detects tech)",
+     "when": _web_tech_when,
+     "fire": lambda s: [{"tool": "run_assay",
+                         "args": {"target": s.get("target", "")}}]},
     {"id": "reflection_xss", "policy": "auto",
      "rationale": "reflection -> dalfox on the param",
      "when": lambda s: _type(s, "reflection"),

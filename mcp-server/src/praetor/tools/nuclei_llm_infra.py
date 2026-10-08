@@ -1,13 +1,14 @@
-"""run_nuclei_llm_infra — pre-filtered nuclei sweep for LLM/AI/MCP infrastructure (W29-h).
+"""scan_llm_infra — pre-filtered sweep for LLM/AI/MCP infrastructure (W29-h).
 
 nuclei-templates v10.4.x (April-May 2026) pushed a massive AI/ML attack-
 surface drop: RCE/SSRF/file-read on Marimo / Flowise / Langflow / LiteLLM /
 LMDeploy / NocoBase / Mesop / AstrBot / Gradio / AnythingLLM + panel detect
 for 19 AI/ML platforms.
 
-This wrapper around `run_nuclei` ships a curated tag set so the operator
-doesn't have to remember every framework name. Single call gets RCE +
-panel + sensitive-file leak across the whole LLM stack.
+It runs the nuclei LLM/AI/MCP templates behind a curated tag set so the operator
+doesn't have to remember every framework name. Single call gets RCE + panel +
+sensitive-file leak across the whole LLM stack. (The general web-scan engine is
+run_assay; this tool stays on the specialised nuclei AI template collection.)
 
 Coverage:
   - LLM serving stacks: ollama, lmstudio, openllm, vllm, llama-cpp, lmdeploy,
@@ -60,7 +61,7 @@ _LLM_INFRA_TAGS = ",".join([
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
-    async def run_nuclei_llm_infra(  # cost: expensive (external)
+    async def scan_llm_infra(  # cost: expensive (external)
         target: str,
         severity: str = "medium,high,critical",
         extra_tags: str = "",

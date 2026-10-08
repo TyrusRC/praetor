@@ -174,7 +174,7 @@ _WSTG_TESTS: list[tuple[str, str]] = [
 _WSTG_PREFIX_TO_CAT = {"INJT": "INPV"}
 _WSTG_TOOL_BY_CAT = {
     "INFO": "browser_crawl / run_katana / discover_attack_surface / detect_tech_stack",
-    "CONF": "run_nuclei / discover_common_files / test_host_header",
+    "CONF": "run_assay / discover_common_files / test_host_header",
     "IDNT": "test_login_bypass / discover_hidden_parameters",
     "ATHN": "test_login_bypass / test_rate_limit / test_mfa_bypass",
     "ATHZ": "test_auth_matrix / compare_auth_states",

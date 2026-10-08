@@ -4,7 +4,7 @@ Tools split across submodules by purpose:
   - inventory: check_recon_tools, probe_hosts
   - subdomain: run_subfinder
   - crawling: run_katana
-  - scanning: run_nuclei, run_dalfox, run_ffuf, run_sqlmap
+  - scanning: run_assay, run_dalfox, run_ffuf, run_sqlmap
   - pipeline: run_recon_pipeline
 
 These are the HTTP-based recon tools: they route through Burp's proxy (where

@@ -4,7 +4,7 @@ Split from the original monolithic ``recon/scanning.py``. Tools grouped by
 recon family:
   - subdomain:   run_amass
   - dirbust:     run_ffuf, run_arjun
-  - vuln_scan:   run_nuclei, run_dalfox, run_commix, run_sqlmap,
+  - vuln_scan:   run_assay, run_dalfox, run_commix, run_sqlmap,
                  run_nikto, run_wpscan, generate_deserialization_gadget
   - dns_intel:   run_wafw00f, run_httpx
   - archive:     run_gau

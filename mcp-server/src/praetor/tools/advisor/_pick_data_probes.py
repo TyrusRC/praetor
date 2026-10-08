@@ -49,8 +49,8 @@ _PROBES = [
     # W29-h: nuclei LLM infra sweep
     (["nuclei llm", "nuclei ai templates", "nuclei mcp templates",
       "scan llm infra", "llm framework sweep", "marimo flowise langflow nuclei",
-      "nuclei ollama anythingllm"], "run_nuclei_llm_infra",
-     "run_nuclei_llm_infra(target='https://app.example.com', severity='medium,high,critical')"),
+      "nuclei ollama anythingllm"], "scan_llm_infra",
+     "scan_llm_infra(target='https://app.example.com', severity='medium,high,critical')"),
     # W29-j: SPNEGO / Kerberos / NTLM detection
     (["kerberos auth", "spnego auth", "ntlm auth", "ntlmv2 auth",
       "negotiate www-authenticate", "enterprise auth gateway",

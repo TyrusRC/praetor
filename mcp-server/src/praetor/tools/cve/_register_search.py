@@ -55,7 +55,6 @@ def register(mcp: FastMCP) -> None:
             lines.append(f"  NVD Detail: https://nvd.nist.gov/vuln/detail/{query}")
 
         if tech:
-            tag = tech.lower().split("/")[0].split(" ")[0]
-            lines.append(f"  nuclei: run_nuclei(target=TARGET, tags='{tag}')")
+            lines.append("  engine: run_assay(target=TARGET)  # auto-detects tech")
 
         return "\n".join(lines)

@@ -56,7 +56,7 @@ class TestReconScanningShim(unittest.TestCase):
         scanning.register(StubMcp())
 
         expected = {
-            "run_nuclei",
+            "run_assay",
             "run_dalfox",
             "run_commix",
             "run_sqlmap",

@@ -143,7 +143,7 @@ def register(mcp: FastMCP) -> None:
             ],
             "network_lane": [
                 "run_network_recon(target)  — discover -> service enum -> leads -> auto-loot -> web-lane bridge",
-                "run_nmap / run_httpx / run_nuclei / run_ffuf / run_subfinder / run_network_tool(...)  — external CLIs, all driven through Praetor",
+                "run_nmap / run_httpx / run_assay / run_ffuf / run_subfinder / run_network_tool(...)  — external CLIs, all driven through Praetor",
                 "network actions bypass Burp and cite an operator-log id, not a proxy index",
             ],
             "mobile_lane": [

@@ -174,7 +174,7 @@ def register(mcp: FastMCP):
         if not is_pro:
             lines.append("")
             lines.append("COMMUNITY EDITION — workarounds when Pro-only tools are unavailable:")
-            lines.append("  - Active scan          → auto_probe + run_nuclei + run_dalfox + run_sqlmap")
+            lines.append("  - Active scan          → auto_probe + run_assay + run_dalfox + run_sqlmap")
             lines.append("  - Collaborator (OOB)   → use a public DNS-wildcard provider (interact.sh) and watch with poll loops")
             lines.append("  - Crawl                → browser_crawl + run_katana (both work on Community)")
             lines.append("  - Logger++             → get_proxy_history + get_mcp_history")
