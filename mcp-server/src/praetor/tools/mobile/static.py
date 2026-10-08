@@ -5,7 +5,7 @@ MASTG (MASVS-CODE / MASVS-STORAGE) wants the decompiled sources and the manifest
 reviewed. This decompiles an APK with jadx, extracts the exported-component
 attack surface + risky manifest flags, and greps the Java for hardcoded
 secrets/endpoints as LEADS. For a full SAST pass over the output, run
-`run_opengrep_source(<out>/sources)` on the decompiled tree — this tool does not
+`run_mantis(<out>/sources)` on the decompiled tree — this tool does not
 duplicate that engine (single concern).
 
 All work is local/offline (no target traffic); nothing routes through Burp.
@@ -214,7 +214,7 @@ def register(mcp: FastMCP) -> None:
         `jadx` to recover Java sources + AndroidManifest, then reports the
         exported-component attack surface, risky manifest flags (debuggable /
         allowBackup / cleartext), declared permissions, and hardcoded
-        secret/endpoint leads. For deep SAST run `run_opengrep_source` on the
+        secret/endpoint leads. For deep SAST run `run_mantis` on the
         `<out>/sources` tree. Local/offline — no target traffic.
 
         Args:
@@ -286,7 +286,7 @@ def register(mcp: FastMCP) -> None:
         for e in endpoints[:30]:
             lines.append(f"    {e}")
 
-        lines.append(f"\n  Next: run_opengrep_source('{src_root}') for full SAST; "
+        lines.append(f"\n  Next: run_mantis('{src_root}') for full SAST; "
                      "Frida-hook the exported components dynamically.")
         return "\n".join(lines)
 
@@ -362,6 +362,6 @@ def register(mcp: FastMCP) -> None:
         lines.append(f"\n  Endpoints ({len(endpoints)} unique, first 30):")
         for e in endpoints[:30]:
             lines.append(f"    {e}")
-        lines.append(f"\n  Next: run_opengrep_source('{app}') over the bundle; "
+        lines.append(f"\n  Next: run_mantis('{app}') over the bundle; "
                      "fuzz the URL schemes with mobile_deeplink; Frida-hook at runtime.")
         return "\n".join(lines)

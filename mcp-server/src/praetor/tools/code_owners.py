@@ -4,7 +4,7 @@ codex-security parity: its "suggest owners from source and Git history" is the o
 defensive-governance feature Praetor's white-box source lane lacked. Given a file
 (and optional line) in a source tree, resolve who owns it — CODEOWNERS path rules
 (GitHub-style, last matching rule wins) and the `git blame` author of the line — so
-a SAST / source-chain finding (run_opengrep_source, run_vulnhuntr, source_aware,
+a SAST / source-chain finding (run_mantis, run_vulnhuntr, source_aware,
 inventory_source_routes) routes to the right person: attach it to the finding, or
 assign the push_finding_to_tracker issue to that owner. Read-only (git blame +
 CODEOWNERS file read); never writes.

@@ -31,7 +31,7 @@ def register(mcp: FastMCP):
             "waybackurls": "Wayback Machine URL extraction",
             "amass": "Subdomain enumeration (active + passive)",
             "wpscan": "WordPress vulnerability scanner",
-            "opengrep": "SAST engine (Semgrep fork) — audit_crawled_artifacts / run_opengrep_source",
+            "opengrep": "SAST engine (Semgrep fork) — audit_crawled_artifacts / run_mantis",
             "gitleaks": "Git history secret detection",
             "trufflehog": "Secret detection + live verification (800+ detectors)",
             "git-dumper": "Reconstruct .git from exposed dir listing (chains with discover_common_files)",

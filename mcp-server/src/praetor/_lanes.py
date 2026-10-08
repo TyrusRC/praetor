@@ -108,7 +108,7 @@ _TOOL_LANE = {
     "check_recon_tools": CORE,
     # analysis pkg is web, but this one is a source SAST scanner — group it with
     # the other scanners so a `scanners`/`cloud` profile actually carries it.
-    "run_opengrep_source": "scanners",
+    "run_mantis": "scanners",
 }
 
 # named profiles -> the optional lanes they enable (core is always on).

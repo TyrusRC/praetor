@@ -13,7 +13,7 @@ from praetor.tools import (
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
-    source_aware, benchmark, mobile, cua_probe, sast_handoff, pyexploit,
+    source_aware, mantis_audit, benchmark, mobile, cua_probe, sast_handoff, pyexploit,
     http3_probe, local_llm, mcptox, expedition,
     web_llm_sweep, grpc_probe, saml_xsw_probe, dns_rebind_probe,
     postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
@@ -200,7 +200,8 @@ knowledge_access.register(mcp) # list_knowledge / get_knowledge — KB probe-cla
 lane_control.register(mcp)     # run_tool / use_lane — reach + auto-promote profile-gated tools so a mid-engagement lane pivot never blocks (core, always advertised)
 mutate.register(mcp)           # mutate_payload — bypass-variant generator (encoding/case/comment/null/whitespace/quote rotation/length-pad)
 secrets.register(mcp)          # gitleaks / trufflehog / git-dumper wrappers — secret leakage + .git exposure chain
-analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies) + run_opengrep_source (repo SAST)
+analysis.register(mcp)         # opengrep static audit — audit_crawled_artifacts (proxy bodies); repo SAST is run_mantis
+mantis_audit.register(mcp)     # run_mantis — source-audit engine (OpenGrep + multi-engine + dedup + optional LLM triage/deep); replaced run_opengrep_source
 security.register(mcp)         # prompt-injection guardrail + destructive-command tripwire (operator-policy)
 exploit.register(mcp)          # confirm_* tools — exploit-to-confirm with tool-layer destructive denylist (rm/DROP/useradd hard-refused; reverse shells / LOLBAS SOC-loud warn-and-allow)
 auth.register(mcp)             # advanced auth attacks — forge_jwt / crack_jwt_secret (native, no jwt_tool dep) / test_session_lifecycle / test_login_bypass / test_mfa_bypass / analyze_reset_tokens

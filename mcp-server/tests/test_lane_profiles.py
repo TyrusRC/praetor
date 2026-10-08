@@ -36,7 +36,7 @@ class LaneClassificationTest(unittest.TestCase):
         self.assertEqual(_lanes.tool_lane("easm_monitor_loop", "praetor.tools.easm._x"), "recon_ext")
         self.assertEqual(_lanes.tool_lane("visual_easm_diff", "praetor.tools.visual_easm"), "recon_ext")
         # source SAST scanner grouped with the other scanners, not left in web.
-        self.assertEqual(_lanes.tool_lane("run_opengrep_source", "praetor.tools.analysis.opengrep_source"), "scanners")
+        self.assertEqual(_lanes.tool_lane("run_mantis", "praetor.tools.mantis_audit"), "scanners")
         # a sibling in the same analysis pkg keeps the package default (web).
         self.assertEqual(_lanes.tool_lane("audit_crawled_artifacts", "praetor.tools.analysis.opengrep_audit"), "web")
 

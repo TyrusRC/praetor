@@ -111,7 +111,7 @@ class ToolTest(unittest.TestCase):
         self.assertIn("PublicActivity", report)          # exported surface
         self.assertIn("RISKY MANIFEST FLAGS", report)     # debuggable
         self.assertIn("google_api_key", report)           # secret lead
-        self.assertIn("run_opengrep_source", report)       # SAST handoff
+        self.assertIn("run_mantis", report)                # SAST handoff
 
 
 class IpaAnalysisTest(unittest.TestCase):
