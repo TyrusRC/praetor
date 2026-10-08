@@ -447,6 +447,33 @@ else
     fi
 fi
 
+# ── Nuclei templates: Praetor custom set ────────────────────────────
+# run_assay (and nuclei) load these. The custom set is cloned into the user
+# data dir run_assay auto-detects ($HOME/.local/share/praetor/custom-nuclei-templates;
+# override the list with PRAETOR_ASSAY_TEMPLATES). Default nuclei store
+# (~/nuclei-templates) is fetched on first nuclei/assay run.
+CUSTOM_TPL_DIR="$HOME/.local/share/praetor/custom-nuclei-templates"
+if has git; then
+    if [ -d "$CUSTOM_TPL_DIR/.git" ]; then
+        info "Updating custom nuclei templates..."
+        git -C "$CUSTOM_TPL_DIR" pull --ff-only >/dev/null 2>&1 \
+            && ok "custom nuclei templates updated ($CUSTOM_TPL_DIR)" \
+            || warn "custom templates update failed — pull manually in $CUSTOM_TPL_DIR"
+    elif [ -d "$CUSTOM_TPL_DIR" ]; then
+        warn "custom templates dir exists but is not a git clone — leaving as-is ($CUSTOM_TPL_DIR)"
+    else
+        info "Cloning custom nuclei templates (TyrusRC/custom-nuclei-templates)..."
+        mkdir -p "$(dirname "$CUSTOM_TPL_DIR")"
+        if git clone --depth 1 https://github.com/TyrusRC/custom-nuclei-templates.git "$CUSTOM_TPL_DIR" >/dev/null 2>&1; then
+            ok "custom nuclei templates cloned ($CUSTOM_TPL_DIR)"
+        else
+            warn "custom templates clone failed — clone manually: git clone https://github.com/TyrusRC/custom-nuclei-templates.git \"$CUSTOM_TPL_DIR\""
+        fi
+    fi
+else
+    warn "git not found — skipping custom nuclei templates (run_assay auto-detects $CUSTOM_TPL_DIR when present)"
+fi
+
 # ── Praetor v1.0 SAST + secrets layer ──
 echo ""
 info "Praetor v1.0 — installing SAST + secrets layer (core)..."
