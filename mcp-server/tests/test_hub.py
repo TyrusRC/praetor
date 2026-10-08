@@ -129,6 +129,36 @@ class TestImporter(unittest.TestCase):
         with self.assertRaises(EntitiesForbidden):
             self.imp.parse_nessus(_NESSUS_XXE)
 
+    def test_burp_rows_normalizes_and_drops_info(self):
+        items = [
+            {"name": "SQL injection", "severity": "High",
+             "base_url": "https://x/a", "detail": "evidence"},
+            {"name": "Info leak", "severity": "Information", "base_url": "https://x/b"},
+        ]
+        rows = self.imp._burp_rows(items)
+        self.assertEqual(len(rows), 1)  # Information dropped
+        self.assertEqual(rows[0]["source"], "burp")
+        self.assertEqual(rows[0]["severity"], "high")
+        self.assertEqual(rows[0]["endpoint"], "https://x/a")
+
+    def test_apply_rows_writes_store(self):
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                rows = self.imp.parse_assay(_ASSAY_JSON)   # one real finding
+                res = self.imp._apply_rows("t.com", rows)
+                self.assertEqual(res["created"], 1)
+                import json as _json
+                stored = _json.loads(
+                    open(os.path.join(d, ".burp-intel", "t.com", "findings.json")).read())
+                self.assertEqual(len(stored["findings"]), 1)
+                self.assertTrue(stored["findings"][0]["id"].startswith("f"))
+            finally:
+                os.chdir(cwd)
+
     def test_merge_imported_dedupes(self):
         existing = []
         row = {"title": "SQLi", "vuln_type": "sqli", "endpoint": "/api",
