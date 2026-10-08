@@ -247,6 +247,28 @@ Install-UvTool 'commix'
 Install-UvTool 'wafw00f'
 Install-UvTool 'arjun'
 
+# Custom nuclei templates (TyrusRC/custom-nuclei-templates) — cloned into the
+# user data dir run_assay auto-detects (~/.local/share/praetor/... expands to
+# $USERPROFILE\.local\share\praetor\custom-nuclei-templates on Windows).
+$CustomTplDir = Join-Path $env:USERPROFILE '.local\share\praetor\custom-nuclei-templates'
+if (Has-Command 'git') {
+    if (Test-Path (Join-Path $CustomTplDir '.git')) {
+        Info "Updating custom nuclei templates..."
+        & git -C $CustomTplDir pull --ff-only 2>&1 | Out-Null
+        Ok "custom nuclei templates updated ($CustomTplDir)"
+    } elseif (Test-Path $CustomTplDir) {
+        Warn "custom templates dir exists but is not a git clone - leaving as-is ($CustomTplDir)"
+    } else {
+        Info "Cloning custom nuclei templates (TyrusRC/custom-nuclei-templates)..."
+        New-Item -ItemType Directory -Force -Path (Split-Path $CustomTplDir) | Out-Null
+        & git clone --depth 1 https://github.com/TyrusRC/custom-nuclei-templates.git $CustomTplDir 2>&1 | Out-Null
+        if (Test-Path (Join-Path $CustomTplDir '.git')) { Ok "custom nuclei templates cloned ($CustomTplDir)" }
+        else { Warn "custom templates clone failed - clone manually into $CustomTplDir" }
+    }
+} else {
+    Warn "git not found - skipping custom nuclei templates (run_assay auto-detects $CustomTplDir when present)"
+}
+
 # ════════════════════════════════════════════════════════════════════
 # PHASE 4: Generate .mcp.json
 # ════════════════════════════════════════════════════════════════════
