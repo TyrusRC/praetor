@@ -1,3 +1,5 @@
+import os
+
 from mcp.server.fastmcp import FastMCP
 from ._shared import (
     BURP_PROXY_URL,
@@ -8,6 +10,29 @@ from ._shared import (
     wrap_untrusted,
 )
 
+# Nuclei template stores assay loads alongside its native detectors.
+# PRAETOR_ASSAY_TEMPLATES (os.pathsep-separated dirs) overrides; otherwise the
+# default nuclei store and the operator's custom-nuclei-templates clone are
+# auto-included when present on disk.
+_DEFAULT_TEMPLATE_DIRS = (
+    "~/nuclei-templates",
+    "~/.local/share/praetor/custom-nuclei-templates",
+)
+
+
+def _assay_template_dirs(extra: list[str] | None = None) -> list[str]:
+    """Resolve the existing template dirs to hand assay (deduped), from
+    PRAETOR_ASSAY_TEMPLATES or the default store + custom clone, plus `extra`."""
+    env = os.getenv("PRAETOR_ASSAY_TEMPLATES", "").strip()
+    candidates = (env.split(os.pathsep) if env else list(_DEFAULT_TEMPLATE_DIRS))
+    candidates += list(extra or [])
+    dirs: list[str] = []
+    for c in candidates:
+        c = os.path.expanduser(c.strip())
+        if c and os.path.isdir(c) and c not in dirs:
+            dirs.append(c)
+    return dirs
+
 
 def register(mcp: FastMCP):
     @mcp.tool()
@@ -16,6 +41,7 @@ def register(mcp: FastMCP):
         profile: str = "normal",
         rate: float = 0.0,
         scope_host: str = "",
+        templates: list[str] | None = None,
         use_proxy: bool = True,
         timeout: int = 600,
     ) -> str:
@@ -33,6 +59,10 @@ def register(mcp: FastMCP):
             profile: quick | normal | thorough | passive (default normal)
             rate: Cap outbound requests per second (0 = unlimited)
             scope_host: Restrict traffic to these hosts (comma-separated; '*.x.com' wildcard). Empty = no host restriction
+            templates: Extra nuclei template dirs/files to load. The default nuclei
+                store (~/nuclei-templates) and the custom-nuclei-templates clone
+                (~/.local/share/praetor/custom-nuclei-templates) are auto-included
+                when present; PRAETOR_ASSAY_TEMPLATES (os.pathsep dirs) overrides.
             use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 600)
         """
@@ -50,6 +80,8 @@ def register(mcp: FastMCP):
                 h = h.strip()
                 if h:
                     cmd.extend(["--scope-host", h])
+        for tdir in _assay_template_dirs(templates):
+            cmd.extend(["--templates", tdir])
         if use_proxy:
             # assay routes through Burp and trusts Burp's MITM cert with -k.
             cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
