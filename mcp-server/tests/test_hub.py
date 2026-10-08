@@ -61,6 +61,14 @@ _NUCLEI_JSONL = (
     '"host":"https://app.example.com","matched-at":"https://app.example.com"}\n'
 )
 
+_ASSAY_JSON = (
+    '{"tool":"assay","scan_result":{"findings":['
+    '{"type":"SQL Injection","severity":"Critical","url":"https://app.example.com/item",'
+    '"parameter":"id","description":"error-based SQLi","cwe":["CWE-89"]},'
+    '{"type":"Server Version Disclosure","severity":"Info","url":"https://app.example.com/"}'
+    ']},"summary":{}}'
+)
+
 _NESSUS_XML = """<?xml version="1.0"?>
 <NessusClientData_v2><Report name="scan"><ReportHost name="10.0.0.5">
 <ReportItem port="443" svc_name="www" severity="3" pluginName="SQL Injection">
@@ -89,6 +97,22 @@ class TestImporter(unittest.TestCase):
         self.assertEqual(f["endpoint"], "https://app.example.com/api")
         self.assertEqual(f["source"], "nuclei")
         self.assertEqual(f["status"], "suspected")
+
+    def test_parse_assay_maps_and_drops_info(self):
+        rows = self.imp.parse_assay(_ASSAY_JSON)
+        # the Info-severity row is dropped; one real finding
+        self.assertEqual(len(rows), 1)
+        f = rows[0]
+        self.assertEqual(f["severity"], "critical")
+        self.assertEqual(f["endpoint"], "https://app.example.com/item")
+        self.assertEqual(f["parameter"], "id")
+        self.assertEqual(f["source"], "assay")
+        self.assertEqual(f["status"], "suspected")
+        # vuln_type derives from the class name, not the description
+        self.assertTrue(f["vuln_type"])
+
+    def test_detect_format_assay(self):
+        self.assertEqual(self.imp._detect_format("x.json", _ASSAY_JSON), "assay")
 
     def test_parse_nessus_maps_and_drops_info(self):
         rows = self.imp.parse_nessus(_NESSUS_XML)

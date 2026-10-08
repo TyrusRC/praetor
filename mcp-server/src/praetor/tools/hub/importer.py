@@ -258,8 +258,41 @@ def parse_zap(text: str) -> list[dict]:
     return out
 
 
+def parse_assay(text: str) -> list[dict]:
+    """assay --json export -> finding dicts. Drops info/unknown severity.
+
+    assay emits one JSON object: {tool, scan_result: {findings: [...]}, ...}.
+    Each finding's `type` is the canonical class (SQL Injection, IDOR, ...),
+    so it drives vuln_type for dedup; the description goes to evidence.
+    """
+    out: list[dict] = []
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return out
+    scan_result = doc.get("scan_result") or {}
+    for row in scan_result.get("findings") or []:
+        sev = str(row.get("severity", "")).lower()
+        if sev not in _REAL_SEV:
+            continue
+        endpoint = row.get("url") or ""
+        klass = row.get("type") or row.get("title") or "finding"
+        out.append(
+            _finding(
+                klass,
+                sev,
+                endpoint,
+                "assay",
+                parameter=row.get("parameter") or "",
+                evidence=row.get("description") or row.get("evidence") or row.get("request") or "",
+            )
+        )
+    return out
+
+
 _PARSERS = {
     "nuclei": parse_nuclei,
+    "assay": parse_assay,
     "nessus": parse_nessus,
     "sarif": parse_sarif,
     "burp": parse_burp_xml,
@@ -283,14 +316,18 @@ def _detect_format(path: str, text: str) -> str:
             return "openvas"
         return ""
     if sniff.startswith("{"):
-        # ZAP is a single JSON object with a top-level "site"; nuclei is JSONL
-        # (multiple objects, so a whole-text parse fails -> nuclei).
+        # assay/ZAP are single JSON objects; nuclei is JSONL (multiple objects,
+        # so a whole-text parse fails -> nuclei). assay has tool=="assay" or a
+        # "scan_result" key; ZAP has a top-level "site".
         try:
             obj = json.loads(head)
         except ValueError:
             obj = None
-        if isinstance(obj, dict) and "site" in obj:
-            return "zap"
+        if isinstance(obj, dict):
+            if obj.get("tool") == "assay" or "scan_result" in obj:
+                return "assay"
+            if "site" in obj:
+                return "zap"
         return "nuclei"
     if low.endswith(".jsonl") or low.endswith(".json"):
         return "nuclei"
@@ -318,8 +355,8 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Import a scanner export into a domain's findings (dedup-merged).
 
-        Supported fmt: nuclei (JSONL), nessus (.nessus XML), sarif (JSON),
-        burp (issues XML), openvas (GVM XML), zap (JSON), or 'auto'.
+        Supported fmt: assay (JSON), nuclei (JSONL), nessus (.nessus XML),
+        sarif (JSON), burp (issues XML), openvas (GVM XML), zap (JSON), or 'auto'.
         Imported findings enter as status='suspected' with a `source` tag —
         verify before reporting. Returns {parsed, created, updated, by_severity}.
         """
