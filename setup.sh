@@ -481,6 +481,19 @@ info "Praetor v1.0 — installing SAST + secrets layer (core)..."
 install_pd_tool "opengrep" \
     "curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
 
+# ── Praetor engines: mantis (source-audit) + centurion (mobile) ──────
+# mantis backs run_mantis (needs opengrep, installed above). centurion is the
+# mobile engine, loaded as a companion MCP server alongside praetor (see
+# examples/mcp-clients/claude-code.mcp.json); its device/static binaries (jadx,
+# frida, apkid, objection, class-dump, ...) are detected on demand.
+# Installed from git until published to PyPI (mantis dist = mantis-sast; centurion
+# dist name TBD — 'centurion' is taken on PyPI). Switch to `uv tool install <name>`
+# once published.
+install_pd_tool "mantis" \
+    "uv tool install 'git+https://github.com/TyrusRC/mantis.git'"
+install_pd_tool "centurion-mcp" \
+    "uv tool install 'git+https://github.com/TyrusRC/centurion.git'"
+
 # gitleaks — the module still declares the legacy zricethezav path (the
 # gitleaks/gitleaks path fails "declares its path as ... but was required as").
 install_pd_tool "gitleaks" \

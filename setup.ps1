@@ -247,6 +247,19 @@ Install-UvTool 'commix'
 Install-UvTool 'wafw00f'
 Install-UvTool 'arjun'
 
+# Praetor engines, installed from git: mantis (run_mantis source-audit; needs
+# opengrep on PATH) and centurion (mobile engine, loaded as a companion MCP
+# server alongside praetor — see examples/mcp-clients/claude-code.mcp.json).
+function Install-GitTool([string]$name, [string]$url) {
+    if (Has-Command $name) { Ok "$name already installed"; return }
+    Info "Installing $name (git)..."
+    & uv tool install $url 2>&1 | Out-Null
+    if (Has-Command $name) { Ok "$name installed" }
+    else { Warn "$name install failed - retry: uv tool install $url" }
+}
+Install-GitTool 'mantis'        'git+https://github.com/TyrusRC/mantis.git'
+Install-GitTool 'centurion-mcp' 'git+https://github.com/TyrusRC/centurion.git'
+
 # Custom nuclei templates (TyrusRC/custom-nuclei-templates) — cloned into the
 # user data dir run_assay auto-detects (~/.local/share/praetor/... expands to
 # $USERPROFILE\.local\share\praetor\custom-nuclei-templates on Windows).

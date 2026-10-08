@@ -11,6 +11,14 @@
         "BURP_API_HOST": "127.0.0.1",
         "BURP_API_PORT": "8111"
       }
+    },
+    "centurion": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/TyrusRC/centurion.git",
+        "centurion-mcp"
+      ]
     }
   }
 }

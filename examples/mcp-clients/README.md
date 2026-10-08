@@ -69,3 +69,13 @@ codex  mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git
   regardless of what is loaded. A host that spawns its own sub-agents (e.g. dsh) gives each one
   a playbook with `get_agent(<name>)` and maps its `tier` (strategic / standard / fast) to the
   nearest local model, exactly as Claude Code dispatches them.
+
+## Mobile engine — centurion (companion server)
+
+Praetor's native `mobile_*` lane (Burp-routed, operator-log-backed) is the core. For
+the full OWASP MASTG toolset — iOS binary static (class-dump / otool / ldid /
+frida-ios-dump), Android apkid / apkleaks / apksigner, and drozer / objection — load
+[`centurion`](https://github.com/TyrusRC/centurion) as a **companion MCP server**
+alongside praetor (its tools appear under `mcp__centurion__*`). `setup.sh` / `setup.ps1`
+install it from git; `claude-code.mcp.json` shows both servers in one `mcpServers` block.
+Add the same `centurion` entry to any other host's config the same way you add praetor.
