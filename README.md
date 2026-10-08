@@ -16,7 +16,7 @@ Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any 
 - **Web lane (Burp):** HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), and native vuln-class orchestrators. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
 - **Network / red-team lane:** advanced network recon and post-exploitation that Burp can't see — `run_network_recon` (a chained discover → service-aware enum → leads pipeline), `run_nmap`, a sanctioned runner for impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm, offline cracking (`crack_hashes`), and a reusable **credential store**. Every action is recorded in a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody** — the non-Burp evidence a red-team report cites in place of a Logger index.
 
-Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (nuclei/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core. Supporter lanes (**mobile** — MASTG/Frida/jadx; **cloud** — prowler/scout-suite/pacu; **LLM/AI + MCP** — prompt-injection / tool-poisoning) plug into the same evidence model.
+Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (assay/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core. Supporter lanes (**mobile** — MASTG/Frida/jadx; **cloud** — prowler/scout-suite/pacu; **LLM/AI + MCP** — prompt-injection / tool-poisoning) plug into the same evidence model.
 
 ## Table of Contents
 
@@ -77,7 +77,7 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10 (Web / API / LLM / Mobile), OWASP WSTG, PayloadsAllTheThings, HackTricks Web + Cloud — see the [Coverage](#coverage) table.
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
 - Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
-- Third-party wrappers proxied through Burp: sqlmap, dalfox, commix, nuclei, ffuf, katana, subfinder, amass, wafw00f, arjun, gau, waybackurls, wpscan, nikto.
+- External scan engines + wrappers proxied through Burp: assay (the default web-scan engine), sqlmap, dalfox, commix, ffuf, katana, subfinder, amass, wafw00f, arjun, gau, waybackurls, wpscan, nikto.
 - **Network / red-team lane**: `run_network_recon` chains nmap discovery → service-aware enumeration → prioritized leads → auto-loot, and bridges discovered web services back to Burp. A sanctioned runner drives impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm; `crack_hashes` (offline hashcat/john) plus a credential store close the capture → crack → reuse loop. Every action is logged to a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody**, and forwards to **Ghostwriter**. HARD safety (Rules 5–9) refuses destructive/brute args; scope is engagement-mode-aware.
 - **SAST + secrets layer (v1.0)**: `audit_crawled_artifacts` opengrep-over-proxy-bodies (DOM clobbering / proto pollution / postMessage), `run_opengrep_source` source-tree SAST, `run_gitleaks` + `run_trufflehog` (live verification = HIGH severity floor), `dump_exposed_git` chains with `discover_common_files` `.git/HEAD` to reconstruct repo + extract secrets. Noir OpenAPI ingest via `import_scope --format noir_json`.
 - **Active LLM/MCP probes (v1.0)**: `ai_prompt_injection`, `rag_injection`, `mcp_server_attacks`, `mcp_tool_poisoning`, `vector_db_injection`, `echoleak` (CVE-2025-32711). Declarative prompt-injection guardrail (`inspect_for_prompt_injection`).
@@ -110,7 +110,7 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - Burp Suite Professional or Community Edition — web lane
 - Java 21+, Python 3.11+ with [uv](https://docs.astral.sh/uv/), Go (for the ProjectDiscovery tools)
 - An MCP-aware LLM client (Claude Code, Claude Desktop, etc.)
-- **Web tools** (core, not optional): nuclei, ffuf, sqlmap, katana, subfinder, dalfox, httpx, amass, gau, waybackurls, wpscan, nikto, opengrep, gitleaks, trufflehog
+- **Web tools** (core, not optional): assay (default web-scan engine), ffuf, sqlmap, katana, subfinder, dalfox, httpx, amass, gau, waybackurls, wpscan, nikto, opengrep, gitleaks, trufflehog
 - **Network / red-team tools** (core, not optional): nmap, netexec, impacket-scripts, responder, bloodhound-python, certipy, kerbrute, enum4linux-ng, smbmap, evil-winrm, hashcat, john, gobuster, seclists
 - **Docker + Docker Compose** — for the Ghostwriter reporting hub
 
@@ -397,14 +397,14 @@ renders it. Two ways to see it as an interactive graph:
   plugin, no server — it is Praetor's own page, not a dsh component.
 - **Inside dsh (native tab).** `engagement_graph(domain, format='dsh')` returns
   `pentest_add_*` commands that populate a native dsh view. Praetor is a Python MCP
-  server, so it cannot render a React UI itself — a dsh plugin does that. Praetor ships
-  its **own fork** of the dsh plugin in [`integrations/dsh/`](integrations/dsh/):
-  `praetor-dsh-pentest` (the tools + projection) and `praetor-dsh-ui-pentest` (the view,
-  English-only, dark Wiz-style theme). You build it with `tsdown` and load it in dsh — then
-  `format='dsh'` fills the tab. It is a fork of [`howmp/dsh-pentest`](https://github.com/howmp/dsh-pentest)
-  (MIT) that you own and customize, so you do not depend on the upstream package. Any dsh
-  plugin couples to dsh's version; see the fork's README for the build, install, and
-  version notes. If you do not use dsh, use the `html` path above — it needs no plugin.
+  server, so it cannot render a React UI itself — a dsh plugin does that. Use the upstream
+  [`@howmp/dsh-pentest`](https://github.com/howmp/dsh-pentest) bundle: one published npm
+  plugin carrying the host tools and the **Assets / Findings / Explore / Report** web tab.
+  Praetor's `pentest_add_*` tool names and the `pentest` projection key match it exactly,
+  so `format='dsh'` fills the tab with no fork to build or keep in sync. Load the bundle in
+  dsh the normal way, run the hunt loop, then call `engagement_graph(format='dsh')`. Any
+  dsh plugin couples to dsh's version. If you do not use dsh, use the `html` path above —
+  it is Praetor's own page and needs no plugin.
 
 **Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
 every tool's full schema into the model call at connect, because their MCP client has no
@@ -609,7 +609,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
 | Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
 | Burp control & utility | `burp_settings` (scope / intercept on-off + read / match-replace / options JSON export-import / task-engine pause-resume), `send_to_organizer` + `get_organizer_items` (write & read Burp's Organizer), `decode_encode`, `generate_random_string` |
-| Recon (third-party) | `run_subfinder`, `run_httpx`, `run_nuclei`, `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
+| Recon (third-party) | `run_subfinder`, `run_httpx`, `run_assay` (default web-scan engine), `run_katana`, `run_dnsx`, `run_tlsx`, `run_naabu`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
 | Threat-intel / OSINT (free-tier) | `shodan_host` (Shodan exposure — **keyless** InternetDB, richer with `SHODAN_API_KEY`), `urlscan_search` (**keyless** related-URL/infra discovery), `vt_lookup` (VirusTotal reputation), `otx_lookup` (AlienVault OTX passive-DNS/malware), `greynoise_lookup` (scanner-vs-targeted triage), `abuseipdb_lookup` (IP abuse score), `ti_status` (which keys are live) |
 | LLM analysis config | `llm_status` (resolved provider/model) — provider-agnostic config for the source-SAST tools; OpenAI / Anthropic / Ollama / Gemini / DeepSeek / Qwen / Zhipu / Moonshot / any OpenAI-compatible or self-hosted endpoint |
 | Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_vhost_fuzz` (ffuf virtual-host discovery via Burp), `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
@@ -617,7 +617,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_retirejs` (client-side JS library → CVE), `run_poutine`, `run_octoscan`, `run_cosign_verify` |
 | IaC / container config | `run_checkov`, `run_tfsec`, `run_terrascan`, `run_hadolint` |
 | Cloud / Kubernetes | `run_prowler`, `run_scout_suite`, `run_cloudsploit`, `run_pacu`, `run_gcp_scanner`, `run_azurehound`, `enum_public_buckets` (anonymous S3 / Azure blob / GCS enumeration, read-only), `run_kube_hunter`, `run_kubescape`, `run_kubeletctl`, `run_kdigger`, `run_peirates` |
-| LLM / AI red-team | `discover_llm_endpoint`, `run_garak`, `run_pyrit_orchestrator`, `run_web_llm_owasp_top10`, `run_owasp_asi_top10`, `run_nuclei_llm_infra`, `run_local_llm_prompt_injection` |
+| LLM / AI red-team | `discover_llm_endpoint`, `run_garak`, `run_pyrit_orchestrator`, `run_web_llm_owasp_top10`, `run_owasp_asi_top10`, `scan_llm_infra`, `run_local_llm_prompt_injection` |
 | MCP / agent security | `enumerate_mcp_server`, `run_mcp_scan`, `run_mcptox`, `probe_mcp_server_attacks`, `detect_mcp_schema_drift`, `inspect_for_prompt_injection`, `scan_claude_code_project_hooks` |
 | Metasploit | `msf_search`, `msf_check`, `msf_exploit`, `msf_payload_gen`, `msfrpc_login`, `msfrpc_module_execute` |
 | Subdomain takeover | `test_subdomain_takeover` — 129 vendor fingerprints (W8 nuclei merge) + DNS-only signal mode (W9: ElasticBeanstalk regional, Azure trafficmanager / azureedge / redis.cache.windows.net). DNS-only entries flag takeover when CNAME resolves but target hostname has no A record (skip body fingerprint match). See `.claude/skills/recon-takeover.md`. |
@@ -632,7 +632,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
 | Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
 | Report evidence | `burp_screenshot` (GUI capture + tab/sub-tab/row/click nav + auto-redaction), `auto_redact_screenshot`, `redact_screenshot`, `attach_screenshot`, `screenshot_gallery`, `export_poc_bundle` |
-| Findings hub & egress | `import_scan_results` (nuclei / nessus / SARIF / Burp XML / OpenVAS / ZAP → dedup-merge), `push_finding_to_tracker` (GitHub / GitLab / Jira issue, creds via env), `send_finding_to_siem` (webhook / CEF egress), `set_remediation`, `remediation_status` |
+| Findings hub & egress | `import_scan_results` (assay / nuclei / nessus / SARIF / Burp XML / OpenVAS / ZAP → dedup-merge), `merge_scan` (assay + Burp Pro scanner → one deduped stream), `push_finding_to_tracker` (GitHub / GitLab / Jira issue, creds via env), `send_finding_to_siem` (webhook / CEF egress), `set_remediation`, `remediation_status` |
 | **Fuzzing (lane)** | `fuzz_upload` (structure-aware mutation-upload — valid seeds + format dictionaries for PNG/JPEG/GIF/WebP/PDF/SVG/ZIP, `afl-fuzz`→`radamsa`→in-process engine, uploads through Burp, classifies parser anomalies vs baseline; bounded + DoS-confirm-gated), `assess_cve_exploitability` (exploitable-here verdict over the CVE chain — KEV/EPSS + live precondition + adapted benign PoC; memory-corruption CVEs route to the AFL bridge), `afl_build_harness` (afl-cc/afl-clang-fast + ASan/UBSan/CmpLog), `afl_fuzz_target` (bounded coverage-guided campaign, auto seed corpus + dictionary), `triage_crashes` (sanitizer-report exploitability rubric — LIKELY-EXPLOITABLE/MEDIUM/BENIGN, stack-hash dedup, afl-tmin, crash→upload server-side confirm). Benign-PoC only. Skill: `.claude/skills/fuzz-upload.md` |
 | **Network recon (lane)** | `run_network_recon` (chained discover→enum→leads pipeline), `run_nmap` (advanced: `scan_type` syn/ack/fin/null/xmas/udp/connect, NSE scripts, timing/retry/delay tuning, OS/service detect — with ACK firewall-map, FIN/NULL/XMAS OS inference, and packet-corroboration guidance; skill: `.claude/skills/network-scan-techniques.md`), `get_network_inventory` |
 | **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch / mitm6 / roadrecon + roadtx (Entra/Azure AD) / sccmhunter (SCCM/MECM)) |
