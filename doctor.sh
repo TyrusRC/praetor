@@ -312,7 +312,7 @@ check_recon dig        "sudo apt install dnsutils # or: brew install bind / scoo
 # ── SAST + secrets + Noir layer ──
 check_recon opengrep   "brew install opengrep                              # or: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
 check_recon mantis     "uv tool install 'git+https://github.com/TyrusRC/mantis.git'   # source-audit engine (run_mantis; needs opengrep)"
-check_recon centurion-mcp "uv tool install 'git+https://github.com/TyrusRC/centurion.git'   # mobile engine (companion MCP server)"
+check_recon centurion-mcp "uv tool install 'git+https://github.com/TyrusRC/centurion.git'   # core mobile engine (companion MCP server)"
 check_recon gitleaks   "brew install gitleaks                              # or: go install github.com/gitleaks/gitleaks/v8@latest"
 check_recon trufflehog "brew install trufflehog                            # or: go install github.com/trufflesecurity/trufflehog/v3@latest"
 check_recon git-dumper "pipx install git-dumper                            # or: pip install git-dumper"

@@ -522,8 +522,9 @@ install_pd_tool "opengrep" \
     "curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
 
 # ── Praetor engines: mantis (source-audit) + centurion (mobile) ──────
-# mantis backs run_mantis (needs opengrep, installed above). centurion is the
-# mobile engine, loaded as a companion MCP server alongside praetor (see
+# Both are CORE, not optional. mantis backs run_mantis (needs opengrep, installed
+# above). centurion is the core mobile engine, loaded as a companion MCP server
+# alongside praetor (separate server for device/MASTG depth — see
 # examples/mcp-clients/claude-code.mcp.json); its device/static binaries (jadx,
 # frida, apkid, objection, class-dump, ...) are detected on demand.
 # Installed from git until published to PyPI (mantis dist = mantis-sast; centurion
