@@ -576,6 +576,42 @@ Ghostwriter auth precedence: **admin-secret → API token → username/password 
 
 The Java extension also accepts JVM system properties `praetor.proxy.host` and `praetor.proxy.port` (highest precedence). `./setup-ghostwriter.sh` writes the `GHOSTWRITER_*` values into `.env` automatically (see [Ghostwriter setup](#ghostwriter-reporting-hub)).
 
+### Decision engine (template/probe selection + finding triage)
+
+A calibrated decision layer — the "Jev for nuclei" pattern — answers *which
+template/probe is relevant to this target* and *which hit to verify first*.
+`decision_status` reports the active backend; `decide_relevance` ranks a set of
+templates / probes / scanner-hits by a "worth running/verifying" probability;
+`decide_questions` is the raw typed primitive (boolean / choice / score) for
+triage and routing. It **orders** only — it never drops coverage (Rule 19) — and
+the matching assay engine runs the same way on the scanner side.
+
+Three backends, best-first, selected automatically (force with
+`PRAETOR_DECISION_PROVIDER=jev|llm|off`):
+
+1. **jev** — TypeSafe **Jev** via Vercel AI Gateway (`POST /v1/evaluate`), native
+   calibrated probabilities. Set `AI_GATEWAY_API_KEY`.
+2. **llm** — any `PRAETOR_LLM_*` provider answers the same typed questions as
+   JSON — **including a small model on your own machine via Ollama** (keyless,
+   offline, air-gapped). See below.
+3. **off** — no backend: `decision_status` reports `available:false` and the
+   deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope
+   (`decide`) stay in force. Keyless core, zero regression.
+
+**Run the decision engine locally (recommended default, no key, offline).** Point
+the `llm` tier at a small local model — nothing else to install or build:
+
+```sh
+ollama pull qwen2.5:3b            # or llama3.2:3b — any small instruct model
+export PRAETOR_LLM_PROVIDER=ollama
+export PRAETOR_LLM_MODEL=qwen2.5:3b
+export PRAETOR_DECISION_PROVIDER=llm   # optional; auto-selects llm when Ollama is set
+```
+
+`decision_status()` then reports `tier: llm`. Use hosted Jev only when you want
+its calibrated probabilities and are online; the local model keeps the engine
+fully functional with no key, no egress, and no vendor lock.
+
 ## Usage
 
 Once `.mcp.json` is loaded by your MCP client, the tools are available to the agent. Pick the lane that fits the target (or run both — a box often has web *and* network surface).
