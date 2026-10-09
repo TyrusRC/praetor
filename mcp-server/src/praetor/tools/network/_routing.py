@@ -19,6 +19,7 @@ operator's attention (anon access, roastable hashes, signing disabled).
 
 from __future__ import annotations
 
+import os
 import re
 
 # Discovered-value extractors used by chained steps (see the "captures" key).
@@ -26,8 +27,11 @@ import re
 _SNMP_COMMUNITY_RX = re.compile(r"\[([^\]]+)\]")
 
 # Default username list for SMTP VRFY enum ({userlist} in a plan). SecLists
-# shortlist; pre-seed the file or edit the step to point elsewhere.
-DEFAULT_USERLIST = "/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
+# shortlist; honor $SECLISTS_PATH so it resolves off Linux too (pre-seed the file
+# or edit the step to point elsewhere).
+DEFAULT_USERLIST = os.path.join(
+    os.environ.get("SECLISTS_PATH") or "/usr/share/seclists",
+    "Usernames", "top-usernames-shortlist.txt")
 
 # service-name substrings / ports -> list of plan steps.
 # Keys are matched against BOTH the nmap service name and str(port).

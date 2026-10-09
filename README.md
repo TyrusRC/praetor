@@ -119,7 +119,7 @@ LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition 
 - **Non-HTTP lane** (core, not optional): the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (TCP/UDP/SOCKS5 proxy, `tcp_*` tools) — `setup.sh` clones and builds it, load its jar in Burp
 - **Mobile engine** (core, not optional): [centurion](https://github.com/TyrusRC/centurion) runs as a companion MCP server for the full OWASP MASTG toolset — `setup.sh` installs it (the native `mobile_*` lane is built in)
 
-`./setup.sh` installs all of the above (Kali/Parrot via apt, other distros via apt/uv/go with clone fallbacks). `./doctor.sh` reports what's present. On Kali most tools are preinstalled or one `apt` away.
+`./setup.sh` installs all of the above (Kali/Parrot via apt, other distros via apt/uv/go with clone fallbacks); `setup.ps1` does the same on native Windows via winget/scoop/go/uv. `./doctor.sh` (or `.\doctor.ps1` on Windows) reports what's present. On Kali most tools are preinstalled or one `apt` away.
 
 **Optional (advanced):**
 
@@ -156,7 +156,7 @@ git clone https://github.com/TyrusRC/praetor.git && cd praetor
 ./setup.sh            # Linux/macOS   ·   ./setup.ps1 / ./setup.bat on Windows
 
 # 3. Verify the install
-./doctor.sh
+./doctor.sh            # Linux/macOS/WSL   ·   .\doctor.ps1 on native Windows
 ```
 
 4. **Load the Burp extension.** In Burp: *Extensions → Add → Java →*
@@ -222,7 +222,9 @@ Or in `.mcp.json`:
 
 The script installs Java 21+, Maven, Python 3.11+, uv, Go where missing, builds the extension, clones and builds the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (the non-HTTP `tcp_*` lane — a core lane) next to the Praetor checkout, installs the MCP server (which pulls CloakBrowser and warms its stealth Chromium download), optionally installs ProjectDiscovery tools, and writes `.mcp.json`. It prints both jar paths — load each in Burp (Extensions -> Add -> Java).
 
-Run `./doctor.sh` afterwards to verify the install.
+Verify the install afterwards: `./doctor.sh` on Linux/macOS/WSL, `.\doctor.ps1` on native Windows.
+
+Native-Windows note: `setup.ps1` installs the web, network, mobile-dynamic (Frida), OCR, and secrets lanes via winget/scoop/go/uv. A few Linux-oriented tools (responder, john-jumbo, libimobiledevice/iproxy) are not installed on native Windows — run those lanes under WSL. `.\doctor.ps1` shows exactly which lanes are live.
 
 ### Manual
 

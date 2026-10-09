@@ -1,0 +1,17 @@
+# Keep LF on shell scripts and the gradle wrapper so a Windows checkout (or a
+# WSL checkout under a Windows Git with autocrlf=true) does not get CRLF, which
+# breaks the `#!/usr/bin/env bash` interpreter line (`bad interpreter: ^M`).
+*.sh            text eol=lf
+gradlew         text eol=lf
+*.bash          text eol=lf
+doctor.sh       text eol=lf
+build.sh        text eol=lf
+setup.sh        text eol=lf
+
+# Windows scripts stay CRLF.
+*.ps1           text eol=crlf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# Let Git normalize everything else by content.
+*               text=auto

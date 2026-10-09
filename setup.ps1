@@ -318,6 +318,64 @@ if (Has-Command 'git') {
 }
 
 # ════════════════════════════════════════════════════════════════════
+# PHASE 3b: Network / mobile-dynamic / OCR + secrets (core lanes)
+# ════════════════════════════════════════════════════════════════════
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════"
+Write-Host "  Phase 3b: Network / mobile / OCR + secrets"
+Write-Host "════════════════════════════════════════════════════"
+Info "These back the network, mobile-dynamic, OCR, and secrets lanes."
+Write-Host ""
+
+# System tools via winget/choco/scoop. responder, john-jumbo, and
+# libimobiledevice/iproxy are Linux-oriented — use WSL for those lanes.
+function Install-Sys([string]$bin, [string]$winget, [string]$choco, [string]$scoop) {
+    if (Has-Command $bin) { Ok "$bin already installed"; return }
+    Info "Installing $bin..."
+    if (Install-Via-PackageManager $winget $choco $scoop) { Ok "$bin installed" }
+    else { Warn "$bin install failed - install manually ($winget / $choco / $scoop)" }
+}
+Install-Sys 'nmap'      'Insecure.Nmap'            'nmap'      'nmap'
+Install-Sys 'hashcat'   'hashcat.hashcat'          'hashcat'   'hashcat'
+Install-Sys 'tesseract' 'UB-Mannheim.TesseractOCR' 'tesseract' 'tesseract'   # OCR / screenshot redaction
+
+# Go tools (gobuster, gitleaks, trufflehog) — reuse the PD go-install helper.
+Install-PdTool 'gobuster'   'github.com/OJ/gobuster/v3'
+Install-PdTool 'gitleaks'   'github.com/zricethezav/gitleaks/v8'
+Install-PdTool 'trufflehog' 'github.com/trufflesecurity/trufflehog/v3'
+
+# Python network + mobile-dynamic tools (uv tool install, isolated venvs).
+Install-UvTool 'impacket'          # impacket-* scripts
+Install-UvTool 'netexec'           # nxc
+Install-UvTool 'bloodhound-python' # AD graph collector
+Install-UvTool 'certipy-ad'        # AD CS
+# frida-tools ships the `frida` CLI (mobile dynamic lane: mobile_frida_run/_snippet).
+if (Has-Command 'frida') { Ok "frida already installed" }
+else {
+    Info "Installing frida-tools..."
+    & uv tool install frida-tools 2>&1 | Out-Null
+    if (Has-Command 'frida') { Ok "frida installed" }
+    else { Warn "frida install failed - retry: uv tool install frida-tools" }
+}
+
+# SecLists -> %USERPROFILE%\.local\share\seclists. detect_seclists() auto-finds
+# this path on every OS (no SECLISTS_PATH needed); set SECLISTS_PATH to override.
+$SecListsDir = Join-Path $env:USERPROFILE '.local\share\seclists'
+if (Has-Command 'git') {
+    if (Test-Path (Join-Path $SecListsDir 'Discovery')) {
+        Ok "SecLists present ($SecListsDir)"
+    } else {
+        Info "Cloning SecLists (shallow, ~1GB) to $SecListsDir ..."
+        New-Item -ItemType Directory -Force -Path (Split-Path $SecListsDir) | Out-Null
+        & git clone --depth 1 https://github.com/danielmiessler/SecLists.git $SecListsDir 2>&1 | Out-Null
+        if (Test-Path (Join-Path $SecListsDir 'Discovery')) { Ok "SecLists cloned ($SecListsDir)" }
+        else { Warn "SecLists clone failed - clone manually into $SecListsDir, or set SECLISTS_PATH" }
+    }
+} else {
+    Warn "git not found - skipping SecLists (set SECLISTS_PATH to an existing clone)"
+}
+
+# ════════════════════════════════════════════════════════════════════
 # PHASE 4: Generate .mcp.json
 # ════════════════════════════════════════════════════════════════════
 Write-Host ""

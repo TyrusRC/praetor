@@ -46,10 +46,13 @@ def register(mcp: FastMCP):
 
         # Locate a wordlist if none specified
         if not wordlist:
+            _sl = os.environ.get("SECLISTS_PATH") or ""
             candidates = [
+                *([os.path.join(_sl, "Discovery/Web-Content/common.txt")] if _sl else []),
                 "/usr/share/seclists/Discovery/Web-Content/common.txt",
                 "/usr/share/wordlists/dirb/common.txt",
                 os.path.expanduser("~/SecLists/Discovery/Web-Content/common.txt"),
+                os.path.expanduser("~/.local/share/seclists/Discovery/Web-Content/common.txt"),
             ]
             wordlist = next((c for c in candidates if os.path.isfile(c)), "")
             if not wordlist:

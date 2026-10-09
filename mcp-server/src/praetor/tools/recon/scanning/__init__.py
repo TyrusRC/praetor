@@ -29,6 +29,11 @@ _SECLISTS_CANDIDATES = [
     "/usr/share/SecLists",
     "/opt/SecLists",
     os.path.expanduser("~/SecLists"),
+    # Cross-platform user data dir (Windows %USERPROFILE%\.local\share\seclists,
+    # macOS/Linux ~/.local/share/seclists) — where setup.ps1 / setup.sh clone it
+    # when the system package manager has no SecLists.
+    os.path.expanduser("~/.local/share/seclists"),
+    os.path.expanduser("~/.local/share/SecLists"),
 ]
 
 

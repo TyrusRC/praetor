@@ -45,11 +45,14 @@ def register(mcp: FastMCP):
         url = f"{scheme}://{split.netloc}{split.path or ''}"
 
         if not wordlist:
+            _sl = os.environ.get("SECLISTS_PATH") or ""
             candidates = [
+                *([os.path.join(_sl, "Discovery/DNS/subdomains-top1million-5000.txt")] if _sl else []),
                 "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
                 "/usr/share/seclists/Discovery/DNS/namelist.txt",
                 "/usr/share/wordlists/dirb/common.txt",
                 os.path.expanduser("~/SecLists/Discovery/DNS/subdomains-top1million-5000.txt"),
+                os.path.expanduser("~/.local/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"),
             ]
             wordlist = next((c for c in candidates if os.path.isfile(c)), "")
             if not wordlist:
