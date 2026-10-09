@@ -8,6 +8,29 @@ from mcp.server.fastmcp import FastMCP
 
 from .._common import _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL
 
+# Keyword heuristics (vyre-style `-fpt`) to drop recon noise: a parked page, a
+# login wall, or a bot-check interstitial is rarely the attack surface. Matched
+# case-insensitively against the httpx output line (title + headers). Heuristic,
+# not ML — a page can slip through or be mislabeled, so it is opt-in per call.
+_PAGE_TYPE_KEYWORDS = {
+    "parked": ("domain for sale", "buy this domain", "this domain is for sale",
+               "parked", "sedoparking", "godaddy", "hugedomains", "under construction"),
+    "login": ("login", "log in", "sign in", "signin", "log-in",
+              "authentication required", "please log in"),
+    "captcha": ("captcha", "recaptcha", "hcaptcha", "are you human",
+                "verify you are human", "attention required", "just a moment",
+                "checking your browser"),
+}
+
+
+def _page_type(line: str) -> str:
+    """Classify an httpx output line as parked/login/captcha, else ''."""
+    low = line.lower()
+    for ptype, kws in _PAGE_TYPE_KEYWORDS.items():
+        if any(k in low for k in kws):
+            return ptype
+    return ""
+
 
 def register(mcp: FastMCP):
 
@@ -64,6 +87,7 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         threads: int = 50,
         timeout: int = 300,
+        drop_page_types: str = "",
     ) -> str:
         """Probe a list of URLs with ProjectDiscovery httpx (uses wappalyzergo for tech detect).
 
@@ -82,6 +106,9 @@ def register(mcp: FastMCP):
             use_proxy: Route through Burp proxy (default True)
             threads: Concurrency (default 50, max 200)
             timeout: Max seconds (default 300)
+            drop_page_types: comma list of page types to drop from the results —
+                any of parked,login,captcha (keyword heuristic on the title/line,
+                vyre-style noise filter). Empty = keep everything (default).
         """
         if not _check_tool("httpx"):
             return (
@@ -140,9 +167,22 @@ def register(mcp: FastMCP):
             return f"httpx produced no output (exit {code}){' — ' + stderr[:200] if stderr else ''}"
 
         lines = out.splitlines()
+        dropped_counts: dict[str, int] = {}
+        drop_set = {p.strip().lower() for p in drop_page_types.split(",") if p.strip()}
+        if drop_set:
+            kept = []
+            for ln in lines:
+                pt = _page_type(ln)
+                if pt and pt in drop_set:
+                    dropped_counts[pt] = dropped_counts.get(pt, 0) + 1
+                else:
+                    kept.append(ln)
+            lines = kept
         header = [
             f"httpx probed ({len(lines)} live hosts):",
         ]
+        if dropped_counts:
+            header.append("  dropped " + ", ".join(f"{n} {t}" for t, n in sorted(dropped_counts.items())))
         if tech_detect:
             header.append("  (tech detection via wappalyzergo)")
         result = header + [""]
