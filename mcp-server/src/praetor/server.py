@@ -16,7 +16,7 @@ from praetor.tools import (
     source_aware, mantis_audit, benchmark, mobile, cua_probe, sast_handoff, pyexploit,
     http3_probe, local_llm, mcptox, expedition,
     web_llm_sweep, grpc_probe, saml_xsw_probe, dns_rebind_probe,
-    postmessage_probe, csp_analyzer, sse_probe, nuclei_llm_infra,
+    postmessage_probe, csp_analyzer, sse_probe, scan_llm_infra,
     auth_negotiate, mcp_jsonrpc_probe,
     cve_variant_probe,
     version_delta,
@@ -241,7 +241,7 @@ dns_rebind_probe.register(mcp) # probe_dns_rebind — rbndr.us TOCTOU SSRF (W29-
 postmessage_probe.register(mcp)  # probe_postmessage_listeners — browser-driven origin-policy fuzz (W29-e)
 csp_analyzer.register(mcp)     # analyze_csp — Content-Security-Policy bypass analyzer (W29-f)
 sse_probe.register(mcp)        # probe_sse_injection — SSE newline injection (W29-g)
-nuclei_llm_infra.register(mcp) # scan_llm_infra — LLM/AI/MCP template sweep (W29-h)
+scan_llm_infra.register(mcp) # scan_llm_infra — LLM/AI/MCP template sweep (W29-h)
 auth_negotiate.register(mcp)   # probe_kerberos_spnego_auth — enterprise auth gateway detection (W29-j)
 mcp_jsonrpc_probe.register(mcp)  # probe_mcp_jsonrpc_methods — Wallarm ultimate-detect parity (W29-k)
 cve_variant_probe.register(mcp)  # probe_cve_with_variants — bounded CVE-aware PoC sweep (W30-a)
