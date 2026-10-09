@@ -25,7 +25,6 @@ from ._send import send_probe
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 
 from ._csrf_helpers import (
-    _TOKEN_HEADER_NAMES, _TOKEN_BODY_PARAMS,
     _find_token_in_request, _samesite_status,
 )
 

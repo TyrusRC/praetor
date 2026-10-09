@@ -1,7 +1,6 @@
 """Recon pipeline: orchestrates subfinder → katana → nuclei in sequence."""
 
 import json
-import os
 
 from mcp.server.fastmcp import FastMCP
 

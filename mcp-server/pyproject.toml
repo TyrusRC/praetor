@@ -62,3 +62,22 @@ build-backend = "hatchling.build"
 # dsh/uv runs then failed, even though the editable `uv pip install -e .` setup
 # uses never zips an archive and so never hit it. Do not re-add them here.
 packages = ["src/praetor"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py files aggregate and re-export submodules/symbols; private _*.py
+# modules frequently import a symbol only to re-export it through a sibling
+# __init__.py. F401 (unused-import) autofix must NOT touch either — removing a
+# re-exported symbol breaks the importing module (e.g. poc_bundle._impl ->
+# poc_bundle/__init__.py). Public tool modules import submodules AS modules
+# (used via register()), so their flagged F401s are genuinely dead imports.
+"__init__.py" = ["F401"]
+"**/_*.py" = ["F401"]
+# Public modules that also re-export private helpers consumed by tests/siblings
+# (e.g. tests do `from .pyexploit import _scan_calls`), so their F401s are not dead.
+"**/rre_chain_finder.py" = ["F401"]
+"**/oauth_flow.py" = ["F401"]
+"**/pyexploit.py" = ["F401"]
+# Import a symbol at module level so tests can monkeypatch `module.client`
+# (the import looks unused in-file but the patch target must exist).
+"**/local_llm.py" = ["F401"]
+"**/fuzz_feedback.py" = ["F401"]

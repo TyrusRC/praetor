@@ -25,17 +25,11 @@ proxy_history_index for evidence.
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from ._jwt_codec import (
-    decode_header,
     decode_payload,
-    encode_segment,
-    generate_rsa_keypair_for_embed,
-    sign_hmac,
-    sign_rsa,
     split_jwt,
 )
 

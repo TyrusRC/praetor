@@ -17,7 +17,6 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .._vuln_class import canonical
 from ..report.lifecycle import load_intel
 from ._standards import STANDARDS
 from .coverage_map import build_heatmap, _tested_classes

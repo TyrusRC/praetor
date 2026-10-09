@@ -36,7 +36,6 @@ from mcp.server.fastmcp import FastMCP
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 from ._saml_xsw_mutations import (  # re-exported for tests/importers
-    _AUTH_OK_MARKERS, _SIG_REJECT_MARKERS, _SIG_RE, _ASSERTION_RE, _NAMEID_RE,
     _xsw_signature_exclusion, _xsw_wrap_assertion, _xsw_sibling_wrap,
     _xsw_comment_injection, _xsw_keyinfo_swap, _classify_replay, _send_acs,
 )

@@ -19,7 +19,6 @@ from ._oplog import (
     read_loot,
     read_oplog,
     record_action,
-    record_loot,
 )
 
 

@@ -12,7 +12,6 @@ from . import _audit, _curate
 
 import json
 import time
-from pathlib import Path
 
 from praetor.tools.intel._internals import _intel_path
 

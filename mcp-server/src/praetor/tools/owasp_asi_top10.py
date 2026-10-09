@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor import client
 
 from ._asi_runners import (  # noqa: F401
     _run_memory_poisoning, _run_tool_misuse, _run_intent_breaking,

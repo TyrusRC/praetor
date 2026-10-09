@@ -36,7 +36,7 @@ from mcp.server.fastmcp import FastMCP
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 from ._csp_helpers import (  # re-exported for tests/importers
-    _RISKY_CDNS, _REQUIRED_DIRECTIVES, _parse_csp, _effective_script_src,
+    _REQUIRED_DIRECTIVES, _parse_csp, _effective_script_src,
     _detect_risky_cdns, _has_token, _has_nonce_or_hash,
 )
 

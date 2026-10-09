@@ -4,13 +4,9 @@ all public names re-exported here so `intel.checkpoint` imports are unchanged.
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor.tools.workspace import workspace_paths
 from . import _checkpoint_logic as _cl
 
 _g = globals()

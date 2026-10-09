@@ -16,7 +16,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .._vuln_class import canonical
 from ..report.lifecycle import load_intel
-from ._standards import _compliance, STANDARDS
+from ._standards import _compliance
 
 # Frameworks whose control codes live in compliance_mappings.json, plus the
 # heatmap standards that resolve through category_of. Human names for headers.

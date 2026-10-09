@@ -10,14 +10,12 @@ Postman uses {{var}} templating across URL, headers, body — pass `postman_env`
 """
 
 import json
-import re
 
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 
 from ._api_schema_helpers import (
-    _postman_substitute,
     _postman_env_to_dict,
     _is_postman,
     _postman_walk_items,

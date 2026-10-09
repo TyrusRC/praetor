@@ -6,7 +6,7 @@ Layout follows PTES §7 (Reporting), OWASP WSTG v4.2, NIST SP 800-115:
 """
 
 from ._evidence_fmt import (
-    _INTERNAL_EVIDENCE_KEYS, _INTERNAL_VALUE_MARKERS, _is_internal_evidence,
+    _is_internal_evidence,
     format_poc_request, format_repro_steps,
 )
 from ._finding_render import build_finding_section

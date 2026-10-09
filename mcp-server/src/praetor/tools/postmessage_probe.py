@@ -41,7 +41,7 @@ from praetor.tools.testing._verdict import error_verdict, make_verdict
 
 # Instrumentation script:
 from ._postmessage_js import (
-    _INSTRUMENT_JS, _READ_HANDLERS_JS, _PROBE_TEMPLATE, _MALICIOUS_PAYLOADS,
+    _INSTRUMENT_JS, _PROBE_TEMPLATE, _MALICIOUS_PAYLOADS,
 )
 
 def register(mcp: FastMCP) -> None:

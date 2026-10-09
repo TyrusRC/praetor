@@ -19,18 +19,15 @@ discovery — the deficit was surfaced explicitly in the W7 gap analysis.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor.tools.notes._helpers import _intel_dir, _sanitized
 
-from ._helpers import _classify_param_risk
 from ._rank_data import (
-    _ENDPOINT_PATH_WEIGHT, _METHOD_WEIGHT, _LOCATION_WEIGHT,
+    _METHOD_WEIGHT, _LOCATION_WEIGHT,
     _endpoint_score, _param_score, _load_endpoints,
-    _VULN_CLASS_TOKEN_MAP, _vuln_class_to_risk_token, _matches_vuln_class,
+    _vuln_class_to_risk_token, _matches_vuln_class,
 )
 
 def register(mcp: FastMCP) -> None:

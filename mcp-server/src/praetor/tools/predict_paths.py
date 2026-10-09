@@ -17,15 +17,9 @@ suggested next call (auto_probe / curl_request).
 
 from __future__ import annotations
 
-import json
-import re
-from collections import Counter
-from typing import Any
-from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor.tools.notes._helpers import _intel_dir, _sanitized
 
 
 from ._predict_helpers import (

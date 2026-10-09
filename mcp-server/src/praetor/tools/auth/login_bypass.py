@@ -17,7 +17,6 @@ from urllib.parse import urlparse, urlunparse
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor import client
 from praetor.tools._request_headers import apply_realistic_headers
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 

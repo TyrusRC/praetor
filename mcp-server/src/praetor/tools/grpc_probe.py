@@ -31,9 +31,6 @@ Notes:
 from __future__ import annotations
 
 import base64
-import re
-import struct
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -53,7 +50,6 @@ from ._grpc_helpers import (
     _send_grpc,
     _mutate_first_varint,
     _LIST_SERVICES_PROTOBUF,
-    _SERVICE_RE,
 )
 
 def register(mcp: FastMCP) -> None:
