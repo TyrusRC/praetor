@@ -82,7 +82,7 @@ Claude Code -> praetor-mcp (stdio) ->
 - `burp-extension/` — Java 21, Maven, Montoya API, zero external runtime deps. Artifact `praetor-burp-ext`, package `com.praetor`.
 - `mcp-server/` — Python 3.11+, Hatch, FastMCP. Package dir is `praetor/`.
 - **Finding a tool** — `list_tier1_tools()`, `pick_tool(task)`, or `skill.json`. Tool counts are deliberately untracked here: they go stale in a week and cost tokens every session.
-- **Two lanes, one evidence model.** Web-lane findings cite a Burp `proxy_history_index`; network-lane actions bypass Burp and cite an operator-log id. Web tools (nuclei/ffuf/sqlmap) and network tools (nmap/netexec/impacket) are both core — nothing is optional.
+- **Two lanes, one evidence model.** Web-lane findings cite a Burp `proxy_history_index`; network-lane actions bypass Burp and cite an operator-log id. Web tools (assay/ffuf/sqlmap) and network tools (nmap/netexec/impacket) are both core — nothing is optional.
 - **Web hunt loop** — `load_target_intel -> discover_attack_surface -> auto_probe`.
 - **Network lane** (`tools/network`, `tools/redteam`) — `run_network_recon` (discover → service enum → leads → auto-loot → web-lane bridge); `run_network_tool` (sanctioned impacket/netexec/...); `crack_hashes` + credential store (capture → crack → reuse). Evidence: `tools/redteam/_oplog` (ATT&CK-tagged operator log + loot chain-of-custody), forwarded to Ghostwriter via `sync_to_ghostwriter`. HARD safety (Rules 5-9) refuses destructive/brute args; scope is engagement-mode-aware.
 - **Assessment tools** return a `VerdictResult`; use `verdict_from_tally(hits)` (`tools/testing/_verdict.py`, guide `.claude/skills/verdict-tools.md`).
@@ -279,7 +279,7 @@ Per-target data lives under `.burp-intel/<domain>/` (gitignored), created by
 `scaffold_workspace(domain)`. Machine files at the domain root (`profile.json`,
 `endpoints.json`, `coverage.json`, `fingerprint.json`, `patterns.json`, `notes.md`,
 `findings.json`); human-facing artifacts in subdirs — writeups in `findings/<fid>/`,
-screenshots and captures and PoC bundles in `artifacts/`, raw ffuf/nuclei output in
+screenshots and captures and PoC bundles in `artifacts/`, raw ffuf/assay output in
 `material/tool-output/`, deliverables in `reports/`. Do not dump files outside that tree.
 
 Finding states: `suspected` -> `confirmed` (with evidence) | `stale` (target changed) |
