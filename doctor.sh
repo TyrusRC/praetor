@@ -219,6 +219,15 @@ else
     bad "Burp proxy" "127.0.0.1:8080 not listening — external recon tools will fail"
 fi
 
+# burp-expedition Control API (non-HTTP TCP/UDP lane, tcp_* tools)
+EXP_PORT="${EXPEDITION_API_PORT:-18112}"
+exp_code=$(http_status "http://127.0.0.1:${EXP_PORT}/status")
+if [ "$exp_code" = "200" ]; then
+    pass "burp-expedition Control API reachable (127.0.0.1:${EXP_PORT}) — tcp_* lane ready"
+else
+    skip "burp-expedition Control API" "127.0.0.1:${EXP_PORT} unreachable (HTTP='$exp_code') — load the burp-expedition jar in Burp for the tcp_* non-HTTP lane"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 head "Browser tools (CloakBrowser)"
 # ════════════════════════════════════════════════════════════════════

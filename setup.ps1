@@ -184,6 +184,40 @@ try {
     }
 } finally { Pop-Location }
 
+# burp-expedition: non-HTTP TCP/UDP lane (tcp_* tools) — core, not optional.
+# Second Burp extension (TyrusRC/burp-expedition): Netty TCP/UDP/SOCKS5 proxy +
+# per-protocol dissectors + Control API on :18112. Cloned next to the praetor
+# extension, built with its gradlew. Load the jar in Burp like the praetor one.
+$ExpeditionDir = Join-Path (Split-Path $ScriptDir) 'burp-expedition'
+$script:ExpJar = $null
+if (Has-Command 'git') {
+    if (Test-Path (Join-Path $ExpeditionDir '.git')) {
+        Info "Updating burp-expedition..."
+        & git -C $ExpeditionDir pull --ff-only 2>&1 | Out-Null
+    } elseif (Test-Path $ExpeditionDir) {
+        Warn "burp-expedition dir exists but is not a git clone - leaving as-is ($ExpeditionDir)"
+    } else {
+        Info "Cloning burp-expedition (TyrusRC/burp-expedition)..."
+        & git clone --depth 1 https://github.com/TyrusRC/burp-expedition.git $ExpeditionDir 2>&1 | Out-Null
+        if (-not (Test-Path (Join-Path $ExpeditionDir '.git'))) {
+            Warn "burp-expedition clone failed - clone manually: git clone https://github.com/TyrusRC/burp-expedition.git $ExpeditionDir"
+        }
+    }
+    if (Test-Path $ExpeditionDir) {
+        Info "Building burp-expedition (gradlew shadowJar)..."
+        Push-Location $ExpeditionDir
+        try {
+            & .\gradlew.bat shadowJar 2>&1 | Out-Null
+            $script:ExpJar = Get-ChildItem (Join-Path $ExpeditionDir 'build\libs') -Filter 'burp-expedition-*.jar' -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notlike '*-sources.jar' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if ($script:ExpJar) { Ok "burp-expedition built: $script:ExpJar" }
+            else { Warn "burp-expedition build reported no jar under build\libs\" }
+        } finally { Pop-Location }
+    }
+} else {
+    Warn "git not found - skipping burp-expedition (clone+build manually: git clone ...burp-expedition.git; .\gradlew.bat shadowJar)"
+}
+
 Info "Setting up Python MCP server..."
 Push-Location (Join-Path $ScriptDir 'mcp-server')
 try {
@@ -367,6 +401,10 @@ Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Open Burp Suite"
 Write-Host "  2. Extensions -> Add -> Java -> Select: $JarPath"
+if ($script:ExpJar) {
+    Write-Host "     Add the second extension the same way -> Select: $script:ExpJar"
+    Write-Host "     (burp-expedition - the tcp_* non-HTTP lane, Control API on :18112)"
+}
 Write-Host "  3. Verify: 'Praetor MCP started on port 8111' in Burp output"
 Write-Host "  4. Start Claude Code in this directory"
 Write-Host ""

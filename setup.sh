@@ -271,6 +271,41 @@ else
     fail "Maven build failed — re-run ./build.sh to see the compiler output"
 fi
 
+# ── burp-expedition: non-HTTP TCP/UDP lane (tcp_* tools) ─────────────
+# A second Burp extension (TyrusRC/burp-expedition) — core, not optional. It adds
+# a Netty TCP/UDP/SOCKS5 proxy with per-protocol dissectors + a Control API on
+# :18112. Praetor drives it through the tcp_* tools for DB / Redis / MQTT /
+# Modbus / DNP3 / gRPC / custom-binary testing (skill: non-http-protocol-testing.md).
+# Cloned next to the praetor extension, built to build/libs/ with its gradlew.
+# Load the jar in Burp the same way as the praetor extension (step 2 of Next steps).
+EXPEDITION_DIR="$SCRIPT_DIR/../burp-expedition"
+EXP_JAR=""
+if has git; then
+    if [ -d "$EXPEDITION_DIR/.git" ]; then
+        info "Updating burp-expedition..."
+        git -C "$EXPEDITION_DIR" pull --ff-only >/dev/null 2>&1 \
+            || warn "burp-expedition update failed — pull manually in $EXPEDITION_DIR"
+    elif [ -d "$EXPEDITION_DIR" ]; then
+        warn "burp-expedition dir exists but is not a git clone — leaving as-is ($EXPEDITION_DIR)"
+    else
+        info "Cloning burp-expedition (TyrusRC/burp-expedition)..."
+        git clone --depth 1 https://github.com/TyrusRC/burp-expedition.git "$EXPEDITION_DIR" >/dev/null 2>&1 \
+            || warn "burp-expedition clone failed — clone manually: git clone https://github.com/TyrusRC/burp-expedition.git \"$EXPEDITION_DIR\""
+    fi
+    if [ -d "$EXPEDITION_DIR" ]; then
+        info "Building burp-expedition (./gradlew shadowJar)..."
+        if (cd "$EXPEDITION_DIR" && ./gradlew shadowJar >/dev/null 2>&1); then
+            EXP_JAR="$(ls -t "$EXPEDITION_DIR"/build/libs/burp-expedition-*.jar 2>/dev/null | grep -v -- '-sources.jar' | head -1)"
+            [ -n "$EXP_JAR" ] && ok "burp-expedition built: $EXP_JAR" \
+                || warn "burp-expedition build reported no jar under build/libs/"
+        else
+            warn "burp-expedition build failed — build manually: (cd \"$EXPEDITION_DIR\" && ./gradlew shadowJar)"
+        fi
+    fi
+else
+    warn "git not found — skipping burp-expedition (clone+build manually: git clone https://github.com/TyrusRC/burp-expedition.git && ./gradlew shadowJar)"
+fi
+
 # ── Install Python MCP server ──────────────────────────────────────
 info "Setting up Python MCP server..."
 cd "$SCRIPT_DIR/mcp-server"
@@ -1053,6 +1088,12 @@ else
     echo -e "  ${RED}✗${NC} Burp extension JAR not found"
 fi
 
+if [ -n "$EXP_JAR" ] && [ -f "$EXP_JAR" ]; then
+    echo -e "  ${GREEN}✓${NC} burp-expedition JAR built (tcp_* lane)"
+else
+    echo -e "  ${YELLOW}○${NC} burp-expedition JAR not built (tcp_* lane — build: cd ../burp-expedition && ./gradlew shadowJar)"
+fi
+
 if [ -f "$VENV_PYTHON" ]; then
     echo -e "  ${GREEN}✓${NC} Python venv ready"
 else
@@ -1069,6 +1110,10 @@ echo ""
 echo "Next steps:"
 echo "  1. Open Burp Suite"
 echo "  2. Extensions → Add → Java → Select: $JAR_PATH"
+if [ -n "$EXP_JAR" ] && [ -f "$EXP_JAR" ]; then
+    echo "     Add the second extension the same way → Select: $EXP_JAR"
+    echo "     (burp-expedition — the tcp_* non-HTTP lane, Control API on :18112)"
+fi
 echo "  3. Verify: 'Praetor MCP started on port 8111' in Burp output"
 echo "  4. Start Claude Code in this directory"
 echo ""

@@ -57,14 +57,17 @@ This is an offensive security tool. Use only on systems where you have explicit 
 ## Architecture
 
 ```
-                                      ┌─ web lane ──> Java Burp extension <- Montoya -> Burp Suite
-LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy :8080)
-                                      └─ network lane ─> nmap / impacket / netexec / responder / ...
-                                                          (bypass Burp; operator log + loot)
-                          both lanes ─> Ghostwriter (GraphQL) : central reporting / oplog hub
+                                      ┌─ web lane ──────> Java Burp extension <- Montoya -> Burp Suite
+                                      │                     (127.0.0.1:8111, proxy :8080)
+LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition extension <- Montoya -> Burp Suite
+                                      │  (tcp_* tools)       (control API 127.0.0.1:18112)
+                                      └─ network lane ──> nmap / impacket / netexec / responder / ...
+                                                            (bypass Burp; operator log + loot)
+                          all lanes ─> Ghostwriter (GraphQL) : central reporting / oplog hub
 ```
 
 - **Web lane:** the Java extension exposes a REST API on `127.0.0.1:8111` and tunnels HTTP through Burp's proxy listener (`127.0.0.1:8080`), so every probe appears in Proxy history and carries a Logger index.
+- **Non-HTTP lane:** the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (a second jar loaded in Burp) exposes a control API on `127.0.0.1:18112` and relays raw TCP/UDP through a Netty proxy with per-protocol dissectors. The `tcp_*` tools drive it for DB / Redis / MQTT / Modbus / DNP3 / gRPC / custom-binary testing. Evidence is the expedition connection/message id.
 - **Network lane:** external tools run directly (TCP/SMB/LDAP/Kerberos — Burp can't proxy them); each run is recorded in the operator log (`.burp-intel/<domain>/network/oplog.jsonl`, ATT&CK-tagged) with output under `material/tool-output/` and captured secrets in `network/loot/`. That operator-log id is the evidence a network finding cites.
 - The Python MCP server is a thin client the LLM speaks to via stdio.
 - Target intelligence, the operator log, loot, and the credential store all persist under `.burp-intel/<domain>/` (gitignored).
@@ -94,7 +97,7 @@ LLM client <- stdio MCP -> MCP server ┤                 (127.0.0.1:8111, proxy
 - Operator override surfaces for severity, scope filter, NEVER-SUBMIT class, confidence floor.
 - **Mobile lane (MASTG/MASVS)**: dynamic via Frida + adb (SSL-pinning / root-detection bypass, exported-component + deep-link abuse, `phone-control` device driver) and **static** via `mobile_decompile_apk` (jadx decompile → exported-component attack surface, risky manifest flags, secret/endpoint leads → SAST handoff to `run_mantis`). Findings cite `apk_sha256` / `package_name` / Frida output. For the full OWASP MASTG toolset (iOS binary static — class-dump / otool hardening / ldid entitlements / frida-ios-dump; Android apkid / apkleaks / apksigner; drozer / objection) load the **[centurion](https://github.com/TyrusRC/centurion)** mobile engine as a companion MCP server (`setup.sh` installs it; see `examples/mcp-clients/claude-code.mcp.json`).
 - **Cloud lane**: `run_prowler` / `run_scout_suite` / `run_pacu` (AWS/Azure/GCP audit + exploitation), IaC scanning (`run_checkov` / `run_tfsec` / `run_terrascan`), container/K8s (`run_trivy` / `run_kube_hunter` / `run_kdigger` / `run_peirates`), and cloud-webapp KB (IMDS/SSRF-to-creds chains).
-- **Non-HTTP proxy lane ([burp-expedition](https://github.com/TyrusRC/burp-expedition))**: for the TCP/UDP protocols Burp can't proxy (Redis, MySQL/PostgreSQL, MongoDB, MQTT, gRPC, DNS, game/IoT). Requires the burp-expedition extension loaded (it serves a loopback control API on `:8112`); `tcp_proxy_add_listener` stands up an explicit-proxy relay (optional TLS MITM), `tcp_proxy_connections` / `tcp_proxy_messages` read captured traffic as evidence, `tcp_repeat` is the Repeater (send a raw payload, read the reply), `tcp_match_replace_*` rewrites relayed bytes, and `tcp_intercept_*` drives the live hold/edit/forward/drop queue.
+- **Non-HTTP proxy lane ([burp-expedition](https://github.com/TyrusRC/burp-expedition))**: for the TCP/UDP protocols Burp can't proxy (Redis, MySQL/PostgreSQL, MongoDB, MQTT, Modbus/DNP3 ICS, gRPC, DNS, game/IoT). This is a **second Burp extension** — a core lane, not optional. `setup.sh` / `setup.ps1` clone and build it next to the Praetor extension; load its jar in Burp the same way (it serves a loopback control API on `:18112`, override with `EXPEDITION_API_PORT`; `doctor.sh` reports it). `tcp_proxy_add_listener` stands up an explicit-proxy relay (optional TLS MITM), `tcp_proxy_connections` / `tcp_proxy_messages` read captured traffic as evidence, `tcp_repeat` is the Repeater (send a raw payload, read the reply), `tcp_match_replace_*` rewrites relayed bytes, and `tcp_intercept_*` drives the live hold/edit/forward/drop queue. Playbook: `.claude/skills/non-http-protocol-testing.md`.
 - **Exposure-aware severity + CVSS** (see [Severity & CVSS Scoring](#severity--cvss-scoring)): `network_exposure` (internal / ip_allowlist / vpn_only / local / physical) drives CVSS 4.0 Modified Attack Vector and `exploit_demonstrated` drives Exploit Maturity, so an IP-allowlisted backend scores its true internal risk instead of a raw CRITICAL — the vector and inferred severity follow the real FIRST.org environmental score.
 - **Verdict-trust calibration**: on top of the reliability/Brier report, a Wilson-lower-bound trust gate (`trust_gate`) marks a class's confirmed verdicts *trusted* (may skip heavy re-validation) only on a proven track record — fail-closed, never after one hit.
 - **Attack-path planning**: `plan_attack_paths` beam-searches confirmed findings to high-value objectives (RCE / cloud-cred theft / ATO / mass-PII), names the single missing capability on a near-miss (your next proof), and emits per-chain **severing controls** (the one remediation that breaks each hop) for the report.
@@ -210,7 +213,7 @@ Or in `.mcp.json`:
 ./setup.bat       # Windows double-click
 ```
 
-The script installs Java 21+, Maven, Python 3.11+, uv, Go where missing, builds the extension, installs the MCP server (which pulls CloakBrowser and warms its stealth Chromium download), optionally installs ProjectDiscovery tools, and writes `.mcp.json`.
+The script installs Java 21+, Maven, Python 3.11+, uv, Go where missing, builds the extension, clones and builds the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (the non-HTTP `tcp_*` lane — a core lane) next to the Praetor checkout, installs the MCP server (which pulls CloakBrowser and warms its stealth Chromium download), optionally installs ProjectDiscovery tools, and writes `.mcp.json`. It prints both jar paths — load each in Burp (Extensions -> Add -> Java).
 
 Run `./doctor.sh` afterwards to verify the install.
 
@@ -222,12 +225,17 @@ cd burp-extension
 mvn package
 # Load target/praetor-burp-ext-1.0.0.jar in Burp: Extensions -> Add -> Java
 
-# 2. Install the MCP server
-cd ../mcp-server
+# 2. Build the burp-expedition extension (non-HTTP tcp_* lane — core)
+git clone https://github.com/TyrusRC/burp-expedition.git ../../burp-expedition
+cd ../../burp-expedition && ./gradlew shadowJar
+# Load build/libs/burp-expedition-*.jar in Burp the same way (control API :18112)
+
+# 3. Install the MCP server
+cd ../praetor/mcp-server
 uv venv
 uv sync
 
-# 3. Configure your MCP client (see below)
+# 4. Configure your MCP client (see below)
 ```
 
 ### `pipx`
