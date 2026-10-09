@@ -202,19 +202,51 @@ def _build_elements(graph: dict, oplog: list[dict], loot: list[dict]) -> list[di
 
 # ------------------------------------------------------------- HTML tab panels
 
-def _findings_panel(graph: dict) -> str:
+_RV_OPTIONS = (("", "— no change —"), ("confirmed", "confirm"),
+               ("needs_more_evidence", "needs more evidence"),
+               ("false_positive", "false positive"), ("wontfix", "won't fix"))
+
+
+def _prior_reviews_html(entries: list) -> str:
+    """Render human-review entries already imported into findings.json (read-only)."""
+    rows = []
+    for e in entries or []:
+        if not isinstance(e, dict):
+            continue
+        who = _esc(e.get("reviewer") or "operator")
+        ts = _esc(e.get("ts") or e.get("imported_at") or "")
+        st = e.get("status_requested")
+        badge = f' <span class="badge rv-req">{_esc(st)}</span>' if st else ""
+        comment = _esc(e.get("comment") or "")
+        rows.append(f'<div class="prior-row"><b>{who}</b>{badge} '
+                    f'<span class="meta">{ts}</span><div>{comment}</div></div>')
+    return f'<div class="prior">{"".join(rows)}</div>' if rows else ""
+
+
+def _findings_panel(graph: dict, prior: dict | None = None) -> str:
+    prior = prior or {}
     intents = {n["id"]: n for n in E._nodes_of(graph, "intent")}
     assets = {n["id"]: n for n in E._nodes_of(graph, "asset")}
     findings = sorted(E._nodes_of(graph, "finding"),
                       key=lambda n: (_SEV_ORDER.get((n.get("severity") or "").lower(), 5), n["id"]))
     if not findings:
         return '<p class="empty">No findings linked to the graph yet — save_finding, then link_finding.</p>'
-    out = []
+    # Review toolbar: the agent⇄human collaboration round-trip. The human triages
+    # here, clicks Export review, then the agent runs import_engagement_review.
+    opts = "".join(f'<option value="{v}">{_esc(lbl)}</option>' for v, lbl in _RV_OPTIONS)
+    out = ['<div class="review-bar">'
+           '<input id="rv-reviewer" placeholder="Your name">'
+           '<button id="rv-export" type="button">Export review</button>'
+           '<span class="meta">Triage autosaves in your browser. Export, then the agent '
+           'runs <code>import_engagement_review</code> to read it back.</span></div>'
+           '<textarea id="rv-notes" placeholder="Engagement notes for the agent (optional)…">'
+           '</textarea>']
     for fn in findings:
-        title = fn.get("title") or fn.get("finding_id") or fn["id"]
+        fid = fn.get("finding_id") or fn["id"]
+        title = fn.get("title") or fid
         out.append('<div class="card">')
         out.append(f'<h3>{_sev_badge(fn.get("severity"))} '
-                   f'<code>{_esc(fn.get("finding_id") or fn["id"])}</code> {_esc(title)}</h3>')
+                   f'<code>{_esc(fid)}</code> {_esc(title)}</h3>')
         it = intents.get(fn.get("intent"))
         if it:
             out.append(f'<div class="meta"><b>Proven by</b> {_esc(it["id"])} — {_esc(it["title"])}</div>')
@@ -224,6 +256,11 @@ def _findings_panel(graph: dict) -> str:
         if repro:
             steps = "".join(f"<li>{_esc(s)}</li>" for s in repro)
             out.append(f'<div class="meta"><b>Steps</b></div><ol>{steps}</ol>')
+        out.append(_prior_reviews_html(prior.get(str(fid))))
+        out.append(f'<div class="collab" data-fid="{_esc(fid)}">'
+                   f'<label>Review <select class="rv-status">{opts}</select></label>'
+                   '<textarea class="rv-comment" placeholder="Comment for the agent…"></textarea>'
+                   '</div>')
         out.append("</div>")
     return "\n".join(out)
 
@@ -574,6 +611,107 @@ def _script(elements: list[dict]) -> str:
 """
 
 
+def _slug(domain: str) -> str:
+    return "".join(c if c.isalnum() or c in ".-_" else "_" for c in domain) or "target"
+
+
+def _load_prior_reviews(domain: str) -> dict:
+    """{finding_id: [collab entries]} from findings.json — prior human reviews
+    the agent already imported, shown read-only so the human sees past rounds."""
+    try:
+        from ._internals import _intel_path
+        p = _intel_path(domain) / "findings.json"
+        if not p.exists():
+            return {}
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    items = data if isinstance(data, list) else data.get("findings", [])
+    out: dict[str, list] = {}
+    for f in items:
+        if isinstance(f, dict):
+            fid = str(f.get("finding_id") or f.get("id") or "")
+            col = f.get("collab")
+            if fid and isinstance(col, list) and col:
+                out[fid] = col
+    return out
+
+
+_REVIEW_CSS = """
+.review-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 8px}
+.review-bar input{background:#0d1117;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:6px 10px;font-family:inherit}
+.review-bar button{background:var(--accent);color:#fff;border:1px solid var(--accent);
+  border-radius:6px;padding:6px 14px;cursor:pointer;font-family:inherit}
+#rv-notes{width:100%;min-height:52px;background:#0d1117;color:var(--fg);
+  border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-family:inherit;margin-bottom:6px}
+.collab{display:flex;flex-direction:column;gap:6px;margin-top:10px;
+  border-top:1px dashed var(--line);padding-top:10px}
+.collab select{background:#0d1117;color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:4px 8px;font-family:inherit}
+.collab textarea{min-height:44px;background:#0d1117;color:var(--fg);
+  border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-family:inherit}
+.prior{margin-top:8px}
+.prior-row{border-left:2px solid var(--accent);padding:2px 0 2px 10px;margin:6px 0}
+.rv-req{background:#0f2740;color:#79c0ff;border-color:var(--accent)}
+"""
+
+
+def _review_script(domain: str) -> str:
+    # Pure static-file collaboration: drafts autosave to localStorage (per-browser),
+    # Export review writes <domain>-review.json for import_engagement_review to read
+    # back. No server, no network — guarded so private-mode storage failures no-op.
+    key = json.dumps("praetor-review:" + domain)
+    dom = json.dumps(domain)
+    fname = json.dumps(_slug(domain) + "-review.json")
+    return f"""
+<script>
+(function(){{
+  var KEY={key};
+  function load(){{ try{{ return JSON.parse(localStorage.getItem(KEY)||"{{}}"); }}catch(e){{ return {{}}; }} }}
+  function put(o){{ try{{ localStorage.setItem(KEY, JSON.stringify(o)); }}catch(e){{}} }}
+  function collect(){{
+    var rv=document.getElementById("rv-reviewer"), nt=document.getElementById("rv-notes");
+    var o={{domain:{dom}, reviewer:(rv?rv.value:"")||"", notes:(nt?nt.value:"")||"", reviews:{{}}}};
+    document.querySelectorAll(".collab").forEach(function(c){{
+      var s=c.querySelector(".rv-status"), m=c.querySelector(".rv-comment");
+      var st=s?s.value:"", cm=m?m.value:"";
+      if(st||cm) o.reviews[c.dataset.fid]={{status:st, comment:cm}};
+    }});
+    return o;
+  }}
+  function save(){{ put(collect()); }}
+  function restore(){{
+    var o=load();
+    var rv=document.getElementById("rv-reviewer"); if(rv&&o.reviewer) rv.value=o.reviewer;
+    var nt=document.getElementById("rv-notes"); if(nt&&o.notes) nt.value=o.notes;
+    var r=o.reviews||{{}};
+    document.querySelectorAll(".collab").forEach(function(c){{
+      var e=r[c.dataset.fid]; if(!e) return;
+      var s=c.querySelector(".rv-status"); if(s&&e.status) s.value=e.status;
+      var m=c.querySelector(".rv-comment"); if(m&&e.comment) m.value=e.comment;
+    }});
+  }}
+  function dl(){{
+    save(); var o=collect(); o.generated=new Date().toISOString();
+    var blob=new Blob([JSON.stringify(o,null,2)],{{type:"application/json"}});
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download={fname};
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){{ URL.revokeObjectURL(a.href); a.remove(); }},0);
+  }}
+  document.addEventListener("DOMContentLoaded",function(){{
+    restore();
+    document.addEventListener("input",function(ev){{
+      var t=ev.target;
+      if((t.closest&&t.closest(".collab"))||t.id==="rv-reviewer"||t.id==="rv-notes") save();
+    }});
+    var b=document.getElementById("rv-export"); if(b) b.addEventListener("click",dl);
+  }});
+}})();
+</script>
+"""
+
+
 _TABS = (("graph", "Security Graph"), ("operations", "Operations"),
          ("findings", "Findings"), ("assets", "Assets"), ("report", "Report"))
 
@@ -622,7 +760,7 @@ def render_engagement_html(domain: str, graph: dict) -> str:
     panels = {
         "graph": graph_panel,
         "operations": _operations_panel(oplog, loot),
-        "findings": _findings_panel(graph),
+        "findings": _findings_panel(graph, _load_prior_reviews(domain)),
         "assets": _assets_panel(graph),
         "report": markdown_to_html(E.render_report(graph)),
     }
@@ -650,8 +788,9 @@ def render_engagement_html(domain: str, graph: dict) -> str:
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{_esc('Engagement — ' + domain)}</title>\n"
-        f"<style>{_CSS_BASE}{_TAB_CSS}</style>\n"
+        f"<style>{_CSS_BASE}{_TAB_CSS}{_REVIEW_CSS}</style>\n"
         f"{_CDN}"
         f"{_script(elements)}\n"
+        f"{_review_script(domain)}\n"
         '</head>\n<body><div class="report">\n' + "\n".join(body) + "\n</div></body></html>\n"
     )

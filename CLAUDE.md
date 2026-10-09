@@ -214,6 +214,13 @@ The tool produces artifacts an operator has to read. Volume is a cost, not a del
   counts. `audience='internal'` keeps them. Platform submissions always strip them: a
   triager cannot resolve an index into someone else's Burp session. Rule 16a bans activity
   counts in either direction.
+- **Reporting + human collaboration hub (core, Ghostwriter-free).** `engagement_graph(format='html')`
+  is the core deliverable the human reads — findings, operator log, assets, kill-chain graph,
+  report, in one self-contained page. It is also the collaboration surface: the human triages
+  findings in the page and exports `reports/<domain>-review.json`; ingest it with
+  `import_engagement_review(domain)`, which appends a `collab` entry per finding + notes. A
+  requested status change is SURFACED, never auto-applied (Rule 16b). Ghostwriter stays the
+  optional advanced hub for multi-operator full-flow.
 - **Never state what was not captured.** Report sections render only from stored fields;
   a missing one prints an explicit NOT SUPPLIED marker. Fill it by re-running the PoC, not
   by writing what the result probably was.

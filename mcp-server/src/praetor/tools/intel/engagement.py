@@ -234,3 +234,129 @@ def register(mcp: FastMCP) -> None:
                     "(For the graph INSIDE dsh instead, use format='dsh' — that needs the "
                     "dsh-pentest npm plugin loaded in dsh.)")
         return E.render_text(graph)
+
+    @mcp.tool()
+    async def import_engagement_review(
+        domain: str, path: str = "", review_json: str = ""
+    ) -> str:
+        """Read back a human review exported from the engagement HTML hub.
+
+        The agent⇄human collaboration round-trip: the human opens
+        `engagement_graph(format='html')`, triages findings in the Findings tab,
+        clicks "Export review" (writes `reports/<domain>-review.json`), then the
+        agent calls this. Per reviewed finding a `collab` entry is APPENDED to
+        findings.json (reviewer, requested status, comment); the finding's own
+        status/severity is NOT changed — a requested change is SURFACED for the
+        operator to decide (Rule 16b: a confirmed report is never silently
+        re-verdicted). Engagement notes are appended to notes.md.
+
+        Args:
+            domain: target domain.
+            path: review JSON file (default reports/<domain>-review.json).
+            review_json: inline review JSON (used instead of a file when given).
+        """
+        import datetime
+        from pathlib import Path
+
+        from praetor.tools.notes._findings_io import (
+            _findings_lock, _load_findings_file, _safe_findings_path, _write_findings_file)
+
+        if review_json.strip():
+            raw = review_json
+            src = "inline"
+        else:
+            safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in domain) or "target"
+            p = Path(path) if path else (_intel_path(domain) / "reports" / f"{safe}-review.json")
+            if not p.exists():
+                return (f"error: no review file at {p} — in the HTML hub "
+                        "(engagement_graph format='html') click 'Export review', then pass "
+                        "its path or paste review_json")
+            try:
+                raw = p.read_text(encoding="utf-8")
+            except OSError as exc:
+                return f"error reading {p}: {exc}"
+            src = str(p)
+
+        try:
+            data = json.loads(raw)
+        except ValueError as exc:
+            return f"error: review is not valid JSON ({exc})"
+        reviews = data.get("reviews") if isinstance(data, dict) else None
+        if not isinstance(reviews, dict):
+            return ('error: review JSON has no "reviews" object — expected '
+                    '{"reviews": {"<finding_id>": {"status": "...", "comment": "..."}}, "notes": "..."}')
+        notes = (data.get("notes") or "").strip()
+        reviewer_default = (data.get("reviewer") or "").strip()
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+        fpath = _safe_findings_path(domain)
+        applied: list[str] = []
+        requested: list[tuple[str, str, str]] = []
+        unknown: list[str] = []
+        with _findings_lock(fpath):
+            store = _load_findings_file(fpath)
+            items = store.get("findings", []) if isinstance(store, dict) else store
+            by_id: dict[str, dict] = {}
+            for f in items:
+                if isinstance(f, dict):
+                    for k in (f.get("finding_id"), f.get("id")):
+                        if k:
+                            by_id[str(k)] = f
+            for fid, entry in reviews.items():
+                if not isinstance(entry, dict):
+                    continue
+                comment = (entry.get("comment") or "").strip()
+                status_req = (entry.get("status") or entry.get("status_requested") or "").strip().lower()
+                if not comment and not status_req:
+                    continue
+                f = by_id.get(str(fid))
+                if f is None:
+                    unknown.append(str(fid))
+                    continue
+                f.setdefault("collab", []).append({
+                    "reviewer": (entry.get("reviewer") or reviewer_default or "operator").strip(),
+                    "status_requested": status_req or None,
+                    "comment": comment,
+                    "ts": entry.get("ts") or ts,
+                    "imported_at": ts,
+                    "source": "human",
+                })
+                applied.append(str(fid))
+                cur = str(f.get("status") or "").lower()
+                if status_req and status_req != cur:
+                    requested.append((str(fid), cur or "—", status_req))
+            if applied:
+                if isinstance(store, dict):
+                    store["last_modified"] = ts
+                _write_findings_file(fpath, store)
+
+        if notes or applied:
+            lines = [f"\n## Human review — {ts}"]
+            if reviewer_default:
+                lines.append(f"Reviewer: {reviewer_default}")
+            if notes:
+                lines.append(notes)
+            for fid in applied:
+                e = reviews.get(fid, {})
+                c = (e.get("comment") or "").strip()
+                s = (e.get("status") or "").strip()
+                if c or s:
+                    lines.append(f"- {fid}: " + (f"[{s}] " if s else "") + c)
+            npath = _intel_path(domain) / "notes.md"
+            try:
+                npath.parent.mkdir(parents=True, exist_ok=True)
+                prev = npath.read_text(encoding="utf-8") if npath.exists() else ""
+                npath.write_text(prev + "\n".join(lines) + "\n", encoding="utf-8")
+            except OSError:
+                pass
+
+        out = [f"Imported human review for {domain} (source: {src}).",
+               f"Comments added to {len(applied)} finding(s): {', '.join(applied) or '—'}."]
+        if requested:
+            out.append("Requested status changes — NOT auto-applied, operator decides (Rule 16b):")
+            out.extend(f"  {fid}: {cur} -> {req}" for fid, cur, req in requested)
+        if unknown:
+            out.append(f"Unknown finding ids, skipped: {', '.join(unknown)}.")
+        if notes:
+            out.append("Engagement notes appended to notes.md.")
+        return "\n".join(out)

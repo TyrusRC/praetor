@@ -409,6 +409,19 @@ renders it. Two ways to see it as an interactive graph:
   **Force** layout toggle, header count chips, and **Security Graph / Operations /
   Findings / Assets / Report** tabs. **Just open the file in a browser.** No npm, no
   plugin, no server — it is Praetor's own page, not a dsh component.
+
+  **Agent⇄human collaboration (the core, Ghostwriter-free loop).** The Findings tab
+  carries a per-finding review control: a status (confirm / needs-more-evidence /
+  false-positive / won't-fix) and a comment, plus an engagement-notes box. The human
+  triages in the browser (the draft autosaves locally), clicks **Export review** to
+  write `reports/<domain>-review.json`, and the agent then runs
+  `import_engagement_review(domain)`. Each reviewed finding gets a `collab` entry
+  appended to `findings.json` and the notes land in `notes.md`, so the agent reads the
+  human's decisions on its next move. A requested status change is **surfaced for the
+  operator to decide — never auto-applied** (a confirmed report is not silently
+  re-verdicted). Prior imported reviews render read-only in the page, so both sides see
+  past rounds. No server and no account — the round-trip is a single JSON file, so it
+  works offline and air-gapped.
 - **Inside dsh (native tab).** `engagement_graph(domain, format='dsh')` returns
   `pentest_add_*` commands that populate a native dsh view. Praetor is a Python MCP
   server, so it cannot render a React UI itself — a dsh plugin does that. Use the upstream
