@@ -43,6 +43,11 @@ def _env(name: str) -> str:
     return (os.environ.get(name) or "").strip()
 
 
+def _is_local(url: str) -> bool:
+    u = (url or "").lower()
+    return any(h in u for h in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]"))
+
+
 @dataclass
 class DecisionConfig:
     tier: str          # "jev" | "llm" | "off"
@@ -54,29 +59,40 @@ class DecisionConfig:
 
 def resolve_decision() -> DecisionConfig:
     """Pick the best available backend. PRAETOR_DECISION_PROVIDER forces one of
-    jev|llm|off; otherwise auto: jev if an AI-Gateway key is set, else llm if an
-    LLM is configured, else off."""
+    jev|llm|off; otherwise auto: jev if an AI-Gateway key is set OR a local engine
+    base_url is configured, else llm if an LLM is configured, else off. The jev
+    tier serves BOTH the hosted API (key) and a self-hosted engine (keyless, local
+    base_url) — same /v1/evaluate contract."""
     forced = _env("PRAETOR_DECISION_PROVIDER").lower()
     key = _env("PRAETOR_DECISION_API_KEY") or _env("AI_GATEWAY_API_KEY")
     model = _env("PRAETOR_DECISION_MODEL") or _DEFAULT_MODEL
-    base = _env("PRAETOR_DECISION_BASE_URL") or _DEFAULT_BASE
+    base_env = _env("PRAETOR_DECISION_BASE_URL")
+    base = base_env or _DEFAULT_BASE
+    # The key authenticates a REMOTE hosted gateway (Vercel AI Gateway). A
+    # self-hosted engine on loopback (a local Haruspex / OpenJev server) needs
+    # none — it is selected keyless whenever its base_url points at localhost.
+    local_engine = bool(base_env) and _is_local(base)
+    jev_ok = bool(key) or local_engine
 
     if forced == "off":
         return DecisionConfig("off", model, base, "", "disabled by PRAETOR_DECISION_PROVIDER=off")
-    if forced == "jev" or (not forced and key):
-        if key:
+    if forced == "jev":
+        if jev_ok:
             return DecisionConfig("jev", model, base, key)
-        if forced == "jev":
-            return DecisionConfig("off", model, base, "",
-                                  "PRAETOR_DECISION_PROVIDER=jev but no AI_GATEWAY_API_KEY / PRAETOR_DECISION_API_KEY")
+        return DecisionConfig("off", model, base, "",
+                              "PRAETOR_DECISION_PROVIDER=jev but no key and PRAETOR_DECISION_BASE_URL "
+                              "is not a local engine")
+    if not forced and jev_ok:
+        return DecisionConfig("jev", model, base, key)
     if forced == "llm" or not forced:
         if _llm.resolve_llm().ok:
             return DecisionConfig("llm", model, base, "", "")
         if forced == "llm":
             return DecisionConfig("off", model, base, "", "PRAETOR_DECISION_PROVIDER=llm but no LLM configured")
     return DecisionConfig("off", model, base, "",
-                          "no decision backend — set AI_GATEWAY_API_KEY (Jev) or a PRAETOR_LLM_* provider; "
-                          "deterministic ordering/verdicts stay in force")
+                          "no decision backend — run a local engine "
+                          "(PRAETOR_DECISION_BASE_URL=http://127.0.0.1:<port>), set AI_GATEWAY_API_KEY "
+                          "for hosted Jev, or a PRAETOR_LLM_* provider; deterministic order/verdicts stay")
 
 
 def available(cfg: DecisionConfig | None = None) -> bool:
@@ -104,7 +120,11 @@ async def evaluate(state, questions: dict, timeout: int = 45,
 
 
 async def _jev_evaluate(cfg, state, questions, timeout) -> dict:
-    headers = {"Authorization": f"Bearer {cfg.api_key}", "Content-Type": "application/json"}
+    # Hosted gateway (Vercel AI Gateway, OpenJev vLLM shim, …) authenticates with
+    # the key; a keyless local engine gets no Authorization header.
+    headers = {"Content-Type": "application/json"}
+    if cfg.api_key:
+        headers["Authorization"] = f"Bearer {cfg.api_key}"
     body = {"model": cfg.model, "state": state, "questions": questions}
     async with httpx.AsyncClient(timeout=timeout) as c:
         r = await c.post(cfg.base_url.rstrip("/") + "/v1/evaluate", headers=headers, json=body)

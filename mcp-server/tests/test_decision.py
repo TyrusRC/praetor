@@ -77,9 +77,17 @@ class ResolveTest(DecisionBase):
         self.assertEqual(cfg.tier, "jev")
         self.assertEqual(cfg.model, "typesafe-ai/jev")
 
-    def test_forced_jev_without_key_is_off(self):
+    def test_forced_jev_without_key_or_local_is_off(self):
         os.environ["PRAETOR_DECISION_PROVIDER"] = "jev"
         self.assertEqual(D.resolve_decision().tier, "off")
+
+    def test_local_engine_selects_jev_keyless(self):
+        # self-hosted Haruspex on loopback — no key, picked automatically
+        os.environ["PRAETOR_DECISION_BASE_URL"] = "http://127.0.0.1:3000"
+        cfg = D.resolve_decision()
+        self.assertEqual(cfg.tier, "jev")
+        self.assertEqual(cfg.api_key, "")
+        self.assertTrue(D.available(cfg))
 
     def test_llm_tier_when_llm_ok(self):
         _llm.resolve_llm = lambda *a, **k: type("C", (), {"ok": True})()
@@ -100,6 +108,18 @@ class JevShapeTest(DecisionBase):
         self.assertEqual(cap["headers"]["Authorization"], "Bearer secret")
         self.assertEqual(cap["body"]["model"], "typesafe-ai/jev")
         self.assertEqual(len(cap["body"]["questions"]), 2)        # one round trip
+
+    def test_hosted_jev_sends_auth_header(self):
+        os.environ["AI_GATEWAY_API_KEY"] = "hk"
+        cap = self._mock_jev({"q0": {"type": "boolean", "probability": 0.5}})
+        asyncio.run(D.rank_relevant("t", [{"key": "a", "state": "x"}]))
+        self.assertEqual(cap["headers"].get("Authorization"), "Bearer hk")
+
+    def test_local_jev_omits_auth_header(self):
+        os.environ["PRAETOR_DECISION_BASE_URL"] = "http://127.0.0.1:3000"  # keyless local
+        cap = self._mock_jev({"q0": {"type": "boolean", "probability": 0.5}})
+        asyncio.run(D.rank_relevant("t", [{"key": "a", "state": "x"}]))
+        self.assertNotIn("Authorization", cap["headers"])
 
     def test_jev_choice_passthrough(self):
         os.environ["AI_GATEWAY_API_KEY"] = "k"

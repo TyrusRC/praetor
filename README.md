@@ -555,7 +555,7 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `PRAETOR_LLM_MODEL` | provider default | model id |
 | `PRAETOR_LLM_SYSTEM` / `PRAETOR_LLM_TEMPERATURE` | — / `0.0` | response style (system prompt + randomness) |
 | `AI_GATEWAY_API_KEY` | — | decision engine (native Jev via Vercel AI Gateway) — `decision_status` / `decide_relevance` / `decide_questions`. Without it the engine falls back to a `PRAETOR_LLM_*` provider, then to deterministic ordering |
-| `PRAETOR_DECISION_PROVIDER` | auto | force the decision backend: `jev` / `llm` / `off` (auto = jev if `AI_GATEWAY_API_KEY`, else llm if an LLM is set, else off) |
+| `PRAETOR_DECISION_PROVIDER` | auto | force the decision backend: `jev` / `llm` / `off` (auto = jev if `AI_GATEWAY_API_KEY` **or** a local `PRAETOR_DECISION_BASE_URL`, else llm if an LLM is set, else off) |
 | `PRAETOR_DECISION_MODEL` / `PRAETOR_DECISION_BASE_URL` | `typesafe-ai/jev` / `https://ai-gateway.vercel.sh` | decision model id + gateway base URL |
 | `VT_API_KEY` | — | `vt_lookup` (VirusTotal, free public API) |
 | `SHODAN_API_KEY` | — | `shodan_host` full API (keyless InternetDB works without it) |
@@ -589,8 +589,12 @@ the matching assay engine runs the same way on the scanner side.
 Three backends, best-first, selected automatically (force with
 `PRAETOR_DECISION_PROVIDER=jev|llm|off`):
 
-1. **jev** — TypeSafe **Jev** via Vercel AI Gateway (`POST /v1/evaluate`), native
-   calibrated probabilities. Set `AI_GATEWAY_API_KEY`.
+1. **jev** — the `/v1/evaluate` typed-decision API, serving **both** the hosted
+   TypeSafe **Jev** on Vercel AI Gateway (set `AI_GATEWAY_API_KEY`) **and a
+   self-hosted engine** you run locally (e.g. [Haruspex](https://github.com/TyrusRC/haruspex)
+   / OpenJev): point `PRAETOR_DECISION_BASE_URL` at `http://127.0.0.1:<port>` and
+   it is selected **keyless** — the key authenticates the remote gateway only, not
+   your own model.
 2. **llm** — any `PRAETOR_LLM_*` provider answers the same typed questions as
    JSON — **including a small model on your own machine via Ollama** (keyless,
    offline, air-gapped). See below.
