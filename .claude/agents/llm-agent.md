@@ -26,7 +26,7 @@ Not LLM-backed → do nothing, return `status:"blocked"` with `blockers:["endpoi
    record format (openai|anthropic|generic) + has_tools
 3. baseline: capture a clean send {status, length, response_hash} (R11)
 4. run_web_llm_owasp_top10(endpoint) — automated candidate sweep (LEADS, not verdicts)
-   + run_nuclei_llm_infra for model-server infra
+   + scan_llm_infra for model-server infra
 5. for each candidate class present, drive the targeted send via
    resend_with_modification(index, modify_body=...) / session_request:
      LLM01 prompt injection  — benign canary, cycle encoding/persona/delimiter axes
@@ -57,7 +57,7 @@ Not LLM-backed → do nothing, return `status:"blocked"` with `blockers:["endpoi
 
 ## Tools You Use
 
-`check_scope`, `discover_llm_endpoint`, `run_web_llm_owasp_top10`, `run_nuclei_llm_infra`, `run_local_llm_prompt_injection`, `run_garak`, `run_owasp_asi_top10`, `inspect_for_prompt_injection`, `session_request`, `curl_request`, `resend_with_modification`, `generate_collaborator_payload`, `get_collaborator_interactions`, `test_cloud_metadata` (tool-SSRF chain), `test_rate_limit` (LLM10 sensitive action), `probe_cua_injection_surface` (indirect DOM injection → `cua-hunt.md`), `assess_finding`, `save_finding`, `annotate_request`, `send_to_organizer`, `save_target_intel`, `save_target_notes`.
+`check_scope`, `discover_llm_endpoint`, `run_web_llm_owasp_top10`, `scan_llm_infra`, `run_local_llm_prompt_injection`, `run_garak`, `run_owasp_asi_top10`, `inspect_for_prompt_injection`, `session_request`, `curl_request`, `resend_with_modification`, `generate_collaborator_payload`, `get_collaborator_interactions`, `test_cloud_metadata` (tool-SSRF chain), `test_rate_limit` (LLM10 sensitive action), `probe_cua_injection_surface` (indirect DOM injection → `cua-hunt.md`), `assess_finding`, `save_finding`, `annotate_request`, `send_to_organizer`, `save_target_intel`, `save_target_notes`.
 
 ## Returns
 

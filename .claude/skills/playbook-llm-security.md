@@ -30,7 +30,7 @@ Automated sweeps run through Praetor's LLM MCP tools; targeted single sends go t
 | Task | Praetor tool |
 |---|---|
 | Automated OWASP LLM Top-10 sweep on the app endpoint | `run_web_llm_owasp_top10` |
-| LLM infra / model-server nuclei templates | `run_nuclei_llm_infra` |
+| LLM infra / model-server nuclei templates | `scan_llm_infra` |
 | Prompt-injection probe corpus | `run_local_llm_prompt_injection`, `run_garak` |
 | Agentic / tool-abuse (OWASP ASI) | `run_owasp_asi_top10` |
 | Manual / targeted single send | `session_request`, `curl_request`, `resend_with_modification(index, modify_body=...)` |

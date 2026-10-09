@@ -224,6 +224,7 @@ function Install-PdTool([string]$name, [string]$goPackage) {
 Install-PdTool 'subfinder'   'github.com/projectdiscovery/subfinder/v2/cmd/subfinder'
 Install-PdTool 'httpx'       'github.com/projectdiscovery/httpx/cmd/httpx'
 Install-PdTool 'nuclei'      'github.com/projectdiscovery/nuclei/v3/cmd/nuclei'
+Install-PdTool 'assay'       'github.com/TyrusRC/assay/cmd/assay'   # default web-scan engine (run_assay)
 # katana needs CGO; on Windows that usually means MSYS2/MinGW - skip gracefully if it fails.
 Install-PdTool 'katana'      'github.com/projectdiscovery/katana/cmd/katana'
 Install-PdTool 'dalfox'      'github.com/hahwul/dalfox/v2'

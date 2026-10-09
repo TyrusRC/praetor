@@ -395,6 +395,11 @@ install_pd_tool "httpx" \
 install_pd_tool "nuclei" \
     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
+# assay — Praetor's default web-scan engine (run_assay / merge_scan). Native
+# context-aware detectors + nuclei-compatible template engine + headless.
+install_pd_tool "assay" \
+    "go install github.com/TyrusRC/assay/cmd/assay@latest"
+
 install_pd_tool "katana" \
     "CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest"
 

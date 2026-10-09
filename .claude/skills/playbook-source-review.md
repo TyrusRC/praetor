@@ -20,7 +20,7 @@ codebases). This playbook is for when you hold the *actual* source of the target
 ```
 0. Reduce      strip vendor/generated noise               (operator shell pre-step)
 1. Inventory   route declarations → endpoints.json        inventory_source_routes
-2. Sink map    per-language dangerous-sink grep            run_opengrep_source
+2. Sink map    per-language dangerous-sink scan            run_mantis
 3. Trace       input → sink data-flow                      run_vulnhuntr / run_xvulnhuntr
 4. Rank        unauth-reachable sinks first                sast_to_endpoint_risk / risk_rank_endpoints
 5. Confirm     source-flagged sink → live proof            confirm_rce / confirm_sqli / confirm_ssti / ...
@@ -47,8 +47,8 @@ __pycache__,.venv,venv,third_party,generated,migrations,test,tests,spec,fixtures
 
 `inventory_source_routes` and `risk_rank_endpoints` already prune the common
 dependency dirs internally (`node_modules .git .venv venv env __pycache__ dist
-build vendor .next target site-packages`). `run_opengrep_source` does **not** —
-it runs opengrep against `target_path` verbatim, so point it at the reduced copy
+build vendor .next target site-packages`). `run_mantis` does **not** auto-strip —
+it scans `repo_path` as given, so point it at the reduced copy
 (or drop a `.semgrepignore`). Vendor code you didn't write is noise: a CVE in a
 dependency is a `playbook-cve-research.md` job, not a source-review finding.
 
@@ -87,7 +87,7 @@ over-matches commented-out decorators. Treat the output as leads to verify with
 ## Step 2 — Per-language dangerous-sink reference
 
 The sink dictates the vuln class and the `confirm_*` that closes the loop. `grep`
-column is for stacks `run_opengrep_source` under-covers or `inventory_source_routes`
+column is for stacks `run_mantis` under-covers or `inventory_source_routes`
 doesn't parse. Walk from each sink **backwards** to the request parameter that feeds
 it — an unsanitized path is a candidate, a sink fed only by constants is not.
 
@@ -174,30 +174,35 @@ Three engines, different depths. Pick by language and budget:
 
 | Tool | Engine | Languages | Speed | Use when |
 |---|---|---|---|---|
-| `run_opengrep_source` | opengrep/semgrep rules (pattern, no LLM) | all (registry rulesets) | fast | **first pass** — breadth. Grep every sink class, cheap, deterministic. |
-| `run_vulnhuntr` | protectai/vulnhuntr, LLM-chain | **Python only** | medium | Python target, or cross-check opengrep's Python hits with data-flow reasoning. |
+| `run_mantis` | mantis — OpenGrep + multi-engine + semantic dedup + `.mantisignore`; optional LLM triage/deep (call-graph reachability, CWE/CVSS/PoC) | all (OpenGrep registry + bundled rules) | fast (deep LLM slower) | **first pass + depth** — the source-audit engine. `llm=False` for deterministic breadth; `llm=True` for per-finding TRUE/FALSE triage + deep review. |
+| `run_vulnhuntr` | protectai/vulnhuntr, LLM-chain | **Python only** | medium | Python target, or cross-check mantis's Python hits with a different data-flow technique. |
 | `run_xvulnhuntr` | CompassSecurity fork, LLM AST chain-trace | **Python + C# + Java** | slow | typed source→sink chains in Py/C#/Java that pattern rules can't follow across functions. |
 
 ```
-# Breadth first — deterministic, no API key.
-run_opengrep_source(target_path="/tmp/repo-src")
-# default configs: p/owasp-top-ten + p/security-audit
-# add language packs: extra_configs=["p/java","p/python","p/javascript","p/secrets"]
-# CI pivot: sarif=True → SARIF JSON
+# Breadth first — deterministic, no API key (offline by default).
+run_mantis(repo_path="/tmp/repo-src", mode="quick")
+# modes: quick|deep|bugbounty|cve|mobile|web|secrets|iac|cloud
+# incremental: since="main" (only files changed vs a git ref)
+# multi-engine: engines="offline" adds trivy/grype with offline DBs
 
-# Depth on the language-matched sink chains (needs ANTHROPIC_API_KEY / local LLM).
+# Depth with LLM triage + deep review (bridges Praetor's _llm config):
+run_mantis(repo_path="/tmp/repo-src", mode="deep", llm=True)
+
+# Complementary LLM-chain tracers (a different technique, not a duplicate):
 run_xvulnhuntr(repo_path="/tmp/repo-src", language="java", max_files=50)   # Py/C#/Java
 run_vulnhuntr(repo_path="/tmp/repo-src", max_files=50)                     # Python only
 ```
 
-`run_opengrep_source` returns a **text summary** (or SARIF). The LLM tools return
+`run_mantis` returns deduped findings (rule_id/severity/path/line/verdict/cwe/owasp).
+The LLM-chain tools return
 `{findings:[{vuln_type, severity, file, line, sink, source_chain:[{file,line,symbol}],
 explanation}]}` — the `source_chain` is what you project into
 `save_finding.evidence.source_chain` after DAST confirms it.
 
-**Prefer opengrep for breadth, an LLM tool for the one chain you'll confirm.** Don't
-run all three on the whole tree; that's three scans for one answer. Run opengrep, let
-it point at the hot files, then run the LLM tracer scoped to them.
+**Prefer `run_mantis` (llm=False) for breadth, an LLM-chain tracer for the one chain
+you'll confirm.** Don't run all three on the whole tree; that's three scans for one
+answer. Run `run_mantis`, let it point at the hot files, then run the LLM tracer
+scoped to them.
 
 ## Step 4 — Rank unauth-reachable sinks first
 
@@ -216,9 +221,10 @@ Both return `{total_findings, ranked_endpoints:[{method, path, framework, risk_s
 vuln_classes, evidence:[...]}], orphans:[...]}` — findings grouped by the nearest
 route decorator walked back from each finding's line, summed risk, worst-first.
 `risk_rank_endpoints` runs opengrep internally (`--json`); `sast_to_endpoint_risk`
-is the pure transformer — feed it opengrep run with `--json` (not the text summary
-from `run_opengrep_source` default; either capture `--json` yourself or use the
-one-shot). `source_root` is **required** for the route walk-back; without it, route
+is the pure transformer — feed it an opengrep run with `--json` (capture it yourself,
+or just use the one-shot `risk_rank_endpoints`). These two keep their own direct
+opengrep pass for the route-risk bridge — separate from the `run_mantis` source-audit
+engine. `source_root` is **required** for the route walk-back; without it, route
 inference falls back to filesystem-only (Next.js `app/`/`pages/`).
 
 **Prioritise:** unauthenticated routes with `vuln_classes` in {rce, sqli, ssti, ssrf,
@@ -282,8 +288,8 @@ not a substitute — a chain with no live `proxy_history_index` is not reportabl
   Reduce the tree (Step 0) first.
 - **Don't trust the route regex.** `inventory_source_routes` misses dynamic routes
   and doesn't parse PHP/.NET/Go/Perl/C++ routes at all — verify liveness before probing.
-- **Don't run all three tracers on the whole tree.** opengrep for breadth, one LLM
-  tool scoped to the hot files it flagged.
+- **Don't run all three tracers on the whole tree.** `run_mantis` for breadth, one
+  LLM-chain tool scoped to the hot files it flagged.
 - **Don't probe auth'd sinks before unauth ones.** Rank with `sast_to_endpoint_risk`;
   unauthenticated RCE/SQLi is where the impact (and the bounty) is.
 - **Don't cite a `source_chain` without a live confirm.** Source proves the code path

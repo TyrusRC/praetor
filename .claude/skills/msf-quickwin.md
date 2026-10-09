@@ -13,7 +13,7 @@ Load when an attack vector has been identified that **matches a known CVE / fing
 |---|---|
 | `lookup_cve(tech_stack)` returned hits | YES — `msf_search(query='CVE-YYYY-NNNN')` |
 | `detect_tech_stack` matched a fingerprint with known RCE | YES — try MSF module first |
-| `run_nuclei` flagged a templated vuln | MAYBE — MSF often has the exploit; nuclei was detection |
+| `run_assay` flagged a templated vuln | MAYBE — MSF often has the exploit; nuclei was detection |
 | Modern attack class (RSC Flight, OAuth chains, GraphQL drift, CSPP/SSPP, MCP tool poisoning) | NO — Praetor KB + custom flow; MSF lags here |
 | Custom multi-step business-logic flaw | NO — `run_flow` / `run_pyexploit` |
 | Authenticated IDOR / BFLA | NO — `test_auth_matrix` |

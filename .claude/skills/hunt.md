@@ -71,7 +71,7 @@ different mode mid-engagement.
 
 Then, at the start of every hunt session:
 
-1. `check_pro_features()` — confirms Pro vs Community. On Community, route to MCP-side equivalents (auto_probe + run_nuclei + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
+1. `check_pro_features()` — confirms Pro vs Community. On Community, route to MCP-side equivalents (auto_probe + run_assay + run_dalfox + run_sqlmap; interact.sh wildcard for OOB; browser_crawl + run_katana). Don't burn tokens hitting Pro-only endpoints that will 4xx.
 2. `hydrate_burp_findings(domain="all")` — Burp's in-memory FindingsStore empties on every extension reload. This re-populates the UI Findings tab from `.burp-intel/<domain>/findings.json` so what's on disk matches what's visible. Safe to run repeatedly (duplicate-skips). If skipped: previously-saved findings disappear from the Burp UI even though they're still on disk.
 3. **Read `.claude/skills/operational-discipline.md` once.** It governs every probe you send this session — the difference between a pentester and a fuzzing scanner is reading the response before the next payload, stating a hypothesis before probing, and replaying before saving. Phase 3 below assumes you've read it; it is not restated there.
 4. `set_capture_hygiene()` — filter the HTTP-history VIEW to in-scope-only and hide static/media (js/css/images/fonts) + exclude tracker/CDN hosts from scope, so the Proxy tab stays signal, not noise. One-time per session.
@@ -144,7 +144,7 @@ endpoint list is untested surface, i.e. OPEN, not absent (Rule 19a).
 **Installed CLI recon layer — use the tools setup installed, don't hand-roll (Rule 26a).**
 Reach for these where they beat the in-process probes; all route through Burp and are captured/replayable:
 - `run_katana(url)` — deep JS-aware crawl at scale (complements browser_crawl)
-- `run_nuclei(url)` — template-driven vuln / misconfig / CVE sweep
+- `run_assay(url)` — template-driven vuln / misconfig / CVE sweep
 - `run_ffuf` / `discover_common_files` — content discovery
 - `run_dalfox` — XSS discovery; `run_sqlmap` / `run_ghauri` — SQLi confirmation
 - `run_subfinder` / `run_httpx` / `run_dnsx` — subdomain + live-host + DNS expansion

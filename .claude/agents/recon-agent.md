@@ -61,9 +61,10 @@ non-standard ports and forgotten hosts. Discipline:
    discovery+enum+bridge in one call; use it instead of hand-chaining.
 4. `nmap_report_html(xml_path)` → offline HTML exposure report (flags
    non-standard ports) for at-a-glance triage.
-5. Feed the discovered port set into `run_nuclei` — every open port, not only
-   80/443. Route 403s to `probe_40x_bypass`. This is hand-off intel; network
-   scanning itself is operator-gated (Rule 1 + ALWAYS-ASK tools).
+5. Feed each discovered web port (not only 80/443) into `run_assay` — the
+   native detectors + nuclei-compatible template engine (default + custom
+   templates) scan the URL. Route 403s to `probe_40x_bypass`. This is hand-off
+   intel; network scanning itself is operator-gated (Rule 1 + ALWAYS-ASK tools).
 
 ## IIS / ASP.NET target
 
@@ -73,9 +74,9 @@ routes) unlocks an IIS-specific track. Version drives focus: 6.0/7.x → shortna
 leftover legacy; 10.x → app-logic + access control + debug/backup exposure.
 
 1. **8.3 shortname (tilde) enumeration** — the signature IIS recon win.
-   `run_nuclei` with the `iis-shortname-detect` template (or `-tags iis`); if
-   enabled, the operator's `shortscan` reconstructs names (`ADMINI~1` →
-   `administrator`). Discovered shortnames are high-value fuzzing seeds.
+   `run_assay` covers it natively (its `iistilde` detector); if enabled, the
+   operator's `shortscan` reconstructs names (`ADMINI~1` → `administrator`).
+   Discovered shortnames are high-value fuzzing seeds.
 2. **IIS-tuned content discovery** — `generate_smart_wordlist(tech="iis")`
    (IIS.fuzz.txt + ASP-aspx.txt) with high-value extensions
    `.aspx .asmx .ashx .svc .asp .config .bak .old .zip .rar .7z .dll .xml`, fed

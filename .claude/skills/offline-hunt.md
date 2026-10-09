@@ -23,7 +23,7 @@ bundle or URL, a directory of JS, or a full `project/` tree. Burp-independent.
 2. Read `observations` (facts) vs `hypotheses` (labelled, unproven). Never treat
    a hypothesis as a finding.
 3. Escalate secrets: if the regex pass flags a possible secret, confirm with
-   `run_gitleaks(<path>)` / `run_opengrep_source(<path>)` for verified
+   `run_gitleaks(<path>)` / `run_mantis(<path>)` for verified
    detection (HIGH severity floor). Regex alone is a lead, not proof.
 4. Promote a hypothesis to a finding ONLY after real testing (a live request /
    Burp-routed probe) proves it, then run the normal gate:

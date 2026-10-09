@@ -286,6 +286,7 @@ if has httpx && ! httpx -version 2>&1 | grep -qi "projectdiscovery\|httpx versio
     skip "httpx is ProjectDiscovery's" "another 'httpx' shadows PATH — prepend ~/go/bin (Praetor itself resolves it correctly)"
 fi
 check_recon nuclei     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+check_recon assay      "go install github.com/TyrusRC/assay/cmd/assay@latest   # default web-scan engine (run_assay)"
 check_recon katana     "go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
 check_recon ffuf       "go install -v github.com/ffuf/ffuf/v2@latest"
 check_recon dalfox     "go install -v github.com/hahwul/dalfox/v2@latest"
@@ -301,6 +302,8 @@ check_recon dig        "sudo apt install dnsutils # or: brew install bind / scoo
 
 # ── SAST + secrets + Noir layer ──
 check_recon opengrep   "brew install opengrep                              # or: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash"
+check_recon mantis     "uv tool install 'git+https://github.com/TyrusRC/mantis.git'   # source-audit engine (run_mantis; needs opengrep)"
+check_recon centurion-mcp "uv tool install 'git+https://github.com/TyrusRC/centurion.git'   # mobile engine (companion MCP server)"
 check_recon gitleaks   "brew install gitleaks                              # or: go install github.com/gitleaks/gitleaks/v8@latest"
 check_recon trufflehog "brew install trufflehog                            # or: go install github.com/trufflesecurity/trufflehog/v3@latest"
 check_recon git-dumper "pipx install git-dumper                            # or: pip install git-dumper"

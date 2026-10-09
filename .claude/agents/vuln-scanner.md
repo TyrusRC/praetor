@@ -41,7 +41,7 @@ Class-specific overrides (route directly, skip auto_probe step):
 | `postmessage` | `probe_postmessage_listeners` |
 | `csp` | `analyze_csp` |
 | `sse` | `probe_sse_injection` |
-| `llm_*` | `run_web_llm_owasp_top10` + `run_nuclei_llm_infra` |
+| `llm_*` | `run_web_llm_owasp_top10` + `scan_llm_infra` |
 | `kerberos_spnego` | `probe_kerberos_spnego_auth` |
 | `mcp_jsonrpc` | `probe_mcp_jsonrpc_methods` |
 | `mcp_server` | `probe_mcp_server_attacks` |

@@ -102,7 +102,7 @@ The pretty text still flows to the operator via `result["human_summary"]`.
 
 - **UI / utility actions**: `send_to_comparer`, `send_to_organizer`, `annotate_request`, `match_replace`.
 - **Recon / discovery aggregators**: `discover_attack_surface`, `full_recon`, `browser_crawl`.
-- **External tool wrappers without parsing**: `run_nuclei`, `run_subfinder`, etc.
+- **External tool wrappers without parsing**: `run_subfinder`, `run_katana`, etc.
 
 When in doubt: if the tool's contract is "did vuln class X manifest on target Y", it should return a VerdictResult. Otherwise string is fine.
 
