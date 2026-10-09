@@ -7,12 +7,13 @@ cites a proxy_history_index. HARD safety Rules 5-9 and the device allowlist appl
 
 from mcp.server.fastmcp import FastMCP
 
-from . import connect, control, frida, payloads, proxy, static
+from . import connect, control, flow, frida, payloads, proxy, static
 
 
 def register(mcp: FastMCP) -> None:
     payloads.register(mcp)
     control.register(mcp)
+    flow.register(mcp)          # mobile_locate + mobile_run_flow (label/OCR locate, verified UI journey)
     connect.register(mcp)
     frida.register(mcp)
     proxy.register(mcp)

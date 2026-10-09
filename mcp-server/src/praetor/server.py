@@ -23,6 +23,7 @@ from praetor.tools import (
     smart_js_analyze,
     smart_request_triage,
     extract_batch,
+    extract_structured,
     sveltekit_probe,
     nuxt_island_probe,
     graphql_csrf_probe,
@@ -249,6 +250,7 @@ version_delta.register(mcp)      # adapt_poc_to_version — cross-version PoC ad
 smart_js_analyze.register(mcp)   # smart_js_analyze — JS → fire-ready attack plan (W30-b)
 smart_request_triage.register(mcp)  # smart_request_triage — proxy entry → attack plan (W30-c)
 extract_batch.register(mcp)         # extract_js_secrets_batch / extract_api_endpoints_batch / extract_links_batch — dedup across N indices in one call (W31-b)
+extract_structured.register(mcp)    # markdownify (keyless HTML->MD reducer) + extract_structured (optional-LLM NL/schema extraction over a captured response)
 sveltekit_probe.register(mcp)       # probe_sveltekit_devalue_dos — CVE-2026-22774/22775/22803 class (W31-c)
 nuxt_island_probe.register(mcp)     # probe_nuxt_island_authz — CVE-2026-47200/46342 class (W31-c)
 graphql_csrf_probe.register(mcp)    # probe_graphql_csrf — Burp 2026.6 parity (W31-d)
