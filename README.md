@@ -79,6 +79,7 @@ LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition 
 - HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
 - Response extraction, deterministic and LLM-assisted: `extract_regex` / `extract_json_path` / `extract_css_selector` (keyless), plus `markdownify` (keyless HTML→Markdown reducer) and `extract_structured` (optional-LLM NL/schema extraction) — all over a **captured** `proxy_history_index`, never a non-proxied scrape.
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10 (Web / API / LLM / Mobile), OWASP WSTG, PayloadsAllTheThings, HackTricks Web + Cloud — see the [Coverage](#coverage) table.
+- Decision engine (the Jev pattern) — a calibrated model layer for *which template/probe is relevant to this target* and *which hit to verify first*: `decision_status` / `decide_relevance` / `decide_questions`. Native TypeSafe **Jev** via Vercel AI Gateway (`AI_GATEWAY_API_KEY`), any `PRAETOR_LLM_*` provider, or **off** → the deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope (`decide`) stay in force. It **orders**, never drops coverage (Rule 19).
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
 - Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
 - XSS execution → impact: `probe_xss_executed` proves a payload runs (headless dialog hook), then `xss_impact_proof` escalates it to a benign, evidence-backed session-theft PoC — an OOB beacon of the minimum marker to a Burp Collaborator / operator callback (own-session or lab victim-bot only; not a keylogging C2).
@@ -553,6 +554,9 @@ On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
 | `PRAETOR_LLM_BASE_URL` | provider default | endpoint — **required** for `openai-compat` / self-hosted models |
 | `PRAETOR_LLM_MODEL` | provider default | model id |
 | `PRAETOR_LLM_SYSTEM` / `PRAETOR_LLM_TEMPERATURE` | — / `0.0` | response style (system prompt + randomness) |
+| `AI_GATEWAY_API_KEY` | — | decision engine (native Jev via Vercel AI Gateway) — `decision_status` / `decide_relevance` / `decide_questions`. Without it the engine falls back to a `PRAETOR_LLM_*` provider, then to deterministic ordering |
+| `PRAETOR_DECISION_PROVIDER` | auto | force the decision backend: `jev` / `llm` / `off` (auto = jev if `AI_GATEWAY_API_KEY`, else llm if an LLM is set, else off) |
+| `PRAETOR_DECISION_MODEL` / `PRAETOR_DECISION_BASE_URL` | `typesafe-ai/jev` / `https://ai-gateway.vercel.sh` | decision model id + gateway base URL |
 | `VT_API_KEY` | — | `vt_lookup` (VirusTotal, free public API) |
 | `SHODAN_API_KEY` | — | `shodan_host` full API (keyless InternetDB works without it) |
 | `OTX_API_KEY` / `GREYNOISE_API_KEY` / `ABUSEIPDB_API_KEY` | — | `otx_lookup` / `greynoise_lookup` / `abuseipdb_lookup` (all free tier) |

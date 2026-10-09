@@ -9,7 +9,7 @@ from praetor.tools import (
     intel, cve, report, recon, recon_extended, transform, repeater, macro, scanner_control,
     proxy_control, extract, browser, advisor, testing_extended, burp_tools, dom_probe,
     prompts, resources_mcp, mutate, exploit, auth, vuln, research, harvest, dom_xss_executed,
-    xss_impact,
+    xss_impact, decision_tools,
     bucket_urls, scope_extra, wordlist, secrets, analysis, security,
     shadow_repeater, easm, recon_pd, waf_bypass,
     sca, llm_redteam, k8s_audit, vulnwalker, httpql,
@@ -212,6 +212,7 @@ research.register(mcp)         # research_attack_vector — curated bundle of de
 harvest.register(mcp)          # harvest_identifiers — pull IDs/emails/UUIDs/ULIDs/Snowflakes/JWTs out of captured traffic for IDOR pivots (Strix-derived; complements extract_js_secrets which is single-index, API-key focused)
 dom_xss_executed.register(mcp) # probe_xss_executed — headless dialog-hook XSS execution proof (nuclei-DAST pattern); promotes findings from "reflected" to "EXECUTED"
 xss_impact.register(mcp)       # xss_impact_proof — benign execution->impact escalation (OOB beacon, Collaborator/operator callback; own/lab session only)
+decision_tools.register(mcp)   # decision engine (Jev/LLM/off): decision_status / decide_relevance / decide_questions — model-backed selection + triage ranking, deterministic fallback
 bucket_urls.register(mcp)      # bucket_urls_by_vuln_class — gf-pattern URL classifier feeding targeted auto_probe (reconftw-derived; 5-10× more token-efficient than spray-fuzz)
 shadow_repeater.register(mcp)  # shadow_repeater — silent mutation pass on a captured request; reports anomalies vs baseline
 easm.register(mcp)             # recorded_login + findings_diff + format_pr_comment + easm_monitor_loop
