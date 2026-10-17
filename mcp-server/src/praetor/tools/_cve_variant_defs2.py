@@ -95,7 +95,6 @@ def _generic_variants(baseline: str, canary: str, action_id: str) -> list[dict[s
     operator-supplied baseline. Hard-bounded by max_variants caller cap."""
     if not baseline:
         return []
-    from urllib.parse import quote
     base = baseline.replace("__CANARY__", canary)
     variants = []
     variants.append({"label": "gen.raw", "method": "POST",

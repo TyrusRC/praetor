@@ -8,7 +8,7 @@ Decision logic sourced from: hunt.md, burp-workflow.md, verify-finding.md skills
 
 Submodules:
     _constants     — TECH_PRIORITIES, PARAM_VULN_MAP, PHASES tables
-    _helpers       — detect_tech_from_headers, prioritize_params, vuln_root
+    _helpers       — detect_tech_from_headers, vuln_root
     hunt_plan      — get_hunt_plan implementation
     next_action    — get_next_action implementation
     recon_phase    — run_recon_phase implementation

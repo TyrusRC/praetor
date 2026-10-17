@@ -24,22 +24,6 @@ def detect_tech_from_headers(headers: list[dict]) -> list[str]:
     return list(set(techs))
 
 
-def prioritize_params(params: list[dict]) -> list[dict]:
-    """Score and sort parameters by attack priority."""
-    from praetor.tools.advisor._constants import PARAM_VULN_MAP
-
-    scored = []
-    for p in params:
-        name = p.get("name", "").lower()
-        vuln = PARAM_VULN_MAP.get(name)
-        score = 3 if vuln else 1
-        if p.get("reflected"):
-            score += 2
-        scored.append({**p, "priority_score": score, "likely_vuln": vuln or "unknown"})
-    scored.sort(key=lambda x: x["priority_score"], reverse=True)
-    return scored
-
-
 def vuln_root(v: str) -> str:
     """Trim common suffixes so sqli == sqli_blind == sqli_time for dedup."""
     v = (v or "").lower().strip()

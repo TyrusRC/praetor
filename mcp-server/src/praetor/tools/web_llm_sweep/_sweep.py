@@ -16,7 +16,6 @@ from ._detect import (
     _PI_PAYLOADS,
     _LEAK_PAYLOADS,
     _DOS_PAYLOAD,
-    _CONTROL_PROMPT,
     _shape_payloads,
     _post,
     _response_text,
