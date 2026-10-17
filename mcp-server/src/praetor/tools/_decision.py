@@ -104,7 +104,7 @@ def _state_str(state) -> str:
 
 
 async def evaluate(state, questions: dict, timeout: int = 45,
-                   cfg: DecisionConfig | None = None) -> dict:
+                   cfg: DecisionConfig | None = None, domain: str = "web") -> dict:
     """Answer `questions` about `state` in one round trip. Returns a dict keyed
     like `questions`, each value normalized to one of:
       {"type":"boolean","probability":float}
@@ -115,17 +115,19 @@ async def evaluate(state, questions: dict, timeout: int = 45,
     if cfg.tier == "off":
         raise RuntimeError(cfg.reason or "decision backend off")
     if cfg.tier == "jev":
-        return await _jev_evaluate(cfg, state, questions, timeout)
+        return await _jev_evaluate(cfg, state, questions, timeout, domain)
     return await _llm_evaluate(cfg, state, questions, timeout)
 
 
-async def _jev_evaluate(cfg, state, questions, timeout) -> dict:
+async def _jev_evaluate(cfg, state, questions, timeout, domain="web") -> dict:
     # Hosted gateway (Vercel AI Gateway, OpenJev vLLM shim, …) authenticates with
     # the key; a keyless local engine gets no Authorization header.
     headers = {"Content-Type": "application/json"}
     if cfg.api_key:
         headers["Authorization"] = f"Bearer {cfg.api_key}"
-    body = {"model": cfg.model, "state": state, "questions": questions}
+    # `domain` routes a multi-adapter Haruspex engine to the right per-domain
+    # adapter; a hosted Jev / single-adapter engine ignores the field.
+    body = {"model": cfg.model, "domain": domain, "state": state, "questions": questions}
     async with httpx.AsyncClient(timeout=timeout) as c:
         r = await c.post(cfg.base_url.rstrip("/") + "/v1/evaluate", headers=headers, json=body)
         r.raise_for_status()
