@@ -213,3 +213,59 @@ def verdict_from_tally(
     if hits >= 1:
         return ("SUSPECTED", suspected_confidence)
     return ("FAILED", failed_confidence)
+
+
+async def enrich_with_haruspex(
+    verdict: dict[str, Any],
+    state: str,
+    *,
+    domain: str = "web",
+    question: str = "Is this a real, reportable security finding?",
+    true_desc: str = "a real, exploitable vulnerability",
+    false_desc: str = "informational / safe / not reportable alone",
+) -> dict[str, Any]:
+    """Layer a calibrated Haruspex probability onto a verdict dict, fail-open.
+
+    Praetor's own confirm_/probe_ tools build their verdict from deterministic
+    evidence (replay, Collaborator, body diff) — that decision never changes.
+    This ADDS a second, independent signal under `verdict["haruspex"]`:
+    `{probability, domain, domain_source, source}` — never touches `verdict`,
+    `confidence`, or any evidence field. Backend off, a network error, or any
+    exception leaves the verdict byte-for-byte unchanged (see decision_tools.py
+    for the same `_BACKEND_ERRORS` contract).
+
+    `domain` routes a multi-adapter Haruspex engine to the right specialist
+    (web|mobile|network|llm|cloud); callers pass the domain they're testing in.
+    `state` should be the finding's evidence text, not a paraphrase — the model
+    is phrasing-sensitive, so pass what actually happened, not a summary of it.
+
+    Use this where an independent, differently-trained second opinion is worth
+    the extra round trip — not a blanket wrapper for every verdict (Rule 22:
+    one smart call over many chatty ones). Good fits: info-disclosure/exposure
+    tools where the deterministic signal alone is weak (Rule 14a — what does
+    this enable?), and borderline SUSPECTED verdicts worth a tie-break.
+    """
+    try:
+        from praetor.tools import _decision
+        cfg = _decision.resolve_decision()
+        if cfg.tier == "off":
+            return verdict
+        answers = await _decision.evaluate(
+            state,
+            {"q": {"type": "boolean", "instructions": question,
+                   "criteria": {"true": true_desc, "false": false_desc}}},
+            cfg=cfg, domain=domain,
+        )
+        ans = answers.get("q") if isinstance(answers, dict) else None
+        if not isinstance(ans, dict) or ans.get("probability") is None:
+            return verdict  # no opinion (e.g. CVE/cloud router deferred) — unchanged
+        verdict = dict(verdict)
+        verdict["haruspex"] = {
+            "probability": ans["probability"],
+            "domain": domain,
+            "domain_source": ans.get("domain_source"),
+            "source": ans.get("source", "model"),
+        }
+        return verdict
+    except Exception:  # noqa: BLE001 - fail-open by contract, never blocks the verdict
+        return verdict
