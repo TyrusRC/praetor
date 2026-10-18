@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 from ._shared import (
@@ -9,6 +10,27 @@ from ._shared import (
     json,
     wrap_untrusted,
 )
+
+_NETWORK_PIVOT_TIMEOUT = 120  # bounded sub-timeout per tool, not run_assay's own
+
+
+async def _network_pivot(target: str, scope_host: str) -> str:
+    """Bounded nmap service scan + tlsx TLS check against target's host.
+    Fail-open: either sub-scan erroring is reported, never raised."""
+    host = urlparse(target if "://" in target else f"//{target}").hostname or target
+    out = [f"--- Network/TLS pivot: {host} ---"]
+    try:
+        from praetor.tools.network.nmap import _format_scan, nmap_scan
+        res = await nmap_scan(host, domain=scope_host or host, timeout=_NETWORK_PIVOT_TIMEOUT)
+        out.append(_format_scan(res))
+    except Exception as exc:  # noqa: BLE001 - this pivot never fails the web scan
+        out.append(f"nmap pivot error: {exc}")
+    try:
+        from praetor.tools.recon_pd._impl import run_tlsx
+        out.append(await run_tlsx([host], timeout=_NETWORK_PIVOT_TIMEOUT))
+    except Exception as exc:  # noqa: BLE001
+        out.append(f"tlsx pivot error: {exc}")
+    return "\n".join(out)
 
 # Nuclei template stores assay loads alongside its native detectors.
 # PRAETOR_ASSAY_TEMPLATES (os.pathsep-separated dirs) overrides; otherwise the
@@ -44,6 +66,7 @@ def register(mcp: FastMCP):
         templates: list[str] | None = None,
         use_proxy: bool = True,
         timeout: int = 600,
+        auto_network_check: bool = False,
     ) -> str:
         """Run the assay native web scanner against a target through Burp proxy. Requires assay installed.
 
@@ -65,6 +88,16 @@ def register(mcp: FastMCP):
                 when present; PRAETOR_ASSAY_TEMPLATES (os.pathsep dirs) overrides.
             use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 600)
+            auto_network_check: Also run a bounded nmap service scan + tlsx TLS-
+                config check against target's host and append the results, so
+                a web scan surfaces the underlying host's open ports/TLS
+                config in the same call instead of requiring a separate manual
+                step. Off by default (a separate, slower, non-Burp-proxied
+                lane); bounded to a 120s sub-timeout each so it can't balloon
+                this call's overall runtime. Findings here are NOT routed
+                through Haruspex — the trained adapters are AD/cloud-IaC
+                phrasing, not raw nmap/TLS output, so forcing that match would
+                be an unvalidated guess, not a real fit.
         """
         if not _check_tool("assay"):
             return ("Error: assay not installed. Build it: "
@@ -122,6 +155,10 @@ def register(mcp: FastMCP):
             lines.append(f"  ... and {len(findings) - 50} more")
         lines.append("")
         lines.append("Verify, then ingest into findings.json with import_scan_results (format 'assay').")
+
+        if auto_network_check:
+            lines.append("")
+            lines.append(await _network_pivot(target, scope_host))
 
         return wrap_untrusted("\n".join(lines), source="assay")
 
