@@ -20,6 +20,9 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools.assurance._checklists._catalogs import checklist_for
+from praetor.tools.assurance._checklists._status import _load_scope, _load_status
+from praetor.tools.assurance._checklists.engagement import _standards_for
 from praetor.tools.intel.checkpoint import load_checkpoint_data, _OPEN_STATES
 from praetor.tools.report.business_logic_gate import business_logic_gate
 from praetor.tools.workspace import workspace_paths
@@ -47,7 +50,20 @@ def judge_completion_data(domain: str, objective: str = "") -> dict:
       - no task is still open (pending/in_progress/blocked),
       - no unresolved open_threads,
       - the business-logic pass is proven (business_logic_gate clears),
-      - coverage was recorded (at least one probe ran).
+      - coverage was recorded (at least one probe ran),
+      - build_engagement_checklist was run for this domain, AND every item in
+        the FULL catalog for its recorded scope is confirmed/finding/
+        not_applicable — not merely "category touched" (Rule 19a: that is
+        weaker than item-level done and does not close an item).
+
+    The checklist check is the fix for a real gap: nothing else here reads
+    checklist.json, so an engagement could self-report "done" (a handful of
+    checkpoint tasks closed, one coverage entry, one business-logic invariant
+    tested) while most of the WSTG/OWASP catalog stayed untouched. The full
+    expected item set is derived from the SCOPE persisted when
+    build_engagement_checklist ran — not from which items happen to already
+    have a status entry, which is the self-reported signal that let this gap
+    exist in the first place.
 
     confirmed_findings is reported but is NOT a gate — a clean target that was
     fully worked is legitimately complete with zero findings.
@@ -104,6 +120,35 @@ def judge_completion_data(domain: str, objective: str = "") -> dict:
     if bl:
         gaps.append(bl)
 
+    checklist_scope = _load_scope(domain)
+    if not checklist_scope:
+        gaps.append(
+            "no checklist built — call build_engagement_checklist(domain, scope) "
+            "and work it before treating the engagement as complete (Rule 19a: "
+            "untested is not N/A)"
+        )
+    else:
+        status = _load_status(domain)
+        open_items: list[str] = []
+        for std in _standards_for(checklist_scope):
+            done_ids = {
+                k.split(":", 1)[1] for k, v in status.items()
+                if k.startswith(f"{std}:")
+                and isinstance(v, dict) and v.get("status") in ("confirmed", "finding", "not_applicable")
+            }
+            for case in checklist_for(std):
+                cid = case.get("id", "")
+                if cid and cid not in done_ids:
+                    open_items.append(f"{std}:{cid}")
+        if open_items:
+            shown = ", ".join(open_items[:5])
+            more = f" (+{len(open_items) - 5} more)" if len(open_items) > 5 else ""
+            gaps.append(
+                f"checklist has {len(open_items)} open item(s) not confirmed/finding/"
+                f"not_applicable — e.g. {shown}{more}; run checklist_autotest or "
+                f"checklist_update, or mark not_applicable with a reason"
+            )
+
     result["complete"] = not gaps
     if result["complete"]:
         result["recommended_next"] = "engagement complete — generate_report(domain)"
@@ -141,9 +186,11 @@ def register(mcp: FastMCP) -> None:
         completion).
 
         NOT complete unless: a checkpoint exists, every task is done, no
-        open_threads remain, the business-logic pass is proven, and coverage was
-        recorded. Zero confirmed findings does NOT block completion — a fully
-        worked clean target is legitimately done.
+        open_threads remain, the business-logic pass is proven, coverage was
+        recorded, AND build_engagement_checklist was run with every item in its
+        catalog confirmed/finding/not_applicable (category-touched alone does
+        not close an item — Rule 19a). Zero confirmed findings does NOT block
+        completion — a fully worked clean target is legitimately done.
 
         Args:
             domain: Target domain (slug).

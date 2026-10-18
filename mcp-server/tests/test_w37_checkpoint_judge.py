@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import shutil
 import unittest
+import unittest.mock
 
 from praetor.tools.notes._helpers import _intel_dir, _sanitized
 
@@ -189,6 +190,7 @@ class CompletionJudgeTest(unittest.TestCase):
 
     def test_complete_when_all_gates_clear(self):
         from praetor.tools.intel.checkpoint import merge_checkpoint
+        from praetor.tools.report import completion_judge as cj
         from praetor.tools.report.completion_judge import judge_completion_data
         # All tasks done, no threads.
         merge_checkpoint(self.DOMAIN, phase="done",
@@ -206,8 +208,18 @@ class CompletionJudgeTest(unittest.TestCase):
         import asyncio
         asyncio.run(cap.tools["record_business_logic_test"](
             self.DOMAIN, "coupon one-use", "/api/redeem", "held", True))
-
-        v = judge_completion_data(self.DOMAIN)
+        # Checklist gate: a tiny fixed catalog, fully closed — this test is about
+        # the OTHER gates (checkpoint/coverage/bizlogic), the checklist gate itself
+        # gets its own dedicated tests below.
+        with unittest.mock.patch.object(cj, "_load_scope", return_value=["web"]), \
+             unittest.mock.patch.object(cj, "_standards_for", return_value=["owasp_top10"]), \
+             unittest.mock.patch.object(cj, "checklist_for",
+                                        return_value=[{"id": "A01"}, {"id": "A02"}]):
+            self._write_json("checklist.json", {"items": {
+                "owasp_top10:A01": {"status": "confirmed"},
+                "owasp_top10:A02": {"status": "not_applicable", "note": "no state-change here"},
+            }})
+            v = judge_completion_data(self.DOMAIN)
         self.assertTrue(v["complete"], v["gaps"])
         self.assertEqual(v["confirmed_findings"], 1)
         self.assertIn("generate_report", v["recommended_next"])
@@ -226,6 +238,123 @@ class CompletionJudgeTest(unittest.TestCase):
         from praetor.tools.report.completion_judge import judge_completion_data
         v = judge_completion_data("")
         self.assertFalse(v["complete"])
+
+
+# ---------------------------------------------------------------------------
+# C. completion_judge — checklist gate (the fix for the reported "it sometimes
+#    skips checklist items even on a full-coverage pentest" bug). Root cause:
+#    judge_completion never read checklist.json at all, so an engagement could
+#    self-report done with most of the catalog still untouched.
+# ---------------------------------------------------------------------------
+class ChecklistGateTest(unittest.TestCase):
+    DOMAIN = "w37-cl.test-throwaway.example"
+
+    def setUp(self) -> None:
+        from praetor.tools.intel.checkpoint import merge_checkpoint
+        # Satisfy every OTHER gate so each test isolates the checklist gate.
+        merge_checkpoint(self.DOMAIN, phase="done",
+                         tasks=[{"id": "T1", "status": "done"}])
+        self._write_json("coverage.json", {"knowledge_version": "1", "entries": [{"x": 1}]})
+        from praetor.tools.report import business_logic_gate as blg
+        cap = _ToolCapture()
+        blg.register(cap)
+        import asyncio
+        asyncio.run(cap.tools["record_business_logic_test"](
+            self.DOMAIN, "inv", "/x", "held", True))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(_intel_dir() / _sanitized(self.DOMAIN), ignore_errors=True)
+
+    def _write_json(self, name: str, payload: dict) -> None:
+        from praetor.tools.workspace import workspace_paths
+        root = workspace_paths(self.DOMAIN)["root"]
+        root.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(json.dumps(payload), encoding="utf-8")
+
+    def _patched(self):
+        """Patch the full catalog small + deterministic so tests don't depend
+        on the real (large, changing) WSTG/OWASP catalogs."""
+        from praetor.tools.report import completion_judge as cj
+        return (
+            unittest.mock.patch.object(cj, "_standards_for", return_value=["owasp_top10"]),
+            unittest.mock.patch.object(
+                cj, "checklist_for",
+                return_value=[{"id": "A01"}, {"id": "A02"}, {"id": "A03"}]),
+        )
+
+    def test_never_built_is_incomplete(self):
+        # build_engagement_checklist was never called for this domain at all.
+        from praetor.tools.report.completion_judge import judge_completion_data
+        v = judge_completion_data(self.DOMAIN)
+        self.assertFalse(v["complete"])
+        self.assertTrue(any("no checklist built" in g for g in v["gaps"]))
+
+    def test_built_but_items_untouched_blocks_completion(self):
+        from praetor.tools.assurance._checklists._status import _save_scope
+        from praetor.tools.report.completion_judge import judge_completion_data
+        _save_scope(self.DOMAIN, ["web"])
+        # checklist.json never written -> every item in the catalog is open.
+        p1, p2 = self._patched()
+        with p1, p2:
+            v = judge_completion_data(self.DOMAIN)
+        self.assertFalse(v["complete"])
+        gap = next(g for g in v["gaps"] if "open item" in g)
+        self.assertIn("3 open item", gap)
+        self.assertIn("owasp_top10:A01", gap)
+
+    def test_category_touched_alone_does_not_close_an_item(self):
+        # [~] (category touched by coverage) is weaker than item-level done —
+        # it must NOT satisfy the gate (Rule 19a: untested is not covered).
+        from praetor.tools.assurance._checklists._status import _save_scope
+        from praetor.tools.report.completion_judge import judge_completion_data
+        _save_scope(self.DOMAIN, ["web"])
+        self._write_json("checklist.json", {"items": {
+            "owasp_top10:A01": {"status": "open"},
+        }})
+        p1, p2 = self._patched()
+        with p1, p2:
+            v = judge_completion_data(self.DOMAIN)
+        self.assertFalse(v["complete"])
+        self.assertTrue(any("open item" in g for g in v["gaps"]))
+
+    def test_partial_progress_reports_remaining_count_and_examples(self):
+        from praetor.tools.assurance._checklists._status import _save_scope
+        from praetor.tools.report.completion_judge import judge_completion_data
+        _save_scope(self.DOMAIN, ["web"])
+        self._write_json("checklist.json", {"items": {
+            "owasp_top10:A01": {"status": "confirmed"},
+        }})
+        p1, p2 = self._patched()
+        with p1, p2:
+            v = judge_completion_data(self.DOMAIN)
+        self.assertFalse(v["complete"])
+        gap = next(g for g in v["gaps"] if "open item" in g)
+        self.assertIn("2 open item", gap)       # A02, A03 remain
+        self.assertNotIn("A01", gap)             # A01 is closed, not listed as open
+
+    def test_all_confirmed_or_not_applicable_clears_the_gate(self):
+        from praetor.tools.assurance._checklists._status import _save_scope
+        from praetor.tools.report.completion_judge import judge_completion_data
+        _save_scope(self.DOMAIN, ["web"])
+        self._write_json("checklist.json", {"items": {
+            "owasp_top10:A01": {"status": "confirmed"},
+            "owasp_top10:A02": {"status": "finding"},
+            "owasp_top10:A03": {"status": "not_applicable", "note": "no file upload on this app"},
+        }})
+        p1, p2 = self._patched()
+        with p1, p2:
+            v = judge_completion_data(self.DOMAIN)
+        self.assertTrue(v["complete"], v["gaps"])
+
+    def test_checklist_scope_survives_a_later_checklist_update(self):
+        # _save_status (checklist_update's write path) unconditionally rewrites
+        # checklist.json's {"items": ...} — scope lives in a SEPARATE sidecar
+        # file precisely so that overwrite can never silently wipe it.
+        from praetor.tools.assurance._checklists._status import (
+            _load_scope, _save_scope, _save_status)
+        _save_scope(self.DOMAIN, ["web"])
+        _save_status(self.DOMAIN, {"owasp_top10:A01": {"status": "confirmed"}})
+        self.assertEqual(_load_scope(self.DOMAIN), ["web"])
 
 
 if __name__ == "__main__":

@@ -27,6 +27,31 @@ def _save_status(domain: str, items: dict[str, dict[str, str]]) -> None:
     atomic_write_json(d / "checklist.json", {"items": items})
 
 
+def _load_scope(domain: str) -> list[str]:
+    """The scope last passed to `build_engagement_checklist`, or [] if it was
+    never called for this domain. Read by `judge_completion` to know the FULL
+    expected standard/item set — derived from what the operator asked for, not
+    from which items happen to already have a status entry (that self-reported
+    signal is exactly what let completion be claimed with most of the catalog
+    silently untouched)."""
+    if not domain:
+        return []
+    from praetor.tools.report.lifecycle import load_intel
+    scope = load_intel(domain, "checklist_scope").get("scope")
+    return [str(s) for s in scope] if isinstance(scope, list) else []
+
+
+def _save_scope(domain: str, scope: list[str]) -> None:
+    """Separate sidecar file (not inside checklist.json) so `_save_status`'s
+    unconditional overwrite of checklist.json on every checklist_update call
+    can never silently wipe the recorded scope."""
+    from praetor.tools.intel import _intel_path
+    from praetor.tools.notes._findings_io import atomic_write_json
+    d = _intel_path(domain)
+    d.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(d / "checklist_scope.json", {"scope": list(scope)})
+
+
 def render_checklist(standard: str, standard_name: str, cases: list[dict[str, str]],
                      tested_categories: set[str] | None = None,
                      item_status: dict[str, dict[str, str]] | None = None) -> str:

@@ -24,7 +24,7 @@ from praetor.tools.workspace import ensure_workspace
 
 from .._standards import STANDARDS
 from ._catalogs import checklist_for
-from ._status import _load_status
+from ._status import _load_status, _save_scope
 
 _SCOPE_STANDARDS: dict[str, list[str]] = {
     "web": ["owasp_top10", "wstg"],
@@ -171,6 +171,7 @@ def register(mcp: FastMCP) -> None:
                 (e.g. "web api" or "web mobile"). Default "web".
         """
         scope_list = _norm_scope(scope)
+        _save_scope(domain, scope_list)  # judge_completion reads this back (Rule 19a gate)
         md = render_engagement_md(domain, scope_list)
         reports = ensure_workspace(domain)["reports"]
         out = reports / f"{_safe(domain)}-checklist.md"
