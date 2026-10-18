@@ -67,6 +67,7 @@ def register(mcp: FastMCP):
         use_proxy: bool = True,
         timeout: int = 600,
         auto_network_check: bool = False,
+        policy: str = "",
     ) -> str:
         """Run the assay native web scanner against a target through Burp proxy. Requires assay installed.
 
@@ -98,7 +99,26 @@ def register(mcp: FastMCP):
                 through Haruspex — the trained adapters are AD/cloud-IaC
                 phrasing, not raw nmap/TLS output, so forcing that match would
                 be an unvalidated guess, not a real fit.
+            policy: Name of a policy saved with save_scan_policy — when given,
+                its profile/scope_host/rate/templates/use_proxy/timeout/
+                auto_network_check REPLACE the values above for this call (the
+                named-profile pattern: save once, run by name across targets).
+                Pass '' and the args directly for a one-off call; don't mix a
+                policy name with explicit overrides in the same call.
         """
+        if policy:
+            from .scan_policy import load_scan_policy
+            pol = load_scan_policy(policy)
+            if not pol:
+                return f"Error: no scan policy named '{policy}' — list_scan_policies() to see what's saved."
+            profile = pol.get("profile", profile)
+            scope_host = pol.get("scope_host", scope_host)
+            rate = pol.get("rate", rate)
+            templates = pol.get("templates") or templates
+            use_proxy = pol.get("use_proxy", use_proxy)
+            timeout = pol.get("timeout", timeout)
+            auto_network_check = pol.get("auto_network_check", auto_network_check)
+
         if not _check_tool("assay"):
             return ("Error: assay not installed. Build it: "
                     "cd <assay repo> && go build -o ~/go/bin/assay ./cmd/assay")

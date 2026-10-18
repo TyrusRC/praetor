@@ -71,6 +71,10 @@ class TestReconScanningShim(unittest.TestCase):
             "run_wafw00f",
             "run_httpx",
             "run_gau",
+            "save_scan_policy",
+            "get_scan_policy",
+            "list_scan_policies",
+            "delete_scan_policy",
         }
         self.assertEqual(set(tools), expected)
         # No duplicate registrations
