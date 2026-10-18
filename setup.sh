@@ -435,6 +435,14 @@ install_pd_tool "nuclei" \
 install_pd_tool "assay" \
     "go install github.com/TyrusRC/assay/cmd/assay@latest"
 
+# groma — Praetor's default network-scan engine (run_groma). Full 1-65535
+# port range by default, naabu-based service fingerprinting + YAML CVE
+# checks. Replaces the old direct run_naabu wrapper; naabu itself (below,
+# in the PD expansion block) stays installed as groma's OWN optional
+# dependency, not a Praetor-exposed tool anymore.
+install_pd_tool "groma" \
+    "go install github.com/TyrusRC/groma/cmd/groma@latest"
+
 install_pd_tool "katana" \
     "CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest"
 
@@ -593,10 +601,13 @@ else
         || warn "tesseract not installed — brew install tesseract (screenshot auto-redaction)"
 fi
 
-# ── ProjectDiscovery expansion — recon_pd tools (run_dnsx / run_naabu / ...) ──
+# ── ProjectDiscovery expansion — recon_pd tools (run_dnsx / ...) ──
 echo ""
 info "ProjectDiscovery expansion (DNS / ports / TLS / ASN / OSINT recon)..."
 install_pd_tool "dnsx"      "go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+# naabu is not a direct Praetor tool (recon_pd dropped run_naabu) — groma
+# wraps it internally (fast full-range port sweep + -sV fingerprinting) and
+# degrades gracefully to its own native scanner if this install is skipped.
 install_pd_tool "naabu"     "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
 install_pd_tool "tlsx"      "go install -v github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
 install_pd_tool "asnmap"    "go install -v github.com/projectdiscovery/asnmap/cmd/asnmap@latest"
@@ -1051,6 +1062,7 @@ echo ""
 echo "Extended coverage (cloud / k8s / SCA / IaC / CI / LLM / PD-extras):"
 check dnsx
 check naabu
+check groma
 check gowitness
 check osv-scanner
 check trivy

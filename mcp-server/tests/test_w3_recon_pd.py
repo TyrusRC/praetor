@@ -36,7 +36,7 @@ class W3ToolRegistrationTest(unittest.TestCase):
                 return _wrap
 
         recon_pd.register(_Stub())
-        for t in ("run_dnsx", "run_naabu", "run_tlsx", "run_asnmap",
+        for t in ("run_dnsx", "run_tlsx", "run_asnmap",
                   "run_uncover", "run_cloudlist", "run_notify",
                   "run_vulnx", "run_cdncheck", "run_alterx",
                   "run_graphw00f"):
@@ -110,11 +110,6 @@ class W3MissingBinaryFallsThroughTest(unittest.TestCase):
             out = self._call("run_graphw00f", "https://example.com/graphql")
         self.assertIn("graphw00f", out)
         self.assertIn("install", out.lower())
-
-    def test_naabu_returns_install_hint(self):
-        with mock.patch.object(recon_pd._impl, "_check_tool", return_value=False):
-            out = self._call("run_naabu", "1.1.1.1")
-        self.assertIn("naabu not installed", out)
 
 
 if __name__ == "__main__":

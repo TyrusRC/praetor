@@ -69,6 +69,16 @@ _ASSAY_JSON = (
     ']},"summary":{}}'
 )
 
+_GROMA_JSON = (
+    '{"tool":"groma","version":"1.0.0","findings":['
+    '{"type":"open_port","severity":"info","host":"10.0.0.5","port":80,'
+    '"protocol":"tcp","title":"Port 80/tcp open"},'
+    '{"type":"CVE-2021-41773","severity":"critical","host":"10.0.0.5","port":80,'
+    '"protocol":"tcp","title":"Apache HTTP Server 2.4.49-2.4.50 Path Traversal / RCE",'
+    '"evidence":"Observed apache 2.4.50 on port 80/tcp","cwe":["CWE-22"]}'
+    '],"summary":{}}'
+)
+
 _NESSUS_XML = """<?xml version="1.0"?>
 <NessusClientData_v2><Report name="scan"><ReportHost name="10.0.0.5">
 <ReportItem port="443" svc_name="www" severity="3" pluginName="SQL Injection">
@@ -113,6 +123,22 @@ class TestImporter(unittest.TestCase):
 
     def test_detect_format_assay(self):
         self.assertEqual(self.imp._detect_format("x.json", _ASSAY_JSON), "assay")
+
+    def test_parse_groma_drops_open_port_and_info(self):
+        rows = self.imp.parse_groma(_GROMA_JSON)
+        # open_port is recon (merge_inventory's job, not a finding) and is
+        # dropped even though its severity would otherwise pass (it's info).
+        self.assertEqual(len(rows), 1)
+        f = rows[0]
+        self.assertEqual(f["severity"], "critical")
+        self.assertEqual(f["endpoint"], "10.0.0.5:80")
+        self.assertEqual(f["source"], "groma")
+        self.assertEqual(f["status"], "suspected")
+        self.assertIn("apache", f["evidence"]["raw"].lower())
+        self.assertTrue(f["vuln_type"])
+
+    def test_detect_format_groma(self):
+        self.assertEqual(self.imp._detect_format("x.json", _GROMA_JSON), "groma")
 
     def test_parse_nessus_maps_and_drops_info(self):
         rows = self.imp.parse_nessus(_NESSUS_XML)

@@ -45,28 +45,6 @@ async def run_dnsx(
     return "\n".join(lines)
 
 
-async def run_naabu(target: str, ports: str = "top-100", timeout: int = 300) -> str:
-    if not _check_tool("naabu"):
-        return _not_installed("naabu", "go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest")
-    cmd = ["naabu", "-host", target, "-silent", "-json"]
-    if ports == "top-100":
-        cmd += ["-top-ports", "100"]
-    elif ports == "top-1000":
-        cmd += ["-top-ports", "1000"]
-    elif ports == "full":
-        cmd += ["-p", "-"]
-    else:
-        cmd += ["-p", ports]
-    out, err, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
-    rows = _parse_jsonl(out)
-    lines = [f"naabu: {len(rows)} open ports on {target}"]
-    for r in rows[:60]:
-        lines.append(f"  {r.get('host','?')}:{r.get('port','?')}")
-    if rc != 0 and not rows:
-        lines.append(f"[rc={rc}] {err[:200]}")
-    return "\n".join(lines)
-
-
 async def run_tlsx(targets: list[str], timeout: int = 120) -> str:
     if not _check_tool("tlsx"):
         return _not_installed("tlsx", "go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest")

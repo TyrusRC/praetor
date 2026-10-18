@@ -216,7 +216,7 @@ decision_tools.register(mcp)   # decision engine (Jev/LLM/off): decision_status 
 bucket_urls.register(mcp)      # bucket_urls_by_vuln_class — gf-pattern URL classifier feeding targeted auto_probe (reconftw-derived; 5-10× more token-efficient than spray-fuzz)
 shadow_repeater.register(mcp)  # shadow_repeater — silent mutation pass on a captured request; reports anomalies vs baseline
 easm.register(mcp)             # recorded_login + findings_diff + format_pr_comment + easm_monitor_loop
-recon_pd.register(mcp)         # PD suite: dnsx/naabu/tlsx/asnmap/uncover/cloudlist/notify/vulnx/cdncheck/alterx + graphw00f
+recon_pd.register(mcp)         # PD suite: dnsx/tlsx/asnmap/uncover/cloudlist/notify/vulnx/cdncheck/alterx + graphw00f (naabu moved behind run_groma)
 waf_bypass.register(mcp)       # probe_40x_bypass (in-process header/path/method tricks) + nomore403 + byp4xx wrappers
 sca.register(mcp)              # osv-scanner / trivy / grype — SCA + container + IaC
 llm_redteam.register(mcp)      # garak / pyrit / mcp-scan — LLM endpoint + MCP server attack surface

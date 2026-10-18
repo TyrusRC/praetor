@@ -55,9 +55,12 @@ non-standard ports and forgotten hosts. Discipline:
    Fastly IP is not the origin (pointless + gets you banned). Confirm an origin
    by title.
 3. **One port scanner by default, not two.** Fast/mass port discovery across many
-   hosts → `run_naabu` (top-ports, verify). Reserve `run_nmap` (`-sV`/`-sC`/NSE)
-   for service+version depth on the handful of interesting hosts — don't run both
-   on everything. For a SINGLE target, `run_network_recon` already does the nmap
+   hosts → `run_groma` (full 1-65535 range by default, naabu-based service
+   fingerprinting + CVE-check matching in the same call — it replaced the old
+   direct `run_naabu` wrapper, which had none of that). Reserve `run_nmap`
+   (`-sV`/`-sC`/NSE/OS fingerprint/scan-type firewall mapping) for depth groma
+   doesn't cover on the handful of interesting hosts — don't run both on
+   everything. For a SINGLE target, `run_network_recon` already does the nmap
    discovery+enum+bridge in one call; use it instead of hand-chaining.
 4. `nmap_report_html(xml_path)` → offline HTML exposure report (flags
    non-standard ports) for at-a-glance triage.

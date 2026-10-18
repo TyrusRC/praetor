@@ -30,6 +30,7 @@ from ._parsers import (  # noqa: F401  (re-exported for callers/tests)
     _slug_to_vuln_type,
     parse_assay,
     parse_burp_xml,
+    parse_groma,
     parse_nessus,
     parse_nuclei,
     parse_openvas,
@@ -50,8 +51,9 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Import a scanner export into a domain's findings (dedup-merged).
 
-        Supported fmt: assay (JSON), nuclei (JSONL), nessus (.nessus XML),
-        sarif (JSON), burp (issues XML), openvas (GVM XML), zap (JSON), or 'auto'.
+        Supported fmt: assay (JSON), groma (JSON), nuclei (JSONL), nessus
+        (.nessus XML), sarif (JSON), burp (issues XML), openvas (GVM XML),
+        zap (JSON), or 'auto'.
         Imported findings enter as status='suspected' with a `source` tag —
         verify before reporting. Returns {parsed, created, updated, by_severity}.
         """

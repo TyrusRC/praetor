@@ -6,7 +6,6 @@ parsed summary.
 
 Tools:
     run_dnsx       DNS resolver / bruteforcer (PD)
-    run_naabu      SYN/CONNECT port scanner (PD)
     run_tlsx       TLS metadata grab (PD)
     run_asnmap     ASN -> CIDR expansion (PD)
     run_uncover    Shodan/Censys/Fofa/Quake/Hunter wrapper (PD)

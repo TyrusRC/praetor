@@ -28,17 +28,6 @@ def register(mcp: FastMCP):
         return await _impl.run_dnsx(targets, record_type, bruteforce_wordlist, timeout)
 
     @mcp.tool()
-    async def run_naabu(target: str, ports: str = "top-100", timeout: int = 300) -> str:
-        """Port scan via naabu.
-
-        Args:
-            target: host / IP / CIDR.
-            ports: 'top-100' | 'top-1000' | 'full' | '80,443,8080'.
-            timeout: seconds.
-        """
-        return await _impl.run_naabu(target, ports, timeout)
-
-    @mcp.tool()
     async def run_tlsx(targets: list[str], timeout: int = 120) -> str:
         """Grab TLS metadata (SAN, JARM, cipher, expiry) via tlsx.
 

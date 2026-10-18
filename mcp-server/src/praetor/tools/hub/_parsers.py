@@ -280,9 +280,49 @@ def parse_assay(text: str) -> list[dict]:
     return out
 
 
+def parse_groma(text: str) -> list[dict]:
+    """groma --format json export -> finding dicts. Drops info/unknown
+    severity and the recon-only "open_port" type (that's inventory, not a
+    finding — run_groma feeds it to merge_inventory separately, same as
+    run_nmap).
+
+    groma emits one JSON object: {tool: "groma", findings: [...], ...}. A
+    finding's `type` is often a bare check id (a CVE id, "ftp_anonymous_
+    login") rather than a class name, so — like parse_nessus's plugin-name
+    handling — vuln_type slugifies from the human-readable `title`, not `type`.
+    """
+    out: list[dict] = []
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return out
+    if doc.get("tool") != "groma":
+        return out
+    for row in doc.get("findings") or []:
+        if row.get("type") == "open_port":
+            continue
+        sev = str(row.get("severity", "")).lower()
+        if sev not in _REAL_SEV:
+            continue
+        host = row.get("host") or ""
+        port = row.get("port") or ""
+        endpoint = f"{host}:{port}" if port else host
+        out.append(
+            _finding(
+                row.get("title") or row.get("type") or "finding",
+                sev,
+                endpoint,
+                "groma",
+                evidence=row.get("evidence") or row.get("description") or "",
+            )
+        )
+    return out
+
+
 _PARSERS = {
     "nuclei": parse_nuclei,
     "assay": parse_assay,
+    "groma": parse_groma,
     "nessus": parse_nessus,
     "sarif": parse_sarif,
     "burp": parse_burp_xml,
@@ -314,6 +354,8 @@ def _detect_format(path: str, text: str) -> str:
         except ValueError:
             obj = None
         if isinstance(obj, dict):
+            if obj.get("tool") == "groma":
+                return "groma"
             if obj.get("tool") == "assay" or "scan_result" in obj:
                 return "assay"
             if "site" in obj:

@@ -296,6 +296,7 @@ if has httpx && ! httpx -version 2>&1 | grep -qi "projectdiscovery\|httpx versio
 fi
 check_recon nuclei     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 check_recon assay      "go install github.com/TyrusRC/assay/cmd/assay@latest   # default web-scan engine (run_assay)"
+check_recon groma      "go install github.com/TyrusRC/groma/cmd/groma@latest   # default network-scan engine (run_groma)"
 check_recon katana     "go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
 check_recon ffuf       "go install -v github.com/ffuf/ffuf/v2@latest"
 check_recon dalfox     "go install -v github.com/hahwul/dalfox/v2@latest"
@@ -320,7 +321,7 @@ check_recon noir       "build from https://github.com/owasp-noir/noir      # Cry
 
 # ── ProjectDiscovery expansion (W3) ──
 check_recon dnsx       "go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
-check_recon naabu      "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+check_recon naabu      "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest   # groma's own optional dependency, not a direct Praetor tool"
 check_recon tlsx       "go install -v github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
 check_recon asnmap     "go install -v github.com/projectdiscovery/asnmap/cmd/asnmap@latest"
 check_recon uncover    "go install -v github.com/projectdiscovery/uncover/cmd/uncover@latest"
