@@ -66,12 +66,15 @@ def register(mcp: Any) -> None:
             standard: ai_testing / owasp_top10 / api_top10 / wstg / mastg.
             item_id: the test-case id, e.g. AITG-APP-01.
             status: confirmed | finding | not_applicable | open.
-            note: short evidence / reason (required for not_applicable).
+            note: short evidence / reason — REQUIRED for confirmed/finding/
+                not_applicable (what you tested, or why it doesn't apply).
         """
         if status not in _ITEM_STATES:
             return f"status must be one of {sorted(_ITEM_STATES)}"
-        if status == "not_applicable" and not note.strip():
-            return "not_applicable requires a note (why it doesn't apply) — Rule 19a."
+        if status in ("confirmed", "finding", "not_applicable") and not note.strip():
+            return (f"{status} requires a note (what you tested / the evidence, or why it "
+                    "doesn't apply) — Rule 10/19a: a reportable status needs a reason, not a "
+                    "bare status flip.")
         from datetime import datetime, timezone
         items = _load_status(domain)
         key = f"{standard}:{item_id}"
@@ -136,8 +139,10 @@ def register(mcp: Any) -> None:
         After `checklist_autotest` gives the plan and you run each item's tool,
         pass the outcomes here in ONE call. Each result is a dict with `item_id`
         plus EITHER `verdict` (a VerdictResult verdict — CONFIRMED/FAILED/
-        SUSPECTED/INCONCLUSIVE/ERROR, mapped automatically) OR an explicit `status`
-        (confirmed/finding/not_applicable). Optional `note` (evidence index).
+        SUSPECTED/INCONCLUSIVE/ERROR, mapped automatically, with its own auto
+        note) OR an explicit `status` (confirmed/finding/not_applicable) PLUS a
+        required `note` — a bare `status` with no verdict and no note is a
+        status flip with zero evidence and is rejected (Rule 10/19a).
         Non-decisive verdicts (SUSPECTED/INCONCLUSIVE/ERROR) leave the item OPEN —
         they are not a completed test (Rule 13b/19a).
 
@@ -159,11 +164,16 @@ def register(mcp: Any) -> None:
                 note = note or auto_note
             else:
                 status = str(r.get("status", "")).lower()
+                if status in ("confirmed", "finding", "not_applicable") and not note:
+                    # a bare status flip with no verdict and no note is not
+                    # evidence — reject it rather than auto-filling a placeholder
+                    # note (Rule 10/19a); this was the gap that let a batch close
+                    # items with zero evidence behind the status.
+                    bad += 1
+                    continue
             if status not in ("confirmed", "finding", "not_applicable"):
                 left_open += 1  # SUSPECTED/INCONCLUSIVE/ERROR/open -> stays open
                 continue
-            if status == "not_applicable" and not note:
-                note = "auto: marked N/A"
             items[f"{standard}:{r['item_id']}"] = {
                 "status": status, "note": note,
                 "at": datetime.now(timezone.utc).isoformat()}
