@@ -21,10 +21,6 @@ from __future__ import annotations
 
 import json
 
-from mcp.server.fastmcp import FastMCP
-
-from praetor.tools.recon._common import _check_tool, _run_cmd
-
 
 def _not_installed(tool: str, hint: str) -> str:
     return f"Error: {tool} not installed.\nInstall: {hint}"
