@@ -141,6 +141,20 @@ def _build_context(
     return ctx
 
 
+def _haruspex_domain(vuln_type: str) -> str:
+    """Map vuln_type to a Haruspex domain adapter (web/cloud/llm/mobile/network)."""
+    vt = (vuln_type or "").lower()
+    if any(k in vt for k in ("cloud", "s3", "iam", "lambda", "azure", "gcp", "k8s", "container")):
+        return "cloud"
+    if any(k in vt for k in ("llm", "prompt", "ai_", "lm_")):
+        return "llm"
+    if any(k in vt for k in ("mobile", "android", "ios", "apk", "ipa", "frida", "intent")):
+        return "mobile"
+    if any(k in vt for k in ("smb", "ldap", "kerberos", "ntlm", "ad_", "network", "snmp", "ssh")):
+        return "network"
+    return "security"
+
+
 def _apply_program_policy(ctx: AssessContext) -> None:
     """Merge persisted per-program policy onto NEVER_SUBMIT defaults."""
     try:
@@ -202,6 +216,11 @@ def _render(ctx: AssessContext) -> str:
         _fw = _framework_line(ctx.vuln_type)
         if _fw:
             extras.append(f"  Framework: {_fw}")
+        if ctx.haruspex:
+            prob = ctx.haruspex.get("probability")
+            if prob is not None:
+                dom = ctx.haruspex.get("domain", "?")
+                extras.append(f"  Haruspex ({dom}): {prob:.2f} probability")
         if extras:
             compact += "\n" + "\n".join(extras)
         return compact
@@ -239,6 +258,12 @@ def _render(ctx: AssessContext) -> str:
     lines.append(f"\n  Gate issues ({len(ctx.issues)}):")
     for issue in ctx.issues:
         lines.append(f"    - {issue}")
+
+    if ctx.haruspex:
+        prob = ctx.haruspex.get("probability")
+        if prob is not None:
+            dom = ctx.haruspex.get("domain", "?")
+            lines.append(f"\n  Haruspex second opinion ({dom}): {prob:.2f} probability")
 
     if ctx.verdict == "DO NOT REPORT":
         lines.append("\n  Action: Do not report. Move to next target/parameter.")
@@ -309,5 +334,22 @@ async def assess_finding_impl(
 
     # Final confidence + severity + program-policy floor.
     finalize_severity(ctx)
+
+    # Haruspex enrichment: a calibrated second opinion on whether this is a
+    # real finding. Fail-open — if the engine is off or unreachable, the
+    # verdict is unchanged. The probability is appended to the output and
+    # stored on the context for downstream consumers (save_finding can
+    # record it). Uses the evidence text as state so the model sees what
+    # actually happened, not a summary.
+    try:
+        from praetor.tools.testing._verdict import enrich_with_haruspex
+        haruspex_dict: dict = {}
+        haruspex_dict = await enrich_with_haruspex(
+            haruspex_dict, evidence, domain=_haruspex_domain(vuln_type),
+        )
+        if "haruspex" in haruspex_dict:
+            ctx.haruspex = haruspex_dict["haruspex"]
+    except Exception:
+        pass  # fail-open by contract
 
     return _render(ctx)

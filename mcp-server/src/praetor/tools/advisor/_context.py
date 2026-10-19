@@ -81,6 +81,9 @@ class AssessContext:
     inferred_severity: str = "MEDIUM"
     severity_color: str = "YELLOW"
 
+    # ── Haruspex enrichment (filled by orchestrator, fail-open) ──
+    haruspex: dict = field(default_factory=dict)
+
 
 @lru_cache(maxsize=256)
 def word_boundary_pattern(key: str) -> re.Pattern:
