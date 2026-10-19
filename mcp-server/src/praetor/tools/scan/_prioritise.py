@@ -167,3 +167,51 @@ def prioritise(knowledge: list[dict], targets: list[dict], tech_stack=None) -> l
     }
     tech = {str(t).lower() for t in (tech_stack or [])}
     return sorted(knowledge, key=lambda kb: score_entry(kb, params, tech), reverse=True)
+
+
+async def prioritise_with_haruspex(
+    knowledge: list[dict], targets: list[dict], tech_stack=None,
+    budget: int = 40, domain: str = "security",
+) -> list[dict]:
+    """Deterministic ordering first, then Haruspex re-ranks the top `budget`.
+
+    The deterministic sort runs unconditionally. If the decision engine is
+    available, the top `budget` entries (the ones within the probe budget)
+    are sent to Haruspex in a single batch call for relevance scoring.
+    Haruspex may reorder within the budget window — a class the deterministic
+    tier scored lower but Haruspex deems highly relevant for THIS target
+    moves up. Entries beyond the budget stay in their deterministic order.
+    Fail-open: if Haruspex is off or errors, the deterministic order stands.
+    """
+    ordered = prioritise(knowledge, targets, tech_stack)
+    if budget <= 0 or len(ordered) <= 1:
+        return ordered
+
+    try:
+        from praetor.tools._decision import resolve_decision, rank_relevant
+        cfg = resolve_decision()
+        if cfg.tier == "off":
+            return ordered
+
+        top = ordered[:budget]
+        rest = ordered[budget:]
+
+        target_desc = ", ".join(
+            f"{t.get('parameter', '?')} on {t.get('endpoint', '?')}"
+            for t in (targets or [])[:5]
+        )
+        tech_desc = ", ".join(list(tech_stack or [])[:10])
+        state = f"Target: {target_desc}. Tech stack: {tech_desc or 'unknown'}."
+
+        items = [
+            {"key": kb.get("category", f"kb-{i}"),
+             "state": f"{kb.get('category', '')} — {len(kb.get('contexts', {}))} contexts",
+             "label": kb.get("category", "")}
+            for i, kb in enumerate(top)
+        ]
+        ranked = await rank_relevant(state, items, cfg=cfg)
+        key_order = {r["key"]: i for i, r in enumerate(ranked)}
+        top_reranked = sorted(top, key=lambda kb: key_order.get(kb.get("category", ""), 999))
+        return top_reranked + rest
+    except Exception:
+        return ordered

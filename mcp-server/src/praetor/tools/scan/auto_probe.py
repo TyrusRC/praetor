@@ -6,7 +6,7 @@ from praetor import client
 
 from ._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
 from ._helpers import _load_all_knowledge
-from ._prioritise import prioritise, target_tech_stack
+from ._prioritise import prioritise, prioritise_with_haruspex, target_tech_stack
 # Re-exported so `praetor.tools.scan.auto_probe._rank_order_targets` stays a
 # valid import target (the test suite imports it from here).
 from ._impl import (  # noqa: F401
@@ -119,7 +119,10 @@ def register(mcp: FastMCP) -> None:
         # tested — and the list order was previously arbitrary. Unconstrained
         # contexts match every parameter and were spending the whole budget
         # before any parameter-specific class was reached.
-        knowledge = prioritise(knowledge, targets, target_tech_stack(domain))
+        tech = target_tech_stack(domain)
+        knowledge = await prioritise_with_haruspex(knowledge, targets, tech)
+        # prioritise_with_haruspex falls back to deterministic ordering if
+        # the decision engine is off or unreachable.
 
         data = await client.post("/api/session/auto-probe", json={
             "session": session,
