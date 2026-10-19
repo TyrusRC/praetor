@@ -112,10 +112,12 @@ class ConfirmExposedSourcemapTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(v["verdict"], "ERROR")
 
     async def test_haruspex_off_leaves_verdict_intact(self):
-        # decision engine unconfigured in the test env -> enrich_with_haruspex
-        # must fail open and still return a well-formed verdict (no "haruspex" key).
+        # Force the decision engine OFF so enrich_with_haruspex is a no-op.
+        # A running Haruspex server in the test env must not change this test's
+        # contract: when the engine is off, the verdict has no "haruspex" key.
         body = _map_body(sources=["app.ts"])
-        with self._patched({"https://t/x.map": {"status_code": 200, "content": body, "index": 1}}):
+        with self._patched({"https://t/x.map": {"status_code": 200, "content": body, "index": 1}}), \
+             patch.dict("os.environ", {"PRAETOR_DECISION_PROVIDER": "off"}):
             v = await self.confirm(map_url="https://t/x.map")
         self.assertIn("verdict", v)
         self.assertNotIn("haruspex", v)
