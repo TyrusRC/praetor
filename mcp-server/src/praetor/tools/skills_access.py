@@ -19,8 +19,13 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-# mcp-server/src/praetor/tools/skills_access.py -> parents[4] == repo root
-SKILLS_DIR = Path(__file__).resolve().parents[4] / ".claude" / "skills"
+# Resolve skills directory: prefer the repo checkout (parents[4]/.claude/skills),
+# fall back to the project working directory (.claude/skills) for UV installs
+# where parents[4] lands inside the UV cache instead of the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_SKILLS = _REPO_ROOT / ".claude" / "skills"
+_CWD_SKILLS = Path.cwd() / ".claude" / "skills"
+SKILLS_DIR = _REPO_SKILLS if _REPO_SKILLS.exists() else _CWD_SKILLS
 
 _DESC = re.compile(r"^description:\s*(.+)$", re.MULTILINE)
 

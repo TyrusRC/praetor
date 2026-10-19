@@ -484,6 +484,54 @@ if [ -n "$gw_url" ]; then
 fi
 
 # ════════════════════════════════════════════════════════════════════
+head "Haruspex (decision engine)"
+# ════════════════════════════════════════════════════════════════════
+
+HARUSPEX_DIR="$SCRIPT_DIR/../haruspex"
+HARUSPEX_DOMAINS="security cloud llm mobile network"
+
+if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
+    pass "Haruspex repo present"
+    if [ -n "$VENV_PY" ] && "$VENV_PY" -c "import haruspex" 2>/dev/null; then
+        pass "Haruspex importable"
+    else
+        skip "Haruspex import" "not installed — cd ../haruspex && uv pip install -e ."
+    fi
+
+    # Count trained adapters
+    adapter_count=$(find "$HARUSPEX_DIR/runs" -name "adapter_model.safetensors" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${adapter_count:-0}" -gt 0 ] 2>/dev/null; then
+        # List which domains have adapters
+        adapter_list=""
+        for domain in $HARUSPEX_DOMAINS; do
+            [ -f "$HARUSPEX_DIR/runs/$domain/final/adapter_model.safetensors" ] && adapter_list="$adapter_list $domain"
+        done
+        pass "Trained adapters: $adapter_count/5 ($adapter_list )"
+    else
+        skip "Trained adapters" "none found in runs/ — rerun ./setup.sh to download from HuggingFace"
+    fi
+
+    # Check env var
+    PRAETOR_ENV="$SCRIPT_DIR/.env"
+    if grep -qE '^PRAETOR_DECISION_BASE_URL=.+' "$PRAETOR_ENV" 2>/dev/null; then
+        dec_url="$(grep -E '^PRAETOR_DECISION_BASE_URL=' "$PRAETOR_ENV" | tail -1 | cut -d= -f2-)"
+        pass "PRAETOR_DECISION_BASE_URL=$dec_url"
+    else
+        skip "PRAETOR_DECISION_BASE_URL" "not in .env — add: PRAETOR_DECISION_BASE_URL=http://127.0.0.1:3000"
+    fi
+
+    # Check if Haruspex server is running
+    dec_code=$(http_status "http://127.0.0.1:3000/health" 2>/dev/null)
+    if [ -n "$dec_code" ] && [ "$dec_code" != "000" ]; then
+        pass "Haruspex server reachable (:3000 -> $dec_code)"
+    else
+        skip "Haruspex server" "not running — start: cd ../haruspex && uv run python -m haruspex.serve --port 3000 --adapters <domains>"
+    fi
+else
+    skip "Haruspex" "not cloned — ./setup.sh clones and installs it"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 head "Knowledge base"
 # ════════════════════════════════════════════════════════════════════
 

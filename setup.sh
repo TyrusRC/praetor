@@ -332,6 +332,111 @@ else
     fail "MCP server failed to load"
 fi
 
+# ── Haruspex decision model (calibrated verdict enrichment) ───────────
+# Praetor's _decision.py auto-detects a local Haruspex on 127.0.0.1:3000.
+# Pre-trained adapters (~30MB each) are downloaded from HuggingFace. Existing
+# adapters are kept — setup only downloads what is missing.
+# To retrain from custom data: cd ../haruspex && uv run python -m haruspex.train \
+#   --train data/security_train.jsonl --out runs/security --epochs 3
+HARUSPEX_DIR="$SCRIPT_DIR/../haruspex"
+HARUSPEX_HF_REPO="TyrusRC/haruspex-adapters"
+HARUSPEX_DOMAINS="security cloud llm mobile network"
+
+if [ -d "$HARUSPEX_DIR/.git" ]; then
+    info "Updating Haruspex..."
+    git -C "$HARUSPEX_DIR" pull --ff-only --quiet 2>/dev/null \
+        || warn "Haruspex update failed — pull manually in $HARUSPEX_DIR"
+elif [ -d "$HARUSPEX_DIR" ]; then
+    info "Haruspex dir exists (not a git clone) — leaving as-is"
+else
+    info "Cloning Haruspex (TyrusRC/haruspex)..."
+    git clone --depth 1 https://github.com/TyrusRC/haruspex.git "$HARUSPEX_DIR" >/dev/null 2>&1 \
+        || warn "Haruspex clone failed — clone manually: git clone https://github.com/TyrusRC/haruspex.git \"$HARUSPEX_DIR\""
+fi
+if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
+    (cd "$HARUSPEX_DIR" && uv pip install -e . 2>&1 | tail -1)
+    if (cd "$HARUSPEX_DIR" && uv run python -c "import haruspex" 2>/dev/null); then
+        ok "Haruspex installed"
+        mkdir -p "$HARUSPEX_DIR/runs"
+
+        # Download pre-trained adapters from HuggingFace (skip existing).
+        HARUSPEX_DOWNLOADED=0
+        HARUSPEX_SKIPPED=0
+        HARUSPEX_FAILED=0
+        for domain in $HARUSPEX_DOMAINS; do
+            adapter_dir="$HARUSPEX_DIR/runs/$domain"
+            if [ -f "$adapter_dir/final/adapter_model.safetensors" ]; then
+                HARUSPEX_SKIPPED=$((HARUSPEX_SKIPPED + 1))
+            else
+                info "Downloading Haruspex adapter: $domain (~30MB)..."
+                if has hf; then
+                    # hf CLI: download the domain subdirectory from the HF model repo
+                    if hf download "$HARUSPEX_HF_REPO" --include "$domain/**" \
+                        --local-dir "$HARUSPEX_DIR/runs" --quiet 2>/dev/null; then
+                        [ -f "$adapter_dir/final/adapter_model.safetensors" ] \
+                            && HARUSPEX_DOWNLOADED=$((HARUSPEX_DOWNLOADED + 1)) \
+                            || HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
+                    else
+                        HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
+                    fi
+                else
+                    # Fallback: curl from HuggingFace CDN (no hf CLI needed)
+                    info "hf CLI not found — downloading $domain via curl..."
+                    HF_BASE="https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/$domain/final"
+                    mkdir -p "$adapter_dir/final"
+                    if curl -sL -o "$adapter_dir/final/adapter_model.safetensors" \
+                        "$HF_BASE/adapter_model.safetensors" 2>/dev/null \
+                       && curl -sL -o "$adapter_dir/final/adapter_config.json" \
+                        "$HF_BASE/adapter_config.json" 2>/dev/null \
+                       && [ -s "$adapter_dir/final/adapter_model.safetensors" ]; then
+                        # Also grab the metadata files (best-effort)
+                        curl -sL -o "$adapter_dir/haruspex.json" \
+                            "https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/$domain/haruspex.json" 2>/dev/null || true
+                        curl -sL -o "$adapter_dir/training_config.json" \
+                            "https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/$domain/training_config.json" 2>/dev/null || true
+                        HARUSPEX_DOWNLOADED=$((HARUSPEX_DOWNLOADED + 1))
+                    else
+                        # Clean up partial download
+                        rm -rf "$adapter_dir"
+                        HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
+                    fi
+                fi
+            fi
+        done
+        [ $HARUSPEX_SKIPPED -gt 0 ] && ok "Haruspex: $HARUSPEX_SKIPPED adapters already present (kept)"
+        [ $HARUSPEX_DOWNLOADED -gt 0 ] && ok "Haruspex: $HARUSPEX_DOWNLOADED adapters downloaded"
+        [ $HARUSPEX_FAILED -gt 0 ] && warn "Haruspex: $HARUSPEX_FAILED adapters failed — download manually or train locally"
+
+        # Build the --adapters arg for the serve command
+        HARUSPEX_ADAPTERS=""
+        for domain in $HARUSPEX_DOMAINS; do
+            if [ -f "$HARUSPEX_DIR/runs/$domain/final/adapter_model.safetensors" ]; then
+                [ -n "$HARUSPEX_ADAPTERS" ] && HARUSPEX_ADAPTERS="$HARUSPEX_ADAPTERS,"
+                HARUSPEX_ADAPTERS="${HARUSPEX_ADAPTERS}${domain}=$HARUSPEX_DIR/runs/$domain"
+            fi
+        done
+
+        # Set PRAETOR_DECISION_BASE_URL in .env if not already present
+        PRAETOR_ENV="$SCRIPT_DIR/.env"
+        if ! grep -q "PRAETOR_DECISION_BASE_URL" "$PRAETOR_ENV" 2>/dev/null; then
+            echo "PRAETOR_DECISION_BASE_URL=http://127.0.0.1:3000" >> "$PRAETOR_ENV"
+            ok "Added PRAETOR_DECISION_BASE_URL=http://127.0.0.1:3000 to .env"
+        else
+            ok "PRAETOR_DECISION_BASE_URL already in .env"
+        fi
+
+        if [ -n "$HARUSPEX_ADAPTERS" ]; then
+            ok "Haruspex ready — start with:"
+            echo "    cd $HARUSPEX_DIR && uv run python -m haruspex.serve --port 3000 --adapters $HARUSPEX_ADAPTERS"
+        else
+            warn "No adapters available — download: hf download $HARUSPEX_HF_REPO --local-dir $HARUSPEX_DIR/runs"
+            warn "Or train locally: cd $HARUSPEX_DIR && uv run python -m haruspex.train --train data/security_train.jsonl --out runs/security"
+        fi
+    else
+        warn "Haruspex install failed — install manually: cd $HARUSPEX_DIR && uv pip install -e ."
+    fi
+fi
+
 # CloakBrowser stealth Chromium for browser_* tools (browser_crawl, browser_navigate, ...)
 # First import auto-downloads the patched binary (~200MB, cached). Pre-warm it
 # now so the first MCP call doesn't pay that latency.
@@ -1117,6 +1222,22 @@ if [ -f "$MCP_JSON" ]; then
     echo -e "  ${GREEN}✓${NC} .mcp.json configured"
 else
     echo -e "  ${RED}✗${NC} .mcp.json not found"
+fi
+
+if [ -d "$HARUSPEX_DIR" ] && (cd "$HARUSPEX_DIR" && uv run python -c "import haruspex" 2>/dev/null); then
+    HARUSPEX_ADAPTER_COUNT=$(find "$HARUSPEX_DIR/runs" -name "adapter_model.safetensors" 2>/dev/null | wc -l)
+    if [ "$HARUSPEX_ADAPTER_COUNT" -gt 0 ]; then
+        echo -e "  ${GREEN}✓${NC} Haruspex installed + ${HARUSPEX_ADAPTER_COUNT} domain adapters trained (~$((HARUSPEX_ADAPTER_COUNT * 30))MB)"
+    else
+        echo -e "  ${YELLOW}○${NC} Haruspex installed (no adapters — rerun setup or: cd ../haruspex && uv run python -m haruspex.train --train data/security_train.jsonl --out runs/security)"
+    fi
+    if grep -q "PRAETOR_DECISION_BASE_URL" "$SCRIPT_DIR/.env" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} PRAETOR_DECISION_BASE_URL configured in .env"
+    else
+        echo -e "  ${YELLOW}○${NC} PRAETOR_DECISION_BASE_URL not in .env — add: PRAETOR_DECISION_BASE_URL=http://127.0.0.1:3000"
+    fi
+else
+    echo -e "  ${YELLOW}○${NC} Haruspex not installed (decision engine runs in deterministic/off mode)"
 fi
 
 echo ""

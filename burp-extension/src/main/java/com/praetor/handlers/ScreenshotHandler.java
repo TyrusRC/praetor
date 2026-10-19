@@ -114,6 +114,19 @@ public class ScreenshotHandler extends BaseHandler {
             }
         }
 
+        // Collapse the Inspector panel (right-side horizontal split) so request/
+        // response editors get the full width — cleaner evidence screenshots.
+        // Default off; the Python MCP tool defaults it ON.
+        boolean hideInspector = "true".equalsIgnoreCase(
+                params.getOrDefault("hide_inspector", "false"));
+        boolean inspectorCollapsed = false;
+        if (hideInspector) {
+            inspectorCollapsed = BurpNavigator.collapseInspector(frame);
+            if (inspectorCollapsed) {
+                sleepQuietly(300);   // let the layout reflow
+            }
+        }
+
         double scale = parseDouble(params.get("scale"), 2.0);   // 2× for readability
         // Optional footer strip (opt-in) — appended below the shot, hides nothing.
         String label = params.getOrDefault("label", "");        // PoC-step caption
@@ -145,6 +158,7 @@ public class ScreenshotHandler extends BaseHandler {
             // numeric path was used) so the caller can confirm the match resolved
             // (selected_row == -1 with a non-empty needle => no row matched).
             "selected_match", selectMatch,
+            "inspector_collapsed", inspectorCollapsed,
             "label", label,
             "trademark", trademark,
             // Identifies the capture engine so a caller can VERIFY which build is

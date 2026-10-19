@@ -93,6 +93,13 @@ def build_finding_section(finding: dict, index: int, internal: bool = False) -> 
         lines.append(desc)
         lines.append("")
 
+    # ── Root Cause
+    root_cause = finding.get("root_cause", "")
+    if root_cause:
+        lines.append("**Root Cause**")
+        lines.append(root_cause)
+        lines.append("")
+
     # ── Attack walkthrough
     walkthrough = finding.get("attack_walkthrough") or finding.get("walkthrough", "")
     if walkthrough:

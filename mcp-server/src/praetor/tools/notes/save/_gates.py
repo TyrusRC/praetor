@@ -249,7 +249,7 @@ def severity_cvss_gate(
     return None
 
 
-def systemic_gate(
+async def systemic_gate(
     resolved_domain: str,
     status: str,
     vuln_type: str,
@@ -265,9 +265,11 @@ def systemic_gate(
     # unparameterised-query bug across every page that reaches it converts
     # a full-value report into a pile of duplicates — and inflates the
     # board the operator has to read.
+    # Now checks both on-disk AND Burp in-memory findings so parallel
+    # subagents cannot race past the gate.
     if resolved_domain and status != "likely_false_positive" \
             and "systemic_dup" not in override_set:
-        sibling = _find_systemic_sibling(
+        sibling = await _find_systemic_sibling(
             resolved_domain, vuln_type, endpoint, parameter, title
         )
         if sibling is not None:

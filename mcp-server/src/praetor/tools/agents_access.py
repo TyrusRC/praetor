@@ -18,8 +18,12 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-# mcp-server/src/praetor/tools/agents_access.py -> parents[4] == repo root
-AGENTS_DIR = Path(__file__).resolve().parents[4] / ".claude" / "agents"
+# Prefer repo checkout; fall back to cwd for UV installs where parents[4]
+# lands inside the UV cache instead of the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_AGENTS = _REPO_ROOT / ".claude" / "agents"
+_CWD_AGENTS = Path.cwd() / ".claude" / "agents"
+AGENTS_DIR = _REPO_AGENTS if _REPO_AGENTS.exists() else _CWD_AGENTS
 
 _DESC = re.compile(r"^description:\s*(.+)$", re.MULTILINE)
 _MODEL = re.compile(r"^model:\s*(.+)$", re.MULTILINE)

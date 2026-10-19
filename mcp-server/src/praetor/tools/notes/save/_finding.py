@@ -155,7 +155,7 @@ def register(mcp: FastMCP):
         if cvss_err is not None:
             return cvss_err
 
-        systemic_err = _gates.systemic_gate(
+        systemic_err = await _gates.systemic_gate(
             resolved_domain, status, vuln_type, endpoint, parameter, title, override_set
         )
         if systemic_err is not None:

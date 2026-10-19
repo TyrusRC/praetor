@@ -35,6 +35,7 @@ Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwri
 - [Usage](#usage)
   - [Commands (Claude Code)](#commands-claude-code)
   - [Ghostwriter reporting hub](#ghostwriter-reporting-hub)
+  - [Haruspex decision engine](#haruspex-decision-engine)
 - [Tool Surface](#tool-surface)
 - [MCP Prompts](#mcp-prompts)
 - [MCP Resources](#mcp-resources)
@@ -64,6 +65,7 @@ LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition 
                                       └─ network lane ──> nmap / impacket / netexec / responder / ...
                                                             (bypass Burp; operator log + loot)
                           all lanes ─> Ghostwriter (GraphQL) : central reporting / oplog hub
+                          decisions ─> Haruspex (127.0.0.1:3000) : calibrated verdict enrichment
 ```
 
 - **Web lane:** the Java extension exposes a REST API on `127.0.0.1:8111` and tunnels HTTP through Burp's proxy listener (`127.0.0.1:8080`), so every probe appears in Proxy history and carries a Logger index.
@@ -79,7 +81,7 @@ LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition 
 - HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
 - Response extraction, deterministic and LLM-assisted: `extract_regex` / `extract_json_path` / `extract_css_selector` (keyless), plus `markdownify` (keyless HTML→Markdown reducer) and `extract_structured` (optional-LLM NL/schema extraction) — all over a **captured** `proxy_history_index`, never a non-proxied scrape.
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10 (Web / API / LLM / Mobile), OWASP WSTG, PayloadsAllTheThings, HackTricks Web + Cloud — see the [Coverage](#coverage) table.
-- Decision engine (the Jev pattern) — a calibrated model layer for *which template/probe is relevant to this target* and *which hit to verify first*: `decision_status` / `decide_relevance` / `decide_questions`. Native TypeSafe **Jev** via Vercel AI Gateway (`AI_GATEWAY_API_KEY`), any `PRAETOR_LLM_*` provider, or **off** → the deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope (`decide`) stay in force. It **orders**, never drops coverage (Rule 19).
+- Decision engine (the Jev pattern) — a calibrated model layer for *which template/probe is relevant to this target* and *which hit to verify first*: `decision_status` / `decide_relevance` / `decide_questions`. Three backends in priority order: (1) **[Haruspex](https://github.com/TyrusRC/haruspex)** — a local, self-hosted decision model with per-domain adapters (web/cloud/llm/mobile/network), pre-trained and downloaded during setup (~150 MB); (2) TypeSafe **Jev** via Vercel AI Gateway (`AI_GATEWAY_API_KEY`); (3) any `PRAETOR_LLM_*` provider; or **off** → the deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope (`decide`) stay in force. It **orders**, never drops coverage (Rule 19). `enrich_with_haruspex()` layers a calibrated probability onto verdict dicts (fail-open — the deterministic verdict is never altered).
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
 - Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
 - XSS execution → impact: `probe_xss_executed` proves a payload runs (headless dialog hook), then `xss_impact_proof` escalates it to a benign, evidence-backed session-theft PoC — an OOB beacon of the minimum marker to a Burp Collaborator / operator callback (own-session or lab victim-bot only; not a keylogging C2).
@@ -668,6 +670,34 @@ This downloads several GB of images and binds TCP 443 (skip in `setup.sh` with `
 **Auth on first setup.** Praetor authenticates to Ghostwriter with the precedence *admin-secret → API token → username/password login*. The simplest path is username/password: in Ghostwriter create a user named `praetor` (any role that can write the oplog), and Praetor logs in with the default `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` = `praetor`/`praetor` — no token to copy. **Set a real password on that account and mirror it in `.env` (`GHOSTWRITER_PASSWORD=`) for any shared or remote instance; the default is a local-first-run convenience only.** Prefer a static `GHOSTWRITER_API_TOKEN` or `GHOSTWRITER_ADMIN_SECRET` for unattended/CI use.
 
 Verify with `ghostwriter_status` (it reports the active auth mode), then `sync_to_ghostwriter('<domain>')`. Praetor works fully without Ghostwriter — local `.burp-intel/` stores stay the source of truth.
+
+### Haruspex decision engine
+
+[Haruspex](https://github.com/TyrusRC/haruspex) is a local, self-hosted decision model that enriches Praetor's verdicts with calibrated probabilities. It uses domain-specific adapters (web, cloud, LLM, mobile, network) fine-tuned on GLiNER2.5-Decide.
+
+**Setup** handles everything — pre-trained adapters (~30 MB each, ~150 MB total) are downloaded from HuggingFace:
+
+```bash
+./setup.sh          # clones haruspex, downloads adapters from HuggingFace, sets .env
+```
+
+**Start the server** (after setup, before an engagement):
+
+```bash
+cd ../haruspex && uv run python -m haruspex.serve --port 3000 \
+  --adapters security=runs/security,cloud=runs/cloud,llm=runs/llm,mobile=runs/mobile,network=runs/network
+```
+
+Praetor auto-detects the local server (keyless, `PRAETOR_DECISION_BASE_URL=http://127.0.0.1:3000` in `.env`). Verify with `decision_status`.
+
+**Retrain with custom data** (optional — pre-trained adapters work out of the box):
+
+```bash
+cd ../haruspex && uv run python -m haruspex.train \
+  --train data/security_train.jsonl --out runs/security --epochs 3
+```
+
+Praetor works fully without Haruspex — the deterministic probe ordering and typed verdict envelope stay in force when the decision engine is off.
 
 ## Tool Surface
 

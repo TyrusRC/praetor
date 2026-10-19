@@ -2,6 +2,15 @@
 
 from praetor.tools.report.business_logic_gate import business_logic_gate
 
+_TIMELINE_MAP: dict[str, str] = {
+    "CRITICAL": "Immediate",
+    "HIGH": "< 7 days",
+    "MEDIUM": "< 30 days",
+    "LOW": "< 90 days",
+    "INFO": "Ongoing",
+}
+
+
 def build_executive_summary(
     findings: list[dict], domain: str, profile: dict, internal: bool = False
 ) -> str:
@@ -16,9 +25,6 @@ def build_executive_summary(
     noun = "finding" if total == 1 else "findings"
     lines: list[str] = []
 
-    # W36-P1: business-logic completion gate. Operator-only warning (not client
-    # content) — surfaces at the top when the business-logic pass is unproven.
-    # Never blocks; disappears once one invariant is recorded as tested.
     bl_warning = business_logic_gate(domain) if internal else ""
     if bl_warning:
         lines += [
@@ -54,7 +60,127 @@ def build_executive_summary(
     else:
         lines.append("**Overall risk: LOW** — No high-impact findings. Consider hardening recommendations.")
 
+    lines.append("")
+
+    # ── Remediation priority table
+    lines.append("### Remediation Priority")
+    lines.append("")
+    lines.append("| ID | Finding | Severity | Timeline | Business Risk |")
+    lines.append("|---|---|---|---|---|")
+    for i, f in enumerate(findings, 1):
+        sev = f.get("severity", "INFO").upper()
+        title = f.get("title") or f.get("vulnerability_type", "Finding")
+        if len(title) > 50:
+            title = title[:47] + "..."
+        timeline = _TIMELINE_MAP.get(sev, "Ongoing")
+        impact = f.get("impact", "")
+        if isinstance(impact, list):
+            impact = impact[0] if impact else ""
+        if len(str(impact)) > 60:
+            impact = str(impact)[:57] + "..."
+        fid = f.get("id", f"F{i:03d}")
+        lines.append(f"| {fid} | {title} | {sev} | {timeline} | {impact} |")
+    lines.append("")
+
     return "\n".join(lines)
+
+
+def build_limitations_section(limitations: list[str] | None = None) -> str:
+    """Assessment limitations section."""
+    lines = ["## Limitations", ""]
+    lines.append(
+        "The following areas were outside the scope of this assessment "
+        "or could not be tested due to missing prerequisites:"
+    )
+    lines.append("")
+    defaults = [
+        "**Authenticated application testing:** No valid credentials were provided unless stated otherwise. Authenticated attack surface (IDOR, BFLA, business logic, privilege escalation) was tested only where credentials were available.",
+        "**Internal network:** The assessment covered only publicly accessible infrastructure. Internal services behind VPN, firewall, or ZTNA were not tested.",
+        "**Mobile applications:** No mobile applications were included in scope unless stated otherwise.",
+        "**Source code review:** No source code access was provided. All testing was black-box unless stated otherwise.",
+        "**Denial of service:** Intentional DoS testing was excluded to avoid disruption to production services.",
+        "**Social engineering:** Phishing, vishing, and physical access testing were excluded.",
+    ]
+    items = limitations if limitations else defaults
+    for item in items:
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append(
+        "_The findings in this report reflect vulnerabilities identified during the "
+        "assessment window. The target environment may have changed since the assessment._"
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_standards_mapping(findings: list[dict]) -> str:
+    """OWASP / CWE / WSTG reference mapping table."""
+    from praetor.tools._framework_map import framework_tags
+
+    lines = ["## Standards Mapping", ""]
+    lines.append(
+        "Each finding is mapped to industry standard classifications for tracking and compliance:"
+    )
+    lines.append("")
+    lines.append("| ID | CWE | OWASP Category | WSTG Reference |")
+    lines.append("|---|---|---|---|")
+    for i, f in enumerate(findings, 1):
+        fid = f.get("id", f"F{i:03d}")
+        cwe = f.get("cwe", "")
+        owasp = f.get("owasp", "")
+        fw = framework_tags(f.get("vuln_type") or f.get("vulnerability_type", ""))
+        if not cwe:
+            cwe = fw.get("cwe", "-")
+        if not owasp:
+            owasp = fw.get("owasp", "-")
+        wstg = fw.get("wstg", "-")
+        lines.append(f"| {fid} | {cwe} | {owasp} | {wstg} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_glossary(terms: dict[str, str] | None = None) -> str:
+    """Glossary of technical terms for non-technical readers."""
+    defaults = {
+        "API (Application Programming Interface)": "A way for software applications to communicate with each other. An API key is a password-like string that grants access to an API.",
+        "Authentication": "The process of verifying the identity of a user or system. 'Unauthenticated' means no identity verification is required.",
+        "Brute Force": "An attack method that tries every possible combination until the correct one is found.",
+        "CORS (Cross-Origin Resource Sharing)": "A browser security mechanism that controls which websites can make requests to an API.",
+        "CVSS (Common Vulnerability Scoring System)": "An industry-standard framework for rating the severity of security vulnerabilities on a scale from 0.0 to 10.0.",
+        "CVE (Common Vulnerabilities and Exposures)": "A unique identifier assigned to a publicly known security vulnerability.",
+        "CWE (Common Weakness Enumeration)": "A classification system for the type of software weakness that causes a vulnerability.",
+        "LLM (Large Language Model)": "An artificial intelligence system that processes and generates natural language text.",
+        "OAuth": "A protocol that allows users to grant applications access to their accounts without sharing their password.",
+        "OTP (One-Time Password)": "A temporary code sent via email or SMS that expires after a single use or short time period.",
+        "PII (Personally Identifiable Information)": "Data that can identify a specific individual, such as full name, email address, or profile URL.",
+        "Rate Limiting": "A security control that restricts how many requests a user can make in a given time period.",
+        "Stored XSS (Cross-Site Scripting)": "An attack where malicious code is stored on a server and executed in every visitor's browser that views the affected page.",
+        "X-Forwarded-For": "An HTTP header that identifies the original IP address of a client connecting through a proxy or load balancer.",
+    }
+    items = terms if terms else defaults
+    lines = ["## Glossary", ""]
+    lines.append("Technical terms used in this report:")
+    lines.append("")
+    for term, definition in items.items():
+        lines.append(f"**{term}**")
+        lines.append(f": {definition}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def build_disclaimer() -> str:
+    """Confidentiality and disclaimer section."""
+    return """## Disclaimer
+
+This report is provided on a confidential basis to the intended recipient only. The findings and recommendations contained herein are based on the assessment conducted on the date specified and reflect the state of the target environment at that time.
+
+The assessment was performed using non-destructive testing techniques. Where write operations were required to verify impact, the test data was cleaned up immediately after verification.
+
+This report does not guarantee the absence of additional vulnerabilities beyond those identified during the assessment. The scope was limited to the testing described in the Methodology section.
+
+The recipient is responsible for evaluating the findings, determining the appropriate remediation actions, and implementing them in a timeline consistent with the organization's risk appetite.
+
+**Distribution:** This document is classified CONFIDENTIAL. Do not distribute outside the authorized recipient list without written approval."""
 
 
 

@@ -22,6 +22,7 @@ def register(mcp: FastMCP) -> None:
                               select_row: str = "", select_url: str = "",
                               select_proxy_index: int = -1, restore: bool = True,
                               highlight_box: bool = False,
+                              hide_inspector: bool = True,
                               auto_redact: bool = False, attach: str = "auto") -> dict:
         """Screenshot the Burp window for evidence — optionally a named tab/sub-tab/row.
 
@@ -61,6 +62,10 @@ def register(mcp: FastMCP) -> None:
                 it must be a real search in the UI — it highlights + scrolls to the
                 match), THEN call this with highlight_box=True to frame it in red.
                 Burp's yellow is cleared, leaving one clean red marker.
+            hide_inspector: collapse the Inspector panel (right-side split) so
+                request/response editors get full width. Default True — evidence
+                screenshots should show the full request/response, not a squeezed
+                view. The operator's layout is restored after capture.
             auto_redact: OCR-detect secrets and write a pixel-mosaicked redacted twin.
             attach: which twin to link to finding_id — 'auto' (redacted if present,
                 else naked), 'naked', or 'none'. Default 'auto' keeps secrets out.
@@ -88,6 +93,8 @@ def register(mcp: FastMCP) -> None:
                 needle = f"{u.netloc} {u.path}".strip()
         if needle:
             params["select_match"] = needle
+        if hide_inspector:
+            params["hide_inspector"] = "true"
         if not restore:
             params["restore"] = "false"
         if label:

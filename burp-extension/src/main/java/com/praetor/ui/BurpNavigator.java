@@ -248,6 +248,50 @@ public final class BurpNavigator {
         }
     }
 
+    /**
+     * Collapse the Inspector panel (the right-side horizontal split in the
+     * request/response detail area) so the request and response editors get full
+     * width for a cleaner screenshot. The Inspector split is a HORIZONTAL
+     * {@code JSplitPane} whose right component is narrower than the left and sits
+     * below the main history table. Collapsing pushes the divider to the right
+     * edge. Best-effort, on the EDT. The caller's {@link UiSnapshot} already
+     * records the divider location, so {@link #restoreUi} puts it back.
+     *
+     * @return true if at least one Inspector split was collapsed.
+     */
+    public static boolean collapseInspector(Component root) {
+        boolean[] collapsed = {false};
+        try {
+            SwingUi.runOnEdt(() -> {
+                List<JSplitPane> splits = new ArrayList<>();
+                SwingUi.collectSplitPanes(root, splits);
+                for (JSplitPane sp : splits) {
+                    if (sp.getOrientation() != JSplitPane.HORIZONTAL_SPLIT || !sp.isShowing()) {
+                        continue;
+                    }
+                    Component right = sp.getRightComponent();
+                    if (right == null || !right.isVisible()) {
+                        continue;
+                    }
+                    int w = sp.getWidth();
+                    if (w <= 0) {
+                        continue;
+                    }
+                    int div = sp.getDividerLocation();
+                    int max = sp.getMaximumDividerLocation();
+                    int rightW = w - div - sp.getDividerSize();
+                    if (rightW > 50 && rightW < w / 2) {
+                        sp.setDividerLocation(max);
+                        collapsed[0] = true;
+                    }
+                }
+            });
+        } catch (RuntimeException e) {
+            // best-effort
+        }
+        return collapsed[0];
+    }
+
     /** View-row for a table's first ("#") column value {@code wantNumber}; the
      *  last row when {@code wantNumber < 0} or no match (empty table -> -1). */
     static int rowForNumber(JTable table, int wantNumber) {
