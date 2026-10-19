@@ -492,23 +492,24 @@ HARUSPEX_DOMAINS="security cloud llm mobile network"
 
 if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
     pass "Haruspex repo present"
-    if [ -n "$VENV_PY" ] && "$VENV_PY" -c "import haruspex" 2>/dev/null; then
+    # Haruspex has its own venv — use uv run from its directory, not Praetor's venv.
+    if (cd "$HARUSPEX_DIR" && uv run python -c "import haruspex" 2>/dev/null); then
         pass "Haruspex importable"
     else
-        skip "Haruspex import" "not installed — cd ../haruspex && uv pip install -e ."
+        skip "Haruspex import" "not installed — cd $HARUSPEX_DIR && uv pip install -e ."
     fi
 
-    # Count trained adapters
-    adapter_count=$(find "$HARUSPEX_DIR/runs" -name "adapter_model.safetensors" 2>/dev/null | wc -l | tr -d ' ')
+    # Count trained adapters (use absolute path for find)
+    HARUSPEX_ABS="$(cd "$HARUSPEX_DIR" && pwd)"
+    adapter_count=$(find "$HARUSPEX_ABS/runs" -name "adapter_model.safetensors" 2>/dev/null | wc -l | tr -d ' ')
     if [ "${adapter_count:-0}" -gt 0 ] 2>/dev/null; then
-        # List which domains have adapters
         adapter_list=""
         for domain in $HARUSPEX_DOMAINS; do
-            [ -f "$HARUSPEX_DIR/runs/$domain/final/adapter_model.safetensors" ] && adapter_list="$adapter_list $domain"
+            [ -f "$HARUSPEX_ABS/runs/$domain/final/adapter_model.safetensors" ] && adapter_list="$adapter_list $domain"
         done
         pass "Trained adapters: $adapter_count/5 ($adapter_list )"
     else
-        skip "Trained adapters" "none found in runs/ — rerun ./setup.sh to download from HuggingFace"
+        skip "Trained adapters" "none in runs/ — rerun ./setup.sh to download from HuggingFace"
     fi
 
     # Check env var
