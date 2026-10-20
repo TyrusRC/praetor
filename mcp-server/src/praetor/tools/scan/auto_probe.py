@@ -17,6 +17,60 @@ from ._impl import (  # noqa: F401
 )
 
 
+_PARAM_TYPE_TO_LOCATION = {
+    "url": "query",
+    "query": "query",
+    "json": "body",
+    "xml": "body",
+    "body": "body",
+    "header": "header",
+    "path": "query",
+    "cookie": "cookie",
+    "multipart": "body",
+    "multipart_attribute": "body",
+}
+
+
+def _expand_multi_param_targets(targets: list[dict]) -> list[dict]:
+    """Expand targets with a `params` list into flat per-param targets.
+
+    The Java orchestrator expects one target per parameter:
+        {path, parameter, method, location, baseline_value}
+
+    Callers (e.g. OpenAPI-derived input) may pass the multi-param form:
+        {url, method, params: [{name, type, example}]}
+
+    This function expands the latter into the former. Targets already in
+    flat form pass through unchanged.
+    """
+    expanded: list[dict] = []
+    for t in targets:
+        params_list = t.get("params")
+        if params_list and isinstance(params_list, list):
+            base_url = t.get("url", t.get("path", ""))
+            method = t.get("method", "GET")
+            content_type = t.get("content_type", "")
+            index = t.get("index")
+            for p in params_list:
+                ptype = str(p.get("type", "query")).lower()
+                location = _PARAM_TYPE_TO_LOCATION.get(ptype, "query")
+                flat: dict = {
+                    "path": base_url,
+                    "parameter": p.get("name", ""),
+                    "method": method,
+                    "location": location,
+                    "baseline_value": p.get("example", "1"),
+                }
+                if content_type:
+                    flat["content_type"] = content_type
+                if index is not None:
+                    flat["index"] = index
+                expanded.append(flat)
+        else:
+            expanded.append(t)
+    return expanded
+
+
 def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
@@ -108,6 +162,12 @@ def register(mcp: FastMCP) -> None:
             if kb_drift_hint:
                 msg += "\n" + kb_drift_hint
             return msg
+
+        # ── Expand multi-param targets into flat per-param targets ──
+        # Callers may pass {url, params: [{name, type}]} (e.g. from OpenAPI
+        # specs). The Java orchestrator expects one target per parameter in
+        # the flat {path, parameter, location, method} format.
+        targets = _expand_multi_param_targets(targets)
 
         # ── W36-P5: audit highest-value surface first ──
         # Order surviving targets by the rank_attack_targets risk engine so the

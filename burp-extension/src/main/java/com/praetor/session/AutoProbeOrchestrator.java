@@ -160,7 +160,11 @@ public final class AutoProbeOrchestrator {
 
                 Map<String, Object> baseParams = new LinkedHashMap<>();
                 baseParams.put("method", method);
-                baseParams.put("path", ProbeHelpers.injectParam(path, parameter, baselineValue, location));
+                // When path is already a full URL, use the "url" key so
+                // SessionSender does not prepend session.baseUrl to it.
+                String injectedBaseline = ProbeHelpers.injectParam(path, parameter, baselineValue, location);
+                boolean isFullUrl = path.startsWith("http://") || path.startsWith("https://");
+                baseParams.put(isFullUrl ? "url" : "path", injectedBaseline);
                 if ("body".equals(location)) baseParams.put("data", parameter + "=" + baselineValue);
 
                 long baselineStartMs = System.nanoTime();
@@ -247,7 +251,8 @@ public final class AutoProbeOrchestrator {
 
                             Map<String, Object> probeParams = new LinkedHashMap<>();
                             probeParams.put("method", method);
-                            probeParams.put("path", ProbeHelpers.injectParam(path, parameter, payload, location));
+                            String injectedProbe = ProbeHelpers.injectParam(path, parameter, payload, location);
+                            probeParams.put(isFullUrl ? "url" : "path", injectedProbe);
                             if ("body".equals(location)) probeParams.put("data", parameter + "=" + payload);
 
                             int preHistorySize = api.proxy().history().size();
