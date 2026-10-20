@@ -51,7 +51,7 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 ### vuln-scanner
 **Purpose:** Test a specific vulnerability category on assigned endpoints.
 **When to dispatch:** After recon, one agent per vuln category on non-overlapping targets.
-**Tools it should use:** `auto_probe`, `bulk_test`, `probe_endpoint`, `fuzz_parameter`, `test_lfi`, `test_file_upload`, `test_cors`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect`, `test_jwt`, `get_payloads`
+**Tools it should use:** `auto_probe`, `probe_endpoint`, `fuzz_parameter`, `test_lfi`, `test_file_upload`, `test_cors`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect`, `test_jwt`, `get_payloads`
 **Returns:** Findings with scores, tested parameters, anomalies for investigation.
 **Important:** Each vuln-scanner agent gets a DIFFERENT set of targets or categories to avoid duplicate requests.
 
@@ -83,7 +83,7 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 ### mobile-dynamic-agent
 **Purpose:** Drive Frida (iOS + Android) and adb (Android only) on the operator's host to bypass SSL pinning / root-JB detection, hook runtime crypto + storage, abuse Android exported components and deep links, dump iOS keychain — so backend traffic reaches Burp. Dynamic-only; no static decompile.
 **When to dispatch:** Operator has the APK/IPA installed on a device + Frida server + adb authorized + Burp CA pushed to device. Triggered by `playbook-mobile-dynamic.md`. Dispatch BEFORE `playbook-mobile-backend.md` testing — this agent unlocks the traffic.
-**Tools it should use:** `Bash` (for `frida -U -l <script>`, `adb shell ...`, `objection -g <pkg>`), `get_proxy_history`, `extract_api_endpoints`, `search_history`, `build_target_header_profile`, `save_target_intel`, `annotate_request`.
+**Tools it should use:** `Bash` (for `frida -U -l <script>`, `adb shell ...`, `objection -g <pkg>` — Claude Code only; on MCP-only hosts use `mobile_frida_run`/`mobile_shell`/`mobile_adb_pack`), `get_proxy_history`, `extract_api_endpoints`, `search_history`, `build_target_header_profile`, `save_target_intel`, `annotate_request`.
 **Returns:** Pinning-bypass status, captured backend endpoints + headers + tokens, hooked HMAC/crypto keys, exported-component list, deep-link parameter sinks, iOS keychain items, IAP receipt structure. Hands off to `playbook-mobile-backend.md` §3.
 **Constraint:** Only ONE mobile-dynamic agent at a time — single device, single Frida session per app. Never dispatch on someone else's device. Don't submit pinning / root detection bypass as standalone findings — they're the means, not the bug.
 

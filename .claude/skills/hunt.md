@@ -249,7 +249,7 @@ Choose the right attack order based on detected technology. Test in this order â
 1. Select untested high-risk parameters from memory
 2. **State a one-line hypothesis before you probe**: "I expect `<observable>` if `<vuln-class>` at `<param>`" â€” param-name signal, tech-stack match, or a KB context match. A category on the priority table is a reason to look, not a license to fire every payload at every parameter blind.
 3. Run the appropriate test tool:
-   - **SQLi/XSS/SSTI/SSRF/CMDi/LFI:** `auto_probe(session, targets, categories=[category])` or `bulk_test(session, vulnerability)`
+   - **SQLi/XSS/SSTI/SSRF/CMDi/LFI:** `auto_probe(session, targets, categories=[category])`
    - **IDOR/Broken Access Control:** `test_auth_matrix(endpoints, auth_states)` or `compare_auth_states`
    - **LFI/Path Traversal:** `test_lfi(session, path, parameter)`
    - **File upload:** `test_file_upload(session, path)`

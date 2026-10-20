@@ -118,7 +118,10 @@ public class FindingsStore {
         finding.put("id", idCounter.incrementAndGet());
         finding.put("title", title);
         finding.put("description", description);
-        finding.put("severity", severity != null ? severity : "INFO");
+        if (severity != null && "INFO".equalsIgnoreCase(severity)) {
+            throw new IllegalArgumentException("INFO severity rejected — the scale starts at LOW (Rule 14a)");
+        }
+        finding.put("severity", severity != null ? severity : "LOW");
         finding.put("endpoint", endpoint != null ? endpoint : "");
         finding.put("evidence", evidenceText != null ? evidenceText : "");
         finding.put("vuln_type", vulnType != null ? vulnType : "");

@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**153 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**156 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -13,7 +13,9 @@ Split categories:
 - `graphql` → `graphql.json` + `graphql_engines.json`
 - `cloud` → `cloud_webapp.json` + `cloud_storage_misconfig.json`, `cloud_function_url.json`, `cloud_api_gateway.json`
 
-**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, desktop_electron, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mcp_server_attacks (promoted), mobile_deeplink, race_condition, rag_injection (promoted), request_smuggling, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
+**Reference-only (manual tooling, not auto-probed):** captcha_bypass, ci_actions_injection, clickjacking, csv_injection, dependency_confusion, desktop_electron, h2_continuation_flood, http2_connect_portscan, http3_quic, insecure_randomness, kubernetes_exposed, mobile_deeplink, race_condition, request_smuggling, soapwn, source_code_exposure, tech_vulns, web_cache_deception, web_cache_poisoning_dos, webview_injection, xs_leak, zip_slip
+
+**Promoted to active (formerly reference-only):** ai_prompt_injection, mcp_server_attacks, rag_injection
 
 ## 2026-05-29 W7 additions (PortSwigger Top 10 of 2025)
 
@@ -105,13 +107,13 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
-| `idor` | numeric_id, uuid_id, sequential_enum, param_pollution, method_override, composite_key (+2) | critical | - |
+| `idor` | numeric_id, uuid_id, sequential_enum, param_pollution, method_override, composite_key, encoded_id, bulk_operations, uuidv1_sequential, mongodb_objectid | critical | mongodb, mongoose |
 | `mass_assignment` | role_escalation, price_manipulation, hidden_field_tampering, nested_object_assignment, graphql_input_overreach | critical | express, graphql, mongoose, node, rails |
 | `excessive_data_exposure` | admin_fields_leaked_to_user, pii_overfetch_in_listing, internal_field_in_public_response, field_filter_bypass_via_fields_param, graphql_introspection_full_schema, response_overshare_after_filter_mismatch | critical | apollo, django, express, graphql, mongoose, rails |
 | `hpp` | query_duplicate, array_notation, json_body_pollution | high | node.js, php, ruby |
 | `csrf` | missing_token, token_reuse, method_override, content_type_bypass, referer_bypass, token_manipulation (+3) | high | - |
 
-## Network / Smuggling (7)
+## Network / Smuggling (8)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -120,6 +122,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `http3_quic` *(ref-only)* | zero_rtt_replay, stream_reset_poisoning, connection_migration_auth, alt_svc_downgrade | critical | http3, quic |
 | `host_header` | password_reset_poison, routing_abuse, ssrf_via_host, cache_poison_via_host, duplicate_host | high | akamai, apache, cloudflare, cloudfront, fastly |
 | `crlf_injection` | header_injection, log_injection | critical | - |
+| `response_header_injection` | location_header_injection, content_type_manipulation, csp_injection, link_header_injection | critical | express, django, rails, nginx, cloudflare |
 | `request_splitting` | response_splitting, http_09_response, header_injection | critical | apache, java, nginx, node.js, php |
 | `waf_bypass_40x` | header_origin_spoof, path_normalisation_tricks, method_override | critical | nginx, apache, haproxy, envoy, cloudflare, akamai, aws alb, f5, imperva |
 
@@ -132,7 +135,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `web_cache_deception` *(ref-only)* | path_confusion, delimiter_confusion, normalization_discrepancy, method_based, static_suffix_cache_poisoning, semicolon_path_param, encoded_slash_split, fragment_split_parser_discrepancy, double_extension_parser_split, normalised_path_traversal_split | high | akamai, apache, cdn, cloudflare, cloudfront, fastly, varnish, nginx, aws cloudfront |
 | `web_cache_poisoning_dos` *(ref-only)* | header_oversize, cache_key_normalization, vary_header_abuse, large_response_caching | medium | akamai, apache, cloudflare, cloudfront, fastly |
 
-## SSRF / Cloud (6)
+## SSRF / Cloud (7)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -141,6 +144,7 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 | `ssrf_protocol` | protocol_smuggling, protocol_variant, k8s_in_cluster_pivot | critical | curl, java, k8s, kubernetes, php |
 | `edge_worker_ssrf` | internal_header_trust, same_zone_metadata, opennext_cloudflare_cdn_cgi_backslash_norm_2026 (CVE-2026-3125), nextjs_websocket_upgrade_ssrf_2026 (CVE-2026-44578) | critical | cloudflare-worker, fastly-compute, next.js, nextjs, opennext, vercel-edge, vercel-self-hosted |
 | `cloud_webapp` | aws_metadata_imdsv1, gcp_metadata, azure_imds, s3_public_bucket, azure_sas_token_leak, firebase_open_db (+3) | ? | - |
+| `dns_rebinding` | time_based_rebind, host_header_rebind_susceptibility, websocket_rebind | high | javascript, spa, react, angular, vue, next.js, websocket |
 | `anon_cloud_expansion` | etcd_v2_v3_open, kubelet_unauth_api, docker_daemon_remote_api, consul_open_api, vault_unsealed_anon, firebase_rtdb_open_rules, firestore_open_rules, terraform_state_exposed, nomad_open_api, spinnaker_ui_open | critical | etcd, kubelet, docker, consul, vault, nomad, spinnaker, firebase, firestore, terraform |
 
 ## Path / File (3)
@@ -186,10 +190,11 @@ Top severity = highest probe severity in the category. Tech tags = top auto-trig
 |---|---|---|---|
 | `payment_flow` | intent_id_cross_account, capture_refund_race, webhook_secret_rotation_race, setup_intent_reuse_no_3ds, idempotency_key_cross_customer, currency_confusion (+6) | critical | 3ds, account_links, apple_pay, apple_wallet, checkout |
 
-## Browser / Web (11)
+## Browser / Web (12)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
+| `cookie_tossing` | subdomain_cookie_override, samesite_lax_bypass_top_level_nav, cookie_jar_overflow, double_submit_cookie_bypass | medium | django, laravel, spring, express, rails |
 | `cors` | origin_reflect, null_origin, credentials_wildcard, subdomain_wildcard, pre_domain, post_domain (+2) | critical | cors |
 | `clickjacking` *(ref-only)* | missing_frameguard, frameable_state_change, double_frame_bypass | medium | - |
 | `open_redirect` | url_param | high | - |

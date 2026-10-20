@@ -78,6 +78,12 @@ final class RequestMutator {
         if (contentType.contains("application/json")) {
             return modifyJsonBody(request, paramName, payload, bodyStr);
         }
+        if (contentType.contains("multipart/form-data")) {
+            return modifyMultipartBody(request, paramName, payload, bodyStr, contentType);
+        }
+        if (contentType.contains("xml")) {
+            return modifyXmlBody(request, paramName, payload, bodyStr);
+        }
 
         String encodedPayload = URLEncoder.encode(payload, StandardCharsets.UTF_8);
         String encodedName = URLEncoder.encode(paramName, StandardCharsets.UTF_8);
@@ -122,6 +128,96 @@ final class RequestMutator {
             }
         }
         return request.withBody(newBody);
+    }
+
+    /** Replace a named part's value in a multipart/form-data body, or append a new part. */
+    static HttpRequest modifyMultipartBody(HttpRequest request, String paramName, String payload,
+                                           String bodyStr, String contentType) {
+        int bIdx = contentType.indexOf("boundary=");
+        if (bIdx < 0) return request.withBody(bodyStr);
+        String boundary = contentType.substring(bIdx + 9).trim();
+        if (boundary.startsWith("\"") && boundary.endsWith("\"")) {
+            boundary = boundary.substring(1, boundary.length() - 1);
+        }
+        int semi = boundary.indexOf(';');
+        if (semi >= 0) boundary = boundary.substring(0, semi).trim();
+
+        String delim = "--" + boundary;
+        String closing = delim + "--";
+        String namePattern = "name=\"" + Pattern.quote(paramName) + "\"";
+
+        String[] parts = bodyStr.split(Pattern.quote(delim));
+        boolean replaced = false;
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            if (i == 0 && part.trim().isEmpty()) {
+                out.append(delim);
+                continue;
+            }
+            if (part.startsWith("--")) {
+                out.append(delim).append("--");
+                continue;
+            }
+            if (!replaced && part.matches("(?s).*" + namePattern + ".*")) {
+                int blank = part.indexOf("\r\n\r\n");
+                if (blank < 0) blank = part.indexOf("\n\n");
+                if (blank >= 0) {
+                    String sep = part.charAt(blank) == '\r' ? "\r\n\r\n" : "\n\n";
+                    String headers = part.substring(0, blank);
+                    out.append(delim).append(headers).append(sep).append(payload).append("\r\n");
+                    replaced = true;
+                    continue;
+                }
+            }
+            out.append(delim).append(part);
+        }
+
+        if (!replaced) {
+            String body = out.toString();
+            int ci = body.lastIndexOf(closing);
+            if (ci >= 0) {
+                String newPart = delim + "\r\nContent-Disposition: form-data; name=\"" + paramName + "\"\r\n\r\n"
+                        + payload + "\r\n";
+                body = body.substring(0, ci) + newPart + closing;
+                return request.withBody(body);
+            }
+        }
+        return request.withBody(out.toString());
+    }
+
+    /** Replace a named element's text or attribute value in an XML body. */
+    static HttpRequest modifyXmlBody(HttpRequest request, String paramName, String payload, String bodyStr) {
+        String escapedPayload = payload.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace("\"", "&quot;");
+
+        String elemPattern = "(<" + Pattern.quote(paramName) + "(?:\\s[^>]*)?>)([^<]*?)(</"
+                + Pattern.quote(paramName) + "\\s*>)";
+        Matcher elemMatcher = Pattern.compile(elemPattern).matcher(bodyStr);
+        if (elemMatcher.find()) {
+            String newBody = bodyStr.substring(0, elemMatcher.start(2))
+                    + escapedPayload
+                    + bodyStr.substring(elemMatcher.end(2));
+            return request.withBody(newBody);
+        }
+
+        String attrPattern = "(" + Pattern.quote(paramName) + "\\s*=\\s*\")([^\"]*?)(\")";
+        Matcher attrMatcher = Pattern.compile(attrPattern).matcher(bodyStr);
+        if (attrMatcher.find()) {
+            String newBody = bodyStr.substring(0, attrMatcher.start(2))
+                    + escapedPayload
+                    + bodyStr.substring(attrMatcher.end(2));
+            return request.withBody(newBody);
+        }
+
+        int lastClose = bodyStr.lastIndexOf("</");
+        if (lastClose > 0) {
+            String newBody = bodyStr.substring(0, lastClose)
+                    + "<" + paramName + ">" + escapedPayload + "</" + paramName + ">\n"
+                    + bodyStr.substring(lastClose);
+            return request.withBody(newBody);
+        }
+        return request.withBody(bodyStr);
     }
 
     static HttpRequest modifyPathParam(HttpRequest request, String paramName, String payload) {

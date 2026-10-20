@@ -160,7 +160,18 @@
     "azure_sas_token_leak": {
       "tech_match": ["azure", "sas", "blob.core.windows.net"],
       "description": "Azure SAS token leak in HTTP responses or JS bundles.",
-      "probes": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan endpoint response for leaked Azure SAS tokens",
+          "matchers": [{"type": "regex", "pattern": "\\?sv=\\d{4}-\\d{2}-\\d{2}&[a-z=&%\\d\\-]+&sig=[A-Za-z0-9%]+", "description": "Azure Storage SAS query string in response"}]
+        },
+        {
+          "payload": "{{endpoint}}?_debug=1",
+          "description": "Trigger verbose response that may leak SAS URLs",
+          "matchers": [{"type": "regex", "pattern": "[a-z0-9]{3,24}\\.blob\\.core\\.windows\\.net/[A-Za-z0-9_\\-/\\.]+\\?sv=", "description": "Full Azure SAS URL in response"}]
+        }
+      ],
       "matchers": [
         {
           "type": "regex",
@@ -204,7 +215,23 @@
     "cognito_jwt": {
       "tech_match": ["aws", "cognito"],
       "description": "AWS Cognito JWT signature.",
-      "probes": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan endpoint response for Cognito User Pool identifiers",
+          "matchers": [{"type": "regex", "pattern": "cognito-idp\\.[a-z0-9\\-]+\\.amazonaws\\.com/[a-z0-9_\\-]+", "description": "Cognito User Pool issuer URL leaked"}]
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan for Cognito Identity Pool references",
+          "matchers": [{"type": "regex", "pattern": "cognito-identity\\.[a-z0-9\\-]+\\.amazonaws\\.com", "description": "Cognito Identity Pool endpoint leaked"}]
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan JWT claims for Cognito group claim — tamper for privilege escalation",
+          "matchers": [{"type": "literal", "pattern": "cognito:groups", "description": "Cognito group claim in JWT or response"}]
+        }
+      ],
       "matchers": [
         {
           "type": "regex",
@@ -228,7 +255,23 @@
     },
     "leaked_keys_in_response": {
       "description": "Plaintext cloud credentials in HTTP responses (often via debug pages, error stacks, or HTML).",
-      "probes": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan normal response for leaked AWS access keys",
+          "matchers": [{"type": "regex", "pattern": "(AKIA|ASIA)[0-9A-Z]{16}", "description": "AWS access key in response body"}]
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan for GCP API keys or OAuth tokens",
+          "matchers": [{"type": "regex", "pattern": "AIza[0-9A-Za-z\\-_]{35}|ya29\\.[0-9A-Za-z\\-_]{30,}", "description": "Google API key or OAuth2 token in response"}]
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan for Azure connection strings or private keys",
+          "matchers": [{"type": "regex", "pattern": "DefaultEndpointsProtocol=https;AccountName=|-----BEGIN PRIVATE KEY-----", "description": "Azure connection string or private key in response"}]
+        }
+      ],
       "matchers": [
         {
           "type": "regex",
@@ -270,7 +313,22 @@
     },
     "cloud_sdk_errors": {
       "description": "Cloud SDK error fingerprints disclosed in error pages — confirms backend cloud usage.",
-      "probes": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}?x=%00",
+          "description": "Trigger error page with null byte — may expose SDK error fingerprints",
+          "matchers": [
+            {"type": "word", "any": ["InvalidAccessKeyId", "SignatureDoesNotMatch", "google.api_core.exceptions", "Microsoft.WindowsAzure.Storage"], "description": "Cloud SDK error fingerprint in error response"}
+          ]
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Scan normal response for cloud SDK error patterns",
+          "matchers": [
+            {"type": "word", "any": ["AccessDenied", "ServerErrorException: 0:Permission", "FirebaseError"], "description": "Cloud access-denied or Firebase error in response"}
+          ]
+        }
+      ],
       "matchers": [
         {
           "type": "literal",

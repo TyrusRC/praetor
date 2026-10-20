@@ -29,7 +29,6 @@ LOG_TOOLS = {
     "mcp__praetor__assess_finding": "assess",
     "mcp__praetor__write_checkpoint": "checkpoint",
     "mcp__praetor__save_target_intel": "intel",
-    "mcp__praetor__save_finding_pipeline": "finding",
 }
 
 

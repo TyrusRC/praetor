@@ -77,9 +77,10 @@ _PACKAGE_LANE = {
     "vulnwalker": "scanners", "sast_handoff": "scanners",
     # network / AD lane
     "network": "network", "nmap_report": "network", "redteam": "network",
+    "expedition": "network",
     # LLM / AI + MCP-security lane
     "llm_redteam": "llm", "local_llm": "llm", "web_llm_sweep": "llm",
-    "nuclei_llm_infra": "llm", "mcptox": "llm", "owasp_asi_top10": "llm",
+    "scan_llm_infra": "llm", "mcptox": "llm", "owasp_asi_top10": "llm",
     "a2a_agent_card_probe": "llm", "mcp_enumerate": "llm",
     "mcp_jsonrpc_probe": "llm", "mcp_stdio_shell_meta_probe": "llm",
     "mcp_schema_drift": "llm", "mcp_invisible_unicode": "llm",
