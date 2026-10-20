@@ -9,6 +9,15 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/finding-guard.py\""
           }
         ]
+      },
+      {
+        "matcher": "mcp__praetor__send_raw_request|mcp__praetor__curl_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/state-change-guard.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

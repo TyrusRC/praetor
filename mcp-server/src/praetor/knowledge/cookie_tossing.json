@@ -1,0 +1,100 @@
+{
+  "category": "cookie_tossing",
+  "description": "Cookie tossing and SameSite bypass attacks — exploit browser cookie scoping rules to override, evict, or inject cookies from a sibling subdomain or via attacker-controlled responses. Chains with CSRF, session fixation, and cache poisoning.",
+  "chain_with": ["csrf", "session_security", "cache_poisoning", "xss"],
+  "contexts": {
+    "subdomain_cookie_override": {
+      "description": "Sibling subdomain sets a same-name cookie scoped to the parent domain, overriding the legitimate cookie. Requires attacker-controlled content on any subdomain (XSS, subdomain takeover, or a user-content host). The tossed cookie lacks Secure/HttpOnly/__Host- prefix protections.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Check session cookie for __Host- prefix — __Host- cookies cannot be set from a subdomain and must be Secure+path=/; absence means tossing is possible",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "description": "Set-Cookie header present"},
+            {"type": "not_word", "words": ["__Host-", "__Secure-"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Check if session cookie is scoped to parent domain (Domain=.example.com) — domain-scoped cookies are overridable from any subdomain",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "description": "Set-Cookie with Domain attribute"},
+            {"type": "regex", "pattern": "Domain=\\.[a-z0-9]", "description": "Cookie has explicit Domain= attribute (tossable from sibling subdomain)"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    },
+    "samesite_lax_bypass_top_level_nav": {
+      "description": "SameSite=Lax cookies are sent on top-level navigation (GET) within a 2-minute window after being set. An attacker page can trigger a top-level GET to a state-changing endpoint within that window. Tests whether state-changing operations accept GET method.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Check if Set-Cookie uses SameSite=Lax (or omits SameSite, which defaults to Lax in modern browsers)",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "description": "Set-Cookie header present"},
+            {"type": "not_word", "words": ["SameSite=Strict", "SameSite=None"]},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "low",
+          "confidence_boost": 20
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Send state-changing endpoint as GET — if it succeeds, SameSite=Lax is bypassable via top-level navigation from an attacker page",
+          "matchers": [
+            {"type": "status", "status": [200, 302]},
+            {"type": "not_word", "words": ["method not allowed", "405", "csrf", "invalid method"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {
+            "method_override": "GET"
+          }
+        }
+      ]
+    },
+    "cookie_jar_overflow": {
+      "description": "Browser cookie jar overflow — browsers enforce per-domain cookie limits (typically 50-180). An attacker can set many cookies from a controlled subdomain to evict the legitimate session cookie. Detection: check if the target sets more than ~30 cookies, or if a subdomain can set unlimited cookies.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Count Set-Cookie headers in response — a high number of cookies increases susceptibility to jar overflow eviction",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "description": "Multiple Set-Cookie headers present"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "low",
+          "confidence_boost": 15
+        }
+      ]
+    },
+    "double_submit_cookie_bypass": {
+      "description": "Double-submit cookie CSRF defense bypass via cookie tossing. If the CSRF defense compares a cookie value to a body/header parameter, an attacker who can toss a cookie (from a sibling subdomain) controls both sides of the comparison.",
+      "tech_match": ["django", "laravel", "spring", "express", "rails"],
+      "param_match": ["csrf_token", "csrftoken", "_token", "XSRF-TOKEN", "X-CSRF-TOKEN"],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Check if CSRF protection uses double-submit pattern — Cookie: csrftoken=X and body/header csrftoken=X. If both match, cookie tossing breaks the defense.",
+          "matchers": [
+            {"type": "header", "name": "Set-Cookie", "description": "CSRF cookie present"},
+            {"type": "regex", "pattern": "(?i)(csrf|xsrf|_token)", "description": "CSRF token name in Set-Cookie header"}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        }
+      ]
+    }
+  }
+}

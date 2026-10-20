@@ -626,6 +626,68 @@
         }
       ]
     },
+    "uuidv1_sequential": {
+      "description": "UUIDv1 identifiers contain timestamp (bytes 0-7) and MAC address (bytes 10-15) — monotonically increasing, predictable. Extract one UUIDv1, increment the timestamp portion, and enumerate adjacent resources created around the same time.",
+      "tech_match": [],
+      "param_match": [
+        "id", "uid", "user_id", "account_id", "token", "ref", "session_id",
+        "order_id", "resource_id", "document_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Detect UUIDv1 format in response body — version nibble (position 13) = 1, variant bits 10xx at position 17. Presence means IDs are time+MAC based and enumerable.",
+          "matchers": [
+            {"type": "regex", "pattern": "[0-9a-f]{8}-[0-9a-f]{4}-1[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", "description": "UUIDv1 detected in response (version nibble = 1)"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Detect UUIDv1 in response headers (cookies, Location, custom headers) — often leaked in Set-Cookie or X-Request-Id",
+          "matchers": [
+            {"type": "regex", "pattern": "[0-9a-f]{8}-[0-9a-f]{4}-1[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", "description": "UUIDv1 detected in response header"},
+            {"type": "status", "status": [200, 201, 302]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "mongodb_objectid": {
+      "description": "MongoDB ObjectId (24-hex-char) contains a 4-byte timestamp prefix — IDs created within seconds of each other differ only in the counter suffix. Extract one ObjectId, increment the counter (last 3 bytes), and enumerate adjacent documents.",
+      "tech_match": ["mongodb", "mongoose", "express", "mean", "mern", "node.js"],
+      "param_match": [
+        "id", "_id", "user_id", "objectId", "docId", "resourceId",
+        "order_id", "item_id", "postId"
+      ],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Detect MongoDB ObjectId format (24 hex chars) in response — first 4 bytes are a Unix timestamp, enabling time-based enumeration",
+          "matchers": [
+            {"type": "regex", "pattern": "\"(?:_id|id)\"\\s*:\\s*\"[0-9a-f]{24}\"", "description": "MongoDB ObjectId in JSON response body"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "000000000000000000000001",
+          "description": "Replace ObjectId with a low-value synthetic ID — may return the first document ever created (often admin/system)",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "length_diff", "min_diff": 100},
+            {"type": "not_word", "words": ["not found", "invalid", "cast error", "CastError"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 45,
+          "variables": {"baseline_value": "current_id"}
+        }
+      ]
+    },
     "bulk_operations": {
       "description": "IDOR in bulk/batch endpoints -- delete-all, export, batch update may lack per-item authorization checks",
       "tech_match": [],

