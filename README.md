@@ -13,7 +13,7 @@
 
 Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into an agentic pentester and red-teamer across **two co-equal lanes**:
 
-- **Web lane (Burp):** HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (128+ matchers), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), and native vuln-class orchestrators. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
+- **Web lane (Burp):** HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (153 knowledge categories, 945+ probe contexts), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), and native vuln-class orchestrators. Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
 - **Network / red-team lane:** advanced network recon and post-exploitation that Burp can't see — `run_network_recon` (a chained discover → service-aware enum → leads pipeline), `run_nmap`, a sanctioned runner for impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm, offline cracking (`crack_hashes`), and a reusable **credential store**. Every action is recorded in a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody** — the non-Burp evidence a red-team report cites in place of a Logger index.
 
 Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (assay/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core. Supporter lanes (**mobile** — MASTG/Frida/jadx; **cloud** — prowler/scout-suite/pacu; **LLM/AI + MCP** — prompt-injection / tool-poisoning) plug into the same evidence model.
@@ -81,7 +81,7 @@ LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition 
 - HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
 - Response extraction, deterministic and LLM-assisted: `extract_regex` / `extract_json_path` / `extract_css_selector` (keyless), plus `markdownify` (keyless HTML→Markdown reducer) and `extract_structured` (optional-LLM NL/schema extraction) — all over a **captured** `proxy_history_index`, never a non-proxied scrape.
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10 (Web / API / LLM / Mobile), OWASP WSTG, PayloadsAllTheThings, HackTricks Web + Cloud — see the [Coverage](#coverage) table.
-- Decision engine (the Jev pattern) — a calibrated model layer for *which template/probe is relevant to this target* and *which hit to verify first*: `decision_status` / `decide_relevance` / `decide_questions`. Three backends in priority order: (1) **[Haruspex](https://github.com/TyrusRC/haruspex)** — a local, self-hosted decision model with per-domain adapters (web/cloud/llm/mobile/network), pre-trained and downloaded during setup (~150 MB); (2) TypeSafe **Jev** via Vercel AI Gateway (`AI_GATEWAY_API_KEY`); (3) any `PRAETOR_LLM_*` provider; or **off** → the deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope (`decide`) stay in force. It **orders**, never drops coverage (Rule 19). `enrich_with_haruspex()` layers a calibrated probability onto verdict dicts (fail-open — the deterministic verdict is never altered).
+- Decision engine (the Jev pattern) — a calibrated model layer for *which template/probe is relevant to this target* and *which hit to verify first*: `decision_status` / `decide_relevance` / `decide_questions`. Three backends in priority order: (1) **[Haruspex](https://github.com/TyrusRC/haruspex)** — a local, self-hosted decision model with per-domain adapters (web/cloud/llm/mobile/network), pre-trained and downloaded during setup (~150 MB); (2) TypeSafe **Jev** via Vercel AI Gateway (`AI_GATEWAY_API_KEY`); (3) any `PRAETOR_LLM_*` provider; or **off** → the deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope (`decide`) stay in force. It **orders**, never drops coverage (Rule 19). Haruspex is wired into two hot paths: `prioritise_with_haruspex()` ranks probe contexts inside `auto_probe` (so the most relevant probes fire first within a budget), and `enrich_with_haruspex()` layers a calibrated probability onto every `assess_finding` verdict (fail-open — the deterministic verdict is never altered).
 - Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
 - Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
 - XSS execution → impact: `probe_xss_executed` proves a payload runs (headless dialog hook), then `xss_impact_proof` escalates it to a benign, evidence-backed session-theft PoC — an OOB beacon of the minimum marker to a Burp Collaborator / operator callback (own-session or lab victim-bot only; not a keylogging C2).
@@ -116,6 +116,9 @@ LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition 
 - **Workspace reconcile**: `sync_workspace(domain)` re-aligns every derived `.burp-intel` file with the canonical `findings.json` — regenerates writeups, removes orphans, and surfaces drift (duplicates, missing evidence, MEDIUM+ with no impact, stale checkpoint/coverage refs) when a re-check disagrees with stored state.
 - **Coverage & checklists**: `coverage_status` / `standards_coverage` (tested-vs-untested roll-up against OWASP Top 10 / API Top 10 / WSTG / **ASVS 5.0** / **AISVS 1.0** / MASVS v2 / AI Testing Guide), `checklist` / `checklist_autotest` (per-item WSTG/AI/MASTG test tracking), `asset_role_matrix` (feature × role authz map).
 - **Credentials encrypted at rest**: the reuse store keeps secrets as Fernet ciphertext (never plaintext on disk), redacts every render, and surfaces the decryption-key location — usable for spray/auth, safe from a stray grep or accidental commit.
+- **Multi-format fuzz engine**: `RequestMutator` handles four body content types — JSON (key replacement + append), form-urlencoded (pair rewrite), multipart/form-data (boundary-aware part replacement), and XML (element text, attribute value, or element append with XML escaping). `fuzz_parameter` and `fuzz_with_feedback` inherit all four automatically.
+- **32 payload files** covering injection, auth, logic, and protocol classes: sqli, xss, ssti, ssrf, xxe, command injection, CRLF, LDAP, XPath, XSLT, XML, host header, mass assignment, JWT, GraphQL, deserialization, prototype pollution, file upload, path traversal, LFI, CORS, CSRF, cache poisoning, auth bypass, NoSQL, HPP, open redirect, race condition, WebSocket, OAuth, and mobile API. `get_payloads(category=X)` returns ready-to-fire context-specific payloads for each.
+- **State-change detection hook (Rule 8a)**: a PreToolUse hook on `send_raw_request` / `curl_request` detects DELETE methods and 16 state-change keywords (delete, password, transfer, privilege, etc.) and blocks with an operator-confirmation prompt. Fail-open — legitimate pentest traffic is never blocked.
 
 ## Requirements
 
@@ -711,7 +714,7 @@ The MCP server exposes tools across the following groups. Architecture detail an
 | Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater`, `import_curl` (parse a `curl` line → replayable request), `request_to_curl` (export any proxy entry as curl) |
 | Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js`, `browser_storage` (localStorage / sessionStorage / IndexedDB dump, secret-flagged), `browser_iast_enable` + `browser_iast` (passive in-browser DOM-sink instrumentation with taint source→sink correlation) |
 | Session | `create_session`, `session_request`, `extract_token`, `run_flow`, `resend_with_csrf_refresh` (replay a captured request as another account, auto-refreshing its anti-CSRF token — account-swap IDOR/BOLA without stale-token false 403s) |
-| Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` |
+| Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` — backed by 153 knowledge categories and 32 payload files covering injection, auth, logic, and protocol classes |
 | Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
 | Vuln-class natives | `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-style multi-phase), `test_xxe`, `test_websocket` (CSWSH), `test_prototype_pollution`, `confirm_padding_oracle` (CBC padding-oracle PoC — decrypt/detect only, routes through Burp) |
 | Auth attack | `forge_jwt`, `crack_jwt_secret`, `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens`, `test_auth_matrix`, `compare_auth_states` |
@@ -819,7 +822,7 @@ The following remain **out of scope by design**, not gaps to be filled:
 
 - **Binary / memory-corruption exploitation** — no ROP/pwntools/gdb/kernel/V8 exploit development. Praetor operates at the network/service and web layers, not on native-binary crash-to-exploit (e.g. ExploitGym-class tasks).
 - **Thick-client / native desktop binaries** — Electron IPC/ASAR inspection ships as reference KB (`desktop_electron`) + skill only; no binary-instrumentation automation for native Windows/macOS apps.
-- **Non-HTTP protocol / binary fuzzing** — fuzzing is HTTP/parameter-oriented; no boofuzz/AFL-class grammar or network-protocol fuzzing.
+- **Binary / memory-corruption exploitation** (ROP/pwntools/kernel-level) — though AFL-based fuzzing (`afl_build_harness` / `afl_fuzz_target` / `triage_crashes`) covers coverage-guided binary testing with crash exploitability triage, and burp-expedition handles non-HTTP protocol testing (TCP/UDP relay, intercept, replay).
 - **Email-infrastructure security** — DNS analysis notes SPF/DMARC *presence* only; no DKIM-selector enumeration, SMTP/STARTTLS/open-relay, or BEC/spoofing assessment.
 - **Container-runtime / eBPF behavioral detection** — image scanning (Trivy/Grype/Hadolint) is covered; runtime (Falco-class) is not.
 - **Online credential brute-force** — dictionary brute of a live service is refused (HARD Rule 6); default/known-cred checks, single-password spray, and **offline** cracking are in scope.
@@ -851,6 +854,7 @@ Praetor is built for **authorized** engagements and the professional benign-PoC 
 - **HARD tool-layer block (Rules 5–9, non-overridable).** The `confirm_*` exploit tools refuse irreversible target-state payloads (DROP/DELETE, `rm -rf`, `useradd`, SSH-key implant, miner loaders). A refusal is a **pivot**, not a dead end — prove it benignly, or drop to the operator-owned raw tools.
 - **Confirm-before-dangerous.** The unrestricted raw tools (`send_raw_request` / `curl_request`) pause with a *CONFIRM REQUIRED* notice on a clearly dangerous state-changing action (delete-user / change-password / money-movement / privilege-change / prod-op / any DELETE); the agent asks the operator, then re-calls with `confirmed=True`. GET and ordinary pentest traffic are untouched.
 - **Bounded auth-control testing (Rule 6a).** Weak-password spray, rate-limit, lockout and offline hash/JWT cracking are allowed (netexec spray, `test_rate_limit`, `crack_hashes`, `crack_jwt_secret`); only large-scale dictionary brute for account takeover (hydra/medusa/ncrack/patator) is blocked, with the allowed path named.
+- **State-change detection hook (Rule 8a).** A PreToolUse hook on `send_raw_request` / `curl_request` detects DELETE methods and 16 state-change keywords (delete, password, transfer, privilege, etc.) and blocks with an operator-confirmation prompt. Fail-open — legitimate traffic is never blocked; false positives are acceptable (operator approves), false negatives are the risk.
 - **Engagement modes.** `configure_scope(mode='operator')` (default) audit-logs out-of-scope and proceeds (private contract trust model); `mode='strict'` hard-blocks for public bounty scope. Safety Rules 5–9 stay HARD in both.
 
 ## Skills
@@ -881,9 +885,16 @@ On non-Claude hosts these load the same way — via the `list_skills` / `get_ski
 
 ## Agents
 
-Project subagents in `.claude/agents/`, auto-loaded by Claude Code at session start. One orchestrator plus specialised workers:
+Project subagents in `.claude/agents/`, auto-loaded by Claude Code at session start. Two commanders plus specialised workers:
 
-- `grow-agent` — session orchestrator, one domain per run
+**Commanders** (pinned Opus — strategic decisions, never tactical tool calls):
+- `pentest-commander` — engagement lead for coverage-driven pentests (multi-domain, cross-target synthesis, findings report)
+- `redteam-commander` — engagement lead for objective-driven red teams (kill-chain narrative, stealth/noise budget)
+
+**Per-domain orchestrator:**
+- `grow-agent` — session orchestrator, one domain per run (Rule 20a session-start gate, Rule 4 goal-driven loop, Rule 21 checkpointing)
+
+**Workers:**
 - `recon-agent` — attack-surface mapping
 - `js-analyst` — JS secrets and DOM source→sink flows
 - `vuln-scanner` — vulnerability probing, one category per instance
@@ -894,6 +905,12 @@ Project subagents in `.claude/agents/`, auto-loaded by Claude Code at session st
 - `auth-payment-agent` — OAuth, FIDO2/passkeys, Apple/Google/Samsung Pay, IAP, 3DS
 - `fuzz-agent` — tech-aware wordlist generation and ffuf
 - `mobile-dynamic-agent` — Frida and adb (pinning bypass, runtime hooks, deep-link sinks)
+- `network-agent` — network/AD lane (discovery, service enum, credential capture/crack/reuse, lateral movement)
+- `cloud-agent` — cloud posture + active exploitation (AWS/Azure/GCP audit, IaC scan, container/K8s escape, SSRF→metadata pivots)
+- `desktop-agent` — Electron / Tauri / WebView2 binary inspection + IPC fuzzing + auto-update MITM
+- `llm-agent` — LLM/AI endpoint testing (OWASP LLM Top 10: prompt injection, jailbreak, system-prompt leakage, tool-SSRF)
+- `screenshot-triage` — OCR-first triage of saved screenshots (forms, endpoints, error strings, auth markers)
+- `ste-writer` — rewrite text into ASD-STE100 Simplified Technical English
 
 Roles and parallelization patterns: [AGENTS.md](AGENTS.md).
 
