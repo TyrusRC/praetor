@@ -15,7 +15,7 @@ from urllib.parse import urlparse, urlunparse
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor import client
+from praetor import client, config
 from praetor.tools.recon._common import _check_tool, _run_cmd
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 
@@ -219,7 +219,7 @@ def register(mcp: FastMCP) -> None:
             )
         # --no-banner keeps stdout parseable; -x routes attempts through Burp.
         out, err, rc = await _run_cmd(
-            ["nomore403", "-u", url, "-x", "http://127.0.0.1:8080", "--no-banner"],
+            ["nomore403", "-u", url, "-x", config.BURP_PROXY_URL, "--no-banner"],
             timeout=timeout, bypass_proxy=False,
         )
         if rc != 0 and not out:

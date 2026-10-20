@@ -50,8 +50,8 @@ public class ScopeHandler extends BaseHandler {
                     currentMode = s;
                 }
             }
-        } catch (Throwable ignored) {
-            // Filesystem / parse / classloader issue — keep operator default.
+        } catch (Exception ignored) {
+            // Filesystem / parse issue — keep operator default.
         }
     }
 

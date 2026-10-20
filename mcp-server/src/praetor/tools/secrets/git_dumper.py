@@ -28,8 +28,12 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from praetor import client
+from praetor import client, config
 from praetor.tools.recon._common import _check_tool, _run_cmd
+
+
+def _proxy_url() -> str:
+    return config.BURP_PROXY_URL
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -142,7 +146,7 @@ def register(mcp: FastMCP) -> None:
         if _check_tool("git-dumper") or _check_tool("git_dumper.py"):
             tool = "git-dumper" if _check_tool("git-dumper") else "git_dumper.py"
             git_url = base_url.rstrip("/") + "/.git/"
-            env_proxy = os.environ.get("HTTPS_PROXY") or "http://127.0.0.1:8080"
+            env_proxy = os.environ.get("HTTPS_PROXY") or _proxy_url()
             cmd = _git_dumper_cmd(tool, git_url, str(out_dir), env_proxy)
             stdout, stderr, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=False)
             if rc != 0:

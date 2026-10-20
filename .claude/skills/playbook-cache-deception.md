@@ -80,7 +80,7 @@ Different classes, same primitives (path / header manipulation). Both live in `c
 1. **CDN fingerprint** — fetch any URL and inspect `Server: cloudflare`, `Via: 1.1 google`, `CF-Ray`, `X-Akamai-*`, `X-Cache: cf-cache-status: HIT`, `X-Served-By: cache-* fastly`. Two distinct CDN identifiers = two-cache pipeline.
 2. **Identify auth endpoint** — `discover_attack_surface` highlights `/profile`, `/account`, `/dashboard`, `/api/me` returning user-specific content with `Cache-Control: private`.
 3. **Static-suffix probe** — `auto_probe(categories=['web_cache_deception'])` runs W13 active context.
-4. **Vendor-specific** — `auto_probe(categories=['cache_deception_v2'])` for newer parser-differentials.
+4. **Vendor-specific** — `auto_probe(categories=['web_cache_deception'])` for newer parser-differentials.
 5. **Verify cacheable** — `concurrent_requests` with the suffix variant; check second request returns cached version (`X-Cache: HIT` / `Age: > 0`).
 
 ## Evidence ladder
@@ -138,7 +138,7 @@ save_finding(
 
 - `knowledge/web_cache_deception.json` — W13 active (`static_suffix_cache_poisoning` + `path_confusion` normalised)
 - `knowledge/cache_poisoning.json` — adjacent class (W18 added `nextjs_15_cache_key_confusion`)
-- `knowledge/cache_deception_v2.json` — vendor-specific newer variants
+- `knowledge/web_cache_deception.json` — vendor-specific newer variants (merged from former cache_deception_v2)
 - `test_cache_poisoning` (W11 VerdictResult)
 - `playbook-request-smuggling.md` — cache poisoning via smuggle chain
 - Web Cache Deception class (2017 original + 2025 updates)
