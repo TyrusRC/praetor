@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import fmt_val
 
 
@@ -240,6 +241,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "INCONCLUSIVE", 0.0
             ev = "every mass-assignment probe errored — test never ran"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", path, "", "mass_assignment",
+                                    verdict=verdict, tool_name="test_mass_assignment")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="mass_assignment",

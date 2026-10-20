@@ -15,6 +15,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
+from praetor.tools._coverage import record_exploit_coverage
 
 
 def _to_form(d: dict) -> str:
@@ -156,6 +157,9 @@ def register(mcp: FastMCP):
               ("no parser divergence across JSON / form / multipart / XML / plain"
                if valid else "every content-type variant errored — test never ran"))
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", endpoint, "", "content_type_confusion",
+                                    verdict=verdict, tool_name="probe_content_type_switch")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="content_type_confusion",

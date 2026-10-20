@@ -6,7 +6,9 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import fmt_val
+from urllib.parse import urlparse
 
 
 def register(mcp: FastMCP):
@@ -165,6 +167,10 @@ def register(mcp: FastMCP):
             verdict, confidence = "INCONCLUSIVE", 0.0
             ev = "every business-logic probe errored — test never ran"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            _d = (urlparse(endpoint).hostname or "") if endpoint else ""
+            record_exploit_coverage(_d, endpoint, parameter, "business_logic",
+                                    verdict=verdict, tool_name="test_business_logic")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="business_logic",

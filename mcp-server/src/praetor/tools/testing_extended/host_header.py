@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import (
     resolve_host_from,
     scope_or_error,
@@ -118,6 +119,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "INCONCLUSIVE", 0.0
             ev = "every host-header variant errored — test never ran"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", path, "", "host_header",
+                                    verdict=verdict, tool_name="test_host_header")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="host_header",

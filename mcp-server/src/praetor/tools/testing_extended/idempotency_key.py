@@ -21,6 +21,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 _DEFAULT_HEADER = "Idempotency-Key"
@@ -227,6 +228,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "idempotency key correctly scoped — no replay / mutate / cross-principal accepted"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", endpoint, "", "idempotency",
+                                    verdict=verdict, tool_name="probe_idempotency_key")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="business_logic",

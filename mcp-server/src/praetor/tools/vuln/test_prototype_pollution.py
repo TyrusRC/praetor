@@ -29,8 +29,11 @@ import secrets
 import string
 from urllib.parse import urlparse, urlunparse, urlencode
 
+from urllib.parse import urlparse
+
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools._coverage import record_exploit_coverage
 from ._send import send_probe
 from praetor.tools.testing._verdict import error_verdict, make_verdict
 
@@ -194,6 +197,11 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no PP signal — try a follow_up_path that consumes default object values"
 
+        if verdict in ("CONFIRMED", "FAILED"):
+            try: _d = urlparse(url).hostname or ""
+            except Exception: _d = ""
+            record_exploit_coverage(_d, url, "", "prototype_pollution",
+                                    verdict=verdict, tool_name="test_prototype_pollution")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="prototype_pollution",

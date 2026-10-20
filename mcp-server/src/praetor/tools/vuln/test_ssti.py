@@ -36,6 +36,9 @@ from mcp.server.fastmcp import FastMCP
 # ─────────────────────────────────────────────────────────────────────────
 
 
+from urllib.parse import urlparse
+
+from praetor.tools._coverage import record_exploit_coverage
 from ._ssti_payloads import _POLYGLOT, _POLYGLOT_HINTS, _DISTINGUISHERS, _CAPABILITIES, _BLIND_SLEEPS  # noqa: F401 (re-export)
 from ._ssti_helpers import _build_request, _send, _proxy_history_index, _body  # noqa: F401 (re-export)
 from ._test_ssti_impl import _run_test_ssti
@@ -77,7 +80,7 @@ def register(mcp: FastMCP):
                 this engine directly. Use only when you already know the
                 engine (e.g. from confirm_ssti output).
         """
-        return await _run_test_ssti(
+        r = await _run_test_ssti(
             endpoint,
             parameter,
             method=method,
@@ -86,3 +89,10 @@ def register(mcp: FastMCP):
             blind_seconds=blind_seconds,
             engine_hint=engine_hint,
         )
+        v = r.get("verdict", "") if isinstance(r, dict) else ""
+        if v in ("CONFIRMED", "FAILED"):
+            try: d = urlparse(endpoint).hostname or ""
+            except Exception: d = ""
+            record_exploit_coverage(d, endpoint, parameter, "ssti",
+                                    verdict=v, tool_name="test_ssti")
+        return r

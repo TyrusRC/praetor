@@ -15,6 +15,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 _HEADERS_AND_VALUES = [
@@ -152,6 +153,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no internal-header trust split detected"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", path, "", "internal_headers",
+                                    verdict=verdict, tool_name="probe_internal_headers")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="edge_internal_trust_split",

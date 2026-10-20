@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
+from praetor.tools._coverage import record_exploit_coverage
 
 
 _PATH_PATTERNS = [
@@ -180,6 +181,9 @@ def register(mcp: FastMCP):
               ("no exposed scheduled-job / webhook / backfill paths"
                if valid else "every trigger attempt errored — test never ran"))
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", base_url, "", "cron_backfill",
+                                    verdict=verdict, tool_name="probe_cron_backfill")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="cron_backfill",

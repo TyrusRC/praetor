@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import scope_or_error
 
 
@@ -96,6 +97,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no CRLF injection detected across encoding variants"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", path, parameter, "crlf_injection",
+                                    verdict=verdict, tool_name="test_crlf_injection")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="crlf_injection",

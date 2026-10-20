@@ -17,6 +17,7 @@ status/length only; the restricted body is not returned (Rules 5-9, Rule 7/8).
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import (
     resolve_host_from,
     scope_or_error,
@@ -221,6 +222,9 @@ async def _run_probe(
             f"(baseline {baseline_status}) across {', '.join(wanted)}."
         )
 
+    _v = "CONFIRMED" if bypassed else "FAILED"
+    record_exploit_coverage("", base + restricted_path, "", "request_smuggling",
+                            verdict=_v, tool_name="smuggle_acl_probe")
     return {
         "base": base,
         "restricted_path": restricted_path,

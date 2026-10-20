@@ -1,7 +1,10 @@
 """Edge-case security testing tools — JWT, CORS, GraphQL, LFI, file upload, redirect, cloud metadata."""
 
+from urllib.parse import urlparse
+
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.edge.test_cors import test_cors_impl
 from praetor.tools.edge.test_jwt import test_jwt_impl
 from praetor.tools.edge.test_graphql import test_graphql_impl
@@ -11,6 +14,17 @@ from praetor.tools.edge.test_open_redirect import test_open_redirect_impl
 from praetor.tools.edge.test_lfi import test_lfi_impl
 from praetor.tools.edge.test_file_upload import test_file_upload_impl
 from praetor.tools.edge.test_clickjacking import test_clickjacking_impl
+
+
+def _record(endpoint: str, param: str, vuln_class: str, tool: str, result: dict) -> None:
+    v = result.get("verdict", "") if isinstance(result, dict) else ""
+    if v in ("CONFIRMED", "FAILED"):
+        try:
+            domain = urlparse(endpoint).hostname or ""
+        except Exception:
+            domain = ""
+        record_exploit_coverage(domain, endpoint, param, vuln_class,
+                                verdict=v, tool_name=tool)
 
 
 def register(mcp: FastMCP):
@@ -28,7 +42,9 @@ def register(mcp: FastMCP):
             path: Endpoint path to test
             test_origins: Custom origins to test
         """
-        return await test_cors_impl(session=session, path=path, test_origins=test_origins)
+        r = await test_cors_impl(session=session, path=path, test_origins=test_origins)
+        _record(path, "", "cors", "test_cors", r)
+        return r
 
     @mcp.tool()
     async def test_jwt(
@@ -39,7 +55,9 @@ def register(mcp: FastMCP):
         Args:
             token: JWT token string
         """
-        return await test_jwt_impl(token=token)
+        r = await test_jwt_impl(token=token)
+        _record("", "", "jwt", "test_jwt", r)
+        return r
 
     @mcp.tool()
     async def test_graphql(
@@ -54,7 +72,9 @@ def register(mcp: FastMCP):
             path: GraphQL endpoint path (default /graphql)
             depth: 'quick' (4 tests) or 'deep' (6 tests including alias-DoS + depth limit)
         """
-        return await test_graphql_impl(session=session, path=path, depth=depth)
+        r = await test_graphql_impl(session=session, path=path, depth=depth)
+        _record(path, "", "graphql", "test_graphql", r)
+        return r
 
     @mcp.tool()
     async def test_cloud_metadata(
@@ -79,7 +99,9 @@ def register(mcp: FastMCP):
                 method/header-forwarding SSRF (gopher / full-request); set True
                 only when the SSRF is known to forward the PUT + token header.
         """
-        return await test_cloud_metadata_impl(session=session, parameter=parameter, path=path, injection_point=injection_point, extra_headers=extra_headers, imdsv2=imdsv2)
+        r = await test_cloud_metadata_impl(session=session, parameter=parameter, path=path, injection_point=injection_point, extra_headers=extra_headers, imdsv2=imdsv2)
+        _record(path, parameter, "cloud_metadata", "test_cloud_metadata", r)
+        return r
 
     @mcp.tool()
     async def discover_common_files(
@@ -111,7 +133,9 @@ def register(mcp: FastMCP):
             poll_seconds: Seconds to wait before polling (max 15)
             follow_redirects: Follow redirects to test client-side behavior
         """
-        return await test_open_redirect_impl(session=session, path=path, parameter=parameter, poll_seconds=poll_seconds, follow_redirects=follow_redirects)
+        r = await test_open_redirect_impl(session=session, path=path, parameter=parameter, poll_seconds=poll_seconds, follow_redirects=follow_redirects)
+        _record(path, parameter, "open_redirect", "test_open_redirect", r)
+        return r
 
     @mcp.tool()
     async def test_lfi(
@@ -132,7 +156,9 @@ def register(mcp: FastMCP):
             test_wrappers: Test PHP stream wrappers
             depth: Traversal depth
         """
-        return await test_lfi_impl(session=session, path=path, parameter=parameter, os_type=os_type, test_wrappers=test_wrappers, depth=depth)
+        r = await test_lfi_impl(session=session, path=path, parameter=parameter, os_type=os_type, test_wrappers=test_wrappers, depth=depth)
+        _record(path, parameter, "lfi", "test_lfi", r)
+        return r
 
     @mcp.tool()
     async def test_file_upload(
@@ -151,7 +177,9 @@ def register(mcp: FastMCP):
             test_types: Types to test: php, jsp, aspx, svg_xss, html, polyglot
             content_type_bypass: Test with mismatched Content-Type headers
         """
-        return await test_file_upload_impl(session=session, path=path, parameter=parameter, test_types=test_types, content_type_bypass=content_type_bypass)
+        r = await test_file_upload_impl(session=session, path=path, parameter=parameter, test_types=test_types, content_type_bypass=content_type_bypass)
+        _record(path, parameter, "file_upload", "test_file_upload", r)
+        return r
 
     @mcp.tool()
     async def test_clickjacking(
@@ -172,4 +200,6 @@ def register(mcp: FastMCP):
             multistep: Two-decoy overlay (for confirm-dialog flows) vs single decoy.
             target_url: Full iframe URL for the PoC; defaults to the fetched URL / path.
         """
-        return await test_clickjacking_impl(session=session, path=path, multistep=multistep, target_url=target_url)
+        r = await test_clickjacking_impl(session=session, path=path, multistep=multistep, target_url=target_url)
+        _record(path, "", "clickjacking", "test_clickjacking", r)
+        return r

@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
+from praetor.tools._coverage import record_exploit_coverage
 
 
 def register(mcp: FastMCP):
@@ -135,6 +136,9 @@ def register(mcp: FastMCP):
               ("all privileged endpoints properly deny post-downgrade session"
                if valid else "every privileged endpoint errored — test never ran"))
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", "", "", "stale_privilege",
+                                    verdict=verdict, tool_name="probe_role_state_cleanup")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="stale_privilege",

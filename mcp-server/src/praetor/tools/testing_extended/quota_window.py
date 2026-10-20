@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 def _extract_reset_seconds(headers: list[dict]) -> int | None:
@@ -183,6 +184,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no quota off-by-one detected"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", endpoint, "", "quota_window",
+                                    verdict=verdict, tool_name="probe_quota_window_edge")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="rate_limit",

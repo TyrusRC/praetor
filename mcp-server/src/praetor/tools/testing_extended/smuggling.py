@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import (
     confirm_timing_anomaly,
     resolve_host_from,
@@ -271,6 +272,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no request smuggling indicators across CL.TE / TE.CL / TE.TE"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", path, "", "request_smuggling",
+                                    verdict=verdict, tool_name="test_request_smuggling")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="request_smuggling",

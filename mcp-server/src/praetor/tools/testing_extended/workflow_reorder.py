@@ -21,6 +21,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, inconclusive_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 def _send_step(session: str, step: dict) -> dict:
@@ -188,6 +189,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "workflow defended across reorder/skip/replay/double-finalize"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", "", "", "workflow_reorder",
+                                    verdict=verdict, tool_name="probe_workflow_reorder")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="business_logic",

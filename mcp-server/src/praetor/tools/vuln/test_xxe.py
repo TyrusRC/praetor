@@ -14,8 +14,11 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from urllib.parse import urlparse
+
 from praetor import client
 
+from praetor.tools._coverage import record_exploit_coverage
 from ._send import send_probe
 from praetor.tools.testing._verdict import make_verdict
 
@@ -229,6 +232,11 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no inline XXE — try parameter-entity / blind OOB"
 
+        if verdict in ("CONFIRMED", "FAILED"):
+            try: _d = urlparse(url).hostname or ""
+            except Exception: _d = ""
+            record_exploit_coverage(_d, url, "", "xxe",
+                                    verdict=verdict, tool_name="test_xxe")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="xxe",

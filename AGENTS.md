@@ -101,6 +101,20 @@ Two engagement leads sit above `grow-agent`. They own strategy — research, a w
 **Returns:** New endpoints written into `.burp-intel/<domain>/endpoints.json`, YELLOW-annotated proxy entries for each hit, organizer entries for follow-up.
 **Constraint:** Never two `fuzz-agent` on the same host simultaneously — WAF tripping. Max 1 concurrent `fuzz-agent` per host across the whole session. See `.claude/skills/fuzz-hidden-paths.md`.
 
+### network-agent
+**Purpose:** Own the network/AD lane — discovery, service enumeration, credential capture→crack→reuse, lateral movement leads. Non-Burp evidence (ATT&CK operator log + loot).
+**When to dispatch:** Target has a network surface (host/IP/CIDR) beyond the web app. Triggered by grow-agent when `run_network_recon` discovers non-HTTP services.
+**Tools it should use:** `run_network_recon`, `run_nmap`, `run_network_tool` (impacket/netexec/responder/bloodhound-python/certipy/kerbrute/enum4linux-ng/smbmap/evil-winrm), `crack_hashes`, `record_credential`, `list_credentials`, `record_redteam_action`, `record_loot`, `get_operator_log`, `ingest_bloodhound`, `sync_to_ghostwriter`.
+**Returns:** Network findings (ATT&CK operator-log ids), cracked credentials, lateral movement leads, web-lane bridge for HTTP services.
+**Constraint:** Safety Rules 5–9 hard-enforced. No hydra/medusa/ncrack (ATO brute) — netexec spray + kerbrute enum + offline crack allowed (Rule 6a). One per subnet.
+
+### cloud-agent
+**Purpose:** Own the cloud lane — AWS/Azure/GCP posture + active exploitation, IaC scanning, container/K8s escape, SSRF→metadata credential pivots. Returns misconfig→impact chains, not raw scanner dumps.
+**When to dispatch:** Target has cloud infrastructure (AWS/Azure/GCP/K8s) or SSRF confirmed with cloud metadata reachable. Triggered by grow-agent or when escalate_ssrf confirms IMDS access.
+**Tools it should use:** `run_prowler`, `run_scout_suite`, `run_pacu`, `run_cloudsploit`, `run_gcp_scanner`, `run_azurehound`, `enum_public_buckets`, `run_kube_hunter`, `run_kubescape`, `run_peirates`, `run_checkov`, `run_tfsec`, `test_cloud_metadata`, `escalate_ssrf`, `assess_finding`, `save_finding`.
+**Returns:** Cloud findings with misconfig→credential/impact chain proven, not raw scanner output. Scanner hits are leads (Rule 13c).
+**Constraint:** One per account/cluster. Credential-based privesc follows operator policy. Destructive actions (Rule 5) refused.
+
 ### llm-agent
 **Purpose:** Test the LLM/AI layer of a captured endpoint (OWASP LLM Top 10) — prompt injection, jailbreak/encoding bypass, system-prompt leakage, improper output handling into a downstream sink, sensitive-data disclosure, excessive agency / tool-SSRF. LLM lane only; does NOT test the app's classic web bugs.
 **When to dispatch:** An endpoint is LLM-backed — body carries `messages[]`/`prompt`/`input`, path is `/chat`|`/completions`|`/v1/chat`|`/generate`|`/ask`, or the response is model-generated natural language. Only against the operator's own deployment, never an upstream provider API. Triggered by `playbook-llm-security.md`.

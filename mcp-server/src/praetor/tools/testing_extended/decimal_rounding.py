@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict, verdict_from_tally
+from praetor.tools._coverage import record_exploit_coverage
 
 
 _VARIANTS = [
@@ -164,6 +165,9 @@ def register(mcp: FastMCP):
               ("amount field rejects edge-case numerics — float rounding intact"
                if valid else "every numeric variant errored — test never ran"))
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", endpoint, amount_json_path, "float_rounding",
+                                    verdict=verdict, tool_name="probe_float_decimal_rounding")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="float_rounding",

@@ -17,6 +17,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 def _get_path(obj, path: list[str]):
@@ -253,6 +254,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no line-item mutation accepted — quote-to-place trust intact"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", "", "", "line_item_mutation",
+                                    verdict=verdict, tool_name="probe_line_item_mutation")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="business_logic",

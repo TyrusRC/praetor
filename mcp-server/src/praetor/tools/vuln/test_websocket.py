@@ -24,8 +24,11 @@ import os
 import re
 from urllib.parse import urlparse
 
+from urllib.parse import urlparse
+
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools._coverage import record_exploit_coverage
 from ._send import send_probe
 from praetor.tools.testing._verdict import make_verdict
 
@@ -188,6 +191,11 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "WS upgrade defenses intact across Origin / auth / subprotocol"
 
+        if verdict in ("CONFIRMED", "FAILED"):
+            try: _d = urlparse(ws_url).hostname or ""
+            except Exception: _d = ""
+            record_exploit_coverage(_d, ws_url, "", "websocket",
+                                    verdict=verdict, tool_name="test_websocket")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="cswsh",

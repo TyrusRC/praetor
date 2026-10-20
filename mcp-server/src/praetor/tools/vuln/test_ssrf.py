@@ -20,8 +20,11 @@ import asyncio
 
 from mcp.server.fastmcp import FastMCP
 
+from urllib.parse import urlparse
+
 from praetor import client
 
+from praetor.tools._coverage import record_exploit_coverage
 from ._send import send_probe
 from praetor.tools.testing._verdict import make_verdict
 
@@ -275,6 +278,11 @@ def register(mcp: FastMCP):
             verdict, confidence = "FAILED", 0.1
             ev = "no inline SSRF — Collaborator polling required for blind"
 
+        if verdict in ("CONFIRMED", "FAILED"):
+            try: _d = urlparse(url).hostname or ""
+            except Exception: _d = ""
+            record_exploit_coverage(_d, url, parameter, "ssrf",
+                                    verdict=verdict, tool_name="test_ssrf")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="ssrf",

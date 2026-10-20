@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 from praetor.tools.testing_extended._helpers import scope_or_error
 
 
@@ -198,6 +199,9 @@ def register(mcp: FastMCP):
             verdict, confidence = "INCONCLUSIVE", 0.0
             ev = "every cache probe errored — test never ran"
 
+        if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+            record_exploit_coverage("", path, "", "cache_poisoning",
+                                    verdict=verdict, tool_name="test_cache_poisoning")
         return make_verdict(
             verdict, confidence, ev,
             vuln_type="cache_poisoning",
