@@ -114,6 +114,25 @@ _ALIASES: dict[str, str] = {
     "account_takeover": "ato",
     "auth_bypass_403_to_200": "auth_bypass",
     "login_bypass": "auth_bypass",
+
+    # ── New exploit-tool classes ────────────────────────────────────────────
+    "nosql_injection": "nosql",
+    "mongodb_injection": "nosql",
+    "ldap": "ldap_injection",
+    "xpath": "xpath_injection",
+    "xslt": "xslt_injection",
+    "ssi": "ssi_injection",
+    "server_side_include": "ssi_injection",
+    "el_injection": "expression_injection",
+    "ognl_injection": "expression_injection",
+    "spel_injection": "expression_injection",
+    "expression_language_injection": "expression_injection",
+    "cache_deception_attack": "cache_deception",
+    "web_cache_deception": "cache_deception",
+    "email_header_injection": "email_injection",
+    "smtp_injection": "email_injection",
+    "second_order_sqli": "second_order",
+    "stored_injection": "second_order",
 }
 
 

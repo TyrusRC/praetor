@@ -21,6 +21,7 @@ _PROBES: dict[str, list[dict]] = {
     "sqli": [
         {"tool": "confirm_sqli", "rationale": "verdict via vendor error / boolean / timing oracle"},
         {"tool": "run_sqlmap", "rationale": "auto-extract DB info if oracle confirmed"},
+        {"tool": "escalate_sqli", "rationale": "file read / OS command / OOB exfil after confirmed SQLi"},
         {"tool": "auto_collaborator_test", "rationale": "blind OOB exfil if visible oracle absent"},
     ],
     "sqli_blind": [
@@ -30,10 +31,12 @@ _PROBES: dict[str, list[dict]] = {
     "ssrf": [
         {"tool": "test_cloud_metadata", "rationale": "AWS/GCP/Azure metadata endpoints"},
         {"tool": "confirm_ssrf", "rationale": "Collaborator callback for outbound proof"},
+        {"tool": "escalate_ssrf", "rationale": "cloud IMDS / file read / internal services after confirmed SSRF"},
         {"tool": "auto_probe", "rationale": "categories=['ssrf_protocol','ssrf_bypass'] for filter-bypass surface"},
     ],
     "ssti": [
         {"tool": "confirm_ssti", "rationale": "engine-specific RCE confirmation"},
+        {"tool": "escalate_ssti", "rationale": "engine-specific RCE after confirmed SSTI"},
         {"tool": "auto_probe", "rationale": "categories=['ssti_python','ssti_java','ssti_js','ssti_php']"},
     ],
     "rce_detection": [
@@ -42,10 +45,12 @@ _PROBES: dict[str, list[dict]] = {
     ],
     "xxe": [
         {"tool": "confirm_xxe", "rationale": "file-read or OOB exfil confirmation"},
+        {"tool": "escalate_xxe", "rationale": "SSRF / multi-file / OOB exfil after confirmed XXE"},
         {"tool": "test_xxe", "rationale": "parameter-entity / XInclude variants"},
     ],
     "idor": [
         {"tool": "probe_id_monotonic", "rationale": "enumerate sequential/UUIDv1/Snowflake range for cross-tenant"},
+        {"tool": "escalate_idor", "rationale": "automated ID enumeration after confirmed IDOR"},
         {"tool": "probe_cross_transport_idor", "rationale": "replay across REST/GraphQL/WebSocket"},
         {"tool": "test_auth_matrix", "rationale": "Subject x Object x Action matrix"},
     ],
@@ -63,6 +68,7 @@ _PROBES: dict[str, list[dict]] = {
         {"tool": "test_open_redirect", "rationale": "redirect_uri chain candidate"},
     ],
     "open_redirect": [
+        {"tool": "escalate_open_redirect", "rationale": "OAuth token theft / Referer leak chain"},
         {"tool": "auto_probe", "rationale": "categories=['oauth'] — chain to token theft"},
         {"tool": "test_csrf", "rationale": "chain to CSRF token replay"},
     ],
@@ -79,7 +85,8 @@ _PROBES: dict[str, list[dict]] = {
     ],
     "cache_poisoning": [
         {"tool": "test_cache_poisoning", "rationale": "X-Forwarded-Host / X-Original-URL / etc."},
-        {"tool": "auto_probe", "rationale": "categories=['cache_deception_v2','web_cache_deception']"},
+        {"tool": "confirm_cache_deception", "rationale": "two-phase cached-data proof"},
+        {"tool": "auto_probe", "rationale": "categories=['web_cache_deception']"},
     ],
     "request_smuggling": [
         {"tool": "test_request_smuggling", "rationale": "CL.TE / TE.CL / TE.0 / CL.0 / 0.CL variants"},
@@ -94,6 +101,7 @@ _PROBES: dict[str, list[dict]] = {
     ],
     "prototype_pollution": [
         {"tool": "test_prototype_pollution", "rationale": "client + server-side variants"},
+        {"tool": "escalate_prototype_pollution", "rationale": "RCE via EJS/Pug/Handlebars gadget chains"},
         {"tool": "opengrep_audit", "rationale": "static confirm via custom prototype_pollution ruleset"},
     ],
     "deserialization": [
@@ -111,6 +119,37 @@ _PROBES: dict[str, list[dict]] = {
         {"tool": "extract_js_secrets", "rationale": "leaked secrets in disclosed JS"},
         {"tool": "discover_common_files", "rationale": "expand exposed-path coverage"},
         {"tool": "auto_probe", "rationale": "categories=['source_code_exposure']"},
+    ],
+    "path_traversal": [
+        {"tool": "test_lfi", "rationale": "path traversal / LFI with encoding variants"},
+        {"tool": "escalate_lfi", "rationale": "sensitive files / PHP wrappers / /proc after confirmed LFI"},
+    ],
+    "nosql": [
+        {"tool": "confirm_nosql", "rationale": "MongoDB/Redis/CouchDB injection confirmation + extraction"},
+    ],
+    "ldap_injection": [
+        {"tool": "confirm_ldap", "rationale": "LDAP auth bypass or blind boolean extraction"},
+    ],
+    "xpath_injection": [
+        {"tool": "confirm_xpath", "rationale": "XPath boolean diff / error / auth bypass"},
+    ],
+    "xslt_injection": [
+        {"tool": "confirm_xslt", "rationale": "XSLT vendor disclosure / file read / SSRF / RCE"},
+    ],
+    "ssi_injection": [
+        {"tool": "confirm_ssi", "rationale": "SSI exec / include / printenv directives"},
+    ],
+    "expression_injection": [
+        {"tool": "confirm_expression", "rationale": "EL/OGNL/SpEL/eval detection + RCE"},
+    ],
+    "cache_deception": [
+        {"tool": "confirm_cache_deception", "rationale": "two-phase cached-data proof"},
+    ],
+    "email_injection": [
+        {"tool": "confirm_email_injection", "rationale": "CRLF Bcc/Cc with Collaborator proof"},
+    ],
+    "second_order": [
+        {"tool": "confirm_second_order", "rationale": "store-then-trigger injection proof"},
     ],
 }
 

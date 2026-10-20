@@ -261,10 +261,19 @@ Choose the right attack order based on detected technology. Test in this order �
    - **Race condition:** `test_race_condition(session, request)` on state-changing endpoints (payments, coupons, votes)
    - **HPP:** `test_parameter_pollution(session, path, parameter, value, variants)`
    - **Mass assignment:** Add extra fields (`role`, `is_admin`, `price`) to registration/profile update requests
-   - **CRLF:** Test redirect/header params with `%0d%0a` payloads
+   - **CRLF:** `test_crlf_injection(session, path, parameter)` or `%0d%0a` payloads
    - **Deserialization:** Look for serialized objects in cookies/params (base64 starting with `rO0AB`, `O:`, `gASV`)
+   - **NoSQL injection:** `confirm_nosql(endpoint, parameter, dbms='mongodb')` — MongoDB/$where/$regex
+   - **LDAP injection:** `confirm_ldap(endpoint, parameter)` — auth bypass + blind boolean
+   - **Expression injection (EL/OGNL/SpEL):** `confirm_expression(endpoint, parameter)` — 6 languages, detection + RCE
+   - **SSI injection:** `confirm_ssi(endpoint, parameter)` — exec/include/printenv directives
+   - **XPath/XSLT injection:** `confirm_xpath(endpoint, parameter)` / `confirm_xslt(endpoint)`
+   - **Email injection:** `confirm_email_injection(endpoint, parameter)` — CRLF Bcc/Cc header injection
+   - **Cache deception:** `confirm_cache_deception(endpoint)` — path/delimiter confusion proof
+   - **Second-order (stored):** `confirm_second_order(store_endpoint, store_parameter, trigger_endpoint)`
    - **Hidden params:** `discover_hidden_parameters(session, method, path)` on interesting endpoints
-4. **Grade on the response BODY, not the status line (Rule 13a).** A `200` is not a pass and a `403`/`500` is not a fail — read the body vs the Rule 11 baseline (content, length/hash delta, error strings, reflected input, another user's data) before deciding. **If anomaly detected** — immediately verify:
+4. **Escalate** when the class supports it — turns confirmed injection (MEDIUM) into proven impact (CRITICAL): `escalate_ssti` (11 engines → RCE), `escalate_sqli` (file read/OS cmd/OOB, 5 DBMS), `escalate_ssrf` (IMDS creds/file:///internal), `escalate_xxe` (SSRF/multi-file/OOB exfil/PHP expect), `escalate_lfi` (sensitive files/PHP wrappers//proc), `escalate_idor` (cross-account ID enumeration), `escalate_prototype_pollution` (gadget chains), `escalate_open_redirect` (OAuth token theft).
+5. **Grade on the response BODY, not the status line (Rule 13a).** A `200` is not a pass and a `403`/`500` is not a fail — read the body vs the Rule 11 baseline (content, length/hash delta, error strings, reflected input, another user's data) before deciding. **If anomaly detected** — immediately verify:
    - Re-send the exact payload to confirm reproducibility
    - Check evidence requirements (see verify-finding skill)
    - If confirmed: `save_target_intel(domain, "findings", finding_data)`, then **capture the
@@ -274,7 +283,7 @@ Choose the right attack order based on detected technology. Test in this order �
      per step (baseline → attack → result). Each attaches to the finding and renders in the
      report + PoC bundle. One prepared step per shot — never a full-window history dump.
    - If not confirmed: note as suspected, move on
-5. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})` — record a tuple as covered ONLY when a test actually ran and returned FAILED/covered-negative or better. **Untested ≠ N/A (Rule 19a).** A probe you could not run (missing creds/input/role, blocker, tool down) is NOT coverage — leave it OPEN and **ASK the operator to unblock it (Rule 32a)**; never file `N/A`/`partial` for something you did not execute.
+6. Update coverage: `save_target_intel(domain, "coverage", {tests: [...]})` — record a tuple as covered ONLY when a test actually ran and returned FAILED/covered-negative or better. **Untested ≠ N/A (Rule 19a).** A probe you could not run (missing creds/input/role, blocker, tool down) is NOT coverage — leave it OPEN and **ASK the operator to unblock it (Rule 32a)**; never file `N/A`/`partial` for something you did not execute.
 6. **Stop the category by reasoning, not by counting.** `noise-budget.md`'s exhaustion-signal table (KB cleared + tech-stack match, WAF-filtered → switch technique don't abandon, 30-probes-at-c<0.30 → document the negative and pivot) replaces any fixed "N probes then quit" heuristic.
 
 **CHECKPOINT after each category:**

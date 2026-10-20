@@ -70,7 +70,7 @@ Use specialised tools, not full responses:
 
 ## Shortcut: `confirm_*` exploit-confirmation tools
 
-For 5 high-frequency classes there is an audited one-shot tool that runs the
+For 14 vuln classes there is an audited one-shot tool that runs the
 canonical proof, returns a VerdictResult dict, and gives you a `proxy_history_index`
 ready for `save_finding`. Use these BEFORE crafting payloads manually — they
 share the same destructive-payload denylist as `confirm_*` family and never
@@ -83,6 +83,15 @@ exfil real data.
 | SSRF | `confirm_ssrf(endpoint, parameter)` | Collaborator HTTP/DNS callback within poll window |
 | XXE | `confirm_xxe(endpoint, mode='inband')` | `/etc/hostname` content extracted (inband) or Collaborator callback (oob) |
 | RCE | `confirm_rce(endpoint, parameter, command='id')` | `M-<token>-START`/`-END` bracket extracted, output between |
+| Expression (EL/OGNL/SpEL) | `confirm_expression(endpoint, parameter, language='')` | Math reflection + RCE output (6 languages) |
+| NoSQL | `confirm_nosql(endpoint, parameter, dbms='')` | Operator/$where/$regex injection with baseline diff or timing |
+| LDAP | `confirm_ldap(endpoint, parameter)` | Auth bypass (login success on filter injection) or blind boolean diff |
+| XPath | `confirm_xpath(endpoint, parameter)` | Boolean differential (true vs false response) or error-based |
+| XSLT | `confirm_xslt(endpoint)` | Vendor string, file content, Collaborator callback, or command output |
+| SSI | `confirm_ssi(endpoint, parameter)` | Command output in response (not verbatim directive echo) |
+| Email injection | `confirm_email_injection(endpoint, parameter)` | Collaborator email/DNS interaction from injected Bcc/Cc |
+| Second-order | `confirm_second_order(store_endpoint, store_parameter, trigger_endpoint)` | Stored payload triggers on separate endpoint (timing/reflection/Collaborator) |
+| Cache deception | `confirm_cache_deception(endpoint)` | Authenticated data visible in unauthenticated cached response |
 
 Returns `{verdict, confidence, evidence_summary, logger_indices[], collaborator_interactions[], details, human_summary}`. Pipe directly:
 `save_finding(..., evidence=to_assess_evidence(verdict_dict))`.
@@ -257,6 +266,51 @@ a malformed payload or wrong injection point (see the SQLi recipe below), i.e. I
 - **Confirmed (header bypass):** `X-Original-URL`, `X-Rewrite-URL`, `X-Forwarded-For: 127.0.0.1` grants admin access
 - **Confirmed (referer-based auth):** changing Referer to internal URL grants access
 - **NOT sufficient:** missing rate limit on login (separate finding), missing CAPTCHA
+
+### NoSQL Injection
+- **Confirmed (operator injection):** `confirm_nosql` shows different response for `{"$gt":""}` (tautology) vs `{"$gt":"zzzzz"}` (impossible). Baseline length/hash delta is the evidence.
+- **Confirmed ($where timing):** `$where: sleep(3000)` produces >3s delay absent from baseline.
+- **Confirmed ($regex extraction):** `$regex` binary search extracts field values character by character.
+- **NOT sufficient:** error message mentioning MongoDB alone — need a behavioral difference.
+
+### LDAP Injection
+- **Confirmed (auth bypass):** `confirm_ldap` shows login success (redirect/cookie/keyword) on injected filter (`*)(&`, `*)(uid=*`)(`|(`).
+- **Confirmed (blind boolean):** Different response for always-true vs always-false filter injection.
+- **NOT sufficient:** LDAP error message alone — proves LDAP backend, not exploitable injection.
+
+### XPath Injection
+- **Confirmed (boolean):** `confirm_xpath` shows different response for `' or '1'='1` (true) vs `' or '1'='2` (false).
+- **Confirmed (error-based):** XPath syntax error in response confirms injection point.
+- **NOT sufficient:** XML parsing error alone — may be malformed input, not XPath injection.
+
+### XSLT Injection
+- **Confirmed (vendor disclosure):** `confirm_xslt` response contains `system-property('xsl:vendor')` output.
+- **Confirmed (file read):** `document()` function retrieves file content (e.g., /etc/hostname).
+- **Confirmed (RCE):** PHP `php:function('system','id')` or Java `Runtime.exec()` output.
+- **NOT sufficient:** XML parsing error alone.
+
+### SSI Injection
+- **Confirmed:** `confirm_ssi` command output (uid=, hostname) appears in response, NOT the verbatim `<!--#exec cmd="id"-->` directive string.
+- **NOT sufficient:** directive echoed verbatim (SSI not processed) — that's reflection, not execution.
+
+### Expression Injection (EL/OGNL/SpEL/eval)
+- **Confirmed (detection):** `confirm_expression` math probe reflected (e.g., `${7*7}` → `49`).
+- **Confirmed (RCE):** command output from engine-specific exec payload (Runtime.exec, child_process.execSync, os.popen).
+- **NOT sufficient:** math reflection alone for languages where arithmetic is normal template behavior (e.g., Jinja2 — use `confirm_ssti` for template engines).
+
+### Cache Deception
+- **Confirmed:** `confirm_cache_deception` two-phase proof — authenticated user's data (username, email, tokens) appears in unauthenticated request to the same cached URL.
+- **Evidence must show:** (1) the seed request was authenticated (session cookie present), (2) the read request had NO auth, (3) the cached response contains user-specific data.
+- **NOT sufficient:** `X-Cache: HIT` alone — proves caching, not deception.
+
+### Email Injection
+- **Confirmed:** `confirm_email_injection` Collaborator receives DNS/SMTP interaction from injected Bcc/Cc address.
+- **NOT sufficient:** error message mentioning email headers — need a delivered/attempted email.
+
+### Second-Order Injection
+- **Confirmed:** `confirm_second_order` stores payload in step 1 and observes the effect on step 2. Evidence depends on vuln_type: timing delta for blind SQLi, Collaborator interaction for XSS, math reflection for SSTI.
+- **Evidence must show:** two separate requests (store + trigger) with the trigger's `proxy_history_index`.
+- **NOT sufficient:** payload stored but trigger endpoint not tested.
 
 ## Decision
 

@@ -56,7 +56,7 @@ Class-specific overrides (route directly, skip auto_probe step):
 
 ## Tools You Use
 
-`auto_probe`, `bulk_test`, `probe_endpoint`, `fuzz_parameter`, `test_lfi`, `test_file_upload`, `test_cors`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect`, `test_jwt`, `test_ssrf`, `test_ssti`, `test_xxe`, `test_csrf`, `test_mass_assignment`, `test_prototype_pollution`, `test_parameter_pollution`, `test_cache_poisoning`, `test_host_header`, `test_request_smuggling`, `test_race_condition`, `get_payloads`, `assess_finding`, `save_finding`, `annotate_request`, `send_to_organizer`
+`auto_probe`, `probe_endpoint`, `fuzz_parameter`, `test_lfi`, `test_file_upload`, `test_cors`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect`, `test_jwt`, `test_ssrf`, `test_ssti`, `test_xxe`, `test_csrf`, `test_crlf_injection`, `test_mass_assignment`, `test_prototype_pollution`, `test_parameter_pollution`, `test_cache_poisoning`, `test_host_header`, `test_request_smuggling`, `test_race_condition`, `get_payloads`, `confirm_sqli`, `confirm_rce`, `confirm_ssrf`, `confirm_ssti`, `confirm_xxe`, `confirm_expression`, `confirm_nosql`, `confirm_ldap`, `confirm_xpath`, `confirm_xslt`, `confirm_ssi`, `confirm_email_injection`, `confirm_second_order`, `confirm_cache_deception`, `escalate_ssti`, `escalate_sqli`, `escalate_ssrf`, `escalate_xxe`, `escalate_lfi`, `escalate_idor`, `escalate_prototype_pollution`, `escalate_open_redirect`, `blind_sqli_extract`, `assess_finding`, `save_finding`, `annotate_request`, `send_to_organizer`
 
 ## Workflow
 
