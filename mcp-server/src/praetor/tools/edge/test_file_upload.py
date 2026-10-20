@@ -5,6 +5,7 @@ from praetor import client
 
 from praetor.tools.edge._helpers import build_multipart
 from praetor.tools.testing._verdict import make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 async def test_file_upload_impl(
@@ -141,6 +142,9 @@ async def test_file_upload_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "no dangerous file uploads accepted"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", path, parameter, "file_upload",
+                                verdict=verdict, tool_name="test_file_upload")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="file_upload",

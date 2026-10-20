@@ -3,6 +3,7 @@
 
 from praetor import client
 from praetor.tools.testing._verdict import make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 async def test_cloud_metadata_impl(
@@ -135,6 +136,9 @@ async def test_cloud_metadata_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "no cloud metadata exposure across AWS / GCP / Azure / DO"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", path, parameter, "cloud_metadata",
+                                verdict=verdict, tool_name="test_cloud_metadata")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="ssrf",

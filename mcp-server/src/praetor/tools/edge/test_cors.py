@@ -3,6 +3,7 @@
 
 from praetor import client
 from praetor.tools.testing._verdict import make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 async def test_cors_impl(
@@ -87,6 +88,9 @@ async def test_cors_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "no CORS misconfiguration detected"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", path, "", "cors",
+                                verdict=verdict, tool_name="test_cors")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="cors",

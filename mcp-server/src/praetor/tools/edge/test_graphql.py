@@ -5,6 +5,7 @@ helpers live in _graphql_helpers; this is the impl.
 import json
 
 from praetor import client
+from praetor.tools._coverage import record_exploit_coverage
 
 from ._graphql_helpers import _gql, _introspection_fuzz  # noqa: F401
 
@@ -164,6 +165,9 @@ async def test_graphql_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "GraphQL hardened — no significant risks across enabled tests"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", path, "", "graphql",
+                                verdict=verdict, tool_name="test_graphql")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="graphql",

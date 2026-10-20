@@ -3,6 +3,7 @@
 
 from praetor import client
 from praetor.tools.testing._verdict import make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 async def test_lfi_impl(
@@ -159,6 +160,9 @@ async def test_lfi_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "no LFI / path traversal detected across encoding bypasses + wrappers"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", path, parameter, "lfi",
+                                verdict=verdict, tool_name="test_lfi")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="lfi",

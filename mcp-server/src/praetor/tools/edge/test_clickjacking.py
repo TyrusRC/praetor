@@ -10,6 +10,7 @@ PortSwigger-style exploit server.
 
 from praetor import client
 from praetor.tools.testing._verdict import make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 def frame_ancestors(csp: str | None) -> list[str] | None:
@@ -124,6 +125,8 @@ async def test_clickjacking_impl(session: str, path: str = "/",
         lines.append(
             "\nNOTE: clickjacking is not reportable alone — only a sensitive/state-changing "
             "action framed (chain_with). Alone it is closed Informative.")
+        record_exploit_coverage("", path, "", "clickjacking",
+                                verdict="CONFIRMED", tool_name="test_clickjacking")
         return make_verdict(
             "CONFIRMED", 0.8, f"page is frameable cross-origin: {a['reason']}",
             vuln_type="clickjacking",
@@ -131,6 +134,8 @@ async def test_clickjacking_impl(session: str, path: str = "/",
                      "csp_frame_ancestors": fa, "poc": poc},
             summary="\n".join(lines))
 
+    record_exploit_coverage("", path, "", "clickjacking",
+                            verdict="FAILED", tool_name="test_clickjacking")
     return make_verdict(
         "FAILED", 0.1, f"page is not frameable: {a['reason']}",
         vuln_type="clickjacking",

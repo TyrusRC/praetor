@@ -4,6 +4,7 @@ import asyncio
 
 from praetor import client
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 async def test_open_redirect_impl(
@@ -143,6 +144,9 @@ async def test_open_redirect_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "no open redirect detected"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", path, parameter, "open_redirect",
+                                verdict=verdict, tool_name="test_open_redirect")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="open_redirect",

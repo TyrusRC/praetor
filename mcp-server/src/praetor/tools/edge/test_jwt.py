@@ -5,6 +5,7 @@ import json
 import time
 
 from praetor.tools.testing._verdict import error_verdict, make_verdict
+from praetor.tools._coverage import record_exploit_coverage
 
 
 async def test_jwt_impl(
@@ -125,6 +126,9 @@ async def test_jwt_impl(
         verdict, confidence = "FAILED", 0.1
         ev = "jwt structure clean — no obvious algorithm / claim / header vulnerabilities"
 
+    if verdict in ("CONFIRMED", "SUSPECTED", "FAILED"):
+        record_exploit_coverage("", "", "", "jwt",
+                                verdict=verdict, tool_name="test_jwt")
     return make_verdict(
         verdict, confidence, ev,
         vuln_type="jwt",
