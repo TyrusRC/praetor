@@ -18,13 +18,14 @@ from ._status import (
     render_checklist,
     verdict_to_checklist_status,
 )
-from . import gaps as _gaps
+from . import autorun as _autorun, gaps as _gaps
 from ._tools import register as _register_tools
 
 
 def register(mcp):
     _register_tools(mcp)
     _gaps.register(mcp)
+    _autorun.register(mcp)
 
 __all__ = [
     "CHECKLISTS",

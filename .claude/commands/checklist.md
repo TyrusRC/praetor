@@ -31,33 +31,30 @@ OWASP Top 10 (2025) + WSTG v4.2 for web, API Top 10 (2023) if api, MASVS/MASTG i
 mobile, AI Testing Guide if llm, **plus every applicable KB test class as edge
 cases**. Report the path to the operator.
 
-## Phase 3 — auto-execute ALL open items (default — no operator prompt needed)
-This is the core loop. Execute it WITHOUT asking the operator to approve each item.
-The operator already chose full-coverage by running `/checklist` — that is the
-approval. Run every open item. Stop only on blockers (Rule 32a).
+## Phase 3 — auto-execute ALL open items (ONE CALL)
+Run `checklist_autorun(domain, session, standard)`. This single tool:
+- Reads all open checklist items
+- Runs auto_probe for KB-category items (batch, all categories at once)
+- Runs individual test/confirm tools for specific items
+- Records all results to the checklist automatically
+- Returns a gap summary
 
 ```
-REPEAT until checklist_gaps(domain, standard, show='missing') returns 0 missing:
-  1. plan = checklist_autotest(domain, standard, limit=10)
-  2. FOR each item in plan:
-     a. Run the item's mapped tool on the target's discovered endpoints
-        (from endpoints.json / discover_attack_surface).
-     b. Grade the result on the response BODY (Rule 13a) — CONFIRMED,
-        FAILED, or INCONCLUSIVE.
-     c. If CONFIRMED: assess_finding → save_finding.
-     d. If INCONCLUSIVE: try one variant/fallback, then leave OPEN.
-  3. checklist_record_batch(domain, standard, results)
-  4. Checkpoint: write_checkpoint(domain, ...)
+checklist_autorun(domain, session, standard)
 ```
 
-Spend the majority of time on impact classes (authorization, auth/session,
-business logic, injection-to-sink) per R29 — header/TLS/version items are
-recon output, not the hunt. Every confirmed finding goes through
-`verify → assess_finding → save_finding`.
+If items remain (blockers, missing session/Collaborator), the summary says
+what to unblock. Fix the blocker and re-run `checklist_autorun`. Repeat
+until `checklist_gaps(domain, standard, show='missing')` returns 0 missing.
 
-After each batch, re-run `checklist_gaps(domain, standard)` to see progress.
-The loop ends when `checklist_gaps` shows 0 MISSING items (or all remaining
-items are documented blockers).
+Every confirmed finding from the autorun goes through the save pipeline:
+`assess_finding → save_finding`. After autorun completes, review the
+findings and escalate (escalate_ssti, escalate_sqli, etc.) where impact
+classes were confirmed.
+
+**Manual follow-up for INCONCLUSIVE items:** `checklist_autotest` returns the
+remaining open items with their mapped tool. Run each manually, grade on the
+response body (Rule 13a), and `checklist_update` with the result.
 
 ## Phase 4 — deliverables
 - `checklist_gaps(domain, standard, show='all')` — the full tested-vs-missing table.
