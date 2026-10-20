@@ -135,6 +135,28 @@ def reconcile(domain: str, fix: bool = True) -> dict[str, Any]:
         except OSError:
             pass
 
+    # 7) test_journal.jsonl entries referencing deleted findings.
+    journal = ddir / "test_journal.jsonl"
+    if journal.is_file():
+        try:
+            blob = journal.read_text(encoding="utf-8")
+            for gone in [i for i in _referenced_ids(blob) if i not in ids]:
+                drift.append(f"STALE JOURNAL: test_journal.jsonl references "
+                             f"finding {gone} not in findings.json.")
+        except OSError:
+            pass
+
+    # 8) checklist.json items referencing findings that no longer exist.
+    cl = ddir / "checklist.json"
+    if cl.is_file():
+        try:
+            blob = cl.read_text(encoding="utf-8")
+            for gone in [i for i in _referenced_ids(blob) if i not in ids]:
+                drift.append(f"STALE CHECKLIST: checklist.json references "
+                             f"finding {gone} not in findings.json.")
+        except OSError:
+            pass
+
     return {
         "domain": domain,
         "findings": len(findings),

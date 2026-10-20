@@ -23,8 +23,10 @@ def hunt_target(target: str = "https://example.com") -> str:
         f"3. browser_crawl({target!r}) to populate Burp proxy history.\n"
         f"4. discover_attack_surface to map endpoints and risk-score parameters.\n"
         f"5. auto_probe with skip_already_covered=True against discovered targets.\n"
-        f"6. For each anomaly: replay 3x, assess_finding, save_finding when REPORT.\n"
-        f"7. chain-findings on low-severity items before generating the final report.\n"
+        f"6. For each confirmed class, ESCALATE: escalate_ssti / escalate_sqli / escalate_ssrf / escalate_xxe / escalate_lfi / escalate_idor / escalate_prototype_pollution / escalate_open_redirect as applicable.\n"
+        f"7. For each anomaly: replay 3x, assess_finding, save_finding when REPORT.\n"
+        f"8. chain-findings on low-severity items before generating the final report.\n"
+        f"9. checklist_gaps to verify no class was missed.\n"
         f"Honor every rule in .claude/rules/hunting.md. Do not exit early."
     )
 
