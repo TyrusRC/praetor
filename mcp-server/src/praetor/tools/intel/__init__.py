@@ -30,6 +30,7 @@ from . import (
     header_profile,
     program_policy,
     save_load,
+    test_journal,
 )
 from ._internals import (
     KNOWLEDGE_DIR,
@@ -67,6 +68,7 @@ def register(mcp: FastMCP) -> None:
     episodes.register(mcp)
     checkpoint.register(mcp)  # W37 — durable engagement checkpoint + task ledger
     brief.register(mcp)       # target_brief — one-call situational orientation (Spec E)
+    test_journal.register(mcp)
     calibration.register(mcp)  # verdict-confidence calibration ledger + report (RLCD-inspired)
 
 
