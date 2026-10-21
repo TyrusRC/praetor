@@ -73,12 +73,17 @@ def register(mcp: FastMCP):
     ) -> str:
         """Run the assay native web scanner against a target through Burp proxy. Requires assay installed.
 
-        assay is praetor's default web-scan engine. It runs ~100 context-aware
-        native detectors plus a Nuclei-compatible template engine and a headless
-        two-identity crawl, and maps each finding to WSTG / OWASP Top 10 / API
-        Top 10 / CWE with a CVSS vector. It replaces the nuclei external sweep
-        (nuclei stays available as a fallback). Findings ingest into findings.json
-        via import_scan_results (format 'assay').
+        assay is praetor's default web-scan engine. It runs 108 context-aware
+        native detectors, 6 third-party tool integrations (sqlmap, dalfox,
+        commix, ghauri, nikto, wpscan — auto-discovered on PATH), a
+        Nuclei-compatible template engine, and a headless two-identity crawl.
+        Maps each finding to WSTG / OWASP Top 10 / API Top 10 / CWE with a
+        CVSS vector. When assay runs thorough profile, the individual
+        run_sqlmap/run_dalfox/run_commix/run_ghauri/run_nikto/run_wpscan
+        calls are redundant for the same target — assay orchestrates them
+        internally. Use the individual tools only for targeted re-testing of
+        a specific parameter or when assay is not installed. Findings ingest
+        into findings.json via import_scan_results (format 'assay').
 
         Args:
             target: Target URL
