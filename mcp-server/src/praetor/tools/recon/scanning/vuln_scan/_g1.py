@@ -37,8 +37,10 @@ async def _network_pivot(target: str, scope_host: str) -> str:
 # default nuclei store and the operator's custom-nuclei-templates clone are
 # auto-included when present on disk.
 _DEFAULT_TEMPLATE_DIRS = (
+    "~/.local/nuclei-templates",
     "~/nuclei-templates",
     "~/.local/share/praetor/custom-nuclei-templates",
+    "~/.local/share/assay/custom-nuclei-templates/templates",
 )
 
 
