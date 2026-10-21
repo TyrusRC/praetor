@@ -1,0 +1,90 @@
+{
+  "category": "mfa_bypass",
+  "description": "MFA/2FA bypass techniques — step skip, code reuse, brute force, response manipulation",
+  "severity": "high",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/04-Authentication_Testing/11-Testing_Multi-Factor_Authentication"
+  ],
+  "contexts": {
+    "step_skip": {
+      "description": "Skip the MFA verification step by navigating directly to the post-MFA endpoint",
+      "tech_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "After successful password auth, skip the MFA challenge and request the post-auth page directly. If the session grants access without MFA completion, the step is skippable.",
+          "matchers": [
+            {"type": "status_not", "value": [401, 403, 302]}
+          ]
+        }
+      ]
+    },
+    "code_reuse": {
+      "description": "Reuse a previously valid MFA code after it should have expired",
+      "probes": [
+        {
+          "payload": "{{valid_code}}",
+          "description": "Submit a previously used MFA code. If accepted, codes are not single-use.",
+          "matchers": [
+            {"type": "word", "value": ["success", "authenticated", "verified"]}
+          ]
+        }
+      ]
+    },
+    "brute_force": {
+      "description": "Brute-force short MFA codes (4-6 digits) without rate limiting",
+      "param_match": ["code", "otp", "mfa_code", "totp", "verification_code", "pin"],
+      "probes": [
+        {
+          "payload": "000000",
+          "description": "Send multiple wrong codes rapidly. Check if the account locks or if rate limiting exists. A 4-digit code has 10K combinations; without lockout it is brute-forceable.",
+          "matchers": [
+            {"type": "word_absent", "value": ["locked", "too many", "rate limit", "wait"]}
+          ]
+        }
+      ]
+    },
+    "response_manipulation": {
+      "description": "Change the MFA verification response from failure to success",
+      "probes": [
+        {
+          "payload": "000000",
+          "description": "Submit a wrong code and observe the failure response. If the client-side checks a boolean (success:true/false), intercepting and flipping it may bypass MFA.",
+          "matchers": [
+            {"type": "word", "value": ["success", "false", "invalid"]}
+          ]
+        }
+      ]
+    },
+    "null_value": {
+      "description": "Send null, empty, or zero-length MFA codes",
+      "param_match": ["code", "otp", "mfa_code", "totp"],
+      "probes": [
+        {
+          "payload": "",
+          "description": "Submit empty MFA code. Some implementations skip validation on null/empty input.",
+          "matchers": [
+            {"type": "status_not", "value": [400, 401, 403, 422]}
+          ]
+        },
+        {
+          "payload": "null",
+          "description": "Submit literal 'null' as MFA code.",
+          "matchers": [
+            {"type": "word", "value": ["success", "authenticated"]}
+          ]
+        }
+      ]
+    },
+    "backup_code_abuse": {
+      "description": "Use backup/recovery codes instead of TOTP to bypass MFA",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if backup codes are accepted on the MFA challenge endpoint. If the endpoint doesn't distinguish TOTP from backup codes, leaked backup codes bypass MFA permanently.",
+          "matchers": []
+        }
+      ]
+    }
+  }
+}
