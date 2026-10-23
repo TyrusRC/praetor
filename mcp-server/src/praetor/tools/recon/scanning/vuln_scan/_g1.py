@@ -70,48 +70,54 @@ def register(mcp: FastMCP):
         timeout: int = 600,
         auto_network_check: bool = False,
         policy: str = "",
+        iast: bool = False,
+        iast_addr: str = "",
+        min_confidence: str = "",
     ) -> str:
         """Run the assay native web scanner against a target through Burp proxy. Requires assay installed.
 
         assay is praetor's default web-scan engine. It runs 108 context-aware
-        native detectors, 6 third-party tool integrations (sqlmap, dalfox,
-        commix, ghauri, nikto, wpscan — auto-discovered on PATH), a
-        Nuclei-compatible template engine, and a headless two-identity crawl.
-        Maps each finding to WSTG / OWASP Top 10 / API Top 10 / CWE with a
-        CVSS vector. When assay runs thorough profile, the individual
-        run_sqlmap/run_dalfox/run_commix/run_ghauri/run_nikto/run_wpscan
-        calls are redundant for the same target — assay orchestrates them
-        internally. Use the individual tools only for targeted re-testing of
-        a specific parameter or when assay is not installed. Findings ingest
-        into findings.json via import_scan_results (format 'assay').
+        native detectors, 8 third-party tool integrations (sqlmap, dalfox,
+        commix, ghauri, nikto, wpscan, nuclei, tplmap) with smart
+        auto-dispatch, a Nuclei-compatible template engine, and a headless
+        two-identity crawl. Maps each finding to WSTG / OWASP Top 10 / API
+        Top 10 / CWE with a CVSS vector.
+
+        Smart dispatch: native detectors find injection points in seconds,
+        then auto-launch focused tool runs (sqlmap with --dbms hint, dalfox
+        with --param targeting). Autonomous mode runs core tools (sqlmap,
+        dalfox, nikto, nuclei) at full strength in parallel.
+
+        When assay runs thorough profile, the individual run_sqlmap /
+        run_dalfox / run_commix / run_ghauri / run_nikto / run_wpscan /
+        run_ffuf / run_arjun / run_katana / run_gau calls are redundant
+        for the same target — assay orchestrates them internally. Use the
+        individual tools only for targeted re-testing of a specific
+        parameter or when assay is not installed.
+
+        IAST: when --iast is passed, assay starts a callback server (:7880)
+        and injects taint markers into DAST payloads. Deploy the matching
+        sensor (PHP/Node/Python) into the target app with deploy_iast_sensor
+        first. When the marker reaches a dangerous sink (SQL query, command
+        exec, file open, etc.), the sensor reports back, upgrading the
+        finding confidence from 'medium' to 'confirmed'.
+
+        Findings ingest into findings.json via import_scan_results
+        (format 'assay').
 
         Args:
             target: Target URL
             profile: quick | normal | thorough | passive (default normal)
             rate: Cap outbound requests per second (0 = unlimited)
-            scope_host: Restrict traffic to these hosts (comma-separated; '*.x.com' wildcard). Empty = no host restriction
-            templates: Extra nuclei template dirs/files to load. The default nuclei
-                store (~/nuclei-templates) and the custom-nuclei-templates clone
-                (~/.local/share/praetor/custom-nuclei-templates) are auto-included
-                when present; PRAETOR_ASSAY_TEMPLATES (os.pathsep dirs) overrides.
+            scope_host: Restrict traffic to these hosts (comma-separated)
+            templates: Extra nuclei template dirs/files to load
             use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 600)
-            auto_network_check: Also run a bounded nmap service scan + tlsx TLS-
-                config check against target's host and append the results, so
-                a web scan surfaces the underlying host's open ports/TLS
-                config in the same call instead of requiring a separate manual
-                step. Off by default (a separate, slower, non-Burp-proxied
-                lane); bounded to a 120s sub-timeout each so it can't balloon
-                this call's overall runtime. Findings here are NOT routed
-                through Haruspex — the trained adapters are AD/cloud-IaC
-                phrasing, not raw nmap/TLS output, so forcing that match would
-                be an unvalidated guess, not a real fit.
-            policy: Name of a policy saved with save_scan_policy — when given,
-                its profile/scope_host/rate/templates/use_proxy/timeout/
-                auto_network_check REPLACE the values above for this call (the
-                named-profile pattern: save once, run by name across targets).
-                Pass '' and the args directly for a one-off call; don't mix a
-                policy name with explicit overrides in the same call.
+            auto_network_check: Also run nmap + tlsx against target host
+            policy: Named scan policy (overrides all other args)
+            iast: Start IAST callback server and inject taint markers
+            iast_addr: IAST callback address (default :7880)
+            min_confidence: Filter findings below this level (confirmed, high, medium, low)
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -125,6 +131,9 @@ def register(mcp: FastMCP):
             use_proxy = pol.get("use_proxy", use_proxy)
             timeout = pol.get("timeout", timeout)
             auto_network_check = pol.get("auto_network_check", auto_network_check)
+            iast = pol.get("iast", iast)
+            iast_addr = pol.get("iast_addr", iast_addr)
+            min_confidence = pol.get("min_confidence", min_confidence)
 
         if not _check_tool("assay"):
             return ("Error: assay not installed. Build it: "
@@ -145,6 +154,12 @@ def register(mcp: FastMCP):
         if use_proxy:
             # assay routes through Burp and trusts Burp's MITM cert with -k.
             cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
+        if iast:
+            cmd.append("--iast")
+            if iast_addr:
+                cmd.extend(["--iast-addr", iast_addr])
+        if min_confidence:
+            cmd.extend(["--min-confidence", min_confidence])
 
         # Give the subprocess a little longer than assay's own scan timeout so
         # the process is not killed before it writes its report.
@@ -240,3 +255,55 @@ def register(mcp: FastMCP):
         if use_proxy:
             lines.append("\nAll requests routed through Burp proxy — check proxy history.")
         return wrap_untrusted("\n".join(lines), source="dalfox")
+
+    @mcp.tool()
+    async def deploy_iast_sensor(
+        target_path: str,
+        language: str = "auto",
+        callback_url: str = "",
+    ) -> str:
+        """Deploy assay IAST sensor to a target application directory.
+
+        Copies the appropriate sensor file (PHP/Node.js/Python) to the
+        target application. The sensor hooks dangerous functions (SQL query,
+        system command, file open, unserialize, etc.) and reports taint
+        markers back to the assay IAST callback server when a DAST payload
+        reaches a dangerous sink.
+
+        After deployment, run assay with --iast to start the callback
+        server and inject taint markers into DAST payloads. When the marker
+        reaches a sink, assay upgrades the finding confidence from 'medium'
+        to 'confirmed' and includes the stack trace from the sensor.
+
+        Args:
+            target_path: Path to the target application root directory
+            language: Sensor language — auto, php, nodejs, python. Auto-detects
+                from file extensions in the target directory.
+            callback_url: IAST callback URL override (default uses assay's
+                default http://host.docker.internal:7880)
+        """
+        if not _check_tool("assay"):
+            return ("Error: assay not installed. Build it: "
+                    "cd <assay repo> && go build -o ~/go/bin/assay ./cmd/assay")
+
+        cmd = ["assay", "iast", "deploy", target_path]
+        if language != "auto":
+            cmd.extend(["--language", language])
+        if callback_url:
+            cmd.extend(["--callback-url", callback_url])
+
+        stdout, stderr, code = await _run_cmd(cmd, 30)
+        if code != 0:
+            return f"IAST sensor deployment failed (exit {code}): {stderr[:300]}"
+
+        # Record deployment so merge_scan can auto-enable --iast
+        domain_dir = os.path.join(".burp-intel", os.path.basename(target_path))
+        os.makedirs(domain_dir, exist_ok=True)
+        marker = os.path.join(domain_dir, "iast-deployed")
+        try:
+            with open(marker, "w") as f:
+                f.write(f"language={language}\npath={target_path}\n")
+        except OSError:
+            pass  # best-effort marker
+
+        return stdout.strip() or f"IAST sensor deployed to {target_path}"

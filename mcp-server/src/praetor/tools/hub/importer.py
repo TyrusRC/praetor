@@ -113,6 +113,10 @@ def register(mcp: FastMCP) -> None:
                    "--timeout", f"{timeout}s"]
             if use_proxy:
                 cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
+            # Auto-enable IAST when sensors are deployed for this domain
+            iast_marker = Path(f".burp-intel/{domain}/iast-deployed")
+            if iast_marker.exists():
+                cmd.append("--iast")
             stdout, stderr, code = await _run_cmd(cmd, timeout + 30, bypass_proxy=not use_proxy)
             if stdout.strip():
                 arows = parse_assay(stdout)
