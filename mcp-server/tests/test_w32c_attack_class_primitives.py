@@ -273,8 +273,9 @@ class A2aKbTest(unittest.TestCase):
         # → 153 (DanglingTree class: smartermail.json + windows_admin_center.json)
         # → 154 (reflected_file_download.json new RFD parent)
         # → 153 (merged insecure_deserialization.json into deserialization.json parent)
+        # → 160 (W43: modern attack surface KB files — gRPC, SAML, SSE, DNS rebinding, etc.)
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 153, f"KB count expected 153, got {count}")
+        self.assertEqual(count, 160, f"KB count expected 160, got {count}")
 
 
 if __name__ == "__main__":

@@ -75,6 +75,7 @@ class TestReconScanningShim(unittest.TestCase):
             "get_scan_policy",
             "list_scan_policies",
             "delete_scan_policy",
+            "deploy_iast_sensor",
         }
         self.assertEqual(set(tools), expected)
         # No duplicate registrations
