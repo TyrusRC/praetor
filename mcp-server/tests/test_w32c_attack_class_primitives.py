@@ -274,8 +274,9 @@ class A2aKbTest(unittest.TestCase):
         # → 154 (reflected_file_download.json new RFD parent)
         # → 153 (merged insecure_deserialization.json into deserialization.json parent)
         # → 160 (W43: modern attack surface KB files — gRPC, SAML, SSE, DNS rebinding, etc.)
+        # → 162 (W43b: cicd_exposure + default_credentials)
         count = len(list(KB_DIR.glob("*.json")))
-        self.assertEqual(count, 160, f"KB count expected 160, got {count}")
+        self.assertEqual(count, 162, f"KB count expected 162, got {count}")
 
 
 if __name__ == "__main__":
