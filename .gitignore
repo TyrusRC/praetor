@@ -49,3 +49,4 @@ launch-proxied-chrome.sh
 # dsh plugin fork (integrations/dsh) — Node deps + tsdown build output
 node_modules/
 integrations/dsh/**/lib/
+nikto_*.json
