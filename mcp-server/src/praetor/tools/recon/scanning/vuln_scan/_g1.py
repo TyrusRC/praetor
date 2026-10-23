@@ -91,6 +91,7 @@ def register(mcp: FastMCP):
         risk: int = 0,
         coverage: str = "",
         internal_only: bool = False,
+        haruspex_url: str = "",
     ) -> str:
         """Run the assay DAST scanner against a target through Burp proxy.
 
@@ -148,6 +149,9 @@ def register(mcp: FastMCP):
             risk: Risk level 1-3 (higher = more intrusive; 0 = auto)
             coverage: Write coverage JSON to this file path
             internal_only: Skip external tools, run only native detectors
+            haruspex_url: Haruspex decision engine URL (e.g. http://127.0.0.1:3000).
+                When set, assay uses ML-based finding adjudication for noise filtering.
+                Without it, assay falls back to heuristic confidence scoring.
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -226,6 +230,20 @@ def register(mcp: FastMCP):
             cmd.extend(["--coverage", coverage])
         if internal_only:
             cmd.append("--internal-only")
+
+        # Pass haruspex URL to assay via env var (inherited by subprocess).
+        if haruspex_url:
+            os.environ["ASSAY_DECISION_BASE_URL"] = haruspex_url
+        elif not os.environ.get("ASSAY_DECISION_BASE_URL"):
+            # Auto-detect local haruspex on default port
+            import socket as _sock
+            for port in (3000, 3001):
+                try:
+                    with _sock.create_connection(("127.0.0.1", port), timeout=0.5):
+                        os.environ["ASSAY_DECISION_BASE_URL"] = f"http://127.0.0.1:{port}"
+                        break
+                except OSError:
+                    pass
 
         # Give the subprocess a little longer than assay's own scan timeout so
         # the process is not killed before it writes its report.
