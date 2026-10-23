@@ -54,6 +54,9 @@ _tier((
     # intentionally omitted — it merges into deserialization at tier 6).
     "payment_flow", "excessive_data_exposure", "mobile_api",
     "scim_provisioning", "webhook_replay", "orm_leak", "web_llm",
+    # Modern attack surfaces: gRPC IDOR is authz testing, MCP tool poisoning
+    # is privilege escalation, DNS rebinding bypasses network boundaries.
+    "grpc", "mcp_server_attacks", "mcp_tool_poisoning", "dns_rebinding",
 ), 5)
 _tier((
     "xss", "dom_xss", "csrf", "cache_poisoning", "cors", "open_redirect",
