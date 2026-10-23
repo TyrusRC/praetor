@@ -73,51 +73,81 @@ def register(mcp: FastMCP):
         iast: bool = False,
         iast_addr: str = "",
         min_confidence: str = "",
+        verify: bool = True,
+        cookie: str = "",
+        header: list[str] | None = None,
+        data: str = "",
+        method: str = "",
+        login_url: str = "",
+        login_user: str = "",
+        login_pass: str = "",
+        login_success: str = "",
+        auth_a_cookie: str = "",
+        auth_b_cookie: str = "",
+        crawl: bool = False,
+        stored_xss: bool = False,
+        api_spec: str = "",
+        level: int = 0,
+        risk: int = 0,
+        coverage: str = "",
+        internal_only: bool = False,
     ) -> str:
-        """Run the assay native web scanner against a target through Burp proxy. Requires assay installed.
+        """Run the assay DAST scanner against a target through Burp proxy.
 
-        assay is praetor's default web-scan engine. It runs 108 context-aware
-        native detectors, 8 third-party tool integrations (sqlmap, dalfox,
-        commix, ghauri, nikto, wpscan, nuclei, tplmap) with smart
-        auto-dispatch, a Nuclei-compatible template engine, and a headless
-        two-identity crawl. Maps each finding to WSTG / OWASP Top 10 / API
+        assay is praetor's default web-scan engine. It runs 110+ context-aware
+        native detectors covering full OWASP Top 10 + WSTG, 12 third-party
+        tool integrations (sqlmap, dalfox, commix, ghauri, nikto, wpscan,
+        nuclei, tplmap + 4 discovery tools) with smart auto-dispatch, OGNL/
+        Struts2 SSTI, tiered parameter testing, and a Nuclei-compatible
+        template engine. Maps each finding to WSTG / OWASP Top 10 / API
         Top 10 / CWE with a CVSS vector.
 
-        Smart dispatch: native detectors find injection points in seconds,
-        then auto-launch focused tool runs (sqlmap with --dbms hint, dalfox
-        with --param targeting). Autonomous mode runs core tools (sqlmap,
-        dalfox, nikto, nuclei) at full strength in parallel.
+        Detection classes: SQLi (error/boolean/time/union), XSS (reflected/
+        stored/DOM), CMDi, SSTI (Jinja2/Twig/FreeMarker/OGNL/Mako/ERB/+12),
+        SSRF, LFI/RFI, XXE, NoSQL, LDAP, XPath, XSLT, CRLF, HPP, CSRF,
+        IDOR, BAC, JWT, OAuth, SAML, mass assignment, race conditions,
+        request smuggling (CL.TE/TE.CL/CL.0/TE.0), cache poisoning/deception,
+        prototype pollution, deserialization, file upload, GraphQL injection,
+        prompt injection, HTTP/2 desync, DNS rebinding, MFA bypass, session
+        fixation, + 40 more.
 
-        When assay runs thorough profile, the individual run_sqlmap /
-        run_dalfox / run_commix / run_ghauri / run_nikto / run_wpscan /
-        run_ffuf / run_arjun / run_katana / run_gau calls are redundant
-        for the same target — assay orchestrates them internally. Use the
-        individual tools only for targeted re-testing of a specific
-        parameter or when assay is not installed.
+        Workflow: run_assay → import_scan_results('assay') → findings.json.
+        Praetor then deepens leads: confirm_sqli, escalate_ssrf, test_auth_matrix.
 
-        IAST: when --iast is passed, assay starts a callback server (:7880)
-        and injects taint markers into DAST payloads. Deploy the matching
-        sensor (PHP/Node/Python) into the target app with deploy_iast_sensor
-        first. When the marker reaches a dangerous sink (SQL query, command
-        exec, file open, etc.), the sensor reports back, upgrading the
-        finding confidence from 'medium' to 'confirmed'.
-
-        Findings ingest into findings.json via import_scan_results
-        (format 'assay').
+        When assay runs thorough profile, individual run_sqlmap / run_dalfox /
+        run_commix etc. are redundant for the same target.
 
         Args:
             target: Target URL
             profile: quick | normal | thorough | passive (default normal)
-            rate: Cap outbound requests per second (0 = unlimited)
+            rate: Requests/second cap (0 = unlimited)
             scope_host: Restrict traffic to these hosts (comma-separated)
-            templates: Extra nuclei template dirs/files to load
+            templates: Extra nuclei template dirs/files
             use_proxy: Route through Burp proxy (default True)
             timeout: Max seconds (default 600)
             auto_network_check: Also run nmap + tlsx against target host
             policy: Named scan policy (overrides all other args)
-            iast: Start IAST callback server and inject taint markers
+            iast: Enable IAST callback server for taint-marker confirmation
             iast_addr: IAST callback address (default :7880)
-            min_confidence: Filter findings below this level (confirmed, high, medium, low)
+            min_confidence: Filter findings below this (confirmed/high/medium/low)
+            verify: Re-exercise findings to confirm them (default True)
+            cookie: Cookie header string for authenticated scanning
+            header: Custom headers (list of 'Key: Value')
+            data: POST body data
+            method: HTTP method override (GET/POST/PUT/DELETE)
+            login_url: HTML login form URL — assay logs in and uses session
+            login_user: Username for login form
+            login_pass: Password for login form
+            login_success: Substring expected after successful login
+            auth_a_cookie: Identity-A cookie for two-identity IDOR probe
+            auth_b_cookie: Identity-B cookie for two-identity IDOR probe
+            crawl: Crawl SPA routes via headless browser (requires Chrome)
+            stored_xss: Enable stored XSS detection (inject+crawl+match)
+            api_spec: OpenAPI/Swagger JSON URL — exercises all documented endpoints
+            level: Scan level 1-5 (higher = more payloads; 0 = auto)
+            risk: Risk level 1-3 (higher = more intrusive; 0 = auto)
+            coverage: Write coverage JSON to this file path
+            internal_only: Skip external tools, run only native detectors
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -152,7 +182,6 @@ def register(mcp: FastMCP):
         for tdir in _assay_template_dirs(templates):
             cmd.extend(["--templates", tdir])
         if use_proxy:
-            # assay routes through Burp and trusts Burp's MITM cert with -k.
             cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
         if iast:
             cmd.append("--iast")
@@ -160,6 +189,43 @@ def register(mcp: FastMCP):
                 cmd.extend(["--iast-addr", iast_addr])
         if min_confidence:
             cmd.extend(["--min-confidence", min_confidence])
+        if verify:
+            cmd.append("--verify")
+        if cookie:
+            cmd.extend(["--cookie", cookie])
+        if header:
+            for h in header:
+                cmd.extend(["-H", h])
+        if data:
+            cmd.extend(["-d", data])
+        if method:
+            cmd.extend(["-X", method])
+        if login_url:
+            cmd.extend(["--login-url", login_url])
+            if login_user:
+                cmd.extend(["--login-user", login_user])
+            if login_pass:
+                cmd.extend(["--login-pass", login_pass])
+            if login_success:
+                cmd.extend(["--login-success", login_success])
+        if auth_a_cookie:
+            cmd.extend(["--auth-a-cookie", auth_a_cookie])
+        if auth_b_cookie:
+            cmd.extend(["--auth-b-cookie", auth_b_cookie])
+        if crawl:
+            cmd.append("--crawl")
+        if stored_xss:
+            cmd.append("--stored-xss")
+        if api_spec:
+            cmd.extend(["--api-spec", api_spec])
+        if level and level > 0:
+            cmd.extend(["--level", str(level)])
+        if risk and risk > 0:
+            cmd.extend(["--risk", str(risk)])
+        if coverage:
+            cmd.extend(["--coverage", coverage])
+        if internal_only:
+            cmd.append("--internal-only")
 
         # Give the subprocess a little longer than assay's own scan timeout so
         # the process is not killed before it writes its report.
@@ -180,23 +246,39 @@ def register(mcp: FastMCP):
         order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         findings.sort(key=lambda f: order.get(str(f.get("severity", "")).lower(), 5))
 
-        lines = [f"assay findings for {target} ({len(findings)}):", ""]
+        # Count by severity for summary
+        counts: dict[str, int] = {}
+        for f in findings:
+            s = str(f.get("severity", "?")).lower()
+            counts[s] = counts.get(s, 0) + 1
+        summary_parts = [f"{counts.get(s, 0)}{s[0].upper()}" for s in ("critical", "high", "medium", "low") if counts.get(s)]
+
+        lines = [f"assay findings for {target}: {len(findings)} ({'/'.join(summary_parts)})", ""]
         for f in findings[:50]:
             sev = str(f.get("severity", "?")).upper()
             name = f.get("title") or f.get("type") or "?"
-            lines.append(f"  [{sev}] {name}")
+            conf = f.get("confidence", "")
+            tool = f.get("tool", "")
+            tag = ""
+            if conf:
+                tag += f" [{conf}]"
+            if tool:
+                tag += f" ({tool})"
+            lines.append(f"  [{sev}] {name}{tag}")
             loc = f.get("url", "")
             if f.get("parameter"):
                 loc = f"{loc} (param: {f['parameter']})"
             if loc:
                 lines.append(f"       → {loc}")
+            wstg = ",".join(f.get("wstg") or [])
             cwe = ",".join(f.get("cwe") or [])
-            if cwe:
-                lines.append(f"       {cwe}")
+            refs = " ".join(x for x in (wstg, cwe) if x)
+            if refs:
+                lines.append(f"       {refs}")
         if len(findings) > 50:
             lines.append(f"  ... and {len(findings) - 50} more")
         lines.append("")
-        lines.append("Verify, then ingest into findings.json with import_scan_results (format 'assay').")
+        lines.append("Next: import_scan_results(format='assay') to ingest, then deepen leads with confirm_*/escalate_* tools.")
 
         if auto_network_check:
             lines.append("")

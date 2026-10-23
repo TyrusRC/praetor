@@ -7,7 +7,8 @@ pipeline uses (_dedupe_finding: endpoint+vuln_type+title+parameter).
 
 Imported findings enter as status='suspected' with a `source` tag — they are
 leads from a scanner, not Praetor-verified, so the true-positives-only report
-rule (Rule 16) still holds until they pass verify/assess.
+rule (Rule 16) still holds until they pass verify/assess. Exception: assay
+findings with confidence=confirmed are auto-promoted to status=confirmed.
 
 Format parsers live in _parsers.py; the merge/store logic in _store.py. Both are
 re-exported here so callers and tests keep importing them from this module.
@@ -110,13 +111,16 @@ def register(mcp: FastMCP) -> None:
             if not _check_tool("assay"):
                 return {"error": "assay not installed. Build: go build -o ~/go/bin/assay ./cmd/assay"}
             cmd = ["assay", "scan", target, "--json", "--profile", profile,
-                   "--timeout", f"{timeout}s"]
+                   "--timeout", f"{timeout}s", "--verify"]
             if use_proxy:
                 cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
             # Auto-enable IAST when sensors are deployed for this domain
             iast_marker = Path(f".burp-intel/{domain}/iast-deployed")
             if iast_marker.exists():
                 cmd.append("--iast")
+            # Auto-enable stored XSS for thorough profiles
+            if profile in ("thorough",):
+                cmd.append("--stored-xss")
             stdout, stderr, code = await _run_cmd(cmd, timeout + 30, bypass_proxy=not use_proxy)
             if stdout.strip():
                 arows = parse_assay(stdout)
@@ -146,3 +150,69 @@ def register(mcp: FastMCP) -> None:
         result = _apply_rows(domain, rows)
         result["sources"] = sources
         return result
+
+    @mcp.tool()
+    async def import_assay_coverage(
+        domain: str,
+        coverage_file: str,
+    ) -> dict:
+        """Merge assay's --coverage JSON into praetor's coverage.json.
+
+        assay writes a coverage JSON with every (endpoint, param, detector)
+        tuple it tested and the outcome (tested/skipped/error/timeout). This
+        tool converts those entries into praetor's coverage.json format so
+        coverage_summary and next_untested_targets account for assay's work
+        and do not re-probe the same tuples.
+
+        Args:
+            domain: Target domain workspace
+            coverage_file: Path to assay's --coverage output JSON
+        """
+        import json as _json
+        cpath = Path(coverage_file)
+        if not cpath.exists():
+            return {"error": f"coverage file not found: {coverage_file}"}
+        try:
+            assay_cov = _json.loads(cpath.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            return {"error": f"cannot parse {coverage_file}: {e}"}
+
+        entries = assay_cov.get("entries") or assay_cov.get("coverage") or []
+        if not entries:
+            return {"error": "no coverage entries found in assay output"}
+
+        # Load existing praetor coverage
+        praetor_cov_path = Path(".burp-intel") / domain / "coverage.json"
+        praetor_cov_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            praetor_cov = _json.loads(praetor_cov_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            praetor_cov = {"entries": []}
+
+        existing_keys = {
+            (e.get("endpoint", ""), e.get("parameter", ""), e.get("vuln_class", ""))
+            for e in praetor_cov.get("entries", [])
+        }
+
+        added = 0
+        for e in entries:
+            ep = e.get("endpoint") or e.get("url") or ""
+            param = e.get("parameter") or e.get("param") or ""
+            detector = e.get("detector") or e.get("class") or ""
+            outcome = e.get("outcome") or e.get("status") or "tested"
+            key = (ep, param, detector)
+            if key not in existing_keys:
+                praetor_cov.setdefault("entries", []).append({
+                    "endpoint": ep,
+                    "parameter": param,
+                    "vuln_class": detector,
+                    "outcome": outcome,
+                    "source": "assay",
+                })
+                existing_keys.add(key)
+                added += 1
+
+        praetor_cov_path.write_text(
+            _json.dumps(praetor_cov, indent=2), encoding="utf-8"
+        )
+        return {"imported": added, "total_entries": len(praetor_cov.get("entries", []))}

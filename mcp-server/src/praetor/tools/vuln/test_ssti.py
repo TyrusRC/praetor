@@ -58,6 +58,12 @@ def register(mcp: FastMCP):
     ) -> dict:
         """SSTImap-style native SSTI detection through Burp.
 
+        ASSAY-FIRST: assay's SSTI detector covers Jinja2, Twig, FreeMarker,
+        OGNL/Struts2, Velocity, Thymeleaf, Mako, Smarty, ERB, Pebble, and
+        12 more engines with sentinel-wrapped math detection. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific
+        (endpoint, parameter) that assay flagged, or when assay is not installed.
+
         Returns VerdictResult (W7 schema).
 
         Multi-phase: polyglot → math distinguisher → engine-specific

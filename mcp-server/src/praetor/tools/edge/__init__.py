@@ -37,6 +37,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test CORS configuration for origin reflection and credential misconfigs.
 
+        ASSAY-FIRST: assay's cors detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
+
         Args:
             session: Session name
             path: Endpoint path to test
@@ -52,6 +56,10 @@ def register(mcp: FastMCP):
     ) -> str:
         """Analyze a JWT token for vulnerabilities and attack vectors.
 
+        ASSAY-FIRST: assay's jwt + jwtadvanced + jkuabuse detectors cover this
+        class. Run run_assay() first — use this tool only for targeted re-probe
+        of a specific finding, or when assay is not installed.
+
         Args:
             token: JWT token string
         """
@@ -66,6 +74,10 @@ def register(mcp: FastMCP):
         depth: str = "quick",
     ) -> dict:
         """Test GraphQL endpoint for introspection, field suggestions, batch, GET CSRF, and (deep) alias-DoS + depth limits.
+
+        ASSAY-FIRST: assay's graphql + graphqladvanced + graphqldos detectors
+        cover this class. Run run_assay() first — use this tool only for
+        targeted re-probe of a specific finding, or when assay is not installed.
 
         Args:
             session: Session name
@@ -86,6 +98,10 @@ def register(mcp: FastMCP):
         imdsv2: bool = False,
     ) -> dict:
         """Test SSRF to cloud metadata + container creds (AWS ECS/EKS/IMDS, GCP, Azure, DO, Alibaba, Oracle).
+
+        ASSAY-FIRST: assay's cloud detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
 
         Args:
             session: Session name
@@ -126,6 +142,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test open redirect with Collaborator-verified DNS/HTTP confirmation.
 
+        ASSAY-FIRST: assay's redirect detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
+
         Args:
             session: Session name
             path: Endpoint path
@@ -147,6 +167,10 @@ def register(mcp: FastMCP):
         depth: int = 6,
     ) -> dict:
         """Test for LFI/path traversal with encoding bypasses and PHP wrappers.
+
+        ASSAY-FIRST: assay's lfi detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
 
         Args:
             session: Session name
@@ -170,6 +194,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test file upload for bypass vulnerabilities with extension and content-type evasion.
 
+        ASSAY-FIRST: assay's fileupload detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
+
         Args:
             session: Session name
             path: Upload endpoint path
@@ -189,6 +217,10 @@ def register(mcp: FastMCP):
         target_url: str = "",
     ) -> dict:
         """Verdict a page's frameability (clickjacking) and emit an attack PoC when frameable.
+
+        ASSAY-FIRST: assay's xfs (X-Frame/clickjacking) detector covers this
+        class. Run run_assay() first — use this tool only for targeted re-probe
+        of a specific finding, or when assay is not installed.
 
         Combines X-Frame-Options and CSP frame-ancestors the way a browser does
         (frame-ancestors authoritative; legacy XFO ALLOW-FROM ignored). When

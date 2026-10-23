@@ -57,6 +57,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test for server-side prototype pollution. Returns VerdictResult (W7 schema).
 
+        ASSAY-FIRST: assay's protopollution detector covers this class. Run
+        run_assay() first — use this tool only for targeted re-probe of a
+        specific finding, or when assay is not installed.
+
         Args:
             url: Endpoint that accepts JSON / form body (or query)
             method: POST / PUT / PATCH (default POST)

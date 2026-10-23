@@ -52,6 +52,17 @@ def _apply_rows(domain: str, rows: list[dict]) -> dict:
             max_num += 1
             f["id"] = f"f{max_num:03d}"
 
+    # Promote assay findings with confidence=confirmed to status=confirmed.
+    # This avoids praetor re-verifying findings assay already proved via
+    # 3-round replay or IAST sink confirmation.
+    promoted = 0
+    for f in merged:
+        if (f.get("source") == "assay"
+                and f.get("confidence") == "confirmed"
+                and f.get("status", "suspected") == "suspected"):
+            f["status"] = "confirmed"
+            promoted += 1
+
     data["findings"] = merged
     fpath.parent.mkdir(parents=True, exist_ok=True)
     fpath.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -59,7 +70,10 @@ def _apply_rows(domain: str, rows: list[dict]) -> dict:
     by_sev: dict[str, int] = {}
     for r in rows:
         by_sev[r["severity"]] = by_sev.get(r["severity"], 0) + 1
-    return {"parsed": len(rows), "created": created, "updated": updated, "by_severity": by_sev}
+    result = {"parsed": len(rows), "created": created, "updated": updated, "by_severity": by_sev}
+    if promoted:
+        result["auto_confirmed"] = promoted
+    return result
 
 
 def _burp_rows(items: list[dict]) -> list[dict]:

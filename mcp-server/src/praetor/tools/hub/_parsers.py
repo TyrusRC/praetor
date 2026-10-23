@@ -252,9 +252,9 @@ def parse_assay(text: str) -> list[dict]:
     """assay --json export -> finding dicts. Drops info/unknown severity.
 
     assay emits one JSON object: {tool, scan_result: {findings: [...]}, ...}.
-    Each finding carries `title` (always populated since assay v0.9), `type`
-    (canonical class), `confidence` (confirmed/high/medium/low), and optional
-    OWASP/CWE mappings. The coverage summary is in scan_result.summary.
+    Each finding carries `title`, `type` (canonical class), `confidence`,
+    `tool` (which detector found it), WSTG/OWASP/CWE mappings, and
+    optionally `remediation`, `references`, and `metadata`.
     """
     out: list[dict] = []
     try:
@@ -267,7 +267,6 @@ def parse_assay(text: str) -> list[dict]:
         if sev not in _REAL_SEV:
             continue
         endpoint = row.get("url") or ""
-        # title is now always populated; prefer it over type for readability
         klass = row.get("title") or row.get("type") or "finding"
         f = _finding(
             klass,
@@ -277,10 +276,21 @@ def parse_assay(text: str) -> list[dict]:
             parameter=row.get("parameter") or "",
             evidence=row.get("description") or row.get("evidence") or row.get("request") or "",
         )
-        # Carry confidence through so praetor can prioritize confirmed findings
         confidence = str(row.get("confidence", "")).lower()
         if confidence in ("confirmed", "high", "medium", "low"):
             f["confidence"] = confidence
+        # Carry OWASP mappings for praetor's coverage tracking
+        for key in ("wstg", "owasp_top10", "api_top10", "cwe"):
+            val = row.get(key)
+            if val:
+                f[key] = val
+        # Carry the assay detector name so praetor knows who found it
+        tool = row.get("tool") or ""
+        if tool:
+            f["assay_tool"] = tool
+        # Carry remediation if present
+        if row.get("remediation"):
+            f["remediation"] = row["remediation"]
         out.append(f)
     return out
 

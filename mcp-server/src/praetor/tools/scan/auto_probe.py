@@ -85,6 +85,15 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Knowledge-driven vulnerability probing with server-side matchers.
 
+        ASSAY-FIRST: before calling auto_probe, run run_assay(target,
+        profile='thorough') to get automated DAST coverage of OWASP Top 10 +
+        WSTG injection classes. assay's 110+ detectors cover SQLi, XSS, CMDi,
+        SSTI, SSRF, XXE, CSRF, IDOR, JWT, and more — saving praetor from
+        re-probing the same classes. Use auto_probe AFTER assay for:
+        (1) Knowledge-base edge cases assay doesn't cover,
+        (2) Praetor-only classes (business logic, auth matrix, advanced race),
+        (3) Targeted re-probe of specific params assay flagged as anomalous.
+
         Cost class: EXPENSIVE — sends N probes per parameter × multiple categories.
         Run discover_attack_surface first to scope `targets` instead of probing
         everything. Honors Rule 20a recon gate when `domain` is supplied.

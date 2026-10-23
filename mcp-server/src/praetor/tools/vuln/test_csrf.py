@@ -43,6 +43,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Check the four CSRF defenses against a state-changing endpoint.
 
+        ASSAY-FIRST: assay's csrf detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
+
         Returns VerdictResult (W7 schema): {verdict, confidence, evidence_summary,
         logger_indices, vuln_type='csrf', details, human_summary}.
 

@@ -139,6 +139,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Five-axis SSRF probe sweep across one parameter.
 
+        ASSAY-FIRST: assay's ssrf detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
+
         Returns VerdictResult (W7 schema).
 
         Args:

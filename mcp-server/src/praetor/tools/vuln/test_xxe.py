@@ -114,6 +114,10 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Fire XXE payloads against an XML-accepting endpoint.
 
+        ASSAY-FIRST: assay's xxe detector covers this class. Run run_assay()
+        first — use this tool only for targeted re-probe of a specific finding,
+        or when assay is not installed.
+
         Returns VerdictResult (W7 schema).
 
         Args:
