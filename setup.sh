@@ -535,10 +535,10 @@ install_pd_tool "httpx" \
 install_pd_tool "nuclei" \
     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
 
-# assay — Praetor's default web-scan engine (run_assay / merge_scan). Native
+# vigil — Praetor's default web-scan engine (run_vigil / merge_scan). Native
 # context-aware detectors + nuclei-compatible template engine + headless.
-install_pd_tool "assay" \
-    "go install github.com/TyrusRC/assay/cmd/assay@latest"
+install_pd_tool "vigil" \
+    "go install github.com/TyrusRC/vigil/cmd/vigil@latest"
 
 # groma — Praetor's default network-scan engine (run_groma). Full 1-65535
 # port range by default, naabu-based service fingerprinting + YAML CVE
@@ -601,10 +601,10 @@ else
 fi
 
 # ── Nuclei templates: Praetor custom set ────────────────────────────
-# run_assay (and nuclei) load these. The custom set is cloned into the user
-# data dir run_assay auto-detects ($HOME/.local/share/praetor/custom-nuclei-templates;
+# run_vigil (and nuclei) load these. The custom set is cloned into the user
+# data dir run_vigil auto-detects ($HOME/.local/share/praetor/custom-nuclei-templates;
 # override the list with PRAETOR_ASSAY_TEMPLATES). Default nuclei store
-# (~/nuclei-templates) is fetched on first nuclei/assay run.
+# (~/nuclei-templates) is fetched on first nuclei/vigil run.
 CUSTOM_TPL_DIR="$HOME/.local/share/praetor/custom-nuclei-templates"
 if has git; then
     if [ -d "$CUSTOM_TPL_DIR/.git" ]; then
@@ -624,7 +624,7 @@ if has git; then
         fi
     fi
 else
-    warn "git not found — skipping custom nuclei templates (run_assay auto-detects $CUSTOM_TPL_DIR when present)"
+    warn "git not found — skipping custom nuclei templates (run_vigil auto-detects $CUSTOM_TPL_DIR when present)"
 fi
 
 # ── Praetor v1.0 SAST + secrets layer ──

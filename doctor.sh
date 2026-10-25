@@ -295,7 +295,7 @@ if has httpx && ! httpx -version 2>&1 | grep -qi "projectdiscovery\|httpx versio
     skip "httpx is ProjectDiscovery's" "another 'httpx' shadows PATH — prepend ~/go/bin (Praetor itself resolves it correctly)"
 fi
 check_recon nuclei     "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
-check_recon assay      "go install github.com/TyrusRC/assay/cmd/assay@latest   # default web-scan engine (run_assay)"
+check_recon vigil      "go install github.com/TyrusRC/vigil/cmd/vigil@latest   # default web-scan engine (run_vigil)"
 check_recon groma      "go install github.com/TyrusRC/groma/cmd/groma@latest   # default network-scan engine (run_groma)"
 check_recon katana     "go install -v github.com/projectdiscovery/katana/cmd/katana@latest"
 check_recon ffuf       "go install -v github.com/ffuf/ffuf/v2@latest"
