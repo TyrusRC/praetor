@@ -61,8 +61,8 @@ _NUCLEI_JSONL = (
     '"host":"https://app.example.com","matched-at":"https://app.example.com"}\n'
 )
 
-_ASSAY_JSON = (
-    '{"tool":"assay","scan_result":{"findings":['
+_VIGIL_JSON = (
+    '{"tool":"vigil","scan_result":{"findings":['
     '{"type":"SQL Injection","severity":"Critical","url":"https://app.example.com/item",'
     '"parameter":"id","description":"error-based SQLi","cwe":["CWE-89"]},'
     '{"type":"Server Version Disclosure","severity":"Info","url":"https://app.example.com/"}'
@@ -108,21 +108,21 @@ class TestImporter(unittest.TestCase):
         self.assertEqual(f["source"], "nuclei")
         self.assertEqual(f["status"], "suspected")
 
-    def test_parse_assay_maps_and_drops_info(self):
-        rows = self.imp.parse_assay(_ASSAY_JSON)
+    def test_parse_vigil_maps_and_drops_info(self):
+        rows = self.imp.parse_vigil(_VIGIL_JSON)
         # the Info-severity row is dropped; one real finding
         self.assertEqual(len(rows), 1)
         f = rows[0]
         self.assertEqual(f["severity"], "critical")
         self.assertEqual(f["endpoint"], "https://app.example.com/item")
         self.assertEqual(f["parameter"], "id")
-        self.assertEqual(f["source"], "assay")
+        self.assertEqual(f["source"], "vigil")
         self.assertEqual(f["status"], "suspected")
         # vuln_type derives from the class name, not the description
         self.assertTrue(f["vuln_type"])
 
-    def test_detect_format_assay(self):
-        self.assertEqual(self.imp._detect_format("x.json", _ASSAY_JSON), "assay")
+    def test_detect_format_vigil(self):
+        self.assertEqual(self.imp._detect_format("x.json", _VIGIL_JSON), "vigil")
 
     def test_parse_groma_drops_open_port_and_info(self):
         rows = self.imp.parse_groma(_GROMA_JSON)
@@ -174,7 +174,7 @@ class TestImporter(unittest.TestCase):
             cwd = os.getcwd()
             os.chdir(d)
             try:
-                rows = self.imp.parse_assay(_ASSAY_JSON)   # one real finding
+                rows = self.imp.parse_vigil(_VIGIL_JSON)   # one real finding
                 res = self.imp._apply_rows("t.com", rows)
                 self.assertEqual(res["created"], 1)
                 import json as _json

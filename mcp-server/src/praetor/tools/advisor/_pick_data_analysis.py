@@ -13,12 +13,12 @@ _ANALYSIS = [
       "source to sink"],
      "run_mantis",
      "run_mantis(repo_path='/tmp/repo-src', mode='quick')  # llm=True adds triage + deep review"),
-    # ----- Web-scan engine — assay (native detectors + nuclei-compatible templates) -----
+    # ----- Web-scan engine — vigil (native detectors + nuclei-compatible templates) -----
     (["scan this url", "web vuln scan", "full web scan", "run a scanner on the target",
       "nuclei scan", "template scan", "dast scan", "context-aware web scan",
       "scan with templates", "web scan engine"],
-     "run_assay",
-     "run_assay(target='https://app.example.com')  # native detectors + default/custom nuclei templates"),
+     "run_vigil",
+     "run_vigil(target='https://app.example.com')  # native detectors + default/custom nuclei templates"),
     # ----- W30-c: smart request triage — proxy entry → attack plan -----
     # Collapses get_request_detail -> extract_* -> smart_analyze -> reason
     # -> pick LLM loop into ONE call. Operator hands an index, gets a

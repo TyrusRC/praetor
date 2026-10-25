@@ -55,6 +55,6 @@ def register(mcp: FastMCP) -> None:
             lines.append(f"  NVD Detail: https://nvd.nist.gov/vuln/detail/{query}")
 
         if tech:
-            lines.append("  engine: run_assay(target=TARGET)  # auto-detects tech")
+            lines.append("  engine: run_vigil(target=TARGET)  # auto-detects tech")
 
         return "\n".join(lines)

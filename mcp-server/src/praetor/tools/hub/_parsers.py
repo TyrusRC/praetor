@@ -248,10 +248,10 @@ def parse_zap(text: str) -> list[dict]:
     return out
 
 
-def parse_assay(text: str) -> list[dict]:
-    """assay --json export -> finding dicts. Drops info/unknown severity.
+def parse_vigil(text: str) -> list[dict]:
+    """vigil --json export -> finding dicts. Drops info/unknown severity.
 
-    assay emits one JSON object: {tool, scan_result: {findings: [...]}, ...}.
+    vigil emits one JSON object: {tool, scan_result: {findings: [...]}, ...}.
     Each finding carries `title`, `type` (canonical class), `confidence`,
     `tool` (which detector found it), WSTG/OWASP/CWE mappings, and
     optionally `remediation`, `references`, and `metadata`.
@@ -272,7 +272,7 @@ def parse_assay(text: str) -> list[dict]:
             klass,
             sev,
             endpoint,
-            "assay",
+            "vigil",
             parameter=row.get("parameter") or "",
             evidence=row.get("description") or row.get("evidence") or row.get("request") or "",
         )
@@ -284,10 +284,10 @@ def parse_assay(text: str) -> list[dict]:
             val = row.get(key)
             if val:
                 f[key] = val
-        # Carry the assay detector name so praetor knows who found it
+        # Carry the vigil detector name so praetor knows who found it
         tool = row.get("tool") or ""
         if tool:
-            f["assay_tool"] = tool
+            f["vigil_tool"] = tool
         # Carry remediation if present
         if row.get("remediation"):
             f["remediation"] = row["remediation"]
@@ -336,7 +336,7 @@ def parse_groma(text: str) -> list[dict]:
 
 _PARSERS = {
     "nuclei": parse_nuclei,
-    "assay": parse_assay,
+    "vigil": parse_vigil,
     "groma": parse_groma,
     "nessus": parse_nessus,
     "sarif": parse_sarif,
@@ -361,8 +361,8 @@ def _detect_format(path: str, text: str) -> str:
             return "openvas"
         return ""
     if sniff.startswith("{"):
-        # assay/ZAP are single JSON objects; nuclei is JSONL (multiple objects,
-        # so a whole-text parse fails -> nuclei). assay has tool=="assay" or a
+        # vigil/ZAP are single JSON objects; nuclei is JSONL (multiple objects,
+        # so a whole-text parse fails -> nuclei). vigil has tool=="vigil" or a
         # "scan_result" key; ZAP has a top-level "site".
         try:
             obj = json.loads(head)
@@ -371,8 +371,8 @@ def _detect_format(path: str, text: str) -> str:
         if isinstance(obj, dict):
             if obj.get("tool") == "groma":
                 return "groma"
-            if obj.get("tool") == "assay" or "scan_result" in obj:
-                return "assay"
+            if obj.get("tool") == "vigil" or "scan_result" in obj:
+                return "vigil"
             if "site" in obj:
                 return "zap"
         return "nuclei"

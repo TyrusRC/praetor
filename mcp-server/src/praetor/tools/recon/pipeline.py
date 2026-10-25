@@ -113,17 +113,17 @@ def register(mcp: FastMCP):
 
         lines.append("")
 
-        # Step 4: deep scan per live host with assay (the web-scan engine).
-        if depth in ("standard", "deep") and _check_tool("assay"):
+        # Step 4: deep scan per live host with vigil (the web-scan engine).
+        if depth in ("standard", "deep") and _check_tool("vigil"):
             profile = "thorough" if depth == "deep" else "quick"
             # Share the step's time budget across hosts so the whole step stays
             # within `timeout`.
             per_host = max(60, timeout // max(1, len(live_hosts)))
             lines.append(
-                f"[4/4] Running assay ({profile}) against {len(live_hosts)} hosts...")
+                f"[4/4] Running vigil ({profile}) against {len(live_hosts)} hosts...")
             total = 0
             for host_url in live_hosts:
-                cmd = ["assay", "scan", host_url, "--json",
+                cmd = ["vigil", "scan", host_url, "--json",
                        "--profile", profile, "--timeout", f"{per_host}s"]
                 if use_proxy:
                     cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
@@ -142,8 +142,8 @@ def register(mcp: FastMCP):
                 total += len(fs)
             lines.append(f"  {total} findings across {len(live_hosts)} hosts")
         elif depth in ("standard", "deep"):
-            lines.append("[4/4] assay not installed — use auto_probe as alternative "
-                         "(build: go build -o ~/go/bin/assay ./cmd/assay)")
+            lines.append("[4/4] vigil not installed — use auto_probe as alternative "
+                         "(build: go build -o ~/go/bin/vigil ./cmd/vigil)")
         else:
             lines.append("[4/4] Skipped (quick mode)")
 

@@ -1,7 +1,7 @@
 """save_scan_policy / get_scan_policy / list_scan_policies / delete_scan_policy,
-and run_assay(policy=...) consuming a saved policy.
+and run_vigil(policy=...) consuming a saved policy.
 
-Gap vs a commercial scanner's named scan profiles: run_assay's profile= was a
+Gap vs a commercial scanner's named scan profiles: run_vigil's profile= was a
 single enum per call with no way to save a reusable {profile, scope_host,
 rate, templates, auto_network_check, timeout} bundle and reference it by name
 across targets/engagements."""
@@ -97,8 +97,8 @@ class ScanPolicyTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(written[0].resolve().parent, policies_dir)
 
 
-class RunAssayPolicyWiringTest(unittest.IsolatedAsyncioTestCase):
-    """run_assay(policy=...) pulls its settings from the saved policy."""
+class RunVigilPolicyWiringTest(unittest.IsolatedAsyncioTestCase):
+    """run_vigil(policy=...) pulls its settings from the saved policy."""
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp(prefix="scan-policy-run-"))
@@ -115,7 +115,7 @@ class RunAssayPolicyWiringTest(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     async def test_unknown_policy_name_errors_cleanly(self):
-        out = await self.tools["run_assay"]("https://t", policy="nope")
+        out = await self.tools["run_vigil"]("https://t", policy="nope")
         self.assertIn("no scan policy named", out)
 
     async def test_policy_values_drive_the_scan(self):
@@ -132,12 +132,12 @@ class RunAssayPolicyWiringTest(unittest.IsolatedAsyncioTestCase):
              patch("praetor.tools.network.nmap.nmap_scan", return_value={"ok": True, "target": "h",
                    "n_hosts": 1, "n_ports": 1, "parsed": {}, "http_targets": []}), \
              patch("praetor.tools.recon_pd._impl.run_tlsx", return_value="tlsx: ok"):
-            out = await self.tools["run_assay"]("https://t")
-            out_with_policy = await self.tools["run_assay"]("https://t", policy="net-pivot")
+            out = await self.tools["run_vigil"]("https://t")
+            out_with_policy = await self.tools["run_vigil"]("https://t", policy="net-pivot")
 
         # Without the policy: no network pivot (default auto_network_check=False).
         self.assertNotIn("Network/TLS pivot", out)
-        # With the policy: thorough profile + rate 2.0 passed to assay, and the
+        # With the policy: thorough profile + rate 2.0 passed to vigil, and the
         # network pivot ran even though the call itself never set those flags.
         self.assertIn("Network/TLS pivot", out_with_policy)
         self.assertIn("--profile", captured_cmd["cmd"])

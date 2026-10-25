@@ -108,8 +108,8 @@ async def groma_scan(
         cmd.append("--fast")
 
     # Give the subprocess a little longer than groma's own --timeout so the
-    # process is not killed before it writes its report (same margin run_assay
-    # gives assay).
+    # process is not killed before it writes its report (same margin run_vigil
+    # gives vigil).
     stdout, stderr, rc = await _run_cmd(cmd, timeout=timeout + 30, bypass_proxy=True)
     if not stdout.strip():
         return {"ok": False, "error": f"groma produced no output (exit {rc}): {stderr.strip()[:300]}",

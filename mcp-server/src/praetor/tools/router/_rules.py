@@ -21,12 +21,12 @@ HARD_DENY = ["DROP TABLE", "rm -rf", "shutdown", "format ", "DELETE FROM",
 
 IMPACT_WEIGHT = {
     "run_sqlmap": 90, "test_ssti": 90, "run_commix": 88, "run_dalfox": 70,
-    "run_wpscan": 60, "run_assay": 60, "crack_jwt_secret": 50,
+    "run_wpscan": 60, "run_vigil": 60, "crack_jwt_secret": 50,
     "auto_probe": 40, "scan_url": 80, "run_network_tool": 85,
     "run_prowler": 80, "run_scout_suite": 75, "run_azurehound": 82,
 }
 
-# Known web-tech signals that warrant a deep engine scan (assay auto-detects the
+# Known web-tech signals that warrant a deep engine scan (vigil auto-detects the
 # stack itself, so these just gate WHEN the rule fires).
 _WEB_TECH_TAGS = {
     "wordpress": "wordpress,wp-plugin", "php": "php", "asp.net": "aspx,iis",
@@ -65,9 +65,9 @@ ROUTING_TABLE = [
      "when": lambda s: _tech(s, "wordpress"),
      "fire": lambda s: [{"tool": "run_wpscan", "args": {"url": s.get("target", "")}}]},
     {"id": "tech_engine", "policy": "auto",
-     "rationale": "known web tech -> assay deep context-aware scan (default engine; auto-detects tech)",
+     "rationale": "known web tech -> vigil deep context-aware scan (default engine; auto-detects tech)",
      "when": _web_tech_when,
-     "fire": lambda s: [{"tool": "run_assay",
+     "fire": lambda s: [{"tool": "run_vigil",
                          "args": {"target": s.get("target", "")}}]},
     {"id": "reflection_xss", "policy": "auto",
      "rationale": "reflection -> dalfox on the param",

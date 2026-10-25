@@ -1,4 +1,4 @@
-"""run_assay(auto_network_check=True) — the network/TLS pivot addition.
+"""run_vigil(auto_network_check=True) — the network/TLS pivot addition.
 
 Gap: web-scan tools never auto-triggered a port/TLS check of the underlying
 host; the operator had to invoke the network lane manually. This is the
@@ -57,13 +57,13 @@ class NetworkPivotHelperTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("tlsx pivot error", out)
 
 
-class RunAssayAutoNetworkCheckTest(unittest.IsolatedAsyncioTestCase):
-    """The run_assay wiring: off by default, appended only when requested."""
+class RunVigilAutoNetworkCheckTest(unittest.IsolatedAsyncioTestCase):
+    """The run_vigil wiring: off by default, appended only when requested."""
 
     def setUp(self):
         cap = _ToolCapture()
         register(cap)
-        self.run_assay = cap.tools["run_assay"]
+        self.run_vigil = cap.tools["run_vigil"]
         self.fake_report = json.dumps({"scan_result": {"findings": [
             {"severity": "high", "title": "XSS", "url": "https://example.com/x"}]}})
 
@@ -71,7 +71,7 @@ class RunAssayAutoNetworkCheckTest(unittest.IsolatedAsyncioTestCase):
         with patch("praetor.tools.recon.scanning.vuln_scan._g1._check_tool", return_value=True), \
              patch("praetor.tools.recon.scanning.vuln_scan._g1._run_cmd",
                    return_value=(self.fake_report, "", 0)):
-            out = await self.run_assay("https://example.com")
+            out = await self.run_vigil("https://example.com")
         self.assertNotIn("Network/TLS pivot", out)
 
     async def test_enabled_appends_pivot_section(self):
@@ -81,7 +81,7 @@ class RunAssayAutoNetworkCheckTest(unittest.IsolatedAsyncioTestCase):
              patch("praetor.tools.network.nmap.nmap_scan", return_value={"ok": True, "target": "h",
                    "n_hosts": 1, "n_ports": 2, "parsed": {}, "http_targets": []}), \
              patch("praetor.tools.recon_pd._impl.run_tlsx", return_value="tlsx: TLS 1.3, no issues"):
-            out = await self.run_assay("https://example.com", auto_network_check=True)
+            out = await self.run_vigil("https://example.com", auto_network_check=True)
         self.assertIn("Network/TLS pivot: example.com", out)
         self.assertIn("tlsx: TLS 1.3", out)
         self.assertIn("XSS", out)  # the original web-scan result is still present

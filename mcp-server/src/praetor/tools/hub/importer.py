@@ -1,13 +1,13 @@
 """import_scan_results / merge_scan — consolidate external + Burp scanner output.
 
 Turns Praetor into a consolidation hub (PlexTrac/Dradis-style): parse a scanner
-export (or run assay and pull Burp Pro's live findings), normalize to Praetor
+export (or run vigil and pull Burp Pro's live findings), normalize to Praetor
 finding dicts, and merge into findings.json with the SAME dedup key the native
 pipeline uses (_dedupe_finding: endpoint+vuln_type+title+parameter).
 
 Imported findings enter as status='suspected' with a `source` tag — they are
 leads from a scanner, not Praetor-verified, so the true-positives-only report
-rule (Rule 16) still holds until they pass verify/assess. Exception: assay
+rule (Rule 16) still holds until they pass verify/assess. Exception: vigil
 findings with confidence=confirmed are auto-promoted to status=confirmed.
 
 Format parsers live in _parsers.py; the merge/store logic in _store.py. Both are
@@ -29,7 +29,7 @@ from ._parsers import (  # noqa: F401  (re-exported for callers/tests)
     _detect_format,
     _finding,
     _slug_to_vuln_type,
-    parse_assay,
+    parse_vigil,
     parse_burp_xml,
     parse_groma,
     parse_nessus,
@@ -52,7 +52,7 @@ def register(mcp: FastMCP) -> None:
     ) -> dict:
         """Import a scanner export into a domain's findings (dedup-merged).
 
-        Supported fmt: assay (JSON), groma (JSON), nuclei (JSONL), nessus
+        Supported fmt: vigil (JSON), groma (JSON), nuclei (JSONL), nessus
         (.nessus XML), sarif (JSON), burp (issues XML), openvas (GVM XML),
         zap (JSON), or 'auto'.
         Imported findings enter as status='suspected' with a `source` tag —
@@ -87,30 +87,30 @@ def register(mcp: FastMCP) -> None:
         use_proxy: bool = True,
         timeout: int = 600,
     ) -> dict:
-        """Run assay AND pull Burp Pro's scanner findings into ONE deduped stream.
+        """Run vigil AND pull Burp Pro's scanner findings into ONE deduped stream.
 
         Both engines normalize to the same finding shape and merge by the native
         key (endpoint + vuln_type + title + parameter) into
         .burp-intel/<domain>/findings.json as status='suspected'. This is the
-        combined web-scan: assay's context-aware detectors + Burp Pro's active
+        combined web-scan: vigil's context-aware detectors + Burp Pro's active
         scanner, deduplicated so the same bug from both engines is one finding.
         Verify before reporting.
 
         Args:
             domain: Target workspace under .burp-intel/
-            target: URL to scan with assay (omit to merge Burp findings only)
-            profile: assay profile — quick | normal | thorough | passive
+            target: URL to scan with vigil (omit to merge Burp findings only)
+            profile: vigil profile — quick | normal | thorough | passive
             include_burp: Also pull Burp Pro /api/scanner/findings (default True)
-            use_proxy: Route assay through Burp proxy (default True)
-            timeout: assay max seconds (default 600)
+            use_proxy: Route vigil through Burp proxy (default True)
+            timeout: vigil max seconds (default 600)
         """
         rows: list[dict] = []
         sources: dict = {}
 
         if target:
-            if not _check_tool("assay"):
-                return {"error": "assay not installed. Build: go build -o ~/go/bin/assay ./cmd/assay"}
-            cmd = ["assay", "scan", target, "--json", "--profile", profile,
+            if not _check_tool("vigil"):
+                return {"error": "vigil not installed. Build: go build -o ~/go/bin/vigil ./cmd/vigil"}
+            cmd = ["vigil", "scan", target, "--json", "--profile", profile,
                    "--timeout", f"{timeout}s", "--verify"]
             if use_proxy:
                 cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
@@ -123,11 +123,11 @@ def register(mcp: FastMCP) -> None:
                 cmd.append("--stored-xss")
             stdout, stderr, code = await _run_cmd(cmd, timeout + 30, bypass_proxy=not use_proxy)
             if stdout.strip():
-                arows = parse_assay(stdout)
+                arows = parse_vigil(stdout)
                 rows.extend(arows)
-                sources["assay"] = len(arows)
+                sources["vigil"] = len(arows)
             else:
-                sources["assay_error"] = (stderr or f"exit {code}")[:200]
+                sources["vigil_error"] = (stderr or f"exit {code}")[:200]
 
         if include_burp:
             params = {"limit": 500}
@@ -152,34 +152,34 @@ def register(mcp: FastMCP) -> None:
         return result
 
     @mcp.tool()
-    async def import_assay_coverage(
+    async def import_vigil_coverage(
         domain: str,
         coverage_file: str,
     ) -> dict:
-        """Merge assay's --coverage JSON into praetor's coverage.json.
+        """Merge vigil's --coverage JSON into praetor's coverage.json.
 
-        assay writes a coverage JSON with every (endpoint, param, detector)
+        vigil writes a coverage JSON with every (endpoint, param, detector)
         tuple it tested and the outcome (tested/skipped/error/timeout). This
         tool converts those entries into praetor's coverage.json format so
-        coverage_summary and next_untested_targets account for assay's work
+        coverage_summary and next_untested_targets account for vigil's work
         and do not re-probe the same tuples.
 
         Args:
             domain: Target domain workspace
-            coverage_file: Path to assay's --coverage output JSON
+            coverage_file: Path to vigil's --coverage output JSON
         """
         import json as _json
         cpath = Path(coverage_file)
         if not cpath.exists():
             return {"error": f"coverage file not found: {coverage_file}"}
         try:
-            assay_cov = _json.loads(cpath.read_text(encoding="utf-8"))
+            vigil_cov = _json.loads(cpath.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
             return {"error": f"cannot parse {coverage_file}: {e}"}
 
-        entries = assay_cov.get("entries") or assay_cov.get("coverage") or []
+        entries = vigil_cov.get("entries") or vigil_cov.get("coverage") or []
         if not entries:
-            return {"error": "no coverage entries found in assay output"}
+            return {"error": "no coverage entries found in vigil output"}
 
         # Load existing praetor coverage
         praetor_cov_path = Path(".burp-intel") / domain / "coverage.json"
@@ -207,7 +207,7 @@ def register(mcp: FastMCP) -> None:
                     "parameter": param,
                     "vuln_class": detector,
                     "outcome": outcome,
-                    "source": "assay",
+                    "source": "vigil",
                 })
                 existing_keys.add(key)
                 added += 1

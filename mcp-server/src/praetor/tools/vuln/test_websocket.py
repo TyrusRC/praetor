@@ -58,9 +58,9 @@ def register(mcp: FastMCP):
     ) -> dict:
         """WebSocket-upgrade attack matrix. Returns VerdictResult (W7 schema).
 
-        ASSAY-FIRST: assay's ws (WebSocket) detector covers this class. Run
-        run_assay() first — use this tool only for targeted re-probe of a
-        specific finding, or when assay is not installed.
+        ASSAY-FIRST: vigil's ws (WebSocket) detector covers this class. Run
+        run_vigil() first — use this tool only for targeted re-probe of a
+        specific finding, or when vigil is not installed.
 
         All probes sent as HTTP/1.1
         upgrade requests through Burp.

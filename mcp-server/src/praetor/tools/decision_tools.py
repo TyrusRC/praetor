@@ -66,7 +66,7 @@ def register(mcp: FastMCP):
                                top: int = 0) -> dict:
         """Rank candidate templates / probes / scanner-hits by a calibrated
         "worth running / worth verifying first" probability — the model-selection
-        step for run_assay, auto_probe, and scanner-hit triage.
+        step for run_vigil, auto_probe, and scanner-hit triage.
 
         It orders only; it never drops coverage (Rule 19). Use the order to spend
         the probe budget and the verification queue on the highest-relevance items

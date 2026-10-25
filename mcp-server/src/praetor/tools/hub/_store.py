@@ -52,12 +52,12 @@ def _apply_rows(domain: str, rows: list[dict]) -> dict:
             max_num += 1
             f["id"] = f"f{max_num:03d}"
 
-    # Promote assay findings with confidence=confirmed to status=confirmed.
-    # This avoids praetor re-verifying findings assay already proved via
+    # Promote vigil findings with confidence=confirmed to status=confirmed.
+    # This avoids praetor re-verifying findings vigil already proved via
     # 3-round replay or IAST sink confirmation.
     promoted = 0
     for f in merged:
-        if (f.get("source") == "assay"
+        if (f.get("source") == "vigil"
                 and f.get("confidence") == "confirmed"
                 and f.get("status", "suspected") == "suspected"):
             f["status"] = "confirmed"

@@ -64,7 +64,7 @@ non-standard ports and forgotten hosts. Discipline:
    discovery+enum+bridge in one call; use it instead of hand-chaining.
 4. `nmap_report_html(xml_path)` → offline HTML exposure report (flags
    non-standard ports) for at-a-glance triage.
-5. Feed each discovered web port (not only 80/443) into `run_assay` — the
+5. Feed each discovered web port (not only 80/443) into `run_vigil` — the
    native detectors + nuclei-compatible template engine (default + custom
    templates) scan the URL. Route 403s to `probe_40x_bypass`. This is hand-off
    intel; network scanning itself is operator-gated (Rule 1 + ALWAYS-ASK tools).
@@ -77,7 +77,7 @@ routes) unlocks an IIS-specific track. Version drives focus: 6.0/7.x → shortna
 leftover legacy; 10.x → app-logic + access control + debug/backup exposure.
 
 1. **8.3 shortname (tilde) enumeration** — the signature IIS recon win.
-   `run_assay` covers it natively (its `iistilde` detector); if enabled, the
+   `run_vigil` covers it natively (its `iistilde` detector); if enabled, the
    operator's `shortscan` reconstructs names (`ADMINI~1` → `administrator`).
    Discovered shortnames are high-value fuzzing seeds.
 2. **IIS-tuned content discovery** — `generate_smart_wordlist(tech="iis")`

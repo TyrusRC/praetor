@@ -1,6 +1,6 @@
 """save_scan_policy + get_scan_policy + list_scan_policies + delete_scan_policy.
 
-Gap vs a commercial DAST's named scan profiles: `run_assay`'s `profile` param
+Gap vs a commercial DAST's named scan profiles: `run_vigil`'s `profile` param
 (quick|normal|thorough|passive) is a single enum per call — there was no way
 to define a reusable, named bundle of {profile, scope_host, rate, templates,
 auto_network_check, timeout} once and reference it by name across targets and
@@ -35,7 +35,7 @@ def _slug(name: str) -> str:
 
 
 def load_scan_policy(name: str) -> dict:
-    """Pure read for run_assay's own use — {} if the named policy doesn't exist."""
+    """Pure read for run_vigil's own use — {} if the named policy doesn't exist."""
     import json
     path = _policies_dir() / f"{_slug(name)}.json"
     if not path.exists():
@@ -60,18 +60,18 @@ def register(mcp: FastMCP) -> None:
         auto_network_check: bool = False,
         notes: str = "",
     ) -> str:
-        """Save a named, reusable run_assay configuration — run it by name later.
+        """Save a named, reusable run_vigil configuration — run it by name later.
 
         Mirrors the commercial-scanner "named scan profile" pattern (e.g. "OWASP
         Top 10", "PCI checks", "Full Web and Network Scan"): define the check
         depth, scope, rate, and network-pivot setting ONCE, then reference it by
-        `name` on every run_assay(policy=...) call instead of re-specifying every
+        `name` on every run_vigil(policy=...) call instead of re-specifying every
         argument per target.
 
         Args:
             name: Policy name (e.g. "pci-quarterly", "full-recheck", "api-only").
             profile: quick | normal | thorough | passive.
-            scope_host: Host allowlist passed straight through to run_assay.
+            scope_host: Host allowlist passed straight through to run_vigil.
             rate: Cap outbound requests per second (0 = unlimited).
             templates: Extra nuclei template dirs to load.
             use_proxy: Route through Burp proxy.
@@ -94,7 +94,7 @@ def register(mcp: FastMCP) -> None:
         return (f"scan policy saved: {slug}\n"
                 f"  profile={profile} scope_host={scope_host or '(none)'} rate={record['rate']} "
                 f"timeout={record['timeout']}s auto_network_check={record['auto_network_check']}\n"
-                f"  run it: run_assay(target=..., policy='{slug}')")
+                f"  run it: run_vigil(target=..., policy='{slug}')")
 
     @mcp.tool()
     async def get_scan_policy(name: str) -> str:

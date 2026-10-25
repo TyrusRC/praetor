@@ -11,7 +11,7 @@ from ._shared import (
     wrap_untrusted,
 )
 
-_NETWORK_PIVOT_TIMEOUT = 120  # bounded sub-timeout per tool, not run_assay's own
+_NETWORK_PIVOT_TIMEOUT = 120  # bounded sub-timeout per tool, not run_vigil's own
 
 
 async def _network_pivot(target: str, scope_host: str) -> str:
@@ -32,22 +32,22 @@ async def _network_pivot(target: str, scope_host: str) -> str:
         out.append(f"tlsx pivot error: {exc}")
     return "\n".join(out)
 
-# Nuclei template stores assay loads alongside its native detectors.
-# PRAETOR_ASSAY_TEMPLATES (os.pathsep-separated dirs) overrides; otherwise the
+# Nuclei template stores vigil loads alongside its native detectors.
+# PRAETOR_VIGIL_TEMPLATES (os.pathsep-separated dirs) overrides; otherwise the
 # default nuclei store and the operator's custom-nuclei-templates clone are
 # auto-included when present on disk.
 _DEFAULT_TEMPLATE_DIRS = (
     "~/.local/nuclei-templates",
     "~/nuclei-templates",
     "~/.local/share/praetor/custom-nuclei-templates",
-    "~/.local/share/assay/custom-nuclei-templates/templates",
+    "~/.local/share/vigil/custom-nuclei-templates/templates",
 )
 
 
-def _assay_template_dirs(extra: list[str] | None = None) -> list[str]:
-    """Resolve the existing template dirs to hand assay (deduped), from
-    PRAETOR_ASSAY_TEMPLATES or the default store + custom clone, plus `extra`."""
-    env = os.getenv("PRAETOR_ASSAY_TEMPLATES", "").strip()
+def _vigil_template_dirs(extra: list[str] | None = None) -> list[str]:
+    """Resolve the existing template dirs to hand vigil (deduped), from
+    PRAETOR_VIGIL_TEMPLATES or the default store + custom clone, plus `extra`."""
+    env = os.getenv("PRAETOR_VIGIL_TEMPLATES", "").strip()
     candidates = (env.split(os.pathsep) if env else list(_DEFAULT_TEMPLATE_DIRS))
     candidates += list(extra or [])
     dirs: list[str] = []
@@ -60,7 +60,7 @@ def _assay_template_dirs(extra: list[str] | None = None) -> list[str]:
 
 def register(mcp: FastMCP):
     @mcp.tool()
-    async def run_assay(  # cost: expensive (native context-aware web scan)
+    async def run_vigil(  # cost: expensive (native context-aware web scan)
         target: str,
         profile: str = "normal",
         rate: float = 0.0,
@@ -93,9 +93,9 @@ def register(mcp: FastMCP):
         internal_only: bool = False,
         haruspex_url: str = "",
     ) -> str:
-        """Run the assay DAST scanner against a target through Burp proxy.
+        """Run the vigil DAST scanner against a target through Burp proxy.
 
-        assay is praetor's default web-scan engine. It runs 110+ context-aware
+        vigil is praetor's default web-scan engine. It runs 110+ context-aware
         native detectors covering full OWASP Top 10 + WSTG, 12 third-party
         tool integrations (sqlmap, dalfox, commix, ghauri, nikto, wpscan,
         nuclei, tplmap + 4 discovery tools) with smart auto-dispatch, OGNL/
@@ -112,10 +112,10 @@ def register(mcp: FastMCP):
         prompt injection, HTTP/2 desync, DNS rebinding, MFA bypass, session
         fixation, + 40 more.
 
-        Workflow: run_assay → import_scan_results('assay') → findings.json.
+        Workflow: run_vigil → import_scan_results('vigil') → findings.json.
         Praetor then deepens leads: confirm_sqli, escalate_ssrf, test_auth_matrix.
 
-        When assay runs thorough profile, individual run_sqlmap / run_dalfox /
+        When vigil runs thorough profile, individual run_sqlmap / run_dalfox /
         run_commix etc. are redundant for the same target.
 
         Args:
@@ -136,7 +136,7 @@ def register(mcp: FastMCP):
             header: Custom headers (list of 'Key: Value')
             data: POST body data
             method: HTTP method override (GET/POST/PUT/DELETE)
-            login_url: HTML login form URL — assay logs in and uses session
+            login_url: HTML login form URL — vigil logs in and uses session
             login_user: Username for login form
             login_pass: Password for login form
             login_success: Substring expected after successful login
@@ -150,8 +150,8 @@ def register(mcp: FastMCP):
             coverage: Write coverage JSON to this file path
             internal_only: Skip external tools, run only native detectors
             haruspex_url: Haruspex decision engine URL (e.g. http://127.0.0.1:3000).
-                When set, assay uses ML-based finding adjudication for noise filtering.
-                Without it, assay falls back to heuristic confidence scoring.
+                When set, vigil uses ML-based finding adjudication for noise filtering.
+                Without it, vigil falls back to heuristic confidence scoring.
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -169,11 +169,11 @@ def register(mcp: FastMCP):
             iast_addr = pol.get("iast_addr", iast_addr)
             min_confidence = pol.get("min_confidence", min_confidence)
 
-        if not _check_tool("assay"):
-            return ("Error: assay not installed. Build it: "
-                    "cd <assay repo> && go build -o ~/go/bin/assay ./cmd/assay")
+        if not _check_tool("vigil"):
+            return ("Error: vigil not installed. Build it: "
+                    "cd <vigil repo> && go build -o ~/go/bin/vigil ./cmd/vigil")
 
-        cmd = ["assay", "scan", target, "--json", "--timeout", f"{timeout}s"]
+        cmd = ["vigil", "scan", target, "--json", "--timeout", f"{timeout}s"]
         if profile:
             cmd.extend(["--profile", profile])
         if rate and rate > 0:
@@ -183,7 +183,7 @@ def register(mcp: FastMCP):
                 h = h.strip()
                 if h:
                     cmd.extend(["--scope-host", h])
-        for tdir in _assay_template_dirs(templates):
+        for tdir in _vigil_template_dirs(templates):
             cmd.extend(["--templates", tdir])
         if use_proxy:
             cmd.extend(["--proxy", BURP_PROXY_URL, "-k"])
@@ -231,35 +231,35 @@ def register(mcp: FastMCP):
         if internal_only:
             cmd.append("--internal-only")
 
-        # Pass haruspex URL to assay via env var (inherited by subprocess).
+        # Pass haruspex URL to vigil via env var (inherited by subprocess).
         if haruspex_url:
-            os.environ["ASSAY_DECISION_BASE_URL"] = haruspex_url
-        elif not os.environ.get("ASSAY_DECISION_BASE_URL"):
+            os.environ["VIGIL_DECISION_BASE_URL"] = haruspex_url
+        elif not os.environ.get("VIGIL_DECISION_BASE_URL"):
             # Auto-detect local haruspex on default port
             import socket as _sock
             for port in (3000, 3001):
                 try:
                     with _sock.create_connection(("127.0.0.1", port), timeout=0.5):
-                        os.environ["ASSAY_DECISION_BASE_URL"] = f"http://127.0.0.1:{port}"
+                        os.environ["VIGIL_DECISION_BASE_URL"] = f"http://127.0.0.1:{port}"
                         break
                 except OSError:
                     pass
 
-        # Give the subprocess a little longer than assay's own scan timeout so
+        # Give the subprocess a little longer than vigil's own scan timeout so
         # the process is not killed before it writes its report.
         stdout, stderr, code = await _run_cmd(cmd, timeout + 30, bypass_proxy=not use_proxy)
 
         if not stdout.strip():
-            return f"assay failed (exit {code}): {stderr[:500]}"
+            return f"vigil failed (exit {code}): {stderr[:500]}"
         try:
             report = json.loads(stdout)
         except json.JSONDecodeError:
-            return f"assay produced no parseable JSON (exit {code}). stderr: {stderr[:300]}"
+            return f"vigil produced no parseable JSON (exit {code}). stderr: {stderr[:300]}"
 
         scan_result = report.get("scan_result") or {}
         findings = scan_result.get("findings") or []
         if not findings:
-            return f"No findings from assay scan of {target}"
+            return f"No findings from vigil scan of {target}"
 
         order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         findings.sort(key=lambda f: order.get(str(f.get("severity", "")).lower(), 5))
@@ -271,7 +271,7 @@ def register(mcp: FastMCP):
             counts[s] = counts.get(s, 0) + 1
         summary_parts = [f"{counts.get(s, 0)}{s[0].upper()}" for s in ("critical", "high", "medium", "low") if counts.get(s)]
 
-        lines = [f"assay findings for {target}: {len(findings)} ({'/'.join(summary_parts)})", ""]
+        lines = [f"vigil findings for {target}: {len(findings)} ({'/'.join(summary_parts)})", ""]
         for f in findings[:50]:
             sev = str(f.get("severity", "?")).upper()
             name = f.get("title") or f.get("type") or "?"
@@ -296,13 +296,13 @@ def register(mcp: FastMCP):
         if len(findings) > 50:
             lines.append(f"  ... and {len(findings) - 50} more")
         lines.append("")
-        lines.append("Next: import_scan_results(format='assay') to ingest, then deepen leads with confirm_*/escalate_* tools.")
+        lines.append("Next: import_scan_results(format='vigil') to ingest, then deepen leads with confirm_*/escalate_* tools.")
 
         if auto_network_check:
             lines.append("")
             lines.append(await _network_pivot(target, scope_host))
 
-        return wrap_untrusted("\n".join(lines), source="assay")
+        return wrap_untrusted("\n".join(lines), source="vigil")
 
     @mcp.tool()
     async def run_dalfox(
@@ -362,31 +362,31 @@ def register(mcp: FastMCP):
         language: str = "auto",
         callback_url: str = "",
     ) -> str:
-        """Deploy assay IAST sensor to a target application directory.
+        """Deploy vigil IAST sensor to a target application directory.
 
         Copies the appropriate sensor file (PHP/Node.js/Python) to the
         target application. The sensor hooks dangerous functions (SQL query,
         system command, file open, unserialize, etc.) and reports taint
-        markers back to the assay IAST callback server when a DAST payload
+        markers back to the vigil IAST callback server when a DAST payload
         reaches a dangerous sink.
 
-        After deployment, run assay with --iast to start the callback
+        After deployment, run vigil with --iast to start the callback
         server and inject taint markers into DAST payloads. When the marker
-        reaches a sink, assay upgrades the finding confidence from 'medium'
+        reaches a sink, vigil upgrades the finding confidence from 'medium'
         to 'confirmed' and includes the stack trace from the sensor.
 
         Args:
             target_path: Path to the target application root directory
             language: Sensor language — auto, php, nodejs, python. Auto-detects
                 from file extensions in the target directory.
-            callback_url: IAST callback URL override (default uses assay's
+            callback_url: IAST callback URL override (default uses vigil's
                 default http://host.docker.internal:7880)
         """
-        if not _check_tool("assay"):
-            return ("Error: assay not installed. Build it: "
-                    "cd <assay repo> && go build -o ~/go/bin/assay ./cmd/assay")
+        if not _check_tool("vigil"):
+            return ("Error: vigil not installed. Build it: "
+                    "cd <vigil repo> && go build -o ~/go/bin/vigil ./cmd/vigil")
 
-        cmd = ["assay", "iast", "deploy", target_path]
+        cmd = ["vigil", "iast", "deploy", target_path]
         if language != "auto":
             cmd.extend(["--language", language])
         if callback_url:

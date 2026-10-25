@@ -8,7 +8,7 @@ for 19 AI/ML platforms.
 It runs the nuclei LLM/AI/MCP templates behind a curated tag set so the operator
 doesn't have to remember every framework name. Single call gets RCE + panel +
 sensitive-file leak across the whole LLM stack. (The general web-scan engine is
-run_assay; this tool stays on the specialised nuclei AI template collection.)
+run_vigil; this tool stays on the specialised nuclei AI template collection.)
 
 Coverage:
   - LLM serving stacks: ollama, lmstudio, openllm, vllm, llama-cpp, lmdeploy,
