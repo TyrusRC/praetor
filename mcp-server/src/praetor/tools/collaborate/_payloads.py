@@ -43,7 +43,25 @@ def register(mcp: FastMCP):
             )
         data = await client.post("/api/collaborator/payload")
         if "error" in data:
-            return f"Error: {data['error']}"
+            # Fallback: use built-in OOB server when Collaborator unavailable
+            from ._local_oob import get_local_oob
+            from ._local_oob_tools import _detect_local_ip
+            oob = get_local_oob()
+            if not oob.running:
+                oob.start()
+            if oob.running:
+                uid = oob.generate_id()
+                ip = _detect_local_ip()
+                url = f"http://{ip}:{oob.port}/{uid}"
+                return (
+                    f"Collaborator unavailable (Community edition). Using built-in OOB server.\n"
+                    f"  Payload URL: {url}\n"
+                    f"  Interaction ID: {uid}\n"
+                    f"  Server: local ({ip}:{oob.port})\n\n"
+                    f"Inject this URL into target parameters, then use get_oob_interactions(interaction_id='{uid}') to check for hits.\n"
+                    f"The target must be able to reach {ip}:{oob.port}."
+                )
+            return f"Error: {data['error']}. No fallback OOB server available."
 
         return (
             f"Collaborator Payload Generated:\n"

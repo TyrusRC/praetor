@@ -150,7 +150,7 @@ def register(mcp: FastMCP):
             "active_scan":   {"available": is_pro, "tool_examples": ["scan_url", "auto_probe"]},
             "passive_scan":  {"available": is_pro, "tool_examples": ["get_scanner_findings", "get_issues_dashboard"]},
             "collaborator":  {"available": is_pro, "tool_examples": ["generate_collaborator_payload", "auto_collaborator_test", "get_collaborator_interactions"]},
-            "logger":        {"available": is_pro, "tool_examples": ["get_proxy_history", "search_history"], "note": "Logger entries surface via proxy history + search_history. Burp's standalone Logger view has no first-party MCP tool."},
+            "logger":        {"available": True,   "tool_examples": ["get_proxy_history", "search_history"], "note": "Proxy history + search_history work on both editions via Montoya API."},
             "crawl":         {"available": is_pro, "tool_examples": ["crawl_target", "discover_attack_surface"]},
             "repeater":      {"available": True,   "tool_examples": ["send_to_repeater", "repeater_resend"]},
             "intruder":      {"available": True,   "tool_examples": ["send_to_intruder", "send_to_intruder_configured"], "note": "Community throttles Intruder heavily — prefer fuzz_parameter via MCP."},
@@ -175,7 +175,7 @@ def register(mcp: FastMCP):
             lines.append("")
             lines.append("COMMUNITY EDITION — workarounds when Pro-only tools are unavailable:")
             lines.append("  - Active scan          → auto_probe + run_vigil + run_dalfox + run_sqlmap")
-            lines.append("  - Collaborator (OOB)   → use a public DNS-wildcard provider (interact.sh) and watch with poll loops")
+            lines.append("  - Collaborator (OOB)   → built-in OOB server (auto-fallback) or interact.sh / webhook.site")
             lines.append("  - Crawl                → browser_crawl + run_katana (both work on Community)")
             lines.append("  - Logger++             → get_proxy_history + get_mcp_history")
 
