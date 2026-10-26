@@ -5,46 +5,157 @@
     "env_file_exposure": {
       "description": "Environment files exposed on web server",
       "payloads": [
-        {"method": "GET", "path": "/.env", "match": "body_regex"},
-        {"method": "GET", "path": "/.env.local", "match": "body_regex"},
-        {"method": "GET", "path": "/.env.production", "match": "body_regex"},
-        {"method": "GET", "path": "/.env.development", "match": "body_regex"},
-        {"method": "GET", "path": "/.env.backup", "match": "body_regex"},
-        {"method": "GET", "path": "/env.js", "match": "body_contains"},
-        {"method": "GET", "path": "/config.js", "match": "body_contains"}
+        {
+          "method": "GET",
+          "path": "/.env",
+          "match": "body_regex"
+        },
+        {
+          "method": "GET",
+          "path": "/.env.local",
+          "match": "body_regex"
+        },
+        {
+          "method": "GET",
+          "path": "/.env.production",
+          "match": "body_regex"
+        },
+        {
+          "method": "GET",
+          "path": "/.env.development",
+          "match": "body_regex"
+        },
+        {
+          "method": "GET",
+          "path": "/.env.backup",
+          "match": "body_regex"
+        },
+        {
+          "method": "GET",
+          "path": "/env.js",
+          "match": "body_contains"
+        },
+        {
+          "method": "GET",
+          "path": "/config.js",
+          "match": "body_contains"
+        }
       ],
       "matchers": [
-        {"type": "body_regex", "values": ["(?:API_KEY|SECRET|PASSWORD|DATABASE_URL|PRIVATE_KEY)\\s*="], "description": "Environment variables with secrets exposed"},
-        {"type": "status", "values": [200], "description": "Env file accessible"}
+        {
+          "type": "regex",
+          "values": [
+            "(?:API_KEY|SECRET|PASSWORD|DATABASE_URL|PRIVATE_KEY)\\s*="
+          ],
+          "description": "Environment variables with secrets exposed"
+        },
+        {
+          "type": "status",
+          "values": [
+            200
+          ],
+          "description": "Env file accessible"
+        }
       ]
     },
     "build_artifact_exposure": {
       "description": "Build artifacts and deployment configs accessible",
       "payloads": [
-        {"method": "GET", "path": "/.github/workflows/", "match": "status_200"},
-        {"method": "GET", "path": "/.gitlab-ci.yml", "match": "status_200"},
-        {"method": "GET", "path": "/Dockerfile", "match": "body_contains"},
-        {"method": "GET", "path": "/docker-compose.yml", "match": "body_contains"},
-        {"method": "GET", "path": "/vercel.json", "match": "status_200"},
-        {"method": "GET", "path": "/netlify.toml", "match": "status_200"},
-        {"method": "GET", "path": "/.circleci/config.yml", "match": "status_200"},
-        {"method": "GET", "path": "/Jenkinsfile", "match": "body_contains"}
+        {
+          "method": "GET",
+          "path": "/.github/workflows/",
+          "match": "status_200"
+        },
+        {
+          "method": "GET",
+          "path": "/.gitlab-ci.yml",
+          "match": "status_200"
+        },
+        {
+          "method": "GET",
+          "path": "/Dockerfile",
+          "match": "body_contains"
+        },
+        {
+          "method": "GET",
+          "path": "/docker-compose.yml",
+          "match": "body_contains"
+        },
+        {
+          "method": "GET",
+          "path": "/vercel.json",
+          "match": "status_200"
+        },
+        {
+          "method": "GET",
+          "path": "/netlify.toml",
+          "match": "status_200"
+        },
+        {
+          "method": "GET",
+          "path": "/.circleci/config.yml",
+          "match": "status_200"
+        },
+        {
+          "method": "GET",
+          "path": "/Jenkinsfile",
+          "match": "body_contains"
+        }
       ],
       "matchers": [
-        {"type": "body_contains", "values": ["FROM ", "image:", "services:", "steps:", "stage:"], "description": "CI/CD config or Dockerfile content exposed"},
-        {"type": "status", "values": [200], "description": "Build artifact accessible"}
+        {
+          "type": "word",
+          "values": [
+            "FROM ",
+            "image:",
+            "services:",
+            "steps:",
+            "stage:"
+          ],
+          "description": "CI/CD config or Dockerfile content exposed"
+        },
+        {
+          "type": "status",
+          "values": [
+            200
+          ],
+          "description": "Build artifact accessible"
+        }
       ]
     },
     "sourcemap_exposure": {
       "description": "JavaScript source maps expose original source code",
       "payloads": [
-        {"method": "GET", "path": "/main.js.map", "match": "body_contains"},
-        {"method": "GET", "path": "/app.js.map", "match": "body_contains"},
-        {"method": "GET", "path": "/bundle.js.map", "match": "body_contains"},
-        {"method": "GET", "path": "/_next/static/chunks/main.js.map", "match": "body_contains"}
+        {
+          "method": "GET",
+          "path": "/main.js.map",
+          "match": "body_contains"
+        },
+        {
+          "method": "GET",
+          "path": "/app.js.map",
+          "match": "body_contains"
+        },
+        {
+          "method": "GET",
+          "path": "/bundle.js.map",
+          "match": "body_contains"
+        },
+        {
+          "method": "GET",
+          "path": "/_next/static/chunks/main.js.map",
+          "match": "body_contains"
+        }
       ],
       "matchers": [
-        {"type": "body_contains", "values": ["\"sources\":", "\"mappings\":"], "description": "Source map with original code accessible"}
+        {
+          "type": "word",
+          "values": [
+            "\"sources\":",
+            "\"mappings\":"
+          ],
+          "description": "Source map with original code accessible"
+        }
       ]
     }
   }

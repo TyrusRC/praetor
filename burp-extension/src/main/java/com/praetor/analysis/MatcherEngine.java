@@ -47,7 +47,7 @@ public final class MatcherEngine {
     static boolean isDiscriminating(List<Map<String, Object>> matchers) {
         for (Map<String, Object> m : matchers) {
             if (m == null) continue;
-            String type = String.valueOf(m.getOrDefault("type", ""));
+            String type = normalizeType(String.valueOf(m.getOrDefault("type", "")));
             switch (type) {
                 case "status":
                     if (onlySuccessCodes(m)) continue;
@@ -200,7 +200,7 @@ public final class MatcherEngine {
             body, bodyLower, status, bodyLen, baselineLen);
 
         for (Map<String, Object> matcher : matchers) {
-            String type = (String) matcher.getOrDefault("type", "");
+            String type = normalizeType((String) matcher.getOrDefault("type", ""));
             boolean matched = MatcherTypes.matches(type, matcher, ctx, matchedDescriptions);
 
             // Unknown matcher type: fail closed. Probes whose ONLY matcher is
@@ -234,6 +234,21 @@ public final class MatcherEngine {
         "mime_changes", "reflection", "literal", "collaborator",
         "shape_fingerprint", "valid_vs_invalid_baseline"
     );
+
+    /** Normalise common KB aliases to canonical matcher types so a KB author
+     *  using "body_regex" instead of "regex" does not silently fail closed. */
+    private static final Map<String, String> TYPE_ALIASES = Map.of(
+        "body_regex",    "regex",
+        "body_contains", "word",
+        "status_not",    "not_status",
+        "word_absent",   "not_word",
+        "time_delay",    "timing",
+        "header_word",   "header"
+    );
+
+    static String normalizeType(String type) {
+        return TYPE_ALIASES.getOrDefault(type, type);
+    }
 
     static int countWords(String text) {
         if (text == null || text.isEmpty()) return 0;

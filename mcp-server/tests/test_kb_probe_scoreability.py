@@ -30,6 +30,14 @@ PASSIVE_ONLY_CONTEXTS = {
     ("cloud_webapp", "leaked_keys_in_response"),
     ("cloud_webapp", "cloud_sdk_errors"),
     ("cloud_webapp", "irsa_projected_token_persistent_harvest_2026"),
+    # cicd_exposure + default_credentials use the `payloads` schema (served
+    # by get_payloads), not the `probes` schema (consumed by auto_probe).
+    # Their matchers are matched via discover_common_files / manual probe,
+    # not auto_probe's probe→matcher pipeline.
+    ("cicd_exposure", "env_file_exposure"),
+    ("cicd_exposure", "build_artifact_exposure"),
+    ("cicd_exposure", "sourcemap_exposure"),
+    ("default_credentials", "web_admin_panels"),
 }
 
 

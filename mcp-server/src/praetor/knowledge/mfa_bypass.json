@@ -14,7 +14,14 @@
           "payload": "{{baseline}}",
           "description": "After successful password auth, skip the MFA challenge and request the post-auth page directly. If the session grants access without MFA completion, the step is skippable.",
           "matchers": [
-            {"type": "status_not", "value": [401, 403, 302]}
+            {
+              "type": "not_status",
+              "value": [
+                401,
+                403,
+                302
+              ]
+            }
           ]
         }
       ]
@@ -26,20 +33,42 @@
           "payload": "{{valid_code}}",
           "description": "Submit a previously used MFA code. If accepted, codes are not single-use.",
           "matchers": [
-            {"type": "word", "value": ["success", "authenticated", "verified"]}
+            {
+              "type": "word",
+              "value": [
+                "success",
+                "authenticated",
+                "verified"
+              ]
+            }
           ]
         }
       ]
     },
     "brute_force": {
       "description": "Brute-force short MFA codes (4-6 digits) without rate limiting",
-      "param_match": ["code", "otp", "mfa_code", "totp", "verification_code", "pin"],
+      "param_match": [
+        "code",
+        "otp",
+        "mfa_code",
+        "totp",
+        "verification_code",
+        "pin"
+      ],
       "probes": [
         {
           "payload": "000000",
           "description": "Send multiple wrong codes rapidly. Check if the account locks or if rate limiting exists. A 4-digit code has 10K combinations; without lockout it is brute-forceable.",
           "matchers": [
-            {"type": "word_absent", "value": ["locked", "too many", "rate limit", "wait"]}
+            {
+              "type": "not_word",
+              "value": [
+                "locked",
+                "too many",
+                "rate limit",
+                "wait"
+              ]
+            }
           ]
         }
       ]
@@ -51,27 +80,53 @@
           "payload": "000000",
           "description": "Submit a wrong code and observe the failure response. If the client-side checks a boolean (success:true/false), intercepting and flipping it may bypass MFA.",
           "matchers": [
-            {"type": "word", "value": ["success", "false", "invalid"]}
+            {
+              "type": "word",
+              "value": [
+                "success",
+                "false",
+                "invalid"
+              ]
+            }
           ]
         }
       ]
     },
     "null_value": {
       "description": "Send null, empty, or zero-length MFA codes",
-      "param_match": ["code", "otp", "mfa_code", "totp"],
+      "param_match": [
+        "code",
+        "otp",
+        "mfa_code",
+        "totp"
+      ],
       "probes": [
         {
           "payload": "",
           "description": "Submit empty MFA code. Some implementations skip validation on null/empty input.",
           "matchers": [
-            {"type": "status_not", "value": [400, 401, 403, 422]}
+            {
+              "type": "not_status",
+              "value": [
+                400,
+                401,
+                403,
+                422
+              ]
+            }
           ]
         },
         {
           "payload": "null",
           "description": "Submit literal 'null' as MFA code.",
           "matchers": [
-            {"type": "word", "value": ["success", "authenticated"]}
+            {
+              "type": "word",
+              "value": [
+                "success",
+                "authenticated"
+              ]
+            }
           ]
         }
       ]
@@ -82,7 +137,10 @@
         {
           "payload": "{{baseline}}",
           "description": "Check if backup codes are accepted on the MFA challenge endpoint. If the endpoint doesn't distinguish TOTP from backup codes, leaked backup codes bypass MFA permanently.",
-          "matchers": []
+          "matchers": [],
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     }

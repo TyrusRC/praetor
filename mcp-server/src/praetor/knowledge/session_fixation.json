@@ -14,27 +14,50 @@
           "payload": "{{baseline}}",
           "description": "Capture the pre-auth session cookie. Authenticate. Compare the post-auth session cookie. If the value is the same, session fixation is possible.",
           "matchers": [
-            {"type": "word", "value": ["Set-Cookie"]}
+            {
+              "type": "word",
+              "value": [
+                "Set-Cookie"
+              ]
+            }
           ]
         },
         {
           "payload": "FIXATED_TOKEN_12345",
           "description": "Set Cookie header to a fabricated session ID. Authenticate. If the server accepts the fabricated token for the authenticated session, fixation exists.",
           "matchers": [
-            {"type": "word_absent", "value": ["Set-Cookie"]}
+            {
+              "type": "not_word",
+              "value": [
+                "Set-Cookie"
+              ]
+            }
           ]
         }
       ]
     },
     "url_session_token": {
       "description": "Session token passed in URL parameter (e.g. JSESSIONID, PHPSESSID). Attacker can craft a link with their session ID.",
-      "param_match": ["JSESSIONID", "PHPSESSID", "sid", "session_id", "sessionid"],
+      "param_match": [
+        "JSESSIONID",
+        "PHPSESSID",
+        "sid",
+        "session_id",
+        "sessionid"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}?JSESSIONID=ATTACKER_CONTROLLED_SESSION",
           "description": "Append a JSESSIONID URL parameter. If the server associates this session with subsequent authenticated requests, fixation via URL exists.",
           "matchers": [
-            {"type": "word_absent", "value": ["invalid", "expired", "new session"]}
+            {
+              "type": "not_word",
+              "value": [
+                "invalid",
+                "expired",
+                "new session"
+              ]
+            }
           ]
         }
       ]
@@ -46,7 +69,12 @@
           "payload": "<meta http-equiv=\"Set-Cookie\" content=\"session=FIXATED\">",
           "description": "Inject a meta Set-Cookie tag. If the victim's browser sets the cookie from the meta tag (older browsers), fixation is possible.",
           "matchers": [
-            {"type": "word", "value": ["session=FIXATED"]}
+            {
+              "type": "word",
+              "value": [
+                "session=FIXATED"
+              ]
+            }
           ]
         }
       ]
@@ -58,7 +86,10 @@
           "payload": "{{baseline}}",
           "description": "Check if the session cookie domain attribute is set to the parent domain (e.g. .example.com). If so, any subdomain XSS or control can fix the session.",
           "matchers": [
-            {"type": "regex", "value": "domain=\\.?[a-z0-9-]+\\.[a-z]+"}
+            {
+              "type": "regex",
+              "value": "domain=\\.?[a-z0-9-]+\\.[a-z]+"
+            }
           ]
         }
       ]

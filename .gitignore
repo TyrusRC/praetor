@@ -50,3 +50,6 @@ launch-proxied-chrome.sh
 node_modules/
 integrations/dsh/**/lib/
 nikto_*.json
+
+# vigil DAST scan output dirs
+vigil-report-*/

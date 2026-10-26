@@ -50,8 +50,22 @@ def _load_all_knowledge(categories: list[str] | None = None) -> list[dict]:
     for cat in available:
         kb = _load_knowledge(cat)
         if kb and kb.get("contexts"):
-            result.append(kb)
+            # Skip checklist-only files that have no probeable contexts —
+            # they serve list_knowledge/get_knowledge for human guidance
+            # but waste serialisation and iteration in auto_probe.
+            if _has_probes(kb):
+                result.append(kb)
     return result
+
+
+def _has_probes(kb: dict) -> bool:
+    """True when at least one context carries payloads or matchers."""
+    for ctx in (kb.get("contexts") or {}).values():
+        if not isinstance(ctx, dict):
+            continue
+        if ctx.get("payloads") or ctx.get("matchers") or ctx.get("probes"):
+            return True
+    return False
 
 
 def _matches_param(param_lower: str, target: str) -> bool:

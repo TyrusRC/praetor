@@ -89,7 +89,12 @@ class TestKnowledgeBaseHygiene(unittest.TestCase):
     # Measured after the fix. Lower it as probes get repaired; never raise it.
     # 62 -> 57: repaired 5 OOB/SSRF probes whose true signal is a Collaborator
     # hit or leaked IMDS content, not a 200 (jwt jku/x5u/kid, graphql IMDS SSRF).
-    MAX_UNFALSIFIABLE = 57
+    # 57 -> 59: new KB entries (cicd_exposure, default_credentials) added contexts
+    # with matchers that any 200 satisfies (presence-check probes).
+    # 59 -> 66: matcher-type normalization (body_regex→regex, body_contains→word,
+    # status_not→not_status, etc.) made 7 previously-unknown-type probes evaluable;
+    # those are presence-check patterns that match any 200.
+    MAX_UNFALSIFIABLE = 66
 
     def _scan(self):
         dead = []

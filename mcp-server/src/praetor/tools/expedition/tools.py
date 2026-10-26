@@ -274,3 +274,60 @@ def register(mcp: FastMCP) -> None:
         """Drop a held message (do not forward it to the upstream)."""
         d = await _client.post(f"/intercept/{held_id}/drop")
         return f"Dropped held#{held_id}." if d.get("ok") else f"Error: {d.get('error', d)}"
+
+    @mcp.tool()
+    async def tcp_fuzz(
+        host: str,
+        port: int,
+        hex: str = "",
+        text: str = "",
+        protocol: str = "tcp",
+        iterations: int = 50,
+        timeout_ms: int = 2000,
+        random_seed: int = 0,
+    ) -> str:
+        """Fuzz a TCP/UDP service with mutated payloads via Expedition.
+
+        Sends the seed payload with random mutations (bit-flip, byte-set,
+        append, truncate) and collects responses. Anomalies (empty responses,
+        crashes) are flagged. The non-HTTP equivalent of fuzz_parameter.
+
+        Args:
+            host: Target host.
+            port: Target port.
+            hex: Seed payload as hex (from tcp_proxy_messages). Wins over text.
+            text: Seed payload as text/latin-1.
+            protocol: tcp (default) or udp.
+            iterations: Number of mutated payloads to send (1-500, default 50).
+            timeout_ms: Read timeout per case in ms (default 2000).
+            random_seed: Seed for the RNG (0 = time-based, for reproducibility).
+        """
+        if not hex and not text:
+            return "Error: supply a seed payload via hex= or text=."
+        body = {
+            "protocol": protocol, "host": host, "port": port,
+            "hex": hex, "text": text, "iterations": iterations,
+            "timeout_ms": timeout_ms,
+        }
+        if random_seed:
+            body["random_seed"] = random_seed
+        d = await _client.post("/fuzz", json=body)
+        if "error" in d:
+            return f"Error: {d['error']}"
+        lines = [
+            f"Fuzz complete: {d.get('iterations')} iterations, "
+            f"seed {d.get('seed_len')}B, {d.get('anomalies')} anomalies.",
+        ]
+        anomaly_idx = d.get("anomaly_indices", [])
+        if anomaly_idx:
+            lines.append(f"  Anomaly indices (empty response): {anomaly_idx}")
+        results = d.get("results", [])
+        for r in results[:10]:
+            resp_text = str(r.get("response_text", ""))[:60]
+            lines.append(
+                f"  [{r.get('index')}] in={r.get('input_len')}B "
+                f"out={r.get('response_len')}B {resp_text!r}"
+            )
+        if len(results) > 10:
+            lines.append(f"  ... ({len(results) - 10} more)")
+        return "\n".join(lines)
