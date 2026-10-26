@@ -1,11 +1,13 @@
-"""WebRTC security probes — TURN relay abuse and ICE candidate IP leak.
+"""WebRTC and QUIC security probes via expedition.
 
 The signaling channel (HTTP/WebSocket) is already covered by Burp. These
-tools test the STUN/TURN infrastructure and SDP metadata that sit outside
-the HTTP path.
+tools test the STUN/TURN infrastructure, SDP metadata, and QUIC endpoints
+that sit outside the HTTP path.
 
 probe_turn_relay: test for open TURN relay (unauthenticated Allocate).
+probe_stun_binding: STUN binding request (reflexive address discovery).
 probe_webrtc_ip_leak: parse SDP for internal IPs in ICE candidates.
+probe_quic_version: QUIC version probe via Initial packet.
 """
 
 from __future__ import annotations
@@ -222,3 +224,84 @@ def register(mcp: FastMCP) -> None:
         else:
             lines.append("No private IPs found in ICE candidates.")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def probe_quic_version(
+        host: str,
+        port: int = 443,
+        timeout_ms: int = 5000,
+    ) -> str:
+        """Send a QUIC Initial packet to probe server version support.
+
+        Sends a minimal QUIC v1 Initial and inspects the response: a Version
+        Negotiation packet lists all supported versions, a server Initial
+        confirms v1. Uses expedition's UDP Repeater.
+
+        Security value: protocol fingerprinting (is QUIC running?), version
+        enumeration, confirming HTTP/3 availability for further testing.
+
+        Args:
+            host: Target host.
+            port: QUIC port (default 443).
+            timeout_ms: Response timeout in ms.
+        """
+        from praetor.tools.expedition import _client
+        dcid = b"\x01\x02\x03\x04\x05\x06\x07\x08"
+        # QUIC v1 Initial: flags + version + DCID + SCID + token + payload
+        # Padded to 1200 bytes (RFC 9000 §14.1 minimum for Initial)
+        header = struct.pack("!B", 0xC0)  # Long header, Initial, fixed bit
+        version = struct.pack("!I", 0x00000001)
+        dcid_field = struct.pack("!B", 8) + dcid
+        scid_field = struct.pack("!B", 0)
+        token_field = b"\x00"  # 0-length token (varint)
+        # payload length as 2-byte varint (0x4000 | length)
+        overhead = 1 + 4 + 1 + 8 + 1 + 1 + 2 + 1  # 19 bytes header
+        payload_len = 1200 - overhead
+        length_field = struct.pack("!H", 0x4000 | payload_len)
+        pn = b"\x00"
+        padding = b"\x00" * (payload_len - 1)
+        packet = header + version + dcid_field + scid_field + token_field + length_field + pn + padding
+
+        d = await _client.post("/repeat", json={
+            "protocol": "UDP", "host": host, "port": port,
+            "hex": packet.hex(), "timeout_ms": timeout_ms,
+        })
+        if "error" in d:
+            return f"Error: {d['error']}"
+        resp_hex = d.get("response_hex", "")
+        resp_len = d.get("response_len", 0)
+        if resp_len == 0:
+            return (f"No response from {host}:{port}/UDP. "
+                    f"QUIC may not be enabled, or UDP is filtered.")
+
+        _VERSIONS = {
+            0x00000001: "v1 (RFC 9000)",
+            0x6B3343CF: "v2 (RFC 9369)",
+        }
+        resp = bytes.fromhex(resp_hex)
+        if len(resp) < 5:
+            return f"Response too short ({resp_len}B) for QUIC."
+        first = resp[0]
+        if first & 0x80 == 0:
+            return f"Short header response ({resp_len}B) — unexpected for Initial probe."
+        resp_version = struct.unpack("!I", resp[1:5])[0]
+        if resp_version == 0:
+            # Version Negotiation
+            lines = [f"QUIC Version Negotiation from {host}:{port}:"]
+            pos = 5
+            if pos < len(resp):
+                dcid_l = resp[pos]; pos += 1 + dcid_l
+            if pos < len(resp):
+                scid_l = resp[pos]; pos += 1 + scid_l
+            while pos + 4 <= len(resp):
+                v = struct.unpack("!I", resp[pos:pos+4])[0]
+                vname = _VERSIONS.get(v, "0x%08x" % v)
+                lines.append(f"  {vname}")
+                pos += 4
+            return "\n".join(lines)
+        else:
+            vname = _VERSIONS.get(resp_version, "0x%08x" % resp_version)
+            long_type = (first >> 4) & 0x03
+            type_name = {0: "Initial", 1: "0-RTT", 2: "Handshake", 3: "Retry"}.get(long_type, "?")
+            return (f"QUIC {host}:{port} responded with {type_name} packet, "
+                    f"version {vname}. Server supports QUIC.")
