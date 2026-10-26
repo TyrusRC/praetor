@@ -173,7 +173,7 @@ def register(mcp: FastMCP):
             return ("Error: vigil not installed. Build it: "
                     "cd <vigil repo> && go build -o ~/go/bin/vigil ./cmd/vigil")
 
-        cmd = ["vigil", "scan", target, "--json", "--timeout", f"{timeout}s"]
+        cmd = ["vigil", "scan", target, "--json", "--headless", "--timeout", f"{timeout}s"]
         if profile:
             cmd.extend(["--profile", profile])
         if rate and rate > 0:
