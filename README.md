@@ -34,7 +34,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 ```
 
 - **Web lane:** REST API on `:8111`, HTTP tunneled through Burp's proxy (`:8080`). Every probe appears in Proxy history with a Logger index.
-- **Non-HTTP lane:** [burp-expedition](https://github.com/TyrusRC/burp-expedition) — TCP/UDP proxy with per-protocol dissectors (Redis, PostgreSQL, MQTT, Modbus, gRPC, DNS). Intercept, replay, match-replace on raw wire protocols.
+- **Non-HTTP lane:** [burp-expedition](https://github.com/TyrusRC/burp-expedition) — TCP/UDP proxy with per-protocol dissectors (Redis, PostgreSQL, MySQL, MongoDB, MQTT, Modbus, DNP3, DNS, WebSocket, Protobuf, HTTP/2, STUN, QUIC). Intercept, replay, fuzz, match-replace on raw wire protocols.
 - **Network lane:** tools run directly; each action is ATT&CK-tagged in the operator log.
 - **[Haruspex](https://github.com/TyrusRC/haruspex):** optional local decision model for probe ranking and finding enrichment. Falls back to deterministic ordering when off.
 
@@ -43,7 +43,9 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 **Scan & Probe**
 - Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10, WSTG, API Top 10, and more
 - vigil as the default DAST engine with smart auto-dispatch
-- Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket, prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
+- Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket (upgrade + message injection), prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
+- API schema auto-fuzz: walk every OpenAPI/Swagger endpoint with type-aware injection payloads
+- [groma](https://github.com/TyrusRC/groma) as the default network scanner (full port range + CVE checks)
 
 **Exploit Pipeline (detect → confirm → escalate)**
 - `confirm_*` tools prove injection exists (SQLi, RCE, SSRF, SSTI, XXE, XSS, NoSQL, LDAP, XPath, XSLT, SSI, expression injection, email injection, second-order, cache deception, IDOR, race condition)
@@ -55,10 +57,11 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Auth matrix testing across roles
 
 **Network & Red Team**
-- Chained recon pipeline: nmap discovery → service enum → leads → auto-loot → web-lane bridge
+- Default scan pipeline: groma (full port range + CVE checks) → nmap (service enum + NSE) → auto-loot → web-lane bridge
 - Sanctioned runner for impacket, netexec, responder, BloodHound, certipy, kerbrute, evil-winrm
 - Credential capture → offline crack → store → reuse loop
 - BloodHound/certipy ingestion into ATT&CK-tagged operator log
+- Non-HTTP protocol testing via burp-expedition: relay, intercept, fuzz, repeat for TCP/UDP services
 
 **Browser & Recon**
 - Stealth headless browser (CloakBrowser) routed through Burp
@@ -73,11 +76,17 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Export: SARIF, JUnit XML, HTML engagement graph, platform-specific (HackerOne, Bugcrowd)
 - Engagement narrative graph (goal→intent→fact→finding→asset) with interactive HTML viewer
 
+**Protocol & Transport**
+- HTTP/2 attacks: CL desync smuggling, rapid reset (CVE-2023-44487), CONTINUATION flood (CVE-2024-27983)
+- WebRTC/STUN/TURN: open relay detection, STUN binding, ICE candidate IP leak from SDP
+- QUIC: version probe and Initial packet fingerprinting (SNI/ALPN extraction)
+- Built-in OOB callback server for blind testing without Burp Collaborator
+
 **Additional Lanes**
 - **Mobile:** Frida + adb dynamic testing, APK decompile, deep-link and WebView abuse. Full MASTG via [centurion](https://github.com/TyrusRC/centurion)
 - **Cloud:** prowler, scout-suite, pacu, IaC scanning, container/K8s security
 - **LLM/MCP:** prompt injection, tool poisoning, system-prompt leakage, OWASP LLM/AI Top 10
-- **Fuzzing:** structure-aware file upload fuzzing, AFL integration, crash triage
+- **Fuzzing:** structure-aware file upload fuzzing, AFL integration, crash triage, TCP/UDP protocol fuzzing via expedition
 
 **Safety**
 - HARD tool-layer blocks on destructive payloads (non-overridable)
@@ -137,13 +146,19 @@ Works with Claude Code, Codex, Gemini CLI, Cursor, Windsurf, Antigravity, DeepSe
 ### Web lane
 
 ```
-configure_scope → browser_crawl → auto_probe → assess_finding → save_finding → generate_report
+configure_scope → run_vigil (automated DAST) → browser_crawl → auto_probe → assess_finding → save_finding → generate_report
 ```
 
 ### Network lane
 
 ```
-run_network_recon → crack_hashes → run_network_tool (lateral) → sync_to_ghostwriter
+run_groma (full port scan + CVE) → run_network_recon (service enum) → crack_hashes → run_network_tool (lateral) → sync_to_ghostwriter
+```
+
+### Non-HTTP protocols
+
+```
+tcp_proxy_add_listener → (client traffic) → tcp_proxy_messages → tcp_repeat / tcp_fuzz → save_finding
 ```
 
 ## Configuration
@@ -202,7 +217,7 @@ For eager-loading hosts (Codex, dsh), set `PRAETOR_PROFILE` to advertise a small
 
 **Professional** — full support.
 
-**Community** — supported with fallbacks. `auto_probe` + `fuzz_parameter` replace the active scanner; operator-supplied OOB callbacks replace Collaborator; `concurrent_requests` bypasses Intruder throttling. Run `check_pro_features()` at session start.
+**Community** — supported with fallbacks. `auto_probe` + `run_vigil` replace the active scanner; the built-in OOB callback server auto-activates when Collaborator is unavailable; `concurrent_requests` bypasses Intruder throttling. Run `check_pro_features()` at session start.
 
 ## Supported Platforms
 

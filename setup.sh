@@ -354,7 +354,7 @@ else
         || warn "Haruspex clone failed — clone manually: git clone https://github.com/TyrusRC/haruspex.git \"$HARUSPEX_DIR\""
 fi
 if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
-    (cd "$HARUSPEX_DIR" && uv pip install -e . 2>&1 | tail -1)
+    (cd "$HARUSPEX_DIR" && uv venv 2>/dev/null || true && uv pip install -e . 2>&1 | tail -1)
     if (cd "$HARUSPEX_DIR" && uv run python -c "import haruspex" 2>/dev/null); then
         ok "Haruspex installed"
         mkdir -p "$HARUSPEX_DIR/runs"
@@ -433,7 +433,7 @@ if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
             warn "Or train locally: cd $HARUSPEX_DIR && uv run python -m haruspex.train --train data/security_train.jsonl --out runs/security"
         fi
     else
-        warn "Haruspex install failed — install manually: cd $HARUSPEX_DIR && uv pip install -e ."
+        warn "Haruspex install failed — install manually: cd $HARUSPEX_DIR && uv venv && uv pip install -e ."
     fi
 fi
 
