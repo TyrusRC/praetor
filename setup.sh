@@ -465,7 +465,7 @@ echo ""
 echo "════════════════════════════════════════════════════"
 echo "  Phase 3: Recon Tools (core — web lane)"
 echo "════════════════════════════════════════════════════"
-info "These tools enhance reconnaissance. They are NOT required."
+info "Installing core recon + attack tools (web + network lanes)."
 echo ""
 
 install_pd_tool() {
