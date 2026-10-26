@@ -55,6 +55,13 @@ def _evidence_ref(finding: dict) -> str:
             return f"Burp proxy_history_index={ev['proxy_history_index']}"
         if ev.get("oplog_id"):
             return f"operator-log {ev['oplog_id']}"
+        if ev.get("expedition_connection_id") is not None:
+            parts = [f"expedition conn={ev['expedition_connection_id']}"]
+            if ev.get("expedition_message_id") is not None:
+                parts.append(f"msg={ev['expedition_message_id']}")
+            if ev.get("expedition_upstream"):
+                parts.append(f"upstream={ev['expedition_upstream']}")
+            return " ".join(parts)
     return ""
 
 
@@ -146,9 +153,11 @@ def map_finding_to_oplog(finding: dict) -> dict:
     sev = (finding.get("severity") or "").upper()
     vt = finding.get("vuln_type", "")
     ev_ref = _evidence_ref(finding)
+    ev = finding.get("evidence") or {}
+    is_expedition = isinstance(ev, dict) and ev.get("expedition_connection_id") is not None
     return {
         "oplog": config.GHOSTWRITER_OPLOG_ID,
-        "tool": "praetor-finding",
+        "tool": "expedition" if is_expedition else "praetor-finding",
         "destIp": finding.get("endpoint", ""),
         "userContext": vt,
         "command": finding.get("poc_request", "") or finding.get("title", ""),

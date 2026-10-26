@@ -15,7 +15,7 @@ from praetor.tools import (
     sca, llm_redteam, k8s_audit, vulnwalker, httpql,
     cloud_audit, iac_scan, ci_audit, visual_easm,
     source_aware, mantis_audit, benchmark, mobile, cua_probe, sast_handoff, pyexploit,
-    http3_probe, local_llm, mcptox, expedition,
+    http3_probe, h2_probe, local_llm, mcptox, expedition,
     web_llm_sweep, grpc_probe, saml_xsw_probe, dns_rebind_probe,
     postmessage_probe, csp_analyzer, sse_probe, scan_llm_infra,
     auth_negotiate, mcp_jsonrpc_probe,
@@ -237,6 +237,7 @@ cua_probe.register(mcp)        # probe_cua_injection_surface — detects CUA-hij
 sast_handoff.register(mcp)     # sast_to_endpoint_risk / risk_rank_endpoints — SAST → DAST handoff (W22-e)
 pyexploit.register(mcp)        # run_pyexploit — Python exploit-dev sandbox (W23-a / Strix-parity)
 http3_probe.register(mcp)      # probe_http3_downgrade — HTTP/3 reachability + H2/H3 fingerprint differential (W27-a)
+h2_probe.register(mcp)        # probe_h2_smuggling + probe_h2_rapid_reset + probe_h2_continuation_flood — HTTP/2 framing attacks
 local_llm.register(mcp)        # probe_local_llm + run_local_llm_prompt_injection — Ollama / LM Studio / llama.cpp routing (W27-b)
 mcptox.register(mcp)           # run_mcptox — MCP-server self-audit (W27-c, heuristic + license-gated corpus)
 web_llm_sweep.register(mcp)    # discover_llm_endpoint + run_web_llm_owasp_top10 — Invicti BLOCKER closure (W29-a)

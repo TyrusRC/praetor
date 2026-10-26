@@ -26,6 +26,7 @@ Shared helpers in `_helpers.py`. Tool-specific constants live in their own files
 from mcp.server.fastmcp import FastMCP
 
 from praetor.tools.testing_extended import (
+    api_fuzz,
     api_schema,
     business_invariants,
     business_logic,
@@ -48,6 +49,7 @@ from praetor.tools.testing_extended import (
 
 
 def register(mcp: FastMCP):
+    api_fuzz.register(mcp)
     api_schema.register(mcp)
     business_invariants.register(mcp)
     business_logic.register(mcp)
