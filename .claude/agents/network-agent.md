@@ -17,7 +17,10 @@ You own the **non-Burp** network/AD lane. Burp's HTTP proxy can't touch TCP/SMB/
 
 ## FIRST-MOVE PLAYBOOK
 ```
-1. run_network_recon(target, domain[, creds])   # ONE call: nmap discover ->
+0. run_groma(target)                            # FIRST: full port range + CVE checks.
+     Finds every open port (not a sampled top-N), version fingerprints,
+     and matches against known CVEs. HTTP services → web lane bridge.
+1. run_network_recon(target, domain[, creds])   # nmap discover ->
      per-service enum (SMB/LDAP/RPC/MSSQL/Kerberos) -> leads (anon access,
      roastable hashes, SMB signing off, Pwn3d!) -> auto-loot -> web-lane bridge.
 2. Capture -> crack -> reuse loop:

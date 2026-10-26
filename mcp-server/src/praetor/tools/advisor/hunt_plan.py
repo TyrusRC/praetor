@@ -52,31 +52,44 @@ async def get_hunt_plan_impl(
     lines.append("       MCP-side equivalents listed in that tool's output.")
     lines.append("")
 
-    # Phase 1: Recon
-    lines.append("PHASE 1 — RECON (do these first, in order):")
+    # Phase 1: Auto-scan (vigil web + groma network)
+    lines.append("PHASE 1 — AUTO-SCAN (run both default engines first):")
+    lines.append(f"  1. run_vigil(target='{target_url}', profile='thorough')")
+    lines.append("     → Default web DAST: OWASP Top 10 + WSTG, 110+ detectors.")
+    lines.append("       Covers SQLi/XSS/CMDi/SSTI/SSRF/XXE and more. Run FIRST.")
+    lines.append(f"  2. run_groma(target='{target_url.split('//')[1].split('/')[0] if '//' in target_url else target_url}')")
+    lines.append("     → Default network scanner: full port range + CVE checks.")
+    lines.append("       Finds non-web services, open ports, version-matched CVEs.")
+    lines.append("       HTTP services found are bridged to the web lane.")
+    lines.append("  3. import_scan_results(path=<vigil output>, fmt='vigil')")
+    lines.append("     → Merge vigil findings into findings.json for the pipeline.")
+
+    # Phase 2: Recon (fill gaps the auto-scans missed)
+    lines.append("")
+    lines.append("PHASE 2 — RECON (fill gaps auto-scans missed):")
     lines.append(f"  1. browser_crawl('{target_url}', max_pages=20)")
-    lines.append("     → Populates proxy history through Burp proxy")
-    lines.append("  2. get_proxy_history(limit=50)")
-    lines.append("     → Review captured endpoints")
-    lines.append("  3. detect_tech_stack(index=<first_200_response>)")
-    lines.append("     → Confirm tech stack detection")
-    lines.append("  4. smart_analyze(index=<most_interesting_page>)")
-    lines.append("     → Get injection points, params, forms")
+    lines.append("     → SPA routes and JS-rendered pages vigil may not crawl")
+    lines.append("  2. detect_tech_stack(index=<first_200_response>)")
+    lines.append("     → Confirm tech stack from proxy history")
+    lines.append("  3. smart_analyze(index=<most_interesting_page>)")
+    lines.append("     → Injection points, params, forms for manual testing")
 
     if "angular" in techs or "react" in techs:
-        lines.append("  5. extract_js_secrets(index=<js_file>)")
+        lines.append("  4. extract_js_secrets(index=<js_file>)")
         lines.append("     → JS frameworks often leak API keys and internal URLs")
 
-    # Phase 2: Probe
+    # Phase 3: Targeted probe (beyond what vigil covers)
     lines.append("")
-    lines.append("PHASE 2 — PROBE (test these vuln categories in order):")
+    lines.append("PHASE 3 — TARGETED PROBE (classes vigil does not cover):")
+    lines.append("  vigil covers injection + headers + CVEs. Use auto_probe for:")
+    lines.append("  - Business logic, auth matrix, race conditions, mass assignment")
+    lines.append("  - KB edge cases vigil does not test")
     for i, vuln in enumerate(vuln_priority[:6], 1):
-        tool = "auto_probe" if i <= 3 else "probe_endpoint"
-        lines.append(f"  {i}. {vuln}: use {tool} with category='{vuln}'")
+        lines.append(f"  {i}. {vuln}: auto_probe(categories=['{vuln}'])")
 
-    # Phase 3: Specialized tests
+    # Phase 4: Specialized tests
     lines.append("")
-    lines.append("PHASE 3 — SPECIALIZED TESTS:")
+    lines.append("PHASE 4 — SPECIALIZED TESTS:")
     if "graphql" in techs:
         lines.append("  - test_graphql() — introspection, batch queries, field suggestions")
     if any(t in techs for t in ["api", "default", "node", "express", "rails", "django"]):
@@ -85,9 +98,9 @@ async def get_hunt_plan_impl(
     lines.append("  - discover_common_files() — .git, .env, debug, actuator")
     lines.append("  - test_jwt() — if JWT tokens found in cookies/headers")
 
-    # Phase 4: Verify
+    # Phase 5: Verify
     lines.append("")
-    lines.append("PHASE 4 — VERIFY (for each suspected finding):")
+    lines.append("PHASE 5 — VERIFY (for each suspected finding):")
     lines.append("  1. Reproduce 3x with session_request()")
     lines.append("  2. Compare against baseline response")
     lines.append("  3. Check 7-Question Gate before reporting")

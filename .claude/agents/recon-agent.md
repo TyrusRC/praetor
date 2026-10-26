@@ -13,11 +13,14 @@ You map the target's attack surface in parallel with other analysis. You do NOT 
 ```
 1. brief = target_brief(domain)          # one-call orientation (Spec E)
 2. if brief.exists == False OR check_target_freshness says stale:
+       run_vigil(target, profile='thorough')  # FIRST: automated DAST coverage
+       run_groma(target)                      # full port range + CVE checks
        run_recon_phase(url) + discover_attack_surface(domain) + discover_common_files
        discover_llm_endpoint(url)       # closes LLM-Top-10 surface
    else: use brief.next_actions to fill only the gaps (don't re-discover)
-3. for top-5 captured in proxy history: smart_request_triage(index)
-4. save_target_intel(domain, ...) per phase
+3. import_scan_results(path=<vigil output>, fmt='vigil')  # merge into findings
+4. for top-5 captured in proxy history: smart_request_triage(index)
+5. save_target_intel(domain, ...) per phase
 ```
 
 Covers Rule 20a (session-start gate). If `dns_only` signal in subdomain set → load `recon-takeover.md`.
