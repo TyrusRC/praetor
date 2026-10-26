@@ -3,304 +3,115 @@
 *Agentic pentest & red-team harness — web (Burp) + network/AD, one operator log.*
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/TyrusRC/praetor/releases)
 [![Java](https://img.shields.io/badge/java-21%2B-blue)](https://adoptium.net/temurin/releases/?version=21)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io/)
-[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows%20%7C%20wsl-blue)](#supported-platforms)
 
-> **v1.0** — the repo is `github.com/TyrusRC/praetor`. Binaries: `praetor-mcp` (MCP server) and `praetor-burp-ext-<version>.jar` (Burp extension). The Python package directory is `praetor/` (import-path rename completed in v1.1).
+Praetor is an MCP server that turns Claude Code (or any MCP client) into an agentic pentester and red-teamer. Two co-equal lanes share one evidence model, one save-finding pipeline, and one operator log:
 
-Praetor is a Model Context Protocol (MCP) server that turns Claude Code (or any MCP-aware LLM client) into an agentic pentester and red-teamer across **two co-equal lanes**:
+- **Web lane** — Burp Suite as the execution engine. Knowledge-driven probe engine, native vuln-class orchestrators, an exploit confirm→escalate pipeline, browser automation, and [vigil](https://github.com/TyrusRC/vigil) as the default DAST scanner. Every request routes through Burp.
+- **Network lane** — nmap, impacket, netexec, responder, BloodHound, certipy, and offline cracking. MITRE ATT&CK–tagged operator log with loot chain-of-custody.
 
-- **Web lane (Burp):** HTTP capabilities, scanner, sitemap, proxy history, and Collaborator, plus a knowledge-driven probe engine (160 knowledge categories, 992 probe contexts, 1,814 probes), SAST + secrets layer (opengrep / gitleaks / trufflehog / git-dumper / Noir), and native vuln-class orchestrators. vigil (113 native detectors covering OWASP Top 10 + WSTG + API Top 10, 12 tool integrations with smart auto-dispatch, OGNL/Struts2 SSTI, tiered parameter testing, proof-based verification, IAST, and CVSS 4.0 mapping) is the default DAST engine — run it first for automated coverage, then deepen leads with praetor's confirm_*/escalate_* tools (including confirm_xss, confirm_idor, confirm_race_condition). Every request routes through Burp, so every finding is replayable from the Burp UI and citable by Logger index.
-- **Network / red-team lane:** advanced network recon and post-exploitation that Burp can't see — `run_network_recon` (a chained discover → service-aware enum → leads pipeline), `run_nmap`, a sanctioned runner for impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm, offline cracking (`crack_hashes`), and a reusable **credential store**. Every action is recorded in a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody** — the non-Burp evidence a red-team report cites in place of a Logger index.
+Supporter lanes (mobile, cloud, LLM/MCP security) plug into the same model. Both lanes forward into [Ghostwriter](https://github.com/GhostManager/Ghostwriter) as an optional reporting hub.
 
-Both lanes forward into **[Ghostwriter](https://github.com/GhostManager/Ghostwriter)** as the central reporting/oplog hub, and share one save-finding pipeline with persistent target memory. **Nothing in Praetor is an optional add-on tool** — the web stack (vigil/ffuf/sqlmap/…) and the network stack (nmap/netexec/impacket/…) are both core. Supporter lanes (**mobile** — MASTG/Frida/jadx; **cloud** — prowler/scout-suite/pacu; **LLM/AI + MCP** — prompt-injection / tool-poisoning) plug into the same evidence model.
+## Quick Start
 
-## Table of Contents
+```sh
+git clone https://github.com/TyrusRC/praetor.git && cd praetor
+./setup.sh                # builds extension, installs server, writes .mcp.json
+./doctor.sh               # verify
+```
 
-- [Authorized Use](#authorized-use)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Requirements](#requirements)
-  - [Burp Edition Compatibility](#burp-edition-compatibility)
-- [First-Time Setup](#first-time-setup)
-- [Installation](#installation)
-  - [Install into your agent](#install-into-your-agent-claude-code-codex-gemini-antigravity-)
-  - [Skills, rules & agents on other hosts](#skills-rules--agents-on-other-hosts)
-- [Configuration](#configuration)
-  - [WSL (Burp on the Windows host)](#wsl-burp-on-the-windows-host)
-  - [Environment Variables](#environment-variables)
-- [Usage](#usage)
-  - [Commands (Claude Code)](#commands-claude-code)
-  - [Ghostwriter reporting hub](#ghostwriter-reporting-hub)
-  - [Haruspex decision engine](#haruspex-decision-engine)
-- [Tool Surface](#tool-surface)
-- [MCP Prompts](#mcp-prompts)
-- [MCP Resources](#mcp-resources)
-- [Knowledge Base](#knowledge-base)
-  - [Coverage](#coverage)
-  - [Scope & Non-Goals](#scope--non-goals)
-- [Save-Finding Pipeline](#save-finding-pipeline)
-- [Severity & CVSS Scoring](#severity--cvss-scoring)
-- [Safety Model](#safety-model)
-- [Skills](#skills)
-- [Agents](#agents)
-- [Supported Platforms](#supported-platforms)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Authorized Use
-
-This is an offensive security tool. Use only on systems where you have explicit written permission to test (bug bounty scope, signed penetration test, red team contract, internal lab). The authors are not responsible for misuse.
+Load `target/praetor-burp-ext-*.jar` in Burp (*Extensions → Add → Java*), reload your MCP client, and run `check_pro_features()` to confirm the link.
 
 ## Architecture
 
 ```
-                                      ┌─ web lane ──────> Java Burp extension <- Montoya -> Burp Suite
-                                      │                     (127.0.0.1:8111, proxy :8080)
-LLM client <- stdio MCP -> MCP server ┤─ non-HTTP lane ─> burp-expedition extension <- Montoya -> Burp Suite
-                                      │  (tcp_* tools)       (control API 127.0.0.1:18112)
-                                      └─ network lane ──> nmap / impacket / netexec / responder / ...
-                                                            (bypass Burp; operator log + loot)
-                          all lanes ─> Ghostwriter (GraphQL) : central reporting / oplog hub
-                          decisions ─> Haruspex (127.0.0.1:3000) : calibrated verdict enrichment
+                                    ┌─ web lane ──────> Java Burp extension (127.0.0.1:8111)
+LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition extension (:18112)
+                                    └─ network lane ──> nmap / impacket / netexec / ...
+                        all lanes ─> Ghostwriter (optional) · Haruspex decision engine (optional)
 ```
 
-- **Web lane:** the Java extension exposes a REST API on `127.0.0.1:8111` and tunnels HTTP through Burp's proxy listener (`127.0.0.1:8080`), so every probe appears in Proxy history and carries a Logger index.
-- **Non-HTTP lane:** the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (a second jar loaded in Burp) exposes a control API on `127.0.0.1:18112` and relays raw TCP/UDP through a Netty proxy with per-protocol dissectors. The `tcp_*` tools drive it for DB / Redis / MQTT / Modbus / DNP3 / gRPC / custom-binary testing. Evidence is the expedition connection/message id.
-- **Network lane:** external tools run directly (TCP/SMB/LDAP/Kerberos — Burp can't proxy them); each run is recorded in the operator log (`.burp-intel/<domain>/network/oplog.jsonl`, ATT&CK-tagged) with output under `material/tool-output/` and captured secrets in `network/loot/`. That operator-log id is the evidence a network finding cites.
-- The Python MCP server is a thin client the LLM speaks to via stdio.
-- Target intelligence, the operator log, loot, and the credential store all persist under `.burp-intel/<domain>/` (gitignored).
-- **Core reporting + collaboration hub:** `engagement_graph(format='html')` renders a single self-contained HTML page both lanes feed — findings, the ATT&CK operator log, assets, the kill-chain graph, and the report, plus a per-finding human-triage layer the agent reads back (`import_engagement_review`). Zero external services. **Ghostwriter** (GraphQL) is the optional advanced hub for multi-operator full-flow.
+- **Web lane:** REST API on `:8111`, HTTP tunneled through Burp's proxy (`:8080`). Every probe appears in Proxy history with a Logger index.
+- **Non-HTTP lane:** [burp-expedition](https://github.com/TyrusRC/burp-expedition) — TCP/UDP proxy with per-protocol dissectors (Redis, PostgreSQL, MQTT, Modbus, gRPC, DNS). Intercept, replay, match-replace on raw wire protocols.
+- **Network lane:** tools run directly; each action is ATT&CK-tagged in the operator log.
+- **[Haruspex](https://github.com/TyrusRC/haruspex):** optional local decision model for probe ranking and finding enrichment. Falls back to deterministic ordering when off.
 
 ## Features
 
-- MCP tool surface covering recon, scan, exploit, browser, auth, research, and reporting.
-- HTTP send tools that route through Burp's proxy (curl-style, raw, repeater, intruder, concurrent).
-- Response extraction, deterministic and LLM-assisted: `extract_regex` / `extract_json_path` / `extract_css_selector` (keyless), plus `markdownify` (keyless HTML→Markdown reducer) and `extract_structured` (optional-LLM NL/schema extraction) — all over a **captured** `proxy_history_index`, never a non-proxied scrape.
-- Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10 (Web / API / LLM / Mobile), OWASP WSTG, PayloadsAllTheThings, HackTricks Web + Cloud — see the [Coverage](#coverage) table.
-- Decision engine (the Jev pattern) — a calibrated model layer for *which template/probe is relevant to this target* and *which hit to verify first*: `decision_status` / `decide_relevance` / `decide_questions`. Three backends in priority order: (1) **[Haruspex](https://github.com/TyrusRC/haruspex)** — a local, self-hosted decision model with per-domain adapters (web/cloud/llm/mobile/network), pre-trained and downloaded during setup (~150 MB); (2) TypeSafe **Jev** via Vercel AI Gateway (`AI_GATEWAY_API_KEY`); (3) any `PRAETOR_LLM_*` provider; or **off** → the deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope (`decide`) stay in force. It **orders**, never drops coverage (Rule 19). Haruspex is wired into two hot paths: `prioritise_with_haruspex()` ranks probe contexts inside `auto_probe` (so the most relevant probes fire first within a budget), and `enrich_with_haruspex()` layers a calibrated probability onto every `assess_finding` verdict (fail-open — the deterministic verdict is never altered).
-- Native vuln-class orchestrators where no third-party covers the surface: `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-modeled, multi-phase: polyglot → math distinguisher → engine-specific capability probes → optional blind sleep), `test_xxe`, `test_websocket` (CSWSH upgrade-handshake), `test_prototype_pollution`.
-- Native auth attack tooling with zero external deps: `forge_jwt` (8 attack modes), `crack_jwt_secret` (HS dictionary), `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens` (entropy + sequential detection).
-- XSS execution → impact: `probe_xss_executed` proves a payload runs (headless dialog hook), then `xss_impact_proof` escalates it to a benign, evidence-backed session-theft PoC — an OOB beacon of the minimum marker to a Burp Collaborator / operator callback (own-session or lab victim-bot only; not a keylogging C2).
-- External scan engines + wrappers proxied through Burp: vigil (the default web-scan engine), sqlmap, dalfox, commix, ffuf, katana, subfinder, amass, wafw00f, arjun, gau, waybackurls, wpscan, nikto.
-- **Network / red-team lane**: `run_network_recon` chains nmap discovery → service-aware enumeration → prioritized leads → auto-loot, and bridges discovered web services back to Burp. A sanctioned runner drives impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm; `crack_hashes` (offline hashcat/john) plus a credential store close the capture → crack → reuse loop. Every action is logged to a **MITRE ATT&CK-tagged operator log** with **loot chain-of-custody**, and forwards to **Ghostwriter**. HARD safety (Rules 5–9) refuses destructive/brute args; scope is engagement-mode-aware.
-- **SAST + secrets layer (v1.0)**: `audit_crawled_artifacts` opengrep-over-proxy-bodies (DOM clobbering / proto pollution / postMessage), `run_mantis` source-tree SAST (OpenGrep + multi-engine + optional LLM triage/deep review), `run_gitleaks` + `run_trufflehog` (live verification = HIGH severity floor), `dump_exposed_git` chains with `discover_common_files` `.git/HEAD` to reconstruct repo + extract secrets. Noir OpenAPI ingest via `import_scope --format noir_json`.
-- **Active LLM/MCP probes (v1.0)**: `ai_prompt_injection`, `rag_injection`, `mcp_server_attacks`, `mcp_tool_poisoning`, `vector_db_injection`, `echoleak` (CVE-2025-32711). Declarative prompt-injection guardrail (`inspect_for_prompt_injection`).
-- **CI integration (v1.0)**: SARIF 2.1.0 + JUnit XML exporters, compliance-framework tags (OWASP / PCI-DSS / HIPAA / SOC2 / GDPR / CWE), `intensity=safe|normal|aggressive` flag, per-engagement cost cap (`set_engagement_cost_cap`), auto-PoC `generate_repro_script` rendering runnable curl from the finding's proxy_history_index.
-- **Report evidence capture**: `burp_screenshot` grabs the live Burp GUI — any tab / nested sub-tab, a specific Proxy-history or Logger row, an optional button click — occlusion-immune via `Component.printAll` (no window-focus theft, non-disruptive: the operator's view is snapshotted and restored). `auto_redact_screenshot` OCR-detects secrets (cookies / tokens / keys / JWTs / emails, free `tesseract`) and writes a **redacted twin** beside the naked shot — a coarse, non-invertible pixel-mosaic over the value's trailing half, or a solid irreversible fill. The redacted twin is what attaches to the finding, so `generate_report` (inline image embeds) and `export_poc_bundle` never ship a raw secret; `screenshot_gallery` builds an offline contact sheet.
-- Save-finding pipeline with a 7-question gate (`assess_finding`) and per-program policy overrides.
-- **False-positive defenses**: payload-tied reflection-liveness (a payload reflected only HTML/JS-encoded is not XSS), dual-baseline access-control check (`compare_auth_states` probes unauthenticated — public data is not an IDOR), OOB-mandatory verdicts for blind classes (blind SSRF/XXE/XSS need a resolved Collaborator interaction), AND-composed matchers with baseline deltas, and ≥3× replay for timing/blind classes.
-- **Confidence calibration (RLCD-inspired)**: a verdict's `confidence` is a predicted probability, so it is scored against reality instead of asserted. A finding re-confirmed on `record_retest` (true positive) or deleted via `mark_finding_false_positive` (false positive) feeds a global ledger; `calibration_report` surfaces per-class over/under-confidence (reliability bins, Brier score, ECE) with a data-driven suggested confidence, so the constants that drive `is_actionable` and Rule-33 escalation are tuned from outcomes, not eyeballed. `record_calibration_outcome` folds in external ground truth (a triager accept/reject).
-- Stealth headless browser ([CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — patched Chromium binary with source-level fingerprint fixes, not JS shims) that proxies through Burp.
-- Fast history queries: `get_proxy_count` (sub-ms), `since_index` tail polling, `host` exact-match filter, ByteArray in-place body search.
-- Persistent target memory with staleness detection and cross-target pattern reuse.
-- **Engagement-narrative graph**: a first-class `goal → intent → fact → finding → asset` lineage (`record_goal` / `record_intent` / `record_fact` / `link_finding` / `engagement_graph`) over `.burp-intel`, capturing the pre-finding reasoning the finding stores don't. `engagement_graph` renders `text` / `mermaid` / `json`; a **standalone interactive `html` page** (`format='html'` → `reports/<domain>-engagement.html`: a Wiz-style cytoscape security graph with a Flow/Force layout toggle, header count chips, and Security-Graph / Operations / Findings / Assets / Report tabs — just open it in a browser, **no npm, no plugin, no server**); or a `dsh` replay that mirrors into [`dsh-pentest`](https://github.com/howmp/dsh-pentest)'s **native** view — same vocabulary, so Praetor (the moves) and dsh-pentest (the map) interoperate on DeepSeek Harness. The `dsh` path needs dsh-pentest's own npm plugin loaded in dsh; the `html` path is the plugin-free UI on any host. See [Viewing the engagement graph](#viewing-the-engagement-graph).
-- **Runs in any MCP host**: Claude Code, Codex, Gemini CLI, Antigravity, Cursor, Windsurf, VS Code, DeepSeek Harness — one stdio launch, per-host configs in [`examples/mcp-clients/`](examples/mcp-clients/). Everything Claude Code auto-loads from disk — the hunting/engineering rules, the project CLAUDE.md, the skill library, the workflow-launcher prompts, and the agent-team playbooks — is also exposed as **tools** (`praetor_bootstrap` → `get_rules` / `list_skills`+`get_skill` / `list_prompts`+`get_prompt` / `list_agents`+`get_agent`), so a host that bridges Tools-only (dsh, Codex, …) reaches the full operating context. Non-Claude hosts call `praetor_bootstrap()` first; a host that spawns its own sub-agents gives each one a `get_agent(<name>)` playbook and maps its `tier` to the nearest local model, exactly as Claude Code dispatches them.
-- Operator override surfaces for severity, scope filter, NEVER-SUBMIT class, confidence floor.
-- **Mobile lane (MASTG/MASVS)**: dynamic via Frida + adb (SSL-pinning / root-detection bypass, exported-component + deep-link abuse, `phone-control` device driver) and **static** via `mobile_decompile_apk` (jadx decompile → exported-component attack surface, risky manifest flags, secret/endpoint leads → SAST handoff to `run_mantis`). UI driving goes beyond raw taps: `mobile_locate` finds an element by its visible label (accessibility-tree first, OCR fallback for Compose/Flutter/Canvas), and `mobile_run_flow` runs a verified multi-step UI journey (tap-by-label / input / swipe / key / deeplink / wait / assert_text) for authenticated mobile business-logic testing. Findings cite `apk_sha256` / `package_name` / Frida output. For the full OWASP MASTG toolset (iOS binary static — class-dump / otool hardening / ldid entitlements / frida-ios-dump; Android apkid / apkleaks / apksigner; drozer / objection) the **[centurion](https://github.com/TyrusRC/centurion)** mobile engine (a core companion MCP server, `setup.sh` installs it; see `examples/mcp-clients/claude-code.mcp.json`) adds it alongside.
-- **Cloud lane**: `run_prowler` / `run_scout_suite` / `run_pacu` (AWS/Azure/GCP audit + exploitation), IaC scanning (`run_checkov` / `run_tfsec` / `run_terrascan`), container/K8s (`run_trivy` / `run_kube_hunter` / `run_kdigger` / `run_peirates`), and cloud-webapp KB (IMDS/SSRF-to-creds chains).
-- **Non-HTTP proxy lane ([burp-expedition](https://github.com/TyrusRC/burp-expedition))**: for the TCP/UDP protocols Burp can't proxy (Redis, MySQL/PostgreSQL, MongoDB, MQTT, Modbus/DNP3 ICS, gRPC, DNS, game/IoT). This is a **second Burp extension** — a core lane, not optional. `setup.sh` / `setup.ps1` clone and build it next to the Praetor extension; load its jar in Burp the same way (it serves a loopback control API on `:18112`, override with `EXPEDITION_API_PORT`; `doctor.sh` reports it). `tcp_proxy_add_listener` stands up an explicit-proxy relay (optional TLS MITM), `tcp_proxy_connections` / `tcp_proxy_messages` read captured traffic as evidence, `tcp_repeat` is the Repeater (send a raw payload, read the reply), `tcp_match_replace_*` rewrites relayed bytes, and `tcp_intercept_*` drives the live hold/edit/forward/drop queue. Playbook: `.claude/skills/non-http-protocol-testing.md`.
-- **Exposure-aware severity + CVSS** (see [Severity & CVSS Scoring](#severity--cvss-scoring)): `network_exposure` (internal / ip_allowlist / vpn_only / local / physical) drives CVSS 4.0 Modified Attack Vector and `exploit_demonstrated` drives Exploit Maturity, so an IP-allowlisted backend scores its true internal risk instead of a raw CRITICAL — the vector and inferred severity follow the real FIRST.org environmental score.
-- **Verdict-trust calibration**: on top of the reliability/Brier report, a Wilson-lower-bound trust gate (`trust_gate`) marks a class's confirmed verdicts *trusted* (may skip heavy re-validation) only on a proven track record — fail-closed, never after one hit.
-- **CVE research & adaptation pipeline**: `lookup_cve` / `search_cve` (NVD, with offline fallback) / `lookup_cpe` / `map_tech_to_cves` (tech-stack → candidate CVEs) / `kev_epss_enrich` (CISA KEV + FIRST EPSS, sorted by real-world exploitation likelihood) — then, when a public PoC targets a different version than the live target, `adapt_poc_to_version` reasons out the version delta and adaptation axes and `probe_cve_with_variants` fires the adapted candidates, instead of running the PoC verbatim and recording a false "not vulnerable." See [Research: Reason First, Look Up Second](CLAUDE.md).
-- **OAuth/OIDC/SAML/passkey protocol-flow testing**: `oauth_flow_simulator` (authorization-code flow), `oauth_hybrid_flow_simulator`, `oauth_device_flow_simulator`, `oauth_dpop_audit` (DPoP proof replay across resource endpoints), `probe_saml_xsw` (XML Signature Wrapping), `probe_passkey_stepup_bypass` (WebAuthn step-up re-auth bypass) — protocol-level auth testing beyond basic JWT/session attacks.
-- **Compliance & executive reporting**: `generate_compliance_report` rolls confirmed findings up against a named framework (PCI-DSS v4, SOC2 Type II, HIPAA, GDPR, OWASP), true-positives-only; `generate_posture_dashboard` writes a self-contained offline HTML dashboard (severity mix, standards-coverage heatmap, snapshot trend, top findings) publishable as an Artifact with no external references.
-- **BloodHound ingestion**: `ingest_bloodhound` parses a BloodHound-collection or certipy JSON export into high-value AD attack-path edges on the ATT&CK-tagged operator log; `sync_bloodhound_to_ghostwriter` forwards the same ingest to Ghostwriter as both oplog timeline entries and report findings.
-- **Named scan policies**: `save_scan_policy` / `get_scan_policy` / `list_scan_policies` / `delete_scan_policy` — save a `run_vigil` profile/scope/rate/timeout combination once under a name and run it by name across targets, instead of repeating the same flags every call.
-- **Benchmark harness (self-evaluation)**: `run_xbow_bench` (XBOW Validation Benchmarks, 104 challenges — `xbow_pull_benchmarks` clones the Apache-2.0 repo), `run_autopenbench`, `run_caibench` (Cybench / NYU CTF / CAI-internal via the Alias Robotics meta-benchmark) — all flag-match scored, never counted as a pass on shape alone; `summarize_benchmarks` rolls up every recorded run under `.burp-intel/_bench/` (with an XBOW difficulty-level breakdown). Lets an operator measure Praetor's own real-world solve rate, not just unit-test coverage.
-- **Attack-path planning**: `plan_attack_paths` beam-searches confirmed findings to high-value objectives (RCE / cloud-cred theft / ATO / mass-PII), names the single missing capability on a near-miss (your next proof), and emits per-chain **severing controls** (the one remediation that breaks each hop) for the report.
-- **WAF/filter bypass**: `mutate_payload` (19 transform classes — keyword-internal SQL comments, MySQL versioned comments, SQL-whitespace alternatives, fullwidth-unicode/NFKC, overlong-UTF-8 path bytes, entity-without-semicolon, targeted double-encoding), plus `run_nomore403` / `run_byp4xx` / `probe_40x_bypass` for 403 bypass.
-- **Workspace reconcile**: `sync_workspace(domain)` re-aligns every derived `.burp-intel` file with the canonical `findings.json` — regenerates writeups, removes orphans, and surfaces drift (duplicates, missing evidence, MEDIUM+ with no impact, stale checkpoint/coverage refs) when a re-check disagrees with stored state.
-- **Coverage & checklists**: `coverage_status` / `standards_coverage` (tested-vs-untested roll-up against OWASP Top 10 / API Top 10 / WSTG / **ASVS 5.0** / **AISVS 1.0** / MASVS v2 / AI Testing Guide), `checklist` / `checklist_autotest` (per-item WSTG/AI/MASTG test tracking), `asset_role_matrix` (feature × role authz map).
-- **Credentials encrypted at rest**: the reuse store keeps secrets as Fernet ciphertext (never plaintext on disk), redacts every render, and surfaces the decryption-key location — usable for spray/auth, safe from a stray grep or accidental commit.
-- **Full exploit pipeline — detect → confirm → escalate (25 tools)**: every major vuln class has a detection-to-proven-impact path. The `confirm_*` tools prove injection exists (marker-framed, safety-gated); the `escalate_*` tools prove the attacker capability that earns the severity: SSTI → RCE (11 engines), SQLi → file read / OS command / OOB exfil (5 DBMS), SSRF → cloud IMDS credentials / internal services, XXE → SSRF / multi-file / OOB parameter-entity exfil, LFI → sensitive files / PHP wrappers / /proc, IDOR → cross-account proof via ID enumeration (numeric / UUIDv1 / ObjectId), prototype pollution → RCE via EJS/Pug/Handlebars gadgets, open redirect → OAuth token theft / Referer leak, cache deception → two-phase cached-data proof, expression injection → EL/OGNL/SpEL/eval RCE (6 languages), plus NoSQL / LDAP / XPath / XSLT / SSI / email injection / second-order stored injection. All tools use `validate_payload()` (HARD_DESTRUCTIVE refusal), marker-based proof, and VerdictResult returns.
-- **Multi-format fuzz engine**: `RequestMutator` handles four body content types — JSON (key replacement + append), form-urlencoded (pair rewrite), multipart/form-data (boundary-aware part replacement), and XML (element text, attribute value, or element append with XML escaping). `fuzz_parameter` and `fuzz_with_feedback` inherit all four automatically.
-- **32 payload files** covering injection, auth, logic, and protocol classes: sqli, xss, ssti, ssrf, xxe, command injection, CRLF, LDAP, XPath, XSLT, XML, host header, mass assignment, JWT, GraphQL, deserialization, prototype pollution, file upload, path traversal, LFI, CORS, CSRF, cache poisoning, auth bypass, NoSQL, HPP, open redirect, race condition, WebSocket, OAuth, and mobile API. `get_payloads(category=X)` returns ready-to-fire context-specific payloads for each.
-- **State-change detection hook (Rule 8a)**: a PreToolUse hook on `send_raw_request` / `curl_request` detects DELETE methods and 16 state-change keywords (delete, password, transfer, privilege, etc.) and blocks with an operator-confirmation prompt. Fail-open — legitimate pentest traffic is never blocked.
-- **Automated checklist execution**: `checklist_autorun(domain, session)` runs ALL open WSTG/OWASP checklist items in one call — batches `auto_probe` for KB categories, runs individual `test_*`/`confirm_*` tools for specific items, records all results, and reports remaining gaps. The `/checklist` command drives the full workflow: recon → build checklist → `checklist_autorun` → `checklist_gaps` → report.
-- **Full test traceability**: every `test_*`, `confirm_*`, and `escalate_*` tool records to `coverage.json` (with verdict + timestamp) and `test_journal.jsonl` (structured per-test log). Three tools answer the operator's questions: `test_journal(domain)` = "what tests ran?", `checklist_gaps(domain, show='missing')` = "what did you miss?", `checklist_gaps(domain, show='all')` = "show me everything with coverage %".
+**Scan & Probe**
+- Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10, WSTG, API Top 10, and more
+- vigil as the default DAST engine with smart auto-dispatch
+- Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket, prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
 
-## Requirements
+**Exploit Pipeline (detect → confirm → escalate)**
+- `confirm_*` tools prove injection exists (SQLi, RCE, SSRF, SSTI, XXE, XSS, NoSQL, LDAP, XPath, XSLT, SSI, expression injection, email injection, second-order, cache deception, IDOR, race condition)
+- `escalate_*` tools prove attacker capability (SSTI→RCE, SQLi→file read/OS cmd, SSRF→IMDS creds, XXE→OOB exfil, LFI→sensitive files, IDOR→cross-account, prototype pollution→gadget RCE, open redirect→token theft)
 
-**Core (both lanes):**
+**Auth & Session**
+- JWT forge (8 modes) + secret cracking, login bypass, MFA bypass, session lifecycle, reset-token entropy
+- OAuth/OIDC/SAML/passkey protocol simulators
+- Auth matrix testing across roles
 
-- Burp Suite — web lane. **Burp Professional is the core environment**: the active-scanner and Collaborator tools (`scan_url`, `crawl_target`, `*_scanner_*`, `*_collaborator_*`) are core, and they require Pro. Community is supported — the extension and MCP server use the Montoya API for HTTP/proxy/scope — with documented fallbacks (see [Burp Edition Compatibility](#burp-edition-compatibility)).
-- Java 21+, Python 3.11+ with [uv](https://docs.astral.sh/uv/), Go (for the ProjectDiscovery tools)
-- An MCP-aware LLM client (Claude Code, Claude Desktop, etc.)
-- **Web tools** (core, not optional): vigil (default web-scan engine), ffuf, sqlmap, katana, subfinder, dalfox, httpx, amass, gau, waybackurls, wpscan, nikto, opengrep, gitleaks, trufflehog
-- **Network / red-team tools** (core, not optional): nmap, netexec, impacket-scripts, responder, bloodhound-python, certipy, kerbrute, enum4linux-ng, smbmap, evil-winrm, hashcat, john, gobuster, seclists
-- **Non-HTTP lane** (core, not optional): the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (TCP/UDP/SOCKS5 proxy, `tcp_*` tools) — `setup.sh` clones and builds it, load its jar in Burp
-- **Mobile engine** (core, not optional): [centurion](https://github.com/TyrusRC/centurion) runs as a companion MCP server for the full OWASP MASTG toolset — `setup.sh` installs it (the native `mobile_*` lane is built in)
+**Network & Red Team**
+- Chained recon pipeline: nmap discovery → service enum → leads → auto-loot → web-lane bridge
+- Sanctioned runner for impacket, netexec, responder, BloodHound, certipy, kerbrute, evil-winrm
+- Credential capture → offline crack → store → reuse loop
+- BloodHound/certipy ingestion into ATT&CK-tagged operator log
 
-`./setup.sh` installs all of the above (Kali/Parrot via apt, other distros via apt/uv/go with clone fallbacks); `setup.ps1` does the same on native Windows via winget/scoop/go/uv. `./doctor.sh` (or `.\doctor.ps1` on Windows) reports what's present. On Kali most tools are preinstalled or one `apt` away.
+**Browser & Recon**
+- Stealth headless browser (CloakBrowser) routed through Burp
+- Third-party tool wrappers: subfinder, httpx, katana, amass, ffuf, sqlmap, dalfox, nikto, and more
+- JS secret extraction, DOM sink analysis, tech stack fingerprinting
 
-**Optional (advanced):**
+**Reporting & Evidence**
+- 7-question save-finding gate with per-program policy overrides
+- CVSS 4.0 scoring (environment-aware, exposure-adjusted)
+- GUI screenshot capture with automatic secret redaction
+- Reports: pentest, red-team, compliance (PCI-DSS, SOC2, HIPAA, GDPR, OWASP)
+- Export: SARIF, JUnit XML, HTML engagement graph, platform-specific (HackerOne, Bugcrowd)
+- Engagement narrative graph (goal→intent→fact→finding→asset) with interactive HTML viewer
 
-- **Docker + Docker Compose** — for the [Ghostwriter](https://github.com/GhostManager/Ghostwriter) reporting/oplog hub. Ghostwriter is for the advanced multi-operator full-flow (central GraphQL oplog, client portal). The built-in, zero-dependency reporting + agent⇄human collaboration hub (`engagement_graph(format='html')`) is the core default and needs none of this.
-- **API keys** — every key is optional; they only turn on enhancers (threat-intel OSINT, LLM source SAST, egress/reporting). The core hunt loop runs with no key. See [API keys](#environment-variables).
+**Additional Lanes**
+- **Mobile:** Frida + adb dynamic testing, APK decompile, deep-link and WebView abuse. Full MASTG via [centurion](https://github.com/TyrusRC/centurion)
+- **Cloud:** prowler, scout-suite, pacu, IaC scanning, container/K8s security
+- **LLM/MCP:** prompt injection, tool poisoning, system-prompt leakage, OWASP LLM/AI Top 10
+- **Fuzzing:** structure-aware file upload fuzzing, AFL integration, crash triage
 
-Burp Professional is the core environment (scanner control + Collaborator are core tools that require Pro); Community is supported and degrades gracefully — see below.
-
-### Burp Edition Compatibility
-
-**Professional** — full support. Default target environment.
-
-**Community** — supported with manual setup. Almost everything works because the extension and MCP server use Burp's Montoya API for HTTP/proxy/scope, not the Pro-only scanner pipeline. Pro-only features degrade gracefully:
-
-| Pro-only feature | Tools that depend on it | Community workaround |
-|---|---|---|
-| Active scanner | `scan_url`, `crawl_target`, `get_scan_status`, `cancel_scan`, `get_scanner_findings`, `get_new_findings`, `get_issues_dashboard` | Use `auto_probe` (knowledge-driven sweep), `fuzz_parameter`, `fuzz_with_feedback`, and the native `test_*` orchestrators (`test_csrf` / `test_ssrf` / `test_xxe` / `test_websocket` / `test_prototype_pollution` / `test_login_bypass` / `test_mfa_bypass`). These run through the extension's HTTP API and do not require Burp's scanner. |
-| Burp Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions`, `collaborator_pool_status` | Operator supplies an OOB callback URL — interact.sh / webhook.site / requestcatcher.com / a self-hosted DNS box — and passes it explicitly into payloads. Rule 9a forbids fabricating domains. |
-| Intruder at full speed | `send_to_intruder_configured` | Community throttles Intruder heavily. Use `concurrent_requests` (Python-side parallelism through Burp proxy) for legitimate parallel testing without the throttle. |
-
-Run `check_pro_features()` at session start to confirm which Pro capabilities the operator's instance exposes — the MCP server detects them at runtime, so Community users get a clear "not available" message instead of a silent hang.
-
-## First-Time Setup
-
-The shortest path from a fresh clone to a working agent. Each step links to its
-detailed section below.
-
-```sh
-# 1. Clone
-git clone https://github.com/TyrusRC/praetor.git && cd praetor
-
-# 2. One-shot install — Java/Maven/Python/uv, builds the extension, installs the
-#    MCP server, writes .mcp.json. (Manual steps are under Installation.)
-./setup.sh            # Linux/macOS   ·   ./setup.ps1 / ./setup.bat on Windows
-
-# 3. Verify the install
-./doctor.sh            # Linux/macOS/WSL   ·   .\doctor.ps1 on native Windows
-```
-
-4. **Load the Burp extension.** In Burp: *Extensions → Add → Java →*
-   `target/praetor-burp-ext-<version>.jar` (path printed by the build). On the
-   Praetor config tab, defaults `127.0.0.1:8111` already match the server — no
-   change needed on a single host ([WSL is different](#wsl-burp-on-the-windows-host)).
-
-5. **Point your MCP client at the server.** `setup.sh` writes `.mcp.json` for
-   you; confirm it launches `python -m praetor` (see [Configuration](#configuration)).
-   Reload your MCP client so the tools appear.
-
-6. **Session smoke test.** Ask the agent to run `check_pro_features()` and
-   `list_tier1_tools()` — that confirms the MCP ↔ Burp link and shows the tool
-   entry points.
-
-7. **(Optional) Reporting hub.** Stand up Ghostwriter for centralized
-   oplog/findings — [one script, default `praetor` login](#ghostwriter-reporting-hub).
-   Praetor works fully without it; local `.burp-intel/` stays the source of truth.
-
-8. **(Optional) Tune env.** Copy `.env.example` to `.env` and edit only what you
-   need ([Environment Variables](#environment-variables)); every value has a
-   working default.
-
-You're ready — pick a lane in [Usage](#usage).
+**Safety**
+- HARD tool-layer blocks on destructive payloads (non-overridable)
+- Confirm-before-dangerous on state-changing actions
+- Engagement modes: operator (audit-log + proceed) or strict (hard block)
+- Benign-PoC standard: reaching the sink proves impact without causing harm
 
 ## Installation
 
-Pick the level of automation you want.
-
-### Quick — `uvx` (no clone needed for the MCP server)
-
-The MCP server runs straight from the source tree with `uvx`. You still need the Burp extension JAR loaded in Burp Suite — see the Manual section below for that part.
+### One-line (no clone)
 
 ```sh
-uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" \
-    praetor-mcp
+# Claude Code
+claude mcp add praetor -- uvx --from \
+  "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
 ```
 
-Or in `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "praetor": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server",
-        "praetor-mcp"
-      ]
-    }
-  }
-}
-```
-
-### Automated (full local checkout — extension + server)
+### Full local checkout
 
 ```sh
 ./setup.sh        # Linux / macOS
-./setup.ps1       # Windows PowerShell
-./setup.bat       # Windows double-click
+./setup.ps1       # Windows
 ```
 
-The script installs Java 21+, Maven, Python 3.11+, uv, Go where missing, builds the extension, clones and builds the [burp-expedition](https://github.com/TyrusRC/burp-expedition) extension (the non-HTTP `tcp_*` lane — a core lane) next to the Praetor checkout, installs the MCP server (which pulls CloakBrowser and warms its stealth Chromium download), optionally installs ProjectDiscovery tools, and writes `.mcp.json`. It prints both jar paths — load each in Burp (Extensions -> Add -> Java).
-
-Verify the install afterwards: `./doctor.sh` on Linux/macOS/WSL, `.\doctor.ps1` on native Windows.
-
-Native-Windows note: `setup.ps1` installs the web, network, mobile-dynamic (Frida), OCR, and secrets lanes via winget/scoop/go/uv. A few Linux-oriented tools (responder, john-jumbo, libimobiledevice/iproxy) are not installed on native Windows — run those lanes under WSL. `.\doctor.ps1` shows exactly which lanes are live.
+The script builds the Burp extension, installs the MCP server, clones burp-expedition, and writes `.mcp.json`.
 
 ### Manual
 
 ```sh
-# 1. Build the Burp extension
-cd burp-extension
-mvn package
-# Load target/praetor-burp-ext-1.0.0.jar in Burp: Extensions -> Add -> Java
-
-# 2. Build the burp-expedition extension (non-HTTP tcp_* lane — core)
-git clone https://github.com/TyrusRC/burp-expedition.git ../../burp-expedition
-cd ../../burp-expedition && ./gradlew shadowJar
-# Load build/libs/burp-expedition-*.jar in Burp the same way (control API :18112)
-
-# 3. Install the MCP server
-cd ../praetor/mcp-server
-uv venv
-uv sync
-
-# 4. Configure your MCP client (see below)
+cd burp-extension && mvn package          # build extension jar
+cd ../mcp-server && uv venv && uv sync    # install MCP server
 ```
 
-### `pipx`
-
-```sh
-pipx install "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server"
-praetor-mcp                   # entrypoint
-```
-
-### Install into your agent (Claude Code, Codex, Gemini, Antigravity, …)
-
-Praetor's MCP server speaks **stdio**, so any MCP client can launch it — the launch
-command is always the same, only each host's config format differs. The portable,
-no-clone command (works on every host) is:
-
-```sh
-uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
-```
-
-The first `uvx` launch resolves the deps (including CloakBrowser + its stealth
-Chromium) and is slow; later launches are cached. Whatever the host, the **Burp
-extension JAR must still be loaded in Burp separately** — the client only starts the
-Python server, it does not touch Burp.
-
-**One-line CLI install** (hosts that ship an `mcp add` command; everything after
-`--` is the launch command above):
-
-```sh
-# Claude Code  — add --scope user for all projects; default is a project-local .mcp.json
-claude mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
-
-# OpenAI Codex CLI
-codex mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
-```
-
-Attach env with the host's flag when Burp isn't on `127.0.0.1:8111` (WSL-NAT / remote
-Burp — see [WSL](#wsl-burp-on-the-windows-host)): Claude/Codex `--env BURP_API_HOST=172.22.112.1`.
-
-**Config-file install** — every JSON host (Claude Code/Desktop, Gemini CLI,
-Antigravity, Cursor, Windsurf) takes the *same* block:
+### MCP client config
 
 ```json
 {
@@ -314,635 +125,96 @@ Antigravity, Cursor, Windsurf) takes the *same* block:
 }
 ```
 
-OpenAI Codex CLI uses TOML instead (note the `PRAETOR_PROFILE` — Codex eager-loads
-the whole tool manifest, so trim it; see [Eager-loading hosts](#eager-loading-hosts-codex-dsh-trim-the-manifest)):
-
-```toml
-[mcp_servers.praetor]
-command = "uvx"
-args = ["--from", "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server", "praetor-mcp"]
-[mcp_servers.praetor.env]
-BURP_API_HOST = "127.0.0.1"
-BURP_API_PORT = "8111"
-PRAETOR_PROFILE = "codex"           # lean web-pentest lane; others auto-promote via run_tool
-PRAETOR_SLIM_DESCRIPTIONS = "1"     # one-line tool summaries (full text via pick_tool/run_tool)
-```
-
-Where each host reads that block:
-
-| Host | Config file | Key |
-|---|---|---|
-| Claude Code | `.mcp.json` (project) · `~/.claude.json` (user) | `mcpServers` |
-| Claude Desktop | `claude_desktop_config.json` | `mcpServers` |
-| OpenAI Codex CLI | `~/.codex/config.toml` (or project `.codex/config.toml`) | `[mcp_servers.praetor]` |
-| Gemini CLI | `~/.gemini/settings.json` (or project `.gemini/settings.json`) | `mcpServers` |
-| Google Antigravity (IDE + CLI) | `~/.gemini/config/mcp_config.json` | `mcpServers` |
-| Cursor | `.cursor/mcp.json` (or `~/.cursor/mcp.json`) | `mcpServers` |
-| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
-| VS Code (Copilot agent) | `.vscode/mcp.json` — or `code --add-mcp` | `servers` |
-| DeepSeek Harness (dsh) | `cordis.yml` (via `@deepseek-ai/dsh-mcp-client`) | a plugin row — tools become `mcp__praetor__*` |
-
-Notes: **Antigravity** shares one config with Gemini CLI and opens it via the agent
-panel's `…` → *Manage MCP Servers* → *View raw config*; it uses standard
-`command`/`args`/`env` for a stdio server like Praetor (`serverUrl` is only for remote
-HTTP servers). **VS Code** uses a `servers` key rather than `mcpServers`, same
-command/args/env inside. The `env` block is optional — omit it on a single host
-(defaults are `127.0.0.1:8111`); all hosts honour the same
-[environment variables](#environment-variables).
-
-Ready-to-copy config files for each host (one per client, with a where-does-it-go
-table) live in [`examples/mcp-clients/`](examples/mcp-clients/).
-
-#### Eager-loading hosts (Codex, dsh): trim the manifest
-
-Claude Code **defers** tool schemas — it loads names only and fetches a schema when a
-tool is first used, so a large tool surface costs it nothing up front. OpenAI Codex (and
-dsh) **eager-load**: the entire tool manifest — every description + input schema — is
-sent to the model on *every* request. Praetor's full surface is ~115k tokens, so leaving
-it at the `all` default wastes a large slice of Codex's context before any work.
-
-Two env vars cut it (set them in the Codex `[mcp_servers.praetor.env]` block above):
-
-- **`PRAETOR_PROFILE`** advertises only the lanes you need (`codex` = lean web lane;
-  also `web` / `network` / `mobile` / `llm` / `cloud` / `core`, or a comma list like
-  `web,network`). A gated tool is **never blocked** — `run_tool('<tool>', {args})` runs
-  it and auto-promotes its lane mid-engagement.
-- **`PRAETOR_SLIM_DESCRIPTIONS=1`** trims each tool description to its one-line summary
-  (auto-on whenever a non-`all` profile is set). The full docstring stays reachable via
-  `pick_tool(task)` and `run_tool('<tool>')`.
-
-| `PRAETOR_PROFILE` | tools | ~manifest tokens | + `SLIM_DESCRIPTIONS` |
-|---|---|---|---|
-| `all` (default) | 542 | 115k | ~44k |
-| `web` | 390 | 85k | ~33k |
-| `codex` / lean web | 390 | 85k | ~31k |
-| `core` (minimum) | 210 | 40k | ~16k |
-
-First call on any eager host: **`praetor_bootstrap()`** — it returns the same operating
-context Claude Code auto-loads (rules, skills, the hunt loop, the profile/pivot model).
-
-#### DeepSeek Harness (dsh)
-
-dsh doesn't use the `mcpServers` JSON block — it bridges MCP through its built-in
-`@deepseek-ai/dsh-mcp-client` plugin. Run dsh (`npx @deepseek-ai/dsh web`), then add a
-plugin row to `~/.dsh/cordis.patch.yml` (needs `uvx` on PATH + Burp running with the
-extension):
-
-```yaml
-- insert:
-    - id: mcp-praetor
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: praetor
-        transport: stdio
-        command: uvx
-        args: ['--from', 'git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server', 'praetor-mcp']
-        env: { BURP_API_HOST: '127.0.0.1', BURP_API_PORT: '8111', PRAETOR_PROFILE: 'web' }
-        toolCallTimeoutMs: 120000
-```
-
-`PRAETOR_PROFILE` advertises a smaller tool set so dsh's eager load stays cheap — `web`
-is a good default; a gated tool is never blocked (`run_tool` runs it and auto-enables its
-lane). Drop the key for the full surface; profile options are in the
-[dsh guide](examples/mcp-clients/deepseek-harness.md).
-
-Saving hot-reloads (no restart); tools appear as `mcp__praetor__*`. dsh bridges MCP
-**Tools only** (Resources/Prompts deferred), so call `praetor_bootstrap()` first and pull
-everything Claude Code auto-loads via tools — `get_rules` (incl. `project`),
-`list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent`,
-`list_knowledge`/`get_knowledge`. Full walkthrough — verification, a pentest system-prompt, and
-running **alongside dsh-pentest** (`engagement_graph(format='dsh')` mirrors Praetor's
-lineage into its live graph) — is in
-[`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md).
-
-#### Viewing the engagement graph
-
-Praetor records the engagement lineage (goal → intent → fact → finding → asset) with
-`record_goal` / `record_intent` / `record_fact` / `link_finding`; `engagement_graph`
-renders it. Two ways to see it as an interactive graph:
-
-- **Standalone HTML — recommended, works on every host (Claude Code, Codex, Gemini, …).**
-  `engagement_graph(domain, format='html')` writes
-  `.burp-intel/<domain>/reports/<domain>-engagement.html` — a self-contained Wiz-style
-  page (cytoscape.js from a CDN) with a **Flow** (left-to-right exploration chain) or
-  **Force** layout toggle, header count chips, and **Security Graph / Operations /
-  Findings / Assets / Report** tabs. **Just open the file in a browser.** No npm, no
-  plugin, no server — it is Praetor's own page, not a dsh component.
-
-  **Agent⇄human collaboration (the core, Ghostwriter-free loop).** The Findings tab
-  carries a per-finding review control: a status (confirm / needs-more-evidence /
-  false-positive / won't-fix) and a comment, plus an engagement-notes box. The human
-  triages in the browser (the draft autosaves locally), clicks **Export review** to
-  write `reports/<domain>-review.json`, and the agent then runs
-  `import_engagement_review(domain)`. Each reviewed finding gets a `collab` entry
-  appended to `findings.json` and the notes land in `notes.md`, so the agent reads the
-  human's decisions on its next move. A requested status change is **surfaced for the
-  operator to decide — never auto-applied** (a confirmed report is not silently
-  re-verdicted). Prior imported reviews render read-only in the page, so both sides see
-  past rounds. No server and no account — the round-trip is a single JSON file, so it
-  works offline and air-gapped.
-- **Inside dsh (native tab).** `engagement_graph(domain, format='dsh')` returns
-  `pentest_add_*` commands that populate a native dsh view. Praetor is a Python MCP
-  server, so it cannot render a React UI itself — a dsh plugin does that. Use the upstream
-  [`@howmp/dsh-pentest`](https://github.com/howmp/dsh-pentest) bundle: one published npm
-  plugin carrying the host tools and the **Assets / Findings / Explore / Report** web tab.
-  Praetor's `pentest_add_*` tool names and the `pentest` projection key match it exactly,
-  so `format='dsh'` fills the tab with no fork to build or keep in sync. Load the bundle in
-  dsh the normal way, run the hunt loop, then call `engagement_graph(format='dsh')`. Any
-  dsh plugin couples to dsh's version. If you do not use dsh, use the `html` path above —
-  it is Praetor's own page and needs no plugin.
-
-**Context cost on eager hosts — `PRAETOR_PROFILE`.** dsh (and Codex via the API) load
-every tool's full schema into the model call at connect, because their MCP client has no
-per-tool schema deferral; Claude Code defers schemas, so it is unaffected. On an eager
-host, set `PRAETOR_PROFILE` in the server's `env` (e.g. `web`) to advertise a smaller set
-— it never limits you: a gated tool stays runnable via `run_tool`, which auto-enables its
-lane and fires `tools/list_changed` so the tools appear live. See the
-[dsh guide](examples/mcp-clients/deepseek-harness.md) for the profile options.
-
-### Skills, rules & agents on other hosts
-
-Praetor ships three layers; they port to non-Claude hosts differently:
-
-| Layer | What | On dsh / Codex / Gemini / Antigravity / Cursor / Windsurf |
-|---|---|---|
-| **Tools** (~490) | the capabilities | **Universal** — every MCP host gets them once the server is registered. |
-| **Bootstrap** | one-call onboarding | `praetor_bootstrap()` — **call first** on a non-Claude host. Returns the session-start flow (web / network / mobile lanes + save-finding pipeline) and points to everything below. |
-| **Rules** (`.claude/rules/` + `CLAUDE.md`) | the always-active hunting/engineering rules + project guidelines | **Portable as a tool.** `get_rules("hunting")` / `get_rules("engineering")` / `get_rules("project")` — the last serves the project CLAUDE.md (save-finding gates, override surfaces, output discipline) a non-Claude host never auto-loads. Also the `burp://rules/*` resources or the raw files. |
-| **Skills** (`.claude/skills/`) | the how-to playbooks | **Portable as tools.** `list_skills()` / `get_skill(name)` (or `burp://skills/*` resources, or raw files). |
-| **Prompts** (MCP prompt templates) | one-call workflow launchers | **Portable as tools.** `list_prompts()` / `get_prompt(name, args)` — hunt-target, triage-program, save-finding-checklist, … — for hosts that defer the MCP Prompts primitive (dsh, Codex). |
-| **Knowledge** (`knowledge/*.json`) | probe-class matchers + craft guidance | **Portable as tools.** `list_knowledge()` / `get_knowledge(category)` (or the `burp://knowledge/*` resources). `auto_probe` consumes the KB internally — read raw only to inspect a class. |
-| **Agents** (`.claude/agents/`) | the sub-agent roster + playbooks | **Playbooks portable as tools** — `list_agents()` / `get_agent(name)`. A host that spawns its own sub-agents (dsh, …) gives each a `get_agent(<name>)` playbook, exactly as Claude Code dispatches them, and maps each agent's host-agnostic `tier` (strategic / standard / fast) to its nearest model. Parallel dispatch itself is host-provided; single-threaded hosts use the orchestration tools (`decide` for the typed branch-point decision, `get_hunt_plan` / `get_next_action`). |
-
-**Everything auto-loaded on any host.** Claude Code loads the rules, skills and agent
-playbooks from disk; every other host reaches the same content as MCP *tools* —
-`praetor_bootstrap`, `get_rules`, `list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent` —
-so it works even on hosts that don't implement MCP resources (e.g. DeepSeek Harness,
-whose bridge is Tools-only). Resource-capable hosts can use the `burp://` resources
-instead. Safety Rules 5–9 and the save-finding pipeline are enforced in the tool layer,
-so they hold on every host regardless of what is loaded.
-
-**Per-host rule files are included** so each host auto-loads the core guidance and the
-HARD safety rules, pointing at the tools + skills:
-
-| Host | File |
-|---|---|
-| Claude Code | `CLAUDE.md` + `.claude/rules/` |
-| OpenAI Codex (and the cross-host convention) | `AGENTS.md` |
-| Gemini CLI / Antigravity | `GEMINI.md` |
-| Cursor | `.cursor/rules/praetor.mdc` |
-| Windsurf | `.windsurf/rules/praetor.md` |
-| DeepSeek Harness (dsh) | agent preset / system prompt — paste-ready block in [`examples/mcp-clients/deepseek-harness.md`](examples/mcp-clients/deepseek-harness.md) |
-
-**Agents.** The roster in `.claude/agents/` is Claude-Code orchestration. On other
-hosts: **Gemini CLI has subagents** — worked-example ports live in
-[`.gemini/agents/`](.gemini/agents/) with a guide to porting the rest. **Cursor**
-background agents and **Antigravity**'s agent manager can each take one role
-(`.claude/agents/<role>.md` + the MCP tools). A host without subagents runs a role as
-a single focused prompt — same tools, same rules, you just lose automatic parallel
-dispatch. The capability is always the tools; the roster is a convenience on top.
-
-## Configuration
-
-Create `.mcp.json` in the project root. The file is gitignored; each developer maintains their own.
-
-```json
-{
-  "mcpServers": {
-    "praetor": {
-      "command": "/absolute/path/to/praetor/mcp-server/.venv/bin/python",
-      "args": ["-m", "praetor"]
-    }
-  }
-}
-```
-
-**Connection defaults — no config needed on a single host.** The extension's config tab defaults to Host `127.0.0.1`, Port `8111`, and the MCP server defaults to the same `127.0.0.1:8111`. When Burp and Claude Code run on the same machine (or on WSL with mirrored networking), the two align and the MCP auto-connects with nothing to change. Edit the tab's Host/Port only for the exceptions below: a non-default port, or reaching Burp across a host boundary (WSL NAT → bind `0.0.0.0`). Caller-supplied `BURP_API_HOST` / `BURP_API_PORT` env in `.mcp.json` override the client side.
-
-On Windows replace the command with `C:\\...\\.venv\\Scripts\\python.exe`.
-
-### WSL (Burp on the Windows host)
-
-`./setup.sh` auto-detects WSL and its networking mode, then configures `.mcp.json` accordingly. Two modes:
-
-- **Mirrored (recommended, secure).** Add to `%UserProfile%\.wslconfig`:
-  ```ini
-  [wsl2]
-  networkingMode=mirrored
-  ```
-  then run `wsl --shutdown` in PowerShell and reopen WSL. Burp on Windows `127.0.0.1:8111` is now reachable from WSL as `127.0.0.1` — no env override, no bind change, nothing exposed off the host. Verify from WSL with Burp running: `curl -s http://127.0.0.1:8111/api/health`. Requires Windows 11 22H2+.
-- **NAT (default).** Reach Burp via the Windows host IP (the WSL default-route gateway, e.g. `172.22.112.1`):
-  1. Add an `env` block to `.mcp.json` setting `BURP_API_HOST` to that IP (setup.sh writes this for you).
-  2. In the Praetor config tab set **Host = `0.0.0.0`**.
-  3. Launch Burp with the JVM flag `-Dpraetor.allow_non_loopback_bind=true` — the extension refuses a non-loopback bind without it.
-
-  NAT mode exposes the unauthenticated API on the WSL virtual switch; use only on a trusted host. Prefer mirrored.
-
-**Proxy works but tools time out (`extension_unreachable`).** If browser/proxy traffic (`:8080`) reaches Burp but every REST tool returns a `ConnectTimeout` / `extension_unreachable`, the extension's REST server on `:8111` is not up — the two listeners are independent. This is *not* a `BURP_API_TIMEOUT` problem. Fix: reload the Praetor extension in Burp's **Extensions** tab, then confirm `curl -s http://127.0.0.1:8111/api/health` returns `{"status":"ok"}` (mirrored) or the same against `$BURP_API_HOST` (NAT). Only after health passes are the MCP tools usable.
-
-### Environment Variables
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `BURP_API_HOST` | `127.0.0.1` | Burp extension API host |
-| `BURP_API_PORT` | `8111` | Burp extension API port |
-| `BURP_API_TIMEOUT` | `30` | HTTP timeout in seconds |
-| `BURP_PROXY_HOST` | `127.0.0.1` | Burp proxy listener host |
-| `BURP_PROXY_PORT` | `8080` | Burp proxy listener port |
-| `PRAETOR_TOOLLOG` | `on` | Universal tool-call ledger (`harness_log`); `off` disables it |
-| `PRAETOR_OPLOG` | `on` | Burp-call operation ledger (`get_operation_log`); `off` disables it |
-| `GHOSTWRITER_URL` | — | Ghostwriter base URL (e.g. `https://127.0.0.1`); unset = no forwarding |
-| `GHOSTWRITER_OPLOG_ID` | — | numeric Oplog id to append entries to |
-| `GHOSTWRITER_ADMIN_SECRET` | — | Hasura admin secret (highest-precedence auth) |
-| `GHOSTWRITER_API_TOKEN` | — | static JWT (second-precedence auth) |
-| `GHOSTWRITER_USERNAME` | `praetor` | login user when no admin-secret/token is set |
-| `GHOSTWRITER_PASSWORD` | `praetor` | login password — **change for any shared/remote instance** |
-| `GHOSTWRITER_INSECURE_TLS` | `false` | `1` to accept Ghostwriter's self-signed localhost cert |
-| `GITHUB_TOKEN` | — | `push_finding_to_tracker(tracker='github')` — issue-create PAT |
-| `GITLAB_TOKEN` / `GITLAB_URL` | — / `https://gitlab.com` | `push_finding_to_tracker(tracker='gitlab')` — token + optional self-hosted base |
-| `JIRA_URL` / `JIRA_USER` / `JIRA_TOKEN` | — | `push_finding_to_tracker(tracker='jira')` — base URL + basic-auth |
-| `SIEM_WEBHOOK_URL` / `SIEM_WEBHOOK_TOKEN` | — | `send_finding_to_siem` — collector URL + optional bearer |
-| `HIBP_API_KEY` | — | `hibp_breach_lookup` account queries (domain queries need no key) |
-| `PRAETOR_LLM_PROVIDER` | inferred | LLM for the analysis tools: `openai` / `anthropic` / `ollama` / `google`(gemini) / `deepseek` / `qwen` / `zhipu` / `moonshot` / `groq` / `openrouter` / `together` / `mistral` / `openai-compat` |
-| `PRAETOR_LLM_API_KEY` | — | unified LLM key (fallback: the provider native var, e.g. `OPENAI_API_KEY` / `GEMINI_API_KEY` / `DEEPSEEK_API_KEY`) |
-| `PRAETOR_LLM_BASE_URL` | provider default | endpoint — **required** for `openai-compat` / self-hosted models |
-| `PRAETOR_LLM_MODEL` | provider default | model id |
-| `PRAETOR_LLM_SYSTEM` / `PRAETOR_LLM_TEMPERATURE` | — / `0.0` | response style (system prompt + randomness) |
-| `AI_GATEWAY_API_KEY` | — | decision engine (native Jev via Vercel AI Gateway) — `decision_status` / `decide_relevance` / `decide_questions`. Without it the engine falls back to a `PRAETOR_LLM_*` provider, then to deterministic ordering |
-| `PRAETOR_DECISION_PROVIDER` | auto | force the decision backend: `jev` / `llm` / `off` (auto = jev if `AI_GATEWAY_API_KEY` **or** a local `PRAETOR_DECISION_BASE_URL`, else llm if an LLM is set, else off) |
-| `PRAETOR_DECISION_MODEL` / `PRAETOR_DECISION_BASE_URL` | `typesafe-ai/jev` / `https://ai-gateway.vercel.sh` | decision model id + gateway base URL |
-| `VT_API_KEY` | — | `vt_lookup` (VirusTotal, free public API) |
-| `SHODAN_API_KEY` | — | `shodan_host` full API (keyless InternetDB works without it) |
-| `OTX_API_KEY` / `GREYNOISE_API_KEY` / `ABUSEIPDB_API_KEY` | — | `otx_lookup` / `greynoise_lookup` / `abuseipdb_lookup` (all free tier) |
-| `URLSCAN_API_KEY` | — | `urlscan_search` rate-limit only (search is keyless) |
-
-**Where do API keys go, and are they required?** Every key above is **optional** — the
-core hunt loop (recon, `auto_probe`, the `test_*`/`probe_*` orchestrators, network/AD,
-browser) runs with **no key**. Keys only turn on optional enhancers (LLM source SAST,
-threat-intel OSINT, egress/reporting). Put them where your host passes env to the MCP
-server: the `env` block of your client config — Codex `~/.codex/config.toml`
-(`[mcp_servers.praetor.env]`), Claude `.mcp.json` / `~/.claude.json`, dsh `cordis.yml`
-`env:` — or a `.env` file next to the server. `llm_status()` and `ti_status()` report
-which keys are live (the key value is shown as a shape, never raw). Copy `.env.example`
-for the full list and where to get each free key.
-
-Ghostwriter auth precedence: **admin-secret → API token → username/password login**. With neither secret set, Praetor logs in to Ghostwriter's `login` action with `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` (default `praetor`/`praetor`) and mints/refreshes a JWT itself — so a fresh instance with a `praetor` account works with only `GHOSTWRITER_URL` + `GHOSTWRITER_OPLOG_ID` set.
-
-The Java extension also accepts JVM system properties `praetor.proxy.host` and `praetor.proxy.port` (highest precedence). `./setup-ghostwriter.sh` writes the `GHOSTWRITER_*` values into `.env` automatically (see [Ghostwriter setup](#ghostwriter-reporting-hub)).
-
-### Decision engine (template/probe selection + finding triage)
-
-A calibrated decision layer — the "Jev for nuclei" pattern — answers *which
-template/probe is relevant to this target* and *which hit to verify first*.
-`decision_status` reports the active backend; `decide_relevance` ranks a set of
-templates / probes / scanner-hits by a "worth running/verifying" probability;
-`decide_questions` is the raw typed primitive (boolean / choice / score) for
-triage and routing. It **orders** only — it never drops coverage (Rule 19) — and
-the matching vigil engine runs the same way on the scanner side.
-
-Three backends, best-first, selected automatically (force with
-`PRAETOR_DECISION_PROVIDER=jev|llm|off`):
-
-1. **jev** — the `/v1/evaluate` typed-decision API, serving **both** the hosted
-   TypeSafe **Jev** on Vercel AI Gateway (set `AI_GATEWAY_API_KEY`) **and a
-   self-hosted engine** you run locally (e.g. [Haruspex](https://github.com/TyrusRC/haruspex)
-   / OpenJev): point `PRAETOR_DECISION_BASE_URL` at `http://127.0.0.1:<port>` and
-   it is selected **keyless** — the key authenticates the remote gateway only, not
-   your own model.
-2. **llm** — any `PRAETOR_LLM_*` provider answers the same typed questions as
-   JSON — **including a small model on your own machine via Ollama** (keyless,
-   offline, air-gapped). See below.
-3. **off** — no backend: `decision_status` reports `available:false` and the
-   deterministic relevance tiers (`scan/_prioritise.py`) and typed envelope
-   (`decide`) stay in force. Keyless core, zero regression.
-
-**Run the decision engine locally (recommended default, no key, offline).** Point
-the `llm` tier at a small local model — nothing else to install or build:
-
-```sh
-ollama pull qwen2.5:3b            # or llama3.2:3b — any small instruct model
-export PRAETOR_LLM_PROVIDER=ollama
-export PRAETOR_LLM_MODEL=qwen2.5:3b
-export PRAETOR_DECISION_PROVIDER=llm   # optional; auto-selects llm when Ollama is set
-```
-
-`decision_status()` then reports `tier: llm`. Use hosted Jev only when you want
-its calibrated probabilities and are online; the local model keeps the engine
-fully functional with no key, no egress, and no vendor lock.
+Works with Claude Code, Codex, Gemini CLI, Cursor, Windsurf, Antigravity, DeepSeek Harness, and any MCP-aware client. Per-host config examples in [`examples/mcp-clients/`](examples/mcp-clients/).
 
 ## Usage
 
-Once `.mcp.json` is loaded by your MCP client, the tools are available to the agent. Pick the lane that fits the target (or run both — a box often has web *and* network surface).
-
 ### Commands (Claude Code)
 
-Two slash-commands in [`.claude/commands/`](.claude/commands/) drive a whole engagement; if you just say "test `<target>`" without one, the agent asks which:
+- **`/checklist <domain>`** — coverage-driven pentest (OWASP/WSTG checklist → hunt → report)
+- **`/exploit <target> [objective]`** — objective-driven red-team (quick wins → exploit → attack-path map)
 
-- **`/checklist <domain> [web api mobile llm]`** — full-coverage **pentest**. Confirms scope → recon gate → `build_engagement_checklist` writes one markdown file `.burp-intel/<domain>/reports/<domain>-checklist.md` combining the **latest** standards for the scope (OWASP Top 10 2025 + WSTG v4.2 for web, API Top 10 2023 if api, MASVS v2/MASTG if mobile, AI Testing Guide if llm) **plus every applicable KB test class as edge cases** → works it to coverage → client report. Mobile/API/LLM checklists are added only when those surfaces are in scope.
-- **`/exploit <target> [objective]`** — objective-driven **red-team**. Quick-win / low-hanging-high-impact sweep → benign proof-of-impact → `plan_attack_paths` → `generate_report(format='redteam')` **attack-path map** markdown.
+### Web lane
 
-`build_engagement_checklist(domain, scope)` is also callable directly as a tool; `handle-docx` (skill) ingests a Word SoW/scope/RoE or exports a report to `.docx`.
-
-**Web lane (a webapp / API):**
-
-1. `configure_scope` to set include/exclude patterns and auto-filter tracker domains.
-2. `browser_crawl` or `discover_attack_surface` to map the target.
-3. `auto_probe` to run knowledge-driven probes on parameters.
-4. `assess_finding` → `save_finding` for each suspected issue.
-5. `generate_report` to export findings.
-
-**Network / red-team lane (a host, subnet, or AD environment):**
-
-1. `run_network_recon(target, domain)` — one call: nmap discovery → per-service enum (SMB/LDAP/RPC/MSSQL/Kerberos) → **leads** (anon access, roastable hashes, SMB signing off, Pwn3d!) → auto-loots hashes → bridges any HTTP(S) service into the web lane. Add `creds='DOMAIN/user:pass'` to unlock authenticated enum.
-2. `crack_hashes(domain, 'asrep', loot_type='asrep_hash')` — offline-crack captured hashes; cracked passwords auto-land in the credential store.
-3. Re-run `run_network_recon` with the recovered `creds=` (or `run_network_tool` for a specific impacket/netexec action) to move laterally. The kill chain loops: **capture → crack → store → reuse.**
-4. `get_operator_log(domain, 'timeline'|'attack'|'loot')` — the ATT&CK-tagged evidence base for the report.
-5. `sync_to_ghostwriter(domain)` — forward both lanes' evidence into Ghostwriter.
-
-Every network action is auto-recorded in the operator log; captured secrets get chain-of-custody in the loot store; a HARD safety layer (Rules 5–9) refuses destructive/brute args in both engagement modes, and scope is mode-aware (`configure_scope(mode='operator'|'strict')`).
-
-The agent receives expert methodology through the skill files in `.claude/skills/`. Operators steer the agent by passing override flags or by editing `.burp-intel/programs/<slug>.json` per-engagement policy.
-
-### Ghostwriter reporting hub
-
-Ghostwriter is the central reporting/oplog hub both lanes forward into. It is a Docker stack; Praetor ships an auto-setup:
-
-```bash
-./setup-ghostwriter.sh     # clones + installs Ghostwriter, wires .env (GHOSTWRITER_*)
+```
+configure_scope → browser_crawl → auto_probe → assess_finding → save_finding → generate_report
 ```
 
-This downloads several GB of images and binds TCP 443 (skip in `setup.sh` with `PRAETOR_SKIP_GHOSTWRITER=1`). Afterward, open **https://127.0.0.1** (accept the self-signed cert), log in as `admin` (`cd ~/Ghostwriter && ./ghostwriter-cli-linux config get ADMIN_PASSWORD`), create a Project + its Oplog, and set `GHOSTWRITER_OPLOG_ID`.
+### Network lane
 
-**Auth on first setup.** Praetor authenticates to Ghostwriter with the precedence *admin-secret → API token → username/password login*. The simplest path is username/password: in Ghostwriter create a user named `praetor` (any role that can write the oplog), and Praetor logs in with the default `GHOSTWRITER_USERNAME`/`GHOSTWRITER_PASSWORD` = `praetor`/`praetor` — no token to copy. **Set a real password on that account and mirror it in `.env` (`GHOSTWRITER_PASSWORD=`) for any shared or remote instance; the default is a local-first-run convenience only.** Prefer a static `GHOSTWRITER_API_TOKEN` or `GHOSTWRITER_ADMIN_SECRET` for unattended/CI use.
-
-Verify with `ghostwriter_status` (it reports the active auth mode), then `sync_to_ghostwriter('<domain>')`. Praetor works fully without Ghostwriter — local `.burp-intel/` stores stay the source of truth.
-
-### Haruspex decision engine
-
-[Haruspex](https://github.com/TyrusRC/haruspex) is a local, self-hosted decision model that enriches Praetor's verdicts with calibrated probabilities. It uses domain-specific adapters (web, cloud, LLM, mobile, network) fine-tuned on GLiNER2.5-Decide.
-
-**Setup** handles everything — pre-trained adapters (~30 MB each, ~150 MB total) are downloaded from HuggingFace:
-
-```bash
-./setup.sh          # clones haruspex, downloads adapters from HuggingFace, sets .env
+```
+run_network_recon → crack_hashes → run_network_tool (lateral) → sync_to_ghostwriter
 ```
 
-**Start the server** (after setup, before an engagement):
+## Configuration
 
-```bash
-cd ../haruspex && uv run python -m haruspex.serve --port 3000 \
-  --adapters security=runs/security,cloud=runs/cloud,llm=runs/llm,mobile=runs/mobile,network=runs/network
-```
+### WSL (Burp on Windows)
 
-Praetor auto-detects the local server (keyless, `PRAETOR_DECISION_BASE_URL=http://127.0.0.1:3000` in `.env`). Verify with `decision_status`.
+**Mirrored mode (recommended):** Add `networkingMode=mirrored` to `%UserProfile%\.wslconfig`, restart WSL. Burp on `127.0.0.1:8111` is reachable from WSL with no changes.
 
-**Retrain with custom data** (optional — pre-trained adapters work out of the box):
+**NAT mode:** Set `BURP_API_HOST` to the Windows host IP, bind the extension to `0.0.0.0` with `-Dpraetor.allow_non_loopback_bind=true`.
 
-```bash
-cd ../haruspex && uv run python -m haruspex.train \
-  --train data/security_train.jsonl --out runs/security --epochs 3
-```
+### Environment variables
 
-Praetor works fully without Haruspex — the deterministic probe ordering and typed verdict envelope stay in force when the decision engine is off.
+All optional. The core hunt loop runs with no keys.
 
-## Tool Surface
-
-The MCP server exposes tools across the following groups. Architecture detail and per-tool notes are in [CLAUDE.md](CLAUDE.md).
-
-| Group | Examples |
-|---|---|
-| Scope & configuration | `configure_scope`, `check_scope`, `get_scope` |
-| Read | `get_proxy_history`, `get_proxy_count`, `get_sitemap`, `get_scanner_findings`, `get_websocket_history` |
-| Analyze | `smart_analyze`, `detect_tech_stack`, `extract_js_secrets`, `analyze_dom` |
-| Send (through Burp) | `curl_request`, `send_raw_request`, `concurrent_requests`, `send_to_repeater`, `import_curl` (parse a `curl` line → replayable request), `request_to_curl` (export any proxy entry as curl) |
-| Browser | `browser_crawl`, `browser_navigate`, `browser_click`, `browser_execute_js`, `browser_storage` (localStorage / sessionStorage / IndexedDB dump, secret-flagged), `browser_iast_enable` + `browser_iast` (passive in-browser DOM-sink instrumentation with taint source→sink correlation) |
-| Session | `create_session`, `session_request`, `extract_token`, `run_flow`, `resend_with_csrf_refresh` (replay a captured request as another account, auto-refreshing its anti-CSRF token — account-swap IDOR/BOLA without stale-token false 403s) |
-| Adaptive scan | `discover_attack_surface`, `auto_probe`, `quick_scan`, `full_recon` — backed by 156 knowledge categories and 32 payload files covering injection, auth, logic, and protocol classes |
-| Precision attack | `test_auth_matrix`, `test_race_condition`, `fuzz_parameter`, `test_parameter_pollution` |
-| Vuln-class natives | `test_csrf`, `test_ssrf`, `test_ssti` (SSTImap-style multi-phase), `test_xxe`, `test_websocket` (CSWSH), `test_prototype_pollution`, `confirm_padding_oracle` (CBC padding-oracle PoC — decrypt/detect only, routes through Burp), `test_crlf_injection`, `test_cache_poisoning`, `test_clickjacking`, `test_dom_sinks` |
-| **Exploit confirmation (25 tools)** | `confirm_sqli` (UNION/error/boolean/time, 5 DBMS), `confirm_rce` (OS-command reflection + OOB), `confirm_ssrf` (6 protocol variants), `confirm_ssti` (15 engines), `confirm_xxe` (in-band + OOB), `confirm_expression` (Java EL/OGNL/SpEL/Node eval/Python eval/Ruby), `confirm_nosql` (MongoDB/Redis/CouchDB), `confirm_ldap` (auth bypass + blind boolean), `confirm_xpath` (boolean diff/error/auth bypass), `confirm_xslt` (vendor/file/SSRF/PHP+Java RCE), `confirm_ssi` (exec/include/printenv), `confirm_email_injection` (CRLF Bcc/Cc + Collaborator), `confirm_second_order` (stored inject-then-trigger), `confirm_cache_deception` (path/delimiter/normalization confusion) |
-| **Exploit escalation (9 tools)** | `escalate_ssti` (11 engines → RCE), `escalate_sqli` (file read/OS cmd/OOB, 5 DBMS), `escalate_ssrf` (IMDS/file:///internal services), `escalate_xxe` (SSRF/multi-file/OOB exfil/PHP expect), `escalate_lfi` (sensitive files/PHP wrappers/log poisoning//proc), `escalate_idor` (numeric/UUIDv1/ObjectId enumeration), `escalate_prototype_pollution` (EJS/Pug/Handlebars/Express gadgets), `escalate_open_redirect` (OAuth token theft/Referer leak/XSS chain), `blind_sqli_extract` (boolean/error/time binary-search extraction) |
-| Auth attack | `forge_jwt`, `crack_jwt_secret`, `test_login_bypass`, `test_mfa_bypass`, `test_session_lifecycle`, `analyze_reset_tokens`, `test_auth_matrix`, `compare_auth_states` |
-| Auth protocol simulators | `oauth_flow_simulator`, `oauth_hybrid_flow_simulator`, `oauth_device_flow_simulator`, `oauth_dpop_audit`, `probe_saml_xsw` (XSW), `probe_passkey_stepup_bypass` |
-| Edge cases | `test_cors`, `test_jwt`, `test_graphql`, `test_cloud_metadata`, `test_open_redirect` |
-| Advanced | `test_host_header`, `test_request_smuggling`, `test_mass_assignment`, `test_business_logic` |
-| Extract | `extract_regex`, `extract_json_path`, `extract_css_selector`, `extract_headers` |
-| Repeater & macros | `send_to_repeater_tracked`, `repeater_resend`, `create_macro`, `run_macro` |
-| Burp control & utility | `burp_settings` (scope / intercept on-off + read / match-replace / options JSON export-import / task-engine pause-resume), `send_to_organizer` + `get_organizer_items` (write & read Burp's Organizer), `decode_encode`, `generate_random_string` |
-| Recon (third-party) | `run_subfinder`, `run_httpx`, `run_vigil` (default web-scan engine), `run_groma` (default network-scan engine — full port range + CVE checks), `run_katana`, `run_dnsx`, `run_tlsx`, `run_asnmap`, `run_cdncheck`, `run_alterx`, `run_uncover`, `run_shuffledns`, `run_chaos`, `run_notify`, `run_amass`, `run_gau`, `run_wafw00f`, `run_arjun`, `run_graphw00f`, `run_dnsgen`, `query_crtsh`, `analyze_dns`, `fetch_wayback_urls`, `run_theharvester` (OSINT emails/hosts), `hibp_breach_lookup` (HIBP v3, key via `HIBP_API_KEY`) |
-| Threat-intel / OSINT (free-tier) | `shodan_host` (Shodan exposure — **keyless** InternetDB, richer with `SHODAN_API_KEY`), `urlscan_search` (**keyless** related-URL/infra discovery), `vt_lookup` (VirusTotal reputation), `otx_lookup` (AlienVault OTX passive-DNS/malware), `greynoise_lookup` (scanner-vs-targeted triage), `abuseipdb_lookup` (IP abuse score), `ti_status` (which keys are live) |
-| LLM analysis config | `llm_status` (resolved provider/model) — provider-agnostic config for the source-SAST tools; OpenAI / Anthropic / Ollama / Gemini / DeepSeek / Qwen / Zhipu / Moonshot / any OpenAI-compatible or self-hosted endpoint |
-| Web attack (third-party) | `run_sqlmap`, `run_ghauri`, `run_commix`, `run_dalfox`, `run_ffuf`, `run_vhost_fuzz` (ffuf virtual-host discovery via Burp), `run_nikto`, `run_wpscan`, `run_nomore403`, `run_byp4xx` |
-| Secrets & SAST | `run_gitleaks`, `run_trufflehog`, `run_mantis` (source-audit engine), `inventory_source_routes`, `dump_exposed_git`, `extract_js_secrets`, `suggest_finding_owner` (CODEOWNERS + git-blame attribution of a source finding, for remediation routing) |
-| SCA / supply-chain | `run_trivy`, `run_grype`, `run_syft`, `run_osv_scanner`, `run_retirejs` (client-side JS library → CVE), `run_poutine`, `run_octoscan`, `run_cosign_verify` |
-| IaC / container config | `run_checkov`, `run_tfsec`, `run_terrascan`, `run_hadolint` |
-| Cloud / Kubernetes | `run_prowler`, `run_scout_suite`, `run_cloudsploit`, `run_pacu`, `run_gcp_scanner`, `run_azurehound`, `enum_public_buckets` (anonymous S3 / Azure blob / GCS enumeration, read-only), `run_kube_hunter`, `run_kubescape`, `run_kubeletctl`, `run_kdigger`, `run_peirates` |
-| LLM / AI red-team | `discover_llm_endpoint`, `run_garak`, `run_pyrit_orchestrator`, `run_web_llm_owasp_top10`, `run_owasp_asi_top10`, `scan_llm_infra`, `run_local_llm_prompt_injection` |
-| MCP / agent security | `enumerate_mcp_server`, `run_mcp_scan`, `run_mcptox`, `probe_mcp_server_attacks`, `detect_mcp_schema_drift`, `inspect_for_prompt_injection`, `scan_claude_code_project_hooks` |
-| Metasploit | `msf_search`, `msf_check`, `msf_exploit`, `msf_payload_gen`, `msfrpc_login`, `msfrpc_module_execute` |
-| CVE research & adaptation | `lookup_cve`, `search_cve`, `lookup_cpe`, `map_tech_to_cves`, `kev_epss_enrich` (CISA KEV + FIRST EPSS), `adapt_poc_to_version` (version-delta reasoning), `probe_cve_with_variants` |
-| Subdomain takeover | `test_subdomain_takeover` — 129 vendor fingerprints (W8 nuclei merge) + DNS-only signal mode (W9: ElasticBeanstalk regional, Azure trafficmanager / azureedge / redis.cache.windows.net). DNS-only entries flag takeover when CNAME resolves but target hostname has no A record (skip body fingerprint match). See `.claude/skills/recon-takeover.md`. |
-| Collaborator | `generate_collaborator_payload`, `auto_collaborator_test`, `get_collaborator_interactions` |
-| Intel | `save_target_intel`, `load_target_intel`, `lookup_cross_target_patterns`, `set_program_policy` |
-| Named scan policies | `save_scan_policy`, `get_scan_policy`, `list_scan_policies`, `delete_scan_policy` — save a `run_vigil` flag combination once under a name, run it by name across targets |
-| Engagement graph | `record_goal`, `record_intent`, `record_fact`, `record_asset`, `link_finding`, `engagement_graph` — pre-finding lineage (goal→intent→fact→finding→asset). `engagement_graph(format='html')` = a standalone interactive Wiz-style page (Flow/Force layout, count chips, Security-Graph/Operations/Findings/Assets/Report tabs — open in a browser, no plugin); `format='dsh'` mirrors into dsh-pentest's native view (needs its npm plugin). See [Viewing the engagement graph](#viewing-the-engagement-graph). |
-| Host-parity bridge (cross-host) | `praetor_bootstrap` (call first on a non-Claude host), `get_rules` (`hunting`/`engineering`/`project`), `list_skills`/`get_skill`, `list_prompts`/`get_prompt`, `list_agents`/`get_agent`, `list_knowledge`/`get_knowledge` — everything Claude Code auto-loads from disk, exposed as tools for any MCP host |
-| Context & profiles | `get_profile` (active vs gated lanes), `run_tool` (run any gated tool + auto-enable its lane — a lane pivot never blocks), `use_lane` (re-advertise a lane) — `PRAETOR_PROFILE` advertises only the lanes an eager host needs |
-| Observability | `harness_log` (universal tool-call ledger — every call timed, secret-free), `get_operation_log` (Burp-call ledger), `verify_operation_log` |
-| Hunt advisor | `get_hunt_plan`, `get_next_action`, `assess_finding`, `pick_tool` |
-| Decision layer | `decide` — one typed decision envelope for every branch point (JEV/TypeSafe pattern): a typed **choice** + a **calibration-backed confidence** (capped toward the global ledger, fail-closed) + an explicit routing **action** (`run` / `ask` / `escalate` / `report` / `keep_testing` / `stop`). Wraps `route_signals` + `judge_completion` + the probe verdicts into one shape any host consumes. `decide(question='next')` returns the next move — or `escalate` when there is no routable signal and the engagement is not done (Rule 33 as a value, not prose); `decide(question='verdict', vuln_type=, verdict=)` routes a `make_verdict` result — INCONCLUSIVE on a high-value class → `escalate`, never coerced benign (Rule 13b) |
-| Security research | `research_attack_vector` (curated deep-dive prompts + HackerOne hacktivity + writeup-hub URLs to WebFetch — operationalizes Rule 27's 20% creative-hunting budget) |
-| Reporting | `save_finding`, `generate_report`, `format_finding_for_platform`, `export_report` |
-| Compliance & posture | `generate_compliance_report` (PCI-DSS v4 / SOC2 Type II / HIPAA / GDPR / OWASP rollup, confirmed findings only), `generate_posture_dashboard` (self-contained offline HTML — severity mix, coverage heatmap, trend) |
-| **Checklist automation** | `checklist_autorun` (execute ALL open checklist items in one call — auto_probe for KB categories, individual test/confirm tools for specific items, records results, reports gaps), `checklist_gaps` (TESTED/MISSING/FINDING per item with coverage %), `checklist_autotest` (ordered run-plan of open items), `checklist_update` / `checklist_record_batch` (record results) |
-| **Test traceability** | `test_journal` (structured per-test log — every test run with endpoint, parameter, vuln_class, verdict, tool, proxy_index, timestamp; merges coverage.json + findings.json + test_journal.jsonl into one table), `coverage_status` (OWASP/WSTG category heatmap), `coverage_summary` (per-class gap counts), `next_untested_targets` (ranked gaps with ready-to-run tool calls) |
-| Benchmark harness (self-eval) | `run_xbow_bench` + `xbow_pull_benchmarks` (XBOW Validation Benchmarks, 104 challenges), `run_autopenbench`, `run_caibench` (Cybench / NYU CTF / CAI-internal), `summarize_benchmarks` (per-run rollup under `.burp-intel/_bench/`) |
-| Report evidence | `burp_screenshot` (GUI capture + tab/sub-tab/row/click nav + auto-redaction), `auto_redact_screenshot`, `redact_screenshot`, `attach_screenshot`, `screenshot_gallery`, `export_poc_bundle` |
-| Findings hub & egress | `import_scan_results` (vigil / nuclei / nessus / SARIF / Burp XML / OpenVAS / ZAP → dedup-merge), `merge_scan` (vigil + Burp Pro scanner → one deduped stream), `push_finding_to_tracker` (GitHub / GitLab / Jira issue, creds via env), `send_finding_to_siem` (webhook / CEF egress), `set_remediation`, `remediation_status` |
-| **Fuzzing (lane)** | `fuzz_upload` (structure-aware mutation-upload — valid seeds + format dictionaries for PNG/JPEG/GIF/WebP/PDF/SVG/ZIP, `afl-fuzz`→`radamsa`→in-process engine, uploads through Burp, classifies parser anomalies vs baseline; bounded + DoS-confirm-gated), `assess_cve_exploitability` (exploitable-here verdict over the CVE chain — KEV/EPSS + live precondition + adapted benign PoC; memory-corruption CVEs route to the AFL bridge), `afl_build_harness` (afl-cc/afl-clang-fast + ASan/UBSan/CmpLog), `afl_fuzz_target` (bounded coverage-guided campaign, auto seed corpus + dictionary), `triage_crashes` (sanitizer-report exploitability rubric — LIKELY-EXPLOITABLE/MEDIUM/BENIGN, stack-hash dedup, afl-tmin, crash→upload server-side confirm). Benign-PoC only. Skill: `.claude/skills/fuzz-upload.md` |
-| **Network recon (lane)** | `run_network_recon` (chained discover→enum→leads pipeline), `run_nmap` (advanced: `scan_type` syn/ack/fin/null/xmas/udp/connect, NSE scripts, timing/retry/delay tuning, OS/service detect — with ACK firewall-map, FIN/NULL/XMAS OS inference, and packet-corroboration guidance; skill: `.claude/skills/network-scan-techniques.md`), `get_network_inventory` |
-| **Network / AD / post-ex** | `run_network_tool` (sanctioned impacket / netexec / responder / bloodhound-python / certipy / kerbrute / enum4linux-ng / smbmap / evil-winrm / rpcclient / ldapsearch / mitm6 / roadrecon + roadtx (Entra/Azure AD) / sccmhunter (SCCM/MECM)), `ingest_bloodhound` (parse a BloodHound/certipy collection into ATT&CK-tagged AD attack-path edges), `sync_bloodhound_to_ghostwriter` |
-| **Credential loop** | `crack_hashes` (offline hashcat/john), `record_credential`, `list_credentials` |
-| **Operator log / evidence** | `record_redteam_action`, `record_loot`, `get_operator_log` (timeline / attack / loot) |
-| **Mobile lane (device control)** | `mobile_devices`, `mobile_connect`, `mobile_set_proxy`, `mobile_frida_run`, `mobile_app_control`, `mobile_screenshot`, `mobile_shell`, `mobile_pull_file` — Frida (iOS+Android) + adb (Android) on the host running the server; 1-per-device |
-| **Red-team knowledge** | `lookup_gtfobins`, `lookup_lolbas`, `redteam_tool_guide` |
-| **Ghostwriter hub** | `ghostwriter_status`, `sync_to_ghostwriter` |
-
-## MCP Prompts
-
-The server publishes ready-to-run workflow templates. Surface them in your client (`/mcp` listing or the prompt picker) and pass arguments to launch a phase.
-
-| Prompt | Args | Purpose |
+| Variable | Default | Purpose |
 |---|---|---|
-| `hunt-target` | `target` | Standard hunt loop: scope → recon → probe → verify → save. |
-| `verify-finding` | `vuln_type`, `endpoint`, `evidence` | Walk a suspected finding through the 7-Question Gate before saving. |
-| `triage-program` | `program` | Set per-program policy, scope, and override defaults at engagement start. |
-| `chain-findings` | `domain` | Walk saved findings and propose chains that lift NEVER-SUBMIT items into impact. |
-| `save-finding-checklist` | `vuln_type`, `endpoint` | Pre-save checklist enforcing replay → assess → save. |
+| `BURP_API_HOST` / `PORT` | `127.0.0.1` / `8111` | Burp extension API |
+| `BURP_PROXY_HOST` / `PORT` | `127.0.0.1` / `8080` | Burp proxy listener |
+| `PRAETOR_LLM_PROVIDER` | — | LLM for analysis tools (openai/anthropic/ollama/gemini/deepseek/...) |
+| `PRAETOR_LLM_API_KEY` | — | LLM key (or use provider-native vars) |
+| `PRAETOR_DECISION_PROVIDER` | auto | Decision engine: jev / llm / off |
+| `GHOSTWRITER_URL` | — | Ghostwriter base URL (optional) |
+| `PRAETOR_PROFILE` | all | Tool lanes to advertise (web/network/mobile/cloud/core/codex) |
 
-## MCP Resources
+Full list with OSINT keys, Ghostwriter auth, and CI options in `.env.example`.
 
-Read-only context the agent can attach without spending tool budget. URIs:
+### Decision engine
 
-| URI | Returns |
-|---|---|
-| `burp://rules/hunting` | The 28 always-active hunting rules (HARD/DEFAULT/ADVISORY). |
-| `burp://rules/engineering` | The 4 engineering rules. |
-| `burp://skills/index` | List of every skill (stem + one-line description) — the discovery entry point. |
-| `burp://skills/{name}` | One skill markdown file by stem (`hunt`, `verify-finding`, `chain-findings`, …). |
-| `burp://knowledge/index` | List of all knowledge categories with context counts. |
-| `burp://knowledge/{category}` | Raw JSON for one category (probes + matchers + craft guidance). |
-| `burp://intel/{domain}/{kind}` | Saved target intel: `profile`, `endpoints`, `coverage`, `findings`, `fingerprint`, `patterns`, `notes`. |
-| `burp://findings/{domain}` | Findings JSON for one domain (alias of `burp://intel/{domain}/findings`). |
-
-Hosts that bridge MCP Tools but not Resources (e.g. DeepSeek Harness) reach the same
-skill library through the `list_skills` / `get_skill` **tools** — see [Skills, rules &
-agents on other hosts](#skills-rules--agents-on-other-hosts).
+Three backends (auto-selected, best first): local [Haruspex](https://github.com/TyrusRC/haruspex) model, any `PRAETOR_LLM_*` provider (including local Ollama), or off (deterministic ordering). The engine orders probes and enriches verdicts — it never drops coverage.
 
 ## Knowledge Base
 
-The adaptive scan engine reads JSON files from `mcp-server/src/praetor/knowledge/`. Each file declares contexts, server-side matchers, and optional craft guidance for dynamic payload generation. Add a new `.json` file to extend coverage; `auto_probe` picks it up at runtime. The full per-category breakdown lives in [`mcp-server/src/praetor/knowledge/_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
+JSON files under `mcp-server/src/praetor/knowledge/`. Each file declares contexts, server-side matchers, and craft guidance. `auto_probe` loads them at runtime.
 
-### Coverage
-
-| Framework | Status |
-|---|---|
-| OWASP Web Top 10 (2021) | All 10 categories |
-| OWASP API Security Top 10 (2023) | All 10 categories |
-| OWASP LLM Top 10 (2025) | 9 / 10 (LLM09 misinformation out-of-scope for active testing) |
-| OWASP Mobile Top 10 (2024) | Application surface covered (deep-link, WebView, mobile API, payments). M5 insecure comms handled by the `mobile-dynamic-agent` Frida pinning bypass; M7 binary protections out-of-scope. |
-| OWASP WSTG (Web Security Testing Guide) | All sections — information gathering, configuration, identity, authentication, authorization, session, input validation, error handling, cryptography, business logic, client-side, API |
-| OWASP ASVS 5.0 (verification) | All 17 chapters (V1 Encoding/Sanitization … V17 WebRTC) as a coverage lens — `standards_coverage(standard='asvs')` / `coverage_status(standards=['asvs'])` |
-| OWASP AISVS 1.0 (AI verification) | All 12 chapters (C01 Training-Data … C12 Monitoring/Logging), mapping the AI/LLM KB — `standards_coverage(standard='aisvs')`. Distinct from the AI Testing Guide lens |
-| OWASP MASVS v2 (mobile verification) | All 8 control groups (STORAGE / CRYPTO / AUTH / NETWORK / PLATFORM / CODE / RESILIENCE / PRIVACY) — `standards_coverage(standard='mastg')` |
-| PayloadsAllTheThings | Every named injection / abuse class mapped, including ZIP Slip, argument injection, GraphQL engine-specific |
-| HackTricks Web | Path traversal, SSRF, SSTI, deserialization, prototype pollution, request smuggling, cache poisoning, CSPP, OAuth, SAML, WebDAV, file upload |
-| HackTricks Cloud | Anonymous external surface covered: object storage misconfig (S3 / GCS / Azure Blob / R2 / B2 / Spaces / OCI / MinIO), function URLs (Lambda / Cloud Run / Cloud Functions / Azure / OpenFaaS), API gateway (AWS / GCP / Azure APIM / Kong / KrakenD / Tyk), Kubernetes (kubelet / kube-apiserver / etcd / dashboard / ArgoCD / Tekton / Rancher / Portainer / registries). Credential-based privesc (Pacu class) out-of-scope per operator policy. |
-
-Latest additions cover the gap surface most bug-bounty and red-team work hits: cloud storage anonymous enumeration, serverless function URL discovery, K8s external exposure, mobile deep-link and WebView injection, archive extraction (Zip Slip) and argument injection (`curl --upload-file`, `git ext::`, `ssh -oProxyCommand`, …), GraphQL engine-specific attacks (Hasura admin-secret, Apollo APQ poisoning, federation `_entities` abuse, PostGraphile RLS bypass, Dgraph admin, Strawberry SDL leak), and a perimeter-appliance CVE pack (Citrix NetScaler, F5 BIG-IP, Ivanti Connect Secure, PAN-OS GlobalProtect, MOVEit, SonicWall SSLVPN, CrushFTP, Exchange, Confluence, TeamCity, GeoServer, Log4Shell).
-
-Acunetix reverse-engineering (2026-10-22) added: ESI injection (4 contexts), Expression Language injection (6 contexts — JSP EL, Spring SpEL, OGNL, MVEL), session fixation (4 contexts), enhanced HPP (comma-separated, semicolon IIS bypass, WAF bypass via HPP), session security with fixation probes, CTE SQLi (WITH clause bypass), body-size overflow WAF bypass, CL.TE smuggling WAF bypass.
-
-### Scope & Non-Goals
-
-Praetor is a **two-lane pentest & red-team harness**: web / API / cloud / LLM DAST through Burp, **and** network recon + Active Directory / post-exploitation on the network lane. Both lanes are first-class — the tooling, evidence model, and reporting pipeline serve both. Internal-network / AD is **in scope** (this changed in the network-lane release): `run_network_recon`, impacket, netexec, responder, bloodhound-python, certipy, kerbrute, offline cracking, and the credential-reuse loop are all core.
-
-The following remain **out of scope by design**, not gaps to be filled:
-
-- **Binary / memory-corruption exploitation** — no ROP/pwntools/gdb/kernel/V8 exploit development. Praetor operates at the network/service and web layers, not on native-binary crash-to-exploit (e.g. ExploitGym-class tasks).
-- **Thick-client / native desktop binaries** — Electron IPC/ASAR inspection ships as reference KB (`desktop_electron`) + skill only; no binary-instrumentation automation for native Windows/macOS apps.
-- **Binary / memory-corruption exploitation** (ROP/pwntools/kernel-level) — though AFL-based fuzzing (`afl_build_harness` / `afl_fuzz_target` / `triage_crashes`) covers coverage-guided binary testing with crash exploitability triage, and burp-expedition handles non-HTTP protocol testing (TCP/UDP relay, intercept, replay).
-- **Email-infrastructure security** — DNS analysis notes SPF/DMARC *presence* only; no DKIM-selector enumeration, SMTP/STARTTLS/open-relay, or BEC/spoofing assessment.
-- **Container-runtime / eBPF behavioral detection** — image scanning (Trivy/Grype/Hadolint) is covered; runtime (Falco-class) is not.
-- **Online credential brute-force** — dictionary brute of a live service is refused (HARD Rule 6); default/known-cred checks, single-password spray, and **offline** cracking are in scope.
-- **Autonomous destructive actions** — RCE is detection-gated; destructive/brute tool args are refused in both engagement modes. Praetor proves impact with benign markers, never with data destruction (Rules 5–8).
+**Coverage:** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud. Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
 
 ## Save-Finding Pipeline
 
-Three phases enforced by the gate:
+```
+replay (≥3× for blind)  →  assess_finding (7-question gate)  →  save_finding (persist + dedup)
+```
 
-1. **Replay.** `resend_with_modification(index)` confirms the anomaly and records a `proxy_history_index`.
-2. **Assess.** `assess_finding(...)` runs the 7-question gate (scope, reproducibility, impact, dedup, evidence, NEVER-SUBMIT, triager) and returns `REPORT` / `NEEDS MORE EVIDENCE` / `DO NOT REPORT` plus a suggested confidence.
-3. **Save.** `save_finding(...)` persists if the gate passed. The Java extension hard-rejects calls without resolvable evidence, NEVER-SUBMIT classes without `chain_with[]`, and timing/blind classes without `reproductions[]`.
-
-Operators can override individual gate questions with `overrides=["q5_evidence:<reason>", ...]` (audit-trailed), pass `human_verified=True`, or change engagement policy with `set_program_policy`. See `.claude/skills/user-override.md`.
-
-## Severity & CVSS Scoring
-
-Severity is **derived, not eyeballed**. `compute_cvss` builds a deterministic CVSS 4.0 vector from the vuln class + finding-shape flags (the same shape always yields the same vector — Rule 14d), stored on the finding as `cvss4_vector`; the qualitative band comes from the real FIRST.org score, and the reportable tier is business-impact against the target's assets (LOW → CRITICAL).
-
-- **Environment-aware.** `network_exposure` maps to the CVSS **Modified Attack Vector** — `internet` keeps AV:N, `internal` / `ip_allowlist` / `vpn_only` / `adjacent` → MAV:A, `local` → MAV:L, `physical` → MAV:P. An IP-allowlisted SQLi/SSRF therefore scores its true internal band (CRITICAL → HIGH), and both the stored vector and `assess_finding`'s inferred severity follow that environmental score — no manual re-scoring. A scope-changing RCE stays CRITICAL (faithful, not forced).
-- **Exploit maturity.** `exploit_demonstrated=True` sets **E:A** (a working exploit was run, not a theory).
-- **Guards.** `save_finding` refuses a severity two+ bands off the vector; MEDIUM+ requires an `impact` string; `validate_severity` reconciles a claimed severity against the CVSS band before it reaches a report. `lock_findings` freezes a shipped verdict — a later re-test logs to `discrepancy_log` instead of silently flipping it (Rule 16b).
-- **Attack-path map in the report.** The `redteam` and `pentest` reports carry an **Attack Path Map & Next Steps** section — a Mermaid graph of confirmed findings escalating to high-value objectives (with ATT&CK ids + severing controls) plus the near-miss objectives one capability away (the operator's next proof). `export_report_html(domain, format)` renders it to a self-contained HTML file (`reports/<domain>-report.html`) with mermaid.js, so a pentester/red-teamer opens it in a browser and sees what to do next.
-
-## Safety Model
-
-Praetor is built for **authorized** engagements and the professional benign-PoC standard: reaching the sink proves impact (`SELECT VERSION()` proves you *could* DROP; a read marker proves RCE), so you almost never execute irreversible harm.
-
-- **HARD tool-layer block (Rules 5–9, non-overridable).** The `confirm_*` exploit tools refuse irreversible target-state payloads (DROP/DELETE, `rm -rf`, `useradd`, SSH-key implant, miner loaders). A refusal is a **pivot**, not a dead end — prove it benignly, or drop to the operator-owned raw tools.
-- **Confirm-before-dangerous.** The unrestricted raw tools (`send_raw_request` / `curl_request`) pause with a *CONFIRM REQUIRED* notice on a clearly dangerous state-changing action (delete-user / change-password / money-movement / privilege-change / prod-op / any DELETE); the agent asks the operator, then re-calls with `confirmed=True`. GET and ordinary pentest traffic are untouched.
-- **Bounded auth-control testing (Rule 6a).** Weak-password spray, rate-limit, lockout and offline hash/JWT cracking are allowed (netexec spray, `test_rate_limit`, `crack_hashes`, `crack_jwt_secret`); only large-scale dictionary brute for account takeover (hydra/medusa/ncrack/patator) is blocked, with the allowed path named.
-- **State-change detection hook (Rule 8a).** A PreToolUse hook on `send_raw_request` / `curl_request` detects DELETE methods and 16 state-change keywords (delete, password, transfer, privilege, etc.) and blocks with an operator-confirmation prompt. Fail-open — legitimate traffic is never blocked; false positives are acceptable (operator approves), false negatives are the risk.
-- **Engagement modes.** `configure_scope(mode='operator')` (default) audit-logs out-of-scope and proceeds (private contract trust model); `mode='strict'` hard-blocks for public bounty scope. Safety Rules 5–9 stay HARD in both.
-
-## Skills
-
-Behavioral skills live in `.claude/skills/`:
-
-- `hunt.md` — systematic vulnerability hunting workflow
-- `verify-finding.md` — per-class evidence bars and the 7-question gate
-- `resume.md` — continue from a previous session, re-verify findings
-- `chain-findings.md` — escalate low findings into chained impact
-- `report-templates.md` — platform-specific report formatting
-- `autopilot.md` — autonomous hunt loop with circuit breaker
-- `dispatch-agents.md` — parallel agent orchestration (fixed patterns)
-- `swarm-hunting.md` — stigmergic coordination: pheromone-weighted leads, trigger-predicate routing, decay, emergent chains (reactive upgrade to dispatch-agents)
-- `burp-workflow.md`, `investigate.md`, `craft-payload.md`, `static-dynamic-analysis.md`
-- `user-override.md` — operator override surfaces when defaults block legitimate findings
-- `operational-discipline.md` — cross-role discipline (pentester / BBH / red team / researcher): read before you send, replay before save, annotate live, stop when impact is proved, honour the noise budget
-- `security-research.md` — deep-dive an interesting anomaly via `research_attack_vector` + WebFetch on disclosed reports / writeups; operationalizes Rule 27's 20% creative-hunting budget
-- `command-engagement.md` — engagement-lead SOP (drives `/checklist` and `/exploit`; asks pentest-vs-red-team when unstated)
-- `handle-docx.md` — read a supplied Word SoW/scope/RoE (stdlib, untrusted-input safe) or export a report to `.docx`
-
-Always-active rules in `.claude/rules/`:
-
-- `engineering.md` — engineering rules (think first, simplicity, surgical changes, goal-driven execution)
-- `hunting.md` — tiered hunting rules (HARD 1-10 tool-enforced, DEFAULT 11-21 overridable, ADVISORY 22-28 on-demand)
-
-On non-Claude hosts these load the same way — via the `list_skills` / `get_skill` tools, the `burp://skills/*` resources, or the raw files. See [Skills, rules & agents on other hosts](#skills-rules--agents-on-other-hosts).
+Gates: scope, reproducibility, impact, dedup, evidence, never-submit class, triager check. Operators override with `overrides=[...]` or per-program policy.
 
 ## Agents
 
-Project subagents in `.claude/agents/`, auto-loaded by Claude Code at session start. Two commanders plus specialised workers:
+Two commanders (Opus-tier, strategic), one per-domain orchestrator, and specialized workers (recon, vuln-scanner, finding-verifier, payload-crafter, auth-tester, browser, mobile, network, cloud, LLM, and more). Full roster in [AGENTS.md](AGENTS.md).
 
-**Commanders** (pinned Opus — strategic decisions, never tactical tool calls):
-- `pentest-commander` — engagement lead for coverage-driven pentests (multi-domain, cross-target synthesis, findings report)
-- `redteam-commander` — engagement lead for objective-driven red teams (kill-chain narrative, stealth/noise budget)
+## Cross-Host Support
 
-**Per-domain orchestrator:**
-- `grow-agent` — session orchestrator, one domain per run (Rule 20a session-start gate, Rule 4 goal-driven loop, Rule 21 checkpointing)
+Everything Claude Code auto-loads from disk is also exposed as MCP tools: `praetor_bootstrap()`, `get_rules()`, `list_skills()`/`get_skill()`, `list_agents()`/`get_agent()`. Non-Claude hosts call `praetor_bootstrap()` first. Per-host rule files ship for Claude Code, Codex, Gemini CLI, Cursor, and Windsurf.
 
-**Workers:**
-- `recon-agent` — attack-surface mapping
-- `js-analyst` — JS secrets and DOM source→sink flows
-- `vuln-scanner` — vulnerability probing, one category per instance
-- `finding-verifier` — re-verification with per-class evidence bars
-- `payload-crafter` — WAF and filter bypass
-- `auth-tester` — authz matrix, IDOR/BFLA, JWT
-- `browser-agent` — SPA and JS-heavy targets
-- `auth-payment-agent` — OAuth, FIDO2/passkeys, Apple/Google/Samsung Pay, IAP, 3DS
-- `fuzz-agent` — tech-aware wordlist generation and ffuf
-- `mobile-dynamic-agent` — Frida and adb (pinning bypass, runtime hooks, deep-link sinks)
-- `network-agent` — network/AD lane (discovery, service enum, credential capture/crack/reuse, lateral movement)
-- `cloud-agent` — cloud posture + active exploitation (AWS/Azure/GCP audit, IaC scan, container/K8s escape, SSRF→metadata pivots)
-- `desktop-agent` — Electron / Tauri / WebView2 binary inspection + IPC fuzzing + auto-update MITM
-- `llm-agent` — LLM/AI endpoint testing (OWASP LLM Top 10: prompt injection, jailbreak, system-prompt leakage, tool-SSRF)
-- `screenshot-triage` — OCR-first triage of saved screenshots (forms, endpoints, error strings, auth markers)
-- `ste-writer` — rewrite text into ASD-STE100 Simplified Technical English
+For eager-loading hosts (Codex, dsh), set `PRAETOR_PROFILE` to advertise a smaller tool set. Gated tools stay runnable via `run_tool()`.
 
-Roles and parallelization patterns: [AGENTS.md](AGENTS.md).
+## Burp Edition Compatibility
+
+**Professional** — full support.
+
+**Community** — supported with fallbacks. `auto_probe` + `fuzz_parameter` replace the active scanner; operator-supplied OOB callbacks replace Collaborator; `concurrent_requests` bypasses Intruder throttling. Run `check_pro_features()` at session start.
 
 ## Supported Platforms
 
-- Linux
-- macOS
-- Windows (use `.venv\Scripts\python.exe` in `.mcp.json`)
-- WSL (Burp on the Windows host — prefer mirrored networking; NAT fallback available. See [WSL](#wsl-burp-on-the-windows-host))
-
-The Java extension and Python server use platform-independent libraries.
+Linux, macOS, Windows, WSL. The Java extension and Python server use platform-independent libraries.
 
 ## Contributing
 
-Issues and pull requests welcome. Please:
-
-- Open an issue for non-trivial changes before sending a PR.
-- Run the full Python test suite (`cd mcp-server && uv run python -m unittest discover -s tests -v`) and `cd burp-extension && mvn package` before submitting.
-- Match the existing style (Java: camelCase methods, snake_case JSON keys; Python: PEP 8, async tools).
-- Do not add external Java dependencies; the extension uses only the Montoya API and JDK.
+- Open an issue for non-trivial changes before sending a PR
+- Run tests: `cd mcp-server && uv run python -m unittest discover tests` and `cd burp-extension && mvn package`
+- Match existing style (Java: camelCase methods, snake_case JSON keys; Python: PEP 8, async tools)
+- No external Java dependencies — extension uses only Montoya API and JDK
 
 ## License
 
-[Apache License 2.0](LICENSE).
-
-This project integrates with Burp Suite (a product of PortSwigger Ltd) and is not affiliated with or endorsed by PortSwigger.
+[Apache License 2.0](LICENSE)

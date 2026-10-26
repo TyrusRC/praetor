@@ -58,7 +58,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """WebSocket-upgrade attack matrix. Returns VerdictResult (W7 schema).
 
-        ASSAY-FIRST: vigil's ws (WebSocket) detector covers this class. Run
+        VIGIL-FIRST: vigil's ws (WebSocket) detector covers this class. Run
         run_vigil() first — use this tool only for targeted re-probe of a
         specific finding, or when vigil is not installed.
 

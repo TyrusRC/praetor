@@ -52,16 +52,22 @@ public final class AutoProbeOrchestrator {
         return null;
     }
 
-    static final Map<String, String> CWE_MAP = Map.of(
-        "sqli", "CWE-89",
-        "xss", "CWE-79",
-        "path_traversal", "CWE-22",
-        "ssti", "CWE-1336",
-        "command_injection", "CWE-78",
-        "ssrf", "CWE-918",
-        "xxe", "CWE-611",
-        "idor", "CWE-639",
-        "info_disclosure", "CWE-200"
+    static final Map<String, String> CWE_MAP = Map.ofEntries(
+        Map.entry("sqli", "CWE-89"),
+        Map.entry("xss", "CWE-79"),
+        Map.entry("path_traversal", "CWE-22"),
+        Map.entry("ssti", "CWE-1336"),
+        Map.entry("command_injection", "CWE-78"),
+        Map.entry("ssrf", "CWE-918"),
+        Map.entry("xxe", "CWE-611"),
+        Map.entry("idor", "CWE-639"),
+        Map.entry("info_disclosure", "CWE-200"),
+        Map.entry("open_redirect", "CWE-601"),
+        Map.entry("csrf", "CWE-352"),
+        Map.entry("file_upload", "CWE-434"),
+        Map.entry("deserialization", "CWE-502"),
+        Map.entry("race_condition", "CWE-362"),
+        Map.entry("mass_assignment", "CWE-915")
     );
 
     private final MontoyaApi api;

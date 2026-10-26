@@ -37,7 +37,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test CORS configuration for origin reflection and credential misconfigs.
 
-        ASSAY-FIRST: vigil's cors detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's cors detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 
@@ -56,7 +56,7 @@ def register(mcp: FastMCP):
     ) -> str:
         """Analyze a JWT token for vulnerabilities and attack vectors.
 
-        ASSAY-FIRST: vigil's jwt + jwtadvanced + jkuabuse detectors cover this
+        VIGIL-FIRST: vigil's jwt + jwtadvanced + jkuabuse detectors cover this
         class. Run run_vigil() first — use this tool only for targeted re-probe
         of a specific finding, or when vigil is not installed.
 
@@ -75,7 +75,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test GraphQL endpoint for introspection, field suggestions, batch, GET CSRF, and (deep) alias-DoS + depth limits.
 
-        ASSAY-FIRST: vigil's graphql + graphqladvanced + graphqldos detectors
+        VIGIL-FIRST: vigil's graphql + graphqladvanced + graphqldos detectors
         cover this class. Run run_vigil() first — use this tool only for
         targeted re-probe of a specific finding, or when vigil is not installed.
 
@@ -99,7 +99,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test SSRF to cloud metadata + container creds (AWS ECS/EKS/IMDS, GCP, Azure, DO, Alibaba, Oracle).
 
-        ASSAY-FIRST: vigil's cloud detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's cloud detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 
@@ -142,7 +142,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test open redirect with Collaborator-verified DNS/HTTP confirmation.
 
-        ASSAY-FIRST: vigil's redirect detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's redirect detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 
@@ -168,7 +168,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test for LFI/path traversal with encoding bypasses and PHP wrappers.
 
-        ASSAY-FIRST: vigil's lfi detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's lfi detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 
@@ -194,7 +194,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test file upload for bypass vulnerabilities with extension and content-type evasion.
 
-        ASSAY-FIRST: vigil's fileupload detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's fileupload detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 
@@ -218,7 +218,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Verdict a page's frameability (clickjacking) and emit an attack PoC when frameable.
 
-        ASSAY-FIRST: vigil's xfs (X-Frame/clickjacking) detector covers this
+        VIGIL-FIRST: vigil's xfs (X-Frame/clickjacking) detector covers this
         class. Run run_vigil() first — use this tool only for targeted re-probe
         of a specific finding, or when vigil is not installed.
 

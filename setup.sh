@@ -603,7 +603,7 @@ fi
 # ── Nuclei templates: Praetor custom set ────────────────────────────
 # run_vigil (and nuclei) load these. The custom set is cloned into the user
 # data dir run_vigil auto-detects ($HOME/.local/share/praetor/custom-nuclei-templates;
-# override the list with PRAETOR_ASSAY_TEMPLATES). Default nuclei store
+# override the list with PRAETOR_VIGIL_TEMPLATES). Default nuclei store
 # (~/nuclei-templates) is fetched on first nuclei/vigil run.
 CUSTOM_TPL_DIR="$HOME/.local/share/praetor/custom-nuclei-templates"
 if has git; then

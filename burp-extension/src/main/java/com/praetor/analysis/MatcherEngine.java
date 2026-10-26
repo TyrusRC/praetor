@@ -249,17 +249,6 @@ public final class MatcherEngine {
      */
     public static String shapeFingerprint(HttpResponse r) {
         if (r == null) return "null";
-        String ctype = "";
-        for (HttpHeader h : r.headers()) {
-            if ("Content-Type".equalsIgnoreCase(h.name())) {
-                String v = h.value();
-                int sc = v.indexOf(';');
-                ctype = (sc >= 0 ? v.substring(0, sc) : v).trim().toLowerCase();
-                int slash = ctype.indexOf('/');
-                if (slash > 0) ctype = ctype.substring(0, slash);
-                break;
-            }
-        }
         return shapeFingerprintFor(r.statusCode(), r.body().length(), r);
     }
 

@@ -57,7 +57,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Test for server-side prototype pollution. Returns VerdictResult (W7 schema).
 
-        ASSAY-FIRST: vigil's protopollution detector covers this class. Run
+        VIGIL-FIRST: vigil's protopollution detector covers this class. Run
         run_vigil() first — use this tool only for targeted re-probe of a
         specific finding, or when vigil is not installed.
 

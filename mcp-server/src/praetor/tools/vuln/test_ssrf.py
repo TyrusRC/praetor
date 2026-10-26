@@ -139,7 +139,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Five-axis SSRF probe sweep across one parameter.
 
-        ASSAY-FIRST: vigil's ssrf detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's ssrf detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 

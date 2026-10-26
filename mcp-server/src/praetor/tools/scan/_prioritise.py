@@ -82,7 +82,7 @@ def class_value(category: str) -> int:
         return 6
     # Split files (`ssti_elixir`, `sqli_mssql`) inherit their parent's tier.
     for name, score in sorted(_CLASS_VALUE.items(), key=lambda kv: -len(kv[0])):
-        if cat.startswith(name + "_") or cat.startswith(name):
+        if cat.startswith(name + "_"):
             return score
     return _DEFAULT_VALUE
 

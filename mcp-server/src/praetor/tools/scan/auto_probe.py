@@ -85,7 +85,7 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Knowledge-driven vulnerability probing with server-side matchers.
 
-        ASSAY-FIRST: before calling auto_probe, run run_vigil(target,
+        VIGIL-FIRST: before calling auto_probe, run run_vigil(target,
         profile='thorough') to get automated DAST coverage of OWASP Top 10 +
         WSTG injection classes. vigil's 110+ detectors cover SQLi, XSS, CMDi,
         SSTI, SSRF, XXE, CSRF, IDOR, JWT, and more — saving praetor from

@@ -14,6 +14,7 @@ import com.praetor.util.JsonUtil;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,6 +31,14 @@ import java.util.regex.Pattern;
  * Behaviour-preserving lift from SessionHandler.handleDiscover.
  */
 public final class AttackSurfaceDiscovery {
+
+    private static final Pattern LINK_PATTERN = Pattern.compile(
+        "(?:href|action)=[\"']([^\"'#]+)[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FORM_PATTERN = Pattern.compile(
+        "<form[^>]*(?:action=[\"']([^\"']*)[\"'][^>]*method=[\"']([^\"']*)[\"']|method=[\"']([^\"']*)[\"'][^>]*action=[\"']([^\"']*)[\"'])[^>]*>(.*?)</form>",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern INPUT_PATTERN = Pattern.compile(
+        "name=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
 
     @SuppressWarnings("unused")
     private final MontoyaApi api;
@@ -59,6 +68,7 @@ public final class AttackSurfaceDiscovery {
             // One representative per signature frees the budget for real pages.
             Set<String> seenSignatures = new LinkedHashSet<>();
             Queue<String> queue = new LinkedList<>();
+            Set<String> queued = new HashSet<>();
             seenSignatures.add(pathSignature("/"));
             List<Map<String, Object>> endpoints = new ArrayList<>();
             List<Map<String, Object>> forms = new ArrayList<>();
@@ -67,6 +77,7 @@ public final class AttackSurfaceDiscovery {
             int highRiskParams = 0;
 
             queue.add("/");
+            queued.add("/");
 
             while (!queue.isEmpty() && visited.size() < maxPages) {
                 String pagePath = queue.poll();
@@ -125,9 +136,7 @@ public final class AttackSurfaceDiscovery {
                 ep.put("priority", riskScore >= 7 ? "critical" : riskScore >= 5 ? "high" : riskScore >= 3 ? "medium" : "low");
                 endpoints.add(ep);
 
-                Pattern linkPattern = Pattern.compile(
-                    "(?:href|action)=[\"']([^\"'#]+)[\"']", Pattern.CASE_INSENSITIVE);
-                Matcher linkMatcher = linkPattern.matcher(respBody);
+                Matcher linkMatcher = LINK_PATTERN.matcher(respBody);
                 while (linkMatcher.find()) {
                     String link = linkMatcher.group(1);
                     if (link.startsWith("http") || link.startsWith("javascript") ||
@@ -140,26 +149,20 @@ public final class AttackSurfaceDiscovery {
                     while (link.contains("/./")) link = link.replace("/./", "/");
                     if (link.startsWith("./")) link = link.substring(2);
                     try { link = new java.net.URI(link).normalize().toString(); } catch (Exception ignored) {}
-                    if (visited.contains(link) || queue.contains(link)) continue;
-                    // Collapse value-variants of an endpoint to one crawl. New
-                    // parameter names are still worth a page; new values are not.
+                    if (visited.contains(link) || queued.contains(link)) continue;
                     if (!seenSignatures.add(pathSignature(link))) continue;
                     queue.add(link);
+                    queued.add(link);
                 }
 
-                Pattern formPattern = Pattern.compile(
-                    "<form[^>]*(?:action=[\"']([^\"']*)[\"'][^>]*method=[\"']([^\"']*)[\"']|method=[\"']([^\"']*)[\"'][^>]*action=[\"']([^\"']*)[\"'])[^>]*>(.*?)</form>",
-                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-                Matcher formMatcher = formPattern.matcher(respBody);
+                Matcher formMatcher = FORM_PATTERN.matcher(respBody);
                 while (formMatcher.find()) {
                     String action = formMatcher.group(1) != null ? formMatcher.group(1) : formMatcher.group(4);
                     String formMethod = formMatcher.group(2) != null ? formMatcher.group(2).toUpperCase() : (formMatcher.group(3) != null ? formMatcher.group(3).toUpperCase() : "GET");
                     String formBody = formMatcher.group(5);
 
                     List<String> inputs = new ArrayList<>();
-                    Pattern inputPattern = Pattern.compile(
-                        "name=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
-                    Matcher inputMatcher = inputPattern.matcher(formBody);
+                    Matcher inputMatcher = INPUT_PATTERN.matcher(formBody);
                     while (inputMatcher.find()) {
                         String inputName = inputMatcher.group(1);
                         inputs.add(inputName);

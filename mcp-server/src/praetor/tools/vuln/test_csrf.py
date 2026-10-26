@@ -43,7 +43,7 @@ def register(mcp: FastMCP):
     ) -> dict:
         """Check the four CSRF defenses against a state-changing endpoint.
 
-        ASSAY-FIRST: vigil's csrf detector covers this class. Run run_vigil()
+        VIGIL-FIRST: vigil's csrf detector covers this class. Run run_vigil()
         first — use this tool only for targeted re-probe of a specific finding,
         or when vigil is not installed.
 
