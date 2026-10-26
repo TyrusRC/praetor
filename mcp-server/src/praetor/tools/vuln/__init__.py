@@ -31,6 +31,7 @@ from . import (
     test_ssti as _test_ssti,
     test_xxe as _test_xxe,
     test_websocket as _test_websocket,
+    test_websocket_injection as _test_ws_inject,
     test_prototype_pollution as _test_pp,
 )
 
@@ -41,4 +42,5 @@ def register(mcp: FastMCP):
     _test_ssti.register(mcp)
     _test_xxe.register(mcp)
     _test_websocket.register(mcp)
+    _test_ws_inject.register(mcp)
     _test_pp.register(mcp)
