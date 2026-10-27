@@ -1,0 +1,273 @@
+{
+  "category": "banking_finance",
+  "contexts": {
+    "open_banking_api_auth_bypass": {
+      "description": "Open Banking / PSD2 API authorization bypass. Third-party providers (TPP) access bank accounts via APIs (UK Open Banking, EU PSD2, US FDX). Test: can a TPP token access accounts beyond its consent scope? Can expired consent still fetch data? Does the bank enforce SCA (Strong Customer Authentication) on every sensitive operation?",
+      "tech_match": [
+        "openbanking",
+        "psd2",
+        "fdx",
+        "plaid",
+        "tink",
+        "truelayer",
+        "yodlee",
+        "yapily"
+      ],
+      "param_match": [
+        "consent_id",
+        "account_id",
+        "transaction_id",
+        "payment_id"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Consent scope test \u2014 fetch a resource outside the granted consent scope (e.g., consent for account A, request account B)",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "balance",
+                "transactions",
+                "amount"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Expired consent replay \u2014 replay a request with an expired consent token",
+          "matchers": [
+            {
+              "type": "status_not",
+              "value": "401"
+            },
+            {
+              "type": "status_not",
+              "value": "403"
+            }
+          ]
+        }
+      ]
+    },
+    "wire_transfer_amount_tampering": {
+      "description": "Wire/ACH transfer amount and recipient tampering. The client sends amount, currency, and recipient in the request body. Test: can the amount be changed after the confirmation screen? Can a negative amount trigger a reverse transfer? Does currency switching (USD\u2192VND) bypass amount limits? Is the beneficiary ID validated server-side or just displayed from the request?",
+      "param_match": [
+        "amount",
+        "currency",
+        "beneficiary",
+        "recipient",
+        "iban",
+        "routing",
+        "account_number",
+        "transfer_amount"
+      ],
+      "probes": [
+        {
+          "payload": "-1",
+          "description": "Negative transfer amount \u2014 may trigger a reverse credit to the sender",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "confirmed",
+                "processed"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "0.001",
+          "description": "Sub-cent amount \u2014 tests rounding behavior and minimum transfer validation",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        },
+        {
+          "payload": "99999999999",
+          "description": "Overflow amount \u2014 exceeds typical balance, tests server-side limit check",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "queued"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "transaction_replay_idempotency": {
+      "description": "Transaction replay / missing idempotency. Replay the exact same payment request \u2014 if processed twice, the system lacks idempotency controls. Financial systems must reject duplicate transaction IDs. Test: replay with same idempotency key (should be rejected), replay without key (should be rejected by dedup), replay with modified amount but same reference (should be rejected).",
+      "param_match": [
+        "idempotency_key",
+        "request_id",
+        "transaction_id",
+        "reference",
+        "nonce"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Exact replay \u2014 send the same request twice. A 200 on the second means no dedup.",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "created",
+                "processed"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "kyc_aml_bypass": {
+      "description": "KYC/AML verification bypass. Test: can a user perform high-value transactions without completing KYC? Can document verification status be changed via API (mass_assignment on verified=true)? Does the system enforce transaction limits for unverified accounts? Can a blocked/frozen account still initiate transfers via API?",
+      "param_match": [
+        "kyc_status",
+        "verified",
+        "tier",
+        "limit",
+        "aml_status",
+        "frozen",
+        "blocked"
+      ],
+      "probes": [
+        {
+          "payload": "{\"kyc_status\": \"verified\", \"tier\": \"premium\"}",
+          "description": "Mass assignment on KYC status \u2014 attempt to set verified=true via profile update",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "verified",
+                "premium",
+                "approved"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "payment_page_script_injection": {
+      "description": "PCI DSS 4.0 Req 6.4.3: payment page script integrity. Third-party scripts on payment pages can skim card data (Magecart). Test: are unknown scripts loaded? Do scripts have SRI (Subresource Integrity) hashes? Is there a CSP that restricts script sources? Can an XSS or DOM clobbering inject a script on the payment page?",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Enumerate scripts on payment page \u2014 check for third-party domains, missing SRI, inline scripts",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "<script[^>]*src=[\"']https?://(?!.*(?:stripe|braintree|adyen|checkout))"
+            }
+          ]
+        }
+      ]
+    },
+    "card_number_exposure": {
+      "description": "PCI DSS card data exposure in responses. Full PAN (Primary Account Number) must never appear in API responses, logs, or error messages. Test: does any endpoint return full card numbers? Does an error message leak card data? Are card numbers masked (show only last 4)?",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect unmasked PAN in response body \u2014 Luhn-valid 13-19 digit sequences",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\\b"
+            }
+          ]
+        }
+      ]
+    },
+    "mfa_sca_downgrade": {
+      "description": "MFA/SCA downgrade attack for financial transactions. PSD2 requires SCA (two of: knowledge, possession, inherence) for electronic payments. Test: can a transaction proceed with only one factor? Can the second factor be skipped by modifying the request? Does the fallback (SMS OTP) have weaker security than the primary (FIDO2)?",
+      "tech_match": [
+        "psd2",
+        "openbanking",
+        "banking"
+      ],
+      "param_match": [
+        "auth_method",
+        "sca_method",
+        "mfa_method",
+        "otp",
+        "challenge"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Remove or empty the second factor parameter and replay the transaction",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "approved",
+                "processed"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "loan_parameter_manipulation": {
+      "description": "Loan/credit parameter manipulation. Test: can interest rate, term length, or credit limit be modified in the request? Can a loan application bypass credit scoring by tampering with submitted data? Does pre-approval flow trust client-side calculated values?",
+      "param_match": [
+        "interest_rate",
+        "term",
+        "credit_limit",
+        "score",
+        "apr",
+        "principal",
+        "down_payment"
+      ],
+      "probes": [
+        {
+          "payload": "0",
+          "description": "Zero interest rate \u2014 if accepted, the server trusts client-side rate calculation",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "approved",
+                "success",
+                "application"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
