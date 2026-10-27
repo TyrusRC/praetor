@@ -43,14 +43,45 @@ _CORE = [
      "extract_json_path(index, '$.data.user.role')"),
     (["regex", "regex pattern", "extract value"], "extract_regex",
      "extract_regex(index, 'pattern_here', group=1)"),
-    (["sqli", "sql injection"], "auto_probe",
-     "auto_probe(session='hunt', categories=['sqli'])"),
-    (["xss", "cross-site", "reflected"], "auto_probe",
-     "auto_probe(session='hunt', categories=['xss'])"),
-    (["ssrf", "server-side request"], "auto_probe",
-     "auto_probe(session='hunt', categories=['ssrf'])"),
-    (["ssti", "template injection"], "auto_probe",
-     "auto_probe(session='hunt', categories=['ssti'])"),
+    # ── Integrated tools: recommend the right engine for the job ──
+    # Broad automated scan -> vigil (web DAST) or groma (network)
+    (["scan target", "full scan", "automated scan", "dast scan", "web scan",
+      "scan website", "scan application", "vulnerability scan"],
+     "run_vigil",
+     "run_vigil(target='https://target.com', profile='thorough')  # default web DAST, run FIRST"),
+    (["port scan", "network scan", "service scan", "open ports", "scan host",
+      "scan ip", "scan network", "scan server", "full port"],
+     "run_groma",
+     "run_groma(target='10.0.0.1')  # full port range + CVE checks, run FIRST for network targets"),
+    # Specific class with a lead -> the specialized tool is faster/deeper than auto_probe
+    (["sqli", "sql injection", "sqlmap"], "run_sqlmap",
+     "run_sqlmap(target='http://t/?id=1', tamper='space2comment,randomcase')  "
+     "# deep SQLi; also: confirm_sqli(endpoint, parameter) for quick proof, "
+     "auto_probe(categories=['sqli']) for KB edge cases"),
+    (["xss", "cross-site", "reflected", "dalfox"], "run_dalfox",
+     "run_dalfox(target='http://t/?q=test')  "
+     "# deep XSS with WAF bypass; also: confirm_xss(endpoint, parameter) for proof, "
+     "auto_probe(categories=['xss']) for KB edge cases"),
+    (["directory", "dir brute", "dir fuzz", "hidden files", "content discovery",
+      "ffuf", "wordlist"], "run_ffuf",
+     "run_ffuf(url='http://t/FUZZ', wordlist='common.txt')  # directory/file discovery"),
+    (["ssrf", "server-side request"], "confirm_ssrf",
+     "confirm_ssrf(endpoint='http://t/fetch?url=', parameter='url')  "
+     "# confirm SSRF with 6 protocol variants; also: auto_probe(categories=['ssrf'])"),
+    (["ssti", "template injection"], "confirm_ssti",
+     "confirm_ssti(endpoint='http://t/', parameter='name')  "
+     "# confirm SSTI across 15 engines; also: auto_probe(categories=['ssti'])"),
+    (["nikto", "web server scan", "server misconfig"], "run_nikto",
+     "run_nikto(target='http://t/')  # web server misconfiguration scanner"),
+    (["wordpress", "wpscan", "wp plugin"], "run_wpscan",
+     "run_wpscan(url='http://t/')  # WordPress vuln scanner"),
+    (["nuclei", "template scan", "cve scan"], "run_vigil",
+     "run_vigil(target='http://t/', templates=['/path/to/templates'])  "
+     "# vigil includes nuclei templates; use --templates for custom"),
+    (["command injection", "cmdi", "commix", "os command"], "run_commix",
+     "run_commix(target='http://t/?cmd=test')  # deep command injection"),
+    (["api fuzz", "openapi fuzz", "swagger fuzz", "api schema test"], "fuzz_api_schema",
+     "fuzz_api_schema(spec_url='http://t/openapi.json')  # auto-fuzz every API endpoint"),
     (["open redirect", "unvalidated redirect"], "test_open_redirect",
      "test_open_redirect(session='hunt', path='/login', parameter='next')"),
     (["idor", "access control", "authorization"], "test_auth_matrix",

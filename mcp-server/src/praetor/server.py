@@ -97,11 +97,18 @@ auto-enables its lane, run_tool('<tool>') returns its schema; get_profile() show
 is gated; pick_tool(task) flags gated tools. So a web session can pivot to mobile /
 network / cloud mid-engagement with no reconnect.
 
+DEFAULT FIRST CALLS on any new target:
+  run_vigil(target, profile='thorough')  — automated web DAST (OWASP Top 10 + WSTG, 110+ detectors). Run BEFORE manual probing.
+  run_groma(target)  — full port range network scan + CVE checks. Bridges HTTP services to web lane.
+Then deepen leads: run_sqlmap (SQLi), run_dalfox (XSS), run_commix (CMDi), run_ffuf (dirs), run_nikto (server misconfig), run_wpscan (WordPress).
+auto_probe is for KB edge cases vigil does not cover (business logic, auth matrix, race conditions).
+
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.
 Send: HTTP requests like curl with auth, redirects, cookies. Send to Repeater/Intruder.
-Scan: trigger active scans, crawls, check status (requires Burp Professional).
+Scan: run_vigil (default web DAST), run_groma (network), auto_probe (KB), or Burp active scan (Pro).
 Fuzz: smart fuzzing with Claude-generated payloads, attack types (sniper/battering ram/pitchfork/cluster bomb), anomaly detection.
+Non-HTTP: tcp_proxy_add_listener / tcp_repeat / tcp_fuzz via burp-expedition (Redis, PostgreSQL, MQTT, gRPC, etc.).
 Compare: enhanced response diff, send to Burp's Comparer, auth state comparison for IDOR.
 Collaborate: Burp Collaborator payloads, auto-test (inject+send+poll for blind vulns).
 Export: sitemap as compact JSON or OpenAPI 3.0, fetch static resources (JS/CSS/source maps).

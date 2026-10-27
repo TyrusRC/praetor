@@ -130,9 +130,13 @@ def register(mcp: FastMCP) -> None:
             ],
             "web_hunt_loop": [
                 "load_target_intel(domain, 'all') + check_target_freshness(domain, session)  — Rule 20a recon gate, FIRST",
-                "discover_attack_surface(domain)  — pre-scoped attack surface",
-                "auto_probe(...)  — knowledge-base-driven vuln sweep",
-                "get_next_action(domain) / get_hunt_plan(domain)  — sequential orchestration (replaces subagent dispatch)",
+                "run_vigil(target, profile='thorough')  — DEFAULT FIRST CALL: automated web DAST (OWASP Top 10 + WSTG, 110+ detectors). Run before manual probing.",
+                "run_groma(target)  — DEFAULT FIRST CALL: full port range network scan + CVE checks. Bridges HTTP services to web lane.",
+                "import_scan_results(path, fmt='vigil')  — merge vigil findings into the pipeline",
+                "discover_attack_surface(domain)  — fill gaps vigil's crawl missed (SPA, forms)",
+                "auto_probe(...)  — KB edge cases vigil does not cover (business logic, auth matrix, race conditions)",
+                "For specific leads: run_sqlmap (SQLi), run_dalfox (XSS), run_commix (CMDi), run_ffuf (dirs), run_nikto (server misconfig)",
+                "get_next_action(domain) / get_hunt_plan(domain)  — sequential orchestration",
             ],
             "decision_loop": [
                 "decide(domain, question='next')  — the ONE call at every branch point: returns a typed CHOICE + calibrated confidence + a routing ACTION (run/ask/escalate/report/keep_testing/stop). Consume `action` and `route`; don't re-reason the move.",
@@ -142,8 +146,10 @@ def register(mcp: FastMCP) -> None:
                 "close the loop: record_calibration_outcome(vuln_type, confidence, outcome) so decide's confidence bands track reality (Brier/ECE/Wilson — calibration_report).",
             ],
             "network_lane": [
-                "run_network_recon(target)  — discover -> service enum -> leads -> auto-loot -> web-lane bridge",
-                "run_nmap / run_httpx / run_vigil / run_ffuf / run_subfinder / run_network_tool(...)  — external CLIs, all driven through Praetor",
+                "run_groma(target)  — DEFAULT FIRST: full port range + CVE checks. HTTP services bridge to web lane.",
+                "run_network_recon(target)  — nmap discover -> service enum -> leads -> auto-loot -> web-lane bridge",
+                "run_nmap / run_httpx / run_ffuf / run_subfinder / run_network_tool(...)  — targeted follow-up",
+                "tcp_proxy_add_listener / tcp_repeat / tcp_fuzz  — non-HTTP protocol testing via expedition",
                 "network actions bypass Burp and cite an operator-log id, not a proxy index",
             ],
             "mobile_lane": [
