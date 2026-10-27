@@ -1046,6 +1046,52 @@
           "reference_only": true
         }
       ]
+    },
+    "nextjs_use_cache_rce_2026": {
+      "description": "Next.js use-cache RCE (GHSA-673q-mjm6-r5xr, CVSS 9.5, Oct 2026). Apps using Cache Components with use-cache functions that return typed arrays are vulnerable to unauthenticated RCE. Affects Next.js 16.0.0-16.4.0. Fixed in 16.4.1. No workaround \u2014 upgrade required.",
+      "tech_match": [
+        "nextjs",
+        "next.js",
+        "next",
+        "vercel"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect Next.js version via X-Powered-By or __next markers. Versions 16.0.0-16.4.0 are vulnerable.",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "__next|_next|x-powered-by.*next"
+            }
+          ]
+        }
+      ]
+    },
+    "nextjs_svg_image_rce_2026": {
+      "description": "Next.js SVG Image Optimization RCE (CVE-2026-96889, Critical, Oct 2026). Malformed SVG processed by the image optimization pipeline triggers RCE on glibc-based Linux with sharp library. Fixed in sharp 0.35.5+ or Next.js 16.4.1/15.5.28.",
+      "tech_match": [
+        "nextjs",
+        "next.js",
+        "next",
+        "vercel"
+      ],
+      "probes": [
+        {
+          "payload": "/_next/image?url=/test.svg&w=64&q=75",
+          "description": "Check if Next.js image optimization endpoint exists and processes SVGs",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "regex",
+              "pattern": "image/|svg"
+            }
+          ]
+        }
+      ]
     }
   }
 }
