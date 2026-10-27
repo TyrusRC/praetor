@@ -42,27 +42,33 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 
 **Scan & Probe**
 - Adaptive scan engine driven by a JSON knowledge base mapped to OWASP Top 10, WSTG, API Top 10, HackTricks, PayloadsAllTheThings, and Nuclei template categories
-- Default scan pipeline: [vigil](https://github.com/TyrusRC/vigil) (web DAST) + [groma](https://github.com/TyrusRC/groma) (network) run first, then targeted probing on leads
+- Default scan pipeline: [vigil](https://github.com/TyrusRC/vigil) (web DAST, includes sqlmap/dalfox/commix/nikto/wpscan/nuclei) + [groma](https://github.com/TyrusRC/groma) (network, replaces nmap for port discovery) run first, then targeted probing on leads
+- vigil thorough auto-dispatches integrated tools — no separate `run_sqlmap`/`run_dalfox` needed. Use `confirm_*` for targeted proof on specific parameters, `run_nmap` only for OS fingerprinting or NSE scripts
 - Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket (upgrade + message injection), prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
 - API schema auto-fuzz: walk every OpenAPI/Swagger endpoint with type-aware injection payloads
 - Passive proxy analysis: scan captured traffic for info leaks without sending requests
-- Impact-first severity: confirmed exploit + real attack path + environment context drives the rating, not just the vuln class name
+- Impact-first severity: confirmed exploit + real attack path + environment context drives the rating, not just the vuln class name. Missing context is flagged — the agent asks instead of assuming
 
 **Exploit Pipeline (detect → confirm → escalate)**
 - `confirm_*` tools prove injection exists (SQLi, RCE, SSRF, SSTI, XXE, XSS, NoSQL, LDAP, XPath, XSLT, SSI, expression injection, email injection, second-order, cache deception, IDOR, race condition)
 - `escalate_*` tools prove attacker capability (SSTI→RCE, SQLi→file read/OS cmd, SSRF→IMDS creds, XXE→OOB exfil, LFI→sensitive files, IDOR→cross-account, prototype pollution→gadget RCE, open redirect→token theft)
 
 **Auth & Session**
-- JWT forge (8 modes) + secret cracking, login bypass, MFA bypass, session lifecycle, reset-token entropy
-- OAuth/OIDC/SAML/passkey protocol simulators
-- Auth matrix testing across roles
+- Login bypass: SQLi on login forms, verb tampering, OTP cross-account binding, reset-token Referer leak
+- OAuth: redirect_uri bypass, device code phishing, consent grant persistence, PKCE downgrade
+- SAML: signature wrapping, encrypted assertion bypass (CVE-2026-41005), XML injection
+- MFA bypass: AiTM session theft, prompt bombing, step skip, code reuse, response manipulation
+- JWT forge (8 modes) + secret cracking, session lifecycle, reset-token entropy
+- Auth matrix testing across roles, passkey/WebAuthn attacks
 
 **Network & Red Team**
-- Default scan pipeline: groma (full port range + CVE checks) → nmap (service enum + NSE) → auto-loot → web-lane bridge
-- Sanctioned runner for impacket, netexec, responder, BloodHound, certipy, kerbrute, evil-winrm
+- Default scan pipeline: groma (full port range + CVE checks) → nmap (NSE/OS fingerprint only) → auto-loot → web-lane bridge
+- Auto-bridge: groma discovers non-HTTP services → expedition listeners auto-created for Redis, MySQL, PostgreSQL, MongoDB, MQTT, Memcached
+- Protocol probes: `probe_redis_unauth`, `probe_mysql_unauth`, `probe_mongodb_unauth`, `probe_mqtt_unauth`, `probe_memcached_unauth` — test auth on discovered services
+- Sanctioned runner for impacket, netexec, responder, BloodHound, certipy, kerbrute, evil-winrm, dnscat2
 - Credential capture → offline crack → store → reuse loop
 - BloodHound/certipy ingestion into ATT&CK-tagged operator log
-- Non-HTTP protocol testing via burp-expedition: relay, intercept, fuzz, repeat for TCP/UDP services
+- Non-HTTP protocol testing via burp-expedition: relay, intercept, fuzz, repeat, search, annotate, session export for TCP/UDP services
 
 **Browser & Recon**
 - Stealth headless browser (CloakBrowser) routed through Burp
@@ -199,7 +205,7 @@ Three backends (auto-selected, best first): local [Haruspex](https://github.com/
 
 JSON files under `mcp-server/src/praetor/knowledge/`. Each file declares contexts, server-side matchers, and craft guidance. `auto_probe` loads them at runtime.
 
-**Coverage:** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud, plus recent CVEs (React2Shell, PHP2Shell, Brotli RCE, Squidbleed, wp2shell, nginx DAV, SonicWall SMA, Collabora cmdi, SharePoint RCE). Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
+**Coverage:** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud, banking/finance (PCI DSS, PSD2, Open Banking), exposure/OSINT discovery, plus recent CVEs and research techniques (React2Shell, PHP2Shell, Brotli, Squidbleed, wp2shell, nginx DAV, SonicWall SMA, Collabora, SharePoint, Next.js cache/SVG RCE, Handlebars AST injection, SAML encrypted assertion bypass, Shared-Parser Confusion, terminal escape injection). Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
 
 ## Save-Finding Pipeline
 
