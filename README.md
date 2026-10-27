@@ -68,6 +68,8 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Stealth headless browser (CloakBrowser) routed through Burp
 - Third-party tool wrappers: subfinder, httpx, katana, amass, ffuf, sqlmap, dalfox, nikto, and more
 - JS secret extraction, DOM sink analysis, tech stack fingerprinting
+- OSINT: leaked credential search, paste site monitoring, email breach checks, exposed config/API/backup discovery
+- Threat intel: Shodan, VirusTotal, HIBP, OTX, GreyNoise, AbuseIPDB, URLScan (free-tier, keyless-first)
 
 **Reporting & Evidence**
 - 7-question save-finding gate with per-program policy overrides

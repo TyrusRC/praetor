@@ -1,0 +1,388 @@
+{
+  "category": "exposure_osint",
+  "contexts": {
+    "exposed_api_docs": {
+      "description": "Exposed API documentation on production. Swagger UI, ReDoc, GraphiQL, GraphQL Playground left open on production endpoints. Reveals all API routes, parameters, auth requirements, and data models \u2014 full attack surface map for free.",
+      "probes": [
+        {
+          "payload": "/swagger-ui.html",
+          "description": "Swagger UI",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "swagger",
+                "Swagger UI"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/api-docs",
+          "description": "OpenAPI JSON",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "openapi",
+                "swagger",
+                "paths"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/redoc",
+          "description": "ReDoc",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ReDoc",
+                "redoc"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/graphiql",
+          "description": "GraphiQL IDE",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "GraphiQL",
+                "graphiql"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/graphql/playground",
+          "description": "GraphQL Playground",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "GraphQL Playground",
+                "playground"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/docs",
+          "description": "FastAPI auto-docs",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "FastAPI",
+                "openapi",
+                "Swagger UI"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "exposed_internal_services": {
+      "description": "Internal services exposed to the internet. Admin panels, monitoring dashboards, CI/CD, databases, message queues reachable without VPN. Common on cloud deployments with misconfigured security groups.",
+      "probes": [
+        {
+          "payload": "/admin",
+          "description": "Admin panel",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "dashboard",
+                "login"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/actuator/health",
+          "description": "Spring Boot Actuator",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "status",
+                "UP",
+                "components"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/actuator/env",
+          "description": "Spring Boot env \u2014 leaks config and secrets",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "activeProfiles",
+                "propertySources",
+                "spring"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/_debug",
+          "description": "Debug endpoint",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        },
+        {
+          "payload": "/metrics",
+          "description": "Prometheus metrics",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "process_cpu",
+                "http_requests_total",
+                "go_goroutines"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/health",
+          "description": "Health check \u2014 may leak service dependencies",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "database",
+                "redis",
+                "elasticsearch",
+                "rabbitmq"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "exposed_credentials_in_code": {
+      "description": "Credentials exposed in client-side code, comments, or error messages. API keys, database URLs, S3 bucket names, JWT secrets in JavaScript bundles, HTML comments, or verbose error pages.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Search response for credential patterns \u2014 handled by extract_js_secrets and passive analysis",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "AKIA[0-9A-Z]{16}|sk_live_[a-zA-Z0-9]{24,}|ghp_[a-zA-Z0-9]{36}|xox[bpors]-[a-zA-Z0-9-]+"
+            }
+          ]
+        }
+      ]
+    },
+    "exposed_git_metadata": {
+      "description": "Exposed .git directory on production. Allows full source code reconstruction via git objects. Common on Apache/nginx when .git is not denied in config. dump_exposed_git chains this into full repo extraction + secret search.",
+      "probes": [
+        {
+          "payload": "/.git/HEAD",
+          "description": "Check if .git is accessible",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ref: refs/"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/.git/config",
+          "description": "Git config \u2014 may reveal remote URLs and credentials",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "[remote",
+                "[core]",
+                "repositoryformatversion"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "exposed_environment_files": {
+      "description": "Environment and configuration files accessible on the web. .env, config.yml, database.yml, application.properties contain database credentials, API keys, and internal URLs.",
+      "probes": [
+        {
+          "payload": "/.env",
+          "description": "Dotenv file",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "DB_|DATABASE_|SECRET|API_KEY|PASSWORD|AWS_"
+            }
+          ]
+        },
+        {
+          "payload": "/config/database.yml",
+          "description": "Rails database config",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "adapter:",
+                "database:",
+                "password:"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/application.properties",
+          "description": "Spring application config",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "spring.datasource",
+                "server.port"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/wp-config.php.bak",
+          "description": "WordPress config backup",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "DB_PASSWORD",
+                "DB_HOST",
+                "table_prefix"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "exposed_backup_files": {
+      "description": "Backup files left on production. Database dumps, source archives, config backups accessible via web. Filenames: *.sql, *.bak, *.tar.gz, *.zip, *~, *.old, *.swp.",
+      "probes": [
+        {
+          "payload": "/backup.sql",
+          "description": "SQL dump",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "CREATE TABLE",
+                "INSERT INTO",
+                "DROP TABLE"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/db.sql.gz",
+          "description": "Compressed SQL dump",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        },
+        {
+          "payload": "/site.tar.gz",
+          "description": "Site archive",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "exposed_internal_docs": {
+      "description": "Internal documentation, notes, and runbooks accessible publicly. Confluence/Notion exported pages, internal wikis, architecture diagrams, incident reports. Often indexed by Google.",
+      "probes": [
+        {
+          "payload": "/wiki",
+          "description": "Internal wiki",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "wiki",
+                "confluence",
+                "internal"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/docs/internal",
+          "description": "Internal docs",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        },
+        {
+          "payload": "/runbook",
+          "description": "Runbook",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "cloud_storage_listing": {
+      "description": "Cloud storage buckets with public listing or read access. S3, GCS, Azure Blob containers misconfigured for public access. Lists files, may contain database dumps, PII exports, log files, credentials.",
+      "tech_match": [
+        "aws",
+        "s3",
+        "gcs",
+        "azure",
+        "blob",
+        "cloudflare",
+        "r2"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detected via enum_public_buckets tool \u2014 already integrated",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "ListBucketResult",
+                "Contents",
+                "blobs"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
