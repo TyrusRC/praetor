@@ -81,6 +81,17 @@ _CORE = [
     (["command injection", "cmdi", "commix", "os command"], "confirm_rce",
      "confirm_rce(endpoint='http://t/?cmd=test', parameter='cmd')  "
      "# quick proof first; then run_commix only if vigil did NOT already test this param"),
+    (["sast", "source audit", "code review", "source code", "white box", "mantis"],
+     "run_mantis",
+     "run_mantis(repo_path='/path/to/source', mode='deep')  "
+     "# SAST source audit; then sast_to_endpoint_risk to bridge to DAST"),
+    (["mobile fuzz", "intent fuzz", "deeplink fuzz", "fuzz intents", "fuzz deeplinks"],
+     "fuzz_intents",
+     "fuzz_intents(package='com.target.app')  # centurion: fuzz exported components; "
+     "also: fuzz_deeplinks(package, schemes=['myapp'])"),
+    (["masvs", "mobile verification", "mobile compliance", "mobile top 10"],
+     "verify_masvs",
+     "verify_masvs(target='com.target.app', level=2)  # centurion: MASVS L2 verification + Mobile Top 10"),
     (["api fuzz", "openapi fuzz", "swagger fuzz", "api schema test"], "fuzz_api_schema",
      "fuzz_api_schema(spec_url='http://t/openapi.json')  # auto-fuzz every API endpoint"),
     (["open redirect", "unvalidated redirect"], "test_open_redirect",

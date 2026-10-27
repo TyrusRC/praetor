@@ -20,12 +20,27 @@ codebases). This playbook is for when you hold the *actual* source of the target
 ```
 0. Reduce      strip vendor/generated noise               (operator shell pre-step)
 1. Inventory   route declarations → endpoints.json        inventory_source_routes
-2. Sink map    per-language dangerous-sink scan            run_mantis
-3. Trace       input → sink data-flow                      run_vulnhuntr / run_xvulnhuntr
-4. Rank        unauth-reachable sinks first                sast_to_endpoint_risk / risk_rank_endpoints
-5. Confirm     source-flagged sink → live proof            confirm_rce / confirm_sqli / confirm_ssti / ...
-6. Save        chain source_chain + proxy_history_index           save_finding
+2. Sink map    per-language dangerous-sink scan            run_mantis(mode='quick')
+3. Focus       deep review on auth/injection/crypto        run_mantis(mode='deep', focus='auth')
+4. Trace       input → sink data-flow                      run_vulnhuntr / run_xvulnhuntr
+5. Rank        unauth-reachable sinks first                sast_to_endpoint_risk / risk_rank_endpoints
+6. Confirm     source-flagged sink → live proof            confirm_rce / confirm_sqli / confirm_ssti / ...
+7. Save        chain source_chain + proxy_history_index           save_finding
 ```
+
+### Key mantis flags
+
+| Flag | Use case |
+|---|---|
+| `mode='quick'` | Fast first pass: ERROR severity, HIGH confidence only |
+| `mode='deep'` | Full pipeline with LLM triage and deep review |
+| `mode='bugbounty'` | Exploit-first, gates on entrypoint reachability |
+| `focus='auth'` | Restrict deep review to auth-tagged findings (also: crypto, injection, storage, etc.) |
+| `fix=True` | Apply patches in a worktree and re-verify |
+| `lite=True` | Skip slicing + deep review for a faster pass |
+| `decompiled=True` | For jadx/Ghidra output with no build files |
+| `fail_on='high'` | CI gate: exit non-zero on findings >= severity |
+| `pack=['mobile-android', 'secrets']` | Run specific packs, bypass mode + inventory |
 
 Steps 1-4 are cheap and non-touching (no traffic to target). Step 5 is where a
 candidate becomes a finding — and the only step that generates a `proxy_history_index`.

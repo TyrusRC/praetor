@@ -31,10 +31,11 @@ Use when: target has an Android/iOS app in scope (APK / IPA / store URL), or a w
 1. **Inventory** — `adb shell pm list packages -3 | grep <target>`, pull APK with `adb shell pm path <pkg>` then `adb pull <apk>`. Record SHA256.
 2. **Surface enumeration (static + dynamic)** — static (no device): Android `mobile_decompile_apk(<apk>)` (jadx) / iOS `mobile_analyze_ipa(<ipa>)` (Info.plist + entitlements + Mach-O secrets) and reports exported components, risky manifest flags (debuggable / cleartext / allowBackup), permissions, and hardcoded secret/endpoint leads; follow with `run_mantis(<out>/sources)` for full SAST. Dynamic: adb command pack (`mobile_adb_pack`) confirms exported activities/services, content providers, custom URL schemes, intent filters on the running app.
 3. **Network unwrapping** — load SSL-pin bypass (`mobile_frida_snippet('ssl_pin_universal_android')`) + Burp CA. Confirm traffic in Burp proxy history. If still pinned, try the OkHttp3-specific variant (`ssl_pin_okhttp_specific`).
-4. **Deep link / intent fuzzing** — `am start -a android.intent.action.VIEW -d "<scheme>://<path>"` against each registered scheme. WebView load-URL parameters are highest-yield. Probe with `mobile_deeplink` KB contexts.
+4. **Deep link / intent fuzzing** — use centurion's `fuzz_deeplinks(package, schemes)` for automated deep-link URI fuzzing (traversal/XSS/SSRF payloads). For exported components, use `fuzz_intents(package)` to send malformed extras to activities/services/receivers and detect crashes. Manual: `am start -a android.intent.action.VIEW -d "<scheme>://<path>"`. Probe with `mobile_deeplink` KB contexts.
 5. **WebView bridge audit** — Frida `webview_debug_enable` snippet (#4) lists every exposed `@JavascriptInterface` method. Cross-reference with deep link entry points.
 6. **Storage / crypto** — pull sandbox, run `sqlite3` over every `.db`, grep for tokens. Hook Keystore (#7) to capture key material at use-time.
-7. **Backend handoff** — see section below. Every Burp-captured API call is fair game for the full web tool tree (`auto_probe`, `test_auth_matrix`, `test_mass_assignment`).
+7. **MASVS verification** — run centurion's `verify_masvs(target, level=2)` for automated per-control pass/fail against MASVS v2 L1/L2. Covers STORAGE, CRYPTO, AUTH, NETWORK, PLATFORM, CODE, RESILIENCE (L2 only), PRIVACY. Also maps findings to OWASP Mobile Top 10 2024 (M1-M10).
+8. **Backend handoff** — see section below. Every Burp-captured API call is fair game for the full web tool tree (`auto_probe`, `test_auth_matrix`, `test_mass_assignment`).
 
 ## Frida snippet bundle
 

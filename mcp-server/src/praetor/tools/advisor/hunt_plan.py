@@ -52,6 +52,15 @@ async def get_hunt_plan_impl(
     lines.append("       MCP-side equivalents listed in that tool's output.")
     lines.append("")
 
+    # Phase 0.5: White-box — if source code is available
+    lines.append("SOURCE CODE AVAILABLE? (white-box / grey-box with repo access):")
+    lines.append("  run_mantis(repo_path, mode='quick')  → fast SAST pass")
+    lines.append("  run_mantis(repo_path, mode='deep', focus='auth')  → deep review on auth")
+    lines.append("  sast_to_endpoint_risk(domain)  → bridge SAST findings to DAST endpoints")
+    lines.append("  Then proceed with DAST below — confirm_* on the endpoints mantis flagged.")
+    lines.append("  Decompiled apps: run_mantis(path, decompiled=True, pack=['mobile-android'])")
+    lines.append("")
+
     # Phase 1: Auto-scan (vigil web + groma network)
     lines.append("PHASE 1 — AUTO-SCAN (run both default engines first):")
     lines.append(f"  1. run_vigil(target='{target_url}', profile='thorough')")
