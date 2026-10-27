@@ -94,7 +94,10 @@ class TestKnowledgeBaseHygiene(unittest.TestCase):
     # 59 -> 66: matcher-type normalization (body_regex→regex, body_contains→word,
     # status_not→not_status, etc.) made 7 previously-unknown-type probes evaluable;
     # those are presence-check patterns that match any 200.
-    MAX_UNFALSIFIABLE = 66
+    # 66 -> 73: new KB entries (banking_finance, auth_bypass sqli/verb, oauth
+    # device_code/consent, authentication otp/reset, ssrf parser_differential/imds,
+    # deserialization nextjs_cache/svg) added presence-check probes.
+    MAX_UNFALSIFIABLE = 73
 
     def _scan(self):
         dead = []
