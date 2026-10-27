@@ -41,11 +41,12 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 ## Features
 
 **Scan & Probe**
-- Adaptive scan engine driven by a JSON knowledge base (matchers + craft guidance) mapped to OWASP Top 10, WSTG, API Top 10, and more
-- vigil as the default DAST engine with smart auto-dispatch
+- Adaptive scan engine driven by a JSON knowledge base mapped to OWASP Top 10, WSTG, API Top 10, HackTricks, PayloadsAllTheThings, and Nuclei template categories
+- Default scan pipeline: [vigil](https://github.com/TyrusRC/vigil) (web DAST) + [groma](https://github.com/TyrusRC/groma) (network) run first, then targeted probing on leads
 - Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket (upgrade + message injection), prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
 - API schema auto-fuzz: walk every OpenAPI/Swagger endpoint with type-aware injection payloads
-- [groma](https://github.com/TyrusRC/groma) as the default network scanner (full port range + CVE checks)
+- Passive proxy analysis: scan captured traffic for info leaks without sending requests
+- Impact-first severity: confirmed exploit + real attack path + environment context drives the rating, not just the vuln class name
 
 **Exploit Pipeline (detect → confirm → escalate)**
 - `confirm_*` tools prove injection exists (SQLi, RCE, SSRF, SSTI, XXE, XSS, NoSQL, LDAP, XPath, XSLT, SSI, expression injection, email injection, second-order, cache deception, IDOR, race condition)
@@ -77,10 +78,11 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Engagement narrative graph (goal→intent→fact→finding→asset) with interactive HTML viewer
 
 **Protocol & Transport**
-- HTTP/2 attacks: CL desync smuggling, rapid reset (CVE-2023-44487), CONTINUATION flood (CVE-2024-27983)
+- HTTP/2 attacks: CL desync smuggling, HPACK bomb, rapid reset (CVE-2023-44487), CONTINUATION flood (CVE-2024-27983), h2c upgrade bypass
 - WebRTC/STUN/TURN: open relay detection, STUN binding, ICE candidate IP leak from SDP
 - QUIC: version probe and Initial packet fingerprinting (SNI/ALPN extraction)
 - Built-in OOB callback server for blind testing without Burp Collaborator
+- Reverse proxy bypass: Nginx off-by-slash, X-Original-URL, path normalization, DAV heap overflow
 
 **Additional Lanes**
 - **Mobile:** Frida + adb dynamic testing, APK decompile, deep-link and WebView abuse. Full MASTG via [centurion](https://github.com/TyrusRC/centurion)
@@ -193,7 +195,7 @@ Three backends (auto-selected, best first): local [Haruspex](https://github.com/
 
 JSON files under `mcp-server/src/praetor/knowledge/`. Each file declares contexts, server-side matchers, and craft guidance. `auto_probe` loads them at runtime.
 
-**Coverage:** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud. Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
+**Coverage:** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud, plus recent CVEs (React2Shell, PHP2Shell, Brotli RCE, Squidbleed, wp2shell, nginx DAV, SonicWall SMA, Collabora cmdi, SharePoint RCE). Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
 
 ## Save-Finding Pipeline
 
@@ -201,7 +203,7 @@ JSON files under `mcp-server/src/praetor/knowledge/`. Each file declares context
 replay (≥3× for blind)  →  assess_finding (7-question gate)  →  save_finding (persist + dedup)
 ```
 
-Gates: scope, reproducibility, impact, dedup, evidence, never-submit class, triager check. Operators override with `overrides=[...]` or per-program policy.
+Gates: scope, reproducibility, impact, dedup, evidence, never-submit class, triager check. Severity is impact-first: confirmed exploit unlocks the class ceiling, unconfirmed caps at MEDIUM, scanner-only caps at LOW, staging caps at MEDIUM. Missing context (environment, exposure, business type) is flagged explicitly — the agent asks the operator instead of assuming. Operators override with `overrides=[...]` or per-program policy.
 
 ## Agents
 
@@ -217,7 +219,7 @@ For eager-loading hosts (Codex, dsh), set `PRAETOR_PROFILE` to advertise a small
 
 **Professional** — full support.
 
-**Community** — supported with fallbacks. `auto_probe` + `run_vigil` replace the active scanner; the built-in OOB callback server auto-activates when Collaborator is unavailable; `concurrent_requests` bypasses Intruder throttling. Run `check_pro_features()` at session start.
+**Community** — supported with fallbacks. `run_vigil` + `auto_probe` replace the active scanner; `analyze_proxy_passive` replaces passive scan rules; the built-in OOB callback server auto-activates when Collaborator is unavailable; `concurrent_requests` bypasses Intruder throttling. Run `check_pro_features()` at session start.
 
 ## Supported Platforms
 
