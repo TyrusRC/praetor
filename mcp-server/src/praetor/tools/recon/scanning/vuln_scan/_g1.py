@@ -113,6 +113,18 @@ def register(mcp: FastMCP):
         crawl_depth: int = 0,
         crawl_max_pages: int = 0,
         insecure: bool = False,
+        checkpoint: str = "",
+        resume: str = "",
+        incremental: bool = False,
+        config: str = "",
+        dry_run: bool = False,
+        test: list[str] | None = None,
+        registration_url: str = "",
+        login_headless: bool = False,
+        login_user_field: str = "",
+        login_pass_field: str = "",
+        nvd_api_key: str = "",
+        output_dir: str = "",
     ) -> str:
         """Run the vigil DAST scanner against a target through Burp proxy.
 
@@ -192,6 +204,18 @@ def register(mcp: FastMCP):
             crawl_depth: Max crawl depth from each seed when crawl is set (0 = seed page only).
             crawl_max_pages: Max pages to navigate when crawl is set.
             insecure: Skip TLS certificate verification (for a direct non-proxy scan of a self-signed host).
+            checkpoint: Save scan progress to this file (resume interrupted scans).
+            resume: Resume from a prior checkpoint file (skip already-scanned targets).
+            incremental: With baseline, skip endpoints whose response matches the baseline.
+            config: Path to a YAML config file (vigil.yaml). CLI flags override file values.
+            dry_run: Preview what the scan would do without sending traffic.
+            test: Run only these detector classes (repeatable: sqli, cmdi, ssti, etc.).
+            registration_url: Registration/signup URL for weak-password and dup-registration probes.
+            login_headless: Use a real browser for login (SPA/JS logins). login_user_field/login_pass_field are CSS selectors.
+            login_user_field: CSS selector for the username field (auto-detected if empty).
+            login_pass_field: CSS selector for the password field (auto-detected if empty).
+            nvd_api_key: NVD CVE API key for higher rate limits (falls back to NVD_API_KEY env).
+            output_dir: Directory to write multi-format reports (required for --format with multiple formats).
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -318,6 +342,31 @@ def register(mcp: FastMCP):
         # Proxy mode already adds -k; only add it here for a direct scan.
         if insecure and not use_proxy:
             cmd.append("-k")
+        if checkpoint:
+            cmd.extend(["--checkpoint", checkpoint])
+        if resume:
+            cmd.extend(["--resume", resume])
+        if incremental:
+            cmd.append("--incremental")
+        if config:
+            cmd.extend(["--config", config])
+        if dry_run:
+            cmd.append("--dry-run")
+        if test:
+            for t in test:
+                cmd.extend(["--test", t])
+        if registration_url:
+            cmd.extend(["--registration-url", registration_url])
+        if login_headless:
+            cmd.append("--login-headless")
+            if login_user_field:
+                cmd.extend(["--login-user-field", login_user_field])
+            if login_pass_field:
+                cmd.extend(["--login-pass-field", login_pass_field])
+        if nvd_api_key:
+            cmd.extend(["--nvd-api-key", nvd_api_key])
+        if output_dir:
+            cmd.extend(["--output-dir", output_dir])
 
         # Pass haruspex URL to vigil via env var (inherited by subprocess).
         if haruspex_url:

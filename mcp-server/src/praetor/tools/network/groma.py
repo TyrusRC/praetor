@@ -10,9 +10,9 @@ MCP tool; the tool just formats it.
 
 groma (github.com/TyrusRC/groma) is Praetor's own standalone network scanner:
 every TCP port by default — never a sampled top-N, which silently misses
-services a narrow scan would never see — naabu-based service/version
-fingerprinting when naabu is installed (falls back to groma's own
-zero-dependency TCP-connect scanner otherwise, no fingerprinting then), and a
+services a narrow scan would never see — native TCP-connect scanner with
+service/version fingerprinting by default (uses naabu for SYN scans when
+installed and explicitly requested via --syn), and a
 declarative YAML check library for known-CVE matching.
 
 It fully replaces the old run_naabu wrapper (full port coverage, real service
@@ -292,7 +292,7 @@ def register(mcp: FastMCP) -> None:
 
         Praetor's standalone network scanner: every TCP port by default
         (never a sampled top-N — a scanner that silently narrows coverage
-        misses findings a full sweep would catch), naabu-based service/
+        misses findings a full sweep would catch), native service/
         version fingerprinting when naabu is installed, and a declarative
         YAML check library for known-CVE matching. Persists an inventory
         (the same network.json run_nmap feeds) and bridges discovered
