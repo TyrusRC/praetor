@@ -64,6 +64,16 @@ async def get_hunt_plan_impl(
     lines.append("  3. import_scan_results(path=<vigil output>, fmt='vigil')")
     lines.append("     → Merge vigil findings into findings.json for the pipeline.")
 
+    # THINK step: analyze auto-scan results before continuing
+    lines.append("")
+    lines.append("  THINK — before moving on, analyze what vigil + groma found:")
+    lines.append("    - Which findings are CONFIRMED (exploit demonstrated)?")
+    lines.append("    - Which are LEADS that need deeper testing (confirm_sqli, escalate_ssrf)?")
+    lines.append("    - What ATTACK PATHS emerge? (SQLi→data dump, SSRF→IMDS creds, SSTI→RCE)")
+    lines.append("    - What did groma reveal? (open ports → services to probe, CVEs to verify)")
+    lines.append("    - Prioritize: confirm HIGH-impact leads FIRST, not more scanning.")
+    lines.append("    Use: get_findings(domain, severity_min='medium', summary_only=True)")
+
     # Phase 2: Recon (fill gaps the auto-scans missed)
     lines.append("")
     lines.append("PHASE 2 — RECON (fill gaps auto-scans missed):")
@@ -77,6 +87,13 @@ async def get_hunt_plan_impl(
     if "angular" in techs or "react" in techs:
         lines.append("  4. extract_js_secrets(index=<js_file>)")
         lines.append("     → JS frameworks often leak API keys and internal URLs")
+
+    lines.append("")
+    lines.append("  THINK — what does the tech stack + recon reveal?")
+    lines.append("    - Which vuln classes are MOST LIKELY on this stack?")
+    lines.append("    - What is the highest-value endpoint (auth, payment, admin, API)?")
+    lines.append("    - Any auth endpoints → test_auth_matrix is higher ROI than more scanning.")
+    lines.append("    - Any API spec found → fuzz_api_schema before manual probing.")
 
     # Phase 3: Targeted probe (beyond what vigil covers)
     lines.append("")
@@ -97,6 +114,14 @@ async def get_hunt_plan_impl(
         lines.append("  - test_cors() — CORS misconfiguration")
     lines.append("  - discover_common_files() — .git, .env, debug, actuator")
     lines.append("  - test_jwt() — if JWT tokens found in cookies/headers")
+
+    lines.append("")
+    lines.append("  THINK — before verification, review all findings:")
+    lines.append("    - Which findings have REAL IMPACT (data access, account control, RCE)?")
+    lines.append("    - Which can be CHAINED for higher impact? (redirect→token theft, info→SSRF)")
+    lines.append("    - What does a TRIAGER need to accept this? (clear PoC, impact statement)")
+    lines.append("    - Drop findings that are noise. A confirmed HIGH > three unverified MEDIUMs.")
+    lines.append("    Use: propose_chains(domain) to find chain opportunities.")
 
     # Phase 5: Verify
     lines.append("")

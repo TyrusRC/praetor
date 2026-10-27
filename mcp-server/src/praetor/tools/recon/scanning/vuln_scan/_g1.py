@@ -92,6 +92,15 @@ def register(mcp: FastMCP):
         coverage: str = "",
         internal_only: bool = False,
         haruspex_url: str = "",
+        baseline: str = "",
+        fail_on: str = "",
+        h2_probes: bool = False,
+        mass_assign: bool = False,
+        crawl_states: bool = False,
+        exclude_path: list[str] | None = None,
+        include_path: list[str] | None = None,
+        fp_database: str = "",
+        compliance: str = "",
     ) -> str:
         """Run the vigil DAST scanner against a target through Burp proxy.
 
@@ -152,6 +161,15 @@ def register(mcp: FastMCP):
             haruspex_url: Haruspex decision engine URL (e.g. http://127.0.0.1:3000).
                 When set, vigil uses ML-based finding adjudication for noise filtering.
                 Without it, vigil falls back to heuristic confidence scoring.
+            baseline: Path to a prior vigil JSON report. Prints new/fixed findings only.
+            fail_on: CI gate — exit non-zero if any finding >= this severity (critical/high/medium/low).
+            h2_probes: Enable HTTP/2 probes (rapid-reset CVE-2023-44487, CONTINUATION flood, MadeYouReset).
+            mass_assign: Enable mass-assignment probe (mutates state via PUT/POST/PATCH).
+            crawl_states: State-aware HTTP crawl — expand targets by following links/forms.
+            exclude_path: Never request paths matching these regexps (repeatable).
+            include_path: Only request paths matching these regexps (repeatable).
+            fp_database: Path to FP feedback database (.vigil-fp.json). Known FPs get confidence=low.
+            compliance: Emit compliance mapping (pci-dss, hipaa, iso-27001, or 'all').
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -230,6 +248,26 @@ def register(mcp: FastMCP):
             cmd.extend(["--coverage", coverage])
         if internal_only:
             cmd.append("--internal-only")
+        if baseline:
+            cmd.extend(["--baseline", baseline])
+        if fail_on:
+            cmd.extend(["--fail-on", fail_on])
+        if h2_probes:
+            cmd.extend(["--h2-reset", "--h2-continuation", "--h2-madeyoureset"])
+        if mass_assign:
+            cmd.append("--mass-assign")
+        if crawl_states:
+            cmd.append("--crawl-states")
+        if exclude_path:
+            for p in exclude_path:
+                cmd.extend(["--exclude-path", p])
+        if include_path:
+            for p in include_path:
+                cmd.extend(["--include-path", p])
+        if fp_database:
+            cmd.extend(["--fp-database", fp_database])
+        if compliance:
+            cmd.extend(["--compliance", compliance])
 
         # Pass haruspex URL to vigil via env var (inherited by subprocess).
         if haruspex_url:

@@ -189,6 +189,45 @@ def _framework_line(vuln_type: str) -> str | None:
     return " | ".join(parts) if parts else None
 
 
+_ATTACK_PATHS: dict[str, str] = {
+    "sqli": "SQL injection → read/dump database tables → credential theft → lateral movement / ATO",
+    "rce": "Remote code execution → OS command → reverse shell / data exfiltration / persistence",
+    "command_injection": "Command injection → OS command → read secrets / pivot to internal services",
+    "ssti": "Template injection → RCE on the template engine → server compromise",
+    "ssrf": "SSRF → reach internal services / cloud IMDS → credential theft → cloud account takeover",
+    "xxe": "XXE → read local files (config, secrets) / SSRF to internal services",
+    "idor": "IDOR → access other users' data (PII, orders, messages) → mass data exposure",
+    "bola": "Broken object auth → enumerate + read any user's resources → mass PII leak",
+    "bfla": "Broken function auth → call admin/privileged APIs as regular user → privilege escalation",
+    "auth_bypass": "Auth bypass → unauthenticated access to protected resources → full account control",
+    "path_traversal": "Path traversal → read sensitive files (/etc/passwd, config, keys) → credential leak",
+    "lfi": "Local file inclusion → read source code / config → credential extraction → further exploitation",
+    "xss": "XSS → steal session cookie / perform actions as victim → account takeover",
+    "xss_stored": "Stored XSS → every user who views the page is compromised → mass session theft",
+    "csrf": "CSRF → force victim to perform state-changing actions (password change, transfer)",
+    "race_condition": "Race condition → double-spend / bypass limit checks → financial impact",
+    "mass_assignment": "Mass assignment → set admin=true / modify protected fields → privilege escalation",
+    "prototype_pollution": "Prototype pollution → RCE via template engine gadgets (EJS/Pug/Handlebars)",
+    "deserialization": "Insecure deserialization → RCE via gadget chain → server compromise",
+    "jwt": "JWT attack → forge valid tokens → impersonate any user / escalate privileges",
+    "nosql": "NoSQL injection → bypass auth / dump database → data theft",
+    "open_redirect": "Open redirect → steal OAuth tokens via redirect_uri / phish credentials",
+    "cache_poisoning": "Cache poisoning → serve malicious content to all users → mass XSS / defacement",
+    "request_smuggling": "Request smuggling → poison other users' requests → credential theft / cache poisoning",
+}
+
+
+def _attack_path_line(ctx: AssessContext) -> str | None:
+    """One-line attack path: what this vulnerability ENABLES in practice."""
+    for key in (ctx.vuln_lower, ctx.q2_class_root):
+        if key in _ATTACK_PATHS:
+            path = _ATTACK_PATHS[key]
+            if ctx.exploit_demonstrated:
+                return f"  Attack path (CONFIRMED): {path}"
+            return f"  Attack path: {path}"
+    return None
+
+
 def _render(ctx: AssessContext) -> str:
     """Render the final string output. Matches pre-refactor formatting."""
     program_banner = (
@@ -216,6 +255,9 @@ def _render(ctx: AssessContext) -> str:
         _fw = _framework_line(ctx.vuln_type)
         if _fw:
             extras.append(f"  Framework: {_fw}")
+        _ap = _attack_path_line(ctx)
+        if _ap:
+            extras.append(_ap)
         if ctx.haruspex:
             prob = ctx.haruspex.get("probability")
             if prob is not None:
@@ -251,6 +293,9 @@ def _render(ctx: AssessContext) -> str:
         lines.append(f"  Auto-derived markers: {', '.join(ctx.derived_markers[:8])}")
     if ctx.audit_overrides:
         lines.append(f"  Operator overrides: {'; '.join(ctx.audit_overrides)}")
+    _ap = _attack_path_line(ctx)
+    if _ap:
+        lines.append(f"\n{_ap}")
     if ctx.impact_notes:
         lines.append("\n  Impact context:")
         for n in ctx.impact_notes:

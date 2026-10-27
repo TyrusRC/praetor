@@ -77,6 +77,9 @@ async def groma_scan(
     checks_dir: str = "",
     fast: bool = False,
     timeout: int = 300,
+    rate: int = 0,
+    concurrency: int = 0,
+    fail_on: str = "",
 ) -> dict:
     """Structured core: run groma, persist, return a dict.
 
@@ -106,6 +109,12 @@ async def groma_scan(
         cmd += ["--checks", checks_dir]
     if fast:
         cmd.append("--fast")
+    if rate and rate > 0:
+        cmd += ["--rate", str(rate)]
+    if concurrency and concurrency > 0:
+        cmd += ["--concurrency", str(concurrency)]
+    if fail_on:
+        cmd += ["--fail-on", fail_on]
 
     # Give the subprocess a little longer than groma's own --timeout so the
     # process is not killed before it writes its report (same margin run_vigil
@@ -188,6 +197,9 @@ def register(mcp: FastMCP) -> None:
         checks_dir: str = "",
         fast: bool = False,
         timeout: int = 300,
+        rate: int = 0,
+        concurrency: int = 0,
+        fail_on: str = "",
     ) -> str:
         """Network/service vulnerability scan via groma (non-Burp lane).
 
@@ -220,7 +232,12 @@ def register(mcp: FastMCP) -> None:
                 Blank = port/service discovery only, no CVE matching.
             fast: scan only a top-N ports subset instead of the full range
                 (quicker, NOT exhaustive).
-            timeout: seconds (default 300 — groma's own full-range sweep
-                against a typical host completes well inside this).
+            timeout: seconds (default 300).
+            rate: packets/sec rate limit (0 = naabu default).
+            concurrency: worker concurrency (0 = auto, ulimit-aware).
+            fail_on: CI gate — exit non-zero if finding >= this severity
+                (critical/high/medium/low).
         """
-        return _format_scan(await groma_scan(target, domain, ports, checks_dir, fast, timeout))
+        return _format_scan(await groma_scan(
+            target, domain, ports, checks_dir, fast, timeout, rate, concurrency, fail_on,
+        ))
