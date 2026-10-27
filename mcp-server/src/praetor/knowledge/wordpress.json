@@ -1,0 +1,92 @@
+{
+  "category": "wordpress",
+  "contexts": {
+    "wp_rest_batch_auth_bypass": {
+      "description": "WordPress REST API batch route confusion (CVE-2026-63030, part of wp2shell). A batch request to /wp-json/batch/v1 can include sub-requests to authenticated-only endpoints. The batch handler processes them without per-sub-request auth checks. Chained with CVE-2026-60137 (SQLi) for unauthenticated RCE. Fixed in WP 6.9.5 / 7.0.2.",
+      "tech_match": [
+        "wordpress"
+      ],
+      "probes": [
+        {
+          "payload": "/wp-json/batch/v1",
+          "description": "Check if REST batch endpoint exists",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "responses"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "/wp-json/wp/v2/users",
+          "description": "WordPress user enumeration via REST API \u2014 if returns user list without auth, API is exposed",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "slug",
+                "name",
+                "avatar_urls"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "wp_xmlrpc_abuse": {
+      "description": "WordPress XML-RPC brute force and SSRF. xmlrpc.php accepts multicall for credential stuffing amplification, and pingback.ping for SSRF/port scanning. Generic WordPress presence check.",
+      "tech_match": [
+        "wordpress"
+      ],
+      "probes": [
+        {
+          "payload": "/xmlrpc.php",
+          "description": "Check if XML-RPC is enabled (should return 405 or XML fault, not 404)",
+          "matchers": [
+            {
+              "type": "status_not",
+              "value": "404"
+            },
+            {
+              "type": "word",
+              "words": [
+                "XML-RPC",
+                "faultCode"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "wp_debug_log_exposure": {
+      "description": "WordPress debug.log exposure. WP_DEBUG_LOG writes errors to wp-content/debug.log which may contain credentials, paths, and SQL queries.",
+      "tech_match": [
+        "wordpress"
+      ],
+      "probes": [
+        {
+          "payload": "/wp-content/debug.log",
+          "description": "Direct access to debug.log \u2014 if readable, contains PHP errors with paths, DB queries, possibly credentials",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "PHP",
+                "Stack trace",
+                "WordPress",
+                "Fatal error",
+                "Warning"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

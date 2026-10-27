@@ -1,15 +1,21 @@
 {
   "category": "info_disclosure",
-  "chain_with": ["jwt", "ssrf", "idor", "cve", "auth_bypass"],
+  "chain_with": [
+    "jwt",
+    "ssrf",
+    "idor",
+    "cve",
+    "auth_bypass"
+  ],
   "contexts": {
     "stack_trace": {
-      "description": "Detects verbose stack traces leaked in responses — indicates debug mode or unhandled exceptions",
+      "description": "Detects verbose stack traces leaked in responses \u2014 indicates debug mode or unhandled exceptions",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks for stack trace content in normal responses",
+          "description": "Baseline request \u2014 checks for stack trace content in normal responses",
           "matchers": [
             {
               "type": "word",
@@ -57,7 +63,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks for debug info in normal responses",
+          "description": "Baseline request \u2014 checks for debug info in normal responses",
           "matchers": [
             {
               "type": "word",
@@ -102,7 +108,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks for server version strings in response body",
+          "description": "Baseline request \u2014 checks for server version strings in response body",
           "matchers": [
             {
               "type": "regex",
@@ -115,7 +121,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks Server response header for version disclosure",
+          "description": "Baseline request \u2014 checks Server response header for version disclosure",
           "matchers": [
             {
               "type": "header",
@@ -129,7 +135,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Baseline request — checks X-Powered-By header for framework fingerprinting",
+          "description": "Baseline request \u2014 checks X-Powered-By header for framework fingerprinting",
           "matchers": [
             {
               "type": "header",
@@ -144,13 +150,13 @@
       ]
     },
     "sensitive_files": {
-      "description": "Probes for commonly exposed sensitive files — source control metadata, environment files, config files, and debug endpoints",
+      "description": "Probes for commonly exposed sensitive files \u2014 source control metadata, environment files, config files, and debug endpoints",
       "tech_match": [],
       "param_match": [],
       "probes": [
         {
           "payload": "/.git/HEAD",
-          "description": "Git HEAD file — 'ref:' prefix confirms exposed .git directory, enabling full source code recovery",
+          "description": "Git HEAD file \u2014 'ref:' prefix confirms exposed .git directory, enabling full source code recovery",
           "matchers": [
             {
               "type": "status",
@@ -172,7 +178,7 @@
         },
         {
           "payload": "/.git/config",
-          "description": "Git config file — [core] or [remote] sections confirm exposed .git directory with repository metadata",
+          "description": "Git config file \u2014 [core] or [remote] sections confirm exposed .git directory with repository metadata",
           "matchers": [
             {
               "type": "status",
@@ -196,7 +202,7 @@
         },
         {
           "payload": "/.env",
-          "description": "Environment file — DB_, SECRET, KEY, PASSWORD variables confirm exposed secrets in .env file",
+          "description": "Environment file \u2014 DB_, SECRET, KEY, PASSWORD variables confirm exposed secrets in .env file",
           "matchers": [
             {
               "type": "status",
@@ -229,7 +235,7 @@
         },
         {
           "payload": "/WEB-INF/web.xml",
-          "description": "Java WEB-INF deployment descriptor — <web-app reveals servlet mappings, security constraints, and class paths",
+          "description": "Java WEB-INF deployment descriptor \u2014 <web-app reveals servlet mappings, security constraints, and class paths",
           "matchers": [
             {
               "type": "status",
@@ -253,7 +259,7 @@
         },
         {
           "payload": "/.svn/entries",
-          "description": "SVN entries file — version number or 'dir' keyword confirms exposed Subversion metadata",
+          "description": "SVN entries file \u2014 version number or 'dir' keyword confirms exposed Subversion metadata",
           "matchers": [
             {
               "type": "status",
@@ -272,7 +278,7 @@
         },
         {
           "payload": "/server-status",
-          "description": "Apache mod_status — 'Apache Server Status' or 'Total Accesses' confirms exposed server metrics and active connections",
+          "description": "Apache mod_status \u2014 'Apache Server Status' or 'Total Accesses' confirms exposed server metrics and active connections",
           "matchers": [
             {
               "type": "status",
@@ -296,7 +302,7 @@
         },
         {
           "payload": "/debug/pprof/",
-          "description": "Go pprof debug endpoint — 'allocs' or 'goroutine' keywords confirm exposed profiling data with heap dumps and goroutine traces",
+          "description": "Go pprof debug endpoint \u2014 'allocs' or 'goroutine' keywords confirm exposed profiling data with heap dumps and goroutine traces",
           "matchers": [
             {
               "type": "status",
@@ -328,7 +334,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Probe common installer paths — 200 + setup-wizard markers indicates exposed installer",
+          "description": "Probe common installer paths \u2014 200 + setup-wizard markers indicates exposed installer",
           "matchers": [
             {
               "type": "status",
@@ -357,7 +363,7 @@
       ]
     },
     "db_connstring_in_json": {
-      "description": "JSON API response embeds database connection string with credentials. Senior-engineer match — full creds in plaintext.",
+      "description": "JSON API response embeds database connection string with credentials. Senior-engineer match \u2014 full creds in plaintext.",
       "tech_match": [],
       "param_match": [],
       "probes": [
@@ -388,7 +394,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Probe /nginx.conf — config file directly served",
+          "description": "Probe /nginx.conf \u2014 config file directly served",
           "matchers": [
             {
               "type": "status",
@@ -409,7 +415,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "Probe /.htaccess — Apache config exposed",
+          "description": "Probe /.htaccess \u2014 Apache config exposed",
           "matchers": [
             {
               "type": "status",
@@ -427,6 +433,24 @@
           "variables": {
             "path_override": "/.htaccess"
           }
+        }
+      ]
+    },
+    "squid_ftp_buffer_leak": {
+      "description": "Squidbleed (CVE-2026-47729): Squid proxy FTP directory listing parser leaks stale HTTP request data from a shared 4KB buffer. Short FTP lines only overwrite the first bytes, leaving previous request cookies/auth in the response. Requires Squid proxying FTP and attacker controlling an FTP server.",
+      "tech_match": [
+        "squid"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect Squid proxy via Via or X-Cache headers",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "squid|X-Squid|via.*squid"
+            }
+          ]
         }
       ]
     }

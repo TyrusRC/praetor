@@ -2,48 +2,134 @@
   "category": "h2c_smuggling",
   "contexts": {
     "upgrade_bypass": {
-      "description": "HTTP/2 cleartext (h2c) upgrade smuggling — send Upgrade: h2c to bypass reverse proxy ACLs. The proxy does not understand h2c and forwards the request to the backend, which upgrades and processes requests outside the proxy's access control.",
-      "tech_match": ["nginx", "haproxy", "aws", "alb", "cloudfront", "envoy"],
+      "description": "HTTP/2 cleartext (h2c) upgrade smuggling \u2014 send Upgrade: h2c to bypass reverse proxy ACLs. The proxy does not understand h2c and forwards the request to the backend, which upgrades and processes requests outside the proxy's access control.",
+      "tech_match": [
+        "nginx",
+        "haproxy",
+        "aws",
+        "alb",
+        "cloudfront",
+        "envoy"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "h2c upgrade request — if backend returns 101 Switching Protocols, the connection bypasses the reverse proxy's path-based ACL",
-          "matchers": [{"type": "status", "status": [101]}, {"type": "word", "words": ["Switching Protocols", "Upgrade", "h2c"]}],
+          "description": "h2c upgrade request \u2014 if backend returns 101 Switching Protocols, the connection bypasses the reverse proxy's path-based ACL",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "Switching Protocols",
+                "Upgrade",
+                "h2c"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"header": "Upgrade: h2c\r\nHTTP2-Settings: AAMAAABkAAQCAAAAAAIAAAAA\r\nConnection: Upgrade, HTTP2-Settings"}
+          "variables": {
+            "header": "Upgrade: h2c\r\nHTTP2-Settings: AAMAAABkAAQCAAAAAAIAAAAA\r\nConnection: Upgrade, HTTP2-Settings"
+          }
         },
         {
           "payload": "{{baseline}}",
-          "description": "h2c upgrade with lowercase headers — some proxies only filter capitalized Upgrade",
-          "matchers": [{"type": "status", "status": [101]}, {"type": "word", "words": ["Switching Protocols"]}],
+          "description": "h2c upgrade with lowercase headers \u2014 some proxies only filter capitalized Upgrade",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "Switching Protocols"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"header": "upgrade: h2c\r\nhttp2-settings: AAMAAABkAAQCAAAAAAIAAAAA\r\nconnection: upgrade, http2-settings"}
+          "variables": {
+            "header": "upgrade: h2c\r\nhttp2-settings: AAMAAABkAAQCAAAAAAIAAAAA\r\nconnection: upgrade, http2-settings"
+          }
         }
       ]
     },
     "connection_header_injection": {
       "description": "Test if the reverse proxy strips or passes the Connection hop-by-hop header. If it passes Connection: Upgrade, h2c, the backend may upgrade the connection out from under the proxy.",
-      "tech_match": ["nginx", "haproxy", "apache", "varnish", "traefik"],
+      "tech_match": [
+        "nginx",
+        "haproxy",
+        "apache",
+        "varnish",
+        "traefik"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Connection: keep-alive, Upgrade — test if the proxy passes hop-by-hop headers to backend",
-          "matchers": [{"type": "status_diff"}, {"type": "word", "words": ["Upgrade", "upgrade"]}],
+          "description": "Connection: keep-alive, Upgrade \u2014 test if the proxy passes hop-by-hop headers to backend",
+          "matchers": [
+            {
+              "type": "status_diff"
+            },
+            {
+              "type": "word",
+              "words": [
+                "Upgrade",
+                "upgrade"
+              ]
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30,
-          "variables": {"header": "Connection: keep-alive, Upgrade\r\nUpgrade: h2c"}
+          "variables": {
+            "header": "Connection: keep-alive, Upgrade\r\nUpgrade: h2c"
+          }
         },
         {
           "payload": "{{baseline}}",
-          "description": "Websocket upgrade to h2c variant — some proxies allow websocket upgrades but not h2c; test if the mechanism works for h2c too",
-          "matchers": [{"type": "status", "status": [101, 200]}, {"type": "status_diff"}],
+          "description": "Websocket upgrade to h2c variant \u2014 some proxies allow websocket upgrades but not h2c; test if the mechanism works for h2c too",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                101,
+                200
+              ]
+            },
+            {
+              "type": "status_diff"
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30,
-          "variables": {"header": "Connection: Upgrade\r\nUpgrade: h2c\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="}
+          "variables": {
+            "header": "Connection: Upgrade\r\nUpgrade: h2c\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="
+          }
+        }
+      ]
+    },
+    "hpack_bomb_dos": {
+      "description": "HTTP/2 HPACK Bomb + Slowloris DoS (Calif Jun 2026). HPACK-compressed headers decompress to huge sizes (5700:1 amplification). Combined with connection hold, causes OOM on default configs of nginx, Apache, IIS, Envoy, Pingora. Detection only \u2014 not a finding class, but reveals HTTP/2 is enabled and server memory behavior.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect HTTP/2 support via upgrade or ALPN \u2014 prerequisite for HPACK attacks",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "h2|HTTP/2|upgrade.*h2c"
+            }
+          ]
         }
       ]
     }
