@@ -11,29 +11,53 @@
       "reference_only": true,
       "detect": "grep -RE 'nodeIntegration\\s*:\\s*true' extracted/",
       "severity_hint": "high",
-      "explanation": "Renderer process can require('child_process'). Any XSS in remote-loaded page becomes RCE in main process."
+      "explanation": "Renderer process can require('child_process'). Any XSS in remote-loaded page becomes RCE in main process.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "context_isolation_disabled": {
       "reference_only": true,
-      "detect": "grep -RE 'contextIsolation\\s*:\\s*false' extracted/ — also flag missing flag on Electron<12 (default false)",
+      "detect": "grep -RE 'contextIsolation\\s*:\\s*false' extracted/ \u2014 also flag missing flag on Electron<12 (default false)",
       "severity_hint": "high",
-      "explanation": "Preload world and renderer world share globals. Renderer prototype pollution rewrites preload functions (Discord 2020 chain)."
+      "explanation": "Preload world and renderer world share globals. Renderer prototype pollution rewrites preload functions (Discord 2020 chain).",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "sandbox_disabled": {
       "reference_only": true,
       "detect": "grep -RE 'sandbox\\s*:\\s*false' extracted/",
       "severity_hint": "medium",
-      "explanation": "Without OS-level sandbox, V8 patch-gap bugs reach full host process privileges."
+      "explanation": "Without OS-level sandbox, V8 patch-gap bugs reach full host process privileges.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "preload_dangerous_exposure": {
       "reference_only": true,
       "detect": "grep -R 'contextBridge.exposeInMainWorld' -A 20 extracted/ | grep -E 'child_process|spawn|fs\\.|eval|new Function|ipcRenderer\\b'",
       "severity_hint": "high",
-      "explanation": "Preload exposes dangerous primitives directly to the renderer's main world. Renderer XSS reaches native power."
+      "explanation": "Preload exposes dangerous primitives directly to the renderer's main world. Renderer XSS reaches native power.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "shell_openexternal_unfiltered": {
       "reference_only": true,
-      "detect": "grep -R 'shell.openExternal\\|shell.openPath' -B2 -A5 extracted/ — flag callers with no scheme allowlist",
+      "detect": "grep -R 'shell.openExternal\\|shell.openPath' -B2 -A5 extracted/ \u2014 flag callers with no scheme allowlist",
       "probe_payloads": [
         "javascript:alert(1)",
         "file:///etc/passwd",
@@ -42,13 +66,25 @@
         "ms-msdt:/id PCWDiagnostic /skip force /param IT_RebrowseForFile=?? IT_LaunchMethod=ContextMenu IT_BrowseForFile=h$(calc)i/../../../../../../../../../../../../../../Windows/System32/mpsigstub.exe"
       ],
       "severity_hint": "high",
-      "explanation": "shell.openExternal hands URL to OS handler. javascript:/file:/data:/UNC/ms-msdt: schemes execute. Rocket.Chat H1 #924151 class."
+      "explanation": "shell.openExternal hands URL to OS handler. javascript:/file:/data:/UNC/ms-msdt: schemes execute. Rocket.Chat H1 #924151 class.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "ipc_handler_no_origin_check": {
       "reference_only": true,
-      "detect": "grep -R 'ipcMain.on\\|ipcMain.handle' -A 10 extracted/ — flag handlers missing event.sender.getURL() allowlist",
+      "detect": "grep -R 'ipcMain.on\\|ipcMain.handle' -A 10 extracted/ \u2014 flag handlers missing event.sender.getURL() allowlist",
       "severity_hint": "high",
-      "explanation": "ipcMain.handle('exec', (e, cmd) => exec(cmd)) with no origin gate. Renderer XSS → main-process RCE."
+      "explanation": "ipcMain.handle('exec', (e, cmd) => exec(cmd)) with no origin gate. Renderer XSS \u2192 main-process RCE.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "custom_protocol_traversal": {
       "reference_only": true,
@@ -60,33 +96,63 @@
         "myapp://%2e%2e%2fadmin"
       ],
       "severity_hint": "medium",
-      "explanation": "Custom URL schemes parse path inputs without traversal filter. file:// fallthrough discloses local files."
+      "explanation": "Custom URL schemes parse path inputs without traversal filter. file:// fallthrough discloses local files.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "electron_fuse_runasnode_enabled": {
       "reference_only": true,
-      "detect": "npx @electron/fuses read --app <path> — flag RunAsNode=Enabled OR EnableNodeCliInspectArguments=Enabled",
+      "detect": "npx @electron/fuses read --app <path> \u2014 flag RunAsNode=Enabled OR EnableNodeCliInspectArguments=Enabled",
       "severity_hint": "critical",
       "cve": "CVE-2024-23739",
-      "explanation": "RunAsNode fuse turns Electron binary into a Node interpreter for ELECTRON_RUN_AS_NODE. Combined with NodeCliInspect, attacker forks self with --inspect-brk and runs arbitrary JS as the app."
+      "explanation": "RunAsNode fuse turns Electron binary into a Node interpreter for ELECTRON_RUN_AS_NODE. Combined with NodeCliInspect, attacker forks self with --inspect-brk and runs arbitrary JS as the app.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "electron_fuse_no_asar_integrity": {
       "reference_only": true,
-      "detect": "npx @electron/fuses read — OnlyLoadAppFromAsar=Disabled OR EmbeddedAsarIntegrityValidation=Disabled",
+      "detect": "npx @electron/fuses read \u2014 OnlyLoadAppFromAsar=Disabled OR EmbeddedAsarIntegrityValidation=Disabled",
       "severity_hint": "high",
-      "explanation": "Without ASAR integrity fuses, attacker swaps app.asar (or stages malicious resource override) and the app loads it without signature check."
+      "explanation": "Without ASAR integrity fuses, attacker swaps app.asar (or stages malicious resource override) and the app loads it without signature check.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "videoframe_contextbridge_bypass": {
       "reference_only": true,
-      "detect": "grep preload sources for 'VideoFrame' near 'exposeInMainWorld' — Electron 39<39.8 / 40<40.7 / 41<41.0-beta.8 vulnerable",
+      "detect": "grep preload sources for 'VideoFrame' near 'exposeInMainWorld' \u2014 Electron 39<39.8 / 40<40.7 / 41<41.0-beta.8 vulnerable",
       "cve": "CVE-2026-34780",
       "severity_hint": "high",
-      "explanation": "Bridging a VideoFrame via contextBridge leaks the isolated world's MainWorldExecutionContext. Main-world XSS reaches isolated world."
+      "explanation": "Bridging a VideoFrame via contextBridge leaks the isolated world's MainWorldExecutionContext. Main-world XSS reaches isolated world.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "v8_patch_gap": {
       "reference_only": true,
-      "detect": "DevTools: process.versions.electron / process.versions.chrome — cross-reference with `kev_epss_enrich` against Chrome stable. Patch lag >6 weeks = exploitable.",
+      "detect": "DevTools: process.versions.electron / process.versions.chrome \u2014 cross-reference with `kev_epss_enrich` against Chrome stable. Patch lag >6 weeks = exploitable.",
       "severity_hint": "high",
-      "explanation": "Electron lags Chrome stable. Public CVEs in V8 / Blink work against shipped Electron apps. ContextIsolation does NOT protect from memory bugs that bypass isolate."
+      "explanation": "Electron lags Chrome stable. Public CVEs in V8 / Blink work against shipped Electron apps. ContextIsolation does NOT protect from memory bugs that bypass isolate.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "autoupdate_http_mitm": {
       "matchers": [
@@ -100,50 +166,92 @@
           "contains": "application/json"
         }
       ],
-      "description": "Update manifest fetched over plaintext HTTP — MITM via match_replace to swap binary URL / hash. Squirrel.Mac / electron-updater pattern.",
+      "description": "Update manifest fetched over plaintext HTTP \u2014 MITM via match_replace to swap binary URL / hash. Squirrel.Mac / electron-updater pattern.",
       "severity": "critical",
       "confidence_boost": 75,
       "variables": {
         "manual_chain": true
       },
-      "explanation": "Captured update-channel HTTP request → match_replace the manifest 'url' field to attacker host → trojan update installs on next launch."
+      "explanation": "Captured update-channel HTTP request \u2192 match_replace the manifest 'url' field to attacker host \u2192 trojan update installs on next launch.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "tauri_capability_overbroad": {
       "reference_only": true,
-      "detect": "cat src-tauri/capabilities/*.json + tauri.conf.json — flag fs:allow-* without scope, shell:allow-execute without args allowlist, http:default without origin allowlist",
+      "detect": "cat src-tauri/capabilities/*.json + tauri.conf.json \u2014 flag fs:allow-* without scope, shell:allow-execute without args allowlist, http:default without origin allowlist",
       "severity_hint": "high",
-      "explanation": "Tauri v2 capability model: per-window permission grants. Missing scope on fs / shell / http capabilities = arbitrary host access from any window."
+      "explanation": "Tauri v2 capability model: per-window permission grants. Missing scope on fs / shell / http capabilities = arbitrary host access from any window.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "webview2_host_object_exposed": {
       "reference_only": true,
-      "detect": "grep host C#/C++ for CoreWebView2.AddHostObjectToScript — flag if remote URL navigable in WebView",
+      "detect": "grep host C#/C++ for CoreWebView2.AddHostObjectToScript \u2014 flag if remote URL navigable in WebView",
       "severity_hint": "high",
-      "explanation": "AddHostObjectToScript exposes .NET / native objects to JS in WebView. Navigation to attacker URL reaches the host bridge."
+      "explanation": "AddHostObjectToScript exposes .NET / native objects to JS in WebView. Navigation to attacker URL reaches the host bridge.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "webview2_postmessage_no_origin": {
       "reference_only": true,
       "detect": "WebMessageReceived handler with no e.Source / e.Origin allowlist",
       "severity_hint": "high",
-      "explanation": "WebView2 host's WebMessageReceived trusts message regardless of source origin. Foreign-origin XSS in WebView reaches host."
+      "explanation": "WebView2 host's WebMessageReceived trusts message regardless of source origin. Foreign-origin XSS in WebView reaches host.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "tauri_autoupdate_unsigned": {
       "reference_only": true,
       "detect": "Tauri auto-update flow: read tauri.conf.json -> updater.endpoints. For each endpoint: (a) verify pubkey field is set + tauri.conf.json updater.pubkey is the runtime verification key, (b) MITM the endpoint via Burp match_replace to swap signature -> updater must reject (Ed25519 verification). (c) Inspect manifest signature field: should be Ed25519 over the binary URL+hash, NOT a self-signed JWT.",
       "severity_hint": "critical",
       "cve": "GHSA-pwjp-jx5r-grxq (Tauri updater pubkey class)",
-      "explanation": "Tauri v2 ships a TUF-like updater with Ed25519 manifest signing. If pubkey is empty / wildcard / served from same origin as the manifest, attacker MITM serves a trojan binary URL with a self-signed signature and the updater installs it."
+      "explanation": "Tauri v2 ships a TUF-like updater with Ed25519 manifest signing. If pubkey is empty / wildcard / served from same origin as the manifest, attacker MITM serves a trojan binary URL with a self-signed signature and the updater installs it.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "tauri_autoupdate_tuf_metadata": {
       "reference_only": true,
-      "detect": "TUF-style update channels (Sigstore-cosign-verified or Rust tuf crate): probe the metadata endpoint for stale timestamp.json (older than 7 days) — proves no live rotation. Probe targets.json for trusted-roles delegations.",
+      "detect": "TUF-style update channels (Sigstore-cosign-verified or Rust tuf crate): probe the metadata endpoint for stale timestamp.json (older than 7 days) \u2014 proves no live rotation. Probe targets.json for trusted-roles delegations.",
       "severity_hint": "high",
-      "explanation": "Stale TUF timestamp metadata allows freeze attacks: attacker pins victim to an old (vulnerable) version forever. Some Tauri deployments use TUF without rotation."
+      "explanation": "Stale TUF timestamp metadata allows freeze attacks: attacker pins victim to an old (vulnerable) version forever. Some Tauri deployments use TUF without rotation.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     },
     "cosign_signature_missing": {
       "reference_only": true,
-      "detect": "For Tauri / Sigstore-signed updates: verify update binary has accompanying .sig + .pem (or bundled signature). Probe https://<update-host>/<binary>.sig — 404 means no Sigstore verification path. Use .",
+      "detect": "For Tauri / Sigstore-signed updates: verify update binary has accompanying .sig + .pem (or bundled signature). Probe https://<update-host>/<binary>.sig \u2014 404 means no Sigstore verification path. Use .",
       "severity_hint": "high",
-      "explanation": "When Tauri / electron-updater claims Sigstore-cosign verification but the signature blob is absent or unreachable, verification silently falls open to unsigned download."
+      "explanation": "When Tauri / electron-updater claims Sigstore-cosign verification but the signature blob is absent or unreachable, verification silently falls open to unsigned download.",
+      "tech_match": [
+        "electron",
+        "tauri",
+        "cef",
+        "nwjs"
+      ]
     }
   }
 }

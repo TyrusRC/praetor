@@ -195,7 +195,9 @@
     },
     "ssrf_redis_reachable": {
       "description": "WSTG-INPV-19 -- SSRF + gopher/dict/redis protocol pivot -- send INFO command to internal Redis via SSRF. Read-only probe confirms Redis reachable + version; SET-based RCE (cron / SSH key) is operator step.",
-      "tech_match": [],
+      "tech_match": [
+        "redis"
+      ],
       "param_match": [
         "url",
         "uri",
@@ -570,7 +572,13 @@
     },
     "libwebp_version_disclosure": {
       "description": "CVE-2023-4863 -- libwebp <1.3.2 heap overflow in Huffman table. Probe checks if WebP processing is active and library version is exposed (via image metadata round-trip or error message).",
-      "tech_match": [],
+      "tech_match": [
+        "libwebp",
+        "imagemagick",
+        "sharp",
+        "pillow",
+        "gd"
+      ],
       "param_match": [
         "file",
         "image",
@@ -636,7 +644,11 @@
     },
     "exiftool_djvu_parser_active": {
       "description": "ExifTool CVE-2021-22204 -- DjVu / ANT chunk parsing -> Perl `eval()`. Detection: upload .djvu with benign metadata; if server processes, vector confirmed.",
-      "tech_match": [],
+      "tech_match": [
+        "exiftool",
+        "perl",
+        "imagemagick"
+      ],
       "param_match": [
         "file",
         "image",
@@ -943,7 +955,13 @@
     },
     "path_confusion_panos_class": {
       "description": "URL path confusion auth bypass (CVE-2025-0108 PAN-OS, Nginx/Apache class). Double-encoded ../ reaches admin path under public ACL.",
-      "tech_match": [],
+      "tech_match": [
+        "nginx",
+        "apache",
+        "panos",
+        "pan-os",
+        "globalprotect"
+      ],
       "param_match": [],
       "probes": [
         {
@@ -1116,6 +1134,15 @@
             }
           ]
         }
+      ],
+      "tech_match": [
+        "node",
+        "nodejs",
+        "python",
+        "dotnet",
+        ".net",
+        "bun",
+        "envoy"
       ]
     },
     "collabora_nextcloud_cmdi_2026": {
