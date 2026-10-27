@@ -83,6 +83,12 @@ def register(mcp: FastMCP) -> None:
         since: str = "",
         engines: str = "none",
         timeout: int = 1200,
+        fix: bool = False,
+        lite: bool = False,
+        focus: str = "",
+        fail_on: str = "",
+        pack: list[str] | None = None,
+        decompiled: bool = False,
     ) -> str:
         """Run the mantis source-audit engine over a local source tree. Requires mantis installed.
 
@@ -98,6 +104,12 @@ def register(mcp: FastMCP) -> None:
             since: scan only files changed vs a git ref (e.g. 'main', 'HEAD~1', 'uncommitted', 'staged')
             engines: 'none' = OpenGrep-only offline (default); 'offline' = add trivy/grype with offline DBs; or a comma-separated engine list
             timeout: max seconds (default 1200; deep LLM runs are slow)
+            fix: apply patches in a worktree and re-verify (writes to a sibling dir, not the working tree)
+            lite: skip slicing and deep review for a faster pass
+            focus: restrict deep review to a domain (auth, crypto, injection, storage, network, webview, secrets, privacy, ipc, business-logic, prompt-injection)
+            fail_on: CI gate — exit non-zero if any finding >= this severity (low/medium/high/critical)
+            pack: run exactly these packs, bypassing mode + inventory (repeatable: mobile-android, secrets, etc.)
+            decompiled: detect stack from source extensions alone (for jadx/Ghidra output with no build files)
         """
         if not _check_tool("mantis"):
             return ("Error: mantis not installed. Install: pipx install mantis-sast "
@@ -107,7 +119,10 @@ def register(mcp: FastMCP) -> None:
 
         cmd = ["mantis", "audit", repo_path]
         if mode and mode in _MODES:
-            cmd.append(mode)
+            if focus:
+                cmd.extend([mode, f"focus:{focus}"])
+            else:
+                cmd.append(mode)
         cmd += ["--format", "json"]
         if since:
             cmd += ["--since", since]
@@ -115,10 +130,20 @@ def register(mcp: FastMCP) -> None:
             cmd.append("--engines-offline")
         elif engines:
             cmd += ["--engines", engines]
+        if fix:
+            cmd.append("--fix")
+        if lite:
+            cmd.append("--lite")
+        if fail_on:
+            cmd += ["--fail-on", fail_on]
+        if pack:
+            for p in pack:
+                cmd += ["--pack", p]
+        if decompiled:
+            cmd.append("--decompiled")
 
         key_hint: str | None = None
         if llm:
-            # Bridge Praetor's _llm config into mantis's native provider env.
             key_hint = _llm_key_hint("")
         else:
             cmd.append("--skip-llm")
