@@ -143,13 +143,92 @@ async def groma_scan(
     except (OSError, ValueError) as e:
         return {"ok": False, "error": f"groma persistence failed: {e}", "target": target}
 
+    # Auto-bridge non-HTTP services to expedition listeners.
+    expedition_bridges = await bridge_non_http_services(parsed)
+
     return {
         "ok": True, "error": "", "target": target, "domain": resolved_domain,
         "parsed": parsed, "inventory": inv, "http_targets": http_targets(parsed),
+        "expedition_bridges": expedition_bridges,
         "run_id": run_id, "n_hosts": len(parsed["hosts"]), "n_ports": n_ports,
         "vuln_findings": vuln, "n_vuln_findings": len(vuln),
         "tool_output_path": str(out_path), "summary": report.get("summary", {}),
     }
+
+
+# Non-HTTP services that expedition can relay and dissect.
+_EXPEDITION_SERVICES: dict[str, list[int]] = {
+    "redis": [6379],
+    "mysql": [3306],
+    "postgresql": [5432],
+    "mongodb": [27017],
+    "mqtt": [1883],
+    "memcached": [11211],
+    "dns": [53],
+    "modbus": [502],
+    "dnp3": [20000],
+}
+
+_SERVICE_NAME_MAP = {
+    "redis": "redis", "mysql": "mysql", "mariadb": "mysql",
+    "postgresql": "postgresql", "postgres": "postgresql",
+    "mongodb": "mongodb", "mongod": "mongodb",
+    "mqtt": "mqtt", "mosquitto": "mqtt",
+    "memcached": "memcached", "memcache": "memcached",
+    "domain": "dns", "dns": "dns",
+    "modbus": "modbus", "dnp3": "dnp3",
+}
+
+
+async def bridge_non_http_services(parsed: dict) -> list[dict]:
+    """Auto-create expedition listeners for discovered non-HTTP services.
+
+    Reads the parsed inventory and sets up a TCP relay for each known
+    non-HTTP service so expedition captures all traffic for that protocol.
+    Returns a list of {host, port, service, listener, status} dicts.
+    """
+    from praetor.tools.expedition import _client
+
+    results = []
+    for host_entry in parsed.get("hosts", []):
+        ip = host_entry.get("ip", "")
+        if not ip:
+            continue
+        for port_entry in host_entry.get("ports", []):
+            port = port_entry.get("port", 0)
+            svc_name = (port_entry.get("service", "") or "").lower()
+            proto = (port_entry.get("proto", "") or "tcp").lower()
+
+            # Match by service name or by well-known port
+            matched_svc = _SERVICE_NAME_MAP.get(svc_name)
+            if not matched_svc:
+                for svc, known_ports in _EXPEDITION_SERVICES.items():
+                    if port in known_ports:
+                        matched_svc = svc
+                        break
+            if not matched_svc:
+                continue
+
+            listener_name = f"{matched_svc}-{ip}-{port}"
+            # Bind to a high local port (30000 + original port offset)
+            bind_port = 30000 + (port % 10000)
+
+            resp = await _client.post("/listeners", json={
+                "name": listener_name,
+                "protocol": proto,
+                "bind_host": "127.0.0.1",
+                "bind_port": bind_port,
+                "upstream_host": ip,
+                "upstream_port": port,
+            })
+
+            status = "ok" if resp.get("ok") else resp.get("error", "unknown error")
+            results.append({
+                "host": ip, "port": port, "service": matched_svc,
+                "listener": listener_name, "bind_port": bind_port, "status": status,
+            })
+
+    return results
 
 
 def _format_scan(res: dict) -> str:
@@ -184,6 +263,14 @@ def _format_scan(res: dict) -> str:
         for u in web[:30]:
             lines.append(f"    {u}")
         lines.append("  Next: configure_scope(keep_in_scope=[...]) -> browser_crawl / auto_probe")
+
+    exp_bridges = res.get("expedition_bridges") or []
+    ok_bridges = [b for b in exp_bridges if b["status"] == "ok"]
+    if ok_bridges:
+        lines.append(f"\n  Expedition bridge — {len(ok_bridges)} non-HTTP service(s) relayed:")
+        for b in ok_bridges:
+            lines.append(f"    {b['service']} {b['host']}:{b['port']} -> 127.0.0.1:{b['bind_port']} ({b['listener']})")
+        lines.append("  Next: tcp_proxy_messages / tcp_repeat / tcp_fuzz to test these services")
     return "\n".join(lines)
 
 
@@ -241,3 +328,39 @@ def register(mcp: FastMCP) -> None:
         return _format_scan(await groma_scan(
             target, domain, ports, checks_dir, fast, timeout, rate, concurrency, fail_on,
         ))
+
+    @mcp.tool()
+    async def bridge_expedition_services(domain: str) -> str:
+        """Set up expedition TCP listeners for non-HTTP services in the network inventory.
+
+        Reads the saved inventory for a domain (from prior run_groma / run_nmap)
+        and creates expedition relay listeners for every known non-HTTP service
+        (Redis, MySQL, PostgreSQL, MongoDB, MQTT, Memcached, DNS, Modbus, DNP3).
+        Use when services were already discovered and you want to intercept their
+        traffic through expedition without re-scanning.
+
+        Args:
+            domain: engagement domain key (matches .burp-intel/<domain>/)
+        """
+        try:
+            from ._store import load_inventory
+            inv = load_inventory(domain)
+        except Exception as e:
+            return f"Error loading inventory for {domain}: {e}"
+        if not inv or not inv.get("hosts"):
+            return f"No inventory found for {domain}. Run run_groma or run_nmap first."
+
+        bridges = await bridge_non_http_services(inv)
+        if not bridges:
+            return f"No non-HTTP services found in {domain} inventory."
+
+        ok = [b for b in bridges if b["status"] == "ok"]
+        failed = [b for b in bridges if b["status"] != "ok"]
+        lines = [f"Expedition bridge: {len(ok)} listener(s) created, {len(failed)} failed."]
+        for b in ok:
+            lines.append(f"  {b['service']} {b['host']}:{b['port']} -> 127.0.0.1:{b['bind_port']}")
+        for b in failed:
+            lines.append(f"  FAILED {b['service']} {b['host']}:{b['port']}: {b['status']}")
+        if ok:
+            lines.append("\nNext: tcp_proxy_messages / tcp_repeat / tcp_fuzz to test these services.")
+        return "\n".join(lines)
