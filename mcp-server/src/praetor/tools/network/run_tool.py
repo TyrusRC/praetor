@@ -51,7 +51,7 @@ _SANCTIONED = {
     # Service enumeration (unauthenticated foothold): NFS exports, SNMP MIB
     # walk, SMTP user enum (VRFY/EXPN). Read-only recon; validate_payload
     # still refuses shell-injection / destructive args on the full command.
-    "showmount", "snmpwalk", "snmp-check", "smtp-user-enum",
+    "showmount", "snmpwalk", "snmp-check", "smtp-user-enum", "dnscat2",
     # Azure AD / Entra recon (ROADtools). roadrecon dumps directory data via
     # Graph; roadtx is the token/auth sibling. Recon — validate_payload still
     # refuses destructive args on the full command.

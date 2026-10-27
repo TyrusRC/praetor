@@ -101,6 +101,8 @@ def register(mcp: FastMCP):
         include_path: list[str] | None = None,
         fp_database: str = "",
         compliance: str = "",
+        session_check_url: str = "",
+        session_check_interval: str = "",
     ) -> str:
         """Run the vigil DAST scanner against a target through Burp proxy.
 
@@ -230,6 +232,10 @@ def register(mcp: FastMCP):
                 cmd.extend(["--login-pass", login_pass])
             if login_success:
                 cmd.extend(["--login-success", login_success])
+        if session_check_url:
+            cmd.extend(["--session-check-url", session_check_url])
+            if session_check_interval:
+                cmd.extend(["--session-check-interval", session_check_interval])
         if auth_a_cookie:
             cmd.extend(["--auth-a-cookie", auth_a_cookie])
         if auth_b_cookie:

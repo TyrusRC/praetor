@@ -1,0 +1,51 @@
+{
+  "category": "http_response_smuggling",
+  "contexts": {
+    "response_queue_poisoning": {
+      "description": "Response queue poisoning (James Kettle 2023) — desync the response queue so the next user on the same connection gets the wrong response. The attacker sends a request that causes the server to return two responses; the second response is queued for the next user's request.",
+      "tech_match": ["apache", "nginx", "haproxy", "varnish", "akamai", "cloudflare", "fastly"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "HEAD method with Content-Length body — server sends HEAD response (no body) but includes Content-Length; proxy reads the next response as body of this one, poisoning the queue",
+          "matchers": [{"type": "status_diff"}, {"type": "word", "words": ["Content-Length"]}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"method": "HEAD"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "304 Not Modified with body — some servers return a body on 304; proxy reads it as the next response",
+          "matchers": [{"type": "status", "status": [304]}, {"type": "word", "words": ["Content-Length"]}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"header": "If-None-Match: \"anything\""}
+        }
+      ]
+    },
+    "connection_state_attack": {
+      "description": "Connection state attack — the first request on a keep-alive connection authenticates; the second request on the same connection (from a different user sharing the pool) inherits the authenticated state because the proxy reuses the backend connection.",
+      "tech_match": ["apache", "nginx", "haproxy", "aws", "alb", "cloudfront"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Connection: keep-alive with authenticated follow-up — test if the second request on the same connection inherits auth state from the first",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "critical",
+          "confidence_boost": 50,
+          "variables": {"header": "Connection: keep-alive"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Transfer-Encoding: chunked with 0-length chunk + trailing request — test if the server processes the trailing data as a separate request on the same connection",
+          "matchers": [{"type": "status_diff"}],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {"header": "Transfer-Encoding: chunked", "body": "0\r\n\r\nGET /admin HTTP/1.1\r\nHost: {{host}}\r\n\r\n"}
+        }
+      ]
+    }
+  }
+}

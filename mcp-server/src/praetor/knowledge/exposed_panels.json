@@ -1,0 +1,166 @@
+{
+  "category": "exposed_panels",
+  "contexts": {
+    "admin_panels": {
+      "description": "Common admin panels, debug endpoints, and sensitive configuration files exposed to the internet. Nuclei's top finding category on bug bounty.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/phpinfo.php",
+          "description": "phpinfo() — reveals PHP version, modules, environment variables, server paths",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["phpinfo", "PHP Version", "Configuration"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/server-status",
+          "description": "Apache mod_status — reveals active connections, request URIs, client IPs",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["Apache Server Status", "Server Version", "Current Time"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/server-info",
+          "description": "Apache mod_info — reveals loaded modules, configuration directives",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["Apache Server Information", "Module Name"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/elmah.axd",
+          "description": "ELMAH error log (.NET) — reveals stack traces, SQL queries, internal paths",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["Error Log for", "ELMAH", "All Errors"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/trace.axd",
+          "description": "ASP.NET trace — reveals request details, headers, session state, server variables",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["Application Trace", "Request Details", "Trace Information"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/__debug__/",
+          "description": "Django debug toolbar — reveals SQL queries, templates, settings",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["djDebug", "Django Debug Toolbar", "SQL Queries"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/_profiler/",
+          "description": "Symfony profiler — reveals request/response details, database queries, config",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["Symfony Profiler", "sf-toolbar", "profiler"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "monitoring_panels": {
+      "description": "Exposed monitoring and data-management dashboards accessible without authentication.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/kibana/app/kibana",
+          "description": "Kibana dashboard — unauthenticated access to Elasticsearch data visualization",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["kibana", "Kibana", "elastic"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/grafana/",
+          "description": "Grafana dashboard — unauthenticated access to metrics and data sources",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["grafana", "Grafana", "dashboards"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/-/prometheus/",
+          "description": "Prometheus metrics — reveals internal service topology and metric names",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["prometheus", "go_gc", "process_cpu", "http_request"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/solr/admin/",
+          "description": "Apache Solr admin — unauthenticated search index management",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["Solr Admin", "solr-admin", "Dashboard"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/_cat/indices?v",
+          "description": "Elasticsearch /_cat/indices — lists all indices with document counts and sizes",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["health", "index", "docs.count"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/_cluster/health",
+          "description": "Elasticsearch cluster health — reveals cluster name, node count, shard status",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["cluster_name", "number_of_nodes", "active_primary_shards"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/metrics",
+          "description": "Prometheus-style /metrics endpoint — reveals internal metrics, service names, error rates",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["# HELP", "# TYPE", "process_", "http_"]}],
+          "severity": "low",
+          "confidence_boost": 20
+        }
+      ]
+    },
+    "cloud_debug": {
+      "description": "Cloud and container debug endpoints exposed to the internet.",
+      "tech_match": [],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "/debug/pprof/",
+          "description": "Go pprof profiler — reveals goroutine stacks, heap dumps, CPU profiles",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["pprof", "goroutine", "heap", "profile"]}],
+          "severity": "high",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/debug/vars",
+          "description": "Go expvar — reveals runtime variables, memory stats, custom counters",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["memstats", "cmdline", "Alloc"]}],
+          "severity": "medium",
+          "confidence_boost": 30
+        },
+        {
+          "payload": "/.well-known/openid-configuration",
+          "description": "OpenID Connect discovery — reveals auth endpoints, supported flows, signing keys",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["issuer", "authorization_endpoint", "token_endpoint"]}],
+          "severity": "low",
+          "confidence_boost": 20
+        },
+        {
+          "payload": "/healthz",
+          "description": "Kubernetes health check — confirms container/service is running",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["ok", "healthy", "alive"]}],
+          "severity": "low",
+          "confidence_boost": 10
+        },
+        {
+          "payload": "/env",
+          "description": "Spring Boot /env — reveals environment variables including secrets",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["activeProfiles", "propertySources", "spring."]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/jolokia/",
+          "description": "Jolokia JMX-over-HTTP — read/write JMX MBeans (potential RCE via MBean operations)",
+          "matchers": [{"type": "status", "status": [200]}, {"type": "word", "words": ["jolokia", "agent", "protocol"]}],
+          "severity": "critical",
+          "confidence_boost": 50
+        }
+      ]
+    }
+  }
+}

