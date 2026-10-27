@@ -53,15 +53,15 @@ _CORE = [
       "scan ip", "scan network", "scan server", "full port"],
      "run_groma",
      "run_groma(target='10.0.0.1')  # full port range + CVE checks, run FIRST for network targets"),
-    # Specific class with a lead -> the specialized tool is faster/deeper than auto_probe
-    (["sqli", "sql injection", "sqlmap"], "run_sqlmap",
-     "run_sqlmap(target='http://t/?id=1', tamper='space2comment,randomcase')  "
-     "# deep SQLi; also: confirm_sqli(endpoint, parameter) for quick proof, "
-     "auto_probe(categories=['sqli']) for KB edge cases"),
-    (["xss", "cross-site", "reflected", "dalfox"], "run_dalfox",
-     "run_dalfox(target='http://t/?q=test')  "
-     "# deep XSS with WAF bypass; also: confirm_xss(endpoint, parameter) for proof, "
-     "auto_probe(categories=['xss']) for KB edge cases"),
+    # Specific class with a lead -> confirm_* first (quick proof), then specialized tool
+    # NOTE: if run_vigil(profile='thorough') already ran, sqlmap/dalfox/commix/nikto/wpscan
+    # were auto-dispatched by vigil. Call them only for TARGETED re-test on a specific param.
+    (["sqli", "sql injection", "sqlmap"], "confirm_sqli",
+     "confirm_sqli(endpoint='http://t/?id=1', parameter='id')  "
+     "# quick proof first; then run_sqlmap only if vigil did NOT already test this param"),
+    (["xss", "cross-site", "reflected", "dalfox"], "confirm_xss",
+     "confirm_xss(endpoint='http://t/?q=test', parameter='q')  "
+     "# quick proof first; then run_dalfox only if vigil did NOT already test this param"),
     (["directory", "dir brute", "dir fuzz", "hidden files", "content discovery",
       "ffuf", "wordlist"], "run_ffuf",
      "run_ffuf(url='http://t/FUZZ', wordlist='common.txt')  # directory/file discovery"),
@@ -72,14 +72,15 @@ _CORE = [
      "confirm_ssti(endpoint='http://t/', parameter='name')  "
      "# confirm SSTI across 15 engines; also: auto_probe(categories=['ssti'])"),
     (["nikto", "web server scan", "server misconfig"], "run_nikto",
-     "run_nikto(target='http://t/')  # web server misconfiguration scanner"),
+     "run_nikto(target='http://t/')  # only if vigil thorough did NOT already run (it includes nikto)"),
     (["wordpress", "wpscan", "wp plugin"], "run_wpscan",
-     "run_wpscan(url='http://t/')  # WordPress vuln scanner"),
+     "run_wpscan(url='http://t/')  # only if vigil thorough did NOT already run (it includes wpscan)"),
     (["nuclei", "template scan", "cve scan"], "run_vigil",
      "run_vigil(target='http://t/', templates=['/path/to/templates'])  "
      "# vigil includes nuclei templates; use --templates for custom"),
-    (["command injection", "cmdi", "commix", "os command"], "run_commix",
-     "run_commix(target='http://t/?cmd=test')  # deep command injection"),
+    (["command injection", "cmdi", "commix", "os command"], "confirm_rce",
+     "confirm_rce(endpoint='http://t/?cmd=test', parameter='cmd')  "
+     "# quick proof first; then run_commix only if vigil did NOT already test this param"),
     (["api fuzz", "openapi fuzz", "swagger fuzz", "api schema test"], "fuzz_api_schema",
      "fuzz_api_schema(spec_url='http://t/openapi.json')  # auto-fuzz every API endpoint"),
     (["open redirect", "unvalidated redirect"], "test_open_redirect",

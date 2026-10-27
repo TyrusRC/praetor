@@ -107,9 +107,14 @@ ASK BEFORE ASSUME — critical for correct severity and coverage:
 DEFAULT FIRST CALLS on any new target:
   run_vigil(target, profile='thorough')  — automated web DAST (OWASP Top 10 + WSTG). Run BEFORE manual probing.
   run_groma(target)  — full port range network scan + CVE checks. Bridges HTTP services to web lane.
-Then deepen leads with the RIGHT tool: run_sqlmap (SQLi), run_dalfox (XSS), run_commix (CMDi),
-  run_ffuf (dirs), run_nikto (server misconfig), run_wpscan (WordPress). pick_tool(task) selects.
-auto_probe is for KB edge cases vigil does not cover (business logic, auth matrix, race conditions).
+
+TOOL DEDUP — avoid duplicate work:
+  vigil thorough INCLUDES sqlmap, dalfox, commix, ghauri, nikto, wpscan, nuclei internally.
+  DO NOT call run_sqlmap/run_dalfox/run_commix/run_nikto/run_wpscan after vigil thorough.
+  Call them ONLY for targeted re-test on a specific parameter vigil flagged.
+  groma REPLACES nmap for port discovery. Use run_nmap ONLY for OS fingerprinting, NSE scripts,
+  or scan-type-specific firewall mapping (ACK/FIN/NULL/XMAS).
+  auto_probe is for KB edge cases vigil does not cover (business logic, auth matrix, race conditions).
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.
