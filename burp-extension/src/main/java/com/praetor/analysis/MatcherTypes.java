@@ -58,6 +58,13 @@ final class MatcherTypes {
                     }
                     if (matched) matchedDescriptions.add("not_status:" + status);
                 }
+                case "status_diff" -> {
+                    if (baselineResponse != null) {
+                        int baselineStatus = baselineResponse.statusCode();
+                        matched = status != baselineStatus;
+                        if (matched) matchedDescriptions.add("status_diff:" + baselineStatus + "->" + status);
+                    }
+                }
                 case "word" -> {
                     @SuppressWarnings("unchecked")
                     List<String> words = (List<String>) matcher.get("words");
