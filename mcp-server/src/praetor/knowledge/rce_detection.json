@@ -1197,6 +1197,26 @@
           ]
         }
       ]
+    },
+    "freebsd_rpcsec_gss_rce": {
+      "description": "FreeBSD RPCSEC_GSS stack overflow (CVE-2026-4747, CVSS 9.8). Pre-auth RCE in NFS/RPC services. svc_rpc_gss_validate copies 400-byte credential into 128-byte stack buffer. No stack canary (int32_t array). Affects any FreeBSD system with NFS or RPC services exposed. AI-discovered and exploited (Calif/Anthropic).",
+      "tech_match": [
+        "freebsd",
+        "nfs",
+        "rpcbind"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detect FreeBSD + NFS/RPC exposure via Server header or port scan (111/2049)",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "FreeBSD|nfsd|rpcbind"
+            }
+          ]
+        }
+      ]
     }
   }
 }

