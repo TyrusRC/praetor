@@ -552,6 +552,39 @@
           "variables": {}
         }
       ]
+    },
+    "encrypted_assertion_as_signature_bypass": {
+      "description": "SAML encrypted assertion accepted without signature (CVE-2026-41005, CVSS 9.0-9.5). The SP treats XML encryption to the SP as a substitute for XML signatures from the IdP. Attacker encrypts a forged assertion with the SPs public key \u2014 no IdP signature needed. Cloud Foundry UAA affected.",
+      "tech_match": [
+        "saml",
+        "uaa",
+        "cloudfoundry",
+        "shibboleth",
+        "adfs",
+        "okta",
+        "auth0"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detection: send a SAML response with EncryptedAssertion but no Signature element. If the SP accepts it, the bypass exists.",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "302"
+            },
+            {
+              "type": "word",
+              "words": [
+                "authenticated",
+                "session",
+                "redirect"
+              ]
+            }
+          ],
+          "reference_only": true
+        }
+      ]
     }
   }
 }

@@ -1622,6 +1622,55 @@
           }
         }
       ]
+    },
+    "device_code_phishing": {
+      "description": "OAuth device code flow abuse (device_authorization grant). Attacker initiates a device code flow, tricks victim into authorizing it via a phishing link. The attacker receives a persistent refresh token that survives password resets. Used in Microsoft 365 attacks (Storm-2372). The victim only sees a legitimate Microsoft login page.",
+      "tech_match": [
+        "microsoft",
+        "azure",
+        "entra",
+        "google",
+        "okta",
+        "auth0"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if /devicecode or /device/code endpoint exists and accepts requests",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "device_code",
+                "user_code",
+                "verification_uri"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "consent_phishing_grant_persistence": {
+      "description": "OAuth consent phishing: attacker tricks victim into granting OAuth consent to a malicious app. The grant (refresh token) persists even after password reset. Recovery requires the victim to explicitly revoke the app in security settings. FBI advisory: access can only be revoked by invalidating the token in application security settings.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if password reset revokes OAuth refresh tokens \u2014 change password, then replay refresh token. If still valid, the grant persists.",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "access_token"
+              ]
+            }
+          ],
+          "reference_only": true
+        }
+      ]
     }
   },
   "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879) + WebAuthn API hijacking JS-injection."

@@ -551,6 +551,74 @@
           "variables": {}
         }
       ]
+    },
+    "otp_cross_account_binding": {
+      "description": "OTP cross-account binding: the OTP verification endpoint does not bind the code to the requesting account. An OTP generated for account A can reset account B. Bug bounty finding worth \\,500 (2026). Test: request OTP for your account, use it on the password-reset endpoint for a different account.",
+      "param_match": [
+        "otp",
+        "code",
+        "token",
+        "verification_code"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Submit a valid OTP from one account against a different accounts reset endpoint",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "reset",
+                "changed"
+              ]
+            }
+          ],
+          "reference_only": true
+        }
+      ]
+    },
+    "reset_token_referer_leak": {
+      "description": "Password reset token leaked via Referer header. User clicks reset link \u2192 page loads third-party resources (analytics, CDN, ads) \u2192 Referer header sends the full URL including the reset token to third parties. PCI DSS and OWASP flag this.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if the password reset page loads external resources that would receive the Referer with the token",
+          "matchers": [
+            {
+              "type": "regex",
+              "pattern": "<script[^>]*src=[\"']https?://(?!.*(?:self|same-origin))"
+            }
+          ],
+          "reference_only": true
+        }
+      ]
+    },
+    "password_reset_no_grant_revoke": {
+      "description": "Password reset does not revoke OAuth grants or refresh tokens. After resetting a password, existing OAuth tokens remain valid \u2014 an attacker who obtained a token via consent phishing retains access. Per FBI advisory: the only fix is explicitly revoking the token.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "After password change, check if a prior refresh token still works at /token endpoint",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            },
+            {
+              "type": "word",
+              "words": [
+                "access_token"
+              ]
+            }
+          ],
+          "reference_only": true
+        }
+      ]
     }
   }
 }

