@@ -97,10 +97,18 @@ auto-enables its lane, run_tool('<tool>') returns its schema; get_profile() show
 is gated; pick_tool(task) flags gated tools. So a web session can pivot to mobile /
 network / cloud mid-engagement with no reconnect.
 
+ASK BEFORE ASSUME — critical for correct severity and coverage:
+  When environment (prod/staging/dev), network_exposure (internet/internal/vpn), business_context
+  (banking/healthcare/saas), or testing_mode (black/grey/white) is unknown — ASK the operator
+  ONCE before proceeding. A wrong assumption inflates severity, misses test cases, or skips leads.
+  assess_finding flags missing context explicitly. Never default to "internet-facing production"
+  without confirmation.
+
 DEFAULT FIRST CALLS on any new target:
-  run_vigil(target, profile='thorough')  — automated web DAST (OWASP Top 10 + WSTG, 110+ detectors). Run BEFORE manual probing.
+  run_vigil(target, profile='thorough')  — automated web DAST (OWASP Top 10 + WSTG). Run BEFORE manual probing.
   run_groma(target)  — full port range network scan + CVE checks. Bridges HTTP services to web lane.
-Then deepen leads: run_sqlmap (SQLi), run_dalfox (XSS), run_commix (CMDi), run_ffuf (dirs), run_nikto (server misconfig), run_wpscan (WordPress).
+Then deepen leads with the RIGHT tool: run_sqlmap (SQLi), run_dalfox (XSS), run_commix (CMDi),
+  run_ffuf (dirs), run_nikto (server misconfig), run_wpscan (WordPress). pick_tool(task) selects.
 auto_probe is for KB edge cases vigil does not cover (business logic, auth matrix, race conditions).
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.

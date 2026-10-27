@@ -357,6 +357,36 @@ async def assess_finding_impl(
         intensity, network_exposure, exploit_demonstrated,
     )
 
+    # Missing-context warnings: explicit "ASK THE OPERATOR" instead of silently
+    # assuming defaults. The model skips these fields and assumes black-box /
+    # internet-facing / production, which inflates severity and misses test cases.
+    _missing = []
+    if not ctx.environment:
+        _missing.append(
+            "MISSING environment (production / staging / dev / internal). "
+            "Severity scoring assumes production — if this is staging/dev, "
+            "the finding caps at MEDIUM. ASK the operator."
+        )
+    if not ctx.network_exposure:
+        _missing.append(
+            "MISSING network_exposure (internet / internal / ip_allowlist / vpn_only). "
+            "An internal-only service is not CRITICAL — ASK the operator for the real exposure."
+        )
+    if not ctx.business_context and not ctx.biz_data:
+        _missing.append(
+            "MISSING business_context (banking / healthcare / saas / ecommerce / ...). "
+            "Impact scoring needs this to rate data sensitivity. "
+            "Run capture_business_context() or ASK the operator."
+        )
+    if not ctx.exploit_demonstrated and not ctx.reproductions and ctx.proxy_history_index < 0:
+        _missing.append(
+            "MISSING exploit evidence: no proxy_history_index, no reproductions, "
+            "exploit_demonstrated=False. Without proof the exploit works, "
+            "severity caps at MEDIUM. Replay the request or pass proxy_history_index."
+        )
+    if _missing:
+        ctx.impact_notes.extend(_missing)
+
     # R1: auto-derive markers from proxy_history_index (mutates ctx.derived_markers
     # and ctx.evidence_lower). Runs BEFORE the question loop so Q5/Q6
     # see the augmented evidence.
