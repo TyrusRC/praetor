@@ -1033,7 +1033,7 @@
           "description": "RSC content-type switch \u2014 force the server to parse the body as Flight protocol (the deserialization entry point)",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": "415"
             },
             {
@@ -1043,7 +1043,9 @@
               ]
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     },

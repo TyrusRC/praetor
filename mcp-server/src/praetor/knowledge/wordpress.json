@@ -50,7 +50,7 @@
           "description": "Check if XML-RPC is enabled (should return 405 or XML fault, not 404)",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": "404"
             },
             {

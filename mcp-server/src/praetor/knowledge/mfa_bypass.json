@@ -151,7 +151,9 @@
           "payload": "{{baseline}}",
           "description": "Detection: check if session tokens are bound to TLS channel (token binding / DPoP) \u2014 if not, AiTM can steal them",
           "matchers": [],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     },
@@ -167,7 +169,9 @@
               "value": "200"
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     }

@@ -43,11 +43,11 @@
           "description": "Expired consent replay \u2014 replay a request with an expired consent token",
           "matchers": [
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": "401"
             },
             {
-              "type": "status_not",
+              "type": "not_status",
               "value": "403"
             }
           ]

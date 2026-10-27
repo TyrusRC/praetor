@@ -884,13 +884,17 @@
               ]
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         },
         {
           "payload": "\u001b[?1049h",
           "description": "CSI alternate screen buffer \u2014 if terminal switches to alt buffer, escape processing is active on untrusted content",
           "matchers": [],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     },
@@ -908,7 +912,9 @@
               ]
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     }

@@ -107,7 +107,9 @@
               "type": "status_diff"
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     }

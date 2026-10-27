@@ -578,7 +578,9 @@
               ]
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     },
@@ -594,7 +596,9 @@
               "pattern": "<script[^>]*src=[\"']https?://(?!.*(?:self|same-origin))"
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     },
@@ -616,7 +620,9 @@
               ]
             }
           ],
-          "reference_only": true
+          "variables": {
+            "reference_only": true
+          }
         }
       ]
     }
