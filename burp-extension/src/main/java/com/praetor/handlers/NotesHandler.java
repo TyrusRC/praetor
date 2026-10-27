@@ -147,18 +147,24 @@ public class NotesHandler extends BaseHandler {
         Object proxyIdxObj  = evidence.get("proxy_history_index");
         Object collabIdObj  = evidence.get("collaborator_interaction_id");
         Object sendRefObj   = evidence.get("send_ref");
+        Object expConnObj   = evidence.get("expedition_connection_id");
+        Object expMsgObj    = evidence.get("expedition_message_id");
 
-        boolean hasProxy   = proxyIdxObj instanceof Number;
-        boolean hasCollab  = collabIdObj instanceof String && !((String) collabIdObj).isEmpty();
-        boolean hasSendRef = sendRefObj instanceof String && !((String) sendRefObj).isEmpty();
+        boolean hasProxy      = proxyIdxObj instanceof Number;
+        boolean hasCollab     = collabIdObj instanceof String && !((String) collabIdObj).isEmpty();
+        boolean hasSendRef    = sendRefObj instanceof String && !((String) sendRefObj).isEmpty();
+        boolean hasExpedition = (expConnObj instanceof Number && ((Number) expConnObj).longValue() > 0)
+                             || (expMsgObj instanceof Number && ((Number) expMsgObj).longValue() > 0);
 
-        if (!hasProxy && !hasCollab && !hasSendRef) {
+        if (!hasProxy && !hasCollab && !hasSendRef && !hasExpedition) {
             sendError(exchange, 400,
-                "evidence required: provide proxy_history_index, collaborator_interaction_id or send_ref",
+                "evidence required: provide proxy_history_index, collaborator_interaction_id, send_ref, or expedition_connection_id",
                 "evidence_missing",
                 "Replay the request via resend_with_modification(index) and pass that index as "
                 + "evidence.proxy_history_index; a direct send (smuggling / absolute-target / pinned "
-                + "version) that skipped proxy history is cited via evidence.send_ref instead.");
+                + "version) that skipped proxy history is cited via evidence.send_ref instead. "
+                + "For non-HTTP (TCP/UDP) findings, pass evidence.expedition_connection_id or "
+                + "evidence.expedition_message_id from tcp_proxy_connections/messages.");
             return;
         }
 

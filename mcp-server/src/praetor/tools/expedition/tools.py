@@ -331,3 +331,51 @@ def register(mcp: FastMCP) -> None:
         if len(results) > 10:
             lines.append(f"  ... ({len(results) - 10} more)")
         return "\n".join(lines)
+
+    @mcp.tool()
+    async def tcp_tag_connection(connection_id: int, tag: str) -> str:
+        """Tag an expedition connection (like annotate_request for HTTP).
+
+        Tags mark connections as evidence for findings. Use consistent tags:
+        RED=confirmed, ORANGE=suspected, YELLOW=anomaly, GREEN=baseline.
+
+        Args:
+            connection_id: Connection ID from tcp_proxy_connections.
+            tag: Tag string (e.g. 'f001-redis-unauth', 'RED', 'baseline').
+        """
+        d = await _client.post(f"/connections/{connection_id}/tag", json={"tag": tag})
+        if "error" in d:
+            return f"Error: {d['error']}"
+        return f"Tagged connection#{connection_id} with '{tag}'."
+
+    @mcp.tool()
+    async def tcp_search_messages(query: str, limit: int = 50) -> str:
+        """Search expedition message history by content (like search_history for HTTP).
+
+        Args:
+            query: Text to search for in message payloads (case-insensitive).
+            limit: Max results (default 50).
+        """
+        rows = await _client.get_list(f"/messages/search?q={query}&limit={limit}")
+        if isinstance(rows, dict):
+            return rows.get("error", str(rows))
+        return _fmt_msgs(rows)
+
+    @mcp.tool()
+    async def tcp_session_export() -> str:
+        """Export the entire expedition session as JSON evidence.
+
+        Returns all connections, messages, and tags as a JSON snapshot.
+        Use for evidence preservation or PoC bundle export.
+        """
+        d = await _client.get("/session/export")
+        if "error" in d:
+            return f"Error: {d['error']}"
+        conns = d.get("connections", 0)
+        msgs = d.get("messages", 0)
+        tags = d.get("tags", 0)
+        return (
+            f"Expedition session exported: {conns} connections, {msgs} messages, "
+            f"{tags} tagged connections.\n"
+            f"Export saved to expedition session store."
+        )
