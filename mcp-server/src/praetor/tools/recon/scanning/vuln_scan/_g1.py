@@ -103,6 +103,16 @@ def register(mcp: FastMCP):
         compliance: str = "",
         session_check_url: str = "",
         session_check_interval: str = "",
+        idor_url: str = "",
+        auth_a_header: list[str] | None = None,
+        auth_b_header: list[str] | None = None,
+        param: list[str] | None = None,
+        nuclei_tags: str = "",
+        nuclei_severity: str = "",
+        submit_forms: bool = False,
+        crawl_depth: int = 0,
+        crawl_max_pages: int = 0,
+        insecure: bool = False,
     ) -> str:
         """Run the vigil DAST scanner against a target through Burp proxy.
 
@@ -172,6 +182,16 @@ def register(mcp: FastMCP):
             include_path: Only request paths matching these regexps (repeatable).
             fp_database: Path to FP feedback database (.vigil-fp.json). Known FPs get confidence=low.
             compliance: Emit compliance mapping (pci-dss, hipaa, iso-27001, or 'all').
+            idor_url: Override URL for the two-identity IDOR/BOLA probe (defaults to target).
+            auth_a_header: Identity-A headers for the IDOR probe (list of 'Key: Value'; use for bearer/API auth).
+            auth_b_header: Identity-B headers for the IDOR probe (list of 'Key: Value').
+            param: Test only these parameter names (repeatable).
+            nuclei_tags: Comma-separated Nuclei tag filter (e.g. cve,rce).
+            nuclei_severity: Comma-separated Nuclei severity filter (info,low,medium,high,critical).
+            submit_forms: Submit discovered forms during crawl to reach post-auth pages (may change state).
+            crawl_depth: Max crawl depth from each seed when crawl is set (0 = seed page only).
+            crawl_max_pages: Max pages to navigate when crawl is set.
+            insecure: Skip TLS certificate verification (for a direct non-proxy scan of a self-signed host).
         """
         if policy:
             from .scan_policy import load_scan_policy
@@ -274,6 +294,30 @@ def register(mcp: FastMCP):
             cmd.extend(["--fp-database", fp_database])
         if compliance:
             cmd.extend(["--compliance", compliance])
+        if idor_url:
+            cmd.extend(["--idor-url", idor_url])
+        if auth_a_header:
+            for h in auth_a_header:
+                cmd.extend(["--auth-a-header", h])
+        if auth_b_header:
+            for h in auth_b_header:
+                cmd.extend(["--auth-b-header", h])
+        if param:
+            for p in param:
+                cmd.extend(["--param", p])
+        if nuclei_tags:
+            cmd.extend(["--nuclei-tags", nuclei_tags])
+        if nuclei_severity:
+            cmd.extend(["--nuclei-severity", nuclei_severity])
+        if submit_forms:
+            cmd.append("--submit-forms")
+        if crawl_depth and crawl_depth > 0:
+            cmd.extend(["--crawl-depth", str(crawl_depth)])
+        if crawl_max_pages and crawl_max_pages > 0:
+            cmd.extend(["--crawl-max-pages", str(crawl_max_pages)])
+        # Proxy mode already adds -k; only add it here for a direct scan.
+        if insecure and not use_proxy:
+            cmd.append("-k")
 
         # Pass haruspex URL to vigil via env var (inherited by subprocess).
         if haruspex_url:

@@ -34,3 +34,18 @@
     # TOOLS, not the burp://skills resources. First `uvx` launch is slow (deps).
     toolCallTimeoutMs: 120000
     failOnStartupError: false
+
+# vigil — Praetor's web-scan engine, bridged the same way. Its tools appear as
+# mcp__vigil__<tool> (scan_start, scan_status, scan_findings, scan_report,
+# compliance_assess, target_scan, …). A Go binary on PATH, so no uvx.
+- id: mcp-vigil
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: vigil
+    transport: stdio
+    command: vigil
+    args:
+      - mcp
+      # Add '--state-file' and a path here to share scan state with `vigil web`.
+    toolCallTimeoutMs: 120000
+    failOnStartupError: false

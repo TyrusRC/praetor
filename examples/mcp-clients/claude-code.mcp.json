@@ -19,6 +19,10 @@
         "git+https://github.com/TyrusRC/centurion.git",
         "centurion-mcp"
       ]
+    },
+    "vigil": {
+      "command": "vigil",
+      "args": ["mcp"]
     }
   }
 }

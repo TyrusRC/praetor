@@ -140,6 +140,8 @@ cd ../mcp-server && uv venv && uv sync    # install MCP server
 
 Works with Claude Code, Codex, Gemini CLI, Cursor, Windsurf, Antigravity, DeepSeek Harness, and any MCP-aware client. Per-host config examples in [`examples/mcp-clients/`](examples/mcp-clients/).
 
+The project `.mcp.json` also registers [vigil](https://github.com/TyrusRC/vigil) as an MCP server (`vigil mcp`), so the agent can drive scans directly over MCP — `scan_start`, `scan_status`, `scan_findings`, `scan_report`, `compliance_assess`, `target_scan` and more — in addition to the `run_vigil` CLI tool. Point its `--state-file` at the same path a running `vigil web` uses to share scan state between them. The `run_vigil` tool passes the full vigil scan surface, including the two-identity IDOR probe (`auth_a_header`/`auth_b_header`/`idor_url`), parameter focus (`param`), Nuclei filters (`nuclei_tags`/`nuclei_severity`) and crawl tuning (`submit_forms`/`crawl_depth`/`crawl_max_pages`).
+
 ## Usage
 
 ### Commands (Claude Code)

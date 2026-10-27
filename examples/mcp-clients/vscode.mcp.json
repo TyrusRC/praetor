@@ -12,6 +12,11 @@
         "BURP_API_HOST": "127.0.0.1",
         "BURP_API_PORT": "8111"
       }
+    },
+    "vigil": {
+      "type": "stdio",
+      "command": "vigil",
+      "args": ["mcp"]
     }
   }
 }

@@ -13,3 +13,11 @@ BURP_API_PORT = "8111"
 # / llm / cloud / core or a comma list. A gated tool is never blocked — run_tool('<tool>',
 # {args}) reaches it and auto-enables its lane mid-engagement.
 PRAETOR_PROFILE = "web"
+
+# vigil — Praetor's web-scan engine, driven directly over MCP (scan_start,
+# scan_status, scan_findings, scan_report, compliance_assess, target_scan, …).
+# A Go binary on PATH (go install github.com/TyrusRC/vigil/cmd/vigil@latest), so
+# no uvx. Add --state-file <path> to share scan state with a running `vigil web`.
+[mcp_servers.vigil]
+command = "vigil"
+args = ["mcp"]

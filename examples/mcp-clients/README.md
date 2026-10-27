@@ -48,6 +48,9 @@ Hosts with an `mcp add` command:
 ```sh
 claude mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
 codex  mcp add praetor -- uvx --from "git+https://github.com/TyrusRC/praetor.git#subdirectory=mcp-server" praetor-mcp
+# vigil is a Go binary on PATH, so its launch command is just `vigil mcp`:
+claude mcp add vigil -- vigil mcp
+codex  mcp add vigil -- vigil mcp
 ```
 
 ## Things that apply to every host
@@ -79,3 +82,22 @@ frida-ios-dump), Android apkid / apkleaks / apksigner, and drozer / objection �
 alongside praetor (its tools appear under `mcp__centurion__*`). `setup.sh` / `setup.ps1`
 install it from git; `claude-code.mcp.json` shows both servers in one `mcpServers` block.
 Add the same `centurion` entry to any other host's config the same way you add praetor.
+
+## Web engine — vigil (companion server)
+
+Praetor's default web-scan engine is [vigil](https://github.com/TyrusRC/vigil). The
+`run_vigil` tool already shells out to the `vigil` CLI, but registering vigil as its own
+MCP server lets the agent drive scans **directly** — `scan_start`, `scan_status`,
+`scan_findings`, `scan_report`, `compliance_assess`, `target_scan`, `list_profiles`,
+`config_defaults` and more (its tools appear under `mcp__vigil__*`). Unlike praetor and
+centurion, vigil is a **Go binary**, so there is no `uvx` launch — install it with
+`go install github.com/TyrusRC/vigil/cmd/vigil@latest` (or via `setup.sh`) and the launch
+command is simply `vigil mcp`. Every config in this folder includes the `vigil` entry
+alongside `praetor`; add it to any other host the same way.
+
+- **In-memory by default.** `vigil mcp` keeps scan jobs in memory for the session. To
+  persist them across restarts — and to **share scan state with a running `vigil web`**
+  console — add `--state-file <path>` (e.g. `args: ["mcp", "--state-file", "<path>"]`),
+  pointing both at the same file. vigil creates the parent directory itself.
+- **No Burp dependency.** vigil scans over its own HTTP engine, so it needs none of the
+  `BURP_API_*` env that praetor uses.

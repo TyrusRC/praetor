@@ -1066,6 +1066,10 @@ if [ ! -f "$MCP_JSON" ]; then
       "env": {
         "BURP_API_HOST": "$WSL_HOST_IP"
       }
+    },
+    "vigil": {
+      "command": "vigil",
+      "args": ["mcp"]
     }
   }
 }
@@ -1078,6 +1082,10 @@ MCPEOF
     "praetor": {
       "command": "$VENV_PYTHON",
       "args": ["-m", "praetor"]
+    },
+    "vigil": {
+      "command": "vigil",
+      "args": ["mcp"]
     }
   }
 }
@@ -1089,11 +1097,26 @@ else
     if [ "$IS_WSL" = "1" ] && [ "$WSL_MODE" = "nat" ] && [ -n "$WSL_HOST_IP" ]; then
         warn "WSL NAT: .mcp.json must set env BURP_API_HOST=$WSL_HOST_IP (Windows host) — or switch to mirrored networking (see 'WSL → Windows Burp' below)"
     fi
+    # Idempotently add vigil (Praetor's web-scan engine) to an existing config
+    # without touching anything the user has customised.
+    python3 - "$MCP_JSON" <<'PYEOF'
+import json, sys
+p = sys.argv[1]
+try:
+    d = json.load(open(p))
+except Exception:
+    sys.exit(0)  # not JSON we recognise — leave it alone
+servers = d.setdefault("mcpServers", {})
+if "vigil" not in servers:
+    servers["vigil"] = {"command": "vigil", "args": ["mcp"]}
+    json.dump(d, open(p, "w"), indent=2)
+    print("added vigil MCP server to existing .mcp.json")
+PYEOF
 fi
 
-# Ensure Claude Code is allowed to start the praetor server: drop it from any
-# disabledMcpjsonServers list and add it to enabledMcpjsonServers. Without this,
-# a project MCP server can sit disabled and never connect.
+# Ensure Claude Code is allowed to start the project MCP servers: drop them from
+# any disabledMcpjsonServers list and add them to enabledMcpjsonServers. Without
+# this, a project MCP server can sit disabled and never connect.
 SETTINGS_LOCAL="$SCRIPT_DIR/.claude/settings.local.json"
 mkdir -p "$SCRIPT_DIR/.claude"
 python3 - "$SETTINGS_LOCAL" <<'PYEOF'
@@ -1103,12 +1126,16 @@ try:
     d = json.load(open(p)) if os.path.exists(p) else {}
 except Exception:
     d = {}
-d["disabledMcpjsonServers"] = [s for s in d.get("disabledMcpjsonServers", []) if s != "praetor"]
-if "praetor" not in d.get("enabledMcpjsonServers", []):
-    d["enabledMcpjsonServers"] = d.get("enabledMcpjsonServers", []) + ["praetor"]
+want = ["praetor", "vigil"]
+d["disabledMcpjsonServers"] = [s for s in d.get("disabledMcpjsonServers", []) if s not in want]
+enabled = d.get("enabledMcpjsonServers", [])
+for s in want:
+    if s not in enabled:
+        enabled.append(s)
+d["enabledMcpjsonServers"] = enabled
 json.dump(d, open(p, "w"), indent=2)
 PYEOF
-ok "praetor MCP server enabled in .claude/settings.local.json"
+ok "praetor + vigil MCP servers enabled in .claude/settings.local.json"
 
 # ════════════════════════════════════════════════════════════════════
 # SUMMARY
