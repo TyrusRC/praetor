@@ -180,6 +180,25 @@
           ],
           "severity": "low",
           "confidence_boost": 20
+        },
+        {
+          "payload": "existing_user_swk_probe@example.com",
+          "description": "Register with a likely-existing email — 'already exists' vs 'registered' reveals valid accounts. Common on vibe-coded apps with default Supabase/Firebase auth.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "already exist",
+                "already registered",
+                "email taken",
+                "account exists",
+                "user exists"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
         }
       ]
     },
@@ -585,7 +604,7 @@
       ]
     },
     "reset_token_referer_leak": {
-      "description": "Password reset token leaked via Referer header. User clicks reset link \u2192 page loads third-party resources (analytics, CDN, ads) \u2192 Referer header sends the full URL including the reset token to third parties. PCI DSS and OWASP flag this.",
+      "description": "Password reset token leaked via Referer header. User clicks reset link → page loads third-party resources (analytics, CDN, ads) → Referer header sends the full URL including the reset token to third parties. PCI DSS and OWASP flag this.",
       "probes": [
         {
           "payload": "{{baseline}}",
@@ -603,7 +622,7 @@
       ]
     },
     "password_reset_no_grant_revoke": {
-      "description": "Password reset does not revoke OAuth grants or refresh tokens. After resetting a password, existing OAuth tokens remain valid \u2014 an attacker who obtained a token via consent phishing retains access. Per FBI advisory: the only fix is explicitly revoking the token.",
+      "description": "Password reset does not revoke OAuth grants or refresh tokens. After resetting a password, existing OAuth tokens remain valid — an attacker who obtained a token via consent phishing retains access. Per FBI advisory: the only fix is explicitly revoking the token.",
       "probes": [
         {
           "payload": "{{baseline}}",
