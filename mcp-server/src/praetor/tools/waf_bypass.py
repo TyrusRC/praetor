@@ -156,9 +156,21 @@ def register(mcp: FastMCP) -> None:
 
         await asyncio.gather(*[_one(i, v) for i, v in enumerate(variants)])
 
-        hits = [r for r in results
-                if r.get("status") and r["status"] != baseline_status
-                and 200 <= r["status"] < 400]
+        # Filter hits: status changed AND either reached 2xx (real content) or
+        # changed redirect class (3xx→2xx). A 307→308 is just path normalization,
+        # not a bypass — both redirect families send the client to the same
+        # login page.
+        def _is_real_bypass(r: dict[str, Any]) -> bool:
+            s = r.get("status", 0)
+            if not s or s == baseline_status:
+                return False
+            if 200 <= s < 300:
+                return True  # reached actual content
+            if 300 <= s < 400 and 300 <= baseline_status < 400:
+                return False  # redirect→redirect is not a bypass
+            return 200 <= s < 400
+
+        hits = [r for r in results if _is_real_bypass(r)]
 
         lines = [
             f"# probe_40x_bypass — {url}",
