@@ -52,6 +52,9 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 **Exploit Pipeline (detect → confirm → escalate)**
 - `confirm_*` tools prove injection exists (SQLi, RCE, SSRF, SSTI, XXE, XSS, NoSQL, LDAP, XPath, XSLT, SSI, expression injection, email injection, second-order, cache deception, IDOR, race condition)
 - `escalate_*` tools prove attacker capability (SSTI→RCE, SQLi→file read/OS cmd, SSRF→IMDS creds, XXE→OOB exfil, LFI→sensitive files, IDOR→cross-account, prototype pollution→gadget RCE, open redirect→token theft)
+- OOB blind SQLi extraction via Collaborator DNS exfil (MSSQL xp_dirtree, MySQL LOAD_FILE, Oracle UTL_HTTP, PostgreSQL COPY TO PROGRAM)
+- Stacked query detection across all 5 DBMS with timing-based verification
+- Upload polyglot generation: GIFAR+PHP, GIFAR+JSP, PNG+PHP, SVG+JS, PDF+JS
 
 **Auth & Session**
 - Login bypass: SQLi on login forms, verb tampering, OTP cross-account binding, reset-token Referer leak
@@ -97,6 +100,12 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - **Cloud:** prowler, scout-suite, pacu, IaC scanning, container/K8s security
 - **LLM/MCP:** prompt injection, tool poisoning, system-prompt leakage, OWASP LLM/AI Top 10
 - **Fuzzing:** structure-aware file upload fuzzing, AFL integration, crash triage, TCP/UDP protocol fuzzing via expedition
+
+**Vibe-Code / SPA Backend Probing**
+- JS bundle secret extraction (Supabase anon keys, Firebase configs, API tokens) via `extract_js_secrets`
+- Direct Supabase/Firebase REST API probing for missing Row Level Security (RLS)
+- SPA catch-all detection: identifies universal 200 responses that fool DAST scanners
+- Complements vigil's DAST: vigil tests the CDN shell, Praetor probes the actual backend API
 
 **Safety**
 - HARD tool-layer blocks on destructive payloads (non-overridable)
@@ -238,7 +247,7 @@ Linux, macOS, Windows, WSL. The Java extension and Python server use platform-in
 ## Contributing
 
 - Open an issue for non-trivial changes before sending a PR
-- Run tests: `cd mcp-server && uv run python -m unittest discover tests` and `cd burp-extension && mvn package`
+- Run tests: `cd mcp-server && uv run python -m unittest discover tests` (235+ test files, 85+ verdict/fuzzing/vuln/proxy tests) and `cd burp-extension && mvn package`
 - Match existing style (Java: camelCase methods, snake_case JSON keys; Python: PEP 8, async tools)
 - No external Java dependencies — extension uses only Montoya API and JDK
 

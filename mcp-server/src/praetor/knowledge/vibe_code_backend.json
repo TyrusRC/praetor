@@ -1,0 +1,134 @@
+{
+  "category": "vibe_code_backend",
+  "description": "Misconfigurations in vibe-coded SPA backends (Supabase, Firebase, Appwrite, Nhost) — missing RLS, exposed admin keys, unauthenticated API access. The #1 vulnerability class in AI-generated apps deployed on Lovable, Bolt, v0, Replit.",
+  "contexts": {
+    "supabase_rls_disabled": {
+      "description": "Supabase Row Level Security disabled — anon key grants unauthenticated SELECT/INSERT/UPDATE/DELETE on tables containing user data. The anon key is always in the JS bundle (by design), so security depends entirely on RLS policies.",
+      "tech_match": ["Supabase", "React", "Vite", "Next.js", "Nuxt"],
+      "probes": [
+        {
+          "payload": "/rest/v1/?select=*",
+          "description": "Supabase REST API schema endpoint — returns OpenAPI spec listing all tables accessible to the anon role. Non-empty paths = missing RLS.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["definitions", "paths", "swagger"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "/rest/v1/profiles?select=*&limit=1",
+          "description": "Common Supabase table — profiles. Returns user data if RLS disabled.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["email", "name", "avatar_url", "full_name"], "condition": "or"}
+          ],
+          "severity": "high",
+          "confidence_boost": 80
+        },
+        {
+          "payload": "/rest/v1/users?select=*&limit=1",
+          "description": "Common table — users. Direct PII access if RLS disabled.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["email", "phone", "name"], "condition": "or"}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90
+        },
+        {
+          "payload": "/rest/v1/rpc/",
+          "description": "Supabase RPC endpoint listing — exposed stored procedures callable by anon.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "supabase_storage_public": {
+      "description": "Supabase Storage bucket set to public — files accessible without auth. Avatars and uploads often contain PII.",
+      "tech_match": ["Supabase"],
+      "probes": [
+        {
+          "payload": "/storage/v1/bucket",
+          "description": "List storage buckets accessible to anon role.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["public", "name", "id"]}
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        }
+      ]
+    },
+    "firebase_misconfigured": {
+      "description": "Firebase Realtime Database or Firestore with permissive security rules (.read: true). The Firebase config (apiKey, authDomain, projectId) is in the JS bundle; security depends on Firestore/RTDB rules.",
+      "tech_match": ["Firebase", "React", "Angular", "Vue"],
+      "probes": [
+        {
+          "payload": "/.json",
+          "description": "Firebase RTDB root — returns entire database if rules allow .read: true.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "not_word", "words": ["Permission denied", "error"]}
+          ],
+          "severity": "critical",
+          "confidence_boost": 90
+        },
+        {
+          "payload": "/.json?shallow=true",
+          "description": "Firebase RTDB shallow read — lists top-level keys without full data.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "regex", "value": "\\{\"[a-zA-Z]"}
+          ],
+          "severity": "high",
+          "confidence_boost": 70
+        }
+      ]
+    },
+    "spa_catchall_detection": {
+      "description": "SPA catch-all routing detection — the server returns the same HTML shell for every path and every parameter. DAST scanners report false positives because the universal 200 response looks like the server processed the payload. Detect by comparing response hashes across 3 random paths.",
+      "probes": [
+        {
+          "payload": "/nonexistent-path-a1b2c3",
+          "description": "Random path #1 — if this returns the same body as the root, the server has catch-all routing.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "info",
+          "confidence_boost": 0,
+          "variables": {"role": "baseline_comparison"}
+        },
+        {
+          "payload": "/another-fake-d4e5f6/sub/path",
+          "description": "Random nested path — confirms catch-all extends to subpaths.",
+          "matchers": [
+            {"type": "status", "status": [200]}
+          ],
+          "severity": "info",
+          "confidence_boost": 0,
+          "variables": {"role": "baseline_comparison"}
+        }
+      ]
+    },
+    "appwrite_misconfigured": {
+      "description": "Appwrite backend with permissive collection permissions — anon users can list/read documents.",
+      "tech_match": ["Appwrite"],
+      "probes": [
+        {
+          "payload": "/v1/databases",
+          "description": "Appwrite databases listing — should require auth.",
+          "matchers": [
+            {"type": "status", "status": [200]},
+            {"type": "word", "words": ["databases", "total"]}
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        }
+      ]
+    }
+  }
+}
