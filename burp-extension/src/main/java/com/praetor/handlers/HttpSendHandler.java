@@ -432,14 +432,7 @@ public class HttpSendHandler extends BaseHandler {
     }
 
     private List<Map<String, Object>> headersToList(List<HttpHeader> headers) {
-        List<Map<String, Object>> list = new ArrayList<>();
-        for (HttpHeader h : headers) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", h.name());
-            m.put("value", h.value());
-            list.add(m);
-        }
-        return list;
+        return com.praetor.util.HttpHelpers.headersToList(headers);
     }
 
     // ── Helpers ────────────────────────────────────────────────
@@ -518,14 +511,6 @@ public class HttpSendHandler extends BaseHandler {
     }
 
     private String extractPath(String url) {
-        try {
-            java.net.URI uri = new java.net.URI(url);
-            String path = uri.getRawPath();
-            if (path == null || path.isEmpty()) path = "/";
-            if (uri.getRawQuery() != null) path += "?" + uri.getRawQuery();
-            return path;
-        } catch (Exception e) {
-            return "/";
-        }
+        return com.praetor.util.HttpHelpers.extractPath(url);
     }
 }

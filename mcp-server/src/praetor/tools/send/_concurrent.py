@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 from praetor.tools._request_headers import apply_realistic_headers
 from ._format import _format_response
 
@@ -40,7 +41,7 @@ def register(mcp: FastMCP):
         import time
 
         if not requests:
-            return "Error: requests list is empty"
+            return err("requests list is empty")
         concurrency = max(concurrency, 1)
 
         # Loop guard — concurrent_requests is the classic runaway spot.
@@ -195,7 +196,7 @@ def register(mcp: FastMCP):
 
         resp = await client.post("/api/http/resend", json=payload)
         if "error" in resp:
-            return f"Error: {resp['error']}"
+            return err(resp['error'])
 
         probe_index = resp.get("history_index")
         if probe_index is None:

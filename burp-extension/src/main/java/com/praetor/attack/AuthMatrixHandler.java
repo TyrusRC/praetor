@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Handles {@code POST /api/attack/auth-matrix}: tests endpoints across
@@ -199,33 +200,44 @@ public final class AuthMatrixHandler {
         double lengthSimilarity = (double) Math.min(a.length(), b.length())
             / Math.max(a.length(), b.length());
 
-        // Character sampling: sample 200 positions, count matches
-        int sampleSize = 200;
-        int minLen = Math.min(a.length(), b.length());
-        int samplesToTake = Math.min(sampleSize, minLen);
-        int matches = 0;
-
-        if (samplesToTake > 0) {
-            double step = (double) minLen / samplesToTake;
-            for (int i = 0; i < samplesToTake; i++) {
-                int pos = (int) (i * step);
-                if (pos < a.length() && pos < b.length() && a.charAt(pos) == b.charAt(pos)) {
-                    matches++;
-                }
-            }
+        // Token-based Jaccard similarity on whitespace-split tokens.
+        // More robust than character sampling: catches structural differences
+        // in same-template responses with different user data (e.g.
+        // {"name":"Alice"} vs {"name":"Bob"} in identical HTML chrome).
+        Set<String> tokensA = tokenize(a);
+        Set<String> tokensB = tokenize(b);
+        double jaccard = 0.0;
+        if (!tokensA.isEmpty() || !tokensB.isEmpty()) {
+            Set<String> intersection = new java.util.HashSet<>(tokensA);
+            intersection.retainAll(tokensB);
+            Set<String> union = new java.util.HashSet<>(tokensA);
+            union.addAll(tokensB);
+            jaccard = union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
         }
 
-        double charSimilarity = samplesToTake > 0 ? (double) matches / samplesToTake : 0.0;
-
-        double combined = (lengthSimilarity + charSimilarity) / 2.0;
+        // Weight: 40% length, 60% Jaccard (token overlap matters more)
+        double combined = 0.4 * lengthSimilarity + 0.6 * jaccard;
 
         // Length-based penalty: if lengths differ by >20%, cap similarity at 0.7
-        // to catch structural changes that sampling might miss
         if (lengthSimilarity < 0.8) {
             combined = Math.min(combined, 0.7);
         }
 
         return combined;
+    }
+
+    /** Split a response body into a bounded set of whitespace tokens for
+     *  Jaccard comparison. Caps at 2000 tokens to keep memory bounded. */
+    private static Set<String> tokenize(String s) {
+        Set<String> tokens = new java.util.HashSet<>();
+        int count = 0;
+        for (String tok : s.split("\\s+")) {
+            if (!tok.isEmpty()) {
+                tokens.add(tok);
+                if (++count >= 2000) break;
+            }
+        }
+        return tokens;
     }
 
     // -- Response envelope (duplicated across attack handlers; see A1) ----

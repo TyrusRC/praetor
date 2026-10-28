@@ -215,7 +215,10 @@ public final class RaceHandler {
         }
         sendJson(exchange, JsonUtil.toJson(out));
         } finally {
-            executor.shutdown();
+            executor.shutdownNow();
+            try { executor.awaitTermination(5, TimeUnit.SECONDS); } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

@@ -104,6 +104,19 @@ public final class ProxyTunnel {
         }
     };
 
+    /** Shared trust-all SSLContext — stateless, safe to reuse across threads.
+     *  Created once at class init instead of per-request to avoid blocking on
+     *  SecureRandom(/dev/random) in containers/VMs. */
+    private static final SSLContext TRUST_ALL_CTX;
+    static {
+        try {
+            TRUST_ALL_CTX = SSLContext.getInstance("TLS");
+            TRUST_ALL_CTX.init(null, TRUST_ALL, new SecureRandom());
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private ProxyTunnel() {}
 
     /**
@@ -197,9 +210,7 @@ public final class ProxyTunnel {
             );
         }
         try {
-            SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.init(null, TRUST_ALL, new SecureRandom());
-            SSLSocketFactory sf = ctx.getSocketFactory();
+            SSLSocketFactory sf = TRUST_ALL_CTX.getSocketFactory();
             try (SSLSocket tls = (SSLSocket) sf.createSocket(socket, host, port, true)) {
                 tls.startHandshake();
                 tls.getOutputStream().write(wire);
@@ -243,9 +254,7 @@ public final class ProxyTunnel {
             socket.connect(new InetSocketAddress(service.host(), service.port()), CONNECT_TIMEOUT_MS);
             socket.setSoTimeout(READ_TIMEOUT_MS);
             if (service.secure()) {
-                SSLContext ctx = SSLContext.getInstance("TLS");
-                ctx.init(null, TRUST_ALL, new SecureRandom());
-                SSLSocketFactory sf = ctx.getSocketFactory();
+                SSLSocketFactory sf = TRUST_ALL_CTX.getSocketFactory();
                 try (SSLSocket tls = (SSLSocket) sf.createSocket(socket, service.host(), service.port(), true)) {
                     SSLParameters p = tls.getSSLParameters();
                     p.setApplicationProtocols(new String[]{"http/1.1"});

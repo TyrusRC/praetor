@@ -1,6 +1,7 @@
 """Web crawling tools."""
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._common import _check_tool, _run_cmd, _sanitize_domain, _USER_AGENT, BURP_PROXY_URL
 
@@ -35,7 +36,7 @@ def register(mcp: FastMCP):
             timeout: Max seconds (default 300)
         """
         if not _check_tool("katana"):
-            return "Error: katana not installed. Install: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest"
+            return err("katana not installed. Install: CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest")
 
         depth = min(depth, 10)
         cmd = ["katana", "-u", target, "-silent", "-no-color",

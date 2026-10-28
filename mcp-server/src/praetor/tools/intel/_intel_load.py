@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools._aio import read_json_safe, read_text as aio_read_text
 from praetor.tools.workspace import ensure_workspace
+from praetor.tools._errors import err
 from ._internals import (
     VALID_CATEGORIES,
     _atomic_write_json,
@@ -55,7 +57,7 @@ def register(mcp: FastMCP):
         if category == "notes":
             notes_path = dir_path / "notes.md"
             if notes_path.exists():
-                return notes_path.read_text(encoding="utf-8")
+                return await aio_read_text(notes_path)
             return "No notes saved for this target."
 
         if category == "all":
@@ -65,9 +67,8 @@ def register(mcp: FastMCP):
                 if not cat_path.exists():
                     summary_lines.append(f"  {cat}: (none)")
                     continue
-                try:
-                    data = json.loads(cat_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
+                data = await read_json_safe(cat_path)
+                if data is None:
                     summary_lines.append(f"  {cat}: (corrupted)")
                     continue
                 if cat == "profile":
@@ -101,13 +102,13 @@ def register(mcp: FastMCP):
             return "\n".join(summary_lines)
 
         if category not in VALID_CATEGORIES:
-            return f"Error: invalid category '{category}'. Must be one of: all, notes, {', '.join(VALID_CATEGORIES)}"
+            return err(f"invalid category '{category}'. Must be one of: all, notes, {', '.join(VALID_CATEGORIES)}")
 
         cat_path = dir_path / f"{category}.json"
         if not cat_path.exists():
             return json.dumps(_empty_structure(category), separators=(",", ":"))
 
-        data = json.loads(cat_path.read_text(encoding="utf-8"))
+        data = await read_json_safe(cat_path, _empty_structure(category))
         stat = cat_path.stat()
         if "_meta" not in data:
             data["_meta"] = {}

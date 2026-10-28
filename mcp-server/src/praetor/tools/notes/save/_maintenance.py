@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from mcp.server.fastmcp import FastMCP
 
 from praetor.tools.report.severity import sort_findings_by_risk
+from praetor.tools._errors import err
 
 from .._helpers import (
     _annotation_remap_impact,
@@ -46,11 +47,11 @@ def register(mcp: FastMCP):
             reason:     Audit trail — why is this an FP? Required for force=True.
         """
         if not domain:
-            return "Error: domain is required to locate the finding."
+            return err("domain is required to locate the finding.")
         try:
             findings_path = _safe_findings_path(domain)
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
         if not findings_path.exists():
             return f"No findings.json for domain {domain!r}."
         store = _load_findings_file(findings_path)
@@ -145,12 +146,12 @@ def register(mcp: FastMCP):
             confirm:       Must be True to actually mutate. Dry-run otherwise.
         """
         if not domain:
-            return "Error: domain is required."
+            return err("domain is required.")
         keep_set = {s.lower().strip() for s in (keep_statuses or ["confirmed"])}
         try:
             findings_path = _safe_findings_path(domain)
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
         if not findings_path.exists():
             return f"No findings.json for {domain!r} — nothing to prune."
         store = _load_findings_file(findings_path)

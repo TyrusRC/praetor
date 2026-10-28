@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 def register(mcp: FastMCP):
@@ -20,7 +21,7 @@ def register(mcp: FastMCP):
             "index2": index2,
         })
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return data.get("message", "Sent to Comparer")
 
     @mcp.tool()
@@ -42,7 +43,7 @@ def register(mcp: FastMCP):
             "mode": mode,
         })
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         lines = [f"Enhanced Comparison: #{index1} vs #{index2} (mode: {mode})\n"]
 

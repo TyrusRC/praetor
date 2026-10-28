@@ -1,7 +1,6 @@
 package com.praetor.store;
 
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -81,7 +80,7 @@ public class FindingsStore {
      *  the in-memory list past tens of MB. Drop the oldest when over. */
     public static final int MAX_FINDINGS = 10_000;
 
-    private final List<Map<String, Object>> findings = new CopyOnWriteArrayList<>();
+    private final List<Map<String, Object>> findings = new ArrayList<>();
     private final AtomicInteger idCounter = new AtomicInteger(0);
 
     /** Fired after any mutation (add / setStatus / removeById / loadFromJson).
@@ -108,7 +107,7 @@ public class FindingsStore {
                        null, null, null, null);
     }
 
-    public Map<String, Object> addFull(String title, String description, String severity,
+    public synchronized Map<String, Object> addFull(String title, String description, String severity,
                                         String endpoint, String evidenceText,
                                         String vulnType,
                                         Map<String, Object> evidence,
@@ -131,9 +130,6 @@ public class FindingsStore {
         if (chainWith != null) finding.put("chain_with", new ArrayList<>(chainWith));
         finding.put("timestamp", java.time.Instant.now().toString());
         findings.add(finding);
-        // FIFO eviction once over the cap. CopyOnWriteArrayList.remove is
-        // O(n) on copy, but the cap is hit at most once per add and copies
-        // a 10k-entry list only when Java's GC isn't already free-listing.
         while (findings.size() > MAX_FINDINGS) {
             findings.remove(0);
         }
@@ -148,7 +144,7 @@ public class FindingsStore {
      * the Python .burp-intel status + retest vocabulary. Returns the mutated
      * finding, or null if no finding has that id.
      */
-    public Map<String, Object> setStatus(String id, String status) {
+    public synchronized Map<String, Object> setStatus(String id, String status) {
         if (id == null || id.isEmpty() || status == null) return null;
         for (Map<String, Object> f : findings) {
             Object fid = f.get("id");
@@ -167,7 +163,7 @@ public class FindingsStore {
      * highest restored id so new findings never collide. Called once at
      * extension load to restore state persisted in the Burp project.
      */
-    public void loadFromJson(String json) {
+    public synchronized void loadFromJson(String json) {
         if (json == null || json.isBlank()) return;
         List<Object> parsed;
         try {
@@ -196,9 +192,9 @@ public class FindingsStore {
         notifyChange();
     }
 
-    public List<Map<String, Object>> getAll(String filterEndpoint) {
+    public synchronized List<Map<String, Object>> getAll(String filterEndpoint) {
         if (filterEndpoint == null || filterEndpoint.isEmpty()) {
-            return Collections.unmodifiableList(findings);
+            return Collections.unmodifiableList(new ArrayList<>(findings));
         }
         return findings.stream()
             .filter(f -> {
@@ -208,10 +204,10 @@ public class FindingsStore {
             .toList();
     }
 
-    public String exportMarkdown() {
+    public synchronized String exportMarkdown() {
         return FindingsMarkdown.export(findings);
     }
-    public String exportJson() {
+    public synchronized String exportJson() {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < findings.size(); i++) {
             if (i > 0) sb.append(",");
@@ -242,7 +238,7 @@ public class FindingsStore {
     }
 
     /** Returns true if a finding with the given id exists in the store. */
-    public boolean hasFinding(String id) {
+    public synchronized boolean hasFinding(String id) {
         if (id == null || id.isEmpty()) return false;
         for (Map<String, Object> f : findings) {
             Object fid = f.get("id");
@@ -259,7 +255,7 @@ public class FindingsStore {
      * silently re-appending — saves a few KB of memory + makes the in-memory
      * dashboard match the persistent .burp-intel/ store.
      */
-    public Map<String, Object> findExistingByKey(String endpoint, String vulnType, String title) {
+    public synchronized Map<String, Object> findExistingByKey(String endpoint, String vulnType, String title) {
         if (endpoint == null) endpoint = "";
         if (vulnType == null) vulnType = "";
         if (title == null) title = "";
@@ -275,7 +271,7 @@ public class FindingsStore {
     }
 
     /** Hard-delete a finding by its in-memory id. Returns true if removed. */
-    public boolean removeById(String id) {
+    public synchronized boolean removeById(String id) {
         if (id == null || id.isEmpty()) return false;
         Map<String, Object> target = null;
         for (Map<String, Object> f : findings) {

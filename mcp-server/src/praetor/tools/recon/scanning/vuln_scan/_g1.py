@@ -2,6 +2,7 @@ import os
 from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 from ._shared import (
     BURP_PROXY_URL,
     _USER_AGENT,
@@ -221,7 +222,7 @@ def register(mcp: FastMCP):
             from .scan_policy import load_scan_policy
             pol = load_scan_policy(policy)
             if not pol:
-                return f"Error: no scan policy named '{policy}' — list_scan_policies() to see what's saved."
+                return err(f"no scan policy named '{policy}' — list_scan_policies() to see what's saved.")
             profile = pol.get("profile", profile)
             scope_host = pol.get("scope_host", scope_host)
             rate = pol.get("rate", rate)
@@ -463,7 +464,7 @@ def register(mcp: FastMCP):
             timeout: Max seconds (default 300)
         """
         if not _check_tool("dalfox"):
-            return "Error: dalfox not installed. Install: go install -v github.com/hahwul/dalfox/v2@latest"
+            return err("dalfox not installed. Install: go install -v github.com/hahwul/dalfox/v2@latest")
 
         cmd = ["dalfox", "url", target, "--silence", "--format", "plain",
                "-H", f"User-Agent: {_USER_AGENT}"]

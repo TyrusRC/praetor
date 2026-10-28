@@ -24,6 +24,7 @@ from urllib.parse import urlencode, urlparse, parse_qsl
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 # Compact wordlist embedded — common dev/backend param names. 200 entries.
@@ -162,14 +163,14 @@ def register(mcp: FastMCP):
         seen = set()
         wordlist = [p for p in wordlist if not (p in seen or seen.add(p))]
         if not wordlist:
-            return "Error: empty wordlist"
+            return err("empty wordlist")
 
         # Scope check
         scope = await client.check_scope(target_url)
         if "error" in scope:
-            return f"Error: scope check failed: {scope['error']}"
+            return err(f"scope check failed: {scope['error']}")
         if not scope.get("in_scope", False):
-            return f"Error: {target_url} not in scope"
+            return err(f"{target_url} not in scope")
 
         # Baseline
         baseline_sigs = []
@@ -177,7 +178,7 @@ def register(mcp: FastMCP):
         for _ in range(max(1, baseline_runs)):
             s, ln, h, body = await _send_with_params(target_url, method, {}, session)
             if s == -1:
-                return f"Error establishing baseline: {body}"
+                return err(f"establishing baseline: {body}")
             baseline_sigs.append((s, ln, h))
             baseline_body = body
         # Most-common baseline status; pick (status, length-range) as the diff predicate

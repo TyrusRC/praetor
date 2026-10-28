@@ -95,11 +95,20 @@ final class ProxyWire {
         return sb.length() == 0 ? null : sb.toString();
     }
 
+    /** Cap at 100 MB to prevent OOM on oversized responses. */
+    static final int MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
+
     static byte[] readAll(InputStream in) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
         int n;
+        long total = 0;
         while ((n = in.read(buf)) != -1) {
+            total += n;
+            if (total > MAX_RESPONSE_BYTES) {
+                bos.write(buf, 0, n);
+                break;
+            }
             bos.write(buf, 0, n);
         }
         return bos.toByteArray();

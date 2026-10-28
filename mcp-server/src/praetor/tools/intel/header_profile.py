@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 from ._header_profile import normalize_headers, score_header_set
 from ._internals import _atomic_write_json, _ensure_dir, _intel_path
@@ -48,7 +49,7 @@ def register(mcp: FastMCP):
             params={"limit": sample_size, "host": domain},
         )
         if "error" in history:
-            return f"Error reading proxy history: {history['error']}"
+            return err(f"reading proxy history: {history['error']}")
 
         items = history.get("history", []) or history.get("items", [])
         if not items:

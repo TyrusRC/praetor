@@ -3,6 +3,7 @@
 import json
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._lifecycle import _ensure_browser
 
@@ -60,7 +61,7 @@ def register(mcp: FastMCP):
 
             return "\n".join(lines)
         except Exception as e:
-            return f"Error getting page info: {e}"
+            return err(f"getting page info: {e}")
 
     @mcp.tool()
     async def browser_execute_js(script: str) -> str:
@@ -77,7 +78,7 @@ def register(mcp: FastMCP):
                 return json.dumps(result, indent=2, default=str)
             return str(result)
         except Exception as e:
-            return f"Error executing JS: {e}"
+            return err(f"executing JS: {e}")
 
     @mcp.tool()
     async def browser_storage(max_value_len: int = 200) -> str:
@@ -127,7 +128,7 @@ def register(mcp: FastMCP):
                 max_value_len,
             )
         except Exception as e:  # noqa: BLE001 — surface any eval failure as text
-            return f"Error reading storage: {e}"
+            return err(f"reading storage: {e}")
 
         import re
         sens = re.compile(r"token|jwt|session|secret|password|passwd|auth|api[-_]?key|bearer", re.I)
@@ -176,7 +177,7 @@ def register(mcp: FastMCP):
         if url:
             scope_resp = await burp_client.check_scope(url)
             if "error" not in scope_resp and not scope_resp.get("in_scope", False):
-                return f"Error: {url} is OUT OF SCOPE."
+                return err(f"{url} is OUT OF SCOPE.")
 
         _, _, page = await _ensure_browser()
 

@@ -9,6 +9,8 @@ brute refused (Rule 6); scope is mode-aware.
 
 from __future__ import annotations
 
+import shlex
+
 from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
@@ -115,7 +117,7 @@ async def run_sanctioned(
         return {"ok": False, "error": f"{binary} not installed — redteam_tool_guide(tool='{b}')"}
 
     resolved_domain = domain or target or binary
-    cmd = [binary] + (args.split() if args else [])
+    cmd = [binary] + (shlex.split(args) if args else [])
     stdout, stderr, rc = await _run_cmd(cmd, timeout=timeout, bypass_proxy=True)
     combined = stdout + (("\n[stderr]\n" + stderr) if stderr.strip() else "")
 

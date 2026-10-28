@@ -194,13 +194,6 @@ public class ProxyHandler extends BaseHandler {
     }
 
     private List<Map<String, Object>> headersToList(List<HttpHeader> headers) {
-        List<Map<String, Object>> list = new ArrayList<>();
-        for (HttpHeader h : headers) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", h.name());
-            m.put("value", h.value());
-            list.add(m);
-        }
-        return list;
+        return com.praetor.util.HttpHelpers.headersToList(headers);
     }
 }

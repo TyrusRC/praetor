@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools._errors import err
 from ._helpers import (
     _domain_from_endpoint,
     _find_by_id,
@@ -97,13 +98,13 @@ def register(mcp: FastMCP) -> None:
                         domain = child.name
                         break
         if not domain:
-            return f"Error: finding {finding_id!r} not found in any .burp-intel/<domain>/."
+            return err(f"finding {finding_id!r} not found in any .burp-intel/<domain>/")
 
         path = _safe_findings_path(domain)
         findings = _load_findings_file(path)
         _, f = _find_by_id(findings, finding_id)
         if f is None:
-            return f"Error: finding {finding_id!r} not found in domain {domain!r}."
+            return err(f"finding {finding_id!r} not found in domain {domain!r}")
 
         if not domain:
             domain = _domain_from_endpoint(f.get("endpoint", ""))

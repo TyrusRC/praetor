@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
+from praetor.tools._aio import read_json_safe, write_json_atomic, write_text as aio_write_text
 from praetor.tools.workspace import ensure_workspace
+from praetor.tools._errors import err
 from ._internals import (
     VALID_CATEGORIES,
     _atomic_write_json,
@@ -33,7 +35,7 @@ def register(mcp: FastMCP):
             data: Category-specific data dict to save
         """
         if category not in VALID_CATEGORIES:
-            return f"Error: invalid category '{category}'. Must be one of: {', '.join(VALID_CATEGORIES)}"
+            return err(f"invalid category '{category}'. Must be one of: {', '.join(VALID_CATEGORIES)}")
 
         dir_path = _ensure_dir(domain)
         try:
@@ -44,12 +46,7 @@ def register(mcp: FastMCP):
         now = _utcnow_iso()
 
         if category == "patterns":
-            existing = _empty_structure("patterns")
-            if file_path.exists():
-                try:
-                    existing = json.loads(file_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    existing = _empty_structure("patterns")
+            existing = await read_json_safe(file_path, _empty_structure("patterns"))
             patterns_list = existing.get("patterns", [])
 
             new_patterns = data.get("patterns", [data] if "vuln_class" in data else [])
@@ -68,16 +65,11 @@ def register(mcp: FastMCP):
 
             existing["patterns"] = patterns_list
             existing["last_modified"] = now
-            _atomic_write_json(file_path, existing)
+            await write_json_atomic(file_path, existing)
             return f"Saved pattern(s) for {domain} ({len(patterns_list)} total patterns)"
 
         if category == "findings":
-            existing = _empty_structure("findings")
-            if file_path.exists():
-                try:
-                    existing = json.loads(file_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    existing = _empty_structure("findings")
+            existing = await read_json_safe(file_path, _empty_structure("findings"))
             findings_list = existing.get("findings", [])
 
             new_findings = data.get("findings", [data] if "endpoint" in data else [])
@@ -95,16 +87,11 @@ def register(mcp: FastMCP):
 
             existing["findings"] = findings_list
             existing["last_modified"] = now
-            _atomic_write_json(file_path, existing)
+            await write_json_atomic(file_path, existing)
             return f"Saved {len(new_findings)} finding(s) for {domain} ({len(findings_list)} total)"
 
         if category == "coverage":
-            existing = _empty_structure("coverage")
-            if file_path.exists():
-                try:
-                    existing = json.loads(file_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    existing = _empty_structure("coverage")
+            existing = await read_json_safe(file_path, _empty_structure("coverage"))
             entries = existing.get("entries", [])
 
             new_entries = data.get("entries", [])
@@ -122,12 +109,12 @@ def register(mcp: FastMCP):
             existing["entries"] = entries
             existing["knowledge_version"] = _knowledge_version()
             existing["last_modified"] = now
-            _atomic_write_json(file_path, existing)
+            await write_json_atomic(file_path, existing)
             return f"Coverage updated for {domain}: {len(entries)} entries (knowledge v{existing['knowledge_version']})"
 
         # profile, endpoints, fingerprint: simple overwrite
         data["last_modified"] = now
-        _atomic_write_json(file_path, data)
+        await write_json_atomic(file_path, data)
         return f"Saved {category} for {domain}"
 
     @mcp.tool()
@@ -143,6 +130,6 @@ def register(mcp: FastMCP):
         """
         dir_path = _ensure_dir(domain)
         notes_path = dir_path / "notes.md"
-        notes_path.write_text(notes, encoding="utf-8")
+        await aio_write_text(notes_path, notes)
         return f"Notes saved for {domain} ({len(notes)} chars)"
 

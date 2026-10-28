@@ -1,6 +1,7 @@
 import re
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 from ._shared import (
     BURP_PROXY_URL,
     _check_tool,
@@ -183,7 +184,7 @@ def register(mcp: FastMCP):
         cms = cms.strip().lower()
         allowed = {"drupal", "joomla", "silverstripe", "wordpress"}
         if cms not in allowed:
-            return f"Error: cms must be one of {sorted(allowed)} (got {cms!r})."
+            return err(f"cms must be one of {sorted(allowed)} (got {cms!r}).")
         cmd = [
             "droopescan", "scan", cms,
             "--url", target,

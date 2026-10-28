@@ -4,6 +4,7 @@ import os
 from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._common import _check_tool, _run_cmd, _sanitize_domain, _USER_AGENT, BURP_PROXY_URL
 
@@ -40,7 +41,7 @@ def register(mcp: FastMCP):
         scheme = split.scheme or "https"
         host = split.hostname
         if not host:
-            return f"Error: could not parse a host from target '{target}'"
+            return err(f"could not parse a host from target '{target}'")
         base_domain = _sanitize_domain(host)
         url = f"{scheme}://{split.netloc}{split.path or ''}"
 

@@ -6,6 +6,7 @@ from collections import Counter
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 from praetor.tools._request_headers import apply_realistic_headers
 from ._danger import confirmation_notice, dangerous_action, parse_raw
 from ._format import _format_curl_response, _format_response
@@ -131,7 +132,7 @@ def register(mcp: FastMCP):
 
         data = await client.post("/api/http/raw", json=payload)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return _format_response(data)
 
     @mcp.tool()
@@ -163,7 +164,7 @@ def register(mcp: FastMCP):
 
         data = await client.post("/api/http/resend", json=payload)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return _format_response(data)
 
 
@@ -237,7 +238,7 @@ def register(mcp: FastMCP):
 
         resp = await client.post("/api/http/curl", json=payload)
         if "error" in resp:
-            return f"Error: {resp['error']}"
+            return err(resp['error'])
 
         return _format_curl_response(resp)
 
@@ -256,5 +257,5 @@ def register(mcp: FastMCP):
         """
         data = await client.get(f"/api/http/stored/{send_ref}")
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return _format_response(data)

@@ -3,6 +3,7 @@
 import re
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._common import _check_tool, _run_cmd, _sanitize_domain
 
@@ -38,7 +39,7 @@ def register(mcp: FastMCP):
         src = sources.strip() or "all"
         # Reject flag/shell injection via the source list (comma-separated tokens only).
         if not re.match(r'^[A-Za-z0-9_,-]+$', src) or src.startswith("-"):
-            return f"Error: invalid sources '{sources}' (expected comma-separated source names)"
+            return err(f"invalid sources '{sources}' (expected comma-separated source names)")
 
         cmd = ["theHarvester", "-d", domain, "-b", src, "-l", str(int(limit))]
         stdout, stderr, code = await _run_cmd(cmd, timeout)

@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 def register(mcp: FastMCP):
@@ -21,7 +22,7 @@ def register(mcp: FastMCP):
 
         data = await client.get("/api/sitemap", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         items = data.get("items", [])
         if not items:
@@ -42,7 +43,7 @@ def register(mcp: FastMCP):
         """Get the current target scope configuration from Burp Suite."""
         data = await client.get("/api/scope")
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         hosts = data.get("in_scope_hosts", [])
         total = data.get("total_in_scope_urls", 0)
@@ -90,7 +91,7 @@ def register(mcp: FastMCP):
 
         data = await client.get("/api/cookies", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         cookies = data.get("cookies", [])
         if not cookies:
@@ -146,7 +147,7 @@ def register(mcp: FastMCP):
 
         data = await client.get("/api/websocket/history", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         messages = data.get("messages", [])
         if not messages:

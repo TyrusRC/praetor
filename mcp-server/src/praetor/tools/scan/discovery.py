@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 from ._constants import _COMMON_PARAMS, _EXTENDED_PARAMS
 from ._helpers import _classify_param_risk, _compact_targets
@@ -143,7 +144,7 @@ def register(mcp: FastMCP) -> None:
 
         baseline_resp = await client.post("/api/session/request", json=baseline_req)
         if "error" in baseline_resp:
-            return f"Error getting baseline: {baseline_resp['error']}"
+            return err(f"getting baseline: {baseline_resp['error']}")
 
         baseline_status = baseline_resp.get("status", 0)
         baseline_length = baseline_resp.get("response_length", 0)

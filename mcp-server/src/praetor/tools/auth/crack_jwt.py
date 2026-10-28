@@ -17,6 +17,7 @@ import time
 from collections.abc import Iterable
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._jwt_codec import decode_header, decode_payload, split_jwt, verify_hmac
 from ._jwt_wordlist import JWT_DEFAULT_WORDLIST
@@ -82,12 +83,12 @@ def register(mcp: FastMCP):
         try:
             split_jwt(token)
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
 
         try:
             header = decode_header(token)
         except Exception as e:
-            return f"Error decoding header: {e}"
+            return err(f"decoding header: {e}")
 
         alg = (header.get("alg") or "").upper()
         if alg not in _SUPPORTED_HS:

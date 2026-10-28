@@ -35,6 +35,9 @@ public class CollaboratorHandler extends BaseHandler {
     private static final List<Map<String, Object>> SEEN =
         new java.util.concurrent.CopyOnWriteArrayList<>();
 
+    /** Clear accumulated interaction history on engagement switch. */
+    public static void resetSeen() { SEEN.clear(); }
+
     public CollaboratorHandler(MontoyaApi api) {
         this.api = api;
     }
@@ -152,7 +155,8 @@ public class CollaboratorHandler extends BaseHandler {
 
             // Wait and poll for interactions
             Thread.sleep(pollSeconds * 1000L);
-            List<Interaction> interactions = c.getAllInteractions();
+            List<Interaction> interactions =
+                com.praetor.collaborator.CollaboratorPool.drainAndAccumulate(c);
 
             List<Map<String, Object>> interactionItems = new ArrayList<>();
             for (Interaction interaction : interactions) {
@@ -235,15 +239,7 @@ public class CollaboratorHandler extends BaseHandler {
     }
 
     private String extractPath(String url) {
-        try {
-            java.net.URI uri = new java.net.URI(url);
-            String path = uri.getRawPath();
-            if (path == null || path.isEmpty()) path = "/";
-            if (uri.getRawQuery() != null) path += "?" + uri.getRawQuery();
-            return path;
-        } catch (Exception e) {
-            return "/";
-        }
+        return com.praetor.util.HttpHelpers.extractPath(url);
     }
 
     private void handleGetInteractions(HttpExchange exchange) throws Exception {
@@ -257,10 +253,11 @@ public class CollaboratorHandler extends BaseHandler {
             boolean newOnly = "true".equalsIgnoreCase(params.get("new_only"));
 
             CollaboratorClient c = getClient();
-            List<Interaction> interactions = c.getAllInteractions();
+            // Drain through the pool's accumulator so hasInteraction() sees
+            // every ID without needing its own drain.
+            List<Interaction> interactions =
+                com.praetor.collaborator.CollaboratorPool.drainAndAccumulate(c);
 
-            // Convert this drain's interactions and retain them. getAllInteractions
-            // returns each interaction once, so appending never duplicates.
             List<Map<String, Object>> fresh = new ArrayList<>();
             for (Interaction interaction : interactions) {
                 fresh.add(toEntry(interaction));

@@ -1,6 +1,7 @@
 """Subdomain enumeration: amass."""
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from .._common import _check_tool, _run_cmd
 
@@ -39,7 +40,7 @@ def register(mcp: FastMCP):
         try:
             domain = _sanitize_domain(domain)
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
         cmd = ["amass", mode, "-d", domain, "-nocolor"]
         if passive:
             cmd.append("-passive")

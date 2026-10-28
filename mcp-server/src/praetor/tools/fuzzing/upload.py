@@ -267,6 +267,7 @@ def register(mcp: FastMCP) -> None:
         timeout: int = 300,
         confirmed: bool = False,
         domain: str = "",
+        polyglot: bool = False,
     ) -> dict:
         """Black-box structure-aware file-upload fuzzer.
 
@@ -275,6 +276,11 @@ def register(mcp: FastMCP) -> None:
         classifying server-side parser anomalies against a clean baseline upload:
         5xx crash, hang, new internal-error signature, size/hash divergence. A
         clean 4xx rejection of malformed input is EXPECTED, not an anomaly.
+
+        With polyglot=True, also generates and uploads polyglot files (GIFAR,
+        PNG+PHP, SVG+JS, PDF+JS) that pass magic-byte validation while carrying
+        executable payloads. These test whether the upload handler re-interprets
+        the file type.
 
         Deliverable is a crash / parser-anomaly PoC (benign). Findings are NOT
         auto-saved — the returned anomalies (each citing a Burp index/send_ref)
@@ -294,6 +300,8 @@ def register(mcp: FastMCP) -> None:
             timeout: Wall-clock budget seconds (default 300). >600 needs confirmed=True.
             confirmed: Operator sign-off for an over-threshold (DoS-capable) campaign.
             domain: Workspace domain for artifacts (default: endpoint host).
+            polyglot: Also upload polyglot files (GIFAR, PNG+PHP, SVG+JS, PDF+JS)
+                that bypass content-type validation. Default False.
         """
         parts = urlsplit(endpoint if "://" in endpoint else "https://" + endpoint)
         host = parts.hostname
@@ -382,6 +390,43 @@ def register(mcp: FastMCP) -> None:
                 "mutant_file": mut_name,
             })
 
+        # Polyglot phase: upload format-crossing files that bypass magic-byte checks
+        polyglot_results: list[dict] = []
+        if polyglot and time.monotonic() < wall_deadline:
+            poly_seeds = _seeds.polyglot_seeds(fmt)
+            for base_fmt, poly_name, poly_bytes in poly_seeds:
+                if time.monotonic() > wall_deadline:
+                    break
+                poly_ct = _default_ct(base_fmt)
+                r = await _upload(host, port, https, path, parameter, poly_name, poly_ct, poly_bytes)
+                sent += 1
+                if "error" in r:
+                    continue
+                cls, marker = _classify(baseline, r, budget_ms)
+                accepted = r["status"] < 400
+                polyglot_results.append({
+                    "proxy_history_index": r["index"],
+                    "filename": poly_name,
+                    "base_format": base_fmt,
+                    "content_type": poly_ct,
+                    "status": r["status"],
+                    "accepted": accepted,
+                    "anomaly_class": cls or "",
+                    "anomaly_marker": marker or "",
+                    "elapsed_ms": r["elapsed_ms"],
+                })
+                if cls:
+                    anomalies.append({
+                        "proxy_history_index": r["index"],
+                        "send_ref": r.get("send_ref", ""),
+                        "class": cls,
+                        "status": r["status"],
+                        "len_delta": r["length"] - baseline["length"],
+                        "elapsed_ms": r["elapsed_ms"],
+                        "marker": marker,
+                        "mutant_file": f"polyglot-{poly_name}",
+                    })
+
         # Persist campaign summary (canonical record; Rule 30).
         summary = {
             "endpoint": endpoint, "fmt": fmt, "engine": engine,
@@ -389,6 +434,7 @@ def register(mcp: FastMCP) -> None:
                                                  if k != "body"},
             "mutants_generated": len(mutants), "sent": sent,
             "anomaly_count": len(anomalies), "anomalies": anomalies,
+            **({"polyglots": polyglot_results} if polyglot_results else {}),
         }
         try:
             (fuzz_root / "summary.json").write_text(json.dumps(summary, indent=2))
@@ -405,7 +451,7 @@ def register(mcp: FastMCP) -> None:
             pass
 
         _CAP = 25  # keep the response compact
-        return {
+        result: dict = {
             "engine": engine,
             "fmt": fmt,
             "baseline": {k: v for k, v in baseline.items() if k != "body"},
@@ -420,3 +466,18 @@ def register(mcp: FastMCP) -> None:
                      "for any confirmed parser crash/DoS." if anomalies else
                      "No parser anomalies vs baseline — mutants covered, no finding."),
         }
+        if polyglot_results:
+            accepted = [p for p in polyglot_results if p["accepted"]]
+            result["polyglots"] = {
+                "tested": len(polyglot_results),
+                "accepted": len(accepted),
+                "results": polyglot_results,
+            }
+            if accepted:
+                result["next"] = (
+                    f"{len(accepted)} polyglot(s) accepted by the server. "
+                    "Check whether they execute: download from the upload path "
+                    "and verify the payload marker in the response. A polyglot "
+                    "accepted + executed = unrestricted file upload (HIGH+)."
+                )
+        return result

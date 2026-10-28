@@ -13,6 +13,7 @@ from . import _audit, _curate
 import json
 import time
 
+from praetor.tools._aio import write_json_atomic
 from praetor.tools.intel._internals import _intel_path
 
 
@@ -49,19 +50,19 @@ async def snapshot_and_rotate(domain: str, scanner_limit: int = 500,
     scanner = await client.get("/api/scanner/findings", params={"limit": scanner_limit})
     issues = scanner.get("items", scanner.get("findings", scanner)) if isinstance(scanner, dict) else scanner
     if isinstance(issues, list):
-        (snap_dir / "scanner_findings.json").write_text(json.dumps(issues, indent=2), encoding="utf-8")
+        await write_json_atomic(snap_dir / "scanner_findings.json", issues)
         written["scanner_findings"] = len(issues)
 
     sm = await client.get("/api/sitemap", params={"limit": sitemap_limit})
     sm_entries = sm.get("items", sm.get("sitemap", sm)) if isinstance(sm, dict) else sm
     if isinstance(sm_entries, list):
-        (snap_dir / "sitemap.json").write_text(json.dumps(sm_entries, indent=2), encoding="utf-8")
+        await write_json_atomic(snap_dir / "sitemap.json", sm_entries)
         written["sitemap_entries"] = len(sm_entries)
 
     count = await client.get("/api/proxy/count")
     proxy_count = count.get("count") if isinstance(count, dict) else None
-    (snap_dir / "proxy_summary.json").write_text(
-        json.dumps({"proxy_history_count": proxy_count, "captured_at": ts}, indent=2), encoding="utf-8")
+    await write_json_atomic(snap_dir / "proxy_summary.json",
+                            {"proxy_history_count": proxy_count, "captured_at": ts})
 
     # Which on-disk intel survives rotation untouched (reference, don't copy).
     survives = [p.name for p in _intel_path(domain).glob("*.json")]
@@ -71,7 +72,7 @@ async def snapshot_and_rotate(domain: str, scanner_limit: int = 500,
         "proxy_history_count": proxy_count,
         "survives_rotation_on_disk": sorted(survives),
     }
-    (snap_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    await write_json_atomic(snap_dir / "manifest.json", manifest)
 
     manifest["note"] = (
         "Safe to rotate. In Burp: File → New project (or open a fresh temp project) — "

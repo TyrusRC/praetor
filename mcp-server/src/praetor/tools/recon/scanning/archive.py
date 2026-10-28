@@ -1,6 +1,7 @@
 """URL archive aggregation: gau."""
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from .._common import _check_tool, _run_cmd
 
@@ -36,7 +37,7 @@ def register(mcp: FastMCP):
         try:
             domain = _sanitize_domain(domain)
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
         cmd = ["gau", domain, "--providers", providers, "--threads", "10"]
         if subdomains:
             cmd.append("--subs")

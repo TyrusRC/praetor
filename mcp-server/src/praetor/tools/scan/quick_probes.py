@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 def register(mcp: FastMCP) -> None:
@@ -32,7 +33,7 @@ def register(mcp: FastMCP) -> None:
 
         resp = await client.post("/api/session/request", json=payload)
         if "error" in resp:
-            return f"Error: {resp['error']}"
+            return err(resp['error'])
 
         lines = [f"Status: {resp.get('status')} | Length: {resp.get('response_length', 0)} bytes"]
         analysis = resp.get("analysis", {})
@@ -120,7 +121,7 @@ def register(mcp: FastMCP) -> None:
 
         resp = await client.post("/api/session/probe", json=req)
         if "error" in resp:
-            return f"Error: {resp['error']}"
+            return err(resp['error'])
 
         lines = [f"Probe: {parameter} on {path}"]
         tech = resp.get("detected_tech", [])
@@ -157,7 +158,7 @@ def register(mcp: FastMCP) -> None:
         """
         data = await client.post("/api/session/batch", json={"session": session, "endpoints": endpoints})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         lines = [f"Batch Probe: {data.get('total_endpoints')} endpoints in {data.get('total_time_ms')}ms\n"]
         dist = data.get("status_distribution", {})

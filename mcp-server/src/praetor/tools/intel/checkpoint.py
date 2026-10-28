@@ -6,6 +6,7 @@ from __future__ import annotations
 
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from . import _checkpoint_logic as _cl
 
@@ -61,14 +62,14 @@ def register(mcp: FastMCP) -> None:
                 the deterministic trigger to pivot / convene the council.
         """
         if not domain:
-            return "Error: domain is required."
+            return err("domain is required.")
         data = merge_checkpoint(
             domain, phase=phase, round=round, next_action=next_action,
             objective=objective, tasks=tasks, open_threads=open_threads,
             progress=progress,
         )
         if not data:
-            return f"Error: invalid domain {domain!r}."
+            return err(f"invalid domain {domain!r}.")
         return _summary_line(data)
 
     @mcp.tool()
@@ -82,7 +83,7 @@ def register(mcp: FastMCP) -> None:
         checkpoint exists yet.
         """
         if not domain:
-            return "Error: domain is required."
+            return err("domain is required.")
         data = load_checkpoint_data(domain)
         if not data:
             return (

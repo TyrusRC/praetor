@@ -1,6 +1,7 @@
 """Interaction tools: click, fill, submit_form, interact_all."""
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._lifecycle import _ensure_browser
 
@@ -23,7 +24,7 @@ def register(mcp: FastMCP):
             title = await page.title()
             return f"Clicked: {selector}\n  Now at: {page.url}\n  Title: {title}"
         except Exception as e:
-            return f"Error clicking '{selector}': {e}"
+            return err(f"clicking '{selector}': {e}")
 
     @mcp.tool()
     async def browser_fill(selector: str, value: str) -> str:
@@ -39,7 +40,7 @@ def register(mcp: FastMCP):
             await page.fill(selector, value, timeout=10000)
             return f"Filled '{selector}' with '{value[:50]}{'...' if len(value) > 50 else ''}'"
         except Exception as e:
-            return f"Error filling '{selector}': {e}"
+            return err(f"filling '{selector}': {e}")
 
     @mcp.tool()
     async def browser_submit_form(
@@ -72,7 +73,7 @@ def register(mcp: FastMCP):
             title = await page.title()
             return f"Form submitted\n  Now at: {page.url}\n  Title: {title}\n  Fields filled: {len(fields)}"
         except Exception as e:
-            return f"Error submitting form: {e}"
+            return err(f"submitting form: {e}")
 
     @mcp.tool()
     async def browser_interact_all(url: str, max_clicks: int = 30) -> str:
@@ -86,7 +87,7 @@ def register(mcp: FastMCP):
 
         scope_resp = await burp_client.check_scope(url)
         if "error" not in scope_resp and not scope_resp.get("in_scope", False):
-            return f"Error: {url} is OUT OF SCOPE. Add to scope first or use a scoped URL."
+            return err(f"{url} is OUT OF SCOPE. Add to scope first or use a scoped URL.")
 
         _, _, page = await _ensure_browser()
 
@@ -163,4 +164,4 @@ def register(mcp: FastMCP):
             results.append("Check Burp proxy history for all captured traffic.")
             return "\n".join(results)
         except Exception as e:
-            return f"Error during interaction sweep: {e}"
+            return err(f"during interaction sweep: {e}")

@@ -14,6 +14,7 @@ from xml.sax.saxutils import escape
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 _FAILING_SEVERITIES = {"CRITICAL", "HIGH"}
@@ -95,7 +96,7 @@ def register(mcp: FastMCP):
             params["endpoint"] = endpoint
         data = await client.get("/api/notes/findings", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data["error"])
 
         findings = data.get("findings", []) or []
         if confirmed_only:

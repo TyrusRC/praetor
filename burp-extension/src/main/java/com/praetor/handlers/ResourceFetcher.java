@@ -116,15 +116,7 @@ final class ResourceFetcher {
     }
 
     static String extractPath(String url) {
-        try {
-            URI uri = new URI(url);
-            String path = uri.getRawPath();
-            if (path == null || path.isEmpty()) path = "/";
-            if (uri.getRawQuery() != null) path += "?" + uri.getRawQuery();
-            return path;
-        } catch (Exception e) {
-            return "/";
-        }
+        return com.praetor.util.HttpHelpers.extractPath(url);
     }
 
     // ── HTML parsing for resource references ──────────────────────

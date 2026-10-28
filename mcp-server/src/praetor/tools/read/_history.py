@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 from praetor.processing.formatters import format_proxy_table, format_findings
 from ._helpers import _format_raw_findings, _slice_request_detail
 from ._noise import is_noise
@@ -64,7 +65,7 @@ def register(mcp: FastMCP):
 
         data = await client.get("/api/proxy/history", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         hidden = 0
         if drop_noise:
             items = data.get("items") or []
@@ -89,7 +90,7 @@ def register(mcp: FastMCP):
         """
         data = await client.get("/api/proxy/count")
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return f"Proxy history: {data.get('count', 0)} entries"
 
     @mcp.tool()
@@ -177,7 +178,7 @@ def register(mcp: FastMCP):
 
         data = await client.get("/api/scanner/findings", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         if not actionable_only and severity == "INFORMATION":
             # Raw mode: skip filtering for explicit INFORMATION requests

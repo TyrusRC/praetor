@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from praetor import client
 from praetor.tools.report.severity import sort_findings_by_risk
+from praetor.tools._errors import err
 
 from .._helpers import (
     _dedupe_finding,
@@ -34,7 +35,7 @@ async def handle_false_positive(
     try:
         findings_path = _safe_findings_path(resolved_domain)
     except ValueError as e:
-        return f"Error: {e}"
+        return err(str(e))
     existing = _load_findings_file(findings_path).get("findings", []) if findings_path.exists() else []
     new_key_ep = endpoint or ""
     new_key_vuln = (vuln_type or "").lower()

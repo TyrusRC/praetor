@@ -21,6 +21,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ._iast_js import IAST_SHIM
 from ._lifecycle import _ensure_browser
+from praetor.tools._errors import err
 
 
 def _fmt(records: list, source_only: bool) -> str:
@@ -70,7 +71,7 @@ def register(mcp: FastMCP):
         try:
             await context.add_init_script(IAST_SHIM)   # future pages / navigations
         except Exception as e:  # noqa: BLE001
-            return f"Error installing IAST init script: {e}"
+            return err(f"installing IAST init script: {e}")
         # Also hook the already-loaded current page (forward-only — sinks that
         # already fired before now are not retroactively captured).
         try:
@@ -96,7 +97,7 @@ def register(mcp: FastMCP):
         try:
             records = await page.evaluate("() => (window.__praetor_iast || [])")
         except Exception as e:  # noqa: BLE001
-            return f"Error reading IAST buffer: {e}"
+            return err(f"reading IAST buffer: {e}")
         out = _fmt(records, source_only)
         if clear:
             try:

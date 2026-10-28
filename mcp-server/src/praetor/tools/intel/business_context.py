@@ -14,6 +14,7 @@ import json
 from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._internals import _atomic_write_json, _ensure_dir, _intel_path
 
@@ -60,7 +61,7 @@ def register(mcp: FastMCP):
             extras: Free-form dict persisted as-is.
         """
         if not domain:
-            return "Error: domain is required."
+            return err("domain is required.")
 
         # Normalize lowercased fields where the gate expects lowercased lookups
         bc: dict = {
@@ -133,7 +134,7 @@ def register(mcp: FastMCP):
             domain: Target domain
         """
         if not domain:
-            return "Error: domain is required."
+            return err("domain is required.")
         profile_path = _intel_path(domain) / "profile.json"
         if not profile_path.exists():
             return f"No profile.json for {domain}. Run capture_business_context() to set one."

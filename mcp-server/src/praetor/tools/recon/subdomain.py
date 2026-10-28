@@ -1,6 +1,7 @@
 """Subdomain enumeration tools."""
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._common import _check_tool, _run_cmd, _sanitize_domain, BURP_PROXY_URL
 
@@ -25,7 +26,7 @@ def register(mcp: FastMCP):
             timeout: Max seconds to wait (default 120)
         """
         if not _check_tool("subfinder"):
-            return "Error: subfinder not installed. Install: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+            return err("subfinder not installed. Install: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest")
 
         domain = _sanitize_domain(domain)
         # -max-time is in minutes. Budget matches the outer timeout so subfinder

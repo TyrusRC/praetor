@@ -124,6 +124,7 @@ public class ScopeHandler extends BaseHandler {
             return;
         }
         currentMode = mode;
+        persistMode(mode);
 
         @SuppressWarnings("unchecked")
         List<String> includeList = body.get("include") instanceof List<?> list
@@ -140,6 +141,8 @@ public class ScopeHandler extends BaseHandler {
             excludeRules.clear();
             autoFilterEnabled = false;
             com.praetor.collaborator.CollaboratorPool.reset();
+            com.praetor.handlers.CollaboratorHandler.resetSeen();
+            com.praetor.store.SessionStore.get().clear();
         }
 
         int includedCount = 0;
@@ -263,5 +266,18 @@ public class ScopeHandler extends BaseHandler {
 
         boolean inScope = api.scope().isInScope(url);
         sendJson(exchange, JsonUtil.object("url", url, "in_scope", inScope));
+    }
+
+    /** Persist scope mode to the state file so a Burp restart preserves
+     *  the mode set via the Java configure endpoint. Non-fatal on failure. */
+    private static void persistMode(String mode) {
+        try {
+            java.nio.file.Path stateFile = java.nio.file.Path.of(".burp-intel", "_scope_mode.json");
+            java.nio.file.Files.createDirectories(stateFile.getParent());
+            java.nio.file.Files.writeString(stateFile,
+                JsonUtil.toJson(Map.of("mode", mode)) + "\n");
+        } catch (Exception ignored) {
+            // Best-effort — Python side is the primary owner.
+        }
     }
 }

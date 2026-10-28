@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 def register(mcp: FastMCP):
@@ -21,7 +22,7 @@ def register(mcp: FastMCP):
 
         data = await client.post("/api/http/repeater", json=payload)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return data.get("message", "Sent to Repeater")
 
     @mcp.tool()
@@ -33,5 +34,5 @@ def register(mcp: FastMCP):
         """
         data = await client.post("/api/http/intruder", json={"index": index})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
         return data.get("message", "Sent to Intruder")

@@ -12,6 +12,7 @@ import re
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 _SECURITY_HEADERS = {
     "Content-Security-Policy": "CSP",
@@ -85,7 +86,7 @@ def register(mcp: FastMCP) -> None:
             params["host"] = domain
         data = await client.get("/api/proxy/history", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         entries = data.get("entries", data.get("history", []))
         if not entries:

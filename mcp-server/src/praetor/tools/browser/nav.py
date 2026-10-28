@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from ._lifecycle import _ensure_browser, _shutdown_browser
+from praetor.tools._errors import err
 
 
 def register(mcp: FastMCP):
@@ -24,7 +25,7 @@ def register(mcp: FastMCP):
         try:
             scope_resp = await _client.post("/api/scope/check", json={"url": url})
         except Exception as e:  # pragma: no cover — scope handler should be reachable
-            return f"Error: scope check unavailable ({type(e).__name__}: {e})"
+            return err(f"scope check unavailable ({type(e).__name__}: {e})")
         if "error" not in scope_resp and not scope_resp.get("in_scope", False):
             return (
                 f"Out of scope: {url}\n"
@@ -46,7 +47,7 @@ def register(mcp: FastMCP):
                 f"All traffic now in Burp proxy history. Use get_proxy_history() to inspect."
             )
         except Exception as e:
-            return f"Error navigating to {url}: {e}"
+            return err(f"navigating to {url}: {e}")
 
     @mcp.tool()
     async def browser_crawl(  # cost: expensive (scales with max_pages)

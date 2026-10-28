@@ -55,6 +55,10 @@ public final class SessionStore {
      * Shape: {name, baseUrl, cookieCount, variableCount, hasAuth}.
      * Preserved verbatim from SessionHandler.getSessionInfoList().
      */
+    /** Drop all sessions — call on engagement boundary (scope replace)
+     *  so stale sessions from a prior target don't leak into the next. */
+    public void clear() { sessions.clear(); }
+
     public List<String[]> getSessionInfoList() {
         List<String[]> list = new ArrayList<>();
         for (Session s : sessions.values()) {

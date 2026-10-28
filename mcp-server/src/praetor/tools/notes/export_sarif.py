@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 from praetor.tools._framework_map import attack_tag_list, framework_tags
+from praetor.tools._errors import err
 
 _SEVERITY_TO_LEVEL = {
     "CRITICAL": "error",
@@ -151,7 +152,7 @@ def register(mcp: FastMCP):
             params["endpoint"] = endpoint
         data = await client.get("/api/notes/findings", params=params)
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data["error"])
 
         findings = data.get("findings", []) or []
         if confirmed_only:

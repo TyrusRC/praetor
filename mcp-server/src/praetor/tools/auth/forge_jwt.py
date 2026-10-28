@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._jwt_codec import (
     decode_payload,
@@ -69,10 +70,10 @@ def register(mcp: FastMCP):
         try:
             split_jwt(token)
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
 
         if mode not in _VALID_MODES:
-            return f"Error: invalid mode {mode!r}. Valid: {', '.join(_VALID_MODES)}"
+            return err(f"invalid mode {mode!r}. Valid: {', '.join(_VALID_MODES)}")
 
         changes = claim_changes or {}
         priv_pem_out = ""
@@ -85,7 +86,7 @@ def register(mcp: FastMCP):
                     forged, note = _forge_hs_confusion(token, public_key_pem, changes)
                 case "kid_inject":
                     if not kid_value:
-                        return "Error: kid_inject requires kid_value (e.g. '../../dev/null')"
+                        return err("kid_inject requires kid_value (e.g. '../../dev/null')")
                     secret = hmac_secret.encode() if hmac_secret else b""
                     forged, note = _forge_kid_inject(token, kid_value, secret, changes)
                 case "jku":
@@ -98,11 +99,11 @@ def register(mcp: FastMCP):
                 case "jwk_embed":
                     forged, note, priv_pem_out = _forge_jwk_embed(token, changes)
                 case _:
-                    return f"Error: unhandled mode {mode!r}"
+                    return err(f"unhandled mode {mode!r}")
         except ValueError as e:
-            return f"Error: {e}"
+            return err(str(e))
         except Exception as e:
-            return f"Error during forge: {type(e).__name__}: {e}"
+            return err(f"during forge: {type(e).__name__}: {e}")
 
         # Output composition — keep tight; the operator pastes the curl line
         # into curl_request or send_raw_request to get a proxy_history_index.

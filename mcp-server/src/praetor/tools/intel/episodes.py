@@ -16,6 +16,7 @@ import re
 from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._internals import _intel_path
 
@@ -64,7 +65,7 @@ def register(mcp: FastMCP) -> None:
             result: one of confirmed | suspected | dead_end | inconclusive.
         """
         if not domain or not action:
-            return "Error: domain and action required."
+            return err("domain and action required.")
         entry = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "action": _redact(action)[:400],

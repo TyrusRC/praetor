@@ -141,7 +141,14 @@ public final class HttpServer {
                 headers.add(name, value);
             }
 
-            // 3. Read body based on Content-Length (no chunked support).
+            // 3. Read body based on Content-Length. Reject chunked encoding
+            //    with 411 (Length Required) so the client gets a clear signal
+            //    instead of silent body loss.
+            String transferEncoding = headers.getFirst("Transfer-Encoding");
+            if (transferEncoding != null && transferEncoding.toLowerCase().contains("chunked")) {
+                writeSimpleError(out, 411, "Length Required — chunked Transfer-Encoding not supported; send Content-Length");
+                return;
+            }
             byte[] body = new byte[0];
             String contentLength = headers.getFirst("Content-Length");
             if (contentLength != null) {

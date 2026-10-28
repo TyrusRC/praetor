@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 from ._constants import KNOWLEDGE_DIR, _REFERENCE_ONLY
 from ._helpers import _load_all_knowledge
@@ -122,12 +123,17 @@ def register(mcp: FastMCP) -> None:
             return _loop
 
         # ── Pre-flight session-auth assertion ─────────────────────────
+        _auth_warning = ""
         try:
             sess_info = await client.get("/api/session/list")
             if "error" not in sess_info:
                 resp_text = str(sess_info)
                 if session in resp_text and "Auth: no" in resp_text and "Cookies: 0" in resp_text:
-                    pass  # warning surfaced via lines below if probe finds nothing
+                    _auth_warning = (
+                        f"WARNING: session '{session}' has no auth headers and no cookies. "
+                        "Probes will test only the UNAUTHENTICATED attack surface. "
+                        "Create an authenticated session first to reach protected endpoints."
+                    )
         except Exception:
             pass
 
@@ -200,9 +206,11 @@ def register(mcp: FastMCP) -> None:
             "max_probes_per_param": max_probes_per_param,
         })
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         lines = [f"Auto-Probe: {data.get('parameters_tested', 0)} params, {data.get('total_probes_sent', 0)} probes\n"]
+        if _auth_warning:
+            lines.append(_auth_warning)
         if kb_drift_hint:
             lines.append(kb_drift_hint)
 

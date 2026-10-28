@@ -8,6 +8,7 @@ executes; no auto-fire.
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from ._helpers import _find_by_id, _load_findings_file, _safe_findings_path
 
@@ -179,12 +180,12 @@ def register(mcp: FastMCP) -> None:
                         domain = child.name
                         break
         if not domain:
-            return f"Error: finding {finding_id!r} not found."
+            return err(f"finding {finding_id!r} not found.")
 
         findings = _load_findings_file(_safe_findings_path(domain))
         _, f = _find_by_id(findings, finding_id)
         if f is None:
-            return f"Error: finding {finding_id!r} not found in domain {domain!r}."
+            return err(f"finding {finding_id!r} not found in domain {domain!r}.")
 
         vt = (f.get("vuln_type") or "").lower()
         probes = _PROBES.get(vt, [])

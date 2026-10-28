@@ -124,13 +124,14 @@ def register(mcp: FastMCP) -> None:
             device_proxy = await backend_for(dev).get_proxy(dev)
         except DeviceError as e:
             warnings.append(f"could not read device proxy: {e}")
-        lan = host_lan_ip()
+        lan = await asyncio.to_thread(host_lan_ip)
         # A device proxy is valid wireless routing if its host part is ANY current
         # host IP, not just the LAN one — mode='tailscale' points at the tailnet IP,
         # which would otherwise always trip the LAN-IP mismatch/drift check below.
-        host_ips = {ip for ip in (lan, host_tailscale_ip()) if ip}
+        ts_ip = await asyncio.to_thread(host_tailscale_ip)
+        host_ips = {ip for ip in (lan, ts_ip) if ip}
         expected = f"{lan}:{BURP_PROXY_PORT}" if lan else f"<host-lan-ip>:{BURP_PROXY_PORT}"
-        scope = burp_listener_scope()
+        scope = await asyncio.to_thread(burp_listener_scope)
         # adb-reverse routing: device 127.0.0.1:<port> tunnels to host 127.0.0.1:<port> —
         # a valid, DHCP-immune config, not a LAN-IP mismatch and not a loopback-listener problem.
         is_loopback_proxy = device_proxy in (f"127.0.0.1:{BURP_PROXY_PORT}", f"localhost:{BURP_PROXY_PORT}")
@@ -192,11 +193,11 @@ def register(mcp: FastMCP) -> None:
             if mode == "reverse":
                 await b.reverse_port(dev, port); value = f"127.0.0.1:{port}"; await b.set_proxy(dev, value)
             elif mode == "lan":
-                ip = host_lan_ip()
+                ip = await asyncio.to_thread(host_lan_ip)
                 if not ip: return {"error": "could not determine host LAN IP"}
                 value = f"{ip}:{port}"; await b.set_proxy(dev, value)
             elif mode == "tailscale":
-                ip = host_tailscale_ip()
+                ip = await asyncio.to_thread(host_tailscale_ip)
                 if not ip: return {"error": "no tailscale0 address on host"}
                 value = f"{ip}:{port}"; await b.set_proxy(dev, value)
             elif mode == "off":

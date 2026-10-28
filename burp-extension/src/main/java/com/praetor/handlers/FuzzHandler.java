@@ -124,11 +124,12 @@ public class FuzzHandler extends BaseHandler {
                     final FuzzVariant variant = variants.get(i);
                     final int localDelay = delayMs;
                     futures.add(pool.submit(() -> {
-                        // Stagger inside the worker so delay_ms still throttles
-                        // when parallelism > 1; without this max_concurrent
-                        // would defeat the point of delay_ms.
+                        // Stagger proportionally: variant N sleeps N * delay / parallelism
+                        // so requests spread evenly across the delay window instead of
+                        // bursting (all workers sleeping the same flat amount).
                         if (localDelay > 0 && idx > 0) {
-                            try { Thread.sleep(localDelay); } catch (InterruptedException ie) {
+                            long stagger = (long) idx * localDelay / parallelism;
+                            try { Thread.sleep(stagger); } catch (InterruptedException ie) {
                                 Thread.currentThread().interrupt();
                             }
                         }

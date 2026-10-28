@@ -22,6 +22,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from praetor.tools._calibration import calibration_summary, outcome_label
+from praetor.tools._errors import err
 
 
 def _ledger_path() -> Path:
@@ -125,7 +126,7 @@ def register(mcp: FastMCP) -> None:
             verdict=verdict, source="operator", domain=domain,
         )
         if not ok:
-            return "Error: could not write calibration ledger."
+            return err("could not write calibration ledger.")
         label = "true positive" if y == 1 else "false positive"
         return (
             f"Calibration point recorded: {vuln_type} @ {float(confidence):.2f} "

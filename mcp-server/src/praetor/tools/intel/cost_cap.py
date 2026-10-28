@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -109,9 +110,9 @@ def register(mcp: FastMCP):
             warn_threshold: Fraction of cap that triggers warning (default 0.8)
         """
         if max_usd <= 0 or max_tokens <= 0:
-            return "Error: max_usd and max_tokens must be > 0"
+            return err("max_usd and max_tokens must be > 0")
         if not 0.5 <= warn_threshold <= 0.99:
-            return "Error: warn_threshold must be in [0.5, 0.99]"
+            return err("warn_threshold must be in [0.5, 0.99]")
 
         data = _read(domain)
         data.update(
@@ -144,7 +145,7 @@ def register(mcp: FastMCP):
         """
         data = _read(domain)
         if not data:
-            return f"Error: no cost cap set for {domain}. Run set_engagement_cost_cap first."
+            return err(f"no cost cap set for {domain}. Run set_engagement_cost_cap first.")
         data["spent_usd"] = float(data.get("spent_usd", 0.0)) + max(0.0, float(usd))
         data["spent_tokens"] = int(data.get("spent_tokens", 0)) + max(0, int(tokens))
         _write(domain, data)

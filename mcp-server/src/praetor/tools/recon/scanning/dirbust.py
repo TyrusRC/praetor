@@ -3,6 +3,7 @@
 import os
 
 from mcp.server.fastmcp import FastMCP
+from praetor.tools._errors import err
 
 from .._common import _check_tool, _run_cmd, _USER_AGENT, BURP_PROXY_URL
 from ..._runtime_guard import wrap_untrusted
@@ -42,7 +43,7 @@ def register(mcp: FastMCP):
             )
 
         if "FUZZ" not in target:
-            return "Error: target URL must contain the literal word FUZZ (e.g. 'https://target.com/FUZZ')"
+            return err("target URL must contain the literal word FUZZ (e.g. 'https://target.com/FUZZ')")
 
         # Locate a wordlist if none specified
         if not wordlist:

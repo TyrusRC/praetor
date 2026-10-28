@@ -2,6 +2,11 @@ package com.praetor.collaborator;
 
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.collaborator.CollaboratorClient;
+import burp.api.montoya.collaborator.Interaction;
+
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Process-wide singleton accessor for the Burp Collaborator client.
@@ -14,6 +19,10 @@ import burp.api.montoya.collaborator.CollaboratorClient;
 public final class CollaboratorPool {
 
     private static volatile CollaboratorClient INSTANCE;
+
+    /** Accumulated interaction IDs across all drains — read-only lookup for
+     *  hasInteraction() so it never drains the queue itself. */
+    private static final Set<String> OBSERVED_IDS = ConcurrentHashMap.newKeySet();
 
     private CollaboratorPool() {}
 
@@ -40,31 +49,45 @@ public final class CollaboratorPool {
     }
 
     /**
-     * Returns true if the given interaction id has been observed by the shared
-     * Collaborator client. Used by NotesHandler to cross-validate
-     * evidence.collaborator_interaction_id before accepting a save_finding so
-     * operators can't claim an OOB hit they never received.
+     * Returns true if the given interaction id has been observed by ANY prior
+     * drain of the shared Collaborator client. Checks the accumulated
+     * {@link #OBSERVED_IDS} set without draining the queue itself, so
+     * concurrent callers never destroy each other's evidence.
      *
-     * Burp's getAllInteractions() drains the interaction queue, so we poll
-     * once, snapshot the ids, and let the caller decide. When Collaborator is
-     * unavailable (Community Edition), returns null so the caller can pick
-     * between hard-reject and warn-and-allow without conflating "no Pro" with
-     * "id not found".
+     * When Collaborator is unavailable (Community Edition), returns null so
+     * the caller can pick between hard-reject and warn-and-allow without
+     * conflating "no Pro" with "id not found".
      */
     public static Boolean hasInteraction(MontoyaApi api, String interactionId) {
         if (interactionId == null || interactionId.isEmpty()) return Boolean.FALSE;
         CollaboratorClient client = tryGetOrCreate(api);
         if (client == null) return null;  // Collaborator unavailable -> caller decides
+        if (OBSERVED_IDS.contains(interactionId)) return Boolean.TRUE;
+        // Drain once to pick up any interactions that arrived since the last
+        // poll, then check again. The drain populates OBSERVED_IDS for all
+        // future lookups.
         try {
-            var interactions = client.getAllInteractions();
-            if (interactions == null) return Boolean.FALSE;
-            for (var i : interactions) {
-                if (interactionId.equals(i.id().toString())) return Boolean.TRUE;
-            }
-            return Boolean.FALSE;
+            drainAndAccumulate(client);
         } catch (Throwable t) {
             return null;
         }
+        return OBSERVED_IDS.contains(interactionId) ? Boolean.TRUE : Boolean.FALSE;
+    }
+
+    /**
+     * Drain all pending interactions from Burp's buffer and record their IDs
+     * in {@link #OBSERVED_IDS}. Returns the freshly drained list so callers
+     * that need the full interaction objects (CollaboratorHandler) can use
+     * them directly.
+     */
+    public static List<Interaction> drainAndAccumulate(CollaboratorClient client) {
+        List<Interaction> fresh = client.getAllInteractions();
+        if (fresh != null) {
+            for (Interaction i : fresh) {
+                OBSERVED_IDS.add(i.id().toString());
+            }
+        }
+        return fresh != null ? fresh : List.of();
     }
 
     /**
@@ -76,5 +99,6 @@ public final class CollaboratorPool {
      */
     public static synchronized void reset() {
         INSTANCE = null;
+        OBSERVED_IDS.clear();
     }
 }

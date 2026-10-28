@@ -21,6 +21,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 from ._proxy_entry import _normalize_entry
 
@@ -99,7 +100,7 @@ def register(mcp: FastMCP):
         """
         flist = await client.get("/api/notes/findings", params={})
         if "error" in flist:
-            return f"Error: {flist['error']}"
+            return err(flist['error'])
 
         target = None
         for f in flist.get("findings", []) or []:
@@ -107,7 +108,7 @@ def register(mcp: FastMCP):
                 target = f
                 break
         if not target:
-            return f"Error: finding {finding_id} not found"
+            return err(f"finding {finding_id} not found")
 
         evidence = target.get("evidence") or {}
         idx = (
@@ -123,6 +124,6 @@ def register(mcp: FastMCP):
 
         detail = await client.get(f"/api/proxy/history/{int(idx)}", params={"include_body": "true"})
         if "error" in detail:
-            return f"Error fetching proxy entry {idx}: {detail['error']}"
+            return err(f"fetching proxy entry {idx}: {detail['error']}")
 
         return _render_repro(target, _normalize_entry(detail))

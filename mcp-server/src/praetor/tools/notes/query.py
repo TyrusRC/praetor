@@ -5,6 +5,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from praetor import client
+from praetor.tools._errors import err
 
 
 def register(mcp: FastMCP):
@@ -119,7 +120,7 @@ def register(mcp: FastMCP):
         """
         data = await client.get("/api/notes/export", params={"format": format})
         if "error" in data:
-            return f"Error: {data['error']}"
+            return err(data['error'])
 
         if format == "json":
             return json.dumps(data, indent=2, default=str)

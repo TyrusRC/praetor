@@ -68,6 +68,7 @@ public class PraetorExtension implements BurpExtension {
             // Drop the shared Collaborator client on unload so a future
             // extension reload starts with a fresh payload-id namespace.
             com.praetor.collaborator.CollaboratorPool.reset();
+            com.praetor.handlers.CollaboratorHandler.resetSeen();
             api.logging().logToOutput(EXTENSION_NAME + " stopped");
         });
     }
