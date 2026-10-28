@@ -152,7 +152,7 @@ def _haruspex_domain(vuln_type: str) -> str:
         return "mobile"
     if any(k in vt for k in ("smb", "ldap", "kerberos", "ntlm", "ad_", "network", "snmp", "ssh")):
         return "network"
-    return "security"
+    return "web"
 
 
 def _apply_program_policy(ctx: AssessContext) -> None:
