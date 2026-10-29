@@ -244,8 +244,12 @@ if [ -n "$VENV_PY" ]; then
     fi
     # Playwright ships NO browser; `playwright install chromium` fetches it. Without
     # it the browser_* surface is dead (the macOS blocker). Check the browser, not
-    # just the package — `playwright install --dry-run` exits 0 only when present.
-    if (cd "$SCRIPT_DIR/mcp-server" && uv run playwright install --dry-run chromium 2>/dev/null | grep -qiE "is already installed|up to date"); then
+    # just the package: read the install location from --dry-run and look for Playwright's
+    # INSTALLATION_COMPLETE marker (version/OS-independent — the dry-run text and the
+    # chrome-linux vs chrome-linux64 layout both vary by build, the marker does not).
+    PW_CHROMIUM_LOC="$(cd "$SCRIPT_DIR/mcp-server" && uv run playwright install --dry-run chromium 2>/dev/null \
+        | awk '/Install location/ {print $3; exit}')"
+    if [ -n "$PW_CHROMIUM_LOC" ] && [ -f "$PW_CHROMIUM_LOC/INSTALLATION_COMPLETE" ]; then
         pass "Playwright Chromium installed"
     elif (cd "$SCRIPT_DIR/mcp-server" && uv run python -c "import playwright" >/dev/null 2>&1); then
         bad "Playwright Chromium" "browser not fetched — (cd mcp-server && uv run playwright install chromium)"
