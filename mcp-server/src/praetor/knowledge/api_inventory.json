@@ -513,6 +513,318 @@
           "confidence_boost": 20
         }
       ]
+    },
+    "health_endpoint_pii_leak": {
+      "description": "Health/status endpoint returns PII or sensitive operational data beyond service status — email addresses of recent form submitters, internal admin emails, notification queue state, business metrics. The endpoint exists for monitoring but leaks data that updates in real-time as users interact with the app.",
+      "probes": [
+        {
+          "payload": "/api/health",
+          "description": "Health endpoint returning PII — check response for email addresses, user identifiers, submission data, notification details",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "email",
+                "submission",
+                "notification",
+                "last_submission",
+                "pending"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/health",
+          "description": "Root-level health endpoint — same PII check",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "email",
+                "submission",
+                "notification",
+                "user_count",
+                "last_"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/api/status",
+          "description": "Status endpoint — may leak operational state and PII",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "email",
+                "submission",
+                "notification",
+                "queue",
+                "failed"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
+    },
+    "hidden_submission_endpoint": {
+      "description": "Undocumented API endpoints that accept form/lead/contact submissions without CSRF tokens or authentication. Not linked from any page — discovered by probing common paths. Accepts cross-origin POST requests, enabling CSRF-based stored XSS if input is rendered unsanitized in admin views.",
+      "probes": [
+        {
+          "payload": "/api/leads",
+          "description": "Lead/contact submission endpoint — POST with JSON body, check for success response without CSRF",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "created",
+                "id",
+                "count",
+                "ack"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/api/submit",
+          "description": "Generic submission endpoint",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "submitted",
+                "received",
+                "id"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 35
+        },
+        {
+          "payload": "/api/contact",
+          "description": "Contact form backend — often accepts POST without CSRF",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "success",
+                "sent",
+                "received",
+                "thank"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "low",
+          "confidence_boost": 25
+        },
+        {
+          "payload": "/api/subscribe",
+          "description": "Newsletter/subscription endpoint",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "subscribed",
+                "success",
+                "email",
+                "confirmed"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "low",
+          "confidence_boost": 20
+        },
+        {
+          "payload": "/api/webhook",
+          "description": "Webhook receiver — may accept arbitrary POST data",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201,
+                202
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "unauthorized",
+                "forbidden",
+                "not found"
+              ]
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 30
+        }
+      ]
+    },
+    "mcp_jsonrpc_server_exposed": {
+      "description": "MCP (Model Context Protocol) or JSON-RPC server accessible without authentication — accepts tool invocations, may issue API keys to anonymous callers, or expose internal tool surfaces. Often found on subdomains (mcp.*, api.*) or at /mcp, /jsonrpc paths.",
+      "probes": [
+        {
+          "payload": "/mcp",
+          "description": "MCP endpoint — POST JSON-RPC tools/list to enumerate available tools",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "jsonrpc",
+                "result",
+                "tools",
+                "method"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "/jsonrpc",
+          "description": "Generic JSON-RPC endpoint",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "jsonrpc",
+                "result",
+                "error",
+                "method"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        },
+        {
+          "payload": "/register",
+          "description": "Unauthenticated API key generation — POST empty body, check for api_key/token in response",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                201
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "api_key",
+                "token",
+                "access_key",
+                "key",
+                "scopes"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "/api/mcp",
+          "description": "MCP endpoint under /api prefix",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "jsonrpc",
+                "tools",
+                "result"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "medium",
+          "confidence_boost": 40
+        }
+      ]
     }
   }
 }
