@@ -183,7 +183,7 @@
         },
         {
           "payload": "existing_user_swk_probe@example.com",
-          "description": "Register with a likely-existing email — 'already exists' vs 'registered' reveals valid accounts. Common on vibe-coded apps with default Supabase/Firebase auth.",
+          "description": "Register with a likely-existing email — different response for existing vs new account reveals valid accounts. Common on apps using default auth scaffolding without unified error messages.",
           "matchers": [
             {
               "type": "word",
