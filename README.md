@@ -47,6 +47,8 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket (upgrade + message injection), prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
 - API schema auto-fuzz: walk every OpenAPI/Swagger endpoint with type-aware injection payloads
 - Passive proxy analysis: scan captured traffic for info leaks without sending requests
+- CDN proxy bypass techniques: Cache-Control CSP stripping, SVG namespace injection (sanitizer bypass), image proxy SSRF via presigned URL header overrides
+- WebLogic CVE-2020-14882 path traversal probes, Prometheus/actuator metrics exposure, JWT payload sensitive data detection (password hashes, TOTP secrets, role fields), debug data in auth responses
 - Impact-first severity: confirmed exploit + real attack path + environment context drives the rating, not just the vuln class name. Missing context is flagged — the agent asks instead of assuming
 
 **Exploit Pipeline (detect → confirm → escalate)**
@@ -237,7 +239,7 @@ Three backends (auto-selected, best first): local [Haruspex](https://github.com/
 
 JSON files under `mcp-server/src/praetor/knowledge/`. Each file declares contexts, server-side matchers, and craft guidance. `auto_probe` loads them at runtime.
 
-**Coverage:** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud, banking/finance (PCI DSS, PSD2, Open Banking), exposure/OSINT discovery, plus recent CVEs and research techniques (React2Shell, PHP2Shell, Brotli, Squidbleed, wp2shell, nginx DAV, SonicWall SMA, Collabora, SharePoint, Next.js cache/SVG RCE, Handlebars AST injection, SAML encrypted assertion bypass, Shared-Parser Confusion, terminal escape injection). Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
+**Coverage (170+ files, 1070+ contexts, 2000+ probes):** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud, banking/finance (PCI DSS, PSD2, Open Banking), exposure/OSINT discovery, CDN proxy bypass (Cache-Control CSP stripping, SVG namespace injection, image proxy SSRF), plus recent CVEs and research techniques (WebLogic CVE-2020-14882, React2Shell, PHP2Shell, Brotli, Squidbleed, wp2shell, nginx DAV, SonicWall SMA, Collabora, SharePoint, Next.js cache/SVG RCE, Handlebars AST injection, SAML encrypted assertion bypass, Shared-Parser Confusion, terminal escape injection). Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
 
 ## Save-Finding Pipeline
 
