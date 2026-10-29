@@ -515,6 +515,35 @@
           "variables": {}
         }
       ]
+    },
+    "cache_control_csp_strip": {
+      "description": "Cache-Control: no-cache=\"content-security-policy\" strips CSP from Chromium disk-cache responses. A CDN or reverse proxy that forwards the origin's Cache-Control header lets the origin (or an attacker who controls it) remove security headers from cached copies served to later visitors.",
+      "tech_match": [
+        "Cloudflare",
+        "CDN",
+        "Nginx",
+        "Varnish",
+        "Fastly",
+        "Akamai"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Fetch a page that sets CSP via response header. Re-request with Cache-Control: no-cache=\"content-security-policy\". If the cached copy drops the CSP header, the proxy forwards the directive and Chromium honors it.",
+          "matchers": [
+            {
+              "type": "header_absent",
+              "header": "content-security-policy"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "requires_two_requests": true,
+            "browser_specific": "Chromium"
+          }
+        }
+      ]
     }
   }
 }

@@ -754,6 +754,58 @@
           "confidence_boost": 60
         }
       ]
+    },
+    "cdn_image_proxy_ssrf": {
+      "description": "Image transformation endpoints (cdn-cgi/image, imgix, Cloudinary, Netlify Image CDN) fetch arbitrary source URLs. An attacker supplies a presigned cloud-storage URL with response-content-type=text/html to serve controlled HTML through the CDN origin. Chaining with an open redirect on an allowed origin bypasses source-allowlist restrictions.",
+      "param_match": [
+        "url",
+        "src",
+        "source",
+        "image",
+        "img",
+        "fetch",
+        "remote"
+      ],
+      "probes": [
+        {
+          "payload": "https://httpbin.org/redirect-to?url=https://example.com",
+          "description": "Image proxy redirect follow — if the proxy follows redirects without re-validating the source allowlist, any open redirect on an allowed origin chains into arbitrary-URL fetch.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "Example Domain",
+                "example.com"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 50
+        },
+        {
+          "payload": "{{baseline}}",
+          "description": "Check if the image endpoint returns content with a user-controlled Content-Type (e.g. via presigned URL overrides). A text/html response from an image endpoint is the precondition for XSS-via-image-proxy.",
+          "matchers": [
+            {
+              "type": "header",
+              "header": "content-type",
+              "value": "text/html"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60,
+          "variables": {
+            "chain_with": "xss.svg_namespace_injection"
+          }
+        }
+      ]
     }
   },
   "craft_guidance": [

