@@ -337,10 +337,16 @@ fi
 # Pre-trained adapters (~30MB each) are downloaded from HuggingFace. Existing
 # adapters are kept — setup only downloads what is missing.
 # To retrain from custom data: cd ../haruspex && uv run python -m haruspex.train \
-#   --train data/security_train.jsonl --out runs/security --epochs 3
+#   --train data/security_train.jsonl --out runs/web --epochs 5
 HARUSPEX_DIR="$SCRIPT_DIR/../haruspex"
-HARUSPEX_HF_REPO="TyrusRC/haruspex-adapters"
-HARUSPEX_DOMAINS="security cloud llm mobile network"
+HARUSPEX_HF_REPO="TyrusRC/haruspex"
+# Praetor routes every decision with domain="web" (the root security adapter); the
+# other per-domain adapters are fetched for keyword-routed fallback. On HF, "web" is
+# the repo ROOT (final/ + calibrator.json + ood.json); the rest are same-repo subfolders.
+HARUSPEX_DOMAINS="web cloud llm mobile network"
+
+# HF path prefix for a domain: empty (repo root) for web, else "<domain>/".
+_hx_prefix() { [ "$1" = "web" ] && printf '' || printf '%s/' "$1"; }
 
 if [ -d "$HARUSPEX_DIR/.git" ]; then
     info "Updating Haruspex..."
@@ -365,41 +371,43 @@ if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
         HARUSPEX_FAILED=0
         for domain in $HARUSPEX_DOMAINS; do
             adapter_dir="$HARUSPEX_DIR/runs/$domain"
-            if [ -f "$adapter_dir/final/adapter_model.safetensors" ]; then
+            prefix=$(_hx_prefix "$domain")
+            # Require the adapter AND its calibrator — Haruspex must never serve a
+            # bare/uncalibrated model (no accept/abstain risk control).
+            if [ -f "$adapter_dir/final/adapter_model.safetensors" ] && [ -f "$adapter_dir/calibrator.json" ]; then
                 HARUSPEX_SKIPPED=$((HARUSPEX_SKIPPED + 1))
             else
                 info "Downloading Haruspex adapter: $domain (~30MB)..."
+                mkdir -p "$adapter_dir/final"
+                hx_ok=0
                 if has hf; then
-                    # hf CLI: download the domain subdirectory from the HF model repo
-                    if hf download "$HARUSPEX_HF_REPO" --include "$domain/**" \
-                        --local-dir "$HARUSPEX_DIR/runs" --quiet 2>/dev/null; then
-                        [ -f "$adapter_dir/final/adapter_model.safetensors" ] \
-                            && HARUSPEX_DOWNLOADED=$((HARUSPEX_DOWNLOADED + 1)) \
-                            || HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
+                    # hf CLI: fetch adapter + calibrator + novelty gate. web = repo root
+                    # (no subfolder); other domains are same-repo subfolders.
+                    if [ "$domain" = "web" ]; then
+                        hf download "$HARUSPEX_HF_REPO" --include "final/**" "calibrator.json" "ood.json" "ood_train.npy" "haruspex.json" \
+                            --local-dir "$adapter_dir" --quiet 2>/dev/null && hx_ok=1
                     else
-                        HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
+                        hf download "$HARUSPEX_HF_REPO" --include "$domain/**" \
+                            --local-dir "$HARUSPEX_DIR/runs" --quiet 2>/dev/null && hx_ok=1
                     fi
                 else
-                    # Fallback: curl from HuggingFace CDN (no hf CLI needed)
+                    # Fallback: curl from the HuggingFace CDN (no hf CLI needed).
                     info "hf CLI not found — downloading $domain via curl..."
-                    HF_BASE="https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/$domain/final"
-                    mkdir -p "$adapter_dir/final"
-                    if curl -sL -o "$adapter_dir/final/adapter_model.safetensors" \
-                        "$HF_BASE/adapter_model.safetensors" 2>/dev/null \
-                       && curl -sL -o "$adapter_dir/final/adapter_config.json" \
-                        "$HF_BASE/adapter_config.json" 2>/dev/null \
-                       && [ -s "$adapter_dir/final/adapter_model.safetensors" ]; then
-                        # Also grab the metadata files (best-effort)
-                        curl -sL -o "$adapter_dir/haruspex.json" \
-                            "https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/$domain/haruspex.json" 2>/dev/null || true
-                        curl -sL -o "$adapter_dir/training_config.json" \
-                            "https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/$domain/training_config.json" 2>/dev/null || true
-                        HARUSPEX_DOWNLOADED=$((HARUSPEX_DOWNLOADED + 1))
-                    else
-                        # Clean up partial download
-                        rm -rf "$adapter_dir"
-                        HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
-                    fi
+                    HF_RES="https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/${prefix}"
+                    curl -sL -o "$adapter_dir/final/adapter_model.safetensors" "${HF_RES}final/adapter_model.safetensors" 2>/dev/null
+                    curl -sL -o "$adapter_dir/final/adapter_config.json"       "${HF_RES}final/adapter_config.json" 2>/dev/null
+                    # Metadata + calibrator + novelty gate (calibrator is required to serve).
+                    curl -sL -o "$adapter_dir/haruspex.json"   "${HF_RES}haruspex.json"   2>/dev/null || true
+                    curl -sL -o "$adapter_dir/calibrator.json" "${HF_RES}calibrator.json" 2>/dev/null || true
+                    curl -sL -o "$adapter_dir/ood.json"        "${HF_RES}ood.json"        2>/dev/null || true
+                    curl -sL -o "$adapter_dir/ood_train.npy"   "${HF_RES}ood_train.npy"   2>/dev/null || true
+                    [ -s "$adapter_dir/final/adapter_model.safetensors" ] && hx_ok=1
+                fi
+                if [ "$hx_ok" = 1 ] && [ -f "$adapter_dir/final/adapter_model.safetensors" ]; then
+                    HARUSPEX_DOWNLOADED=$((HARUSPEX_DOWNLOADED + 1))
+                else
+                    rm -rf "$adapter_dir"   # clean up a partial/failed download
+                    HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
                 fi
             fi
         done
@@ -407,14 +415,22 @@ if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
         [ $HARUSPEX_DOWNLOADED -gt 0 ] && ok "Haruspex: $HARUSPEX_DOWNLOADED adapters downloaded"
         [ $HARUSPEX_FAILED -gt 0 ] && warn "Haruspex: $HARUSPEX_FAILED adapters failed — download manually or train locally"
 
-        # Build the --adapters arg for the serve command
+        # Build the --adapters arg: only domains with BOTH an adapter and a calibrator
+        # (a model without its calibrator would serve verdicts with no risk control).
         HARUSPEX_ADAPTERS=""
+        HARUSPEX_UNCAL=""
         for domain in $HARUSPEX_DOMAINS; do
-            if [ -f "$HARUSPEX_DIR/runs/$domain/final/adapter_model.safetensors" ]; then
-                [ -n "$HARUSPEX_ADAPTERS" ] && HARUSPEX_ADAPTERS="$HARUSPEX_ADAPTERS,"
-                HARUSPEX_ADAPTERS="${HARUSPEX_ADAPTERS}${domain}=$HARUSPEX_DIR/runs/$domain"
+            d="$HARUSPEX_DIR/runs/$domain"
+            if [ -f "$d/final/adapter_model.safetensors" ]; then
+                if [ -f "$d/calibrator.json" ]; then
+                    [ -n "$HARUSPEX_ADAPTERS" ] && HARUSPEX_ADAPTERS="$HARUSPEX_ADAPTERS,"
+                    HARUSPEX_ADAPTERS="${HARUSPEX_ADAPTERS}${domain}=$d"
+                else
+                    HARUSPEX_UNCAL="$HARUSPEX_UNCAL $domain"
+                fi
             fi
         done
+        [ -n "$HARUSPEX_UNCAL" ] && warn "Haruspex: skipping uncalibrated adapters (no calibrator.json):$HARUSPEX_UNCAL"
 
         # Set PRAETOR_DECISION_BASE_URL in .env if not already present
         PRAETOR_ENV="$SCRIPT_DIR/.env"
@@ -427,10 +443,10 @@ if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
 
         if [ -n "$HARUSPEX_ADAPTERS" ]; then
             ok "Haruspex ready — start with:"
-            echo "    cd $HARUSPEX_DIR && uv run python -m haruspex.serve --port 3000 --adapters $HARUSPEX_ADAPTERS"
+            echo "    cd $HARUSPEX_DIR && uv run python -m haruspex.serve --port 3000 --default-domain web --adapters $HARUSPEX_ADAPTERS"
         else
-            warn "No adapters available — download: hf download $HARUSPEX_HF_REPO --local-dir $HARUSPEX_DIR/runs"
-            warn "Or train locally: cd $HARUSPEX_DIR && uv run python -m haruspex.train --train data/security_train.jsonl --out runs/security"
+            warn "No calibrated adapters available — download: hf download $HARUSPEX_HF_REPO --local-dir $HARUSPEX_DIR/runs"
+            warn "Or train locally: cd $HARUSPEX_DIR && uv run python -m haruspex.train --train data/security_train.jsonl --out runs/web"
         fi
     else
         warn "Haruspex install failed — install manually: cd $HARUSPEX_DIR && uv venv && uv pip install -e ."

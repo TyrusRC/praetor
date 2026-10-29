@@ -488,7 +488,7 @@ head "Haruspex (decision engine)"
 # ════════════════════════════════════════════════════════════════════
 
 HARUSPEX_DIR="$SCRIPT_DIR/../haruspex"
-HARUSPEX_DOMAINS="security cloud llm mobile network"
+HARUSPEX_DOMAINS="web cloud llm mobile network"
 
 if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
     pass "Haruspex repo present"
@@ -526,7 +526,7 @@ if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
     if [ -n "$dec_code" ] && [ "$dec_code" != "000" ]; then
         pass "Haruspex server reachable (:3000 -> $dec_code)"
     else
-        skip "Haruspex server" "not running — start: cd ../haruspex && uv run python -m haruspex.serve --port 3000 --adapters <domains>"
+        skip "Haruspex server" "not running — start: cd ../haruspex && uv run python -m haruspex.serve --port 3000 --default-domain web --adapters web=runs/web"
     fi
 else
     skip "Haruspex" "not cloned — ./setup.sh clones and installs it"
