@@ -164,6 +164,26 @@ The project `.mcp.json` also registers [vigil](https://github.com/TyrusRC/vigil)
 - **`/checklist <domain>`** — coverage-driven pentest (OWASP/WSTG checklist → hunt → report)
 - **`/exploit <target> [objective]`** — objective-driven red-team (quick wins → exploit → attack-path map)
 
+### Default scan flow (single target)
+
+A complete scan of one URL uses three engines — vigil (DAST + nuclei templates), Burp Pro active scanner, and the knowledge-base probe engine — then merges findings into one pipeline:
+
+```
+1. configure_scope(include=[target])
+2. run_vigil(target, profile='thorough')        # DAST: 113 detectors + nuclei community templates + sqlmap/dalfox/commix
+3. scan_url(target)                             # Burp Pro active scanner (runs in background)
+4. browser_crawl(target) → auto_probe()         # KB-driven edge cases (business logic, auth matrix, race conditions)
+5. import_scan_results(path, fmt='vigil')        # merge vigil JSON findings into pipeline
+6. get_scanner_findings() or merge_scan()        # collect Burp scanner findings
+7. assess_finding → save_finding → generate_report
+```
+
+**Nuclei integration**: vigil runs nuclei templates automatically during the `thorough` profile — no separate `nuclei` command needed. Filter with `nuclei_tags='cve,rce'` or `nuclei_severity='critical,high'`. For LLM/AI infrastructure specifically, use `scan_llm_infra(target)` which runs the curated AI/MCP nuclei tag set independently.
+
+**Burp Pro scanner**: `scan_url(target)` launches a Burp active audit in the background. Poll with `get_scan_status()`. Community edition falls back to `auto_probe` + `fuzz_parameter`.
+
+**Import formats**: `import_scan_results` accepts vigil, groma, nuclei (JSONL), nessus, sarif, burp (issues XML), openvas, zap. Imported findings enter as `status='suspected'` — verify before reporting.
+
 ### Web lane
 
 ```
