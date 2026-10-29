@@ -644,6 +644,39 @@
           }
         }
       ]
+    },
+    "auth_response_data_leak": {
+      "description": "Authentication endpoints (register, login, password reset) return excessive data in the response — plaintext passwords, internal user IDs, admin flags, account numbers, or session internals. The response body should contain only the fields the client needs (token, display name). Any field the client did not send and does not render is a leak.",
+      "param_match": [
+        "email",
+        "username",
+        "password",
+        "login",
+        "register"
+      ],
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Submit registration and inspect the response for fields the client did not send — password echo, is_admin, internal ID, account_number, role, permissions",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "password",
+                "is_admin",
+                "secret",
+                "account_number",
+                "role",
+                "permissions",
+                "internal_id"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 55
+        }
+      ]
     }
   }
 }
