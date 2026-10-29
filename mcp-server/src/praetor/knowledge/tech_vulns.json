@@ -1221,6 +1221,59 @@
           }
         }
       ]
+    },
+    "weblogic_console_rce": {
+      "description": "WebLogic Server admin console exposure and CVE-2020-14882 unauthenticated RCE via path traversal bypass. The console at /console/ is a high-value target; the double-URL-encoded traversal reaches the admin portal without credentials.",
+      "tech_match": [
+        "WebLogic",
+        "Oracle",
+        "Java"
+      ],
+      "probes": [
+        {
+          "payload": "/console/login/LoginForm.jsp",
+          "description": "WebLogic admin console login page — reachable means the console is exposed to the network.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200
+              ]
+            },
+            {
+              "type": "word",
+              "words": [
+                "WebLogic",
+                "Oracle",
+                "LoginForm"
+              ]
+            }
+          ],
+          "severity": "high",
+          "confidence_boost": 60
+        },
+        {
+          "payload": "/console/css/%252e%252e%252fconsole.portal",
+          "description": "CVE-2020-14882 — double-URL-encoded path traversal bypasses authentication. A 200 or 302-to-portal (not 302-to-login) confirms the bypass.",
+          "matchers": [
+            {
+              "type": "status",
+              "status": [
+                200,
+                302
+              ]
+            },
+            {
+              "type": "not_word",
+              "words": [
+                "LoginForm"
+              ]
+            }
+          ],
+          "severity": "critical",
+          "confidence_boost": 90
+        }
+      ]
     }
   }
 }
