@@ -101,7 +101,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 
 **Additional Lanes**
 - **Mobile:** Frida + adb dynamic testing, APK decompile, deep-link and WebView abuse. Full MASTG via [centurion](https://github.com/TyrusRC/centurion)
-- **Cloud:** prowler, scout-suite, pacu, IaC scanning, container/K8s security
+- **Cloud:** config-posture audit (prowler, ScoutSuite, CloudSploit), active collectors (pacu, azurehound, gcp_scanner), anonymous public-bucket enumeration, IaC scanning, container/K8s security
 - **LLM/MCP:** prompt injection, tool poisoning, system-prompt leakage, OWASP LLM/AI Top 10, LLM fingerprinting (model/provider identification via behavioral probes), LLM tool-abuse testing (function call injection, excessive agency, tool parameter injection). Inspired by [Anticells Red MCP](https://github.com/nicholasgcoles/anticells-red-mcp) template catalogs
 - **Fuzzing:** structure-aware file upload fuzzing, AFL integration, crash triage, TCP/UDP protocol fuzzing via expedition
 
