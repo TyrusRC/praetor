@@ -57,6 +57,14 @@ class AssessContext:
     # (HTML/URL/JS-escaped) — set by augment_evidence, read by Q5 to suppress the
     # classic reflected-XSS/SSTI false positive.
     reflected_sanitized: bool = False
+    # ── Response body classification (set by augment_evidence) ──
+    # Forces the pipeline to understand WHAT the data is before concluding
+    # severity. Without this, "200 OK with JSON" is treated as sensitive
+    # regardless of whether the JSON is simulated demo data or real credentials.
+    has_simulation_markers: bool = False
+    body_preview: str = ""
+    body_data_class: str = ""  # sensitive | simulated | public | unknown
+    body_classification_note: str = ""
 
     # ── Lookups derived once for use across multiple checks ──
     effective_domain: str = ""

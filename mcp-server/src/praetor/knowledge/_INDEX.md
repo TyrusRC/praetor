@@ -1,6 +1,6 @@
 # Knowledge Base Index
 
-**170 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
+**172 knowledge files** under `mcp-server/src/praetor/knowledge/`. Each is a JSON file with probe contexts loadable via `auto_probe(categories=[...])`.
 
 ## Prefix-matching loader
 
@@ -244,7 +244,7 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | `resource_exhaustion` | sms_pump_no_ratelimit, email_pump_no_ratelimit, otp_brute_no_lockout, expensive_query_no_limit, graphql_alias_DoS, file_upload_no_size_limit, biometric_or_paid_provider_call, zip_bomb_decompression | critical | apollo, aws-sns, graphql, mailgun, sendgrid, twilio |
 | `crypto_weakness` | padding_oracle_cbc, weak_hash_in_token, weak_jwt_alg_hs256_with_predictable_secret, des_3des_rc4_in_response, encrypted_blob_without_integrity, hash_length_extension *(hashpumpy to exploit)*, ecb_mode_repeated_blocks, cbc_bitflip_tamper, stream_cipher_iv_nonce_reuse | critical | asp.net, java, jwt, php, ruby |
 
-## AI / LLM (4)
+## AI / LLM (10)
 
 | Category | Contexts | Top severity | Tech tags |
 |---|---|---|---|
@@ -256,6 +256,8 @@ Detection-only KB — confirms RCE preconditions (FILE priv, vulnerable parser v
 | `rag_injection` | stored_content_rag_poison, vector_metadata_injection | high | chromadb, faiss, pinecone, rag, weaviate |
 | `echoleak` | markdown_image_exfil, css_class_leak, hidden_html_directive, data_uri_smuggling | critical | copilot, m365, rag, llm, anthropic, openai |
 | `vector_db_injection` | chroma_anonymous_api, pinecone_index_enumeration, weaviate_graphql_unauth, qdrant_anonymous_api, metadata_filter_injection, embedding_extraction_via_query | high | chroma, pinecone, weaviate, qdrant, pgvector |
+| `llm_fingerprinting` | identity_direct, identity_indirect, capability_boundary, response_format, knowledge_cutoff, refusal_pattern, token_counting, system_prompt_leak, provider_header, latency_fingerprint | high | anthropic, azure, bedrock, claude, gemini, llama, mistral, openai, vertex |
+| `llm_tool_abuse` | tool_call_injection, excessive_agency, function_schema_abuse, tool_output_injection, parallel_tool_abuse, hidden_tool_discovery, tool_parameter_injection, cross_tool_chaining | critical | anthropic, claude, function_calling, langchain, mcp, openai, tool_use |
 
 ## 2026-05-21 additions
 

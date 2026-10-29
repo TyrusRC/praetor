@@ -203,6 +203,14 @@ async def augment_evidence(ctx: AssessContext) -> None:
         if "race_synchronised=true" in body or "double_spend" in body:
             markers.append("race confirmed")
 
+        # ── Response body content classification ──
+        # The pipeline must understand WHAT the response contains before
+        # concluding anything about severity. This step extracts a preview,
+        # classifies the data sensitivity, and flags non-sensitive patterns
+        # (simulated, public, demo) so Q3 and severity logic can act on
+        # the actual content rather than on the structural shape alone.
+        _classify_response_body(ctx, body, detail)
+
         # Cloud-metadata extra (more services)
         for cloud_marker in ("doctl.io", "aliyun-meta", "/latest/meta-data",
                              "/computemetadata/v1", "fabric.cloud.azure",
@@ -216,3 +224,89 @@ async def augment_evidence(ctx: AssessContext) -> None:
         ctx.evidence_lower = (
             ctx.evidence_lower + " | derived: " + " ".join(ctx.derived_markers)
         ).strip()
+
+
+# ── Response body content classification ──
+# Moved out of the main function so Q3 and severity logic can reason about
+# WHAT the data is, not just that data was returned.
+
+# Patterns that indicate the data is not production-real.
+_NON_PRODUCTION_KEYWORDS = (
+    '"simulated"', '"demo"', '"sandbox"', '"staging"', '"mock"',
+    '"fake"', '"sample"', '"dry_run"', '"test_mode"', '"placeholder"',
+    '"env":"test"', '"env": "test"', '"env":"sandbox"', '"env": "sandbox"',
+    '"source":"simulated"', '"source": "simulated"',
+)
+
+# Patterns that indicate the data is publicly available elsewhere.
+_PUBLIC_DATA_KEYWORDS = (
+    "sec.gov/archives", "sec.gov/cgi-bin", "edgar",
+    "linkedin.com/in/", "linkedin.com/company/",
+    "crunchbase.com", "pitchbook.com",
+    "wikipedia.org", "wikidata.org",
+)
+
+# Patterns that indicate genuinely sensitive data.
+_SENSITIVE_DATA_KEYWORDS = (
+    "password", "passwd", "secret_key", "private_key", "api_key",
+    "access_token", "refresh_token", "session_token", "bearer",
+    "ssn", "social_security", "tax_id", "national_id",
+    "card_number", "cvv", "expiry", "iban", "routing_number",
+    "date_of_birth", "dob", "home_address", "phone_number",
+    "medical_record", "diagnosis", "prescription",
+    "salary", "compensation", "bank_account",
+)
+
+
+def _classify_response_body(ctx: AssessContext, body: str, detail: dict) -> None:
+    """Classify response body content and attach a preview + data flags.
+
+    Sets on ctx:
+      - body_preview: first meaningful snippet for operator review
+      - body_data_class: 'sensitive' | 'simulated' | 'public' | 'unknown'
+      - has_simulation_markers: bool
+      - body_classification_note: human-readable summary of what the data is
+    """
+    markers = ctx.derived_markers
+
+    # Extract a preview (first 600 chars of body, cleaned up)
+    raw_body = (detail.get("response_body") or "")[:600]
+    ctx.body_preview = raw_body.replace("\n", " ").strip()
+
+    # Count hits in each category
+    sim_hits = [kw for kw in _NON_PRODUCTION_KEYWORDS if kw in body]
+    pub_hits = [kw for kw in _PUBLIC_DATA_KEYWORDS if kw in body]
+    sens_hits = [kw for kw in _SENSITIVE_DATA_KEYWORDS if kw in body]
+
+    # Classify
+    if sens_hits:
+        ctx.body_data_class = "sensitive"
+        markers.append(f"DATA_CLASS:sensitive ({', '.join(sens_hits[:3])})")
+        ctx.body_classification_note = (
+            f"Response contains sensitive data markers: {', '.join(sens_hits[:5])}. "
+            f"Verify the data is real (not test fixtures) before rating severity."
+        )
+    elif sim_hits:
+        ctx.body_data_class = "simulated"
+        ctx.has_simulation_markers = True
+        markers.append(f"DATA_CLASS:simulated ({', '.join(sim_hits[:3])})")
+        ctx.body_classification_note = (
+            f"Response contains simulation/demo markers: {', '.join(sim_hits[:3])}. "
+            f"Data behind this endpoint is likely not production-real. "
+            f"Impact of accessing simulated data is informative."
+        )
+    elif pub_hits:
+        ctx.body_data_class = "public"
+        markers.append(f"DATA_CLASS:public ({', '.join(pub_hits[:3])})")
+        ctx.body_classification_note = (
+            f"Response contains public-source markers: {', '.join(pub_hits[:3])}. "
+            f"This data appears to be compiled from public sources (SEC filings, "
+            f"LinkedIn, etc.). Verify whether any non-public data is also present."
+        )
+    else:
+        ctx.body_data_class = "unknown"
+        ctx.body_classification_note = (
+            "Response data classification: unknown. READ the body preview below "
+            "and determine whether the data is sensitive, simulated, or public "
+            "before rating severity."
+        )

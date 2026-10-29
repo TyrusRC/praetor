@@ -298,6 +298,27 @@ def finalize_severity(ctx: AssessContext) -> None:
                 f"Set environment= or confirm the exploit for the full band."
             )
 
+    # ── 8. Response data sensitivity ceiling ──
+    data_class = getattr(ctx, "body_data_class", "")
+    if data_class == "simulated":
+        old = sev
+        sev = _cap(sev, "LOW")
+        if sev != old:
+            ctx.impact_notes.append(
+                f"SIMULATED DATA: response body classified as non-production. "
+                f"Capped {old} -> {sev}. Override: "
+                f"overrides=['q3_impact:data confirmed production']."
+            )
+    elif data_class == "public":
+        old = sev
+        sev = _cap(sev, "MEDIUM")
+        if sev != old:
+            ctx.impact_notes.append(
+                f"PUBLIC DATA: response body classified as publicly available "
+                f"data. Capped {old} -> {sev}. Override: "
+                f"overrides=['q3_impact:<non-public data identified>']."
+            )
+
     ctx.inferred_severity = sev
     ctx.severity_color = _SEV_TO_COLOR.get(sev, "YELLOW")
 

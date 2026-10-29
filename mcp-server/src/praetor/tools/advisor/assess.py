@@ -293,6 +293,19 @@ def _render(ctx: AssessContext) -> str:
         lines.append(f"  Auto-derived markers: {', '.join(ctx.derived_markers[:8])}")
     if ctx.audit_overrides:
         lines.append(f"  Operator overrides: {'; '.join(ctx.audit_overrides)}")
+
+    # Response body classification — force the operator to SEE what the data
+    # is before accepting the verdict. Without this, the pipeline rates
+    # "200 OK with JSON" as sensitive without reading whether the JSON is
+    # simulated demo data, public records, or real credentials.
+    if getattr(ctx, "body_data_class", ""):
+        lines.append(f"\n  Response data class: {ctx.body_data_class.upper()}")
+        if ctx.body_classification_note:
+            lines.append(f"  Classification: {ctx.body_classification_note}")
+        if getattr(ctx, "body_preview", ""):
+            preview = ctx.body_preview[:400]
+            lines.append(f"  Body preview (first 400 chars): {preview}")
+
     _ap = _attack_path_line(ctx)
     if _ap:
         lines.append(f"\n{_ap}")

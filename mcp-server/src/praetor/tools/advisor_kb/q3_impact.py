@@ -144,6 +144,37 @@ async def check(ctx: AssessContext) -> CheckResult:
     haystack = " ".join(
         p for p in (ctx.evidence_lower, (ctx.business_context or "").lower()) if p
     )
+
+    # Response body content gate: the pipeline classified the response data.
+    # If the data is simulated/demo or compiled from public sources, the
+    # "capability" of accessing it without auth exists but the IMPACT does not.
+    # Force the operator to confirm the data is real and non-public before
+    # the finding can rate above LOW.
+    data_class = getattr(ctx, "body_data_class", "")
+    if data_class == "simulated":
+        note = getattr(ctx, "body_classification_note", "")
+        ctx.issues.append(
+            f"Q3 DATA NOT SENSITIVE: response classified as SIMULATED. {note}\n"
+            "      The endpoint lacks auth but the data is demo/sandbox — this is "
+            "an architectural observation, not a demonstrated attacker gain.\n"
+            "      To override: confirm the data is production-real and pass "
+            "overrides=['q3_impact:data confirmed production']."
+        )
+        ctx.verdict = "NEEDS MORE EVIDENCE"
+        return {"passed": False, "reason": "simulated-data", "evidence": {}}
+    if data_class == "public":
+        note = getattr(ctx, "body_classification_note", "")
+        ctx.issues.append(
+            f"Q3 DATA SENSITIVITY LOW: response classified as PUBLIC. {note}\n"
+            "      The data appears compiled from public sources. Verify whether "
+            "any non-public data (credentials, internal IDs, PII) is also present.\n"
+            "      To override: identify the specific non-public data and pass "
+            "overrides=['q3_impact:<non-public data identified>']."
+        )
+        # Don't reject outright — public data with some non-public elements
+        # can still have impact. But flag it for review.
+        ctx.weak_evidence = True
+
     if _has_signal(haystack, _CAPABILITY_SIGNALS):
         return {"passed": True, "reason": "capability-stated", "evidence": {}}
     if _has_signal(haystack, _ASSET_SIGNALS):
