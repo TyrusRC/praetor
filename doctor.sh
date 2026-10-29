@@ -352,7 +352,7 @@ check_recon kube-hunter "pipx install kube-hunter"
 # ── Cloud / IaC / CI / SBOM / K8s active / Visual EASM (W6) ──
 check_recon prowler    "pipx install prowler                                # https://github.com/prowler-cloud/prowler"
 check_recon scout      "pipx install scoutsuite                             # https://github.com/nccgroup/ScoutSuite"
-check_recon cloudsploit "npm i -g cloudsploit                                # https://github.com/aquasecurity/cloudsploit"
+check_recon cloudsploit "npm i -g cloudsploit && ln -sf \"\$(command -v cloudsploitscan)\" \"\$(dirname \"\$(command -v cloudsploitscan)\")/cloudsploit\"   # pkg ships 'cloudsploitscan'; Praetor calls 'cloudsploit'" cloudsploitscan
 check_recon pacu       "pipx install pacu                                   # https://github.com/RhinoSecurityLabs/pacu"
 check_recon checkov    "pipx install checkov                                # https://github.com/bridgecrewio/checkov"
 check_recon tfsec      "brew install tfsec                                  # or: https://github.com/aquasecurity/tfsec/releases"
