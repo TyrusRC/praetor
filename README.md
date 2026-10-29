@@ -55,6 +55,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - OOB blind SQLi extraction via Collaborator DNS exfil (MSSQL xp_dirtree, MySQL LOAD_FILE, Oracle UTL_HTTP, PostgreSQL COPY TO PROGRAM)
 - Stacked query detection across all 5 DBMS with timing-based verification
 - Upload polyglot generation: GIFAR+PHP, GIFAR+JSP, PNG+PHP, SVG+JS, PDF+JS
+- `probe_supabase_rls`: automated BaaS Row Level Security probe — extracts Supabase/Firebase keys from JS bundles, enumerates tables, flags missing RLS with PII column detection
 
 **Auth & Session**
 - Login bypass: SQLi on login forms, verb tampering, OTP cross-account binding, reset-token Referer leak
@@ -86,6 +87,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - GUI screenshot capture with automatic secret redaction
 - Reports: pentest, red-team, compliance (PCI-DSS, SOC2, HIPAA, GDPR, OWASP)
 - Export: SARIF, JUnit XML, HTML engagement graph, platform-specific (HackerOne, Bugcrowd)
+- Import: `import_scan_results` merges findings from 8 formats — vigil, groma, nuclei (JSONL), nessus, sarif, burp (issues XML), openvas, zap — into the save-finding pipeline with dedup
 - Engagement narrative graph (goal→intent→fact→finding→asset) with interactive HTML viewer
 
 **Protocol & Transport**
@@ -267,7 +269,7 @@ Linux, macOS, Windows, WSL. The Java extension and Python server use platform-in
 ## Contributing
 
 - Open an issue for non-trivial changes before sending a PR
-- Run tests: `cd mcp-server && uv run python -m unittest discover tests` (235+ test files, 85+ verdict/fuzzing/vuln/proxy tests) and `cd burp-extension && mvn package`
+- Run tests: `cd mcp-server && uv run python -m unittest discover tests` (320+ test files) and `cd burp-extension && mvn package`
 - Match existing style (Java: camelCase methods, snake_case JSON keys; Python: PEP 8, async tools)
 - No external Java dependencies — extension uses only Montoya API and JDK
 
