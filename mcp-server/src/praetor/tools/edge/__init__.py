@@ -14,6 +14,7 @@ from praetor.tools.edge.test_open_redirect import test_open_redirect_impl
 from praetor.tools.edge.test_lfi import test_lfi_impl
 from praetor.tools.edge.test_file_upload import test_file_upload_impl
 from praetor.tools.edge.test_clickjacking import test_clickjacking_impl
+from praetor.tools.edge.probe_baas_rls import probe_baas_rls_impl
 
 
 def _record(endpoint: str, param: str, vuln_class: str, tool: str, result: dict) -> None:
@@ -234,4 +235,35 @@ def register(mcp: FastMCP):
         """
         r = await test_clickjacking_impl(session=session, path=path, multistep=multistep, target_url=target_url)
         _record(path, "", "clickjacking", "test_clickjacking", r)
+        return r
+
+    @mcp.tool()
+    async def probe_supabase_rls(
+        supabase_url: str = "",
+        anon_key: str = "",
+        proxy_history_index: int = -1,
+        tables: list[str] | None = None,
+    ) -> dict:
+        """Probe a Supabase backend for missing Row Level Security (RLS).
+
+        Accepts either explicit supabase_url + anon_key, or a
+        proxy_history_index pointing at the JS bundle (auto-extracts
+        the Supabase URL and anon key via extract_js_secrets).
+
+        Probes 25 common table names for unauthenticated SELECT access.
+        Reports exposed tables, column names, and PII column flags.
+        Rule 7 compliant: reads column structure only, never data values.
+
+        Args:
+            supabase_url: Supabase project URL (e.g. https://xyz.supabase.co)
+            anon_key: Supabase anon/public key (JWT from the JS bundle)
+            proxy_history_index: Proxy index of the JS bundle to auto-extract from
+            tables: Custom table names to probe (default: 25 common names)
+        """
+        r = await probe_baas_rls_impl(
+            supabase_url=supabase_url, anon_key=anon_key,
+            proxy_history_index=proxy_history_index, tables=tables,
+        )
+        endpoint = r.get("supabase_url", supabase_url) or "unknown"
+        _record(endpoint, "anon_key", "idor", "probe_supabase_rls", r)
         return r
