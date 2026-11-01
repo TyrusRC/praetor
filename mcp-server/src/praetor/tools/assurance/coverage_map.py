@@ -174,3 +174,27 @@ def register(mcp: FastMCP) -> None:
             }
         findings = load_intel(domain, "findings").get("findings", [])
         return build_heatmap(standard, _tested_classes(domain), findings)
+
+    @mcp.tool()
+    async def tool_coverage_gaps(domain: str) -> dict:
+        """Lead-generating recon/scan tools that never ran against DOMAIN.
+
+        `standards_coverage` answers "which vuln CLASSES did we test"; this
+        answers "which TOOLS did we run" — the complement. It diffs the
+        external-tool run ledger (.burp-intel/_harness/tool_runs.jsonl, written
+        at the subprocess seam) against a per-lane roster of lead-generating
+        tools.
+
+        `gaps` lists unrun tools in ACTIVE lanes (recon + web-scan always
+        active; network / cloud / secrets-sast activate once any of their tools
+        has run against the target). A gap is a lane Praetor has not covered on
+        this target yet — run the tool or record why it does not apply
+        (Rules 19 / 19a). This is a visibility aid, NOT a finding gate.
+
+        Args:
+            domain: target in .burp-intel/<domain>/.
+
+        Returns: {domain, lanes:{lane:{active,ran,missing}}, gaps:[lane/tool]}.
+        """
+        from praetor.tools._tool_ledger import compute_gaps, read_runs
+        return compute_gaps(domain, read_runs(limit=10000))

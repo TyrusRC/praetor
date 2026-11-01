@@ -56,6 +56,14 @@ async def _run_cmd(cmd: list[str], timeout: int = 120, bypass_proxy: bool = Fals
     if resolved:
         cmd = [resolved] + cmd[1:]
 
+    # Tool-coverage ledger (Rules 19/19a): record which binary ran against which
+    # target so tool_coverage_gaps can surface un-run lanes. Fail-open, secret-safe.
+    try:
+        from praetor.tools._tool_ledger import record_run
+        record_run(cmd)
+    except Exception:
+        pass
+
     # Force Go tools to use C resolver — fixes DNS in WSL2 where Go's pure-Go
     # resolver can't reach DNS servers listed in /etc/resolv.conf
     env = os.environ.copy()
