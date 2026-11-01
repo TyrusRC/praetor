@@ -87,7 +87,13 @@ Claude Code -> praetor-mcp (stdio) ->
 - **Network lane** (`tools/network`, `tools/redteam`) — `run_network_recon` (discover → service enum → leads → auto-loot → web-lane bridge); `run_network_tool` (sanctioned impacket/netexec/...); `crack_hashes` + credential store (capture → crack → reuse). Non-HTTP wire protocols (DB / Redis / MQTT / Modbus / DNP3 / gRPC / custom binary) go through **burp-expedition** (`tcp_*` tools — TCP/UDP/SOCKS5 proxy with per-protocol dissectors, intercept, match-replace, replay/fuzz; needs the extension loaded on `:18112`); see `.claude/skills/non-http-protocol-testing.md`. Evidence: `tools/redteam/_oplog` (ATT&CK-tagged operator log + loot chain-of-custody) or the expedition connection/message id, forwarded to Ghostwriter via `sync_to_ghostwriter`. HARD safety (Rules 5-9) refuses destructive/brute args; scope is engagement-mode-aware.
 - **Assessment tools** return a `VerdictResult`; use `verdict_from_tally(hits)` (`tools/testing/_verdict.py`, guide `.claude/skills/verdict-tools.md`).
 - **Knowledge base** — JSON under `.../knowledge/`, index `_INDEX.md`. New probe classes merge into an existing parent file; a new sibling needs a justification that no parent fits.
-- **Headless browser** — CloakBrowser. All `browser_*` tools route through the Burp proxy; Praetor never imports `playwright` directly.
+- **Browsers (two lanes, pick by task; both route through Burp)** — CloakBrowser
+  (headless, stealth, `browser_*`) is the default for automated surface discovery:
+  crawl, click everything, enumerate links. chrome-devtools-mcp (visible real Chrome
+  the operator watches, the `chrome-devtools` MCP server) is the default for observed
+  testing and every OAuth/account/login flow — it runs a persistent real profile so
+  logins survive runs. Launch its Chrome with `scripts/launch-test-chrome.sh`. Praetor
+  never imports `playwright` directly. Skill: `.claude/skills/browser-backends.md`.
 
 ## Build / Run
 

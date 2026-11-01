@@ -527,6 +527,28 @@ else
     warn "playwright install chromium failed — run it manually: (cd mcp-server && uv run playwright install chromium)"
 fi
 
+# chrome-devtools-mcp — the VISIBLE co-pilot Chrome lane (OAuth / account / login
+# flows + observed testing). Node MCP server; the .mcp.json `chrome-devtools`
+# entry attaches to a real Chrome on :9222. Install it globally so npx does not
+# re-fetch it every launch, and make sure a real Chrome/Chromium exists for it to
+# drive. Launch that Chrome with scripts/launch-test-chrome.sh (persistent profile
+# -> logins survive; routed through Burp -> traffic captured).
+if has npm; then
+    info "Installing chrome-devtools-mcp (visible co-pilot browser lane)..."
+    if run_to "$GIT_TIMEOUT" npm i -g chrome-devtools-mcp@latest >/dev/null 2>&1; then
+        ok "chrome-devtools-mcp ready"
+    else
+        warn "chrome-devtools-mcp install failed — .mcp.json still fetches it via npx on first use"
+    fi
+else
+    warn "chrome-devtools-mcp not installed — needs npm (Node.js >= 20); .mcp.json falls back to npx"
+fi
+if has google-chrome || has google-chrome-stable || has chromium || has chromium-browser; then
+    ok "Real Chrome/Chromium present for the co-pilot lane"
+else
+    warn "No Chrome/Chromium for the co-pilot lane — install one: sudo apt install -y chromium"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # PHASE 3: Recon Tools (core — web lane)
 # ════════════════════════════════════════════════════════════════════
