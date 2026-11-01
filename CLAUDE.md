@@ -267,6 +267,13 @@ State the interpretations, recommend one, ask once, then act on the answer.
 
 Do not ask when a sensible default exists and being wrong costs one re-run.
 
+**Never ask whether to PERSIST.** Saving a finding, updating its status, recording a
+probe outcome or coverage, saving recon intel, writing a note, checkpointing, and
+`sync_workspace` are automatic — the moment the fact exists, write it and report it in
+one line. Do not ask "should I save/update/sync this?" (hunting.md Rule 21a). The one
+exception is a LOCKED/shipped finding, whose status change is surfaced, never auto-applied
+(Rule 16b).
+
 ## Override Surfaces (operator-controlled)
 
 When defaults reject a legitimate finding:
