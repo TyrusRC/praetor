@@ -42,8 +42,9 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 
 **Scan & Probe**
 - Adaptive scan engine driven by a JSON knowledge base mapped to OWASP Top 10, WSTG, API Top 10, HackTricks, PayloadsAllTheThings, and Nuclei template categories
-- Default scan pipeline: [vigil](https://github.com/TyrusRC/vigil) (web DAST, includes sqlmap/dalfox/commix/nikto/wpscan/nuclei) + [groma](https://github.com/TyrusRC/groma) (network, replaces nmap for port discovery) run first, then targeted probing on leads
-- vigil thorough auto-dispatches integrated tools — no separate `run_sqlmap`/`run_dalfox` needed. Use `confirm_*` for targeted proof on specific parameters, `run_nmap` only for OS fingerprinting or NSE scripts
+- Lead-first scan pipeline: [vigil](https://github.com/TyrusRC/vigil) (web DAST, bundles sqlmap/dalfox/commix/nikto/wpscan/nuclei) + [groma](https://github.com/TyrusRC/groma) (network port discovery) run **first** to surface leads fast; every other tool then confirms and deepens those leads
+- Lead-first is a priority, **not** a skip list. vigil bundling sqlmap/dalfox/etc. means you need not re-run them for the *same* coverage — but they stay fully available for a targeted re-test, a detector vigil skipped, or whenever vigil is absent/down. No tool installed by setup.sh is optional
+- **Circuit-breaker design**: the flow never depends on one engine. If vigil (its MCP can fail to connect), groma, or any single tool errors, hangs, or times out, coverage reroutes to the fallback tools (`auto_probe` + Burp active scan + the individual `run_*` tools) — one tool failing never cancels a vuln class
 - Native vuln-class orchestrators: CSRF, SSRF, SSTI (multi-phase), XXE, WebSocket (upgrade + message injection), prototype pollution, padding oracle, CRLF, cache poisoning, clickjacking, DOM sinks
 - API schema auto-fuzz: walk every OpenAPI/Swagger endpoint with type-aware injection payloads
 - Passive proxy analysis: scan captured traffic for info leaks without sending requests
@@ -182,6 +183,8 @@ A complete scan of one URL uses three engines — vigil (DAST + nuclei templates
 7. get_scanner_findings() or merge_scan()        # collect Burp scanner findings
 8. assess_finding → save_finding → generate_report
 ```
+
+**Lead-first, never tool-skipping**: vigil runs first because it surfaces leads fast, and it bundles nuclei/sqlmap/dalfox/commix — so you need not re-run those for the *same* coverage. They are never disabled: call any `run_*` tool afterward for a targeted re-test, a detector vigil skipped, or when vigil is absent/errored/timed out. **Circuit breaker**: if any single engine (vigil, groma, a scanner) fails or is unavailable, the flow continues on the fallback tools instead of skipping the class — no tool installed by setup.sh is optional, and one engine failing never cancels coverage.
 
 **Nuclei integration**: vigil runs nuclei templates automatically during the `thorough` profile — no separate `nuclei` command needed. Filter with `nuclei_tags='cve,rce'` or `nuclei_severity='critical,high'`. For LLM/AI infrastructure specifically, use `scan_llm_infra(target)` which runs the curated AI/MCP nuclei tag set independently.
 

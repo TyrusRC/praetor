@@ -108,13 +108,20 @@ DEFAULT FIRST CALLS on any new target:
   run_vigil(target, profile='thorough')  — automated web DAST (OWASP Top 10 + WSTG). Run BEFORE manual probing.
   run_groma(target)  — full port range network scan + CVE checks. Bridges HTTP services to web lane.
 
-TOOL DEDUP — avoid duplicate work:
-  vigil thorough INCLUDES sqlmap, dalfox, commix, ghauri, nikto, wpscan, nuclei internally.
-  DO NOT call run_sqlmap/run_dalfox/run_commix/run_nikto/run_wpscan after vigil thorough.
-  Call them ONLY for targeted re-test on a specific parameter vigil flagged.
-  groma REPLACES nmap for port discovery. Use run_nmap ONLY for OS fingerprinting, NSE scripts,
-  or scan-type-specific firewall mapping (ACK/FIN/NULL/XMAS).
-  auto_probe is for KB edge cases vigil does not cover (business logic, auth matrix, race conditions).
+TOOL PRIORITY (lead-first, NOT a skip list):
+  Run run_vigil(profile='thorough') FIRST — it scans broadly and surfaces LEADS fast, and
+  it already runs sqlmap, dalfox, commix, ghauri, nikto, wpscan, nuclei internally. You do
+  not need to re-run those for the SAME coverage right after vigil — but they are NOT
+  disabled: call any of them later for a targeted re-test on a flagged parameter, a detector
+  vigil skipped, deeper/custom args, or any case where vigil is absent, errored, or timed out.
+  CIRCUIT BREAKER — never depend on one engine. If vigil is down (its MCP can fail to
+  connect), errors, or times out, DO NOT skip coverage: fall back to auto_probe + Burp active
+  scan + the individual run_* tools. No tool installed by setup.sh is optional; one engine
+  failing never cancels a vuln class — it reroutes to another tool.
+  groma is the default for port discovery; run_nmap adds OS fingerprinting, NSE scripts, and
+  scan-type-specific firewall mapping (ACK/FIN/NULL/XMAS).
+  auto_probe covers business logic, auth matrix, race conditions, and KB edge cases vigil
+  does not.
 
 Read: proxy history, scanner findings, sitemap, scope, cookies, WebSocket messages.
 Analyze: parameters, forms, endpoints, injection points, tech stack, JS secrets (TruffleHog/Gitleaks-quality), DOM structure, JS sinks/sources.

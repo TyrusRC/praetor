@@ -141,16 +141,33 @@ lazy routes, and form targets. Drive the headless browser to find leads first:
 A lead you can only reach by clicking is one curl will never find — a curl-only
 endpoint list is untested surface, i.e. OPEN, not absent (Rule 19a).
 
-**Installed CLI recon layer — use the tools setup installed, don't hand-roll (Rule 26a).**
-Reach for these where they beat the in-process probes; all route through Burp and are captured/replayable:
-- `run_katana(url)` — deep JS-aware crawl at scale (complements browser_crawl)
-- `run_vigil(url)` — template-driven vuln / misconfig / CVE sweep
-- `run_ffuf` / `discover_common_files` — content discovery
-- `run_dalfox` — XSS discovery; `run_sqlmap` / `run_ghauri` — SQLi confirmation
-- `run_subfinder` / `run_httpx` / `run_dnsx` — subdomain + live-host + DNS expansion
-Don't write a Python `requests` scanner when an installed tool already does it (Rule 26a).
+**Installed CLI recon roster — run the FULL set; nothing is optional (Rule 26a + Rule 19).**
+setup.sh installs every tool below, so treat each as CORE, not a nice-to-have. Run each one
+that applies to the target. Record a documented skip ONLY when it is impossible for the
+stack (Rule 19's three conditions) — never drop a tool as "optional" or because another
+tool "should have" covered it. All route through Burp and are captured/replayable.
+- Subdomain / DNS expansion: `run_subfinder`, `run_amass`, `run_chaos`, `run_alterx`,
+  `run_dnsgen`, `run_shuffledns` → `run_dnsx` (resolve) → `run_httpx` (live hosts) →
+  `run_tlsx` (TLS SAN names)
+- ASN / CDN / exposure: `run_asnmap`, `run_cdncheck`, `run_uncover`, `enum_public_buckets`,
+  `run_cloudlist`
+- Content / historical: `run_katana`, `browser_crawl`, `run_gau`, `fetch_wayback_urls`,
+  `run_ffuf`, `discover_common_files`, `discover_hidden_parameters`
+- OSINT / passive: `query_crtsh`, `rdap_lookup`, `enrich_passive_dns`, `run_theharvester`
+- Fingerprint: `detect_tech_stack`, `run_wafw00f`, `run_graphw00f` (if any GraphQL endpoint)
 
-**One-call alternative:** `run_recon_phase(target_url)` executes session creation + tech detection + analysis + sensitive file checks in a single call.
+**CIRCUIT BREAKER — isolate every tool; depend on none (operator directive).**
+Treat each tool call as its own guarded step. A tool that is absent, errors, hangs, or
+times out is RECORDED and the roster CONTINUES — one tool never blocks the phase or
+cancels the others. Never make the whole recon (or scan) hinge on a single tool — not
+subfinder, not `run_vigil`, not `run_groma`; each of those can be down (vigil's MCP can
+fail to connect). A missing or failed tool leaves its tuple OPEN (Rule 19a — NOT N/A),
+to retry or hand to the operator; it is never a silent skip. Do not hand-roll a Python
+`requests` scanner when an installed tool already does it (Rule 26a).
+
+**One-call alternative:** `run_recon_phase(target_url)` executes session creation + tech
+detection + analysis + sensitive file checks in a single call — a convenience, not a
+substitute for the roster above.
 
 **After agents complete (or sequential steps finish):**
 - Merge endpoint list + JS-discovered endpoints
@@ -343,6 +360,14 @@ If `get_websocket_history` shows WebSocket traffic:
 ## Phase 3.6: Deep-Dive (auto-triggered)
 
 **Trigger:** auto — `playbook-router.md` "Deep-dive auto-trigger" matrix evaluates recon output + intel (`load_target_intel`, `get_business_context`, `get_findings`) at end of Phase 2 AND end of Phase 3. Any signal hit → corresponding round fires automatically. No operator prompt needed. Standard hunt catches ~20% of real bugs; the rest live in the rounds below.
+
+**Full-coverage mode — run EVERY present-surface lane, not just the router's top 2.**
+The router's "load ≤2 playbooks" cap is a context-economy default for impact-first hunts.
+In a **full-coverage pentest** (Phase 0 objective) it does NOT apply: run the lane for
+every surface signal that is present — API/GraphQL/gRPC/WebSocket, mobile backend,
+cloud-native, LLM/MCP, OAuth/SAML/passkey/payment, smuggling/cache/pollution. A lane
+whose signal is present but never run is OPEN surface (Rule 19a), not a skip. Apply the
+same CIRCUIT BREAKER as recon: one lane erroring never cancels the others.
 
 Five rounds. Each round runs ONLY if its triggering signal matched; each has a stop condition.
 
