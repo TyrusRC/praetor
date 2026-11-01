@@ -48,6 +48,49 @@ def _is_local(url: str) -> bool:
     return any(h in u for h in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]"))
 
 
+# ── Circuit breaker for an unreachable decision backend ────────────────────
+# PRAETOR_DECISION_BASE_URL is often CONFIGURED (setup.sh writes it to .env) but
+# NOT SERVING — Haruspex set up, server not started. The optional, fail-open
+# enrichment must never stall the caller: a filtered localhost port (common in
+# WSL2) makes a connect hang for the FULL request timeout, so every assess_finding
+# used to block ~45s. The breaker trips on the first connect failure and
+# short-circuits every subsequent call for a cooldown window — the second opinion
+# is skipped, deterministic verdicts are untouched (Rule: depend on no single
+# backend). A fast connect timeout bounds the first probe; the breaker spares the
+# rest. Tunables via env for an operator who wants to retry sooner / wait longer.
+import time as _time  # noqa: E402
+
+_BREAKER_UNTIL: float = 0.0
+
+
+def _connect_timeout() -> float:
+    try:
+        return max(0.5, float(_env("PRAETOR_DECISION_CONNECT_TIMEOUT") or "3"))
+    except ValueError:
+        return 3.0
+
+
+def _breaker_cooldown() -> float:
+    try:
+        return max(5.0, float(_env("PRAETOR_DECISION_BREAKER_COOLDOWN") or "120"))
+    except ValueError:
+        return 120.0
+
+
+def _breaker_open() -> bool:
+    return _time.monotonic() < _BREAKER_UNTIL
+
+
+def _trip_breaker() -> None:
+    global _BREAKER_UNTIL
+    _BREAKER_UNTIL = _time.monotonic() + _breaker_cooldown()
+
+
+def _reset_breaker() -> None:
+    global _BREAKER_UNTIL
+    _BREAKER_UNTIL = 0.0
+
+
 @dataclass
 class DecisionConfig:
     tier: str          # "jev" | "llm" | "off"
@@ -128,10 +171,25 @@ async def _jev_evaluate(cfg, state, questions, timeout, domain="web") -> dict:
     # `domain` routes a multi-adapter Haruspex engine to the right per-domain
     # adapter; a hosted Jev / single-adapter engine ignores the field.
     body = {"model": cfg.model, "domain": domain, "state": state, "questions": questions}
-    async with httpx.AsyncClient(timeout=timeout) as c:
-        r = await c.post(cfg.base_url.rstrip("/") + "/v1/evaluate", headers=headers, json=body)
-        r.raise_for_status()
-        return r.json().get("answers", {})
+    # Circuit breaker: a backend that just failed to connect is skipped for the
+    # cooldown window so it never stalls caller after caller.
+    if _breaker_open():
+        raise RuntimeError("decision backend unreachable (circuit breaker open)")
+    # Fast connect timeout bounds the first probe at a dead backend; the full
+    # `timeout` still applies to read/write once connected.
+    to = httpx.Timeout(timeout, connect=min(_connect_timeout(), float(timeout)))
+    try:
+        async with httpx.AsyncClient(timeout=to) as c:
+            r = await c.post(cfg.base_url.rstrip("/") + "/v1/evaluate", headers=headers, json=body)
+            r.raise_for_status()
+            _reset_breaker()
+            return r.json().get("answers", {})
+    except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout,
+            httpx.PoolTimeout, httpx.WriteTimeout) as e:
+        _trip_breaker()
+        raise RuntimeError(
+            f"decision backend unreachable at {cfg.base_url}: {type(e).__name__}"
+        ) from e
 
 
 async def _llm_evaluate(cfg, state, questions, timeout) -> dict:
