@@ -56,6 +56,50 @@ info "Detected platform: $PLATFORM"
 # ── Helper: check if command exists ─────────────────────────────────
 has() { command -v "$1" &>/dev/null; }
 
+# ── CLI flags ───────────────────────────────────────────────────────
+# `./setup.sh` installs, and keeps whatever is already present. `./setup.sh
+# --update` ALSO refreshes components that are otherwise kept on a re-run —
+# today that is the Haruspex model adapters, re-pulled from HuggingFace so a
+# newer trained adapter replaces the local copy. Git repos (haruspex,
+# burp-expedition, nuclei templates) always pull --ff-only on every run.
+FORCE_UPDATE=0
+for _arg in "$@"; do
+    case "$_arg" in
+        -u|--update|--refresh) FORCE_UPDATE=1 ;;
+        -h|--help)
+            echo "Praetor setup. Usage: ./setup.sh [--update] [--help]"
+            echo "  --update   refresh kept components (re-download Haruspex adapters)"
+            echo "  --help     show this help"
+            exit 0 ;;
+        *) echo "[!] unknown flag: $_arg (ignored)" ;;
+    esac
+done
+[ "$FORCE_UPDATE" = 1 ] && echo "[*] Update mode: kept components will be refreshed."
+
+# ── Bounded network ops — a stalled socket must never hang setup ──────
+# git-over-https and `hf download` can block forever on a half-open socket.
+# Wrap them in a hard wall-clock cap, and make git abort a transfer that
+# stalls under 1 KB/s for 30s. Caps are tunable via the env vars below.
+export GIT_HTTP_LOW_SPEED_LIMIT="${GIT_HTTP_LOW_SPEED_LIMIT:-1024}"
+export GIT_HTTP_LOW_SPEED_TIME="${GIT_HTTP_LOW_SPEED_TIME:-30}"
+GIT_TIMEOUT="${PRAETOR_GIT_TIMEOUT:-300}"
+HF_TIMEOUT="${PRAETOR_HF_TIMEOUT:-900}"
+if has timeout; then _TIMEOUT=timeout
+elif has gtimeout; then _TIMEOUT=gtimeout   # coreutils on macOS
+else _TIMEOUT=""; fi
+# run_to <seconds> <cmd...> — run cmd under a hard time cap when `timeout` is
+# available; otherwise run it unwrapped (never block the whole script on it).
+run_to() {
+    local secs="$1"; shift
+    if [ -n "$_TIMEOUT" ]; then "$_TIMEOUT" "$secs" "$@"; else "$@"; fi
+}
+# Bounded-download curl flags — reused by every release-binary / tarball / model
+# download. Defined here (early) so the Haruspex block below can use it too.
+# --speed-limit/--speed-time abort a transfer that stalls under 1 KB/s for 30s
+# (the actual "install got stuck" symptom), while --max-time is a generous
+# absolute ceiling that will not truncate a slow-but-progressing large file.
+DL_FLAGS="--connect-timeout 15 --speed-limit 1024 --speed-time 30 --max-time 900 --retry 2 --retry-delay 2"
+
 # ── Helper: install package via system package manager ──────────────
 pkg_install() {
     if [ "$PLATFORM" = "linux" ]; then
@@ -211,7 +255,7 @@ if has uv; then
     ok "uv found: $(uv --version 2>&1)"
 else
     info "Installing uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    curl -LsSf $DL_FLAGS https://astral.sh/uv/install.sh | sh
     # Add to current session PATH
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
     has uv && ok "uv installed" || fail "uv installation failed — see https://docs.astral.sh/uv/"
@@ -231,7 +275,7 @@ else
             aarch64) GO_ARCH="arm64";;
             *)       GO_ARCH="amd64";;
         esac
-        curl -LO "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+        curl -LO $DL_FLAGS "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
         sudo rm -rf /usr/local/go
         sudo tar -C /usr/local -xzf "go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
         rm -f "go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
@@ -283,13 +327,13 @@ EXP_JAR=""
 if has git; then
     if [ -d "$EXPEDITION_DIR/.git" ]; then
         info "Updating burp-expedition..."
-        git -C "$EXPEDITION_DIR" pull --ff-only >/dev/null 2>&1 \
+        run_to "$GIT_TIMEOUT" git -C "$EXPEDITION_DIR" pull --ff-only >/dev/null 2>&1 \
             || warn "burp-expedition update failed — pull manually in $EXPEDITION_DIR"
     elif [ -d "$EXPEDITION_DIR" ]; then
         warn "burp-expedition dir exists but is not a git clone — leaving as-is ($EXPEDITION_DIR)"
     else
         info "Cloning burp-expedition (TyrusRC/burp-expedition)..."
-        git clone --depth 1 https://github.com/TyrusRC/burp-expedition.git "$EXPEDITION_DIR" >/dev/null 2>&1 \
+        run_to "$GIT_TIMEOUT" git clone --depth 1 https://github.com/TyrusRC/burp-expedition.git "$EXPEDITION_DIR" >/dev/null 2>&1 \
             || warn "burp-expedition clone failed — clone manually: git clone https://github.com/TyrusRC/burp-expedition.git \"$EXPEDITION_DIR\""
     fi
     if [ -d "$EXPEDITION_DIR" ]; then
@@ -335,7 +379,8 @@ fi
 # ── Haruspex decision model (calibrated verdict enrichment) ───────────
 # Praetor's _decision.py auto-detects a local Haruspex on 127.0.0.1:3000.
 # Pre-trained adapters (~30MB each) are downloaded from HuggingFace. Existing
-# adapters are kept — setup only downloads what is missing.
+# adapters are kept — a plain run only downloads what is missing. Re-run with
+# `./setup.sh --update` to re-pull every adapter and pick up a newer model.
 # To retrain from custom data: cd ../haruspex && uv run python -m haruspex.train \
 #   --train data/security_train.jsonl --out runs/web --epochs 5
 HARUSPEX_DIR="$SCRIPT_DIR/../haruspex"
@@ -350,13 +395,13 @@ _hx_prefix() { [ "$1" = "web" ] && printf '' || printf '%s/' "$1"; }
 
 if [ -d "$HARUSPEX_DIR/.git" ]; then
     info "Updating Haruspex..."
-    git -C "$HARUSPEX_DIR" pull --ff-only --quiet 2>/dev/null \
+    run_to "$GIT_TIMEOUT" git -C "$HARUSPEX_DIR" pull --ff-only --quiet 2>/dev/null \
         || warn "Haruspex update failed — pull manually in $HARUSPEX_DIR"
 elif [ -d "$HARUSPEX_DIR" ]; then
     info "Haruspex dir exists (not a git clone) — leaving as-is"
 else
     info "Cloning Haruspex (TyrusRC/haruspex)..."
-    git clone --depth 1 https://github.com/TyrusRC/haruspex.git "$HARUSPEX_DIR" >/dev/null 2>&1 \
+    run_to "$GIT_TIMEOUT" git clone --depth 1 https://github.com/TyrusRC/haruspex.git "$HARUSPEX_DIR" >/dev/null 2>&1 \
         || warn "Haruspex clone failed — clone manually: git clone https://github.com/TyrusRC/haruspex.git \"$HARUSPEX_DIR\""
 fi
 if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
@@ -373,40 +418,48 @@ if [ -d "$HARUSPEX_DIR" ] && [ -f "$HARUSPEX_DIR/pyproject.toml" ]; then
             adapter_dir="$HARUSPEX_DIR/runs/$domain"
             prefix=$(_hx_prefix "$domain")
             # Require the adapter AND its calibrator — Haruspex must never serve a
-            # bare/uncalibrated model (no accept/abstain risk control).
-            if [ -f "$adapter_dir/final/adapter_model.safetensors" ] && [ -f "$adapter_dir/calibrator.json" ]; then
+            # bare/uncalibrated model (no accept/abstain risk control). On a plain
+            # run a present+calibrated adapter is kept; `--update` forces a
+            # re-download so a newer trained adapter on HF replaces the local one.
+            had_adapter=0
+            [ -f "$adapter_dir/final/adapter_model.safetensors" ] && had_adapter=1
+            if [ "$FORCE_UPDATE" = 0 ] && [ "$had_adapter" = 1 ] && [ -f "$adapter_dir/calibrator.json" ]; then
                 HARUSPEX_SKIPPED=$((HARUSPEX_SKIPPED + 1))
             else
-                info "Downloading Haruspex adapter: $domain (~30MB)..."
+                [ "$had_adapter" = 1 ] && info "Refreshing Haruspex adapter: $domain..." \
+                    || info "Downloading Haruspex adapter: $domain (~30MB)..."
                 mkdir -p "$adapter_dir/final"
                 hx_ok=0
                 if has hf; then
                     # hf CLI: fetch adapter + calibrator + novelty gate. web = repo root
                     # (no subfolder); other domains are same-repo subfolders.
                     if [ "$domain" = "web" ]; then
-                        hf download "$HARUSPEX_HF_REPO" --include "final/**" "calibrator.json" "ood.json" "ood_train.npy" "haruspex.json" \
+                        run_to "$HF_TIMEOUT" hf download "$HARUSPEX_HF_REPO" --include "final/**" "calibrator.json" "ood.json" "ood_train.npy" "haruspex.json" \
                             --local-dir "$adapter_dir" --quiet 2>/dev/null && hx_ok=1
                     else
-                        hf download "$HARUSPEX_HF_REPO" --include "$domain/**" \
+                        run_to "$HF_TIMEOUT" hf download "$HARUSPEX_HF_REPO" --include "$domain/**" \
                             --local-dir "$HARUSPEX_DIR/runs" --quiet 2>/dev/null && hx_ok=1
                     fi
                 else
                     # Fallback: curl from the HuggingFace CDN (no hf CLI needed).
+                    # $DL_FLAGS bounds each transfer so a stalled CDN socket cannot hang setup.
                     info "hf CLI not found — downloading $domain via curl..."
                     HF_RES="https://huggingface.co/$HARUSPEX_HF_REPO/resolve/main/${prefix}"
-                    curl -sL -o "$adapter_dir/final/adapter_model.safetensors" "${HF_RES}final/adapter_model.safetensors" 2>/dev/null
-                    curl -sL -o "$adapter_dir/final/adapter_config.json"       "${HF_RES}final/adapter_config.json" 2>/dev/null
+                    curl -sL $DL_FLAGS -o "$adapter_dir/final/adapter_model.safetensors" "${HF_RES}final/adapter_model.safetensors" 2>/dev/null
+                    curl -sL $DL_FLAGS -o "$adapter_dir/final/adapter_config.json"       "${HF_RES}final/adapter_config.json" 2>/dev/null
                     # Metadata + calibrator + novelty gate (calibrator is required to serve).
-                    curl -sL -o "$adapter_dir/haruspex.json"   "${HF_RES}haruspex.json"   2>/dev/null || true
-                    curl -sL -o "$adapter_dir/calibrator.json" "${HF_RES}calibrator.json" 2>/dev/null || true
-                    curl -sL -o "$adapter_dir/ood.json"        "${HF_RES}ood.json"        2>/dev/null || true
-                    curl -sL -o "$adapter_dir/ood_train.npy"   "${HF_RES}ood_train.npy"   2>/dev/null || true
+                    curl -sL $DL_FLAGS -o "$adapter_dir/haruspex.json"   "${HF_RES}haruspex.json"   2>/dev/null || true
+                    curl -sL $DL_FLAGS -o "$adapter_dir/calibrator.json" "${HF_RES}calibrator.json" 2>/dev/null || true
+                    curl -sL $DL_FLAGS -o "$adapter_dir/ood.json"        "${HF_RES}ood.json"        2>/dev/null || true
+                    curl -sL $DL_FLAGS -o "$adapter_dir/ood_train.npy"   "${HF_RES}ood_train.npy"   2>/dev/null || true
                     [ -s "$adapter_dir/final/adapter_model.safetensors" ] && hx_ok=1
                 fi
                 if [ "$hx_ok" = 1 ] && [ -f "$adapter_dir/final/adapter_model.safetensors" ]; then
                     HARUSPEX_DOWNLOADED=$((HARUSPEX_DOWNLOADED + 1))
                 else
-                    rm -rf "$adapter_dir"   # clean up a partial/failed download
+                    # Only remove a partial NEW download — never destroy a working
+                    # adapter because a --update refresh failed to reach HF.
+                    [ "$had_adapter" = 0 ] && rm -rf "$adapter_dir"
                     HARUSPEX_FAILED=$((HARUSPEX_FAILED + 1))
                 fi
             fi
@@ -506,9 +559,8 @@ BIN_DIR="$(go env GOBIN 2>/dev/null)"; [ -n "$BIN_DIR" ] || BIN_DIR="$(go env GO
 OS=linux; OS_CAP=Linux; [ "$PLATFORM" = "macos" ] && { OS=darwin; OS_CAP=Darwin; }
 case "$(uname -m)" in arm64|aarch64) ARCH=arm64; ARCH_X=arm64 ;; *) ARCH=amd64; ARCH_X=x86_64 ;; esac
 
-# Bounded-download curl flags — a stalled github.com socket must never hang the
-# whole setup. Reused by every release-binary/tarball download below.
-DL_FLAGS="--connect-timeout 15 --max-time 300 --retry 2 --retry-delay 2"
+# DL_FLAGS (bounded-download curl flags) and run_to (bounded git/hf) are defined
+# once near the top of this script, so they are available to every phase.
 
 # Pinned release tags. Release binaries are fetched from github.com at these
 # EXACT tags, so setup never calls the api.github.com "latest" endpoint — the
@@ -625,7 +677,7 @@ CUSTOM_TPL_DIR="$HOME/.local/share/praetor/custom-nuclei-templates"
 if has git; then
     if [ -d "$CUSTOM_TPL_DIR/.git" ]; then
         info "Updating custom nuclei templates..."
-        git -C "$CUSTOM_TPL_DIR" pull --ff-only >/dev/null 2>&1 \
+        run_to "$GIT_TIMEOUT" git -C "$CUSTOM_TPL_DIR" pull --ff-only >/dev/null 2>&1 \
             && ok "custom nuclei templates updated ($CUSTOM_TPL_DIR)" \
             || warn "custom templates update failed — pull manually in $CUSTOM_TPL_DIR"
     elif [ -d "$CUSTOM_TPL_DIR" ]; then
@@ -633,7 +685,7 @@ if has git; then
     else
         info "Cloning custom nuclei templates (TyrusRC/custom-nuclei-templates)..."
         mkdir -p "$(dirname "$CUSTOM_TPL_DIR")"
-        if git clone --depth 1 https://github.com/TyrusRC/custom-nuclei-templates.git "$CUSTOM_TPL_DIR" >/dev/null 2>&1; then
+        if run_to "$GIT_TIMEOUT" git clone --depth 1 https://github.com/TyrusRC/custom-nuclei-templates.git "$CUSTOM_TPL_DIR" >/dev/null 2>&1; then
             ok "custom nuclei templates cloned ($CUSTOM_TPL_DIR)"
         else
             warn "custom templates clone failed — clone manually: git clone https://github.com/TyrusRC/custom-nuclei-templates.git \"$CUSTOM_TPL_DIR\""
@@ -846,7 +898,7 @@ if has octoscan; then
 else
     info "Installing octoscan (build from source)..."
     OCT_TMP="$(mktemp -d)"
-    if git clone --depth 1 https://github.com/synacktiv/octoscan "$OCT_TMP/octoscan" >/dev/null 2>&1 \
+    if run_to "$GIT_TIMEOUT" git clone --depth 1 https://github.com/synacktiv/octoscan "$OCT_TMP/octoscan" >/dev/null 2>&1 \
             && (cd "$OCT_TMP/octoscan" && go build -o "$BIN_DIR/octoscan" . >/dev/null 2>&1) && has octoscan; then
         ok "octoscan installed"
     else
@@ -960,7 +1012,10 @@ if [ -d /usr/share/seclists ] || [ -d /usr/share/SecLists ] || [ -d /opt/SecList
     ok "SecLists present"
 elif [ "$IS_KALI" -eq 0 ]; then
     info "Cloning SecLists to /opt/SecLists (large; shallow clone)..."
-    sudo git clone --depth 1 https://github.com/danielmiessler/SecLists /opt/SecLists 2>&1 | tail -1 \
+    run_to "$((GIT_TIMEOUT * 6))" sudo env \
+             GIT_HTTP_LOW_SPEED_LIMIT="$GIT_HTTP_LOW_SPEED_LIMIT" \
+             GIT_HTTP_LOW_SPEED_TIME="$GIT_HTTP_LOW_SPEED_TIME" \
+        git clone --depth 1 https://github.com/danielmiessler/SecLists /opt/SecLists 2>&1 | tail -1 \
         || warn "SecLists clone failed — clone manually to /opt/SecLists"
 fi
 
