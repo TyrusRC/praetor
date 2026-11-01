@@ -78,8 +78,9 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Non-HTTP protocol testing via burp-expedition: relay, intercept, fuzz, repeat, search, annotate, session export for TCP/UDP services
 
 **Browser & Recon**
-- Stealth headless browser (CloakBrowser) routed through Burp
+- Two browser lanes, both routed through Burp, picked by task: CloakBrowser (stealth headless) for automated surface discovery — crawl, click everything, enumerate links; chrome-devtools-mcp (visible real Chrome the operator watches) for observed testing and every OAuth/SSO/login/account flow. The visible lane runs a persistent real profile so logins survive runs — launch it with `scripts/launch-test-chrome.sh` (persistent profile + Burp proxy + remote-debugging :9222)
 - Third-party tool wrappers: subfinder, httpx, katana, amass, ffuf, sqlmap, dalfox, nikto, and more
+- `tool_coverage_gaps(domain)` reports lead-generating recon/scan tools that never ran against a target, per active lane — so no lane is silently skipped
 - JS secret extraction, DOM sink analysis, tech stack fingerprinting
 - OSINT: leaked credential search, paste site monitoring, email breach checks, exposed config/API/backup discovery
 - Threat intel: Shodan, VirusTotal, HIBP, OTX, GreyNoise, AbuseIPDB, URLScan (free-tier, keyless-first)
