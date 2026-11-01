@@ -51,6 +51,41 @@ class TestClassVocabulary(unittest.TestCase):
     def test_separators_are_normalised(self):
         self.assertEqual(canonical("Open-Redirect"), "open_redirect_no_chain")
 
+    def test_nosql_injection_reaches_every_impact_gate(self):
+        """A confirmed NoSQL injection must pass Q3, rate HIGH, and score as
+        sqli — under every spelling, including the canonical `nosql` that
+        confirm_nosql actually emits.
+
+        Regression: the gate tables keyed on the stray spelling `nosqli`, which
+        nothing produces (canonical collapses every real spelling to `nosql`),
+        so a real NoSQLi was downgraded to NEEDS MORE EVIDENCE, capped at
+        MEDIUM, and scored off the info-disclosure floor.
+        """
+        from praetor.tools.advisor._cvss4 import build_vector, severity_band
+        from praetor.tools.advisor._severity import _CLASS_SEVERITY_BAND
+        from praetor.tools.advisor_kb.q3_impact import IMPACT_INHERENT_CLASSES
+
+        high_band = _CLASS_SEVERITY_BAND["HIGH"]
+        for spelling in ("nosql", "nosqli", "nosql_injection", "mongodb_injection"):
+            c = canonical(spelling)
+            with self.subTest(spelling=spelling):
+                # Q3: class is its own impact — must auto-pass, not demand prose.
+                self.assertIn(
+                    c, IMPACT_INHERENT_CLASSES,
+                    f"{spelling!r} -> {c!r} not impact-inherent; Q3 would downgrade it",
+                )
+                # Severity ceiling: injection-to-a-sink is at least HIGH.
+                self.assertIn(
+                    c, high_band,
+                    f"{spelling!r} -> {c!r} missing from HIGH ceiling; caps at MEDIUM",
+                )
+                # CVSS: must carry the sqli shape, not the info-disclosure floor.
+                band = severity_band(build_vector(spelling, {}))
+                self.assertIn(
+                    band, ("High", "Critical"),
+                    f"{spelling!r} scored {band}; info-disclosure floor leaked through",
+                )
+
 
 class TestTierGuidance(unittest.TestCase):
     def test_scale_starts_at_low(self):

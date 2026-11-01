@@ -99,6 +99,7 @@ _VULN_ALIASES = {
     "sqli_error": "sqli",
     "sqli_union": "sqli",
     "sqli_time": "sqli_blind",
+    "nosql": "sqli",
     "nosqli": "sqli",
     "bola": "idor",
     "bfla": "idor",

@@ -36,7 +36,7 @@ _CLASS_SEVERITY_BAND = {
         "xss_stored", "request_smuggling", "cache_poisoning",
         "race_condition", "business_logic", "mfa_bypass", "2fa_bypass",
         "saml_xsw", "jwt_kid", "jwt_forge", "password_reset_takeover",
-        "prototype_pollution", "secret_leak", "nosqli", "rfi",
+        "prototype_pollution", "secret_leak", "nosql", "rfi",
     },
     "MEDIUM": {
         "xss", "xss_reflected", "csrf", "cors", "cors_misconfiguration",

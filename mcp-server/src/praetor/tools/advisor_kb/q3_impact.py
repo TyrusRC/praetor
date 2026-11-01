@@ -35,7 +35,7 @@ from . import CheckResult
 # not to this set.
 IMPACT_INHERENT_CLASSES = {
     "rce",
-    "sqli", "sqli_blind", "sqli_time", "sqli_error", "sqli_union", "nosqli",
+    "sqli", "sqli_blind", "sqli_time", "sqli_error", "sqli_union", "nosql",
     "ssti", "ssti_blind", "xxe", "xxe_blind", "deserialization",
     "ssrf", "request_smuggling", "cache_poisoning",
     "idor", "bopla", "broken_function_level_auth", "id_enumeration",

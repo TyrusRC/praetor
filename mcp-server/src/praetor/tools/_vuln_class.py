@@ -117,6 +117,7 @@ _ALIASES: dict[str, str] = {
 
     # ── New exploit-tool classes ────────────────────────────────────────────
     "nosql_injection": "nosql",
+    "nosqli": "nosql",
     "mongodb_injection": "nosql",
     "ldap": "ldap_injection",
     "xpath": "xpath_injection",
