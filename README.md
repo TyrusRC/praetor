@@ -261,6 +261,8 @@ Two commanders (Opus-tier, strategic), one per-domain orchestrator, and speciali
 
 Everything Claude Code auto-loads from disk is also exposed as MCP tools: `praetor_bootstrap()`, `get_rules()`, `list_skills()`/`get_skill()`, `list_agents()`/`get_agent()`. Non-Claude hosts call `praetor_bootstrap()` first. Per-host rule files ship for Claude Code, Codex, Gemini CLI, Cursor, and Windsurf.
 
+The agent roster lives once in `.claude/agents/`. `scripts/sync_agents.py` generates the native per-host agent definitions from it — `.opencode/agent/` for opencode and `.gemini/agents/` for Gemini CLI — so every host runs the same playbooks without a hand-maintained copy. `build.sh` runs `sync_agents.py --check` and fails the build if a wrapper drifts from the roster.
+
 For eager-loading hosts (Codex, dsh), set `PRAETOR_PROFILE` to advertise a smaller tool set. Gated tools stay runnable via `run_tool()`.
 
 ## Burp Edition Compatibility
