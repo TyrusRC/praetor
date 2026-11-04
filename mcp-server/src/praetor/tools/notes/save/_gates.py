@@ -219,6 +219,24 @@ def impact_gate(severity: str, impact: str, override_set: set) -> str | None:
     return None
 
 
+def repro_steps_notice(severity: str, reproduction_steps, override_set: set) -> str | None:
+    """Non-blocking nudge, NOT a gate: a MEDIUM+ finding saved with no
+    reproduction_steps renders a report with no step-by-step section, so a
+    triager cannot replay it cold. Surface the omission on the save result so it
+    is visible, not silent — the save still succeeds (unlike impact_gate).
+    Silence with overrides=['q_repro_steps:<reason>']."""
+    if "q_repro_steps" in override_set:
+        return None
+    if SEVERITY_RANK.get(severity, 0) >= SEVERITY_RANK["MEDIUM"] and not (reproduction_steps or []):
+        return (
+            f"NOTE: severity={severity} finding saved with no reproduction_steps. "
+            "The report will omit the step-by-step PoC a triager replays cold. "
+            "Add numbered steps via save_finding(reproduction_steps=[...]) or a "
+            "record_retest, or silence with overrides=['q_repro_steps:<reason>']."
+        )
+    return None
+
+
 def severity_cvss_gate(
     severity: str,
     cvss4_vector: str,

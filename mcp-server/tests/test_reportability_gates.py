@@ -281,5 +281,29 @@ class TestAutoOrganizeOnConfirm(_SaveHarness):
         self.assertIn("f001", ann.kwargs["json"]["comment"])
 
 
+class TestReproStepsNotice(unittest.TestCase):
+    """Non-blocking nudge: a MEDIUM+ finding with no reproduction_steps renders
+    a report with no step-by-step PoC. Surface it; never block the save."""
+
+    def _notice(self, severity, steps, overrides=()):
+        from praetor.tools.notes.save._gates import repro_steps_notice
+        return repro_steps_notice(severity, steps, set(overrides))
+
+    def test_medium_without_steps_is_flagged(self):
+        self.assertIsNotNone(self._notice("MEDIUM", None))
+        self.assertIsNotNone(self._notice("HIGH", []))
+        self.assertIsNotNone(self._notice("CRITICAL", None))
+
+    def test_steps_present_passes_silently(self):
+        self.assertIsNone(self._notice("HIGH", ["1. do X", "2. observe Y"]))
+
+    def test_low_is_never_flagged(self):
+        self.assertIsNone(self._notice("LOW", None))
+
+    def test_override_silences(self):
+        # save_finding parses overrides to the gate key before ":"; mirror that.
+        self.assertIsNone(self._notice("HIGH", None, overrides=["q_repro_steps"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -170,7 +170,7 @@ def register(mcp: FastMCP):
             return chain_err
 
         # ── Zero-noise submit to Burp, then local persist + Organizer hook ──
-        return await submit_and_persist(
+        result = await submit_and_persist(
             title=title,
             description=description,
             severity=severity,
@@ -194,3 +194,9 @@ def register(mcp: FastMCP):
             cvss4_severity=cvss4_severity,
             resolved_domain=resolved_domain,
         )
+        # Non-blocking: surface a missing step-by-step PoC so the omission is
+        # visible on the save, not discovered at report time (Rule 16a reader).
+        repro_notice = _gates.repro_steps_notice(severity, reproduction_steps, override_set)
+        if repro_notice:
+            result = f"{result}\n\n{repro_notice}"
+        return result
