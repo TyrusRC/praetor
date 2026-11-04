@@ -171,6 +171,7 @@ Evaluate at TWO checkpoints:
 | FIDO / WebAuthn / passkey | `/webauthn/`, `navigator.credentials` in JS, `attestationObject` in bodies | load `playbook-payment-and-auth.md` §2 |
 | Payment processor visible | Stripe / Square / PayPal / Adyen / Braintree / GPay / Apple Pay / Samsung Pay markers | load `playbook-payment-and-auth.md` §3–9 |
 | Recovery / 2FA flow | "forgot password" / `/recovery` / `/reset` / TOTP setup | R5 recovery + load `playbook-payment-and-auth.md` §10 |
+| OTP / 2FA / MFA challenge | SMS/email/TOTP/push code, `/verify` `/mfa` `/otp` `/2fa` `/challenge` `/login/verify` step | load `playbook-otp-mfa-bypass.md` |
 | Multi-tenant indicators | `tenant_id`, `org_id`, `workspace_id` in URLs/bodies | R2 pattern H (tenant boundary) |
 | Subscription / entitlement | `/subscription`, `/billing`, `tier`, `entitlement` in responses | R2 pattern I (entitlement state) |
 | Idempotency keys | `Idempotency-Key` header observed | R2 pattern G (idempotency-key scope) |
@@ -214,6 +215,7 @@ These are exempt from the "never load more than 2 playbooks" cap because they're
 | Param contains an ID (numeric / UUID / slug / hash) AND ≥2 auth states available | `playbook-idor-bola.md` | W16 |
 | `Authorization: Bearer <jwt>` observed; `harvest_identifiers` flagged a JWT; OAuth/OIDC auth model | `playbook-jwt-deep-dive.md` | W16 |
 | `/oauth/authorize`, `/oauth/token`, `/.well-known/openid-configuration` reachable; federated identity in scope | `playbook-oauth-flow-attacks.md` | W17 |
+| OTP / 2FA / MFA challenge, SMS/email/TOTP/push code, `/verify` `/mfa` `/otp` `/challenge` step, or step-up/reset flow | `playbook-otp-mfa-bypass.md` | W17 |
 | Target behind CDN/WAF + origin (≥2 HTTP parsers); 2025 desync endgame variants applicable | `playbook-request-smuggling.md` | W17 |
 | Node.js (Express/Fastify/Hapi/Koa) + JSON body merge; client-side options-merge libraries (jQuery extend, lodash merge); CSPP gadgets in framework | `playbook-prototype-pollution.md` | W17 |
 | Subdomain takeover hunt — wildcard scope or subdomain list harvested | `recon-takeover.md` | W9 |
