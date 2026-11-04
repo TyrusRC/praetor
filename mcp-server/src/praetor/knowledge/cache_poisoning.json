@@ -532,8 +532,8 @@
           "description": "Fetch a page that sets CSP via response header. Re-request with Cache-Control: no-cache=\"content-security-policy\". If the cached copy drops the CSP header, the proxy forwards the directive and Chromium honors it.",
           "matchers": [
             {
-              "type": "header_absent",
-              "header": "content-security-policy"
+              "type": "not_header",
+              "name": "content-security-policy"
             }
           ],
           "severity": "high",

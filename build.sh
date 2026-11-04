@@ -34,14 +34,37 @@ if ! command -v mvn >/dev/null 2>&1; then
 fi
 
 SKIP_TESTS=""
+SKIP_GATES="${SKIP_GATES:-}"
 for arg in "$@"; do
     case "$arg" in
         --skip-tests) SKIP_TESTS="-DskipTests" ;;
+        --skip-gates) SKIP_GATES=1 ;;
         -h|--help)
-            echo "usage: build.sh [--skip-tests]"
+            echo "usage: build.sh [--skip-tests] [--skip-gates]"
             exit 0 ;;
     esac
 done
+
+# ── Repo consistency gates (fast; run before the long Maven build) ──
+# 1. Harness agent wrappers are generated from .claude/agents/ — fail if stale.
+# 2. KB probes must be scoreable: every active probe needs a matcher (or a
+#    reference_only flag), and every matcher type must resolve in MatcherEngine —
+#    an unknown type fails closed and the probe silently never scores.
+if [ -z "$SKIP_GATES" ] && command -v uv >/dev/null 2>&1; then
+    echo "Checking repo consistency gates..."
+    uv run --project "$SCRIPT_DIR/mcp-server" python "$SCRIPT_DIR/scripts/sync_agents.py" --check || {
+        echo "ERROR: harness agent wrappers are stale." >&2
+        echo "  fix: uv run python scripts/sync_agents.py" >&2
+        exit 1
+    }
+    ( cd "$SCRIPT_DIR/mcp-server" && uv run python -m unittest tests.test_kb_probe_scoreability ) || {
+        echo "ERROR: KB probe-scoreability gate failed (see above)." >&2
+        exit 1
+    }
+    echo "Repo consistency gates OK."
+else
+    echo "Skipping repo consistency gates (uv not found or --skip-gates/SKIP_GATES set)."
+fi
 
 echo "Building Praetor Burp extension (${EXT_DIR})"
 mvn -f "$EXT_DIR/pom.xml" clean package $SKIP_TESTS

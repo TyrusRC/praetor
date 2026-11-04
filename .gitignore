@@ -53,3 +53,6 @@ nikto_*.json
 
 # vigil DAST scan output dirs
 vigil-report-*/
+
+# graphify knowledge-graph output
+graphify-out/
