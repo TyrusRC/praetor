@@ -5,11 +5,13 @@ Claude Code's `Agent` tool). Gemini CLI has its own subagents feature
 ([docs](https://geminicli.com/docs/core/subagents/)) that uses the **same**
 markdown-plus-frontmatter shape, so the roster ports directly.
 
-The three files here (`recon-agent`, `finding-verifier`, `pentest-commander`) are
-worked examples. Each is a **thin wrapper**: the frontmatter names the role, and the
-body points the subagent at its canonical manual in `.claude/agents/<role>.md`, the
-rules in `.claude/rules/`, and the Praetor MCP tools. Keeping the detail in
-`.claude/agents/` means one source of truth — no second copy to drift.
+Every `<role>.md` here is **generated** by `scripts/sync_agents.py` from the
+canonical manual — the full roster, not a subset. Each is a **thin wrapper**: the
+frontmatter names the role, and the body points the subagent at its canonical manual
+in `.claude/agents/<role>.md`, the rules in `.claude/rules/`, and the Praetor MCP
+tools. Keeping the detail in `.claude/agents/` means one source of truth — no second
+copy to drift. Do not hand-edit these files; edit `.claude/agents/<role>.md` and
+regenerate.
 
 ## Use them
 
@@ -20,22 +22,17 @@ Place this directory at the project root (`.gemini/agents/`) or copy to
 - `@recon-agent <task>` — invoke one directly (bypasses orchestrator routing).
 - The main agent also delegates to them automatically via `invoke_subagent`.
 
-## Port another role
+## Regenerate
 
-Copy the pattern for any of the ~20 roles in `.claude/agents/`:
+The roster is regenerated from `.claude/agents/` — never hand-ported:
 
-```markdown
----
-name: <role>
-description: <one line — copy from .claude/agents/<role>.md frontmatter>
----
-
-You are **<role>** for the Praetor harness, running as a Gemini CLI subagent.
-Operate through the Praetor MCP tools. Your operating manual is
-`.claude/agents/<role>.md` — read it before acting. Load playbooks with
-`get_skill("<name>")`; rules are in `.claude/rules/`. HARD rules always apply
-(see `GEMINI.md`).
+```bash
+uv run python scripts/sync_agents.py --harness gemini   # rewrite this dir
+uv run python scripts/sync_agents.py --check            # CI: fail if stale
 ```
+
+Add a new harness by writing one `emit_<harness>` function in
+`scripts/sync_agents.py` and registering it in `HARNESSES`.
 
 Other hosts: Cursor background agents and Antigravity's agent manager can each take
 one role the same way (point the agent at `.claude/agents/<role>.md` + the MCP
