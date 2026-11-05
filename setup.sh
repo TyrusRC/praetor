@@ -1367,6 +1367,9 @@ echo "  2. Extensions → Add → Java → Select: $JAR_PATH"
 if [ -n "$EXP_JAR" ] && [ -f "$EXP_JAR" ]; then
     echo "     Add the second extension the same way → Select: $EXP_JAR"
     echo "     (burp-expedition — the tcp_* non-HTTP lane, Control API on :18112)"
+    echo "     NOTE: the Control API is OPT-IN — start Burp with EXPEDITION_API_ENABLE=1"
+    echo "           in its environment, or the tcp_* tools get connection-refused on :18112."
+    echo "           (EXPEDITION_API_DISABLE=1 force-disables; EXPEDITION_API_PORT overrides.)"
 fi
 echo "  3. Verify: 'Praetor MCP started on port 8111' in Burp output"
 echo "  4. Start Claude Code in this directory"

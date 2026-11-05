@@ -19,19 +19,27 @@ from praetor.config import BURP_API_HOST
 _PORT = int(os.environ.get("EXPEDITION_API_PORT", "18112"))
 _BASE = f"http://{BURP_API_HOST}:{_PORT}"
 _TIMEOUT = float(os.environ.get("EXPEDITION_API_TIMEOUT", "15"))
+# Optional Bearer auth: the control API never enforces a token on loopback, but
+# when the operator sets EXPEDITION_API_TOKEN (recommended for a non-loopback
+# EXPEDITION_API_HOST bind) every request must carry it or the API returns 401.
+# Send it only when the env is present; otherwise send no auth header.
+_TOKEN = os.environ.get("EXPEDITION_API_TOKEN", "").strip()
+_HEADERS = {"Authorization": f"Bearer {_TOKEN}"} if _TOKEN else {}
 
 _UNREACHABLE = {
     "error": (
-        f"Cannot reach burp-expedition control API at {_BASE}. Load the "
-        "burp-expedition extension in Burp (it starts the API on :18112), or set "
-        "EXPEDITION_API_PORT. Verify: curl -s " + _BASE + "/status"
+        f"Cannot reach burp-expedition control API at {_BASE}. The control API is "
+        "OPT-IN: start Burp with EXPEDITION_API_ENABLE=1 in its environment, then "
+        "load the burp-expedition extension (API comes up on :18112). "
+        "EXPEDITION_API_DISABLE=1 force-disables it; EXPEDITION_API_PORT overrides "
+        "the port. Verify: curl -s " + _BASE + "/status"
     )
 }
 
 
 async def _request(method: str, path: str, json: dict | None = None) -> dict:
     try:
-        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT) as c:
+        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT, headers=_HEADERS) as c:
             r = await c.request(method, path, json=json)
             r.raise_for_status()
             data = r.json()
@@ -54,7 +62,7 @@ async def get(path: str) -> dict:
 async def get_list(path: str) -> list | dict:
     """GET an endpoint that returns a JSON array (connections/messages/rules)."""
     try:
-        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT) as c:
+        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT, headers=_HEADERS) as c:
             r = await c.get(path)
             r.raise_for_status()
             return r.json()

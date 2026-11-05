@@ -34,7 +34,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 ```
 
 - **Web lane:** REST API on `:8111`, HTTP tunneled through Burp's proxy (`:8080`). Every probe appears in Proxy history with a Logger index.
-- **Non-HTTP lane:** [burp-expedition](https://github.com/TyrusRC/burp-expedition) — TCP/UDP proxy with per-protocol dissectors (Redis, PostgreSQL, MySQL, MongoDB, MQTT, Modbus, DNP3, DNS, WebSocket, Protobuf, HTTP/2, STUN, QUIC). Intercept, replay, fuzz, match-replace on raw wire protocols.
+- **Non-HTTP lane:** [burp-expedition](https://github.com/TyrusRC/burp-expedition) — TCP/UDP proxy with per-protocol dissectors (Redis, PostgreSQL, MySQL, MongoDB, MQTT, Modbus, DNP3, DNS, WebSocket, Protobuf, HTTP/2, STUN, QUIC). Intercept, replay, fuzz, match-replace on raw wire protocols. Its Control API (`:18112`) is opt-in — start Burp with `EXPEDITION_API_ENABLE=1` in its environment so the `tcp_*` tools can reach it (`EXPEDITION_API_DISABLE=1` force-disables; `EXPEDITION_API_PORT` overrides the port).
 - **Network lane:** tools run directly; each action is ATT&CK-tagged in the operator log.
 - **[Haruspex](https://github.com/TyrusRC/haruspex):** optional local decision model for probe ranking and finding enrichment. Falls back to deterministic ordering when off.
 

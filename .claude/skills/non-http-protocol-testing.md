@@ -19,11 +19,13 @@ Burp's HTTP proxy, so evidence is the expedition connection/message id, not a
 
 ## Prerequisite
 
-The burp-expedition extension must be loaded in Burp (it starts the Control API
-on `:18112`; override with `EXPEDITION_API_PORT`). `tcp_proxy_status` confirms it
-is up; a down API returns a clear error with the load hint. This is a blocker,
-not a skip — ask the operator to load it (Rule 32a) rather than marking the
-service untested.
+The burp-expedition extension must be loaded in Burp, AND its Control API is
+OPT-IN: Burp must start with `EXPEDITION_API_ENABLE=1` in its environment for the
+API to come up on `:18112` (`EXPEDITION_API_DISABLE=1` force-disables;
+`EXPEDITION_API_PORT` overrides the port). `tcp_proxy_status` confirms it is up; a
+down API returns a clear error with the enable + load hint. This is a blocker,
+not a skip — ask the operator to start Burp with the enable flag and load the
+extension (Rule 32a) rather than marking the service untested.
 
 ## Flow
 
@@ -35,8 +37,12 @@ service untested.
 2. **Capture + dissect.** `tcp_proxy_connections` lists live/closed connections;
    `tcp_proxy_messages(connection_id=)` reads the exchange. Each message is
    auto-dissected (hex/string, line/text, Redis RESP, Protobuf, DNS, MQTT,
-   PostgreSQL, MySQL, MongoDB, WebSocket, Modbus/TCP, DNP3) into a decoded view —
-   you see the handshake + framed messages, not just bytes.
+   PostgreSQL, MySQL, MongoDB, WebSocket, Modbus/TCP, DNP3, AMQP, Kafka, LDAP,
+   SMB2, gRPC = length-prefixed protobuf, protobuf nested in WebSocket binary
+   frames, and TLS ClientHello/ServerHello with SNI/ALPN) into a decoded view —
+   you see the handshake + framed messages, not just bytes. So you can reason
+   about gRPC / protobuf / AMQP / LDAP / SMB2 traffic straight from the message
+   view with no extra tooling.
 3. **Intercept + edit.** `tcp_intercept_enable` holds live messages;
    `tcp_intercept_status` shows the queue; `tcp_intercept_forward(held_id, ...)`
    forwards (optionally edited, hex/string/decoded) or `tcp_intercept_drop`.
