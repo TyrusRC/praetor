@@ -88,7 +88,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 **Reporting & Evidence**
 - 7-question save-finding gate with per-program policy overrides
 - CVSS 4.0 scoring (environment-aware, exposure-adjusted)
-- GUI screenshot capture with automatic secret redaction
+- GUI screenshot capture with render-time secret redaction — the extension strips cookies, `Authorization`, API keys, tokens, JWTs, and secret query/body fields BEFORE the capture (deterministic, unlike OCR-on-image which can misread and leak), with header-hiding, pretty/raw view, page-size presets, and reusable redaction templates (`screenshot_template`); OCR-based post-capture redaction remains for full-window shots
 - Reports: pentest, red-team, compliance (PCI-DSS, SOC2, HIPAA, GDPR, OWASP)
 - Export: SARIF, JUnit XML, HTML engagement graph, platform-specific (HackerOne, Bugcrowd)
 - Import: `import_scan_results` merges findings from 8 formats — vigil, groma, nuclei (JSONL), nessus, sarif, burp (issues XML), openvas, zap — into the save-finding pipeline with dedup
