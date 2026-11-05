@@ -261,6 +261,12 @@ Choose the right attack order based on detected technology. Test in this order â
 | Single-Page App (React/Angular/Vue) | DOM XSS, API IDOR, JWT attacks, CORS misconfig, prototype pollution |
 | Unknown / Default | auth/IDOR, injection (SQLi/XSS), business logic, info disclosure, CORS/CSRF |
 
+**Prioritise the surface by rate-of-change, not just size.** A newly shipped
+feature, a fresh subdomain/cert, or a recent tech migration (`check_target_freshness`
+flags what changed) is less hardened than a frozen, long-audited path â€” test the
+changed surface first. On a public program assume automated recon saturated the
+obvious surface within hours; the edge is the recently-changed and the overlooked.
+
 ### For each priority category:
 
 1. Select untested high-risk parameters from memory
@@ -278,6 +284,7 @@ Choose the right attack order based on detected technology. Test in this order â
    - **Race condition:** `test_race_condition(session, request)` on state-changing endpoints (payments, coupons, votes)
    - **HPP:** `test_parameter_pollution(session, path, parameter, value, variants)`
    - **Mass assignment:** Add extra fields (`role`, `is_admin`, `price`) to registration/profile update requests
+   - **ORM filter/field leak (data exposure):** on any search / filter / sort endpoint where input controls a filter FIELD NAME, operator, or sort key (`q`, `filter`, `order_by`, OData `$filter`/`$expand`, a JSON filter object) â€” `auto_probe(session, targets, categories=['orm_leak'])`. Test whether a non-returned sensitive field (password hash, reset token, API key) is filterable, then extract it char-by-char with `contains`/`startswith`/`gt` operators using result-count or length as the oracle. A BOPLA / data-exposure class scanners miss; distinct from SQLi (the injection is at the ORM layer, not raw SQL).
    - **CRLF:** `test_crlf_injection(session, path, parameter)` or `%0d%0a` payloads
    - **Deserialization:** Look for serialized objects in cookies/params (base64 starting with `rO0AB`, `O:`, `gASV`)
    - **NoSQL injection:** `confirm_nosql(endpoint, parameter, dbms='mongodb')` â€” MongoDB/$where/$regex
