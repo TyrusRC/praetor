@@ -7,6 +7,7 @@ import burp.api.montoya.proxy.ProxyHttpRequestResponse;
 import com.praetor.http.HttpExchange;
 import com.praetor.server.BaseHandler;
 import com.praetor.ui.MessageEditorShot;
+import com.praetor.ui.MessageRedactor;
 import com.praetor.ui.SuiteScreenshot;
 import com.praetor.util.JsonUtil;
 
@@ -97,6 +98,17 @@ public class MessageScreenshotHandler extends BaseHandler {
             which = "request";
         }
 
+        // Render-time redaction: strip secret values (cookies, auth, tokens, JWTs,
+        // query/body secrets) and hide noisy headers BEFORE the editors render, so
+        // the secret never reaches the pixels. Deterministic — unlike OCR on the
+        // finished PNG, which can misread a value and leave it readable.
+        MessageRedactor.Config redactCfg = MessageRedactor.configFrom(body);
+        boolean redacted = redactCfg.isActive();
+        if (redacted) {
+            req = MessageRedactor.applyToRequest(req, redactCfg);
+            resp = MessageRedactor.applyToResponse(resp, redactCfg);
+        }
+
         String layout = strOf(body.get("layout"), "side").toLowerCase();
         if (!layout.equals("stacked")) {
             layout = "side";
@@ -134,6 +146,8 @@ public class MessageScreenshotHandler extends BaseHandler {
             "burp_icon_b64", burpIconB64,
             "which", which,
             "layout", layout,
+            // True when secret values were stripped at render time (safe shot).
+            "redacted", redacted,
             // Echo the search expression actually applied — empty => captured from
             // the top of the message (no keyword given / matched).
             "search", search,
