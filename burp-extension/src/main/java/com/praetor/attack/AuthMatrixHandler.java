@@ -200,23 +200,20 @@ public final class AuthMatrixHandler {
         double lengthSimilarity = (double) Math.min(a.length(), b.length())
             / Math.max(a.length(), b.length());
 
-        // Token-based Jaccard similarity on whitespace-split tokens.
-        // More robust than character sampling: catches structural differences
-        // in same-template responses with different user data (e.g.
-        // {"name":"Alice"} vs {"name":"Bob"} in identical HTML chrome).
-        Set<String> tokensA = tokenize(a);
-        Set<String> tokensB = tokenize(b);
-        double jaccard = 0.0;
-        if (!tokensA.isEmpty() || !tokensB.isEmpty()) {
-            Set<String> intersection = new java.util.HashSet<>(tokensA);
-            intersection.retainAll(tokensB);
-            Set<String> union = new java.util.HashSet<>(tokensA);
-            union.addAll(tokensB);
-            jaccard = union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
-        }
+        // Content similarity. Two signals, stronger one wins:
+        //  - whitespace-token Jaccard: catches field-value swaps in spaced text
+        //    (e.g. {"name": "Alice"} vs {"name": "Bob"} in HTML chrome).
+        //  - character-trigram Jaccard: catches near-identical MINIFIED bodies
+        //    with no whitespace (minified JSON, URL-encoded forms, query-string
+        //    bodies) that differ by only an id/token — the exact IDOR case, where
+        //    whitespace tokenising collapses the whole body to one token and any
+        //    1-char change drops the score to 0.
+        double tokenJaccard = jaccard(tokenize(a), tokenize(b));
+        double charJaccard = jaccard(charTrigrams(a), charTrigrams(b));
+        double similarity = Math.max(tokenJaccard, charJaccard);
 
-        // Weight: 40% length, 60% Jaccard (token overlap matters more)
-        double combined = 0.4 * lengthSimilarity + 0.6 * jaccard;
+        // Weight: 40% length, 60% content overlap (content matters more)
+        double combined = 0.4 * lengthSimilarity + 0.6 * similarity;
 
         // Length-based penalty: if lengths differ by >20%, cap similarity at 0.7
         if (lengthSimilarity < 0.8) {
@@ -224,6 +221,17 @@ public final class AuthMatrixHandler {
         }
 
         return combined;
+    }
+
+    /** Jaccard index of two sets: |A ∩ B| / |A ∪ B|. 0 when both are empty. */
+    private static double jaccard(Set<String> a, Set<String> b) {
+        if (a.isEmpty() && b.isEmpty()) {
+            return 0.0;
+        }
+        Set<String> inter = new java.util.HashSet<>(a);
+        inter.retainAll(b);
+        int union = a.size() + b.size() - inter.size();
+        return union == 0 ? 0.0 : (double) inter.size() / union;
     }
 
     /** Split a response body into a bounded set of whitespace tokens for
@@ -238,6 +246,22 @@ public final class AuthMatrixHandler {
             }
         }
         return tokens;
+    }
+
+    /** Character 3-grams of a body, for similarity of bodies with little or no
+     *  whitespace. Capped at 5000 shingles to keep memory bounded on large
+     *  responses; a prefix sample is enough to tell near-identical from divergent. */
+    private static Set<String> charTrigrams(String s) {
+        Set<String> grams = new java.util.HashSet<>();
+        if (s.length() < 3) {
+            grams.add(s);
+            return grams;
+        }
+        int limit = Math.min(s.length() - 2, 5000);
+        for (int i = 0; i < limit; i++) {
+            grams.add(s.substring(i, i + 3));
+        }
+        return grams;
     }
 
     // -- Response envelope (duplicated across attack handlers; see A1) ----
