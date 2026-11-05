@@ -24,11 +24,14 @@ def _slug(text: str, maxlen: int = 40) -> str:
     return s[:maxlen].strip("-")
 
 
-def _shot_name(tab: str, finding_id: str, step: str, note: str, ts: str) -> str:
+def _shot_name(tab: str, finding_id: str, step: str, note: str, ts: str,
+               name_hint: str = "") -> str:
     """Descriptive filename so the evidence + its PoC step are identifiable at a
-    glance: `burp-<tab>-<finding_id>-step-<step>-<note-slug>-<ts>.png`. Empty
-    parts are dropped."""
-    parts = ["burp", _slug(tab) or "suite"]
+    glance: `burp-<tab>-<finding_id>-step-<step>-<note-slug>-<ts>.png`. A
+    `name_hint` (e.g. `post-api-v1-users-42-200`) replaces the `burp-<tab>` lead,
+    so a message shot reads like its request. Empty parts are dropped."""
+    lead = _slug(name_hint) if name_hint.strip() else ""
+    parts = [lead] if lead else ["burp", _slug(tab) or "suite"]
     if finding_id.strip():
         parts.append(_slug(finding_id))
     if step.strip():
@@ -38,6 +41,47 @@ def _shot_name(tab: str, finding_id: str, step: str, note: str, ts: str) -> str:
         parts.append(note_slug)
     parts.append(ts)
     return "-".join(p for p in parts if p) + ".png"
+
+
+def _descriptive_base(detail: dict, which: str) -> str:
+    """A request-shaped slug for the filename — `METHOD-path-STATUS`, e.g.
+    `post-api-v1-users-42-200`. Mirrors the reference tool's naming so a shot is
+    identifiable without opening it. Empty when detail is missing."""
+    if not isinstance(detail, dict):
+        return ""
+    method = str(detail.get("method", "") or "").lower()
+    url = str(detail.get("url", "") or "")
+    path = ""
+    if url:
+        # strip scheme+host, keep the path (+ nothing of the query — it may hold
+        # secrets and the filename is not redacted).
+        after = url.split("://", 1)[-1]
+        slash = after.find("/")
+        path = after[slash:] if slash >= 0 else ""
+        path = path.split("?", 1)[0]
+    status = str(detail.get("status_code", "") or "")
+    parts = [p for p in (method, _slug(path, 48), status) if p]
+    base = "-".join(parts)
+    if which in ("request", "response") and base:
+        base = f"{base}-{which}"
+    return base
+
+
+def _size_preset(size: str) -> tuple[int, int]:
+    """Map a page-size preset to a (width, height) viewport, or (0, 0) for none.
+
+    `a4` / `letter` are portrait page ratios at ~150dpi so a shot drops cleanly
+    into a report page; `fit` asks for the tallest allowed viewport so a long
+    message fits in one shot. The handler clamps the values.
+    """
+    s = (size or "").strip().lower()
+    if s == "a4":
+        return (1240, 1754)
+    if s == "letter":
+        return (1275, 1650)
+    if s == "fit":
+        return (0, 4000)   # 0 width = handler auto-sizes; max height = show all
+    return (0, 0)
 
 
 def _caption(step: str, note: str) -> str:
@@ -51,7 +95,7 @@ def _caption(step: str, note: str) -> str:
 
 
 def _save_shot(data: dict, domain: str, tab: str, note: str,
-               finding_id: str = "", step: str = "") -> dict:
+               finding_id: str = "", step: str = "", name_hint: str = "") -> dict:
     """Decode the base64 PNG from the extension and save it under the domain's
     screenshots dir with a self-describing name. Returns the envelope or error."""
     b64 = data.get("png_base64") if isinstance(data, dict) else None
@@ -75,7 +119,7 @@ def _save_shot(data: dict, domain: str, tab: str, note: str,
     out_dir = Path.cwd() / ".burp-intel" / host / "screenshots"
     # Microseconds so two captures in the same second don't overwrite silently.
     ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    path = out_dir / _shot_name(tab, finding_id, step, note, ts)
+    path = out_dir / _shot_name(tab, finding_id, step, note, ts, name_hint)
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
         path.write_bytes(raw)

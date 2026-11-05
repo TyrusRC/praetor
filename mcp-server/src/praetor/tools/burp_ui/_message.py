@@ -9,7 +9,14 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 
-from ._shared import _pick_attach, _run_auto_redact, _save_shot, _scan_text
+from ._shared import (
+    _descriptive_base,
+    _pick_attach,
+    _run_auto_redact,
+    _save_shot,
+    _scan_text,
+    _size_preset,
+)
 
 
 def register(mcp: FastMCP) -> None:
@@ -24,6 +31,14 @@ def register(mcp: FastMCP) -> None:
                                  viewport_height: int = 640, viewport_width: int = 0,
                                  scale: float = 2.5, note: str = "", finding_id: str = "",
                                  step: str = "", auto_redact: bool = False,
+                                 template: str = "", redact: str = "",
+                                 hide_groups: list[str] | None = None,
+                                 hide_headers: list[str] | None = None,
+                                 redact_headers: list[str] | None = None,
+                                 redact_query: list[str] | None = None,
+                                 redact_body_fields: list[str] | None = None,
+                                 redact_glyph: str = "",
+                                 view: str = "", theme: str = "", size: str = "",
                                  attach: str = "auto") -> dict:
         """Screenshot ONE request/response auto-scrolled to + highlighting a keyword.
 
@@ -62,7 +77,30 @@ def register(mcp: FastMCP) -> None:
             viewport_width: editor viewport px width (0 = auto: 1600 side / 1000 else).
             scale: render scale (2× default).
             note/finding_id/step: caption + attach (same as burp_screenshot).
-            auto_redact: OCR-detect secrets and write a pixel-mosaicked twin.
+            auto_redact: OCR-detect secrets and write a pixel-mosaicked twin
+                (post-capture). Prefer render-time `redact=` below — it strips the
+                secret BEFORE the pixels, so it cannot miss like OCR can.
+            template: a saved preset of the redaction/appearance knobs below
+                ('defaults', 'clean', 'report-a4', 'empty', or a user template).
+                Explicit args override the template. See screenshot_template.
+            redact: render-time redaction (deterministic, in the extension).
+                '' / 'off' (default) = none; 'defaults'/'on' = the safe secret set
+                (cookies, Authorization, API keys, tokens, JWTs, secret query/body
+                fields); 'all' = defaults + hide every noise-header group. Keeps the
+                reader's structure (cookie names, auth scheme) and hides only values.
+            hide_groups: remove noisy header groups — 'browser','caching','cors',
+                'security','tracing','all'. Cleans the shot for a report.
+            hide_headers: extra header names to remove entirely.
+            redact_headers: extra header names whose value to redact.
+            redact_query: extra URL query-param names whose value to redact.
+            redact_body_fields: extra JSON/form field names whose value to redact.
+            redact_glyph: replacement text for redacted values (default █ blocks).
+            view: 'raw' (default, on-the-wire bytes) or 'pretty' (reformatted
+                JSON/HTML/XML — more readable for a report).
+            size: page preset — 'a4','letter','fit' — sizing the viewport. Overrides
+                viewport_width/height when set.
+            theme: 'light' or 'dark'. Best-effort; the editor follows Burp's theme,
+                so an explicit theme is not guaranteed.
             attach: which twin to link to finding_id — 'auto'/'naked'/'none'.
         """
         send_ref = send_ref.strip()
@@ -90,10 +128,46 @@ def register(mcp: FastMCP) -> None:
             term, reason = pick_search_term(
                 _scan_text(detail, scan_side), payload, tuple(keywords or ()))
         layout_l = "stacked" if layout.strip().lower().startswith("stack") else "side"
+
+        # Resolve redaction + appearance from a template, with explicit args winning.
+        from . import _templates
+        cfg = _templates.expand(template, {
+            "redact": redact, "hide_groups": hide_groups,
+            "hide_headers": hide_headers, "redact_headers": redact_headers,
+            "redact_query": redact_query, "redact_body_fields": redact_body_fields,
+            "redact_glyph": redact_glyph, "view": view, "theme": theme, "size": size,
+        })
+        # A page preset sizes the viewport (handler clamps).
+        pw, ph = _size_preset(str(cfg.get("size", "")))
+        if ph:
+            viewport_height = ph
+        if pw:
+            viewport_width = pw
+
         payload_json = {
             "which": which_l, "layout": layout_l,
             "search": term, "height": viewport_height, "scale": scale,
         }
+        # Render-time redaction + appearance → handler.
+        rv = str(cfg.get("redact", "")).strip().lower()
+        if rv in ("defaults", "on", "true", "1", "yes", "all"):
+            payload_json["redact"] = True
+        hide_groups_eff = list(cfg.get("hide_groups") or [])
+        if rv == "all" and "all" not in hide_groups_eff:
+            hide_groups_eff.append("all")
+        if hide_groups_eff:
+            payload_json["hide_groups"] = hide_groups_eff
+        for k in ("redact_headers", "hide_headers", "redact_query", "redact_body_fields"):
+            if cfg.get(k):
+                payload_json[k] = list(cfg[k])
+        if cfg.get("redact_glyph"):
+            payload_json["redact_glyph"] = cfg["redact_glyph"]
+        view_eff = str(cfg.get("view", "")).strip().lower()
+        if view_eff in ("raw", "pretty"):
+            payload_json["view"] = view_eff
+        theme_eff = str(cfg.get("theme", "")).strip().lower()
+        if theme_eff in ("light", "dark"):
+            payload_json["theme"] = theme_eff
         if send_ref:
             payload_json["send_ref"] = send_ref
         else:
@@ -103,7 +177,8 @@ def register(mcp: FastMCP) -> None:
         data = await client.post("/api/ui/message-screenshot", json=payload_json)
         if isinstance(data, dict) and "error" in data:
             return data
-        out = _save_shot(data, domain, f"msg-{which_l}", note, finding_id, step)
+        name_hint = _descriptive_base(detail, which_l) if isinstance(detail, dict) else ""
+        out = _save_shot(data, domain, f"msg-{which_l}", note, finding_id, step, name_hint)
         if "error" in out:
             return out
         out["which"] = data.get("which", which_l)
@@ -111,6 +186,10 @@ def register(mcp: FastMCP) -> None:
         out["search"] = data.get("search", term)
         out["search_reason"] = reason if term else "none_matched"
         out["engine"] = data.get("engine", "")
+        # True when the extension stripped secrets at render time (safe shot).
+        out["render_redacted"] = bool(data.get("redacted", False))
+        if view_eff in ("raw", "pretty"):
+            out["view"] = data.get("view", view_eff)
         # Mark the match per the operator's choice:
         #   box    red call-out only  (draw box, clear the scroll-yellow)
         #   both   red box + yellow   (draw box, keep yellow)

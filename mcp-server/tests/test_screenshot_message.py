@@ -82,6 +82,51 @@ class ScreenshotMessageTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(posted["json"]["which"], "request")
         self.assertEqual(out["search_reason"], "explicit")
 
+    async def test_template_expands_to_redaction_payload(self):
+        detail = {"method": "GET", "url": "http://t.example/api/v1/users/42",
+                  "status_code": 200, "response_headers": [], "response_body": "ok"}
+        posted = {}
+
+        async def fake_get(path, **kw):
+            return detail
+
+        async def fake_post(path, json=None):
+            posted["json"] = json
+            return {"png_base64": _PNG_B64, "width": 10, "height": 10,
+                    "which": json["which"], "search": json.get("search", ""),
+                    "engine": "editor-search", "redacted": True,
+                    "view": json.get("view", "raw")}
+
+        with patch.object(burp_ui.client, "get", new=AsyncMock(side_effect=fake_get)), \
+             patch.object(burp_ui.client, "post", new=AsyncMock(side_effect=fake_post)):
+            out = await _resolve()(proxy_history_index=3, domain="t.example",
+                                   template="clean")
+
+        j = posted["json"]
+        self.assertTrue(j["redact"])                      # defaults secret set on
+        self.assertIn("browser", j["hide_groups"])        # noise headers hidden
+        self.assertEqual(j["view"], "pretty")             # clean uses pretty
+        self.assertTrue(out["render_redacted"])
+        # Descriptive filename derived from the request.
+        self.assertIn("get-api-v1-users-42-200", Path(out["saved"]).name)
+
+    async def test_redact_all_adds_hide_all_group(self):
+        posted = {}
+
+        async def fake_post(path, json=None):
+            posted["json"] = json
+            return {"png_base64": _PNG_B64, "width": 10, "height": 10,
+                    "which": "request", "search": json.get("search", ""),
+                    "engine": "editor-search", "redacted": True}
+
+        with patch.object(burp_ui.client, "post", new=AsyncMock(side_effect=fake_post)):
+            await _resolve()(proxy_history_index=1, domain="t.example",
+                             which="request", search="x", include_history_row=False,
+                             redact="all")
+
+        self.assertTrue(posted["json"]["redact"])
+        self.assertIn("all", posted["json"]["hide_groups"])
+
     async def test_negative_index_rejected(self):
         out = await _resolve()(proxy_history_index=-1)
         self.assertIn("error", out)

@@ -120,9 +120,14 @@ public class MessageScreenshotHandler extends BaseHandler {
         int width = MessageEditorShot.clampDim(intOf(body.get("width"), defW), 300, 2600);
         int height = MessageEditorShot.clampDim(intOf(body.get("height"), 760), 200, 4000);
         double scale = parseScale(body.get("scale"));
+        // 'raw' (default, wire bytes) or 'pretty' (reformatted JSON/HTML/XML).
+        String view = strOf(body.get("view"), "raw").toLowerCase();
+        if (!view.equals("pretty")) {
+            view = "raw";
+        }
 
         BufferedImage img = MessageEditorShot.capture(
-            api, which, layout, req, resp, search, width, height, scale);
+            api, which, layout, req, resp, search, width, height, scale, view);
 
         // Real Burp window title (with version/project/licence) and window icon,
         // so a composite header can render the exact chrome instead of guessing.
@@ -148,6 +153,8 @@ public class MessageScreenshotHandler extends BaseHandler {
             "layout", layout,
             // True when secret values were stripped at render time (safe shot).
             "redacted", redacted,
+            // Editor tab rendered — 'raw' or 'pretty'.
+            "view", view,
             // Echo the search expression actually applied — empty => captured from
             // the top of the message (no keyword given / matched).
             "search", search,

@@ -20,7 +20,7 @@ from mcp.server.fastmcp import FastMCP
 
 from praetor import client
 
-from . import _capture, _message, _redact
+from . import _capture, _message, _redact, _template_tool
 from ._shared import _caption, _pick_attach, _save_shot
 
 __all__ = ["register", "client", "_save_shot", "_pick_attach", "_caption"]
@@ -30,3 +30,4 @@ def register(mcp: FastMCP) -> None:
     _capture.register(mcp)
     _redact.register(mcp)
     _message.register(mcp)
+    _template_tool.register(mcp)

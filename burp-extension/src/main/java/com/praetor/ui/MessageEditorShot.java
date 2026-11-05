@@ -60,8 +60,22 @@ public final class MessageEditorShot {
                                         HttpRequest req, HttpResponse resp,
                                         String searchExpr, int width, int height,
                                         double scale) {
+        return capture(api, which, layout, req, resp, searchExpr, width, height, scale, "raw");
+    }
+
+    /**
+     * As {@link #capture(MontoyaApi, String, String, HttpRequest, HttpResponse,
+     * String, int, int, double)}, but {@code view} selects the editor tab:
+     * "raw" (the on-the-wire bytes, default) or "pretty" (Burp's reformatted
+     * JSON/HTML/XML view — more readable for a report).
+     */
+    public static BufferedImage capture(MontoyaApi api, String which, String layout,
+                                        HttpRequest req, HttpResponse resp,
+                                        String searchExpr, int width, int height,
+                                        double scale, String view) {
         boolean wantReq = !"response".equalsIgnoreCase(which);
         boolean wantResp = !"request".equalsIgnoreCase(which);
+        String tab = "pretty".equalsIgnoreCase(view) ? "Pretty" : "Raw";
         // "side" = Repeater-style Request | Response (horizontal); "stacked" = vertical.
         boolean sideBySide = !"stacked".equalsIgnoreCase(layout);
         // [0] = the Component to paint (a pane or the split), [1] = its host JFrame.
@@ -77,7 +91,7 @@ public final class MessageEditorShot {
                 Component c = ed.uiComponent();
                 panes.add(c);
                 setup.add(() -> {
-                    selectRawTab(c);
+                    selectView(c, tab);
                     applySearch(ed::setSearchExpression, searchExpr);
                 });
             }
@@ -88,7 +102,7 @@ public final class MessageEditorShot {
                 Component c = ed.uiComponent();
                 panes.add(c);
                 setup.add(() -> {
-                    selectRawTab(c);
+                    selectView(c, tab);
                     applySearch(ed::setSearchExpression, searchExpr);
                 });
             }
@@ -131,15 +145,16 @@ public final class MessageEditorShot {
         return img;
     }
 
-    /** Select the editor's "Raw" tab (the wire bytes) instead of the default
-     *  "Pretty" reformatted view — walks the editor component's own tab strip. */
-    private static void selectRawTab(Component root) {
+    /** Select the editor's {@code tabTitle} tab ("Raw" = wire bytes, "Pretty" =
+     *  reformatted) — walks the editor component's own tab strip. Falls back to
+     *  leaving the current tab when the requested one is absent. */
+    private static void selectView(Component root, String tabTitle) {
         List<JTabbedPane> tps = new ArrayList<>();
         SwingUi.collectTabbedPanes(root, tps);
         for (JTabbedPane tp : tps) {
             for (int i = 0; i < tp.getTabCount(); i++) {
                 String t = tp.getTitleAt(i);
-                if (t != null && t.trim().equalsIgnoreCase("Raw")) {
+                if (t != null && t.trim().equalsIgnoreCase(tabTitle)) {
                     tp.setSelectedIndex(i);
                     return;
                 }
