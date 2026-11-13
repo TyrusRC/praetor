@@ -2,11 +2,20 @@
 
 All three are MIT/Apache OSS scanners. Each falls back to install-hint when
 binary absent. SBOM-driven (syft optional upstream).
+
+Also: scan_model_artifacts (pure-stdlib pickle opcode scan, no new deps),
+check_binary_hardening (checksec wrap for native-binary hardening flags),
+and check_dependency_typosquat (pure-Python name-distance check for
+typosquat/slopsquat dependencies).
 """
 
 from __future__ import annotations
 
 import json
+import pickletools
+import zipfile
+from difflib import SequenceMatcher
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -15,6 +24,138 @@ from praetor.tools.recon._common import _check_tool, _run_cmd
 
 def _hint(tool: str, hint: str) -> str:
     return f"Error: {tool} not installed.\nInstall: {hint}"
+
+
+# ── Pickle/model-file safety scan (stdlib pickletools, no execution) ──────
+# Pickle's RCE surface is GLOBAL (module, name) opcodes that resolve to an
+# arbitrary callable, invoked by REDUCE at load time. Disassembling with
+# pickletools.genops never calls __reduce__/__setstate__ — it only reads the
+# opcode stream, so this is safe to run on an untrusted file.
+# Modules with no legitimate reason to appear in a data-only pickle stream —
+# flagged on module alone. `builtins`/`__builtin__` is NOT here: it also
+# carries harmless, extremely common REDUCE targets (list/dict/set/tuple/...)
+# used by ordinary object serialization, so it is name-gated below instead.
+_DANGEROUS_MODULES = {
+    "os", "nt", "posix", "subprocess", "sys", "socket", "shutil", "pty",
+    "runpy", "code", "ctypes", "platform", "importlib", "multiprocessing",
+    "webbrowser", "pdb", "antigravity",
+}
+# Names that are dangerous regardless of which module they resolve through
+# (mainly builtins/__builtin__, but matched module-independently so an
+# aliased import doesn't slip past).
+_DANGEROUS_NAMES = {
+    "eval", "exec", "system", "popen", "Popen", "call", "check_call",
+    "check_output", "execfile", "compile", "__import__", "getattr",
+    "setattr", "open",
+}
+
+
+_STRING_PUSH_OPS = {
+    "SHORT_BINUNICODE", "BINUNICODE", "BINUNICODE8", "UNICODE",
+    "SHORT_BINSTRING", "BINSTRING",
+}
+
+
+def _scan_pickle_bytes(data: bytes) -> list[str]:
+    """Disassemble (not unpickle) a pickle byte stream; return dangerous
+    module.name references found, deduped, in appearance order.
+
+    Protocol 0's GLOBAL opcode carries 'module\\nname' directly in `arg`.
+    Protocol >=4's STACK_GLOBAL is stack-based instead: the module and name
+    are pushed as two preceding string opcodes and STACK_GLOBAL itself
+    carries no arg — so this tracks the last two string pushes and resolves
+    STACK_GLOBAL from them, which is how every modern (protocol 2+) pickle
+    stream — including every default `pickle.dumps()` / `torch.save()`
+    output — actually encodes a REDUCE callable.
+    """
+    hits: list[str] = []
+    last_strings: list[str] = []
+    try:
+        for opcode, arg, _pos in pickletools.genops(data):
+            if opcode.name in _STRING_PUSH_OPS:
+                last_strings.append(str(arg))
+                last_strings = last_strings[-2:]
+                continue
+            if opcode.name == "GLOBAL" and arg is not None:
+                # pickletools' GLOBAL arg reader joins "module name" with a
+                # single space (not the on-wire '\n' — genops already
+                # decoded that), so split on the first space.
+                module, _, name = str(arg).partition(" ")
+            elif opcode.name in ("STACK_GLOBAL", "INST", "OBJ") and len(last_strings) == 2:
+                module, name = last_strings[0], last_strings[1]
+            else:
+                continue
+            ref = f"{module}.{name}"
+            if module in _DANGEROUS_MODULES or name in _DANGEROUS_NAMES:
+                if ref not in hits:
+                    hits.append(ref)
+    except Exception as e:  # malformed/truncated stream — report, don't crash
+        hits.append(f"<scan error: {e}>")
+    return hits
+
+
+def _classify_file(path: Path) -> tuple[str, list[bytes]]:
+    """Return (kind, [pickle byte blobs to scan]).
+
+    kind: 'pytorch-zip' (new-format .pt/.pth, a zip with data.pkl inside),
+    'raw-pickle' (old-format .pt/.pkl/.joblib, a bare pickle stream),
+    'safetensors' (header-only JSON, no scan needed — safe by format), or
+    'unknown'.
+    """
+    head = path.read_bytes()[:16]
+    if head[:4] == b"PK\x03\x04":
+        blobs = []
+        with zipfile.ZipFile(path) as zf:
+            for name in zf.namelist():
+                if name.endswith((".pkl", "data.pkl")) or "/data.pkl" in name:
+                    blobs.append(zf.read(name))
+        return "pytorch-zip", blobs
+    if path.suffix == ".safetensors":
+        return "safetensors", []
+    return "raw-pickle", [path.read_bytes()]
+
+
+# ── Dependency typosquat / slopsquat check (pure Python, no new deps) ────
+def _edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance, O(len(a)*len(b)), fine for package-name lengths."""
+    if a == b:
+        return 0
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
+        prev = cur
+    return prev[-1]
+
+
+# Small, deliberately short reference lists — the 60-80 most-depended-on
+# packages per ecosystem (not a full registry mirror). A name within
+# max_distance of one of these AND not an exact match is the signal: real
+# typosquats target exactly this high-traffic tail (e.g. 'reqeusts',
+# 'python3-dateutil', 'colourama').
+_TOP_NPM = {
+    "react", "react-dom", "lodash", "express", "axios", "chalk", "commander",
+    "moment", "request", "async", "underscore", "jquery", "vue", "webpack",
+    "babel-core", "eslint", "typescript", "next", "redux", "classnames",
+    "uuid", "yargs", "debug", "glob", "minimist", "semver", "mkdirp",
+    "rimraf", "colors", "dotenv", "cors", "body-parser", "mongoose",
+    "socket.io", "jsonwebtoken", "bcrypt", "nodemon", "pm2", "prettier",
+    "jest", "mocha", "chai", "sinon", "winston", "morgan", "helmet",
+    "passport", "multer", "sharp", "node-fetch", "formik", "styled-components",
+    "tailwindcss", "vite", "rollup", "esbuild", "zod", "date-fns", "rxjs",
+}
+_TOP_PYPI = {
+    "requests", "numpy", "pandas", "flask", "django", "boto3", "urllib3",
+    "setuptools", "pip", "wheel", "pyyaml", "cryptography", "certifi",
+    "idna", "charset-normalizer", "click", "jinja2", "six", "python-dateutil",
+    "pytz", "attrs", "packaging", "typing-extensions", "colorama", "pytest",
+    "sqlalchemy", "pillow", "scipy", "matplotlib", "scikit-learn", "torch",
+    "tensorflow", "fastapi", "uvicorn", "pydantic", "aiohttp", "httpx",
+    "beautifulsoup4", "lxml", "selenium", "paramiko", "redis", "celery",
+    "gunicorn", "psycopg2", "pymysql", "pyjwt", "bcrypt", "cffi", "protobuf",
+    "grpcio", "markdown", "pygments", "rich", "tqdm", "loguru",
+}
 
 
 def _fmt_retire(data) -> str:
@@ -271,3 +412,180 @@ def register(mcp: FastMCP) -> None:
         except json.JSONDecodeError:
             return f"retire.js ran but output was not JSON:\n{(out or err)[:800]}"
         return _fmt_retire(data)
+
+    @mcp.tool()
+    async def scan_model_artifacts(path: str) -> str:
+        """Scan a model file for unsafe pickle deserialization (no execution).
+
+        Closes LLM-SUPPLY-001/002 (Critical) — loading a pickled model can run
+        arbitrary code via `__reduce__`; no model-file scanner existed in
+        Praetor. Disassembles the pickle opcode stream with stdlib
+        `pickletools` (never calls `pickle.load`, so the file is never
+        executed) and flags GLOBAL/STACK_GLOBAL references into
+        exec-capable modules (os, subprocess, sys, builtins, ...).
+
+        Args:
+            path: local file — .pt/.pth/.bin/.pkl/.joblib/.ckpt (PyTorch zip
+                or raw pickle) or .safetensors (format has no exec surface;
+                reported safe without a scan).
+
+        A hit here is a real finding (Critical, RCE-on-load) — not a lead to
+        escalate. Use `confirm_rce`-style evidence only if you then prove the
+        file is actually served/loaded by the target; the scan itself is
+        conclusive about the file's content.
+        """
+        p = Path(path)
+        if not p.is_file():
+            return f"Error: not a file: {path}"
+        try:
+            kind, blobs = _classify_file(p)
+        except (OSError, zipfile.BadZipFile) as e:
+            return f"Error reading {path}: {e}"
+
+        if kind == "safetensors":
+            # Header is JSON-only by spec (tensor names/shapes/dtypes/offsets);
+            # there is no opcode stream and so no RCE-on-load surface. Confirm
+            # the header actually parses as JSON — a mislabeled pickle with a
+            # .safetensors extension would fail this and should be re-scanned
+            # under its real format.
+            try:
+                n = int.from_bytes(p.read_bytes()[:8], "little")
+                json.loads(p.read_bytes()[8:8 + n])
+                return f"scan_model_artifacts {path} [safetensors]: SAFE — header is valid JSON, no exec surface."
+            except Exception as e:
+                return (f"scan_model_artifacts {path} [safetensors]: HEADER DID NOT PARSE "
+                        f"as JSON ({e}) — this file may be mislabeled; re-check its real format.")
+
+        if not blobs:
+            return f"scan_model_artifacts {path} [{kind}]: no pickle stream found to scan."
+
+        all_hits: list[str] = []
+        for blob in blobs:
+            all_hits.extend(_scan_pickle_bytes(blob))
+        if not all_hits:
+            return f"scan_model_artifacts {path} [{kind}]: no dangerous GLOBAL references found."
+        lines = [f"scan_model_artifacts {path} [{kind}]: {len(all_hits)} dangerous reference(s) — UNSAFE DESERIALIZATION"]
+        for h in all_hits[:30]:
+            lines.append(f"  GLOBAL {h}")
+        lines.append("\nImpact: loading this file (torch.load / pickle.load) can execute "
+                      "arbitrary code via __reduce__. Severity: Critical (RCE on load).")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def check_binary_hardening(path: str, timeout: int = 30) -> str:
+        """Check a native binary's compile-time hardening flags (checksec).
+
+        Closes MOB-CODE-005 / DESK-CODE-004 / IOT native-binary-class tests —
+        wraps the already-installed `checksec` tool (no new dependency).
+
+        Args:
+            path: local path to the binary (ELF or PE).
+            timeout: seconds.
+
+        Reports NX, PIE, RELRO (full/partial/none), stack canary, Fortify —
+        the exact fields those checklist tests ask for. Does not assert
+        pass/fail (Rule 13b): a missing mitigation is Low-Medium severity on
+        its own and matters most as a prerequisite for another finding
+        (chain_with), not as a standalone report.
+        """
+        if not Path(path).is_file():
+            return f"Error: not a file: {path}"
+        if not _check_tool("checksec"):
+            return _hint("checksec",
+                         "apt install checksec  |  https://github.com/slimm609/checksec.sh")
+        # Two incompatible tools share the name `checksec` in the wild:
+        # classic checksec.sh (--file=<path> --format json) and pwntools'
+        # `pwn checksec` (--file <path>, plain-text only, no --format flag —
+        # passing it errors out). Try the universal `--file <path>` form,
+        # then parse whichever shape comes back: JSON if it is, else the
+        # plain-text "Key:    Value" lines both tools print.
+        out, err, rc = await _run_cmd(
+            ["checksec", "--file", path],
+            timeout=timeout, bypass_proxy=True,
+        )
+        combined = out or err
+        try:
+            data = json.loads(combined)
+            row = next(iter(data.values()), {}) if isinstance(data, dict) else {}
+        except json.JSONDecodeError:
+            row = {}
+            import re
+            for line in combined.splitlines():
+                m = re.match(r"^\s*([A-Za-z][A-Za-z \-]{1,20}):\s+(.+?)\s*$", line)
+                if m:
+                    row[m.group(1).strip()] = m.group(2).strip()
+        if not row:
+            tail = "\n".join(combined.splitlines()[:20])
+            return f"checksec [{path}]: no parseable result (rc={rc}):\n{tail}"
+        lines = [f"checksec {path}:"]
+        for k, v in row.items():
+            lines.append(f"  {k}: {v}")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    async def check_dependency_typosquat(
+        manifest_path: str,
+        ecosystem: str = "npm",
+        max_distance: int = 2,
+    ) -> str:
+        """Flag dependency names close to a popular package but not exact —
+        typosquat / slopsquat candidates CVE scanners miss by design.
+
+        Closes CICD-DEP-003/007-class gaps — osv-scanner/trivy/grype match
+        known-vulnerable *exact* package names; a typosquat is a *new*,
+        unlisted name deliberately close to a real one, so no CVE-driven
+        scanner flags it.
+
+        Args:
+            manifest_path: package.json / requirements.txt / Pipfile.lock-
+                style file — one dependency name per recognizable line.
+            ecosystem: 'npm' or 'pypi' (selects the reference top-package list).
+            max_distance: flag names within this edit distance (not equal)
+                of a popular package name (default 2).
+        """
+        p = Path(manifest_path)
+        if not p.is_file():
+            return f"Error: not a file: {manifest_path}"
+        text = p.read_text(encoding="utf-8", errors="replace")
+
+        names: set[str] = set()
+        if p.suffix == ".json":
+            try:
+                data = json.loads(text)
+                for key in ("dependencies", "devDependencies", "peerDependencies"):
+                    names.update((data.get(key) or {}).keys())
+            except json.JSONDecodeError:
+                pass
+        else:
+            import re
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or line.startswith(("#", "//")):
+                    continue
+                m = re.match(r"^([A-Za-z0-9_.\-@/]+)", line)
+                if m:
+                    names.add(m.group(1).lower())
+
+        ref = _TOP_NPM if ecosystem == "npm" else _TOP_PYPI
+        hits: list[str] = []
+        for name in sorted(names):
+            if name in ref:
+                continue
+            for popular in ref:
+                if abs(len(name) - len(popular)) > max_distance:
+                    continue
+                dist = _edit_distance(name, popular)
+                if 0 < dist <= max_distance:
+                    hits.append(f"{name}  (distance {dist} from {popular!r})")
+                    break
+        if not hits:
+            return (f"check_dependency_typosquat {manifest_path} [{ecosystem}]: "
+                     f"{len(names)} dependencies checked, 0 typosquat candidates "
+                     f"against the {len(ref)}-package reference list.")
+        lines = [f"check_dependency_typosquat {manifest_path} [{ecosystem}]: "
+                 f"{len(hits)} candidate(s) of {len(names)} dependencies checked"]
+        for h in hits:
+            lines.append(f"  {h}")
+        lines.append("\nA candidate here is a LEAD, not a finding: verify the package is "
+                      "actually unofficial/malicious before reporting (Rule 13b).")
+        return "\n".join(lines)
