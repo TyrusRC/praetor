@@ -11,6 +11,7 @@ isn't loaded.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import httpx
 
@@ -19,12 +20,36 @@ from praetor.config import BURP_API_HOST
 _PORT = int(os.environ.get("EXPEDITION_API_PORT", "18112"))
 _BASE = f"http://{BURP_API_HOST}:{_PORT}"
 _TIMEOUT = float(os.environ.get("EXPEDITION_API_TIMEOUT", "15"))
-# Optional Bearer auth: the control API never enforces a token on loopback, but
-# when the operator sets EXPEDITION_API_TOKEN (recommended for a non-loopback
-# EXPEDITION_API_HOST bind) every request must carry it or the API returns 401.
-# Send it only when the env is present; otherwise send no auth header.
-_TOKEN = os.environ.get("EXPEDITION_API_TOKEN", "").strip()
-_HEADERS = {"Authorization": f"Bearer {_TOKEN}"} if _TOKEN else {}
+
+
+def _resolve_token() -> str:
+    """Mirror ApiToken.resolve() in the Kotlin extension (ApiSecurity.kt):
+    EXPEDITION_API_TOKEN wins when set; otherwise the extension writes a
+    random 64-char hex token to <dir>/api-token on first start and reuses it
+    on every later start, where <dir> is $EXPEDITION_CA_DIR or ~/.expedition.
+    Auth is now MANDATORY on every request (no loopback bypass) — without
+    this read every tcp_*/probe_*_unauth call gets a 401.
+    """
+    env_token = os.environ.get("EXPEDITION_API_TOKEN", "").strip()
+    if env_token:
+        return env_token
+    base = os.environ.get("EXPEDITION_CA_DIR", "").strip() or str(Path.home() / ".expedition")
+    try:
+        return (Path(base) / "api-token").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""  # extension not started yet / file not written — 401 surfaces the real cause
+
+
+def _headers() -> dict:
+    # Resolved per call, not cached at import time: the MCP server is a
+    # long-running process that can start before Burp/expedition ever has —
+    # ~/.expedition/api-token won't exist yet, and caching an empty token
+    # would 401 every call for the rest of the process's life even after the
+    # extension starts and writes it. The file read is cheap; correctness
+    # here matters more than saving one stat() per call.
+    token = _resolve_token()
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
 
 _UNREACHABLE = {
     "error": (
@@ -39,7 +64,7 @@ _UNREACHABLE = {
 
 async def _request(method: str, path: str, json: dict | None = None) -> dict:
     try:
-        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT, headers=_HEADERS) as c:
+        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT, headers=_headers()) as c:
             r = await c.request(method, path, json=json)
             r.raise_for_status()
             data = r.json()
@@ -62,7 +87,7 @@ async def get(path: str) -> dict:
 async def get_list(path: str) -> list | dict:
     """GET an endpoint that returns a JSON array (connections/messages/rules)."""
     try:
-        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT, headers=_HEADERS) as c:
+        async with httpx.AsyncClient(base_url=_BASE, timeout=_TIMEOUT, headers=_headers()) as c:
             r = await c.get(path)
             r.raise_for_status()
             return r.json()
