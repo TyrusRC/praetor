@@ -2,13 +2,14 @@
 
 Evidence lands in the operator log (network/oplog.jsonl, ATT&CK-tagged), not a
 Burp proxy_history_index. Tools: run_nmap, run_groma, get_network_inventory,
-run_network_tool, run_network_recon. HARD safety (Rules 5-9) and mode-aware
-scope (Rule 1) apply.
+run_network_tool, run_network_recon, check_linux_hardening,
+check_windows_hardening. HARD safety (Rules 5-9) and mode-aware scope
+(Rule 1) apply.
 """
 
 from mcp.server.fastmcp import FastMCP
 
-from . import groma, nmap, pipeline, run_tool
+from . import groma, linux_hardening, nmap, pipeline, run_tool, windows_hardening
 
 
 def register(mcp: FastMCP) -> None:
@@ -16,6 +17,8 @@ def register(mcp: FastMCP) -> None:
     groma.register(mcp)
     run_tool.register(mcp)
     pipeline.register(mcp)
+    linux_hardening.register(mcp)
+    windows_hardening.register(mcp)
 
 
 __all__ = ["register"]
