@@ -1147,6 +1147,17 @@ if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAM
     info "WSL detected (networking mode: ${WSL_MODE:-unknown})"
 fi
 
+# Resolve vigil to an ABSOLUTE path, same treatment as $VENV_PYTHON above.
+# A bare "vigil" command relies on the MCP HOST process's own PATH at spawn
+# time, not this script's — go install puts the binary in $BIN_DIR
+# (~/go/bin), which setup.sh exports into ITS OWN shell (line ~290) but
+# never persists to .bashrc/.profile. A host process started before that
+# PATH was ever set (the common case: Claude Code already running when you
+# run setup.sh) still has the old PATH and fails to spawn "vigil" with
+# ENOENT. An absolute path removes the dependency on the host's PATH
+# entirely — same reason $VENV_PYTHON is already absolute, not "python3".
+VIGIL_BIN="$(command -v vigil 2>/dev/null || echo "$BIN_DIR/vigil")"
+
 if [ ! -f "$MCP_JSON" ]; then
     info "Generating .mcp.json..."
     if [ "$IS_WSL" = "1" ] && [ "$WSL_MODE" = "nat" ] && [ -n "$WSL_HOST_IP" ]; then
@@ -1161,7 +1172,7 @@ if [ ! -f "$MCP_JSON" ]; then
       }
     },
     "vigil": {
-      "command": "vigil",
+      "command": "$VIGIL_BIN",
       "args": ["mcp"]
     }
   }
@@ -1177,7 +1188,7 @@ MCPEOF
       "args": ["-m", "praetor"]
     },
     "vigil": {
-      "command": "vigil",
+      "command": "$VIGIL_BIN",
       "args": ["mcp"]
     }
   }
@@ -1191,19 +1202,31 @@ else
         warn "WSL NAT: .mcp.json must set env BURP_API_HOST=$WSL_HOST_IP (Windows host) — or switch to mirrored networking (see 'WSL → Windows Burp' below)"
     fi
     # Idempotently add vigil (Praetor's web-scan engine) to an existing config
-    # without touching anything the user has customised.
-    python3 - "$MCP_JSON" <<'PYEOF'
+    # without touching anything the user has customised. Also repairs a
+    # bare "vigil" command left by an older setup.sh into the absolute
+    # path (the ENOENT-on-reconnect fix) without touching any other field
+    # the user customised on that entry (e.g. --state-file).
+    python3 - "$MCP_JSON" "$VIGIL_BIN" <<'PYEOF'
 import json, sys
-p = sys.argv[1]
+p, vigil_bin = sys.argv[1], sys.argv[2]
 try:
     d = json.load(open(p))
 except Exception:
     sys.exit(0)  # not JSON we recognise — leave it alone
 servers = d.setdefault("mcpServers", {})
+changed = False
 if "vigil" not in servers:
-    servers["vigil"] = {"command": "vigil", "args": ["mcp"]}
-    json.dump(d, open(p, "w"), indent=2)
+    servers["vigil"] = {"command": vigil_bin, "args": ["mcp"]}
+    changed = True
     print("added vigil MCP server to existing .mcp.json")
+elif servers["vigil"].get("command") == "vigil":
+    servers["vigil"]["command"] = vigil_bin
+    changed = True
+    print(f"repaired vigil MCP server command to absolute path ({vigil_bin}) — "
+          "a bare 'vigil' command fails with ENOENT when the MCP host's own "
+          "PATH predates this install")
+if changed:
+    json.dump(d, open(p, "w"), indent=2)
 PYEOF
 fi
 
