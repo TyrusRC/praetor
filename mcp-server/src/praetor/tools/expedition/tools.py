@@ -6,7 +6,7 @@ connection/message history. These tools drive its loopback control API (:8112)
 so the agent can stand up a relay, read captured non-HTTP traffic as evidence,
 replay/fuzz a raw message (the Repeater), and manage match-replace rules — for
 targets Burp's HTTP proxy can't see (Redis, MySQL/PG, MongoDB, MQTT, gRPC, DNS,
-game/IoT protocols, …).
+game/IoT protocols, …). Control API on :18112 (EXPEDITION_API_PORT).
 """
 
 from __future__ import annotations
@@ -67,6 +67,17 @@ def register(mcp: FastMCP) -> None:
         upstream_proxy: str = "",
         client_cert: str = "",
         client_cert_password: str = "",
+        tls_passthrough: str = "",
+        socks_username: str = "",
+        socks_password: str = "",
+        framing: str = "passthrough",
+        delimiter: str = "",
+        delimiter_hex: str = "",
+        length_offset: int = 0,
+        length_size: int = 4,
+        length_endian: str = "big",
+        length_adjust: int = 0,
+        max_frame_bytes: int = 0,
     ) -> str:
         """Start a TCP/UDP/SOCKS5 listener (bind -> upstream) in Expedition.
 
@@ -90,6 +101,30 @@ def register(mcp: FastMCP) -> None:
                 onward proxy (chaining). Empty = direct.
             client_cert: path to a .p12/.pfx for mutual-TLS upstream auth.
             client_cert_password: password for client_cert (if any).
+            tls_passthrough: comma list of SNI patterns ('host' or '*.suffix')
+                relayed as raw TLS instead of MITM-decrypted (history gets a
+                'TLS PASSTHROUGH' note, no plaintext). Empty = MITM everything
+                when tls='mitm'.
+            socks_username: RFC 1929 username for a socks5 listener (optional;
+                unauthenticated when blank). Ignored for tcp/udp.
+            socks_password: RFC 1929 password (paired with socks_username).
+            framing: TCP message framing — 'passthrough' (default, one message
+                per socket read), 'delimiter' (split on a byte sequence — set
+                delimiter or delimiter_hex), or 'length' (length-prefixed
+                binary protocols like gRPC/Modbus/DNP3 — set length_offset/
+                length_size/length_endian/length_adjust). UDP ignores this.
+            delimiter: literal delimiter string for framing='delimiter'
+                (e.g. '\\r\\n'). Mutually exclusive with delimiter_hex.
+            delimiter_hex: hex-encoded delimiter for framing='delimiter' when
+                the separator isn't printable text.
+            length_offset: byte offset of the length field for framing='length'.
+            length_size: length-field width in bytes — 1/2/3/4/8 (default 4).
+            length_endian: 'big' (default) or 'little'.
+            length_adjust: added to the decoded length to get the full frame
+                size (e.g. -4 when the length field excludes its own bytes).
+            max_frame_bytes: cap on buffered frame size (default 1 MiB
+                extension-side) — beyond it bytes flush raw with a warning.
+                0 = use the extension's default.
         """
         is_socks = protocol.lower() == "socks5"
         if not is_socks and (not upstream_host or upstream_port <= 0):
@@ -109,6 +144,28 @@ def register(mcp: FastMCP) -> None:
             payload["client_cert"] = client_cert
             if client_cert_password:
                 payload["client_cert_password"] = client_cert_password
+        if tls_passthrough:
+            payload["tls_passthrough"] = [p.strip() for p in tls_passthrough.split(",") if p.strip()]
+        if is_socks and socks_username:
+            payload["username"] = socks_username
+            if socks_password:
+                payload["password"] = socks_password
+        if protocol.lower() == "tcp" and framing.lower() != "passthrough":
+            payload["framing"] = framing
+            if framing.lower() in ("delimiter", "delimited", "line"):
+                if delimiter_hex:
+                    payload["delimiter_hex"] = delimiter_hex
+                elif delimiter:
+                    payload["delimiter"] = delimiter
+                else:
+                    return "Error: framing='delimiter' needs delimiter or delimiter_hex."
+            elif framing.lower() == "length":
+                payload["length_offset"] = length_offset
+                payload["length_size"] = length_size
+                payload["length_endian"] = length_endian
+                payload["length_adjust"] = length_adjust
+            if max_frame_bytes > 0:
+                payload["max_frame_bytes"] = max_frame_bytes
         d = await _client.post("/listeners", json=payload)
         if "error" in d:
             return f"Error: {d['error']}"
@@ -116,13 +173,17 @@ def register(mcp: FastMCP) -> None:
         extras = []
         tl = tls.lower()
         if tl == "mitm":
-            extras.append("TLS MITM")
+            extras.append("TLS MITM" + (f" (passthrough: {tls_passthrough})" if tls_passthrough else ""))
         elif tl == "starttls":
             extras.append("STARTTLS")
         if upstream_proxy:
             extras.append(f"via {upstream_proxy}")
         if client_cert:
             extras.append("client-cert")
+        if is_socks and socks_username:
+            extras.append("socks-auth")
+        if framing.lower() != "passthrough":
+            extras.append(f"framing={framing}")
         tag = f" ({', '.join(extras)})" if extras else ""
         return (f"Listener '{name}' [{protocol.upper()}] up on {bind_host}:{bind_port} "
                 f"-> {dest}{tag}.")
@@ -333,33 +394,19 @@ def register(mcp: FastMCP) -> None:
         return "\n".join(lines)
 
     @mcp.tool()
-    async def tcp_tag_connection(connection_id: int, tag: str) -> str:
-        """Tag an expedition connection (like annotate_request for HTTP).
-
-        Tags mark connections as evidence for findings. Use consistent tags:
-        RED=confirmed, ORANGE=suspected, YELLOW=anomaly, GREEN=baseline.
+    async def tcp_get_tags(connection_id: int) -> str:
+        """Read back the tags recorded on an expedition connection.
 
         Args:
             connection_id: Connection ID from tcp_proxy_connections.
-            tag: Tag string (e.g. 'f001-redis-unauth', 'RED', 'baseline').
+
+        Use tcp_annotate to set color/comment tags; this reads them back
+        (the control API's GET /connections/{id}/tags).
         """
-        d = await _client.post(f"/connections/{connection_id}/tag", json={"tag": tag})
+        d = await _client.get(f"/connections/{connection_id}/tags")
         if "error" in d:
             return f"Error: {d['error']}"
-        return f"Tagged connection#{connection_id} with '{tag}'."
-
-    @mcp.tool()
-    async def tcp_search_messages(query: str, limit: int = 50) -> str:
-        """Search expedition message history by content (like search_history for HTTP).
-
-        Args:
-            query: Text to search for in message payloads (case-insensitive).
-            limit: Max results (default 50).
-        """
-        rows = await _client.get_list(f"/messages/search?q={query}&limit={limit}")
-        if isinstance(rows, dict):
-            return rows.get("error", str(rows))
-        return _fmt_msgs(rows)
+        return f"Connection #{connection_id} tags: {d.get('tags', [])}"
 
     @mcp.tool()
     async def tcp_session_export() -> str:
