@@ -73,6 +73,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Auto-bridge: groma discovers non-HTTP services → expedition listeners auto-created for Redis, MySQL, PostgreSQL, MongoDB, MQTT, Memcached
 - Protocol probes: `probe_redis_unauth`, `probe_mysql_unauth`, `probe_mongodb_unauth`, `probe_mqtt_unauth`, `probe_memcached_unauth` — test auth on discovered services
 - Sanctioned runner for impacket, netexec, responder, BloodHound, certipy, kerbrute, evil-winrm, dnscat2
+- Named host-hardening checks over that same sanctioned runner: `check_linux_hardening` (PAM, auditd, package-manager policy — 29 checks via `netexec ssh -x`) and `check_windows_hardening` (LSA protection, Credential Guard, WDigest, cached logons, AppLocker, PowerShell logging, AlwaysInstallElevated, UAC — 9 checks via `netexec smb -x reg query`)
 - Credential capture → offline crack → store → reuse loop
 - BloodHound/certipy ingestion into ATT&CK-tagged operator log
 - Non-HTTP protocol testing via burp-expedition: relay, intercept, fuzz, repeat, search, annotate, session export for TCP/UDP services
@@ -106,6 +107,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - **Cloud:** config-posture audit (prowler, ScoutSuite, CloudSploit), active collectors (pacu, azurehound, gcp_scanner), anonymous public-bucket enumeration, IaC scanning, container/K8s security
 - **LLM/MCP:** prompt injection, tool poisoning, system-prompt leakage, OWASP LLM/AI Top 10, LLM fingerprinting (model/provider identification via behavioral probes), LLM tool-abuse testing (function call injection, excessive agency, tool parameter injection). Inspired by [Anticells Red MCP](https://github.com/nicholasgcoles/anticells-red-mcp) template catalogs
 - **Fuzzing:** structure-aware file upload fuzzing, AFL integration, crash triage, TCP/UDP protocol fuzzing via expedition
+- **Supply chain:** `scan_model_artifacts` (pickle/safetensors opcode scan — flags RCE-on-load without executing the file), `check_binary_hardening` (NX/PIE/RELRO/canary via checksec), `check_dependency_typosquat` (name-distance check for typosquat/slopsquat dependencies), `audit_github_org_settings`/`audit_github_repo_settings` (branch protection, 2FA enforcement, environment approval gates, secrets/deploy-key inventory via the GitHub REST API)
 
 **Vibe-Code / SPA Backend Probing**
 - JS bundle secret extraction (Supabase anon keys, Firebase configs, API tokens) via `extract_js_secrets`
