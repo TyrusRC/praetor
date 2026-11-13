@@ -4,6 +4,7 @@
   record_redteam_action / record_loot / get_operator_log - evidence (oplog_tools.py)
   sync_to_ghostwriter / ghostwriter_status               - central hub (ghostwriter_tools.py)
   ingest_bloodhound / sync_bloodhound_to_ghostwriter     - AD attack paths (bloodhound_tools.py)
+  run_credshound / run_credshound_update_templates       - local credential-surface scan (credshound.py)
   ip_allowlist_coverage                                  - IP-allowlist control audit (ip_allowlist.py)
 
 The web lane cites Burp proxy_history_index; this lane cites operator-log ids. Both
@@ -12,7 +13,15 @@ forward into Ghostwriter as the single reporting/oplog centre for the engagement
 
 from mcp.server.fastmcp import FastMCP
 
-from . import bloodhound_tools, ghostwriter_tools, ip_allowlist, lookup, oplog_tools, postex
+from . import (
+    bloodhound_tools,
+    credshound,
+    ghostwriter_tools,
+    ip_allowlist,
+    lookup,
+    oplog_tools,
+    postex,
+)
 
 
 def register(mcp: FastMCP) -> None:
@@ -21,6 +30,7 @@ def register(mcp: FastMCP) -> None:
     ghostwriter_tools.register(mcp)
     postex.register(mcp)
     bloodhound_tools.register(mcp)
+    credshound.register(mcp)
     ip_allowlist.register(mcp)
 
 
