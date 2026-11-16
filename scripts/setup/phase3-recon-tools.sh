@@ -16,10 +16,24 @@ echo ""
 install_pd_tool() {
     local name="$1"
     local install_cmd="$2"
-    if has "$name"; then
+    # A `go install pkg@latest` command always re-resolves to the latest commit
+    # and is a cheap no-op when already current, so --update re-runs it even
+    # when $name is already on PATH. Without this, an operator who already had
+    # an old vigil/groma/etc binary NEVER got a newer one — found from a real
+    # bug report: vigil's `mcp` subcommand (added upstream after this
+    # operator's build) never arrived via a plain OR --update re-run, because
+    # install_pd_tool skipped the whole install step once `has vigil` was
+    # true. Other install methods (uv tool install, curl|bash, brew) keep the
+    # old skip-if-present behavior — they are not all safely idempotent to
+    # blind-rerun, unlike go install.
+    if has "$name" && { [ "$FORCE_UPDATE" != 1 ] || [[ "$install_cmd" != *"go install"* ]]; }; then
         ok "$name already installed"
     else
-        info "Installing $name..."
+        if has "$name"; then
+            info "Refreshing $name (--update)..."
+        else
+            info "Installing $name..."
+        fi
         if eval "$install_cmd" 2>&1 | tail -1; then
             has "$name" && ok "$name installed" || warn "$name: install completed but binary not in PATH"
         else
@@ -83,6 +97,21 @@ install_pd_tool "nuclei" \
 # context-aware detectors + nuclei-compatible template engine + headless.
 install_pd_tool "vigil" \
     "go install github.com/TyrusRC/vigil/cmd/vigil@latest"
+# `vigil mcp` is what .mcp.json's "vigil" server entry spawns — a build from
+# before that subcommand existed upstream "installs" fine (has vigil = true)
+# but leaves the MCP server dead on every later run, plain or --update, since
+# install_pd_tool otherwise never re-touches an already-present binary. Force
+# a refresh regardless of --update when the capability is missing — this is
+# a repair, not an upgrade preference.
+if has vigil && ! vigil mcp --help >/dev/null 2>&1; then
+    warn "vigil is missing its 'mcp' subcommand (stale build) — forcing a refresh..."
+    go install github.com/TyrusRC/vigil/cmd/vigil@latest 2>&1 | tail -1
+    if vigil mcp --help >/dev/null 2>&1; then
+        ok "vigil refreshed — 'mcp' subcommand present"
+    else
+        warn "vigil still missing 'mcp' after refresh — the .mcp.json vigil server will fail to start; check go install output above"
+    fi
+fi
 
 # groma — Praetor's default network-scan engine (run_groma). Full 1-65535
 # port range by default, naabu-based service fingerprinting + YAML CVE
