@@ -4,6 +4,7 @@ import time
 from urllib.parse import urlsplit
 
 import httpx
+from praetor import _noise_governor
 from praetor.config import BASE_URL, BURP_API_TIMEOUT
 
 
@@ -130,9 +131,14 @@ async def get(path: str, params: dict | None = None) -> dict:
 
 
 async def post(path: str, json: dict | None = None) -> dict:
-    """POST request to the Burp extension REST API."""
+    """POST request to the Burp extension REST API.
+
+    Paced per target host when PRAETOR_NOISE_PROFILE (or set_noise_profile())
+    is anything but "off" — see _noise_governor. No-op by default.
+    """
     started = time.monotonic()
     try:
+        await _noise_governor.maybe_pace(path, json)
         client = await _get_client()
         resp = await client.post(path, json=json or {})
         resp.raise_for_status()
