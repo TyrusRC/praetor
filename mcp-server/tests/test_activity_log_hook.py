@@ -62,6 +62,38 @@ class ActivityLogHookTest(unittest.TestCase):
         self.assertEqual(out, "")
         self.assertEqual(self._lines(), [])
 
+    def test_logs_confirm_poc_with_verdict_detail(self):
+        """Every confirm_*/escalate_* call is a real PoC attempt — logged so
+        "did you already test this" is answered from the trail, not memory."""
+        self._run({"tool_name": "mcp__praetor__confirm_ssti", "session_id": "agent1",
+                   "tool_input": {"endpoint": "https://shop.example.com/search",
+                                  "parameter": "q"},
+                   "tool_response": {"verdict": "CONFIRMED", "confidence": 0.9,
+                                     "vuln_type": "ssti",
+                                     "evidence_summary": "engine=twig expected='392' reflected",
+                                     "logger_indices": [42]}})
+        rows = [json.loads(x) for x in self._lines()]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["kind"], "poc")
+        self.assertEqual(rows[0]["domain"], "shop.example.com")
+        self.assertEqual(rows[0]["id"], "q")
+        self.assertIn("CONFIRMED", rows[0]["note"])
+        self.assertIn("ssti", rows[0]["note"])
+        self.assertIn("42", rows[0]["note"])
+
+    def test_logs_a_failed_poc_too_not_only_confirmed_ones(self):
+        """A FAILED attempt must also land in the log — otherwise re-reading
+        it can't tell "not tried yet" apart from "tried, came back empty"."""
+        self._run({"tool_name": "mcp__praetor__confirm_sqli", "session_id": "agent1",
+                   "tool_input": {"endpoint": "https://shop.example.com/item",
+                                  "parameter": "id"},
+                   "tool_response": {"verdict": "FAILED", "confidence": 0.1,
+                                     "vuln_type": "sqli",
+                                     "evidence_summary": "no DBMS matched"}})
+        rows = [json.loads(x) for x in self._lines()]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("FAILED", rows[0]["note"])
+
 
 if __name__ == "__main__":
     unittest.main()
