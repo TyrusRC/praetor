@@ -69,6 +69,7 @@ from praetor.tools import (
     burp_settings,
     noise_governor_tool,
     evasion_tool,
+    pipeline_tool,
     skills_access,
     agents_access,
     host_bootstrap,
@@ -214,6 +215,7 @@ hub.register(mcp)       # set_remediation / remediation_status (SLA+MTTR) + impo
 burp_settings.register(mcp)  # burp_settings — single dispatcher over Montoya-settable Burp settings (scope/intercept/match-replace) + documents Montoya limits
 noise_governor_tool.register(mcp)  # set_noise_profile / get_noise_profile — per-host outbound pacing, off by default
 evasion_tool.register(mcp)        # set_evasion_profile / get_evasion_profile — traffic pattern randomization, off by default
+pipeline_tool.register(mcp)       # run_pipeline / describe_tools — server-side tool composition (N calls in 1 round trip)
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction

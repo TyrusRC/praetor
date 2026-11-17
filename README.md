@@ -91,6 +91,10 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - Request evasion layer randomizes outbound traffic patterns to avoid blue-team detection (WAF, IDS, SIEM correlation, bot fingerprinting). Four profiles: `off` (default), `light` (fingerprint rotation + Accept-Language variation), `moderate` (+ header order shuffling + decoy injection + Sec-Fetch variation), `full` (+ Referer injection + cache-control randomization). Caller-supplied headers always win. Opt-in via `set_evasion_profile` or `PRAETOR_EVASION` env var
 - Per-host noise governor (`set_noise_profile`) paces request rate with token-bucket + jitter — stays under WAF per-minute thresholds across the whole session
 
+**Server-Side Pipeline**
+- `run_pipeline` executes a sequence of tool calls in one MCP round trip — N calls compressed to 1. Only the final result enters model context; intermediate results stay server-side. Supports result forwarding between steps (`$prev`, `$step.N`). Max 20 steps per pipeline
+- `describe_tools` returns full input schemas for multiple tools in one call — batch lazy-loading for hosts that defer schema resolution
+
 **Reporting & Evidence**
 - 7-question save-finding gate with per-program policy overrides
 - **Evidence quality gates**: programmatic checks block MEDIUM+ findings with malformed PoC requests or terse impact statements; advisory notices on LOW findings with weak evidence
