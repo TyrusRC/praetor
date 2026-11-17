@@ -131,4 +131,8 @@ def apply_realistic_headers(
         merged[k] = v
 
     merged.update(caller)
+
+    from ._request_evasion import apply_evasion
+    merged = apply_evasion(merged, url, caller_lc)
+
     return merged

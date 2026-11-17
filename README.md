@@ -87,6 +87,10 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 - OSINT: leaked credential search, paste site monitoring, email breach checks, exposed config/API/backup discovery
 - Threat intel: Shodan, VirusTotal, HIBP, OTX, GreyNoise, AbuseIPDB, URLScan (free-tier, keyless-first)
 
+**Traffic Evasion**
+- Request evasion layer randomizes outbound traffic patterns to avoid blue-team detection (WAF, IDS, SIEM correlation, bot fingerprinting). Four profiles: `off` (default), `light` (fingerprint rotation + Accept-Language variation), `moderate` (+ header order shuffling + decoy injection + Sec-Fetch variation), `full` (+ Referer injection + cache-control randomization). Caller-supplied headers always win. Opt-in via `set_evasion_profile` or `PRAETOR_EVASION` env var
+- Per-host noise governor (`set_noise_profile`) paces request rate with token-bucket + jitter — stays under WAF per-minute thresholds across the whole session
+
 **Reporting & Evidence**
 - 7-question save-finding gate with per-program policy overrides
 - **Evidence quality gates**: programmatic checks block MEDIUM+ findings with malformed PoC requests or terse impact statements; advisory notices on LOW findings with weak evidence
@@ -238,6 +242,7 @@ All optional. The core hunt loop runs with no keys.
 | `PRAETOR_PROFILE` | all | Tool lanes to advertise (web/network/mobile/cloud/core/codex) |
 | `PRAETOR_TOOL_RAG` | off | BM25-based tool filtering — projects 300+ tools to top-k most relevant per intent (set `1` to enable) |
 | `PRAETOR_TOOL_RAG_TOPK` | 20 | Number of non-core tools to keep visible when Tool RAG is enabled (5–200) |
+| `PRAETOR_EVASION` | off | Request evasion profile: off / light / moderate / full — randomizes traffic patterns to avoid blue-team fingerprinting |
 
 Full list with OSINT keys, Ghostwriter auth, and CI options in `.env.example`.
 

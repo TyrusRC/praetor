@@ -68,6 +68,7 @@ from praetor.tools import (
     fuzzing,
     burp_settings,
     noise_governor_tool,
+    evasion_tool,
     skills_access,
     agents_access,
     host_bootstrap,
@@ -212,6 +213,7 @@ assurance.register(mcp) # standards_coverage heatmap, generate_posture_dashboard
 hub.register(mcp)       # set_remediation / remediation_status (SLA+MTTR) + import_scan_results (nuclei/nessus dedup-merge)
 burp_settings.register(mcp)  # burp_settings — single dispatcher over Montoya-settable Burp settings (scope/intercept/match-replace) + documents Montoya limits
 noise_governor_tool.register(mcp)  # set_noise_profile / get_noise_profile — per-host outbound pacing, off by default
+evasion_tool.register(mcp)        # set_evasion_profile / get_evasion_profile — traffic pattern randomization, off by default
 transform.register(mcp)  # encoding chains, smart decode, encoding detection
 repeater.register(mcp)   # tracked Repeater tabs with iterative resend
 macro.register(mcp)      # reusable request macros with variable extraction
