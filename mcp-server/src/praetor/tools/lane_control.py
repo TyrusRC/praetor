@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from praetor import _lanes
+from praetor import _lanes, _tool_rag
 
 
 async def _notify(ctx: Context | None) -> None:
@@ -55,11 +55,11 @@ def register(mcp: FastMCP) -> None:
                 (default True).
         """
         tm = mcp._tool_manager
-        tool = tm._tools.get(name) or _lanes.HIDDEN.get(name)
+        tool = tm._tools.get(name) or _lanes.HIDDEN.get(name) or _tool_rag.HIDDEN_BY_RAG.get(name)
         if tool is None:
             return {"error": f"unknown tool {name!r}",
                     "hint": "find the right tool with pick_tool(task) or list_tier1_tools()."}
-        hidden = name in _lanes.HIDDEN
+        hidden = name in _lanes.HIDDEN or name in _tool_rag.HIDDEN_BY_RAG
         lane = _lanes._lane_of(name, tool)
         if arguments is None:
             return {"tool": name, "lane": lane, "gated": hidden,

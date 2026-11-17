@@ -136,6 +136,12 @@ def register(mcp: FastMCP):
         if scanner_err is not None:
             return scanner_err
 
+        eq_err = _gates.evidence_quality_gate(
+            severity, poc_request, impact, evidence_text, override_set
+        )
+        if eq_err is not None:
+            return eq_err
+
         # Reachability + real-exploit facts drive the CVSS environmental/threat
         # metrics (MAV / E) so an internal-only or IP-allowlisted finding scores
         # its true band instead of the internet-facing default. Stored on the
@@ -194,9 +200,32 @@ def register(mcp: FastMCP):
             cvss4_severity=cvss4_severity,
             resolved_domain=resolved_domain,
         )
-        # Non-blocking: surface a missing step-by-step PoC so the omission is
-        # visible on the save, not discovered at report time (Rule 16a reader).
+        # Non-blocking notices: surface quality gaps visible on save, not at report time.
         repro_notice = _gates.repro_steps_notice(severity, reproduction_steps, override_set)
         if repro_notice:
             result = f"{result}\n\n{repro_notice}"
+        eq_notice = _gates.evidence_quality_notice(
+            severity, poc_request, impact, evidence_text, override_set
+        )
+        if eq_notice:
+            result = f"{result}\n\n{eq_notice}"
+
+        # Post-save chain detection: auto-detect escalation chains.
+        if resolved_domain:
+            try:
+                from praetor.tools.exploit._chain_detector import detect_chains_for_finding
+                finding_dict = {
+                    "vuln_type": vuln_type, "endpoint": endpoint,
+                    "parameter": parameter, "severity": severity,
+                    "status": status, "chain_with": chain_with or [],
+                }
+                chains = detect_chains_for_finding(resolved_domain, finding_dict)
+                if chains:
+                    names = [c.get("pattern", "?") for c in chains[:3]]
+                    result = (
+                        f"{result}\n\nCHAIN CANDIDATES DETECTED: {', '.join(names)}. "
+                        f"Run detect_chains('{resolved_domain}') for details."
+                    )
+            except Exception:
+                pass  # fail-open: chain detection is advisory
         return result

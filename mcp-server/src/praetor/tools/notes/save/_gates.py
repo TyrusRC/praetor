@@ -346,3 +346,92 @@ def chain_with_gate(chain_with, resolved_domain: str) -> str | None:
         except (OSError, ValueError):
             pass  # best-effort
     return None
+
+
+# ── Evidence quality gate (programmatic, inspired by CyberStrike) ────────
+# Catches the most common evidence-quality failures that reach save_finding:
+# poc_request with no HTTP verb, impact that is too terse to convey meaning,
+# high-severity findings with no concrete data reference.
+
+import re as _re
+
+_HTTP_VERB_RE = _re.compile(
+    r"\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)\b"
+    r"|^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT) /",
+    _re.MULTILINE,
+)
+_CURL_RE = _re.compile(r"\bcurl\b", _re.IGNORECASE)
+
+
+def evidence_quality_gate(
+    severity: str,
+    poc_request: str,
+    impact: str,
+    evidence_text: str,
+    override_set: set,
+) -> str | None:
+    """Programmatic evidence quality checks. Blocks MEDIUM+; silent for LOW."""
+    if "evidence_quality" in override_set:
+        return None
+
+    sev_rank = SEVERITY_RANK.get(severity, 0)
+    issues: list[str] = []
+
+    if poc_request and not _HTTP_VERB_RE.search(poc_request) and not _CURL_RE.search(poc_request):
+        issues.append(
+            "poc_request contains no HTTP verb (GET/POST/...) and no curl command — "
+            "a triager cannot replay it."
+        )
+
+    if sev_rank >= SEVERITY_RANK["MEDIUM"] and impact.strip():
+        if len(impact.strip()) < 20:
+            issues.append(
+                f"impact is only {len(impact.strip())} chars — too short to convey "
+                "what an attacker gains. State whose data, which action, what is obtained."
+            )
+
+    if sev_rank >= SEVERITY_RANK["HIGH"]:
+        _DATA_SIGNALS = (
+            "user data", "pii", "credential", "password", "token", "session",
+            "admin", "privilege", "rce", "remote code", "shell", "command",
+            "database", "dump", "exfil", "account", "takeover", "ato",
+        )
+        hay = " ".join(s.lower() for s in (evidence_text, impact, poc_request) if s)
+        if hay and not any(sig in hay for sig in _DATA_SIGNALS):
+            issues.append(
+                "HIGH/CRITICAL with no concrete impact signal in evidence/impact/poc — "
+                "expected: user data, credential, admin, RCE, session, privilege, ATO."
+            )
+
+    if not issues:
+        return None
+    if sev_rank < SEVERITY_RANK["MEDIUM"]:
+        return None
+
+    return (
+        "EVIDENCE QUALITY GATE:\n"
+        + "\n".join(f"  - {i}" for i in issues)
+        + "\n  Fix the evidence fields, or overrides=['evidence_quality:<reason>']."
+    )
+
+
+def evidence_quality_notice(
+    severity: str,
+    poc_request: str,
+    impact: str,
+    evidence_text: str,
+    override_set: set,
+) -> str | None:
+    """Non-blocking notice for LOW findings with weak evidence quality."""
+    if "evidence_quality" in override_set:
+        return None
+    sev_rank = SEVERITY_RANK.get(severity, 0)
+    if sev_rank >= SEVERITY_RANK["MEDIUM"]:
+        return None
+
+    issues: list[str] = []
+    if poc_request and not _HTTP_VERB_RE.search(poc_request) and not _CURL_RE.search(poc_request):
+        issues.append("poc_request has no HTTP verb or curl command")
+    if not issues:
+        return None
+    return "NOTE (evidence quality): " + "; ".join(issues) + "."

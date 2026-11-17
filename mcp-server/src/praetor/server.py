@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from praetor._schema_slim import slim_descriptions, slim_tool_schemas
+from praetor._tool_rag import filter_tools_by_relevance as _rag_filter
 from praetor.tools import (
     read, analyze, send, correlate, collaborate, notes,
     scanner, utility, testing, export, resources, dom, scope, session, payloads, scan, edge,
@@ -339,6 +340,12 @@ _lanes.apply_profile(mcp, _os.environ.get("PRAETOR_PROFILE") or _lanes.DEFAULT_P
 # Trim each to its one-line summary — auto for a lean profile, or forced via
 # PRAETOR_SLIM_DESCRIPTIONS. Full guidance stays reachable via pick_tool / run_tool.
 slim_descriptions(mcp)
+
+# BM25 Tool RAG: when PRAETOR_TOOL_RAG=1, project only the most relevant
+# non-core tools into the manifest. Hidden tools stay executable via run_tool.
+# The query is empty at startup (no-op); the first tool call with a task context
+# can re-filter. See _tool_rag.py.
+_rag_filter(mcp, _os.environ.get("PRAETOR_TOOL_RAG_QUERY", ""))
 
 # Declare the tools.listChanged capability so a client arms its re-sync handler. When
 # run_tool / use_lane promote a gated lane they call session.send_tool_list_changed();

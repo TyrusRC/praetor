@@ -181,6 +181,8 @@ def record_coverage(domain: str, data: dict) -> None:
                     for e in cov["entries"]:
                         if (e.get("endpoint"), e.get("parameter"), e.get("category")) == key:
                             e["knowledge_version"] = kv
+                            if not e.get("outcome"):
+                                e["outcome"] = "needs_follow_up"
                             break
                 else:
                     cov["entries"].append({
@@ -188,6 +190,7 @@ def record_coverage(domain: str, data: dict) -> None:
                         "parameter": par,
                         "category": cat,
                         "knowledge_version": kv,
+                        "outcome": "needs_follow_up",
                     })
                     seen.add(key)
         # Compact on disk. coverage.json is re-read by load_target_intel

@@ -1,0 +1,4745 @@
+[
+  {
+    "category": "a2a_protocol",
+    "file": "a2a_protocol.json",
+    "description": "Agent-to-Agent (A2A) protocol attack surface (Linux Foundation v1.0, 2026). Covers agent card forgery, capability over-claim, recursive delegation abuse, missing caller allowlist, internal-URL exfil, tool description injection at the card layer. Distinct from MCP attacks (MCP is host↔server JSON-RPC; A2A is agent↔agent peering).",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "mcp_server_attacks",
+      "ai_prompt_injection",
+      "ssrf",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "a2a",
+      "agent-pipeline",
+      "agent2agent",
+      "agentic-workflow",
+      "assistant",
+      "linux-foundation-a2a",
+      "mcp",
+      "multi-stage-agent"
+    ],
+    "top_severity": "critical",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "access_control",
+    "file": "access_control.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHZ-02",
+    "cwe_ids": [
+      "CWE-285"
+    ],
+    "chains_with": [
+      "idor",
+      "auth_bypass"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [],
+    "top_severity": "critical",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "ai_prompt_injection",
+    "file": "ai_prompt_injection.json",
+    "description": "LLM prompt injection — direct (user-controlled prompt smuggling), indirect (via retrieved data), tool/function calling abuse, jailbreak chains, system-prompt extraction. Coverage spans GPT/Claude/Gemini/Llama backends and common wrappers (LangChain, LlamaIndex, Vercel AI SDK, OpenAI Assistants).",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "llm_tool_abuse",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "ai-gateway",
+      "anthropic",
+      "anthropic-tools",
+      "assistant",
+      "chatbot",
+      "claude",
+      "code-interpreter",
+      "codeium",
+      "copilot",
+      "file-analysis",
+      "function-calling",
+      "gemini",
+      "guardrails",
+      "langchain",
+      "langchain-core",
+      "langchain_core",
+      "langgraph",
+      "llama",
+      "llamaindex",
+      "llm-firewall",
+      "llm-gateway",
+      "markdown-render",
+      "mcp",
+      "mcp-server",
+      "microsoft.semantickernel",
+      "model-context-protocol",
+      "openai",
+      "openai-assistant",
+      "openai-tools",
+      "prompt-guard",
+      "rag",
+      "sandbox",
+      "semantic kernel",
+      "vertex-ai-search",
+      "windsurf"
+    ],
+    "top_severity": "critical",
+    "context_count": 20,
+    "is_reference_only": false
+  },
+  {
+    "category": "anon_cloud_expansion",
+    "file": "anon_cloud_expansion.json",
+    "description": "Anonymous cloud-service exposure expansion. Covers etcd, kubelet, Docker daemon, Consul, Vault, Nomad, Spinnaker UIs, Firebase RTDB/Firestore open-rules, Terraform .tfstate exposure, Lambda Function URL auth=NONE detection. Pure HTTP probes — no provider creds.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "cloud_storage_misconfig",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "consul",
+      "deck",
+      "docker",
+      "etcd",
+      "firebase",
+      "firebaseio",
+      "firestore",
+      "gate",
+      "hashicorp",
+      "k8s",
+      "kubelet",
+      "kubernetes",
+      "moby",
+      "nomad",
+      "spinnaker",
+      "vault"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "api_abuse",
+    "file": "api_abuse.json",
+    "description": "",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-285"
+    ],
+    "chains_with": [
+      "idor",
+      "auth_bypass",
+      "mass_assignment"
+    ],
+    "prerequisites": [
+      "api_inventory"
+    ],
+    "tech_stack": [
+      "apache",
+      "apollo",
+      "aws alb",
+      "cloudflare",
+      "graphql",
+      "haproxy",
+      "hasura",
+      "nginx",
+      "relay"
+    ],
+    "top_severity": "high",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "api_inventory",
+    "file": "api_inventory.json",
+    "description": "",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "drf-yasg",
+      "express",
+      "fastapi",
+      "micronaut",
+      "openapi",
+      "quarkus",
+      "rails",
+      "spring",
+      "spring boot",
+      "springdoc",
+      "swagger"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "argv_injection",
+    "file": "argv_injection.json",
+    "description": "Argument injection — distinct from generic command injection. Application passes user input as an argument to a subprocess but doesn't validate flag-like prefixes. `-` / `--` / `@` smuggle behavior changes into commands the developer didn't intend (curl --upload-file, find -exec, openssl -config, ssh -oProxyCommand). PayloadsAllTheThings calls this out as its own surface; many CMDi-resistant apps fall to it.",
+    "owasp_id": "WSTG-INPV-12",
+    "cwe_ids": [
+      "CWE-88"
+    ],
+    "chains_with": [
+      "command_injection",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "git",
+      "imagemagick",
+      "ssh"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "atlassian_confluence",
+    "file": "atlassian_confluence.json",
+    "description": "Atlassian Confluence Data Center/Server edge CVEs — broken access control privesc (CVE-2023-22515) and OGNL template injection RCE (CVE-2023-22527). Detection-only version/endpoint fingerprints — NO state-changing OGNL.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "atl-token",
+      "atlassian",
+      "confluence",
+      "x-confluence-request-time"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "auth_bypass",
+    "file": "auth_bypass.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHN-04",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "idor",
+      "access_control"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "authentication",
+    "file": "authentication.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHN-01",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "mfa_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "asp.net",
+      "java",
+      "php",
+      "ruby"
+    ],
+    "top_severity": "critical",
+    "context_count": 14,
+    "is_reference_only": false
+  },
+  {
+    "category": "banking_finance",
+    "file": "banking_finance.json",
+    "description": "",
+    "owasp_id": "WSTG-BUSL-09",
+    "cwe_ids": [
+      "CWE-840"
+    ],
+    "chains_with": [
+      "payment_flow",
+      "idor",
+      "race_condition"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "banking",
+      "fdx",
+      "openbanking",
+      "plaid",
+      "psd2",
+      "tink",
+      "truelayer",
+      "yapily",
+      "yodlee"
+    ],
+    "top_severity": "",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "browser_storage",
+    "file": "browser_storage.json",
+    "description": "Browser-side storage attacks — localStorage XSS persistence, ServiceWorker hijack, IndexedDB tampering, BFCache (back-forward cache) auth bypass, quota-exceeded fallback. These are CLIENT-SIDE bugs but reportable when chained or when the app trusts client-stored data.",
+    "owasp_id": "WSTG-CLNT-12",
+    "cwe_ids": [
+      "CWE-922"
+    ],
+    "chains_with": [
+      "xss",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "offline",
+      "pwa",
+      "service_worker",
+      "spa"
+    ],
+    "top_severity": "critical",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "business_logic",
+    "file": "business_logic.json",
+    "description": "",
+    "owasp_id": "WSTG-BUSL-01",
+    "cwe_ids": [
+      "CWE-840"
+    ],
+    "chains_with": [
+      "race_condition",
+      "idor",
+      "payment_flow"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "javascript",
+      "node.js",
+      "php",
+      "ruby"
+    ],
+    "top_severity": "critical",
+    "context_count": 11,
+    "is_reference_only": false
+  },
+  {
+    "category": "cache_poisoning",
+    "file": "cache_poisoning.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-349"
+    ],
+    "chains_with": [
+      "host_header",
+      "request_smuggling",
+      "info_disclosure",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "cdn",
+      "cf-cache-status",
+      "cf-ray",
+      "cloudflare",
+      "cloudfront",
+      "fastly",
+      "next-server",
+      "next.js",
+      "nginx",
+      "varnish",
+      "vercel",
+      "x-akamai",
+      "x-akamai-staging",
+      "x-cache",
+      "x-served-by"
+    ],
+    "top_severity": "high",
+    "context_count": 11,
+    "is_reference_only": false
+  },
+  {
+    "category": "captcha_bypass",
+    "file": "captcha_bypass.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHN-03",
+    "cwe_ids": [
+      "CWE-804"
+    ],
+    "chains_with": [
+      "auth_bypass"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "asp.net",
+      "java",
+      "node.js",
+      "php",
+      "python",
+      "ruby"
+    ],
+    "top_severity": "medium",
+    "context_count": 2,
+    "is_reference_only": true
+  },
+  {
+    "category": "ci_actions_injection",
+    "file": "ci_actions_injection.json",
+    "description": "GitHub Actions / GitLab CI injection + pwn-request patterns. Probed via poutine / octoscan binaries (run_poutine / run_octoscan), not HTTP matchers.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-78"
+    ],
+    "chains_with": [
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".github/workflows/*.yml",
+      ".gitlab-ci.yml"
+    ],
+    "top_severity": "",
+    "context_count": 6,
+    "is_reference_only": true
+  },
+  {
+    "category": "cicd_exposure",
+    "file": "cicd_exposure.json",
+    "description": "CI/CD pipeline and deployment configuration exposure — leaked env files, exposed build artifacts, misconfigured GitHub Actions, GitLab CI variables, source maps.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "ci_actions_injection",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "citrix_netscaler",
+    "file": "citrix_netscaler.json",
+    "description": "Citrix NetScaler / ADC / Gateway edge-appliance CVEs — path traversal (CVE-2019-19781) and Citrix Bleed memory disclosure (CVE-2023-4966). Detection-only fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "citrix",
+      "citrix adc",
+      "citrix gateway",
+      "netscaler",
+      "vpn/index.html"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "clickjacking",
+    "file": "clickjacking.json",
+    "description": "Clickjacking — missing X-Frame-Options / CSP frame-ancestors on state-changing pages. Promoted to active W11. Production MatcherEngine not_header schema (name singular).",
+    "owasp_id": "WSTG-CLNT-09",
+    "cwe_ids": [
+      "CWE-1021"
+    ],
+    "chains_with": [
+      "csrf",
+      "account_takeover",
+      "ui_redress"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "medium",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "client_side_messaging",
+    "file": "client_side_messaging.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-11",
+    "cwe_ids": [
+      "CWE-345"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 5,
+    "is_reference_only": false
+  },
+  {
+    "category": "client_side_path_traversal",
+    "file": "client_side_path_traversal.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-22"
+    ],
+    "chains_with": [
+      "ssrf",
+      "idor"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "angular",
+      "next.js",
+      "nuxt",
+      "react",
+      "sveltekit",
+      "vue"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "client_side_request",
+    "file": "client_side_request.json",
+    "description": "Client-side request forgery — postMessage hijacking, window.opener (reverse tabnabbing) chaining, fetch from window.name, BroadcastChannel abuse, SharedWorker leak. These are FRONTEND attacks driven by an attacker page or stored content; chain with XSS/CSRF/open-redirect for impact.",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "ssrf",
+      "cors"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "cloud_api_gateway",
+    "file": "cloud_api_gateway.json",
+    "description": "Managed API-gateway misconfig detection: AWS API Gateway (REST + HTTP), GCP API Gateway, Azure APIM, Kong, KrakenD, Tyk. Common failure modes — stage-name leakage in URLs, AuthorizationType=NONE per-method, default 'test invoke' route exposed, IAM-protected mainline plus anonymous /Prod or /v0 sibling.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "amazonaws.com",
+      "apim",
+      "aws",
+      "azure-api.net",
+      "execute-api",
+      "gateway.dev",
+      "gcp",
+      "kong",
+      "krakend",
+      "restapis",
+      "tyk"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "cloud_function_url",
+    "file": "cloud_function_url.json",
+    "description": "Direct-URL function endpoints: AWS Lambda Function URLs, Cloud Run, GCP Cloud Functions HTTP triggers, Azure Functions (auth_level=anonymous), OpenFaaS, Vercel/Netlify serverless functions. Often deployed with default IAM=NONE / no auth, leaving them publicly invocable. Operator-anonymous detection only — no provider creds.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "ssrf",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "aws",
+      "azure",
+      "azure-functions",
+      "azurewebsites.net",
+      "cloud-run",
+      "cloudfunctions.net",
+      "faas",
+      "gcp",
+      "google",
+      "kn",
+      "knative",
+      "lambda-url",
+      "netlify",
+      "on.aws",
+      "openfaas",
+      "run.app",
+      "vercel"
+    ],
+    "top_severity": "high",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "cloud_storage_misconfig",
+    "file": "cloud_storage_misconfig.json",
+    "description": "Anonymous-access detection for cloud object storage across providers (AWS S3, GCS, Azure Blob, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Oracle OCI, MinIO). Operator-anonymous (no provider creds). Covers HackTricks Cloud first-phase storage enumeration: list-bucket, public-read object, public-write authorization, ACL misconfig.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "amazonaws",
+      "aws",
+      "azure",
+      "b2",
+      "backblazeb2.com",
+      "blob.core.windows.net",
+      "cloudflare",
+      "digitaloceanspaces.com",
+      "f000.backblazeb2.com",
+      "gcp",
+      "google",
+      "minio",
+      "objectstorage.oraclecloud.com",
+      "oraclecloud.com",
+      "r2",
+      "r2.dev",
+      "s3",
+      "spaces",
+      "storage.googleapis.com"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "cloud_webapp",
+    "file": "cloud_webapp.json",
+    "description": "Cloud-native web app misconfigurations and SDK error matchers (AWS, GCP, Azure, Firebase). Detects leaked credentials, public buckets, exposed metadata services, SAS-token misuse, and cloud-SDK error fingerprints in HTTP responses.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-16"
+    ],
+    "chains_with": [
+      "ssrf",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "amazonaws",
+      "aws",
+      "azure",
+      "blob.core.windows.net",
+      "cognito",
+      "ec2",
+      "ecs",
+      "eks",
+      "fargate",
+      "firebase",
+      "firebaseio.com",
+      "gcp",
+      "google",
+      "imds",
+      "irsa",
+      "keyvault",
+      "managed-identity",
+      "s3",
+      "sas"
+    ],
+    "top_severity": "critical",
+    "context_count": 12,
+    "is_reference_only": false
+  },
+  {
+    "category": "command_injection",
+    "file": "command_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-12",
+    "cwe_ids": [
+      "CWE-78"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "asp.net",
+      "busybox",
+      "c",
+      "cgi",
+      "embedded",
+      "flask",
+      "iis",
+      "nginx",
+      "php",
+      "python"
+    ],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "content_type_confusion",
+    "file": "content_type_confusion.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-16",
+    "cwe_ids": [
+      "CWE-436"
+    ],
+    "chains_with": [
+      "xss",
+      "deserialization"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "express",
+      "iis",
+      "nginx",
+      "node.js"
+    ],
+    "top_severity": "medium",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "cookie_tossing",
+    "file": "cookie_tossing.json",
+    "description": "Cookie tossing and SameSite bypass attacks — exploit browser cookie scoping rules to override, evict, or inject cookies from a sibling subdomain or via attacker-controlled responses. Chains with CSRF, session fixation, and cache poisoning.",
+    "owasp_id": "WSTG-SESS-02",
+    "cwe_ids": [
+      "CWE-565"
+    ],
+    "chains_with": [
+      "csrf",
+      "session_security",
+      "cache_poisoning",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "express",
+      "laravel",
+      "rails",
+      "spring"
+    ],
+    "top_severity": "medium",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "cors",
+    "file": "cors.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-07",
+    "cwe_ids": [
+      "CWE-942"
+    ],
+    "chains_with": [
+      "csrf",
+      "account_takeover",
+      "idor",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "cors"
+    ],
+    "top_severity": "critical",
+    "context_count": 9,
+    "is_reference_only": false
+  },
+  {
+    "category": "crlf_injection",
+    "file": "crlf_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-93"
+    ],
+    "chains_with": [
+      "xss",
+      "cache_poisoning",
+      "open_redirect"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "crushftp",
+    "file": "crushftp.json",
+    "description": "CrushFTP edge-appliance CVEs — authentication bypass (CVE-2025-31161) and VFS/SSTI auth bypass (CVE-2024-4040). Detection-only endpoint fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "path_traversal"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "crushftp",
+      "crushftpver",
+      "webinterface"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "crypto_weakness",
+    "file": "crypto_weakness.json",
+    "description": "",
+    "owasp_id": "WSTG-CRYP-04",
+    "cwe_ids": [
+      "CWE-327"
+    ],
+    "chains_with": [
+      "jwt",
+      "oauth",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "asp.net",
+      "java",
+      "php",
+      "ruby"
+    ],
+    "top_severity": "critical",
+    "context_count": 9,
+    "is_reference_only": false
+  },
+  {
+    "category": "cspp",
+    "file": "cspp.json",
+    "description": "CSS prototype pollution / CSS custom-property injection — attacker-controlled CSS custom property (--var) leaks data via @import, attribute selectors, or background-image: url() exfiltration.",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "prototype_pollution",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "csrf",
+    "file": "csrf.json",
+    "description": "",
+    "owasp_id": "WSTG-SESS-05",
+    "cwe_ids": [
+      "CWE-352"
+    ],
+    "chains_with": [
+      "xss",
+      "dom_xss",
+      "account_takeover",
+      "mfa_bypass",
+      "oauth"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 9,
+    "is_reference_only": false
+  },
+  {
+    "category": "css_injection",
+    "file": "css_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-05",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "xss",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "css",
+      "html"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "csv_injection",
+    "file": "csv_injection.json",
+    "description": "CSV/spreadsheet formula injection on export endpoints. Active in W12: csv_export_formula_reflection fires on responses with csv/spreadsheet Content-Type + literal formula prefix reflection. Existing contexts (formula_injection) remain as operator-driven payload guidance.",
+    "owasp_id": "WSTG-INPV-01",
+    "cwe_ids": [
+      "CWE-1236"
+    ],
+    "chains_with": [
+      "file_upload",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "dangling_markup",
+    "file": "dangling_markup.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-12",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "xss",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "default_credentials",
+    "file": "default_credentials.json",
+    "description": "Default and common credentials for web admin panels, databases, and management interfaces.",
+    "owasp_id": "WSTG-ATHN-02",
+    "cwe_ids": [
+      "CWE-798"
+    ],
+    "chains_with": [
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "",
+    "context_count": 1,
+    "is_reference_only": false
+  },
+  {
+    "category": "dependency_confusion",
+    "file": "dependency_confusion.json",
+    "description": "",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-427"
+    ],
+    "chains_with": [
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "fastapi",
+      "flask",
+      "node.js",
+      "npm",
+      "python",
+      "yarn"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": true
+  },
+  {
+    "category": "deserialization",
+    "file": "deserialization.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-14",
+    "cwe_ids": [
+      "CWE-502"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "adobe-commerce",
+      "asp.net",
+      "django",
+      "drupal",
+      "express",
+      "fastapi",
+      "fastjson",
+      "flask",
+      "iis",
+      "jackson",
+      "java",
+      "jboss",
+      "laravel",
+      "log4j",
+      "magento",
+      "magento2",
+      "mirasvit",
+      "next",
+      "next.js",
+      "nextjs",
+      "node.js",
+      "php",
+      "python",
+      "rails",
+      "react",
+      "ruby",
+      "sinatra",
+      "spring",
+      "spring boot",
+      "symfony",
+      "tomcat",
+      "vercel",
+      "weblogic",
+      "websphere",
+      "wordpress"
+    ],
+    "top_severity": "critical",
+    "context_count": 22,
+    "is_reference_only": false
+  },
+  {
+    "category": "desktop_electron",
+    "file": "desktop_electron.json",
+    "description": "Electron / Tauri / WebView2 desktop application security patterns. Mostly static-analysis-driven (binary inspection by desktop-agent); only autoupdate_http_mitm participates in auto_probe via HTTP. Reference contexts emit grep/probe instructions in their `detect` field for operator + desktop-agent.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-829"
+    ],
+    "chains_with": [
+      "xss",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "cef",
+      "electron",
+      "nwjs",
+      "tauri"
+    ],
+    "top_severity": "",
+    "context_count": 18,
+    "is_reference_only": true
+  },
+  {
+    "category": "dns_rebinding",
+    "file": "dns_rebinding.json",
+    "description": "DNS rebinding attacks — exploit time-of-check-to-time-of-use on DNS resolution to pivot from an attacker-controlled domain to internal/localhost services. Detects susceptibility markers: missing Host header validation, no DNS pinning, browser-resolvable internal endpoints.",
+    "owasp_id": "WSTG-INPV-19",
+    "cwe_ids": [
+      "CWE-350"
+    ],
+    "chains_with": [
+      "ssrf",
+      "ssrf_bypass",
+      "cloud_webapp"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "angular",
+      "javascript",
+      "next.js",
+      "nuxt",
+      "react",
+      "socket.io",
+      "spa",
+      "vue",
+      "websocket",
+      "ws",
+      "wss"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "dom_clobbering",
+    "file": "dom_clobbering.json",
+    "description": "DOM clobbering — HTML elements with id/name attributes overwrite global JS variables, causing same-origin attacks via stored content (comments, profile fields, markdown).",
+    "owasp_id": "WSTG-CLNT-11",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "dom_clobbering_2024",
+    "file": "dom_clobbering_2024.json",
+    "description": "DOM clobbering 2024 — id/name → property collision + HTMLCollection clobbering",
+    "owasp_id": "WSTG-CLNT-11",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "html",
+      "spa"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "dom_xss",
+    "file": "dom_xss.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-02",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "postmessage_xss",
+      "oauth",
+      "csrf",
+      "account_takeover",
+      "webauthn_api_hijack",
+      "session_security"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "angular",
+      "csp",
+      "dompurify",
+      "javascript",
+      "jquery",
+      "react",
+      "sanitizer",
+      "sanitizer_api",
+      "trusted_types",
+      "vue.js"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "echoleak",
+    "file": "echoleak.json",
+    "description": "EchoLeak (CVE-2025-32711, Aim Labs) — zero-click indirect prompt injection family. Attacker plants instructions in document/email/image content that the LLM agent retrieves; LLM exfils private data via Markdown-image / link / hidden-HTML / CSS class channels. M365 Copilot was the named target; technique applies to any retrieval-augmented agent (Anthropic Claude, Cursor, GitHub Copilot Chat) that consumes untrusted content.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "ai_prompt_injection",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "anthropic",
+      "chatbot",
+      "copilot",
+      "llm",
+      "m365",
+      "openai",
+      "outlook",
+      "rag"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "edge_worker_ssrf",
+    "file": "edge_worker_ssrf.json",
+    "description": "Cloudflare Worker / Vercel Edge / Fastly Compute internal-header trust + same-zone SSRF (2024-2025)",
+    "owasp_id": "WSTG-INPV-19",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "ssrf",
+      "cloud_webapp"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "cloudflare",
+      "cloudflare-workers",
+      "edge",
+      "fastly",
+      "next.js",
+      "nextjs",
+      "node.js",
+      "opennext",
+      "opennextjs",
+      "vercel",
+      "vercel-self-hosted"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "email_injection",
+    "file": "email_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-11",
+    "cwe_ids": [
+      "CWE-93"
+    ],
+    "chains_with": [
+      "host_header",
+      "crlf_injection",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "java",
+      "node.js",
+      "php",
+      "python",
+      "ruby"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "error_handling_misuse",
+    "file": "error_handling_misuse.json",
+    "description": "",
+    "owasp_id": "WSTG-ERRH-01",
+    "cwe_ids": [
+      "CWE-209"
+    ],
+    "chains_with": [
+      "info_disclosure",
+      "idor",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "asp.net",
+      "c",
+      "django",
+      "express",
+      "go",
+      "java",
+      "javascript",
+      "mongodb",
+      "node.js",
+      "php",
+      "python",
+      "rails",
+      "spring",
+      "spring security"
+    ],
+    "top_severity": "critical",
+    "context_count": 12,
+    "is_reference_only": false
+  },
+  {
+    "category": "esi_injection",
+    "file": "esi_injection.json",
+    "description": "Edge Side Include injection — inject ESI tags processed by reverse-proxy cache layers (Varnish, Akamai, Squid, Fastly)",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "xss",
+      "ssrf",
+      "cache_poisoning"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "cdn",
+      "fastly",
+      "oracle-web-cache",
+      "squid",
+      "varnish"
+    ],
+    "top_severity": "",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "etag_xsleak",
+    "file": "etag_xsleak.json",
+    "description": "Cross-Site ETag Length Leak (PortSwigger Top 10 / 2025, #6 — Kaneko). The ETag header is a strong validator whose length / format encodes response size or content hash. When ETag is exposed to cross-origin requests (no-cors fetch, img/audio/video request), an attacker measures ETag bytes via cache or oracle to leak per-victim response size — yielding XS-leak of state (logged-in vs out, search-result count, message-count, account-balance bucket).",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-203"
+    ],
+    "chains_with": [
+      "xs_leak",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "iis",
+      "nginx",
+      "node.js"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "excessive_data_exposure",
+    "file": "excessive_data_exposure.json",
+    "description": "",
+    "owasp_id": "WSTG-INFO-02",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "idor",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apollo",
+      "django",
+      "express",
+      "graphql",
+      "hasura",
+      "json:api",
+      "mongodb",
+      "mongoose",
+      "rails",
+      "relay",
+      "sequelize",
+      "spring",
+      "stripe-like"
+    ],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "exchange_owa",
+    "file": "exchange_owa.json",
+    "description": "Microsoft Exchange OWA edge CVEs — ProxyLogon SSRF (CVE-2021-26855) and ProxyShell path confusion (CVE-2021-34473). Detection-only endpoint fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "autodiscover",
+      "exchange",
+      "microsoft exchange",
+      "outlook web access",
+      "owa",
+      "x-owa-version"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "exposed_panels",
+    "file": "exposed_panels.json",
+    "description": "",
+    "owasp_id": "WSTG-INFO-05",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "default_credentials",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "exposure_osint",
+    "file": "exposure_osint.json",
+    "description": "",
+    "owasp_id": "WSTG-INFO-01",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "info_disclosure",
+      "subdomain_takeover"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "aws",
+      "azure",
+      "blob",
+      "cloudflare",
+      "gcs",
+      "r2",
+      "s3"
+    ],
+    "top_severity": "",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "expression_language_injection",
+    "file": "expression_language.json",
+    "description": "Java Expression Language injection — JSP EL, JSF EL, Spring SpEL, OGNL in non-Struts contexts, MVEL, JBoss EL",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-917"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "ssti"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "atlassian",
+      "confluence",
+      "drools",
+      "glassfish",
+      "java",
+      "jboss",
+      "jsf",
+      "jsp",
+      "mule",
+      "ognl",
+      "spring",
+      "spring-boot",
+      "spring-mvc",
+      "tomcat",
+      "wildfly"
+    ],
+    "top_severity": "",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "f5_bigip",
+    "file": "f5_bigip.json",
+    "description": "F5 BIG-IP edge-appliance CVEs — TMUI RCE (CVE-2020-5902) and iControl REST auth bypass (CVE-2022-1388). Detection-only endpoint fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "big-ip",
+      "bigip",
+      "bigipauthcookie",
+      "f5",
+      "icontrol",
+      "tmui"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "file_upload",
+    "file": "file_upload.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-13",
+    "cwe_ids": [
+      "CWE-434"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "asp.net",
+      "drupal",
+      "go",
+      "iis",
+      "java",
+      "jboss",
+      "jetty",
+      "laravel",
+      "nginx",
+      "node",
+      "php",
+      "python",
+      "ruby",
+      "spring",
+      "tomcat",
+      "wildfly",
+      "windows server",
+      "wordpress"
+    ],
+    "top_severity": "critical",
+    "context_count": 9,
+    "is_reference_only": false
+  },
+  {
+    "category": "geoserver",
+    "file": "geoserver.json",
+    "description": "GeoServer edge CVE — OGC filter evaluation RCE (CVE-2024-36401) via unsafe commons-jxpath expression evaluation. Detection-only: version/endpoint fingerprint + BENIGN arithmetic-echo marker (no command execution).",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-89"
+    ],
+    "chains_with": [
+      "sqli",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "geoserver",
+      "geoserver-node",
+      "geowebcache"
+    ],
+    "top_severity": "critical",
+    "context_count": 1,
+    "is_reference_only": false
+  },
+  {
+    "category": "graphql",
+    "file": "graphql.json",
+    "description": "",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "sqli",
+      "idor",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "absinthe",
+      "apollo",
+      "express",
+      "federation",
+      "graphene",
+      "graphql",
+      "graphql-ws",
+      "hasura",
+      "mercurius",
+      "node.js",
+      "relay"
+    ],
+    "top_severity": "critical",
+    "context_count": 21,
+    "is_reference_only": false
+  },
+  {
+    "category": "graphql_engines",
+    "file": "graphql_engines.json",
+    "description": "Engine-specific GraphQL attacks beyond the generic introspection/depth/batch covered by graphql.json. Hasura (x-hasura-admin-secret bypass, admin role escalation), Apollo (APQ poisoning, federation introspection), Dgraph (mutation auth), PostGraphile (RLS bypass via _ prefix), Strawberry (Python-specific). Auto-probe enabled — engine-fingerprint matchers gate execution.",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "graphql",
+      "sqli"
+    ],
+    "prerequisites": [
+      "graphql"
+    ],
+    "tech_stack": [
+      "apollo",
+      "dgraph",
+      "federation",
+      "hasura",
+      "postgraphile",
+      "python",
+      "strawberry",
+      "strawberry-graphql"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "grpc_injection",
+    "file": "grpc_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "sqli",
+      "command_injection"
+    ],
+    "prerequisites": [
+      "api_inventory"
+    ],
+    "tech_stack": [
+      "envoy",
+      "go",
+      "grpc",
+      "grpc-gateway",
+      "grpc-web",
+      "java",
+      "protocol buffers",
+      "python"
+    ],
+    "top_severity": "high",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "h2_continuation_flood",
+    "file": "h2_continuation_flood.json",
+    "description": "HTTP/2 CONTINUATION-frame DoS (CVE-2024-27316) — endless CONTINUATION frames after HEADERS exhaust memory",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-400"
+    ],
+    "chains_with": [
+      "resource_exhaustion"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "h2",
+      "http2"
+    ],
+    "top_severity": "info",
+    "context_count": 1,
+    "is_reference_only": true
+  },
+  {
+    "category": "h2c_smuggling",
+    "file": "h2c_smuggling.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-444"
+    ],
+    "chains_with": [
+      "request_smuggling",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "alb",
+      "apache",
+      "aws",
+      "cloudfront",
+      "envoy",
+      "haproxy",
+      "nginx",
+      "traefik",
+      "varnish"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "host_header",
+    "file": "host_header.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-17",
+    "cwe_ids": [
+      "CWE-644"
+    ],
+    "chains_with": [
+      "cache_poisoning",
+      "ssrf",
+      "password_reset_poisoning",
+      "open_redirect"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "apache",
+      "cloudflare",
+      "cloudfront",
+      "fastly",
+      "iis",
+      "nginx",
+      "node.js",
+      "varnish"
+    ],
+    "top_severity": "high",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "hpp",
+    "file": "hpp.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-04",
+    "cwe_ids": [
+      "CWE-235"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "sqli",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "asp.net",
+      "iis",
+      "node.js",
+      "php",
+      "ruby"
+    ],
+    "top_severity": "high",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "http2_connect_portscan",
+    "file": "http2_connect_portscan.json",
+    "description": "HTTP/2 CONNECT internal port scan (PortSwigger Top 10 / 2025, #9 — flomb). HTTP/2 :method CONNECT with :authority targeting internal hosts/ports can establish raw tunnels through the front-end proxy. When the upstream allows arbitrary CONNECT, an attacker maps the internal network. Behaviour-based: TCP-open hosts respond differently from TCP-closed (timing or status), exposing the topology.",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "cloudflare",
+      "envoy",
+      "h2",
+      "haproxy",
+      "http2",
+      "nginx"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": true
+  },
+  {
+    "category": "http3_quic",
+    "file": "http3_quic.json",
+    "description": "HTTP/3 (QUIC) attacks — 0-RTT replay, stream-reset poisoning, connection-migration auth bypass, downgrade to HTTP/2 or HTTP/1.1. Reference-only for now: requires HTTP/3 client tooling. Note: this file is in REFERENCE_ONLY in scan.py.",
+    "owasp_id": "WSTG-CONF-10",
+    "cwe_ids": [
+      "CWE-757"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "http3",
+      "quic"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": true
+  },
+  {
+    "category": "http_desync",
+    "file": "http_desync.json",
+    "description": ". v1.0 extension: 2025 desync variants — 0.CL, CL.0, V-H, Expect-100, RQP, double-desync.",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-444"
+    ],
+    "chains_with": [
+      "request_smuggling",
+      "cache_poisoning"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "aws alb",
+      "cloudflare",
+      "cloudfront",
+      "envoy",
+      "express",
+      "fastly",
+      "haproxy",
+      "iis",
+      "internal apps",
+      "intranet",
+      "jetty",
+      "nginx",
+      "node.js",
+      "tomcat",
+      "vpn-gated"
+    ],
+    "top_severity": "critical",
+    "context_count": 12,
+    "is_reference_only": true
+  },
+  {
+    "category": "http_methods_enum",
+    "file": "http_methods_enum.json",
+    "description": "",
+    "owasp_id": "WSTG-CONF-06",
+    "cwe_ids": [
+      "CWE-749"
+    ],
+    "chains_with": [
+      "cors",
+      "host_header",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "iis",
+      "nginx",
+      "spring security",
+      "tomcat"
+    ],
+    "top_severity": "critical",
+    "context_count": 5,
+    "is_reference_only": false
+  },
+  {
+    "category": "http_response_smuggling",
+    "file": "http_response_smuggling.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-444"
+    ],
+    "chains_with": [
+      "request_smuggling",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "alb",
+      "apache",
+      "aws",
+      "cloudflare",
+      "cloudfront",
+      "fastly",
+      "haproxy",
+      "nginx",
+      "varnish"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "idor",
+    "file": "idor.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHZ-04",
+    "cwe_ids": [
+      "CWE-639"
+    ],
+    "chains_with": [
+      "mass_assignment",
+      "business_logic",
+      "info_disclosure",
+      "bfla"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "express",
+      "mean",
+      "mern",
+      "mongodb",
+      "mongoose",
+      "node.js"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "info_disclosure",
+    "file": "info_disclosure.json",
+    "description": "",
+    "owasp_id": "WSTG-INFO-02",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "jwt",
+      "ssrf",
+      "idor",
+      "cve",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "squid"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "insecure_randomness",
+    "file": "insecure_randomness.json",
+    "description": "Insecure randomness — UUIDv1 leak / short session ID / short reset token in URL. Promoted to active W12.",
+    "owasp_id": "WSTG-CRYP-04",
+    "cwe_ids": [
+      "CWE-330"
+    ],
+    "chains_with": [
+      "session_security",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "asp.net",
+      "custom",
+      "java",
+      "node.js",
+      "php",
+      "python",
+      "ruby"
+    ],
+    "top_severity": "high",
+    "context_count": 5,
+    "is_reference_only": false
+  },
+  {
+    "category": "ivanti",
+    "file": "ivanti.json",
+    "description": "Ivanti Connect Secure / Policy Secure edge-appliance CVEs — auth bypass + command injection (CVE-2023-46805 / CVE-2024-21887) and stack-buffer-overflow RCE (CVE-2025-0282). Detection-only path fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "connect secure",
+      "ivanti",
+      "ivanti connect secure",
+      "policy secure",
+      "pulse secure",
+      "zta gateway"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "json_injection",
+    "file": "json_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-16",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "mass_assignment"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "deno",
+      "express",
+      "fastify",
+      "java",
+      "koa",
+      "node.js",
+      "php",
+      "python",
+      "ruby"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "jwt",
+    "file": "jwt.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHN-10",
+    "cwe_ids": [
+      "CWE-347"
+    ],
+    "chains_with": [
+      "idor",
+      "bfla",
+      "oauth",
+      "account_takeover",
+      "info_disclosure",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "flask",
+      "harbourjwt",
+      "java",
+      "jwt",
+      "pac4j",
+      "pyjwt",
+      "python",
+      "spring"
+    ],
+    "top_severity": "critical",
+    "context_count": 21,
+    "is_reference_only": false
+  },
+  {
+    "category": "kubernetes_exposed",
+    "file": "kubernetes_exposed.json",
+    "description": "Kubernetes external attack-surface discovery (reference-only; auto_probe SKIPS this). Covers kubelet :10250 read-write API, kube-apiserver anonymous access, etcd :2379, Kubernetes Dashboard, ArgoCD, Tekton, Rancher, Portainer, container registries. Operator-anonymous — no kubeconfig / no service-account tokens required to surface these. Maps to HackTricks Cloud / Kubernetes section first-phase external recon.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "cloud_webapp",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "argo",
+      "argocd",
+      "aws",
+      "containerd",
+      "dashboard",
+      "docker",
+      "docker-registry",
+      "eks",
+      "etcd",
+      "harbor",
+      "istio",
+      "kube-apiserver",
+      "kubelet",
+      "kubernetes",
+      "kubernetes-dashboard",
+      "linkerd",
+      "pod-identity",
+      "portainer",
+      "prometheus",
+      "quay",
+      "rancher",
+      "runc",
+      "tekton"
+    ],
+    "top_severity": "critical",
+    "context_count": 15,
+    "is_reference_only": true
+  },
+  {
+    "category": "latex_injection",
+    "file": "latex_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "path_traversal"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "latex",
+      "pdf",
+      "pdflatex",
+      "xelatex"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "ldap_injection",
+    "file": "ldap_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-06",
+    "cwe_ids": [
+      "CWE-90"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "active directory",
+      "java",
+      "ldap",
+      "openldap",
+      "php"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "llm_fingerprinting",
+    "file": "llm_fingerprinting.json",
+    "description": "Identify the LLM model and provider behind an API endpoint through behavioral probes. Detects model identity, tokenizer artifacts, refusal patterns, system prompt leakage, and provider-specific response headers/latency signatures.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-200"
+    ],
+    "chains_with": [
+      "ai_prompt_injection",
+      "web_llm"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "anthropic",
+      "assistant",
+      "azure",
+      "bedrock",
+      "chatbot",
+      "claude",
+      "gemini",
+      "llama",
+      "llm",
+      "mistral",
+      "openai",
+      "vertex"
+    ],
+    "top_severity": "high",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "llm_tool_abuse",
+    "file": "llm_tool_abuse.json",
+    "description": "Test LLM endpoints for tool-call manipulation, excessive agency, and function abuse. Covers OWASP LLM06 (Excessive Agency), LLM07 (Insecure Plugin Design), and tool-parameter injection via function-calling interfaces.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-285"
+    ],
+    "chains_with": [
+      "ai_prompt_injection",
+      "mcp_tool_poisoning",
+      "web_llm"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "agent",
+      "anthropic",
+      "assistant",
+      "claude",
+      "function_calling",
+      "gemini",
+      "langchain",
+      "llamaindex",
+      "mcp",
+      "openai",
+      "plugin",
+      "tool_use"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "log4shell",
+    "file": "log4shell.json",
+    "description": "Apache Log4j 2 JNDI lookup RCE — Log4Shell (CVE-2021-44228). OOB detection ONLY: the payload carries the literal COLLABORATOR token which the runtime substitutes with a real Burp Collaborator subdomain; a collaborator interaction confirms the vulnerable log sink. Never hardcode a callback domain (Rule 9a).",
+    "owasp_id": "WSTG-INPV-11",
+    "cwe_ids": [
+      "CWE-917",
+      "CWE-502"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "elasticsearch",
+      "java",
+      "log4j",
+      "log4j2",
+      "spring",
+      "struts",
+      "vmware"
+    ],
+    "top_severity": "critical",
+    "context_count": 1,
+    "is_reference_only": false
+  },
+  {
+    "category": "mass_assignment",
+    "file": "mass_assignment.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHZ-03",
+    "cwe_ids": [
+      "CWE-915"
+    ],
+    "chains_with": [
+      "idor",
+      "auth_bypass"
+    ],
+    "prerequisites": [
+      "api_inventory"
+    ],
+    "tech_stack": [
+      "express",
+      "graphql",
+      "mongoose",
+      "node",
+      "rails"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "mcp_server_attacks",
+    "file": "mcp_server_attacks.json",
+    "description": "MCP server attack surface — tool-description prompt injection, rug-pull, MCP-to-MCP confused deputy",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "ai_prompt_injection",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "@apollo/mcp-server",
+      "anthropic",
+      "apollo mcp server",
+      "atlassian-mcp",
+      "claude-code",
+      "confluence",
+      "llm-agent",
+      "mcp",
+      "mcp-atlassian",
+      "mcp-client",
+      "mcp-server",
+      "microsoft mcp"
+    ],
+    "top_severity": "critical",
+    "context_count": 9,
+    "is_reference_only": false
+  },
+  {
+    "category": "mcp_tool_poisoning",
+    "file": "mcp_tool_poisoning.json",
+    "description": "MCP-38 threat taxonomy (arxiv 2025): tool-poisoning, parasitic tool-chaining, server-identity spoofing, capability lying, prompt injection via tool description. Applies to Claude Desktop, Cursor, VS Code Copilot Chat, any MCP-aware host. Use against MCP server HTTP/SSE/stdio entry-points OR against an LLM agent that consumes MCP tool listings.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "mcp_server_attacks",
+      "ai_prompt_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "claude-desktop",
+      "cursor",
+      "fastmcp",
+      "mcp",
+      "model-context-protocol"
+    ],
+    "top_severity": "high",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "mfa_bypass",
+    "file": "mfa_bypass.json",
+    "description": "MFA/2FA bypass techniques — step skip, code reuse, brute force, response manipulation",
+    "owasp_id": "WSTG-ATHN-11",
+    "cwe_ids": [
+      "CWE-308"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "oauth"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [],
+    "top_severity": "",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "mobile_api",
+    "file": "mobile_api.json",
+    "description": "",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-285"
+    ],
+    "chains_with": [
+      "idor",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "android",
+      "android_keystore",
+      "app_attest",
+      "ascredentialidentitystore",
+      "biometric",
+      "credential_manager",
+      "devicecheck",
+      "fido_authenticator",
+      "firebase",
+      "flutter",
+      "ios",
+      "keystore",
+      "mobile",
+      "passkey",
+      "play_integrity",
+      "react native",
+      "safetynet",
+      "secure_enclave",
+      "webauthn"
+    ],
+    "top_severity": "critical",
+    "context_count": 12,
+    "is_reference_only": false
+  },
+  {
+    "category": "mobile_deeplink",
+    "file": "mobile_deeplink.json",
+    "description": "Mobile deep-link surface: Android intent:// URIs + intent-filter exported activities, iOS universal links (apple-app-site-association), iOS custom URL schemes, and Flutter / React Native router parameter injection. Reference-only — requires device + manifest inspection. Maps to OWASP Mobile Top 10 2024 M4 (Insufficient Input/Output Validation) + HackTricks Mobile section. Active in W8: deeplink_oauth_callback_backend_reflection + deeplink_webview_backend_loadurl fire on HTTP traffic captured AFTER operator triggers the deep link via am-start / mobile_adb_pack.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-939"
+    ],
+    "chains_with": [
+      "open_redirect",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "android",
+      "apple",
+      "expo",
+      "flutter",
+      "ios",
+      "react-native"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "moveit_transfer",
+    "file": "moveit_transfer.json",
+    "description": "Progress MOVEit Transfer edge-appliance CVEs — SQL injection (CVE-2023-34362) and authentication bypass (CVE-2024-5806). Detection-only endpoint fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-89"
+    ],
+    "chains_with": [
+      "sqli",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "moveit",
+      "moveit transfer",
+      "moveitisapi",
+      "progress moveit"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "nextjs_cache_poisoning",
+    "file": "nextjs_cache_poisoning.json",
+    "description": "Next.js cache poisoning chains (Allam 2025, PortSwigger). ISR (Incremental Static Regeneration) + RSC cache key manipulation + Server Action body confusion. Affects 13.x-15.x App Router.",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-349"
+    ],
+    "chains_with": [
+      "cache_poisoning",
+      "info_disclosure",
+      "open_redirect"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "next",
+      "next.js",
+      "vercel"
+    ],
+    "top_severity": "high",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "nosql",
+    "file": "nosql.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-943"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "idor"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "cassandra",
+      "couchdb",
+      "express",
+      "java",
+      "mean",
+      "mongodb",
+      "mongoose",
+      "node.js",
+      "php",
+      "python",
+      "redis",
+      "spring"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "nuxt",
+    "file": "nuxt.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "ssrf",
+      "idor",
+      "info_disclosure",
+      "dom_xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "@nuxt/og-image",
+      "h3",
+      "nuxt",
+      "nuxt 3",
+      "nuxt 4",
+      "vue"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "oauth",
+    "file": "oauth.json",
+    "description": ". v1.0 chain-attack contexts: mix-up, audience confusion, JWKS swap, redirect_uri parser quirks (per draft-ietf-oauth-security-topics). 2026 H2: passkey step-up bypass (CVE-2026-32879) + WebAuthn API hijacking JS-injection.",
+    "owasp_id": "WSTG-ATHN-05",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "open_redirect",
+      "csrf",
+      "passkey_stepup_bypass",
+      "account_takeover",
+      "saml_xsw",
+      "subdomain_takeover"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "auth0",
+      "azure",
+      "backchannel_authentication",
+      "ciba",
+      "dpop",
+      "entra",
+      "fapi",
+      "fido2",
+      "google",
+      "jwe",
+      "jws",
+      "jwt",
+      "keycloak",
+      "microsoft",
+      "mtls",
+      "mutual_tls",
+      "navigator.credentials",
+      "oauth",
+      "oauth2",
+      "oauth2-proxy",
+      "oidc",
+      "okta",
+      "openid",
+      "par",
+      "passkey",
+      "pushed_authorization_request",
+      "resource_indicators",
+      "rfc8693",
+      "rfc8705",
+      "rfc8707",
+      "rfc9449",
+      "secure-verification",
+      "step-up",
+      "stepup",
+      "supabase",
+      "token_exchange",
+      "webauthn"
+    ],
+    "top_severity": "critical",
+    "context_count": 33,
+    "is_reference_only": false
+  },
+  {
+    "category": "oauth_device_flow",
+    "file": "oauth_device_flow.json",
+    "description": "OAuth 2.0 Device Authorization Grant (RFC 8628) — used by smart-TV, IoT, CLI tools. Phishing surface: attacker initiates device flow on victim's account, sends victim the user_code via social engineering (email, deep link), gets victim to approve at the verification URI.",
+    "owasp_id": "WSTG-ATHN-05",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "oauth",
+      "csrf"
+    ],
+    "prerequisites": [
+      "oauth"
+    ],
+    "tech_stack": [
+      "device_grant",
+      "oauth"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "oauth_dpop_confused_deputy",
+    "file": "oauth_dpop_confused_deputy.json",
+    "description": "DPoP token replay across resource servers — RFC 9449 + 2024 disclosures",
+    "owasp_id": "WSTG-ATHN-05",
+    "cwe_ids": [
+      "CWE-441"
+    ],
+    "chains_with": [
+      "oauth"
+    ],
+    "prerequisites": [
+      "oauth"
+    ],
+    "tech_stack": [
+      "dpop",
+      "oauth",
+      "openid"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "open_redirect",
+    "file": "open_redirect.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-04",
+    "cwe_ids": [
+      "CWE-601"
+    ],
+    "chains_with": [
+      "oauth",
+      "dom_xss",
+      "info_disclosure",
+      "csrf",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "orm_leak",
+    "file": "orm_leak.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-89"
+    ],
+    "chains_with": [
+      "sqli",
+      "idor",
+      "mass_assignment"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "asp.net",
+      "django",
+      "express",
+      "iis",
+      "node.js",
+      "python",
+      "rails",
+      "ruby",
+      "sequelize"
+    ],
+    "top_severity": "high",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "panos_globalprotect",
+    "file": "panos_globalprotect.json",
+    "description": "Palo Alto PAN-OS GlobalProtect / management edge CVEs — GlobalProtect command injection (CVE-2024-3400) and management web auth bypass (CVE-2025-0108). Detection-only path fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "global protect",
+      "globalprotect",
+      "gpsession",
+      "palo alto",
+      "pan-os"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "parser_differential",
+    "file": "parser_differential.json",
+    "description": "Parser Differentials (PortSwigger Top 10 / 2025, #10 — joernchen). Two HTTP / URL / header / body parsers in the same pipeline (front-end + back-end, WAF + app, framework + library) disagree on the same input. Attacker crafts inputs that one parser sees as benign and the next sees as exploitable — auth bypass, cache key confusion, ACL bypass, smuggling, internal-path access.",
+    "owasp_id": "WSTG-CONF-05",
+    "cwe_ids": [
+      "CWE-436"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "path_traversal"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "django",
+      "express",
+      "flask",
+      "spring"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "path_traversal",
+    "file": "path_traversal.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-10",
+    "cwe_ids": [
+      "CWE-22"
+    ],
+    "chains_with": [
+      "info_disclosure",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "asp.net",
+      "django",
+      "flask",
+      "iis",
+      "java",
+      "next",
+      "next.js",
+      "nextjs",
+      "nginx",
+      "php",
+      "tomcat",
+      "vercel"
+    ],
+    "top_severity": "critical",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "payment_flow",
+    "file": "payment_flow.json",
+    "description": "Payment flow abuse — Stripe / Square / PayPal / Adyen / Braintree integrations consistently yield $5k+ bounties. Common classes: payment_intent ID confusion, capture/refund races, webhook secret rotation, 3DS setup_intent reuse, idempotency-key per-customer scope, currency confusion, tax-zero exploits.",
+    "owasp_id": "WSTG-BUSL-09",
+    "cwe_ids": [
+      "CWE-840"
+    ],
+    "chains_with": [
+      "business_logic",
+      "race_condition",
+      "idor"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "3ds",
+      "account_links",
+      "android",
+      "apple",
+      "apple_pay",
+      "apple_wallet",
+      "billing",
+      "checkout",
+      "currency",
+      "google",
+      "google_pay",
+      "google_wallet",
+      "gpay",
+      "iap",
+      "idempotency",
+      "ios",
+      "loyalty_pass",
+      "otp",
+      "passkit",
+      "payment",
+      "payment_intent",
+      "paymentmethoddata",
+      "pkpass",
+      "pkpaymenttoken",
+      "play",
+      "refund",
+      "setup_intent",
+      "sms_verify",
+      "storekit",
+      "stripe",
+      "stripe-signature",
+      "stripe_connect",
+      "stripe_express",
+      "twilio",
+      "verify",
+      "webhook"
+    ],
+    "top_severity": "critical",
+    "context_count": 14,
+    "is_reference_only": false
+  },
+  {
+    "category": "pdf_injection",
+    "file": "pdf_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-01",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "xss",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "dompdf",
+      "mpdf",
+      "phantomjs",
+      "prince",
+      "puppeteer",
+      "weasyprint",
+      "wkhtmltopdf"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "php_type_juggling",
+    "file": "php_type_juggling.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHN-04",
+    "cwe_ids": [
+      "CWE-843"
+    ],
+    "chains_with": [
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "codeigniter",
+      "drupal",
+      "laravel",
+      "php",
+      "symfony",
+      "wordpress"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "prototype_pollution",
+    "file": "prototype_pollution.json",
+    "description": ". v1.0 black-box variants: Express default-property pollution (json spaces / status), Fastify AJV pollution, Hapi event pollution, exec_argv RCE chain, side-channel sentinel detection. 2026 H2: axios PP gadget (CVE-2026-40175) for cloud-metadata exfil + proxy hijack; n8n core-node PP (CVE-2026-44789/90/91).",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-1321"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "xss",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "@hapi/hapi",
+      "ajv",
+      "angularjs",
+      "axios",
+      "convict",
+      "deepobj",
+      "ejs",
+      "express",
+      "express-fileupload",
+      "fastify",
+      "flatted",
+      "handlebars",
+      "hapi",
+      "hbs",
+      "jquery",
+      "koa",
+      "lodash",
+      "mongodb",
+      "mongoose",
+      "n8n",
+      "nestjs",
+      "next",
+      "next.js",
+      "nextjs",
+      "node",
+      "node.js",
+      "nodejs",
+      "pug",
+      "react",
+      "set-value",
+      "vue.js"
+    ],
+    "top_severity": "critical",
+    "context_count": 22,
+    "is_reference_only": false
+  },
+  {
+    "category": "push_notification",
+    "file": "push_notification.json",
+    "description": "Push notification abuse — Firebase Cloud Messaging (FCM), Apple Push Notification Service (APNs), web push (VAPID), and OneSignal. Common bugs: unauthenticated server-key send, push-token enumeration, silent-push exfil to mobile apps that handle silent payloads in background, cross-account token reuse on shared devices.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-345"
+    ],
+    "chains_with": [
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apns",
+      "fcm",
+      "firebase",
+      "mobile",
+      "push",
+      "topic"
+    ],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "race_condition",
+    "file": "race_condition.json",
+    "description": "",
+    "owasp_id": "WSTG-BUSL-07",
+    "cwe_ids": [
+      "CWE-362"
+    ],
+    "chains_with": [
+      "business_logic",
+      "payment_flow"
+    ],
+    "prerequisites": [],
+    "tech_stack": [],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": true
+  },
+  {
+    "category": "rag_injection",
+    "file": "rag_injection.json",
+    "description": "RAG context poisoning + direct vector-DB injection",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "ai_prompt_injection",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "chroma",
+      "llm",
+      "pinecone",
+      "qdrant",
+      "rag",
+      "vector-db",
+      "weaviate"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "rce_detection",
+    "file": "rce_detection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-12",
+    "cwe_ids": [
+      "CWE-78",
+      "CWE-94"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "apache",
+      "apache ofbiz",
+      "atlassian",
+      "bun",
+      "codeigniter",
+      "collabora",
+      "confluence",
+      "docker",
+      "dotnet",
+      "drupal",
+      "elasticsearch",
+      "envoy",
+      "exiftool",
+      "express",
+      "freebsd",
+      "gd",
+      "ghostscript",
+      "globalprotect",
+      "h2",
+      "handlebars",
+      "imagemagick",
+      "java",
+      "joomla",
+      "k8s",
+      "kubernetes",
+      "laravel",
+      "libwebp",
+      "linux",
+      "mariadb",
+      "microsoft",
+      "mssql",
+      "mysql",
+      "nextcloud",
+      "nfs",
+      "nginx",
+      "node",
+      "node.js",
+      "nodejs",
+      "oracle",
+      "pan-os",
+      "panos",
+      "perl",
+      "php",
+      "pillow",
+      "postgresql",
+      "python",
+      "redis",
+      "richdocumentscode",
+      "rpcbind",
+      "sharepoint",
+      "sharp",
+      "spring",
+      "spring boot",
+      "spring cloud function",
+      "spring cloud gateway",
+      "spring framework",
+      "sql server",
+      "sqlite",
+      "symfony",
+      "wordpress"
+    ],
+    "top_severity": "critical",
+    "context_count": 34,
+    "is_reference_only": false
+  },
+  {
+    "category": "react_server_components",
+    "file": "react_server_components.json",
+    "description": "React Server Components (RSC) Flight protocol attacks. Covers CVE-2025-55182 React2Shell (Wiz) and CVE-2025-66478 (Praetorian) — Next.js boundary-deserialization RCE via crafted x-rsc-form-state / Server Action bodies. Affects ~39% of cloud Next.js apps (App Router 13.x-15.x with Server Actions enabled). Markers: text/x-component, Next-Action header, $1@/$2@ RSC chunk syntax.",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "ssrf",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "app-router",
+      "next",
+      "next.js",
+      "nextjs",
+      "react",
+      "react-server",
+      "rsc",
+      "server-actions",
+      "vercel"
+    ],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "redos",
+    "file": "redos.json",
+    "description": "",
+    "owasp_id": "WSTG-BUSL-06",
+    "cwe_ids": [
+      "CWE-1333"
+    ],
+    "chains_with": [
+      "resource_exhaustion"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "java",
+      "javascript",
+      "node.js",
+      "php",
+      "python",
+      "ruby"
+    ],
+    "top_severity": "medium",
+    "context_count": 1,
+    "is_reference_only": false
+  },
+  {
+    "category": "reflected_file_download",
+    "file": "reflected_file_download.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "xss",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "api",
+      "asp.net",
+      "express",
+      "jsonp",
+      "spring"
+    ],
+    "top_severity": "medium",
+    "context_count": 1,
+    "is_reference_only": false
+  },
+  {
+    "category": "relative_path_overwrite",
+    "file": "relative_path_overwrite.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "xss",
+      "css_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "asp.net",
+      "iis",
+      "nginx",
+      "php"
+    ],
+    "top_severity": "medium",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "request_smuggling",
+    "file": "request_smuggling.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-444"
+    ],
+    "chains_with": [
+      "cache_poisoning",
+      "auth_bypass",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "envoy",
+      "h2",
+      "h2c",
+      "haproxy",
+      "iis",
+      "nginx"
+    ],
+    "top_severity": "critical",
+    "context_count": 9,
+    "is_reference_only": true
+  },
+  {
+    "category": "request_splitting",
+    "file": "request_splitting.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-113"
+    ],
+    "chains_with": [
+      "request_smuggling",
+      "cache_poisoning"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "java",
+      "nginx",
+      "node.js",
+      "php",
+      "python",
+      "ruby"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "resource_exhaustion",
+    "file": "resource_exhaustion.json",
+    "description": "",
+    "owasp_id": "WSTG-BUSL-06",
+    "cwe_ids": [
+      "CWE-400"
+    ],
+    "chains_with": [
+      "redos"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apollo",
+      "aws ses",
+      "aws sns",
+      "google maps api",
+      "graphql",
+      "jumio",
+      "mailgun",
+      "mapbox",
+      "messagebird",
+      "onfido",
+      "plivo",
+      "postmark",
+      "relay",
+      "resend",
+      "sendgrid",
+      "stripe radar",
+      "twilio",
+      "veriff",
+      "vonage"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "response_header_injection",
+    "file": "response_header_injection.json",
+    "description": "Response header injection beyond CRLF — injecting into existing response header values (Location, Content-Type, CSP, Link, X-Frame-Options) via user-controlled input that reaches those headers without newline sanitization. Chains with XSS (Content-Type text/html), cache poisoning (Cache-Control injection), and session fixation (Set-Cookie injection).",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-113"
+    ],
+    "chains_with": [
+      "crlf_injection",
+      "xss",
+      "cache_poisoning",
+      "session_security"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "cdn",
+      "cloudflare",
+      "csp",
+      "django",
+      "express",
+      "fastapi",
+      "fastly",
+      "flask",
+      "next.js",
+      "nginx",
+      "rails",
+      "spring"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "reverse_proxy_misconfig",
+    "file": "reverse_proxy_misconfig.json",
+    "description": "",
+    "owasp_id": "WSTG-CONF-05",
+    "cwe_ids": [
+      "CWE-16"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "ssrf",
+      "path_traversal"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "apache",
+      "asp.net",
+      "express",
+      "haproxy",
+      "iis",
+      "nginx",
+      "node",
+      "spring",
+      "tomcat"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "saml",
+    "file": "saml.json",
+    "description": "",
+    "owasp_id": "WSTG-ATHN-05",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "xxe"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "adfs",
+      "auth0",
+      "cloudfoundry",
+      "java",
+      "okta",
+      "onelogin",
+      "php",
+      "ping",
+      "saml",
+      "shibboleth",
+      "simplesamlphp",
+      "sso",
+      "uaa"
+    ],
+    "top_severity": "critical",
+    "context_count": 14,
+    "is_reference_only": false
+  },
+  {
+    "category": "scim_provisioning",
+    "file": "scim_provisioning.json",
+    "description": "SCIM (System for Cross-domain Identity Management, RFC 7643/7644) provisioning endpoints. Used by Okta, Azure AD, JumpCloud, OneLogin, Workday, etc. SCIM endpoints are often LESS hardened than the customer-facing app: filter injection, mass user create with admin attrs, group escalation via PATCH, and tokenless POSTs are common 2024-2026 bug-bounty findings.",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-285"
+    ],
+    "chains_with": [
+      "idor",
+      "mass_assignment"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "azure_ad",
+      "jumpcloud",
+      "okta",
+      "onelogin",
+      "scim",
+      "workday"
+    ],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "second_order",
+    "file": "second_order.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "sqli",
+      "xss",
+      "ssti"
+    ],
+    "prerequisites": [
+      "sqli",
+      "xss"
+    ],
+    "tech_stack": [
+      "asp.net",
+      "erb",
+      "freemarker",
+      "handlebars",
+      "java",
+      "jinja2",
+      "mssql",
+      "mysql",
+      "pebble",
+      "php",
+      "postgresql",
+      "sqlite",
+      "thymeleaf",
+      "twig",
+      "velocity"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "service_worker_attacks",
+    "file": "service_worker_attacks.json",
+    "description": "Service worker misuse — offline cache poisoning, scope hijack, push-subscription steal",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-349"
+    ],
+    "chains_with": [
+      "xss",
+      "dom_xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "pwa",
+      "service-worker"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "session_fixation",
+    "file": "session_fixation.json",
+    "description": "Session fixation — attacker pre-sets a session token, victim authenticates with it, attacker hijacks the session",
+    "owasp_id": "WSTG-SESS-03",
+    "cwe_ids": [
+      "CWE-384"
+    ],
+    "chains_with": [
+      "xss",
+      "auth_bypass"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [],
+    "top_severity": "",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "session_puzzling",
+    "file": "session_puzzling.json",
+    "description": "",
+    "owasp_id": "WSTG-SESS-08",
+    "cwe_ids": [
+      "CWE-384"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "idor"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "asp.net",
+      "django",
+      "flask",
+      "java",
+      "node.js",
+      "php",
+      "python",
+      "ruby on rails"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "session_security",
+    "file": "session_security.json",
+    "description": "",
+    "owasp_id": "WSTG-SESS-01",
+    "cwe_ids": [
+      "CWE-613"
+    ],
+    "chains_with": [
+      "xss",
+      "csrf"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [],
+    "top_severity": "high",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "smartermail",
+    "file": "smartermail.json",
+    "description": "SmarterTools SmarterMail — CVE-2026-24423 unauthenticated remote code execution via the sysadmin connect-to-hub flow (SSRF-to-hostile-hub -> SystemMount.CommandMount blindly executed). Affects builds prior to 9511. Detection-only endpoint/product fingerprints; the hostile-hub weaponisation is operator-supervised (Rule 5 / manual_chain).",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "server: smartermail",
+      "smartermail",
+      "smartertools"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "soapwn",
+    "file": "soapwn.json",
+    "description": "SOAPwn (.NET SOAP client + WSDL RCE — Bazydlo / watchTowr — PortSwigger Top 10 / 2025, #5). When a .NET application acts as a SOAP client and the WSDL endpoint is attacker-controlled (URL parameter, header, configuration), serving a hostile WSDL triggers .NET XmlSerializer code-gen + dynamic compilation. Reaching XSD imports and complex type definitions, attacker achieves arbitrary code execution in the SOAP-client context.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-502"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "deserialization"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "asmx",
+      "asp.net",
+      "soap",
+      "wcf"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": true
+  },
+  {
+    "category": "sonicwall_sslvpn",
+    "file": "sonicwall_sslvpn.json",
+    "description": "SonicWall SonicOS SSLVPN edge-appliance CVEs — SSLVPN authentication bypass / session hijack (CVE-2024-53704) and SSLVPN SQL injection (CVE-2021-20016). Detection-only endpoint fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "netextender",
+      "sonicos",
+      "sonicwall",
+      "sslvpn",
+      "swap"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "source_code_exposure",
+    "file": "source_code_exposure.json",
+    "description": "",
+    "owasp_id": "WSTG-INFO-05",
+    "cwe_ids": [
+      "CWE-540"
+    ],
+    "chains_with": [
+      "info_disclosure",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "astro",
+      "django",
+      "laravel",
+      "php",
+      "qwik",
+      "rails",
+      "spring",
+      "svelte-kit",
+      "vite",
+      "vue-cli"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": true
+  },
+  {
+    "category": "sqli",
+    "file": "sqli.json",
+    "description": "(core: error/union/generic/waf-bypass)",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-89"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "idor",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "asp.net",
+      "iis",
+      "litellm",
+      "mssql",
+      "mysql",
+      "oracle",
+      "php",
+      "postgresql",
+      "sqlite"
+    ],
+    "top_severity": "critical",
+    "context_count": 9,
+    "is_reference_only": false
+  },
+  {
+    "category": "sqli_blind",
+    "file": "sqli_blind.json",
+    "description": "— blind variants (boolean / time / OOB exfil)",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-89"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "idor"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "mssql",
+      "mysql",
+      "oracle"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "sqli_engines",
+    "file": "sqli_engines.json",
+    "description": "— engine-specific payloads (MySQL, PostgreSQL, MSSQL, Oracle, SQLite, NoSQL)",
+    "owasp_id": "WSTG-INPV-05",
+    "cwe_ids": [
+      "CWE-89"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "idor"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "asp.net",
+      "django",
+      "express",
+      "flask",
+      "iis",
+      "java",
+      "mongodb",
+      "mongoose",
+      "mssql",
+      "mysql",
+      "nginx",
+      "node.js",
+      "oracle",
+      "oracledb",
+      "php",
+      "postgresql",
+      "python",
+      "sqlite",
+      "weblogic"
+    ],
+    "top_severity": "critical",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "sse_injection",
+    "file": "sse_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "xss",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "express",
+      "flask",
+      "go",
+      "java",
+      "node.js",
+      "python"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssi_injection",
+    "file": "ssi_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-08",
+    "cwe_ids": [
+      "CWE-97"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "iis",
+      "nginx"
+    ],
+    "top_severity": "critical",
+    "context_count": 1,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssrf",
+    "file": "ssrf.json",
+    "description": "(core: cloud-metadata / internal / url-bypass / redirect)",
+    "owasp_id": "WSTG-INPV-19",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "cloud_webapp",
+      "info_disclosure",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "aws",
+      "azure",
+      "databricks",
+      "ec2",
+      "ecs",
+      "envoy",
+      "fargate",
+      "gcp",
+      "haproxy",
+      "kubernetes",
+      "kyverno",
+      "lambda",
+      "lmdeploy",
+      "mlflow",
+      "nginx",
+      "php",
+      "phpspreadsheet"
+    ],
+    "top_severity": "critical",
+    "context_count": 14,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssrf_bypass",
+    "file": "ssrf_bypass.json",
+    "description": "— bypass variants (localhost / IPv6 / DNS rebinding)",
+    "owasp_id": "WSTG-INPV-19",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "ssrf",
+      "cloud_webapp"
+    ],
+    "prerequisites": [
+      "ssrf"
+    ],
+    "tech_stack": [
+      "curl",
+      "http-client",
+      "libcurl",
+      "reqwest",
+      "ssrf"
+    ],
+    "top_severity": "critical",
+    "context_count": 5,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssrf_protocol",
+    "file": "ssrf_protocol.json",
+    "description": "— protocol smuggling + K8s in-cluster pivot",
+    "owasp_id": "WSTG-INPV-19",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "ssrf",
+      "rce_detection"
+    ],
+    "prerequisites": [
+      "ssrf"
+    ],
+    "tech_stack": [
+      "curl",
+      "go",
+      "java",
+      "k8s",
+      "kubernetes",
+      "node",
+      "php",
+      "python"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssti",
+    "file": "ssti.json",
+    "description": "(core / language-generic)",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-1336"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "echo",
+      "gin",
+      "go",
+      "golang"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssti_elixir",
+    "file": "ssti_elixir.json",
+    "description": "Server-side template injection in Elixir template engines (EEx, Phoenix HEEx). New parent (2026-07): no existing SSTI parent covers Elixir. Error-oracle extraction per PortSwigger Top-10-2025 #1 (Successful Errors). Use against Phoenix apps rendering user input through EEx.",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-1336"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "eex",
+      "elixir",
+      "heex",
+      "phoenix"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssti_java",
+    "file": "ssti_java.json",
+    "description": "— Java engines (FreeMarker, Thymeleaf, Pebble)",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-1336"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache struts",
+      "freemarker",
+      "java",
+      "spring",
+      "spring boot",
+      "spring mvc",
+      "struts 2",
+      "struts2",
+      "thymeleaf",
+      "tomcat",
+      "velocity"
+    ],
+    "top_severity": "critical",
+    "context_count": 7,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssti_js",
+    "file": "ssti_js.json",
+    "description": "— JavaScript engines (Handlebars, Nunjucks)",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-1336"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "ejs",
+      "express",
+      "handlebars",
+      "node",
+      "node.js",
+      "nunjucks",
+      "pug"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssti_php",
+    "file": "ssti_php.json",
+    "description": "— PHP engines (Smarty, Twig)",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-1336"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "blade",
+      "laravel",
+      "php",
+      "smarty",
+      "symfony",
+      "twig"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "ssti_python",
+    "file": "ssti_python.json",
+    "description": "— Python engines (Jinja2, Mako)",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-1336"
+    ],
+    "chains_with": [
+      "rce_detection",
+      "command_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "flask",
+      "jinja2",
+      "mako",
+      "pyramid",
+      "python",
+      "turbogears"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "state_machine_race",
+    "file": "state_machine_race.json",
+    "description": "Multi-step state-machine desync — limit-overrun via timing-of-checks, two-window edges",
+    "owasp_id": "WSTG-BUSL-07",
+    "cwe_ids": [
+      "CWE-362"
+    ],
+    "chains_with": [
+      "race_condition",
+      "business_logic"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "any"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "subdomain_takeover",
+    "file": "subdomain_takeover.json",
+    "description": "",
+    "owasp_id": "WSTG-CONF-10",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "oauth",
+      "xss",
+      "cors"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "aws s3",
+      "azure",
+      "fastly",
+      "fly.io",
+      "ghost",
+      "github pages",
+      "heroku",
+      "netlify",
+      "pantheon",
+      "shopify",
+      "surge.sh",
+      "tumblr"
+    ],
+    "top_severity": "high",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "sveltekit",
+    "file": "sveltekit.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "ssrf",
+      "csrf",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "svelte",
+      "sveltekit",
+      "vite"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "teamcity",
+    "file": "teamcity.json",
+    "description": "JetBrains TeamCity edge CVEs — authentication bypass exposing REST admin (CVE-2024-27198) and auth-bypass RCE (CVE-2023-42793). Detection-only endpoint fingerprints.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "jetbrains",
+      "tcsessionid",
+      "teamcity"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "tech_vulns",
+    "file": "tech_vulns.json",
+    "description": "Technology-specific vulnerability mapping. Used after tech stack detection to suggest targeted tests.",
+    "owasp_id": "WSTG-INFO-08",
+    "cwe_ids": [
+      "CWE-16"
+    ],
+    "chains_with": [
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "aem",
+      "apache-coyote",
+      "asp.net",
+      "day-servlet-engine",
+      "globalprotect",
+      "java",
+      "jboss",
+      "netscaler",
+      "oa_html",
+      "oracle",
+      "oracle ebs",
+      "pan-os",
+      "servicenow",
+      "servicenow.com",
+      "tomcat",
+      "torchserve",
+      "weblogic",
+      "x-aspnet-version"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": true
+  },
+  {
+    "category": "trpc_sspp",
+    "file": "trpc_sspp.json",
+    "description": "tRPC server-side prototype pollution via formDataToObject (CVE-2025-68130, GHSA-43p4-m455-4f4j). Affects @trpc/server experimental_nextAppDirCaller path on Next.js App Router. Attacker submits form fields named __proto__.X or constructor.prototype.X to pollute Object.prototype across the entire process.",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "prototype_pollution",
+      "sqli"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "@trpc/next",
+      "@trpc/server",
+      "next",
+      "trpc"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "unicode_normalization",
+    "file": "unicode_normalization.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-176"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "xss",
+      "path_traversal"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "django",
+      "java",
+      "node.js",
+      "python",
+      "ruby",
+      "ruby on rails"
+    ],
+    "top_severity": "high",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "unsafe_consumption",
+    "file": "unsafe_consumption.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-829"
+    ],
+    "chains_with": [
+      "ssrf",
+      "deserialization"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "github",
+      "oauth",
+      "oidc",
+      "omniauth",
+      "onelogin",
+      "passport",
+      "saml",
+      "sendgrid",
+      "shibboleth",
+      "shopify",
+      "simplesamlphp",
+      "slack",
+      "spring security",
+      "stripe",
+      "twilio"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "vector_db_injection",
+    "file": "vector_db_injection.json",
+    "description": "Vector-DB / embedding-store attacks against RAG pipelines: Chroma, Pinecone, Weaviate, Qdrant, pgvector, Redis-vss, Milvus. Covers metadata-filter injection, namespace traversal, embedding extraction, anonymous-listing of indexes, RAG-poisoning via crafted upsert.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "rag_injection",
+      "ai_prompt_injection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "chroma",
+      "chromadb",
+      "pgvector",
+      "pinecone",
+      "pinecone-io",
+      "qdrant",
+      "weaviate"
+    ],
+    "top_severity": "high",
+    "context_count": 6,
+    "is_reference_only": false
+  },
+  {
+    "category": "waf_bypass_40x",
+    "file": "waf_bypass_40x.json",
+    "description": "40x bypass surface — header / path / method / encoding / protocol tricks that flip 401/403 to 2xx on misconfigured ACLs, reverse proxies, WAFs, and admin route guards.",
+    "owasp_id": "WSTG-CONF-05",
+    "cwe_ids": [
+      "CWE-693"
+    ],
+    "chains_with": [
+      "path_traversal",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "apache",
+      "aws alb",
+      "aws waf",
+      "cloudflare",
+      "cloudfront",
+      "django",
+      "envoy",
+      "express",
+      "f5",
+      "fastly",
+      "haproxy",
+      "iis",
+      "imperva",
+      "laravel",
+      "modsecurity",
+      "nginx",
+      "rails",
+      "spring",
+      "symfony",
+      "tomcat"
+    ],
+    "top_severity": "critical",
+    "context_count": 11,
+    "is_reference_only": false
+  },
+  {
+    "category": "web_cache_deception",
+    "file": "web_cache_deception.json",
+    "description": "Web cache deception via static-suffix path confusion. Active in W13: static_suffix_cache_poisoning fires on cacheable response with user data word reflection. Existing path_confusion remains as operator-driven payload set.",
+    "owasp_id": "WSTG-ATHN-06",
+    "cwe_ids": [
+      "CWE-525"
+    ],
+    "chains_with": [
+      "idor",
+      "info_disclosure",
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "apache",
+      "aws cloudfront",
+      "cdn",
+      "cloudflare",
+      "cloudfront",
+      "fastly",
+      "nginx",
+      "ruby on rails",
+      "spring",
+      "varnish"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "web_cache_poisoning_dos",
+    "file": "web_cache_poisoning_dos.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-349"
+    ],
+    "chains_with": [
+      "cache_poisoning",
+      "host_header"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "akamai",
+      "apache",
+      "cloudflare",
+      "cloudfront",
+      "fastly",
+      "nginx",
+      "varnish"
+    ],
+    "top_severity": "medium",
+    "context_count": 4,
+    "is_reference_only": true
+  },
+  {
+    "category": "web_llm",
+    "file": "web_llm.json",
+    "description": "",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "ai_prompt_injection",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "ai",
+      "assistant",
+      "chatbot",
+      "claude",
+      "embedding",
+      "function_calling",
+      "gpt",
+      "llm",
+      "openai",
+      "plugin",
+      "rag",
+      "tool_use",
+      "vector"
+    ],
+    "top_severity": "critical",
+    "context_count": 5,
+    "is_reference_only": false
+  },
+  {
+    "category": "webauthn_passkey",
+    "file": "webauthn_passkey.json",
+    "description": "WebAuthn / passkey bypass — most checks happen client-side or via untrusted attestation; recovery flows often weaker than the passkey itself. Bug-bounty payouts in 2024-2026 commonly exploit attestation-none acceptance, recovery-code reuse, PRF extension confusion, and fallback-to-password downgrades.",
+    "owasp_id": "WSTG-ATHN-11",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "mfa_bypass"
+    ],
+    "prerequisites": [
+      "authentication"
+    ],
+    "tech_stack": [
+      "cable",
+      "credential_manager",
+      "fido2",
+      "google_password_manager",
+      "hybrid",
+      "icloud",
+      "magic_link",
+      "mobile",
+      "otp",
+      "passkey",
+      "passwordless",
+      "qr",
+      "webauthn"
+    ],
+    "top_severity": "critical",
+    "context_count": 13,
+    "is_reference_only": false
+  },
+  {
+    "category": "webdav_misconfig",
+    "file": "webdav_misconfig.json",
+    "description": "WebDAV (RFC 4918) misconfig: PROPFIND/MKCOL/COPY/MOVE/LOCK/PUT enabled on servers that don't need it. Beyond the PUT-method check in http_methods_enum — covers the full WebDAV verb set + auth bypass via PROPFIND on protected paths + LOCK-token DoS + COPY/MOVE to writable extension. Maps to OWASP WSTG 4.2.6.",
+    "owasp_id": "WSTG-CONF-06",
+    "cwe_ids": [
+      "CWE-16"
+    ],
+    "chains_with": [
+      "file_upload",
+      "path_traversal"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "apache",
+      "dav",
+      "iis",
+      "lighttpd",
+      "microsoft-httpapi",
+      "nginx",
+      "sharepoint",
+      "tomcat",
+      "webdav",
+      "windows"
+    ],
+    "top_severity": "critical",
+    "context_count": 10,
+    "is_reference_only": false
+  },
+  {
+    "category": "webhook_replay",
+    "file": "webhook_replay.json",
+    "description": "Webhook abuse — replay of signed webhook events (Stripe, GitHub, Shopify, Twilio), signature bypass, timestamp tolerance attacks, idempotency-key reuse, downgrade from signed to unsigned variants.",
+    "owasp_id": "WSTG-BUSL-01",
+    "cwe_ids": [
+      "CWE-345"
+    ],
+    "chains_with": [
+      "business_logic",
+      "race_condition"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "idempotency",
+      "stripe",
+      "stripe-signature",
+      "webhook"
+    ],
+    "top_severity": "critical",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "websocket",
+    "file": "websocket.json",
+    "description": "",
+    "owasp_id": "WSTG-APIT-02",
+    "cwe_ids": [
+      "CWE-345"
+    ],
+    "chains_with": [
+      "xss",
+      "sqli",
+      "idor"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "express",
+      "graphql-ws",
+      "marimo",
+      "nginx",
+      "node.js",
+      "permessage-deflate",
+      "python-notebook",
+      "socket.io",
+      "websocket",
+      "ws"
+    ],
+    "top_severity": "critical",
+    "context_count": 13,
+    "is_reference_only": false
+  },
+  {
+    "category": "webview_injection",
+    "file": "webview_injection.json",
+    "description": "Mobile WebView attacks: Android WebView (addJavascriptInterface RCE, file:// access, mixed-content), iOS WKWebView (postMessage handler abuse, file:// URL load), Cordova/Ionic bridge abuse, Capacitor plugins. Reference-only — requires device + ability to control WebView source URL or postMessage. Maps to OWASP Mobile Top 10 2024 M4 + HackTricks Mobile WebView section. Active in W10: 3 HTTP-observable contexts fire on backend traffic captured AFTER operator drives the WebView via am-start / mobile-dynamic-agent.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "dom_xss",
+      "xss"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "android",
+      "capacitor",
+      "cordova",
+      "ionic",
+      "ios",
+      "phonegap",
+      "webview",
+      "wkwebview"
+    ],
+    "top_severity": "critical",
+    "context_count": 11,
+    "is_reference_only": false
+  },
+  {
+    "category": "windows_admin_center",
+    "file": "windows_admin_center.json",
+    "description": "Microsoft Windows Admin Center (WAC) — post-authentication PowerShell command execution via the WinREST invokeCommand API (/api/WinREST/PowerShell/nodes/<node>/invokeCommand). The `script` property runs arbitrary PowerShell on the managed node as the WAC-connected identity. Detection-only fingerprints; command execution is operator-supervised (manual_chain). WAC gateway default port 6516; internal/HTB deployments commonly 6600/443.",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-287"
+    ],
+    "chains_with": [
+      "auth_bypass"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "microsoft.management.servermanager",
+      "wac",
+      "windows admin center",
+      "winrest"
+    ],
+    "top_severity": "critical",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "wordpress",
+    "file": "wordpress.json",
+    "description": "",
+    "owasp_id": "WSTG-CONF-11",
+    "cwe_ids": [
+      "CWE-16"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "file_upload",
+      "sqli"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "wordpress"
+    ],
+    "top_severity": "",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "xml_injection",
+    "file": "xml_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-07",
+    "cwe_ids": [
+      "CWE-91"
+    ],
+    "chains_with": [
+      "xxe",
+      "ssrf"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "java",
+      "php",
+      "python",
+      "soap"
+    ],
+    "top_severity": "high",
+    "context_count": 4,
+    "is_reference_only": false
+  },
+  {
+    "category": "xpath_injection",
+    "file": "xpath_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-09",
+    "cwe_ids": [
+      "CWE-643"
+    ],
+    "chains_with": [
+      "auth_bypass",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "java",
+      "php",
+      "soap",
+      "xml"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "xs_leak",
+    "file": "xs_leak.json",
+    "description": "",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-203"
+    ],
+    "chains_with": [
+      "info_disclosure",
+      "idor"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "javascript"
+    ],
+    "top_severity": "medium",
+    "context_count": 3,
+    "is_reference_only": true
+  },
+  {
+    "category": "xsleak_redirect",
+    "file": "xsleak_redirect.json",
+    "description": "XSS-Leak via Cross-Origin Redirects (PortSwigger Top 10 / 2025, #8 — Abello). Chrome's network connection-pool exhibits an observable oracle when a cross-origin request triggers a redirect to a same-origin URL. By exhausting the per-host TCP socket pool and timing pool reclaim, attacker infers the redirect target — leaking per-victim state (logged-in user, role, multi-tenant slug, OAuth flow position).",
+    "owasp_id": "WSTG-CLNT-13",
+    "cwe_ids": [
+      "CWE-203"
+    ],
+    "chains_with": [
+      "xs_leak",
+      "open_redirect"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "oauth",
+      "oidc"
+    ],
+    "top_severity": "medium",
+    "context_count": 2,
+    "is_reference_only": false
+  },
+  {
+    "category": "xslt_injection",
+    "file": "xslt_injection.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-18",
+    "cwe_ids": [
+      "CWE-74"
+    ],
+    "chains_with": [
+      "xxe",
+      "rce_detection"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "java",
+      "libxslt",
+      "php",
+      "xml",
+      "xslt"
+    ],
+    "top_severity": "critical",
+    "context_count": 3,
+    "is_reference_only": false
+  },
+  {
+    "category": "xss",
+    "file": "xss.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-01",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "csrf",
+      "session_security",
+      "open_redirect"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "angularjs",
+      "cdn",
+      "gotty",
+      "image proxy",
+      "imagemagick",
+      "shellinabox",
+      "svg",
+      "terminal",
+      "ttyd",
+      "wetty",
+      "xterm"
+    ],
+    "top_severity": "critical",
+    "context_count": 15,
+    "is_reference_only": false
+  },
+  {
+    "category": "xxe",
+    "file": "xxe.json",
+    "description": "",
+    "owasp_id": "WSTG-INPV-07",
+    "cwe_ids": [
+      "CWE-611"
+    ],
+    "chains_with": [
+      "ssrf",
+      "path_traversal",
+      "info_disclosure"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      ".net",
+      "java",
+      "php",
+      "soap",
+      "wcf"
+    ],
+    "top_severity": "critical",
+    "context_count": 8,
+    "is_reference_only": false
+  },
+  {
+    "category": "zip_slip",
+    "file": "zip_slip.json",
+    "description": "Archive-extraction path traversal (Snyk 2018 — Zip Slip). Triggers when application unpacks attacker-controlled zip/tar/7z/rar/jar without canonicalising entry names — `../../../etc/cron.d/x` lands outside intended directory. Reference-only: requires upload-then-trigger sequence + post-extraction filesystem observation; operator drives via file_upload tool. Maps to OWASP WSTG 4.10.8 + PayloadsAllTheThings 'Insecure File Upload'.",
+    "owasp_id": "WSTG-INPV-13",
+    "cwe_ids": [
+      "CWE-22"
+    ],
+    "chains_with": [
+      "file_upload",
+      "path_traversal"
+    ],
+    "prerequisites": [
+      "file_upload"
+    ],
+    "tech_stack": [
+      "java",
+      "jetty",
+      "tomcat",
+      "weblogic"
+    ],
+    "top_severity": "critical",
+    "context_count": 7,
+    "is_reference_only": true
+  }
+]

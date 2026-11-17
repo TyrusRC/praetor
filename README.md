@@ -55,6 +55,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 **Exploit Pipeline (detect → confirm → escalate)**
 - `confirm_*` tools prove injection exists (SQLi, RCE, SSRF, SSTI, XXE, XSS, NoSQL, LDAP, XPath, XSLT, SSI, expression injection, email injection, second-order, cache deception, IDOR, race condition)
 - `escalate_*` tools prove attacker capability (SSTI→RCE, SQLi→file read/OS cmd, SSRF→IMDS creds, XXE→OOB exfil, LFI→sensitive files, IDOR→cross-account, prototype pollution→gadget RCE, open redirect→token theft)
+- **Automatic chain detection**: 10 endpoint-context patterns (credential→SQLi, info-disclosure→SSRF, redirect→OAuth, IDOR→data-leak, XSS→CSRF, SSTI→RCE, race→business-logic, SQLi→data-exfil, SSRF→cloud-metadata, auth-bypass→privesc) auto-fire after every `save_finding` and surface escalation candidates
 - OOB blind SQLi extraction via Collaborator DNS exfil (MSSQL xp_dirtree, MySQL LOAD_FILE, Oracle UTL_HTTP, PostgreSQL COPY TO PROGRAM)
 - Stacked query detection across all 5 DBMS with timing-based verification
 - Upload polyglot generation: GIFAR+PHP, GIFAR+JSP, PNG+PHP, SVG+JS, PDF+JS
@@ -88,6 +89,7 @@ LLM client <- stdio MCP -> server ─┤─ non-HTTP lane ─> burp-expedition e
 
 **Reporting & Evidence**
 - 7-question save-finding gate with per-program policy overrides
+- **Evidence quality gates**: programmatic checks block MEDIUM+ findings with malformed PoC requests or terse impact statements; advisory notices on LOW findings with weak evidence
 - CVSS 4.0 scoring (environment-aware, exposure-adjusted)
 - GUI screenshot capture with render-time secret redaction — the extension strips cookies, `Authorization`, API keys, tokens, JWTs, and secret query/body fields BEFORE the capture (deterministic, unlike OCR-on-image which can misread and leak), with header-hiding, pretty/raw view, page-size presets, and reusable redaction templates (`screenshot_template`); OCR-based post-capture redaction remains for full-window shots
 - Reports: pentest, red-team, compliance (PCI-DSS, SOC2, HIPAA, GDPR, OWASP)
@@ -234,6 +236,8 @@ All optional. The core hunt loop runs with no keys.
 | `PRAETOR_DECISION_PROVIDER` | auto | Decision engine: jev / llm / off |
 | `GHOSTWRITER_URL` | — | Ghostwriter base URL (optional) |
 | `PRAETOR_PROFILE` | all | Tool lanes to advertise (web/network/mobile/cloud/core/codex) |
+| `PRAETOR_TOOL_RAG` | off | BM25-based tool filtering — projects 300+ tools to top-k most relevant per intent (set `1` to enable) |
+| `PRAETOR_TOOL_RAG_TOPK` | 20 | Number of non-core tools to keep visible when Tool RAG is enabled (5–200) |
 
 Full list with OSINT keys, Ghostwriter auth, and CI options in `.env.example`.
 
@@ -247,13 +251,17 @@ JSON files under `mcp-server/src/praetor/knowledge/`. Each file declares context
 
 **Coverage (172 files, 1090+ contexts, 2050+ probes):** OWASP Web Top 10, API Top 10, LLM Top 10, Mobile Top 10, WSTG, ASVS 5.0, AISVS 1.0, MASVS v2, PayloadsAllTheThings, HackTricks Web + Cloud, banking/finance (PCI DSS, PSD2, Open Banking), exposure/OSINT discovery, CDN proxy bypass (Cache-Control CSP stripping, SVG namespace injection, image proxy SSRF), plus recent CVEs and research techniques (WebLogic CVE-2020-14882, React2Shell, PHP2Shell, Brotli, Squidbleed, wp2shell, nginx DAV, SonicWall SMA, Collabora, SharePoint, Next.js cache/SVG RCE, Handlebars AST injection, SAML encrypted assertion bypass, Shared-Parser Confusion, terminal escape injection). Index at [`_INDEX.md`](mcp-server/src/praetor/knowledge/_INDEX.md).
 
+**Machine-readable index** (`_kb_index.json`): every category mapped to OWASP WSTG 4.2 test IDs (134/172), CWE IDs, escalation chains (170/172), prerequisites, tech-stack tags, and reference-only flags. Generated from `_wstg_cwe_map.py` via `_generate_index.py`.
+
 ## Save-Finding Pipeline
 
 ```
 replay (≥3× for blind)  →  assess_finding (7-question gate)  →  save_finding (persist + dedup)
 ```
 
-Gates: scope, reproducibility, impact, dedup, evidence, never-submit class, triager check. Severity is impact-first: confirmed exploit unlocks the class ceiling, unconfirmed caps at MEDIUM, scanner-only caps at LOW, staging caps at MEDIUM. Missing context (environment, exposure, business type) is flagged explicitly — the agent asks the operator instead of assuming. Operators override with `overrides=[...]` or per-program policy.
+Gates: scope, reproducibility, impact, dedup, evidence, never-submit class, triager check, evidence quality. Severity is impact-first: confirmed exploit unlocks the class ceiling, unconfirmed caps at MEDIUM, scanner-only caps at LOW, staging caps at MEDIUM. Missing context (environment, exposure, business type) is flagged explicitly — the agent asks the operator instead of assuming. Operators override with `overrides=[...]` or per-program policy.
+
+**5-outcome coverage taxonomy**: every tested tuple records one of `vulnerable`, `clean` (evidence ref required), `ruled_out` (reason required), `not_applicable` (reason required), or `needs_follow_up` — replacing the old binary pass/fail. `coverage_gaps(domain)` computes what remains untested.
 
 ## Agents
 

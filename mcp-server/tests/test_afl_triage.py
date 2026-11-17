@@ -8,9 +8,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from praetor.tools.fuzzing.afl import (
-    _parse_sanitizer, _classify_exploitability,
-    _primitive_from_report, _refine_class,
+from praetor.tools.fuzzing._afl_triage import (
+    parse_sanitizer as _parse_sanitizer,
+    classify_exploitability as _classify_exploitability,
+    primitive_from_report as _primitive_from_report,
+    refine_class as _refine_class,
 )
 from praetor.tools.fuzzing import _corpus, _seeds
 

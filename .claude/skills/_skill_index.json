@@ -1,0 +1,1000 @@
+[
+  {
+    "name": "auto-trigger",
+    "file": "auto-trigger.md",
+    "description": "After any recon/probe step, route observed signals to the right tools and fire the auto-plan (Balanced policy) instead of leaving tools optional",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "autopilot",
+    "file": "autopilot.md",
+    "description": "Autonomous hunt loop with circuit breaker, rate limiting, checkpoint modes, and safety controls",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "browser-backends",
+    "file": "browser-backends.md",
+    "description": "Pick the browser backend by TASK. CloakBrowser (headless, stealth, auto) = default for automated surface discovery — crawl, click everything, enumerate links. chrome-devtools-mcp (visible real Chrome the user watches) = default for observed/interactive testing and ALL OAuth / account / login flows (persistent real profile, logins survive). Load whenever a task needs a browser.",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "burp-workflow",
+    "file": "burp-workflow.md",
+    "description": "Efficient Burp Suite tool orchestration — know which tool to use when and how to chain them",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "chain-findings",
+    "file": "chain-findings.md",
+    "description": "Escalate low-severity findings into reportable vulnerabilities by building exploit chains (A→B→C)",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [
+      "verify-finding"
+    ],
+    "tech_stack": []
+  },
+  {
+    "name": "cleanup-rollback",
+    "file": "cleanup-rollback.md",
+    "description": "End-of-engagement reconciliation — before the final report, list every state-changing action from the operator log (test accounts, config changes, dropped files, background processes, listeners) and confirm each was reverted to baseline. Use when closing out an authorized engagement, or when asked \"did we clean up\".",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "command-engagement",
+    "file": "command-engagement.md",
+    "description": "Shared engagement-lead SOP for the commander agents — research, write a plan, dispatch grow-agents, synthesize cross-target results, deliver report and retest queue. Invoked by pentest-commander and redteam-commander.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "continuous-retest-loop",
+    "file": "continuous-retest-loop.md",
+    "description": "Re-test a target on every change instead of once per engagement — detect drift, then re-run ONLY the affected (endpoint,class) tuples. Matches the XBOW/NodeZero/Detectify \"test on every change\" frontier (Spec F4).",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "craft-payload",
+    "file": "craft-payload.md",
+    "description": "Adaptive payload crafting when standard attacks fail — probe filters, build bypass chains, test incrementally",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "cua-hunt",
+    "file": "cua-hunt.md",
+    "description": "Hunt Computer-Use-Agent (CUA) prompt-injection surface — instructions planted in CUA-readable DOM channels (hidden text, aria-label, alt, noscript). Load when a target is consumed or driven by a Computer-Use Agent.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "cve-freshness-loop",
+    "file": "cve-freshness-loop.md",
+    "description": "Turn a fresh CVE disclosure into a running probe in minutes — KEV/EPSS feed → variant pack or ad-hoc probe → operator-gated KB promotion. Closes the weekly hand-authored KB-cadence lag (Spec F2).",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "desktop-electron",
+    "file": "desktop-electron.md",
+    "description": "Desktop application hunting — Electron / Tauri / WebView2. Static binary inspection + IPC fuzzing + proxied traffic capture. Load when target is a desktop binary.",
+    "category": "vuln-class",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-829"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "electron"
+    ]
+  },
+  {
+    "name": "dispatch-agents",
+    "file": "dispatch-agents.md",
+    "description": "Orchestrate parallel pentesting agents — dispatch specialists for recon, scanning, verification, and payload crafting simultaneously",
+    "category": "agent",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "evidence-and-tabs",
+    "file": "evidence-and-tabs.md",
+    "description": "How a real pentester uses Burp's surfaces — Proxy history search, Repeater tabs, Intruder, Organizer, annotations. Use whenever you need to (a) find evidence already captured, (b) iterate on a captured request, (c) brute/spam/rate-test, (d) bookmark for the report. Replaces the \"default to curl\" anti-pattern.",
+    "category": "reporting",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "exploit-confirm",
+    "file": "exploit-confirm.md",
+    "description": "Prove a SUSPECTED finding with one targeted, SOC-stealth, operator-supervised confirmation probe (confirm_* tools). Use after auto_probe / test_* / manual recon to confirm, not stage.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [
+      "verify-finding"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "fuzz-hidden-paths",
+    "file": "fuzz-hidden-paths.md",
+    "description": "Discover hidden directories/files with tech-aware SecLists slicing + ffuf, fed by recon intel. Use for hidden-path fuzzing on a known target instead of spray fuzzing.",
+    "category": "recon",
+    "owasp_id": "WSTG-CONF-05",
+    "cwe_ids": [
+      "CWE-538"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "fuzz-upload",
+    "file": "fuzz-upload.md",
+    "description": "Structure-aware file-upload fuzzing to find server-side parser bugs (memory corruption / DoS) + CVE-exploitability verdict. Use when a target accepts file uploads (image/PDF/archive) or when a detected tech+version has a memory-corruption/parser CVE to confirm.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-BUSL-08",
+    "cwe_ids": [
+      "CWE-434"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "handle-docx",
+    "file": "handle-docx.md",
+    "description": "Read a .docx the operator provides (SoW / scope / RoE / prior report) or deliver a Praetor report as .docx. Load when a Word document is an input or a requested output.",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "hunt",
+    "file": "hunt.md",
+    "description": "Find reportable vulnerabilities on a target using systematic methodology with persistent memory",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [
+      "chain-findings",
+      "verify-finding"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "investigate",
+    "file": "investigate.md",
+    "description": "Deep investigation of anomalies — determine exploitability, chain findings, escalate impact",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [
+      "verify-finding"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "ip-allowlist-coverage",
+    "file": "ip-allowlist-coverage.md",
+    "description": "Audit whether a service enforces its IP allowlist CONSISTENTLY across every surface (web UI, REST/GraphQL API, git, Pages, LFS, package registry, raw, webhooks) and report the gaps. Vendor-agnostic (GitHub, GitLab, Okta, admin panels, internal apps). Use when the org has an IP allowlist / network-restriction control and wants it verified for remediation.",
+    "category": "recon",
+    "owasp_id": "WSTG-CONF-10",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "lab-solve",
+    "file": "lab-solve.md",
+    "description": "Fast path for a single-objective lab/CTF (PortSwigger Web Security Academy, HTB, CTF) — one named vuln class with a hard solve condition. Skip recon/coverage/report machinery; go objective → class tool → confirm the solve flag.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "mobile-mastg",
+    "file": "mobile-mastg.md",
+    "description": "Mobile app DAST workflow — OWASP MASTG / MASVS mapping. Frida + adb + Burp proxy. Load when target has an Android/iOS app in scope.",
+    "category": "mobile",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "android",
+      "ios"
+    ]
+  },
+  {
+    "name": "msf-quickwin",
+    "file": "msf-quickwin.md",
+    "description": "Metasploit exploit-on-demand for an identified CVE / fingerprinted service / scanner-detected vuln — use audited MSF modules instead of regenerating payloads from scratch.",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "network-scan-techniques",
+    "file": "network-scan-techniques.md",
+    "description": "Nmap scan-technique methodology for the network lane — SYN/ACK/FIN/NULL/XMAS/UDP scan selection, how to READ each result (firewall map vs OS inference vs open|filtered caveat), NSE for enumeration/vuln, timing/IDS-evasion tuning, and the observe-the-packets principle. Use when running run_nmap and deciding scan type or interpreting a state that is not plainly open/closed.",
+    "category": "infrastructure",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "noise-budget",
+    "file": "noise-budget.md",
+    "description": "Cut wasted token spend without skipping real bugs. Distinguish IMPOSSIBLE work (tech-mismatch CVEs, encoded reflections, WAF rebuffs) from EXPENSIVE-BUT-REAL coverage (framework-wide patterns, race conditions, deep auth matrices) — skip the first, fully cover the second. Use this when an anomaly looks borderline OR when deciding whether to keep probing a category that hasn't paid off yet.",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "non-http-protocol-testing",
+    "file": "non-http-protocol-testing.md",
+    "description": "Non-HTTP TCP/UDP protocol security testing via burp-expedition (the tcp_* tools). Intercept, edit, match-and-replace, replay/fuzz, and TLS-MITM arbitrary TCP/UDP — database wire protocols (PostgreSQL/MySQL/MongoDB), Redis, MQTT/IoT, Modbus/DNP3 ICS/OT, gRPC/protobuf, or any custom binary protocol Burp's HTTP proxy cannot touch. Use when a non-HTTP service is in scope, or a plaintext protocol needs MITM/STARTTLS.",
+    "category": "infrastructure",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "offline-hunt",
+    "file": "offline-hunt.md",
+    "description": "Analyze security artifacts (raw request, JS file/URL/dir, project tree) without a live Burp, then promote hypotheses into tested findings",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "operational-discipline",
+    "file": "operational-discipline.md",
+    "description": "Always-active engagement discipline — counters the LLM tendency to act like a fuzzing scanner (payload spamming, skipped verification, single-200 victory, low-impact noise) across pentest / bug-bounty / red-team roles.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "phone-control",
+    "file": "phone-control.md",
+    "description": "End-to-end device control flow — connect, verify traffic reaches Burp (DHCP-robust), unlock pinned traffic, drive the UI, capture and hand off. Load when driving a phone (Android or iOS) directly via mobile_* tools, or when device traffic isn't showing up in Burp.",
+    "category": "mobile",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "android"
+    ]
+  },
+  {
+    "name": "playbook-ad-lateral-delegation",
+    "file": "playbook-ad-lateral-delegation.md",
+    "description": "Active Directory lateral movement + privilege escalation via MSSQL linked servers + xp_cmdshell RCE, foothold credential-looting and single-password reuse-spray, Kerberos delegation (unconstrained/constrained/RBCD), authentication coercion, cross-forest trusts, Timeroasting, DACL abuse (bloodyAD — AddSelf/ForceChangePassword/WriteOwner→GenericAll/Protected-Users removal), WriteSPN targeted-Kerberoasting, gMSA password read, deleted-object recovery, AD CS ESC1/ESC4/ESC15, and DCSync. Load when you have domain creds or a foothold on a Windows/AD network (network/red-team lane). Payloads defer to redteam_tool_guide / the network lane.",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "playbook-pivoting"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "active-directory"
+    ]
+  },
+  {
+    "name": "playbook-api-advanced",
+    "file": "playbook-api-advanced.md",
+    "description": "Advanced API flaws — OWASP API Top 10+, GraphQL deep, gRPC-Web, JSON-RPC, WebSocket auth, SSE poisoning, REST→internal-RPC pivots. Load when target is API-first or has GraphQL/gRPC/WS traffic.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-285",
+      "CWE-862"
+    ],
+    "chains_with": [
+      "playbook-idor-bola"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-business-logic",
+    "file": "playbook-business-logic.md",
+    "description": "Find business-logic flaws — workflow bypass, state reuse, race-on-state, privilege boundary, multi-account collusion, price/quantity/coupon abuse. Highest-impact bugs in any engagement; auto_probe finds none of these.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-BUSL-01",
+    "cwe_ids": [
+      "CWE-840"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-c2-sliver",
+    "file": "playbook-c2-sliver.md",
+    "description": "Technical knowledge for using Sliver C2 in an authorized red-team campaign. Sliver is NOT wrapped as a tool — it runs on operator-provided infrastructure. ASK about the server and objective before any C2 action.",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-cache-deception",
+    "file": "playbook-cache-deception.md",
+    "description": "Web Cache Deception — static-suffix tricks, path-confusion variants, parser-differential bypass, Cloudflare/Akamai/Fastly/Varnish specifics. Load when target is behind a CDN.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-ATHN-06",
+    "cwe_ids": [
+      "CWE-524"
+    ],
+    "chains_with": [
+      "playbook-request-smuggling"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-cloud-native",
+    "file": "playbook-cloud-native.md",
+    "description": "Web-app exploitation against AWS / GCP / Azure-hosted apps. Use when target reveals cloud-native components (Cognito tokens, S3/GCS/Blob URLs, Lambda Function URLs, App Service, Cloud Run, AWS SDK errors, IAM names in JS bundles). Covers IMDSv1/v2 SSRF, cloud storage misconfig, federated identity flaws, cloud-specific JWT abuses — web-app techniques only.",
+    "category": "infrastructure",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [
+      "playbook-ssrf-deep-dive"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "aws",
+      "azure",
+      "gcp",
+      "kubernetes"
+    ]
+  },
+  {
+    "name": "playbook-cve-research",
+    "file": "playbook-cve-research.md",
+    "description": "Fingerprint → CVE shortlist → benign reproducer → chain. Use when fingerprinting revealed a specific framework + version. Cheap to run alongside any other playbook.",
+    "category": "vuln-class",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-deserialization",
+    "file": "playbook-deserialization.md",
+    "description": "Insecure deserialization — Java (ysoserial), .NET (ViewState / TextFormattingRunProperties), PHP (POP), Python (pickle / PyYAML), Ruby (Marshal), Node.js (node-serialize / JSON revivers). Load when serialized blobs appear in cookies / hidden fields / Authorization / Content-Type indicates magic bytes.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-14",
+    "cwe_ids": [
+      "CWE-502"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "java",
+      ".net",
+      "php",
+      "python"
+    ]
+  },
+  {
+    "name": "playbook-graphql-deep",
+    "file": "playbook-graphql-deep.md",
+    "description": "GraphQL deep-dive — introspection / field suggestion / batching / alias DoS / depth limits / persisted query bypass / subscription protocol drift. Apollo / graphql-js / Hasura / PostGraphile / Mercurius engine specifics. Load when target exposes /graphql.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-APIT-01",
+    "cwe_ids": [
+      "CWE-200",
+      "CWE-862"
+    ],
+    "chains_with": [
+      "playbook-idor-bola"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "graphql"
+    ]
+  },
+  {
+    "name": "playbook-idor-bola",
+    "file": "playbook-idor-bola.md",
+    "description": "IDOR vs BOLA hunting — ID-shape inventory, auth matrix discipline, mass-enum vs single-pivot, severity calibration. Load when a parameter contains an ID and you have ≥2 auth states.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-ATHZ-04",
+    "cwe_ids": [
+      "CWE-639",
+      "CWE-862"
+    ],
+    "chains_with": [
+      "chain-findings"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-jwt-deep-dive",
+    "file": "playbook-jwt-deep-dive.md",
+    "description": "JWT deep-dive — algorithm confusion, key disclosure, weak secrets, kid traversal, LSR race, cty confusion. Load when a request carries a Bearer JWT or you've harvested one.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-SESS-01",
+    "cwe_ids": [
+      "CWE-347",
+      "CWE-345"
+    ],
+    "chains_with": [
+      "playbook-oauth-flow-attacks"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-linux-privesc",
+    "file": "playbook-linux-privesc.md",
+    "description": "Linux local privilege escalation + post-foothold enumeration on a shell you already have — stabilize the TTY, triage fast, then work the five vectors (sudo, SUID/SGID, capabilities, cron, creds) plus group-based roots. Load when you have a non-root shell on a Linux host (network/red-team lane). Payloads defer to lookup_gtfobins.",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-269"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "linux"
+    ]
+  },
+  {
+    "name": "playbook-llm-security",
+    "file": "playbook-llm-security.md",
+    "description": "Hunt the LLM/AI layer of a target app (OWASP LLM Top 10) — prompt injection, jailbreak/encoding bypass, system-prompt leakage, improper output handling into a sink, sensitive-data disclosure, excessive agency / tool-SSRF. Use when a captured endpoint is LLM-backed (body carries messages[]/prompt/input, path is /chat|/completions|/v1/chat|/generate|/ask, or the response is model-generated natural language). Sits beside cua-hunt.md (indirect DOM-planted injection) and ai_prompt_injection.json KB.",
+    "category": "vuln-class",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-77"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "llm",
+      "ai"
+    ]
+  },
+  {
+    "name": "playbook-mobile-backend",
+    "file": "playbook-mobile-backend.md",
+    "description": "Mobile-app backend flaws across all transport types (REST, GraphQL, gRPC-Web, WebSocket, SSE). MASTG/OWASP Mobile Top 10 aligned — BOLA, BFLA, excessive data, device-bound tokens, IAP bypass, deep-link injection, push-token spoofing, predictable IDs, WS hijack, GraphQL batch abuse, gRPC service enumeration.",
+    "category": "mobile",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [
+      "playbook-mobile-dynamic"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "android",
+      "ios"
+    ]
+  },
+  {
+    "name": "playbook-mobile-dynamic",
+    "file": "playbook-mobile-dynamic.md",
+    "description": "Dynamic mobile instrumentation — Frida (iOS + Android), adb (Android only), objection. Bypass SSL pinning / root-JB detection to make Burp see traffic, hook crypto/HMAC/storage at runtime, abuse Android exported components and deep links, dump iOS keychain. Hand off to playbook-mobile-backend.md once traffic flows. Dynamic only — no static decompilation.",
+    "category": "mobile",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "android",
+      "ios"
+    ]
+  },
+  {
+    "name": "playbook-oauth-flow-attacks",
+    "file": "playbook-oauth-flow-attacks.md",
+    "description": "OAuth 2.0 / OIDC flow attacks — Authorization Code / PKCE / Device Code / Client Credentials. Mix-up, redirect_uri quirks, state CSRF, jku swap, PAR-DPoP (2024-2025). Load when target uses OAuth/OIDC.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-ATHN-07",
+    "cwe_ids": [
+      "CWE-287",
+      "CWE-601"
+    ],
+    "chains_with": [
+      "playbook-jwt-deep-dive"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "oauth"
+    ]
+  },
+  {
+    "name": "playbook-otp-mfa-bypass",
+    "file": "playbook-otp-mfa-bypass.md",
+    "description": "OTP / 2FA / MFA and login-challenge bypass — drive the existing auth tools as one attack chain. Code reuse, response manipulation, step-skip, cross-account binding, lockout + rate-limit (Rule 6a), prompt bombing, backup-code abuse. Load when the target has an OTP/2FA/SMS/email-code or MFA challenge.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-ATHN-09",
+    "cwe_ids": [
+      "CWE-308",
+      "CWE-287"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-payment-and-auth",
+    "file": "playbook-payment-and-auth.md",
+    "description": "Deep-dive auth + payment attack surface — OAuth 2.0 / OIDC, WebAuthn / FIDO2 / passkeys, Google Pay, Apple Pay, Samsung Pay, IAP receipt validation, 3DS 2.x bypass, SCA exemption abuse, recovery flow downgrades. Money-flow / account-takeover class; consistently the highest-paying surface on any program that has it.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-BUSL-09",
+    "cwe_ids": [
+      "CWE-840",
+      "CWE-287"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-pivoting",
+    "file": "playbook-pivoting.md",
+    "description": "Pivoting + tunneling into internal segments from a foothold — ligolo-ng agent/relay autoroute and double-pivot chaining, chisel reverse-SOCKS, proxychains to route tool traffic through the pivot, and a DNS-tunnel fallback (dnscat2) for egress-restricted networks. Load when a compromised host reaches a network segment your Kali box cannot route to directly (network/red-team lane).",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-pollution",
+    "file": "playbook-pollution.md",
+    "description": "Pollution and parser-confusion flaws — HPP at validator/handler split, prototype pollution, cache poisoning/deception, request smuggling, JSON parser inconsistency, cookie tossing. Load when standard payloads find nothing on a mature target or WAF blocks normal injection.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-04",
+    "cwe_ids": [
+      "CWE-235"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-prototype-pollution",
+    "file": "playbook-prototype-pollution.md",
+    "description": "Prototype pollution — CSPP (client) vs SSPP (server). Express / Fastify / Hapi sinks. CSPP→DOM XSS. SSPP→RCE / auth bypass. Load when JSON body merges + nested objects are accepted.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-01",
+    "cwe_ids": [
+      "CWE-1321"
+    ],
+    "chains_with": [
+      "playbook-xss-delivery"
+    ],
+    "prerequisites": [],
+    "tech_stack": [
+      "node.js",
+      "javascript"
+    ]
+  },
+  {
+    "name": "playbook-red-team-web",
+    "file": "playbook-red-team-web.md",
+    "description": "Advanced web exploitation chains beyond OWASP — SSO/OAuth/SAML flaws, deserialization gadgets, dependency confusion, web LLM injection, cloud-native attacks (IMDS, K8s, Lambda, S3, IAM). Load when user asks \"red team this\" or recon found SSO/cloud/serialized data.",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-request-smuggling",
+    "file": "playbook-request-smuggling.md",
+    "description": "HTTP request smuggling — CL.TE / TE.CL / TE.TE classics + 2025 desync endgame (0.CL / CL.0 / V-H / Expect / double-desync). Detection workflow, safe payloads, evidence ladder. Load when a Pro chain (CDN / WAF / origin) is in scope.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-15",
+    "cwe_ids": [
+      "CWE-444"
+    ],
+    "chains_with": [
+      "playbook-cache-deception"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-router",
+    "file": "playbook-router.md",
+    "description": "Pick which advanced playbook to load based on target traits. Use when standard hunt skill yielded nothing or user asks for advanced/red-team/deep testing. Loads at most 2 playbooks instead of spamming all.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-CONF-05",
+    "cwe_ids": [
+      "CWE-284"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-saml-xsw",
+    "file": "playbook-saml-xsw.md",
+    "description": "SAML XML Signature Wrapping (XSW) attacks — 8 standard variants per Somorovsky-Mainka-Schwenk research. Manual XML payload construction. Load when target uses SAML 2.0 (SSO via Salesforce / Okta / Ping / OneLogin / ADFS / Shibboleth).",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-ATHN-07",
+    "cwe_ids": [
+      "CWE-347"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "saml"
+    ]
+  },
+  {
+    "name": "playbook-server-action-rsc",
+    "file": "playbook-server-action-rsc.md",
+    "description": "React Server Components + Server Actions attacks — Next.js 13+/14+/15 attack surface. CVE-2025-55182 / CVE-2025-66478. Server Action ID enumeration, payload tampering, RSC poisoning.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-01",
+    "cwe_ids": [
+      "CWE-502"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "react",
+      "next.js"
+    ]
+  },
+  {
+    "name": "playbook-source-review",
+    "file": "playbook-source-review.md",
+    "description": "White-box methodology — strip noise → inventory routes → grep sinks → trace source→sink → rank unauth surface → confirm live. Load when the operator has read access to the target's source tree (SOW-provided repo, leaked archive, open-source component, decompiled app).",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INFO-05",
+    "cwe_ids": [
+      "CWE-540"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-ssrf-deep-dive",
+    "file": "playbook-ssrf-deep-dive.md",
+    "description": "SSRF deep-dive — classification matrix, bypass primitives per class, evidence ladder, save_finding shape. Load when a finding or recon turns up an SSRF candidate.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-19",
+    "cwe_ids": [
+      "CWE-918"
+    ],
+    "chains_with": [
+      "playbook-cloud-native"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "playbook-websocket-attacks",
+    "file": "playbook-websocket-attacks.md",
+    "description": "WebSocket attacks — CSWSH (Cross-Site WebSocket Hijacking), upgrade-handshake gaps, per-message auth, subprotocol negotiation flaws, binary frame smuggling, message replay. Load when target exposes WebSockets.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-CLNT-10",
+    "cwe_ids": [
+      "CWE-1385"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "websocket"
+    ]
+  },
+  {
+    "name": "playbook-windows-privesc",
+    "file": "playbook-windows-privesc.md",
+    "description": "Windows local privilege escalation on a shell you already have — enumerate token privileges and groups, then work the vectors (SeImpersonate→Potato, service misconfig, AlwaysInstallElevated, UAC bypass, autorun/task hijack, saved-credential looting, SAM+SYSTEM dump). Load when you have a non-SYSTEM shell on a Windows host (network/red-team lane). LOLBAS staging defers to lookup_lolbas.",
+    "category": "redteam",
+    "owasp_id": "",
+    "cwe_ids": [
+      "CWE-269"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "windows"
+    ]
+  },
+  {
+    "name": "playbook-xss-delivery",
+    "file": "playbook-xss-delivery.md",
+    "description": "XSS delivery — turning a reflected/stored payload into a fired alert. No-victim-interaction auto-trigger event matrix (self-firing vs attacker-iframe), where to host the attacker page, and how delivery composes with probe_xss_executed / test_dom_sinks. Load once execution context is confirmed but the payload still needs to fire without a click.",
+    "category": "vuln-class",
+    "owasp_id": "WSTG-INPV-01",
+    "cwe_ids": [
+      "CWE-79"
+    ],
+    "chains_with": [
+      "chain-findings"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "recon-takeover",
+    "file": "recon-takeover.md",
+    "description": "Subdomain takeover + broken-link-hijacking hunt — CNAME-fingerprint match, dns_only signal, dangling external-resource takeover. Use when target has wildcard scope, a subdomain list, or pages linking external resources.",
+    "category": "recon",
+    "owasp_id": "WSTG-INFO-01",
+    "cwe_ids": [],
+    "chains_with": [
+      "hunt"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "report-templates",
+    "file": "report-templates.md",
+    "description": "Generate platform-specific bug-bounty reports (HackerOne, Bugcrowd, Intigriti, Immunefi). Use after a finding is `confirmed` and `assess_finding` returned `REPORT`. Output follows PTES + OWASP WSTG layout with CVSS 4.0.",
+    "category": "reporting",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [
+      "verify-finding"
+    ],
+    "tech_stack": []
+  },
+  {
+    "name": "resume",
+    "file": "resume.md",
+    "description": "Resume bug bounty testing from a previous session with re-verification and coverage gaps",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "screenshot-token-economy",
+    "file": "screenshot-token-economy.md",
+    "description": "Screenshots are EVIDENCE, not a discovery mechanism — never host-Read a saved PNG as vision to find leads during recon. Use when about to look at a screenshot for leads, or when deciding how to inspect a browser/Burp capture.",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "security-research",
+    "file": "security-research.md",
+    "description": "Deep-dive a suspicious finding by mining disclosed reports, writeups, and class-specific obscure vectors. Use when an anomaly might be exploitable but you don't yet see the chain.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "smart-move-captured-something-weird",
+    "file": "smart-move-captured-something-weird.md",
+    "description": "Smart move when you captured a request/response and something looks off — single call collapses the 5-step LLM triage loop. Use when reviewing proxy history and an entry stands out.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [
+      "investigate"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "smart-move-chain-low-findings",
+    "file": "smart-move-chain-low-findings.md",
+    "description": "Smart move when you have multiple low/medium findings — chain them into a single high-impact report. Use when standalone severity caps at MEDIUM or NEVER_SUBMIT but combined impact is real.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [
+      "chain-findings"
+    ],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "smart-move-found-js-bundle",
+    "file": "smart-move-found-js-bundle.md",
+    "description": "Smart move when you've found a JS bundle/chunk and need to extract attack surface — single call synthesises priority-ordered attack plan. Use when proxy history or recon shows any .js asset.",
+    "category": "recon",
+    "owasp_id": "WSTG-INFO-05",
+    "cwe_ids": [
+      "CWE-540"
+    ],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": [
+      "javascript"
+    ]
+  },
+  {
+    "name": "smart-move-fresh-target",
+    "file": "smart-move-fresh-target.md",
+    "description": "Smart move on the very first call against a target domain — session-start gate + recon + triage in 5 steps. Use as the literal first action when domain is identified.",
+    "category": "recon",
+    "owasp_id": "WSTG-INFO-01",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "smart-move-known-cve-poc-fails",
+    "file": "smart-move-known-cve-poc-fails.md",
+    "description": "Smart move when a known CVE applies but the public PoC payload doesn't fire — bounded variant sweep with first-CONFIRMED short-circuit. Use instead of manual payload iteration.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "static-dynamic-analysis",
+    "file": "static-dynamic-analysis.md",
+    "description": "Deep static file analysis and dynamic behavioral analysis — JS source review, response behavior profiling, page change detection, and state-dependent vulnerability discovery",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "swarm-hunting",
+    "file": "swarm-hunting.md",
+    "description": "Stigmergic multi-agent hunting — coordinate specialists through the .burp-intel blackboard with pheromone-weighted leads, trigger-predicate routing, and decay, so attack chains emerge concurrently instead of running a fixed recon→scan→report pipeline. Reactive upgrade to dispatch-agents.",
+    "category": "agent",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [
+      "hunt"
+    ],
+    "tech_stack": []
+  },
+  {
+    "name": "user-override",
+    "file": "user-override.md",
+    "description": "How the operator routes Claude when default rules block legitimate findings or downgrade real impact. Use when the gate rejects/downgrades something the operator has manually verified, when the program/scenario differs from the default policy, when severity scoring is wrong for the engagement, or when an attack vector lives outside the catalogued classes.",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "verdict-tools",
+    "file": "verdict-tools.md",
+    "description": "How to consume Praetor's VerdictResult schema returned by 52+ assessment tools, and how to wire new tools into the schema. Load when refactoring tool output, building agent loops, or reading a testing-tool response.",
+    "category": "utility",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [],
+    "tech_stack": []
+  },
+  {
+    "name": "verify-finding",
+    "file": "verify-finding.md",
+    "description": "Verify a suspected vulnerability is real with reproducible evidence before marking confirmed. Three steps in order — Logger replay → assess_finding → save_finding. Skipping any step results in either a server-side rejection or a false-positive in the report.",
+    "category": "workflow",
+    "owasp_id": "",
+    "cwe_ids": [],
+    "chains_with": [],
+    "prerequisites": [
+      "hunt"
+    ],
+    "tech_stack": []
+  }
+]

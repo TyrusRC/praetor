@@ -79,7 +79,7 @@ def register(mcp: FastMCP):
         tested: dict[tuple[str, str], set[str]] = {}
         for e in coverage_entries:
             key = (e.get("endpoint", ""), e.get("parameter", ""))
-            cls = e.get("vuln_class") or e.get("class") or ""
+            cls = e.get("vuln_class") or e.get("class") or e.get("category") or ""
             if cls:
                 tested.setdefault(key, set()).add(cls)
 
@@ -105,6 +105,20 @@ def register(mcp: FastMCP):
             current_kv = _knowledge_version()
             drift = " (DRIFT — re-run auto_probe(skip_already_covered=False))" if kv_recorded != current_kv else ""
             lines.append(f"  knowledge_version recorded: {kv_recorded} / current: {current_kv}{drift}")
+
+        # Outcome breakdown (5-outcome taxonomy)
+        from praetor.tools._coverage import COVERAGE_OUTCOMES, _verdict_to_outcome
+        by_outcome: dict[str, int] = {k: 0 for k in COVERAGE_OUTCOMES}
+        for e in coverage_entries:
+            oc = e.get("outcome") or _verdict_to_outcome(e.get("verdict", ""))
+            by_outcome[oc] = by_outcome.get(oc, 0) + 1
+        outcome_parts = [f"{k}={v}" for k, v in by_outcome.items() if v]
+        if outcome_parts:
+            lines.append(f"  outcomes: {', '.join(outcome_parts)}")
+        follow_up_count = by_outcome.get("needs_follow_up", 0)
+        if follow_up_count:
+            lines.append(f"  ⚠ {follow_up_count} tuple(s) need follow-up (blocked/inconclusive)")
+
         lines.append("")
         lines.append("Per-class untested counts:")
         for cls in classes:
