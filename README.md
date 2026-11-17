@@ -242,7 +242,7 @@ All optional. The core hunt loop runs with no keys.
 | `PRAETOR_PROFILE` | all | Tool lanes to advertise (web/network/mobile/cloud/core/codex) |
 | `PRAETOR_TOOL_RAG` | off | BM25-based tool filtering — projects 300+ tools to top-k most relevant per intent (set `1` to enable) |
 | `PRAETOR_TOOL_RAG_TOPK` | 20 | Number of non-core tools to keep visible when Tool RAG is enabled (5–200) |
-| `PRAETOR_EVASION` | off | Request evasion profile: off / light / moderate / full — randomizes traffic patterns to avoid blue-team fingerprinting |
+| `PRAETOR_EVASION` | light | Request evasion profile: off / light / moderate / full — randomizes traffic patterns to avoid blue-team fingerprinting |
 
 Full list with OSINT keys, Ghostwriter auth, and CI options in `.env.example`.
 

@@ -2,7 +2,7 @@
 layer (_request_evasion) that randomizes outbound traffic patterns to avoid
 blue-team fingerprinting (WAF, IDS, SIEM correlation, bot-detection).
 
-Off by default. Profiles: light / moderate / full."""
+Default: light. Profiles: off / light / moderate / full."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def register(mcp: FastMCP) -> None:
         headers — this layer reproduces that variation.
 
         Args:
-            profile: 'off' (default, no evasion), 'light' (fingerprint
+            profile: 'light' (default — fingerprint
                 rotation + accept-language variation), 'moderate' (+ header
                 order shuffling + decoy injection + sec-fetch variation),
                 or 'full' (+ referer injection + cache-control randomization).
@@ -38,7 +38,7 @@ def register(mcp: FastMCP) -> None:
         except ValueError as e:
             return f"Error: {e}"
         if applied == "off":
-            return "Evasion profile: off — no traffic randomization (default)."
+            return "Evasion profile: off — no traffic randomization."
         return (
             f"Evasion profile: {applied} — outbound requests now vary "
             f"fingerprint, headers, and timing patterns per host."

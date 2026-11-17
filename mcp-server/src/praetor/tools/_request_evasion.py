@@ -13,8 +13,8 @@ This module makes outbound requests look like varied organic browser traffic:
   5. Cache-control variation — sporadic cache headers like a real browser.
   6. Referer injection — plausible same-origin referer when absent.
 
-Opt-in per domain via set_evasion_profile() or PRAETOR_EVASION env var.
-Off by default — matching every existing test's expectations.
+Configure via set_evasion_profile() or PRAETOR_EVASION env var.
+Default is 'light' (fingerprint rotation + accept-language variation).
 
 The evasion layer sits BETWEEN the realistic-header merge and the final
 header dict. apply_realistic_headers() calls apply_evasion() when active.
@@ -112,10 +112,10 @@ _host_state: dict[str, dict] = {}
 _PROFILES = {"off", "light", "moderate", "full"}
 
 _current_profile = (
-    os.environ.get("PRAETOR_EVASION", "off") or "off"
+    os.environ.get("PRAETOR_EVASION", "light") or "light"
 ).strip().lower()
 if _current_profile not in _PROFILES:
-    _current_profile = "off"
+    _current_profile = "light"
 
 
 def get_profile() -> str:
